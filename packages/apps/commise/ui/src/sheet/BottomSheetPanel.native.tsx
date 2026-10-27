@@ -29,6 +29,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
+import { surfaceFill } from '../surfaceTone/surfaceFill.js';
+import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { radius, spacing } from '../tokens/scale.js';
@@ -70,7 +72,8 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     onClose,
 }) => {
     const insets = useSafeAreaInsets();
-    const { colors } = useTheme();
+    const theme = useTheme();
+    const { colors } = theme;
     const { width } = useWindowDimensions();
     const keyboardShown = useKeyboardShown();
     const collapsed = toolbar !== undefined && isToolbarCollapsed(keyboardShown, true);
@@ -92,68 +95,70 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
         );
 
     return (
-        <Animated.View
-            role="dialog"
-            aria-modal
-            style={[
-                styles.sheet,
-                { backgroundColor: colors.paperOverlay },
-                sheetWidthStyle(width, presentation),
-                sheetIsCentred(presentation, width) ? styles.centredCard : null,
-                size === 'content' ? styles.content : styles.full,
-                {
-                    paddingLeft: sheetSideInsetPadding(width, insets.left, presentation),
-                    paddingRight: sheetSideInsetPadding(width, insets.right, presentation),
-                    transform: [{ translateY }],
-                },
-            ]}
-            onLayout={pinning.onFrameLayout}
-        >
-            {/* The swipe zone: the grab handle and the title row, so a drag that starts on the handle dismisses with the
+        <SurfaceToneScope tone="paperOverlay">
+            <Animated.View
+                role="dialog"
+                aria-modal
+                style={[
+                    styles.sheet,
+                    { backgroundColor: surfaceFill(theme, 'paperOverlay') },
+                    sheetWidthStyle(width, presentation),
+                    sheetIsCentred(presentation, width) ? styles.centredCard : null,
+                    size === 'content' ? styles.content : styles.full,
+                    {
+                        paddingLeft: sheetSideInsetPadding(width, insets.left, presentation),
+                        paddingRight: sheetSideInsetPadding(width, insets.right, presentation),
+                        transform: [{ translateY }],
+                    },
+                ]}
+                onLayout={pinning.onFrameLayout}
+            >
+                {/* The swipe zone: the grab handle and the title row, so a drag that starts on the handle dismisses with the
                 same thresholds. The handle is decorative; the labelled Close button stays the accessible way out
                 (WCAG 2.5.7). */}
-            <View {...panHandlers} onLayout={pinning.onTopLayout}>
-                <View
-                    aria-hidden
-                    importantForAccessibility="no-hide-descendants"
-                    // A data attribute, so a test can find the decoration without a test id.
-                    {...{ dataSet: { sheetHandle: '' } }}
-                    style={[styles.handle, { backgroundColor: colors.lineDivider }]}
-                />
-                <View style={styles.titleRow}>
-                    <View style={styles.titleBox}>
-                        <Text
-                            ref={titleRef}
-                            accessibilityRole="header"
-                            numberOfLines={1}
-                            style={collapsed ? visuallyHidden : [styles.title, { color: colors.ink }]}
+                <View {...panHandlers} onLayout={pinning.onTopLayout}>
+                    <View
+                        aria-hidden
+                        importantForAccessibility="no-hide-descendants"
+                        // A data attribute, so a test can find the decoration without a test id.
+                        {...{ dataSet: { sheetHandle: '' } }}
+                        style={[styles.handle, { backgroundColor: colors.lineDivider }]}
+                    />
+                    <View style={styles.titleRow}>
+                        <View style={styles.titleBox}>
+                            <Text
+                                ref={titleRef}
+                                accessibilityRole="header"
+                                numberOfLines={1}
+                                style={collapsed ? visuallyHidden : [styles.title, { color: colors.ink }]}
+                            >
+                                {title}
+                            </Text>
+                            {collapsed ? toolbar.heading : null}
+                        </View>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={closeLabel}
+                            onPress={onClose}
+                            style={styles.close}
                         >
-                            {title}
-                        </Text>
-                        {collapsed ? toolbar.heading : null}
+                            <Icon name="x" size={24} tone="inkMuted" />
+                        </Pressable>
                     </View>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={closeLabel}
-                        onPress={onClose}
-                        style={styles.close}
-                    >
-                        <Icon name="x" size={24} tone="inkMuted" />
-                    </Pressable>
                 </View>
-            </View>
-            {toolbar === undefined ? null : (
-                <View style={styles.toolbar}>
-                    <View {...panHandlers}>{collapsed ? null : toolbar.heading}</View>
-                    {toolbar.controls}
-                </View>
-            )}
-            <ScrollView keyboardShouldPersistTaps="handled">
-                <View style={[styles.scrollContent, footer === undefined ? endPadding : null]}>{children}</View>
-                {pinning.unpinned ? footerView : null}
-            </ScrollView>
-            {pinning.unpinned ? null : footerView}
-        </Animated.View>
+                {toolbar === undefined ? null : (
+                    <View style={styles.toolbar}>
+                        <View {...panHandlers}>{collapsed ? null : toolbar.heading}</View>
+                        {toolbar.controls}
+                    </View>
+                )}
+                <ScrollView keyboardShouldPersistTaps="handled">
+                    <View style={[styles.scrollContent, footer === undefined ? endPadding : null]}>{children}</View>
+                    {pinning.unpinned ? footerView : null}
+                </ScrollView>
+                {pinning.unpinned ? null : footerView}
+            </Animated.View>
+        </SurfaceToneScope>
     );
 };
 

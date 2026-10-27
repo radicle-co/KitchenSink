@@ -68,10 +68,10 @@ describe('RadioList (native) — what the screen reader receives', () => {
         ]);
     });
 
-    it('a pressed row takes the press wash; a row at rest does not', () => {
+    it('a pressed row takes its surface’s press fill (the canvas row here); a row at rest does not', () => {
         render(<RadioList label="How to match" options={OPTIONS} value={undefined} onChange={vi.fn()} />);
 
-        const { wash } = themeFor('light');
+        const wash = themeFor('light').press.canvas;
 
         expect(styleOf(seen.rows[0], true).backgroundColor).toBe(wash);
         expect(styleOf(seen.rows[0], false).backgroundColor).not.toBe(wash);

@@ -15,3 +15,6 @@ export {
     type SurfaceToneRow,
 } from './surfaceTone.js';
 export { CHIP_REST_FILL_CLASS, PRESS_FILL_CLASS, SURFACE_TONE_CLASS, surfaceToneClass } from './surfaceToneClass.js';
+export type { SurfaceProps } from './props.js';
+export { Surface } from './Surface.js';
+export { usePressFill } from './usePressFill.js';

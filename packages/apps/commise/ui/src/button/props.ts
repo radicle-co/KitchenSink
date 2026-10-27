@@ -29,13 +29,6 @@ import type { PressScaleWidth } from '../pressScale/props.js';
  */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructive';
 
-/**
- * What a control sits ON, which decides whether its press fill shows: over `paper` (the default: a card, a sheet, the
- * canvas) the press fills `surfaceMuted`; over a `surfaceMuted` parent (a notice row) that fill would be the parent's own
- * and invisible, so the press fills `lineDivider` instead, as a chip's does. ONE rule on both platforms.
- */
-export type ButtonOver = 'paper' | 'muted';
-
 /** The sizes (§1.6): 52, 44 and 36 visual px. `sm` keeps a 44 px hit area (48 dp on Android). */
 export type ButtonSize = 'lg' | 'md' | 'sm';
 
@@ -121,11 +114,6 @@ interface ButtonCommon {
     readonly focusRequested?: boolean;
     /** Called once the button has taken a requested focus; the host clears its request here. */
     readonly onFocusRequestHandled?: () => void;
-    /**
-     * What the button sits on ({@link ButtonOver}). Say `muted` for a button on a `surfaceMuted` parent, so its press
-     * shows. The filled tiers (`primary`, a confirm) press by darkening and ignore it. Defaults to `paper`.
-     */
-    readonly over?: ButtonOver;
 }
 
 /** A primary (the default) or secondary button: a glyph is required. */

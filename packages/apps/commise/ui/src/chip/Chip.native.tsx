@@ -12,6 +12,7 @@ import type { FC } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
+import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { visibleChipLabel } from './chipLabel.js';
 import { CHIP_LABEL_LINES, chipCount, chipHit, chipHitHeight, chipLabel, chipPill } from './chipStyle.js';
@@ -20,6 +21,7 @@ import type { ChipProps } from './props.js';
 /** The native design-system chip. */
 export const Chip: FC<ChipProps> = (props) => {
     const theme = useTheme();
+    const tone = useSurfaceTone();
 
     switch (props.kind) {
         case 'filter':
@@ -32,7 +34,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     style={[chipHit, { minHeight: chipHitHeight() }]}
                 >
                     {({ pressed }) => (
-                        <View style={chipPill(theme, props.selected, pressed)}>
+                        <View style={chipPill(theme, props.selected, pressed, tone)}>
                             {props.selected ? <Icon name="check" size={16} tone="actionText" /> : null}
                             <Text style={chipLabel(theme, props.selected)} numberOfLines={CHIP_LABEL_LINES}>
                                 {visibleChipLabel(props.label)}
@@ -51,7 +53,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     style={[chipHit, { minHeight: chipHitHeight() }]}
                 >
                     {({ pressed }) => (
-                        <View style={chipPill(theme, false, pressed)}>
+                        <View style={chipPill(theme, false, pressed, tone)}>
                             <Text style={chipLabel(theme, false)} numberOfLines={CHIP_LABEL_LINES}>
                                 {visibleChipLabel(props.label)}
                             </Text>

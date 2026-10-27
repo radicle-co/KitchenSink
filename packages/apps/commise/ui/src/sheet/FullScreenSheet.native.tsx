@@ -26,6 +26,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Modal } from '../modal/Modal.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
+import { surfaceFill } from '../surfaceTone/surfaceFill.js';
+import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { sheetAnimationType } from './sheetPresentation.js';
 
@@ -65,7 +67,7 @@ export interface FullScreenSheetProps {
 export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClose, onShow, children }) => {
     const insets = useSafeAreaInsets();
     const reduceMotion = useReduceMotion();
-    const { colors } = useTheme();
+    const theme = useTheme();
 
     return (
         <Modal
@@ -75,23 +77,25 @@ export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClos
             animationType={sheetAnimationType(reduceMotion)}
             presentationStyle="fullScreen"
         >
-            <View
-                collapsable={false}
-                accessibilityLabel={label}
-                style={[
-                    styles.surface,
-                    {
-                        backgroundColor: colors.paper,
-                        // Base pad PLUS the device inset on every edge — the whole point of this primitive.
-                        paddingTop: SHEET_PADDING + insets.top,
-                        paddingBottom: SHEET_PADDING + insets.bottom,
-                        paddingLeft: SHEET_PADDING + insets.left,
-                        paddingRight: SHEET_PADDING + insets.right,
-                    },
-                ]}
-            >
-                {children}
-            </View>
+            <SurfaceToneScope tone="paper">
+                <View
+                    collapsable={false}
+                    accessibilityLabel={label}
+                    style={[
+                        styles.surface,
+                        {
+                            backgroundColor: surfaceFill(theme, 'paper'),
+                            // Base pad PLUS the device inset on every edge — the whole point of this primitive.
+                            paddingTop: SHEET_PADDING + insets.top,
+                            paddingBottom: SHEET_PADDING + insets.bottom,
+                            paddingLeft: SHEET_PADDING + insets.left,
+                            paddingRight: SHEET_PADDING + insets.right,
+                        },
+                    ]}
+                >
+                    {children}
+                </View>
+            </SurfaceToneScope>
         </Modal>
     );
 };

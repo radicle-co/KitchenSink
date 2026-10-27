@@ -20,6 +20,7 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { stepFrom, type StepperProps } from './props.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 /** A step button's target: 44 pt on iOS, 48 dp on Android (spec §1.6). */
 const stepTarget = (): number => (Platform.OS === 'android' ? 48 : 44);
@@ -40,7 +41,8 @@ export const Stepper: FC<StepperProps> = ({
 }) => {
     const [spoken, setSpoken] = useState({ text: '', occurrence: 0 });
     const labelId = `${id}-label`;
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
 
     const stepButton = (step: -1 | 1, name: string, glyph: IconName) => {
         const next = stepFrom(value, step, min, max);

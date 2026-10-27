@@ -121,19 +121,29 @@ describe('Chip (native) — filter', () => {
         expect(button.borderTopWidth).toBe('1px');
     });
 
-    // REWRITTEN for ruling 3 (`componentFixes` issue 3): a chip rests on surface-muted, so its pressed fill is
-    // `lineDivider` (the ink-alpha wash is dropped). The 1.5 pt transparent edge stays, so a press moves nothing.
-    it('fills the pill with lineDivider while pressed (over a surface-muted fill), in both schemes', () => {
+    // REWRITTEN for `componentFixes.md` §10a: a chip rests on its surface's chip fill (surfaceMuted, or paper on a muted
+    // surface) and presses to that fill's row of the surface table. The 1.5 pt transparent edge stays, so a press moves
+    // nothing. (The surfaces themselves are exercised on the real Chip in `surfaceTone/pressFill.native.test.tsx`.)
+    it('fills the pill with the press of the fill it rests on while pressed, in both schemes', () => {
         for (const scheme of ['light', 'dark'] as const) {
             const theme = themeFor(scheme);
             const rest = chipPill(theme, false, false);
             const pressed = chipPill(theme, false, true);
 
             expect(rest.backgroundColor, scheme).toBe(theme.colors.surfaceMuted);
-            expect(pressed.backgroundColor, scheme).toBe(theme.colors.lineDivider);
+            expect(pressed.backgroundColor, scheme).toBe(theme.press.muted);
             expect(pressed.borderWidth, scheme).toBe(1.5);
-            // A press must be visible: the wash is not the resting fill.
+            // A press must be visible: the press is not the resting fill.
             expect(pressed.backgroundColor, scheme).not.toBe(rest.backgroundColor);
+        }
+    });
+
+    it('rests on paper on a muted surface, pressing to the paper row', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            const theme = themeFor(scheme);
+
+            expect(chipPill(theme, false, false, 'muted').backgroundColor, scheme).toBe(theme.colors.paper);
+            expect(chipPill(theme, false, true, 'muted').backgroundColor, scheme).toBe(theme.press.paper);
         }
     });
 

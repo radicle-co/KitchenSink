@@ -24,7 +24,7 @@
 import type { FC } from 'react';
 
 import { Button } from '../button/Button.js';
-import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
+import { Surface } from '../surfaceTone/Surface.js';
 import type { RefreshNoticeProps } from './props.js';
 
 /** The failed-refresh notice: a silent region until a refresh fails, then the message and its retry. */
@@ -35,8 +35,9 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
                 {failed && !refreshing ? labels.failed : ''}
             </p>
             {failed && (
-                <div
-                    className={`flex flex-wrap items-center justify-between gap-2 rounded-lg ${surfaceToneClass('muted')} px-4 py-2`}
+                <Surface
+                    tone="muted"
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-2"
                 >
                     <p className="text-body-sm text-ink-muted">{labels.failed}</p>
                     <Button
@@ -48,7 +49,7 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
                     >
                         {labels.retry}
                     </Button>
-                </div>
+                </Surface>
             )}
         </>
     );

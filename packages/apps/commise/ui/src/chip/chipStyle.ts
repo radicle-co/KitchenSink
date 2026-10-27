@@ -1,12 +1,13 @@
 /**
  * @module @commise/ui/chip — the native chip geometry and surfaces, shared by `Chip.native.tsx` and the options
- * `ChipRow.native.tsx` draws (spec §1.6/§1.10): a 32 pt pill inside a 44 pt hit area (48 dp on Android), `surfaceMuted`
- * with a 1.5 pt transparent edge and an `ink` caption label (14/500) at rest, `lineDivider` while pressed, and when selected the
+ * `ChipRow.native.tsx` draws (spec §1.6/§1.10): a 32 pt pill inside a 44 pt hit area (48 dp on Android), its surface's chip fill (`surfaceMuted`; `paper` on a muted surface)
+ * with a 1.5 pt transparent edge and an `ink` caption label (14/500) at rest, that fill's press while pressed, and when selected the
  * `selectedFill` tint, a 1.5 pt `selectedEdge` (2 pt while pressed) and an `actionText` label. A count keeps the semibold figure on both
  * platforms. The web leaves spell the same rules as utilities (`chipClass.ts`).
  */
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
+import { chipPressToneOf, SURFACE_TONES, type SurfaceTone } from '../surfaceTone/surfaceTone.js';
 import type { Theme } from '../theme/themeFor.js';
 import { nativeTokens } from '../tokens/native.js';
 
@@ -34,9 +35,15 @@ export const chipHit: ViewStyle = { justifyContent: 'center', maxWidth: '100%' }
  * @param theme - The current theme (`useTheme()`).
  * @param selected - Whether it shows selected.
  * @param pressed - Whether a press is in progress.
+ * @param tone - The surface the chip rests on: it decides the resting fill and the press (`componentFixes.md` §10a).
  * @returns The pill's style.
  */
-export function chipPill({ colors }: Theme, selected: boolean, pressed: boolean): ViewStyle {
+export function chipPill(
+    { colors, press }: Theme,
+    selected: boolean,
+    pressed: boolean,
+    tone: SurfaceTone = 'canvas',
+): ViewStyle {
     return {
         flexDirection: 'row',
         alignItems: 'center',
@@ -55,7 +62,7 @@ export function chipPill({ colors }: Theme, selected: boolean, pressed: boolean)
                   paddingHorizontal: nativeTokens.spacing[3] - (pressed ? CHIP_EDGE_PRESSED - CHIP_EDGE : 0),
               }
             : {
-                  backgroundColor: pressed ? colors.lineDivider : colors.surfaceMuted,
+                  backgroundColor: pressed ? press[chipPressToneOf(tone)] : colors[SURFACE_TONES[tone].chipFill],
                   borderWidth: CHIP_EDGE,
                   borderColor: 'transparent',
               }),

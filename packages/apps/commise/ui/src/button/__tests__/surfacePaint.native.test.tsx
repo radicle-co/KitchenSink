@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { SURFACE_TONES } from '../../surfaceTone/surfaceTone.js';
 import { themeFor } from '../../theme/themeFor.js';
 import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, buttonToggleSurfacePaint, pressWash } from '../surfacePaint.native.js';
 
@@ -32,13 +33,14 @@ describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) =
         });
     });
 
-    // Pressing: off takes Button's pressed fill over paper (`theme.wash`, the twin of web `bg-surface-muted`); on shows a
+    // Pressing: off takes Button's pressed fill over paper (the press of its surface, the twin of the web press); on shows a
     // 2 pt selectedEdge (`componentFixes` §5), its padding one point less so the box and content do not move.
-    it('a switch that is off and pressed fills with the press wash, keeping the secondary edge', () => {
+    it('a switch that is off and pressed fills with its surface’s press, keeping the secondary edge', () => {
         expect(buttonToggleSurfacePaint(theme, false, true)).toEqual({
             ...buttonSurfacePaint(theme, 'secondary'),
-            backgroundColor: theme.wash,
+            backgroundColor: theme.press.canvas,
         });
+        expect(buttonToggleSurfacePaint(theme, false, true, 'muted').backgroundColor).toBe(theme.press.muted);
     });
 
     it('a switch that is on and pressed doubles the selectedEdge and gives the point back in padding', () => {
@@ -63,17 +65,18 @@ describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) =
 describe.each(['light', 'dark'] as const)('the native press fill (%s)', (scheme) => {
     const theme = themeFor(scheme);
 
-    it('is the theme wash over paper and lineDivider over a muted parent', () => {
-        expect(pressWash(theme, 'paper')).toBe(theme.wash);
-        expect(pressWash(theme, 'muted')).toBe(theme.colors.lineDivider);
-        expect(pressWash(theme, 'muted')).not.toBe(theme.colors.surfaceMuted);
+    it('is the press of the surface the control sits on, and never the surface’s own fill', () => {
+        for (const tone of ['canvas', 'paper', 'paperOverlay', 'muted'] as const) {
+            expect(pressWash(theme, tone)).toBe(theme.press[tone]);
+            expect(pressWash(theme, tone)).not.toBe(theme.colors[SURFACE_TONES[tone].fill]);
+        }
     });
 
     it.each(['secondary', 'ghost', 'quiet', 'destructiveInline'] as const)(
         '%s fills with it while pressed',
         (surface) => {
-            expect(buttonSurfacePaint(theme, surface, true).backgroundColor).toBe(theme.wash);
-            expect(buttonSurfacePaint(theme, surface, true, 'muted').backgroundColor).toBe(theme.colors.lineDivider);
+            expect(buttonSurfacePaint(theme, surface, true).backgroundColor).toBe(theme.press.canvas);
+            expect(buttonSurfacePaint(theme, surface, true, 'muted').backgroundColor).toBe(theme.press.muted);
         },
     );
 
@@ -94,6 +97,8 @@ describe.each(['light', 'dark'] as const)('the native press fill (%s)', (scheme)
     });
 
     it('the Screen on switch presses with the same rule', () => {
-        expect(buttonToggleSurfacePaint(theme, false, true).backgroundColor).toBe(pressWash(theme, 'paper'));
+        for (const tone of ['canvas', 'paper', 'paperOverlay', 'muted'] as const) {
+            expect(buttonToggleSurfacePaint(theme, false, true, tone).backgroundColor).toBe(pressWash(theme, tone));
+        }
     });
 });

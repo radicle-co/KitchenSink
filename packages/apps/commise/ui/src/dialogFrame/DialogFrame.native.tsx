@@ -28,6 +28,8 @@ import { Modal } from '../modal/Modal.native.js';
 import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
+import { surfaceFill } from '../surfaceTone/surfaceFill.js';
+import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { DIALOG_CARD_MAX_WIDTH_DP, dialogAnimationType, dialogScrimPadding } from './dialogFrameLayout.js';
@@ -38,7 +40,8 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
     const insets = useSafeAreaInsets();
     const [shown, setShown] = useState(0);
     const titleRef = useScreenReaderFocusOnSignal<Text>(shown);
-    const { colors } = useTheme();
+    const theme = useTheme();
+    const { colors } = theme;
     const reduceMotion = useReduceMotion();
 
     if (!open) {
@@ -68,27 +71,35 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
                 ]}
             >
                 <KeyboardAvoider style={styles.avoider}>
-                    <View
-                        role={role}
-                        aria-modal
-                        accessibilityViewIsModal
-                        style={[styles.card, { backgroundColor: colors.paperOverlay, borderColor: colors.lineDivider }]}
-                    >
-                        <ScrollView
-                            keyboardShouldPersistTaps="handled"
-                            style={styles.scroller}
-                            contentContainerStyle={styles.content}
+                    <SurfaceToneScope tone="paperOverlay">
+                        <View
+                            role={role}
+                            aria-modal
+                            accessibilityViewIsModal
+                            style={[
+                                styles.card,
+                                {
+                                    backgroundColor: surfaceFill(theme, 'paperOverlay'),
+                                    borderColor: colors.lineDivider,
+                                },
+                            ]}
                         >
-                            <Text
-                                ref={titleRef}
-                                accessibilityRole="header"
-                                style={[styles.title, { color: colors.ink }]}
+                            <ScrollView
+                                keyboardShouldPersistTaps="handled"
+                                style={styles.scroller}
+                                contentContainerStyle={styles.content}
                             >
-                                {title}
-                            </Text>
-                            {children}
-                        </ScrollView>
-                    </View>
+                                <Text
+                                    ref={titleRef}
+                                    accessibilityRole="header"
+                                    style={[styles.title, { color: colors.ink }]}
+                                >
+                                    {title}
+                                </Text>
+                                {children}
+                            </ScrollView>
+                        </View>
+                    </SurfaceToneScope>
                 </KeyboardAvoider>
             </View>
         </Modal>

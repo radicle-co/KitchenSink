@@ -40,12 +40,6 @@ export interface Theme {
      * §10a). A control reads the one for the surface it sits on (`usePressFill`), never one of these by hand.
      */
     readonly press: Readonly<Record<SurfaceTone, string>>;
-    /**
-     * The pressed fill over paper and sheets: `surfaceMuted` (`componentFixes` issue 3, 2026-10-26), the native twin of
-     * the web `bg-surface-muted` press. It replaced the `ink` 6% wash. Over a `surfaceMuted` fill (a chip) it would not
-     * show, so a chip presses to `lineDivider` instead (`chipStyle.ts`).
-     */
-    readonly wash: string;
 }
 
 const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
@@ -57,7 +51,6 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         status: statusTone,
         pro: proTone,
         press: pressFillsOf(role, 'light'),
-        wash: role.surfaceMuted,
     },
     dark: {
         scheme: 'dark',
@@ -67,7 +60,6 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         status: statusToneDark,
         pro: proToneDark,
         press: pressFillsOf(roleDark, 'dark'),
-        wash: roleDark.surfaceMuted,
     },
 };
 

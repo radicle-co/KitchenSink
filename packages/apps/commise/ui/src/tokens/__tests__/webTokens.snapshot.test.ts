@@ -391,8 +391,8 @@ describe('web tokens — generated theme.css artifact', () => {
                   --color-chip-press-paper: #39434d;
                   --color-chip-fill-paper-raised: #172029;
                   --color-chip-press-paper-raised: #303941;
-                  --color-chip-fill-paper-overlay: #212B36;
-                  --color-chip-press-paper-overlay: #39434d;
+                  --color-chip-fill-paper-overlay: #172029;
+                  --color-chip-press-paper-overlay: #303941;
                   --color-chip-fill-muted: #172029;
                   --color-chip-press-muted: #303941;
                   --color-chip-fill-inverse: #212B36;

@@ -124,8 +124,14 @@ describe('a chip rests on a fill chosen per theme (§10a, §10b)', () => {
             expect(rest('muted', scheme)).toBe('paper');
             expect(rest('canvas', scheme)).toBe('surfaceMuted');
             expect(rest('paper', scheme)).toBe('surfaceMuted');
-            expect(rest('paperOverlay', scheme)).toBe('surfaceMuted');
         }
+    });
+
+    // §10b: a surfaceMuted chip on a dark sheet, dialog or menu reads 1.09:1, so it rests on paper there (1.25:1).
+    it('rests a chip on paperOverlay on surfaceMuted in light and on paper in dark', () => {
+        expect(rest('paperOverlay', 'light')).toBe('surfaceMuted');
+        expect(rest('paperOverlay', 'dark')).toBe('paper');
+        expect(chipPressToneOf('paperOverlay', 'dark')).toBe('paper');
     });
 
     // §10b: dark paperRaised IS surfaceMuted (#212B36), so a surfaceMuted chip there is invisible.
@@ -146,10 +152,10 @@ describe('a chip rests on a fill chosen per theme (§10a, §10b)', () => {
      * The chip fills below 1.14:1 (§10b states 1.15; the unrounded floor is the measured 1.148, as for a muted card).
      * Each is a DECISION recorded, not a pass: the test requires this list to be exactly the failing set, so fixing a
      * fill (or breaking another) fails here by name.
-     *  - light canvas: 1.05:1, accepted by `componentFixes.md` §4 (the row's label and the 32 px height carry it);
-     *  - dark paperOverlay: 1.09:1, NOT ruled. A chip on a dark sheet, dialog or menu is weakly visible.
+     *  - light canvas: 1.05:1, accepted by `componentFixes.md` §4 (the row's label and the 32 px height carry it).
+     * Dark paperOverlay was the second, at 1.09:1; §10b moved its chip onto paper (1.25:1), so it is no longer listed.
      */
-    const BELOW_FLOOR = ['light canvas', 'dark paperOverlay'];
+    const BELOW_FLOOR = ['light canvas'];
     const CHIP_FLOOR = 1.14;
 
     it('holds every other tone’s chip fill at 1.14:1 (the ruled 1.15) or more against its fill, in both themes', () => {

@@ -50,7 +50,7 @@ export const SURFACE_TONES: Readonly<Record<SurfaceTone, SurfaceToneRow>> = {
     canvas: { fill: 'canvas', ink: 'ink', chipFill: REST_ON_MUTED },
     paper: { fill: 'paper', ink: 'ink', chipFill: REST_ON_MUTED },
     paperRaised: { fill: 'paperRaised', ink: 'ink', chipFill: { light: 'surfaceMuted', dark: 'paper' } },
-    paperOverlay: { fill: 'paperOverlay', ink: 'ink', chipFill: REST_ON_MUTED },
+    paperOverlay: { fill: 'paperOverlay', ink: 'ink', chipFill: { light: 'surfaceMuted', dark: 'paper' } },
     muted: { fill: 'surfaceMuted', ink: 'ink', chipFill: { light: 'paper', dark: 'paper' } },
     // `inverse` presses with `inverseInk`: the page ink is the same colour as the fill there and would show nothing
     // (`componentFixes.md` §10b). Nothing rests a chip on it; the entry keeps the table total.

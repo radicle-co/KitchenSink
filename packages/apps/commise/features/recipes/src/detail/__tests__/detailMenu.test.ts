@@ -25,7 +25,7 @@ describe('detailMenuOf', () => {
             destructive: 'delete',
         },
         {
-            what: 'an owner of a public recipe is offered Make private when Private is offered; the host decides Premium',
+            what: 'an owner of a public recipe is offered Make private when Private is offered; the host decides Pro',
             input: { owner: true, isPublic: true, hasMarks: false, offersPrivate: true, mayBePublic: true },
             items: ['versions', 'makePrivate'],
             destructive: 'delete',

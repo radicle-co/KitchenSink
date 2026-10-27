@@ -48,7 +48,7 @@ describe('useServerRefusedPrivate', () => {
     it.each<[string, PaidFeatureState | undefined, 'final' | 'premium']>([
         ['an unknown profile (a failed read): final, the server said no', undefined, 'final'],
         ['a role removed under a cached `granted` profile: final', 'granted', 'final'],
-        ['a viewer who would be offered Premium: premium', 'upsell', 'premium'],
+        ['a viewer who would be offered Pro: premium', 'upsell', 'premium'],
         ['a viewer the gate hides it from: final', 'hidden', 'final'],
     ])(
         '⛔ answers WHY once a Private write for this recipe was refused with INVALID_VISIBILITY: %s',
@@ -63,11 +63,11 @@ describe('useServerRefusedPrivate', () => {
     );
 
     // ADR-0073: the server's `403 PRIVATE_SLOTS_FULL` is a refusal of its own, said in the slots words whatever the
-    // profile says (Premium would not have been refused, so the profile cannot change the reason).
+    // profile says (Pro would not have been refused, so the profile cannot change the reason).
     it.each<[string, PaidFeatureState | undefined]>([
         ['an unknown profile', undefined],
-        ['a viewer who would be offered Premium', 'upsell'],
-        ['a viewer the gate hides Premium from', 'hidden'],
+        ['a viewer who would be offered Pro', 'upsell'],
+        ['a viewer the gate hides Pro from', 'hidden'],
     ])('⛔ answers `slots` once a Private write for this recipe met PRIVATE_SLOTS_FULL: %s', async (_l, known) => {
         const { result, client } = mount('rec_1', known);
         vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new PrivateSlotsFullError(50, 50));

@@ -5,7 +5,7 @@
  * REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is NEVER final. A recipe is under the SLOTS rule (a
  * free cook's own, book or paid-site recipe) or the PREMIUM rule (an imported public-web recipe, where the old
  * paid-feature table still stands). The `final` and `unknown` make-public words are gone; going public from a held Private
- * says it frees a slot (slots rule) or that Premium is needed to return (premium rule, upsell only).
+ * says it frees a slot (slots rule) or that Pro is needed to return (premium rule, upsell only).
  *
  * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12): the recipe is either PUBLISHED (the cook's real
  * standing decides, as every case above) or a DRAFT, which holds no slot - its last describe block. The `mount` helper
@@ -54,7 +54,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         expect(result.current.sheet.open).toBe(false);
     });
 
-    it('⛔ under upsell, choosing Private opens the Premium sheet and the value is not changed', () => {
+    it('⛔ under upsell, choosing Private opens the Pro sheet and the value is not changed', () => {
         const { result, onChange } = mount('upsell');
 
         act(() => result.current.onPremiumRequired());
@@ -98,7 +98,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         expect(result.current.offersPrivate).toBe(false);
     });
 
-    it('⛔ under upsell, once the draft of a private recipe is Public, Private asks for Premium and changes nothing', () => {
+    it('⛔ under upsell, once the draft of a private recipe is Public, Private asks for Pro and changes nothing', () => {
         const { result, onChange } = mount('upsell', RecipeVisibility.PRIVATE, PUBLIC_DRAFT);
 
         act(() => result.current.onPremiumRequired());
@@ -109,7 +109,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
     });
 
     // Going public: only the upsell has a cost to state (public is never final).
-    it('⛔ under the upsell, choosing Public on a private recipe asks first with the Premium words, and changes nothing yet', () => {
+    it('⛔ under the upsell, choosing Public on a private recipe asks first with the Pro words, and changes nothing yet', () => {
         const { result, onChange } = mount('upsell', RecipeVisibility.PRIVATE);
 
         act(() => result.current.onConfirmPublic());
@@ -175,7 +175,7 @@ describe('usePrivateChoice - the premium rule (an imported public-web recipe)', 
         );
     });
 
-    it('Not now closes the sheet, and so does See Premium (the subscription surface is not built, 010)', () => {
+    it('Not now closes the sheet, and so does See Pro (the subscription surface is not built, 010)', () => {
         const { result } = mount('upsell');
 
         act(() => result.current.onPremiumRequired());
@@ -231,7 +231,7 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
         expect(result.current.statement.privateUnavailable).toBe(false);
     });
 
-    it('"Get Premium" from the refusal opens the Premium sheet under the upsell, and changes nothing', () => {
+    it('"Get Pro" from the refusal opens the Pro sheet under the upsell, and changes nothing', () => {
         const { result, onChange } = mount('upsell', RecipeVisibility.PUBLIC, PUBLIC_DRAFT, 'slots', FULL);
 
         act(() => result.current.onPremiumRequired());
@@ -240,7 +240,7 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it.each(['hidden', 'loading'] as const)('"Get Premium" opens no sheet when paid features are %s', (state) => {
+    it.each(['hidden', 'loading'] as const)('"Get Pro" opens no sheet when paid features are %s', (state) => {
         const { result } = mount(state, RecipeVisibility.PUBLIC, PUBLIC_DRAFT, 'slots', FULL);
 
         act(() => result.current.onPremiumRequired());
@@ -284,7 +284,7 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
         expect(confirmed.result.current.statement.focusOnMount).toBe(true);
     });
 
-    it('Premium (no slots to free) goes public at once, with no dialog', () => {
+    it('Pro (no slots to free) goes public at once, with no dialog', () => {
         const { result, onChange } = mount('granted', RecipeVisibility.PRIVATE, PRIVATE_DRAFT, 'slots', {
             kind: 'unlimited',
         });
@@ -347,7 +347,7 @@ describe('usePrivateChoice - a DRAFT holds no slot (ADR-0073 section 12)', () =>
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('the premium rule is unchanged for a draft: an imported public-web recipe still needs Premium', () => {
+    it('the premium rule is unchanged for a draft: an imported public-web recipe still needs Pro', () => {
         const { result } = mount('hidden', RecipeVisibility.PUBLIC, PRIVATE_DRAFT, 'premium', FULL, 'hidden', DRAFT);
 
         expect(result.current.field.privateRefusal).toBe('final');

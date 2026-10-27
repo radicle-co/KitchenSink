@@ -62,12 +62,12 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
             <RecipeCard headingLevel={3} variant={variant} recipe={model({ usesPremiumCapability: true })} />,
         );
 
-        expect(screen.getByLabelText('Premium recipe')).toBeTruthy();
+        expect(screen.getByLabelText('Pro recipe')).toBeTruthy();
         unmount();
 
         renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={model({ usesPremiumCapability: false })} />);
 
-        expect(screen.queryByLabelText('Premium recipe')).toBeNull();
+        expect(screen.queryByLabelText('Pro recipe')).toBeNull();
     });
 
     it('is inert with no onSelect and no href: no link and no button', () => {

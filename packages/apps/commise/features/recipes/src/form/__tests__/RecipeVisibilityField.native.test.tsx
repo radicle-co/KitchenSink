@@ -167,7 +167,7 @@ describe('RecipeVisibilityField (native)', () => {
         expect(screen.queryByText(m.premiumBadge)).toBeNull();
     });
 
-    it('under upsell, Private shows Premium, asks for the upsell and leaves the value', () => {
+    it('under upsell, Private shows Pro, asks for the upsell and leaves the value', () => {
         const onChange = vi.fn();
         const onPremiumRequired = vi.fn();
         render(<Harness paidFeatures="upsell" onChange={onChange} onPremiumRequired={onPremiumRequired} />);
@@ -226,7 +226,7 @@ describe('RecipeVisibilityField (native)', () => {
 
     // WCAG 3.2.2: the Public card says what going public costs in every state in which the confirm can open. REWRITTEN for
     // the owner ruling of 2026-10-26: public is NEVER final, so the hidden/loading notes are gone.
-    it("⛔ under the premium rule's upsell, the Public card of a private recipe says Premium is needed to return", () => {
+    it("⛔ under the premium rule's upsell, the Public card of a private recipe says Pro is needed to return", () => {
         render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="upsell" />);
 
         expect(
@@ -262,7 +262,7 @@ describe('RecipeVisibilityField (native)', () => {
     });
 
     // ── Plan 2026-10-14-009 D14: the field under each paid-feature state.
-    it('under upsell, a recipe already private shows no Premium badge', () => {
+    it('under upsell, a recipe already private shows no Pro badge', () => {
         render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="upsell" />);
 
         expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
@@ -323,7 +323,7 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
         expect(screen.getByText('This recipe uses 1 slot. 11 of 50 left after it.')).toBeTruthy();
     });
 
-    it('Premium shows no count at all', () => {
+    it('Pro shows no count at all', () => {
         render(<Harness paidFeatures="granted" facts={slots({ kind: 'unlimited' }, 'granted')} />);
 
         expect(screen.queryByText(/private slots/u)).toBeNull();
@@ -352,7 +352,7 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
         expect(radio(v.public).getAttribute('aria-checked')).toBe('true');
     });
 
-    it('the refusal offers three ways forward - make one public, delete one, take Premium - each described', () => {
+    it('the refusal offers three ways forward - make one public, delete one, take Pro - each described', () => {
         render(<Harness paidFeatures="upsell" facts={slots(FULL)} />);
 
         // The title names the ways (a heading, not a labelled group: nativeContainerNames.md N1), and they are the only buttons.
@@ -364,7 +364,7 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
         ]);
     });
 
-    it('"Make a private recipe public" and "Delete a private recipe" both take the cook to their recipes; Premium opens the upsell', () => {
+    it('"Make a private recipe public" and "Delete a private recipe" both take the cook to their recipes; Pro opens the upsell', () => {
         const onFreeASlot = vi.fn();
         const onPremiumRequired = vi.fn();
         render(
@@ -385,7 +385,7 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
         expect(onPremiumRequired).toHaveBeenCalledTimes(1);
     });
 
-    it.each(['hidden', 'loading'] as const)('⛔ offers no Premium way when paid features are %s', (state) => {
+    it.each(['hidden', 'loading'] as const)('⛔ offers no Pro way when paid features are %s', (state) => {
         render(<Harness paidFeatures={state} facts={slots(FULL, state)} />);
 
         expect(screen.queryByRole('button', { name: new RegExp(v.wayPremium, 'u') })).toBeNull();
@@ -495,20 +495,20 @@ describe('RecipeVisibilityField (native) - over the limit after a downgrade', ()
         expect(screen.getByText(SENTENCE)).toBeTruthy();
     });
 
-    it('⛔ offers About Premium where paid features are shown, and it opens the upsell', () => {
+    it('⛔ offers About Pro where paid features are shown, and it opens the upsell', () => {
         const onPremiumRequired = vi.fn();
         render(<Harness paidFeatures="upsell" facts={slots(OVER, 'upsell')} onPremiumRequired={onPremiumRequired} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'About Premium' }));
+        fireEvent.click(screen.getByRole('button', { name: 'About Pro' }));
 
         expect(onPremiumRequired).toHaveBeenCalledOnce();
     });
 
-    it.each(['hidden', 'loading'] as const)('⛔ offers no Premium link when paid features are %s', (state) => {
+    it.each(['hidden', 'loading'] as const)('⛔ offers no Pro link when paid features are %s', (state) => {
         render(<Harness paidFeatures={state} facts={slots(OVER, state)} />);
 
         expect(screen.getByText(SENTENCE)).toBeTruthy();
-        expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Pro/u })).toBeNull();
     });
 
     it('is not said at exactly the limit', () => {

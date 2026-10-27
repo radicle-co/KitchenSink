@@ -3,10 +3,10 @@
 # Private is a private SLOT for a free cook, whatever the stage's gate says (ADR-0073; owner ruling 2026-10-26). Read-only:
 # it types no title, so nothing is saved, and it leaves by x.
 #
-# REWRITTEN for ADR-0073. It used to accept either gate answer: under `upsell` Private opened the Premium sheet, under
+# REWRITTEN for ADR-0073. It used to accept either gate answer: under `upsell` Private opened the Pro sheet, under
 # `hidden` the editor showed only "Who can see it: Public". A free cook now keeps up to the server's limit of recipes
 # private, so in BOTH answers Private is offered with the server's count, choosing it applies it and says it uses one
-# slot, and no Premium sheet opens. The limit is the server's, so it is matched by shape, not by number.
+# slot, and no Pro sheet opens. The limit is the server's, so it is matched by shape, not by number.
 #
 # UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12): a NEW recipe is a DRAFT, and a draft holds no slot, so
 # the Private card says that instead of counting ("N of M private slots left" belongs to a published recipe), and choosing
@@ -35,8 +35,8 @@ appId: ${APP_ID}
 - assertVisible: '.*A private draft uses no slot\. Publishing it uses one\..*'
 - assertNotVisible: '.*\d+ of \d+ private slots left.*'
 - tapOn: 'Private, Only you can see it.*'
-# Choosing it applies at once; it never opens the Premium sheet, and nothing on the card sells Premium.
+# Choosing it applies at once; it never opens the Pro sheet, and nothing on the card sells Pro.
 - assertNotVisible: 'Keep more recipes private'
-- assertNotVisible: 'Private needs Premium for this recipe'
-- assertNotVisible: '.*Premium.*'
+- assertNotVisible: 'Private needs Pro for this recipe'
+- assertNotVisible: '.*Pro.*'
 - tapOn: 'Close editor'

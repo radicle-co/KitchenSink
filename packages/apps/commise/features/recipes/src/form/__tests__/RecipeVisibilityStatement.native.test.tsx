@@ -41,7 +41,7 @@ describe('RecipeVisibilityStatement (native)', () => {
         expect(screen.getByText(v.publicHint)).toBeTruthy();
     });
 
-    it('⛔ offers no choice: no radio, no Private, no Premium', () => {
+    it('⛔ offers no choice: no radio, no Private, no Pro', () => {
         render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
 
         expect(screen.queryByRole('radio')).toBeNull();

@@ -11,7 +11,7 @@
  * words come from that reason, never from the link.
  *
  * REWRITTEN for ADR-0073: the input was the profile's paid-feature state (`known`); a free cook's own recipe is no longer
- * refused for want of Premium, so the page now passes the refusal it holds (`recipePrivateRefusalOf`).
+ * refused for want of Pro, so the page now passes the refusal it holds (`recipePrivateRefusalOf`).
  */
 import { describe, expect, it } from 'vitest';
 

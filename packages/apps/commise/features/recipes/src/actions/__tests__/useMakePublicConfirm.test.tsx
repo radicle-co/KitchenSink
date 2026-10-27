@@ -5,7 +5,7 @@
  * recipe page's menu and the collection page ask through it; each says what applying Public means there.
  *
  * REWRITTEN for ADR-0073: the hook no longer derives the consequence from a paid-feature state. It takes the consequence,
- * so the recipe rule (slots) and the collection rule (Premium) share this one confirmation guard without sharing a rule.
+ * so the recipe rule (slots) and the collection rule (Pro) share this one confirmation guard without sharing a rule.
  */
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';

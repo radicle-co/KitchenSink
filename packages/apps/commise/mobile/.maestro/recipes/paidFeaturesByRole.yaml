@@ -9,7 +9,7 @@
 #
 # ⚠️ The stage's gate is the OWNER's (both variables stay `false` until the owner flips them). REWRITTEN for ADR-0073
 # (owner ruling 2026-10-26): the DEFAULT and ADMIN legs no longer depend on it, because a free cook's Private is a private
-# slot (`common/gateDecidesPrivate.yaml`: the server's count, "uses 1 slot", no Premium sheet). The entitled legs are
+# slot (`common/gateDecidesPrivate.yaml`: the server's count, "uses 1 slot", no Pro sheet). The entitled legs are
 # gate-free too: Private is always a real choice, with no sheet and no count. Every state is pinned deterministically by
 # the component suites and `paidFeatureGate.spec.ts`.
 #
@@ -42,7 +42,7 @@ onFlowComplete:
       env:
           E2E_SIGNIN_EMAIL: ${E2E_ROLE_ADMIN_EMAIL}
 
-# ── PREMIUM, VIP, SUPERUSER: always granted — Private is a real choice, with no Premium sheet ─────────────────────────
+# ── PREMIUM, VIP, SUPERUSER: always granted — Private is a real choice, with no Pro sheet ─────────────────────────
 - runFlow: ../auth/launchCleared.yaml
 # iOS keeps the Keychain session across the clear (`auth/signOutIfSignedIn.yaml` says why), so each cook is signed out first.
 - runFlow: ../auth/signOutIfSignedIn.yaml

@@ -1,11 +1,11 @@
 /**
  * {@link useGatedPrivate} - asking for Private, for every recipe surface that offers it (the editor's visibility field,
- * the recipe page's menu). It applies, opens the Premium sheet, or does nothing, as `recipePrivateChoice` decides.
+ * the recipe page's menu). It applies, opens the Pro sheet, or does nothing, as `recipePrivateChoice` decides.
  *
  * REWRITTEN for ADR-0073 (owner ruling 2026-10-26). It used to decide from the paid-feature state alone. A recipe is now
  * under the SLOTS rule (Private works while a slot is free, paid features or not) or, for an imported public-web recipe,
  * the PREMIUM rule (the old table, unchanged: loading fails closed there). The sheet still opens only under `upsell`, and
- * closes if the state leaves it; it can also be opened directly (the refusal's "Get Premium").
+ * closes if the state leaves it; it can also be opened directly (the refusal's "Get Pro").
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -54,7 +54,7 @@ describe('useGatedPrivate - the premium rule (an imported public-web recipe)', (
         expect(result.current.sheet.open).toBe(false);
     });
 
-    it('⛔ opens the Premium sheet under upsell and applies nothing', () => {
+    it('⛔ opens the Pro sheet under upsell and applies nothing', () => {
         const { result, apply } = mount(premiumRule('upsell'));
 
         act(() => result.current.request());
@@ -97,7 +97,7 @@ describe('useGatedPrivate - the premium rule (an imported public-web recipe)', (
 describe('useGatedPrivate - the slots rule (a free cook`s own, book or paid-site recipe)', () => {
     it.each([
         ['a slot free', OPEN],
-        ['Premium', { kind: 'unlimited' }],
+        ['Pro', { kind: 'unlimited' }],
         ['loading', { kind: 'loading' }],
         ['a failed read', { kind: 'unknown' }],
     ] as const)('applies Private at once with %s, whatever the paid-feature state', (_label, standing) => {
@@ -153,8 +153,8 @@ describe('useGatedPrivate - the slots rule (a free cook`s own, book or paid-site
     });
 });
 
-describe('useGatedPrivate - the Premium sheet', () => {
-    it('Not now and See Premium both close the sheet (the subscription surface is not built, 010)', () => {
+describe('useGatedPrivate - the Pro sheet', () => {
+    it('Not now and See Pro both close the sheet (the subscription surface is not built, 010)', () => {
         const { result } = mount(premiumRule('upsell'));
 
         act(() => result.current.request());
@@ -166,7 +166,7 @@ describe('useGatedPrivate - the Premium sheet', () => {
         expect(result.current.sheet.open).toBe(false);
     });
 
-    it('can be opened directly - the refusal`s "Get Premium" - under the slots rule with the upsell', () => {
+    it('can be opened directly - the refusal`s "Get Pro" - under the slots rule with the upsell', () => {
         const { result } = mount(slotsRule(FULL, 'upsell'));
 
         act(() => result.current.showPremium());
@@ -193,7 +193,7 @@ describe('useGatedPrivate - the Premium sheet', () => {
 
     it.each([
         ['a slot free', OPEN],
-        ['Premium', { kind: 'unlimited' }],
+        ['Pro', { kind: 'unlimited' }],
         ['loading', { kind: 'loading' }],
         ['a failed read', { kind: 'unknown' }],
     ] as const)('⛔ a free cook with %s never sees the sheet, even asked for it directly', (_label, standing) => {

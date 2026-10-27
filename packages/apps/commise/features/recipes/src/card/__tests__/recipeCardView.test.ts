@@ -31,7 +31,7 @@ describe('recipeCardViewOf — the cover', () => {
     });
 
     it('offers the PRO badge, with its name, for a premium recipe', () => {
-        expect(viewOf({ usesPremiumCapability: true }).cover.pro).toEqual({ text: 'PRO', label: 'Premium recipe' });
+        expect(viewOf({ usesPremiumCapability: true }).cover.pro).toEqual({ text: 'PRO', label: 'Pro recipe' });
     });
 });
 

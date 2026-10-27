@@ -738,13 +738,13 @@ describe('RecipeDetailContainer', () => {
             await renderDone();
 
             expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
-            expect(screen.queryByText(/couldn't be made private|part of Premium/iu)).not.toBeInTheDocument();
+            expect(screen.queryByText(/couldn't be made private|part of Pro/iu)).not.toBeInTheDocument();
         });
 
         describe('the refused Private, said inline on the page (§6.4)', () => {
             const FINAL = 'This recipe is still public: it couldn’t be made private.';
             const PREMIUM =
-                'This recipe stays public. A recipe from a public web page needs Premium and a change of your own to be private.';
+                'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.';
             const SLOTS = 'Not available. All 50 of your private slots are in use.';
 
             /** The recipe page for `ownerId` with `visibility`, arrived at through the editor's hand-off. */
@@ -755,7 +755,7 @@ describe('RecipeDetailContainer', () => {
                     ownerId?: string;
                     visibility?: RecipeVisibility;
                     /**
-                     * REWRITTEN for ADR-0073: a page's refusal depends on the recipe's rule. The Premium sentences are the
+                     * REWRITTEN for ADR-0073: a page's refusal depends on the recipe's rule. The Pro sentences are the
                      * rule of an imported public-web recipe (the default here); a recipe the cook wrote is refused only for
                      * every slot used (`slots`).
                      */
@@ -799,7 +799,7 @@ describe('RecipeDetailContainer', () => {
             });
 
             it('takes the words from the PROFILE, never from the link', async () => {
-                // The link says `.final`; the profile says the upsell, so the Premium sentence is the true one.
+                // The link says `.final`; the profile says the upsell, so the Pro sentence is the true one.
                 await renderArrival('done=changesSaved.final', { paidFeatures: 'upsell' });
 
                 expect(await screen.findByText(PREMIUM)).toBeInTheDocument();
@@ -1075,7 +1075,7 @@ describe('RecipeDetailContainer', () => {
         const renderOwnerDetail = (
             visibility: RecipeVisibility = RecipeVisibility.PUBLIC,
             options: {
-                /** An imported public-web recipe is under the Premium rule; every other label is under the slots rule. */
+                /** An imported public-web recipe is under the Pro rule; every other label is under the slots rule. */
                 readonly sourceType?: 'user_created' | 'imported_public' | 'imported_physical' | 'imported_paid';
                 /** What the server says about the cook's slots; the page has it before the menu opens (a warm cache). */
                 readonly slots?: { readonly used: number; readonly limit: number } | 'unlimited';
@@ -1271,7 +1271,7 @@ describe('RecipeDetailContainer', () => {
         /**
          * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is
          * NEVER final. A cook with private slots is asked first and told it frees one; an imported public-web recipe under
-         * the upsell is told Premium is needed to return; every other case goes public at once. Nothing is sent until the
+         * the upsell is told Pro is needed to return; every other case goes public at once. Nothing is sent until the
          * cook confirms.
          */
         it.each([
@@ -1291,7 +1291,7 @@ describe('RecipeDetailContainer', () => {
                 'an imported public-web recipe, under the upsell',
                 'upsell',
                 'imported_public',
-                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
             ],
         ] as const)(
             '⛔ for %s, Make public asks first and sends nothing until confirmed',
@@ -1345,7 +1345,7 @@ describe('RecipeDetailContainer', () => {
             },
         );
 
-        it('Premium (no slots to free) makes a private recipe public at once', async () => {
+        it('Pro (no slots to free) makes a private recipe public at once', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('granted'));
             const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { slots: 'unlimited' });
@@ -1532,7 +1532,7 @@ describe('RecipeDetailContainer', () => {
             expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeInTheDocument();
         });
 
-        it('⛔ under upsell, an owner who taps Make private on an imported public-web recipe meets the Premium sheet, and nothing is sent', async () => {
+        it('⛔ under upsell, an owner who taps Make private on an imported public-web recipe meets the Pro sheet, and nothing is sent', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('upsell'));
             const client = renderOwnerDetail(RecipeVisibility.PUBLIC, { sourceType: 'imported_public' });
@@ -1541,7 +1541,7 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            const sheet = await screen.findByRole('dialog', { name: 'Private needs Premium for this recipe' });
+            const sheet = await screen.findByRole('dialog', { name: 'Private needs Pro for this recipe' });
             expect(sheet).toBeInTheDocument();
             await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
             expect(setVisibilitySpy).not.toHaveBeenCalled();
@@ -1560,7 +1560,7 @@ describe('RecipeDetailContainer', () => {
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
             expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
-            expect(screen.queryByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
         });
 
         it('⛔ with every slot used, Make private still SENDS the write, and the server`s refusal is said on the page', async () => {
@@ -1594,7 +1594,7 @@ describe('RecipeDetailContainer', () => {
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
             expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
-            expect(screen.queryByRole('dialog', { name: 'Private needs Premium for this recipe' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
         });
     });
 

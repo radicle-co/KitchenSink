@@ -3,7 +3,7 @@
  * (owner ruling 2026-10-26): every private slot used, or an imported public-web recipe. The two actions carry EQUAL weight,
  * side by side, neither preselected; Escape, the scrim and Close all mean Keep as draft and NEVER publish (DSA Art. 25: no
  * nudge into making public what the cook asked to keep private). Screen-reader focus moves to the title (the Sheet's own contract); returning it belongs to the host.
- * Paid features are hidden everywhere until feature 010 exists, so the Premium line is asserted ABSENT.
+ * Paid features are hidden everywhere until feature 010 exists, so the Pro line is asserted ABSENT.
  */
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
@@ -53,14 +53,14 @@ describe('PublishBlockedSheet (native)', () => {
         ).toBeTruthy();
     });
 
-    it('⛔ sells no Premium while there is no subscription page: no upsell line, no See Premium', () => {
+    it('⛔ sells no Pro while there is no subscription page: no upsell line, no See Pro', () => {
         for (const ask of [NO_SLOT, WEB_IMPORT]) {
             const { unmount } = render(
                 <PublishBlockedSheet open ask={ask} slotTotal={50} onKeepDraft={vi.fn()} onPublishPublic={vi.fn()} />,
             );
 
-            expect(screen.queryByText(/Premium/u)).toBeNull();
-            expect(screen.queryByRole('button', { name: 'See Premium' })).toBeNull();
+            expect(screen.queryByText(/\bPro\b/u)).toBeNull();
+            expect(screen.queryByRole('button', { name: 'See Pro' })).toBeNull();
             unmount();
         }
     });

@@ -3594,8 +3594,8 @@ describe('the visibility write comes BEFORE the first publish of a stored draft'
 
 /**
  * Owner ruling 2026-10-26 (the blocked-publish dialog, which replaced the stop-and-ask): the last case of "nothing turns a
- * private recipe public on its own". A Private the server is KNOWN to refuse (an imported public-web recipe: Premium plus a change of the cook's own) no
- * longer publishes public on Publish. REWRITES "a Private the server is known to refuse for want of Premium is not
+ * private recipe public on its own". A Private the server is KNOWN to refuse (an imported public-web recipe: Pro plus a change of the cook's own) no
+ * longer publishes public on Publish. REWRITES "a Private the server is known to refuse for want of Pro is not
  * sent: the recipe publishes public", which asserted the behaviour this ruling removes.
  */
 describe('Publish of a Private the server is known to refuse (imported public-web recipe)', () => {

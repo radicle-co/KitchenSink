@@ -297,7 +297,7 @@ describe('RecipeEditorScreen (native)', () => {
      * The same stale read for a cook whose paid features are hidden: the Private would be refused after the editor had
      * gone, so it is not sent, and the hand-off says the recipe stayed public (the stuck-save defect).
      */
-    // REWRITTEN for ADR-0073: a free cook's own recipe is no longer refused Private for want of Premium, so the Premium
+    // REWRITTEN for ADR-0073: a free cook's own recipe is no longer refused Private for want of Pro, so the Pro
     // refusal is exercised on an imported public-web recipe (where it is still the rule). The slots refusal follows.
     it('⛔ under hidden, sends no Private the server would refuse, and the hand-off says so', async () => {
         profile.paidFeatures = 'hidden';
@@ -423,7 +423,7 @@ describe('RecipeEditorScreen (native)', () => {
  * while the server says a slot is free, whatever the paid features say) or the PREMIUM rule (an imported public-web
  * recipe: the paid-feature table it always had). Public is NEVER final: no confirm says a recipe "can't go private again".
  */
-describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium)', () => {
+describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', () => {
     const choosePrivate = (): void => {
         fireEvent.click(screen.getByRole('radio', { name: /^Private/u }));
     };
@@ -483,14 +483,14 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             expect(screen.queryByText('Not available. All 50 of your private slots are in use.')).toBeNull();
         });
 
-        it('⛔ lets a free cook choose Private even when paid features are hidden: a slot, not Premium', async () => {
+        it('⛔ lets a free cook choose Private even when paid features are hidden: a slot, not Pro', async () => {
             profile.paidFeatures = 'hidden';
             await openRecipe(clientWithSlots({ used: 3, limit: 50 }), 'rec_choose', RecipeVisibility.PUBLIC);
 
             choosePrivate();
 
             expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
-            expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull();
+            expect(screen.queryByRole('heading', { name: /Pro/u })).toBeNull();
             expect(await screen.findByText('This recipe uses 1 slot. 46 of 50 left after it.')).toBeTruthy();
         });
 
@@ -509,7 +509,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             fireEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
 
             expect(handlers.onDiscarded).toHaveBeenCalledTimes(1);
-            expect(screen.getByRole('button', { name: /Get Premium/u })).toBeTruthy();
+            expect(screen.getByRole('button', { name: /Get Pro/u })).toBeTruthy();
         });
 
         // REMOVED (owner ruling 2026-10-26): "leaving by Make a private recipe public keeps what the cook typed" drove the ways
@@ -517,26 +517,26 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
         // full" dialog (below) with two choices, Publish as public and Keep as draft, and no way forward leaves the editor.
         // The exit checkpoint itself is covered by the sibling leave tests.
 
-        it('"Get Premium" in the refusal opens the Premium sheet', async () => {
+        it('"Get Pro" in the refusal opens the Pro sheet', async () => {
             profile.paidFeatures = 'upsell';
             await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_premium', RecipeVisibility.PUBLIC);
 
-            fireEvent.click(await screen.findByRole('button', { name: /Get Premium/u }));
+            fireEvent.click(await screen.findByRole('button', { name: /Get Pro/u }));
 
             expect(await screen.findByRole('heading', { name: 'Keep more recipes private' })).toBeTruthy();
         });
 
-        it('offers no Premium way when paid features are hidden', async () => {
+        it('offers no Pro way when paid features are hidden', async () => {
             profile.paidFeatures = 'hidden';
             await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_hidden', RecipeVisibility.PUBLIC);
 
             await screen.findByText('Not available. All 50 of your private slots are in use.');
 
-            expect(screen.queryByRole('button', { name: /Get Premium/u })).toBeNull();
+            expect(screen.queryByRole('button', { name: /Get Pro/u })).toBeNull();
             expect(screen.getByRole('button', { name: /Delete a private recipe/u })).toBeTruthy();
         });
 
-        it('Premium sees no count, and no sheet', async () => {
+        it('Pro sees no count, and no sheet', async () => {
             profile.paidFeatures = 'granted';
             renderScreen(clientWithSlots('unlimited'));
             await screen.findByRole('heading', { name: 'New recipe' });
@@ -545,7 +545,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
             expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
             expect(screen.queryByText(/private slots/u)).toBeNull();
-            expect(screen.queryByText('Premium')).toBeNull();
+            expect(screen.queryByText('Pro')).toBeNull();
         });
 
         it('⛔ Public asks first and says it frees a slot; confirmed, Private is still offered while a slot is free', async () => {
@@ -580,7 +580,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
         });
 
-        it('a Premium owner moves a private recipe to Public with no confirm', async () => {
+        it('a Pro owner moves a private recipe to Public with no confirm', async () => {
             profile.paidFeatures = 'granted';
             await openRecipe(clientWithSlots('unlimited'), 'rec_secret_granted', RecipeVisibility.PRIVATE);
 
@@ -646,37 +646,37 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             expect(await screen.findByText(SENTENCE)).toBeTruthy();
         });
 
-        it('⛔ About Premium opens the noSlot sheet with the server`s limit', async () => {
+        it('⛔ About Pro opens the noSlot sheet with the server`s limit', async () => {
             profile.paidFeatures = 'upsell';
             await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
-            fireEvent.click(await screen.findByRole('button', { name: 'About Premium' }));
+            fireEvent.click(await screen.findByRole('button', { name: 'About Pro' }));
 
             expect(await screen.findByRole('heading', { name: 'Keep more recipes private' })).toBeTruthy();
             expect(
                 screen.getByText(
-                    'All 50 of your private slots are in use. Premium has no limit. To free a slot, make a private recipe public or delete one.',
+                    'All 50 of your private slots are in use. Pro has no limit. To free a slot, make a private recipe public or delete one.',
                 ),
             ).toBeTruthy();
         });
 
-        it('⛔ with paid features hidden, says the sentence and offers no Premium link', async () => {
+        it('⛔ with paid features hidden, says the sentence and offers no Pro link', async () => {
             profile.paidFeatures = 'hidden';
             await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText(SENTENCE)).toBeTruthy();
-            expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+            expect(screen.queryByRole('button', { name: /Pro/u })).toBeNull();
         });
     });
 
-    describe('an imported public-web recipe: Premium is still the rule', () => {
-        it('⛔ under upsell, the Premium sheet opens for Private, and Public stays chosen', async () => {
+    describe('an imported public-web recipe: Pro is still the rule', () => {
+        it('⛔ under upsell, the Pro sheet opens for Private, and Public stays chosen', async () => {
             profile.paidFeatures = 'upsell';
             await openRecipe(createFakeRecipeServiceClient(), 'rec_web_up', RecipeVisibility.PUBLIC, 'imported_public');
 
             choosePrivate();
 
-            expect(await screen.findByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
+            expect(await screen.findByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
             expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe(
                 'true',
             );
@@ -694,7 +694,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
             fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
 
-            await waitFor(() => expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull());
+            await waitFor(() => expect(screen.queryByRole('heading', { name: /Pro/u })).toBeNull());
             expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-checked')).toBe('true');
         });
 
@@ -710,10 +710,10 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             choosePrivate();
 
             expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
-            expect(screen.queryByRole('heading', { name: /Premium/u })).toBeNull();
+            expect(screen.queryByRole('heading', { name: /Pro/u })).toBeNull();
         });
 
-        it('⛔ under upsell, Public asks first with the Premium words; confirmed, going back asks for Premium', async () => {
+        it('⛔ under upsell, Public asks first with the Pro words; confirmed, going back asks for Pro', async () => {
             profile.paidFeatures = 'upsell';
             await openRecipe(
                 createFakeRecipeServiceClient(),
@@ -725,13 +725,13 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
             fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
             expect(
                 within(confirmDialog()).getByText(
-                    "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+                    "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
                 ),
             ).toBeTruthy();
             fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Make public' }));
             choosePrivate();
 
-            expect(await screen.findByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
+            expect(await screen.findByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
             expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe(
                 'true',
             );
@@ -773,7 +773,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Premium
 
             expect(screen.getByLabelText('Who can see it: Public. Anyone can find it in Discover.')).toBeTruthy();
             expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
-            expect(screen.queryByText('Premium')).toBeNull();
+            expect(screen.queryByText('Pro')).toBeNull();
         });
     });
 });

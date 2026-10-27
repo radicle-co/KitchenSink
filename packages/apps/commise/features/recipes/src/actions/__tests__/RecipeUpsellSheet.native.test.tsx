@@ -1,6 +1,6 @@
 /**
- * The native Premium sheet a free-tier cook gets for "Private" in the editor (E1; build spec §7.7 item 2, §6.4): the
- * twin of `RecipeUpsellSheet.tsx` and of `CollectionUpsellSheet.native.tsx`. The plain fact, then **See Premium** and
+ * The native Pro sheet a free-tier cook gets for "Private" in the editor (E1; build spec §7.7 item 2, §6.4): the
+ * twin of `RecipeUpsellSheet.tsx` and of `CollectionUpsellSheet.native.tsx`. The plain fact, then **See Pro** and
  * **Not now** of equal weight, nothing pre-selected (DSA Art. 25).
  */
 import { LocaleProvider } from '@commise/i18n/react';
@@ -38,7 +38,7 @@ describe('RecipeUpsellSheet (native)', () => {
         expect(screen.getByRole('heading', { name: 'Keep more recipes private' })).toBeTruthy();
         expect(
             screen.getByText(
-                'All 50 of your private slots are in use. Premium has no limit. To free a slot, make a private recipe public or delete one.',
+                'All 50 of your private slots are in use. Pro has no limit. To free a slot, make a private recipe public or delete one.',
             ),
         ).toBeTruthy();
     });
@@ -52,37 +52,37 @@ describe('RecipeUpsellSheet (native)', () => {
     it('webImport: is titled for a recipe from a public web page', () => {
         upsell({ variant: { kind: 'webImport' } });
 
-        expect(screen.getByRole('heading', { name: 'Private needs Premium for this recipe' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
         expect(
             screen.getByText(
-                'This recipe is from a public web page. To keep it private, you need Premium and a change of your own to the recipe.',
+                'This recipe is from a public web page. To keep it private, you need Pro and a change of your own to the recipe.',
             ),
         ).toBeTruthy();
     });
 
     it.each([{ kind: 'noSlot', total: 50 } as const, { kind: 'webImport' } as const])(
-        '⛔ %o never uses the retired Premium lines',
+        '⛔ %o never uses the retired Pro lines',
         (variant) => {
             upsell({ variant });
 
-            expect(screen.queryByText(/part of Premium/u)).toBeNull();
+            expect(screen.queryByText(/part of Pro/u)).toBeNull();
             expect(screen.queryByText(/keep a recipe to yourself/u)).toBeNull();
             expect(screen.queryByText(/Public recipes are free/u)).toBeNull();
         },
     );
 
-    it('offers See Premium and Not now as equals: the same tier, neither the primary', () => {
+    it('offers See Pro and Not now as equals: the same tier, neither the primary', () => {
         upsell();
 
-        expect(screen.getByRole('button', { name: 'See Premium' }).className).toBe(
+        expect(screen.getByRole('button', { name: 'See Pro' }).className).toBe(
             screen.getByRole('button', { name: 'Not now' }).className,
         );
     });
 
-    it('reports See Premium, and closes from Not now', () => {
+    it('reports See Pro, and closes from Not now', () => {
         const props = upsell();
 
-        fireEvent.click(screen.getByRole('button', { name: 'See Premium' }));
+        fireEvent.click(screen.getByRole('button', { name: 'See Pro' }));
         expect(props.onSeePremium).toHaveBeenCalledOnce();
 
         fireEvent.click(screen.getByRole('button', { name: 'Not now' }));

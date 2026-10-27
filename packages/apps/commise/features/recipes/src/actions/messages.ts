@@ -170,7 +170,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             bodyFrees:
                 'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
             bodyPremium:
-                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
             confirm: 'Make public',
             keep: 'Keep private',
             busy: 'Making public…',
@@ -185,7 +185,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
                 // The owner's design wording of 2026-10-26 (`actions privateRefused.premium`): the premium rule is the imported
                 // public-web recipe's.
                 premium:
-                    'This recipe stays public. A recipe from a public web page needs Premium and a change of your own to be private.',
+                    'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.',
                 // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's
                 // limit (`visibilityNoticeOf` fills it); this package states no number of its own.
                 slots: 'Not available. All {total} of your private slots are in use.',
@@ -220,13 +220,13 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
         upsell: {
             noSlot: {
                 title: 'Keep more recipes private',
-                body: 'All {total} of your private slots are in use. Premium has no limit. To free a slot, make a private recipe public or delete one.',
+                body: 'All {total} of your private slots are in use. Pro has no limit. To free a slot, make a private recipe public or delete one.',
             },
             webImport: {
-                title: 'Private needs Premium for this recipe',
-                body: 'This recipe is from a public web page. To keep it private, you need Premium and a change of your own to the recipe.',
+                title: 'Private needs Pro for this recipe',
+                body: 'This recipe is from a public web page. To keep it private, you need Pro and a change of your own to the recipe.',
             },
-            seePremium: 'See Premium',
+            seePremium: 'See Pro',
             notNow: 'Not now',
             close: 'Close',
         },

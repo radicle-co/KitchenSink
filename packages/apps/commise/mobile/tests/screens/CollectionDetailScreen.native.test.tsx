@@ -2,7 +2,7 @@
  * Component tests for the mobile CollectionDetailScreen (react-native-web under jsdom; slice 5 of the UI overhaul,
  * `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3). Covers every state the screen renders — loading, ready, generic error
  * (with retry), a distinct not-found — and the wired flows: a removal that hides the row and commits when its Undo snackbar
- * times out; a visibility change at once, with Undo, and the Premium sheet; rename in the sheet; delete in its dialog;
+ * times out; a visibility change at once, with Undo, and the Pro sheet; rename in the sheet; delete in its dialog;
  * Save a copy; Pull updates for a copy; and the add-recipes picker, whose toggles save at once and whose Done says what
  * changed.
  *
@@ -449,7 +449,7 @@ describe('CollectionDetailScreen — removing a member, with Undo', () => {
     });
 });
 
-describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet', () => {
+describe('CollectionDetailScreen — visibility, with Undo and the Pro sheet', () => {
     it('makes a public collection private at once, says so, and Undo changes it back', async () => {
         let server: 'public' | 'private' = 'public';
         vi.spyOn(client, 'getCollectionById').mockImplementation(async () =>
@@ -473,7 +473,7 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
         await waitFor(() => expect(update).toHaveBeenLastCalledWith('col_1', { visibility: 'public' }));
     });
 
-    it('under upsell, opens the Premium sheet for making a collection private, and sends nothing', async () => {
+    it('under upsell, opens the Pro sheet for making a collection private, and sends nothing', async () => {
         useUserProfileMock.mockReturnValue(profile('upsell'));
         seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'public' }));
         const update = vi.spyOn(client, 'updateCollection');
@@ -482,13 +482,13 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
         await screen.findByRole('heading', { name: 'Dinners' });
         pressMenuItem('Dinners', 'Make private');
 
-        expect(await screen.findByText('Private collections are part of Premium.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'See Premium' })).toBeTruthy();
+        expect(await screen.findByText('Private collections are part of Pro.')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'See Pro' })).toBeTruthy();
         expect(update).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
 
-        await waitFor(() => expect(screen.queryByText('Private collections are part of Premium.')).toBeNull());
+        await waitFor(() => expect(screen.queryByText('Private collections are part of Pro.')).toBeNull());
     });
 
     // Plan 2026-10-14-009 D14, mirroring the web suite: no paid feature and no upsell under hidden or a failed read.
@@ -510,7 +510,7 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
     // Plan 2026-10-14-009 T1: a downgraded owner cannot take Public back, so Make public asks first.
     it.each([
         ['hidden', profile('hidden'), "You won't be able to make this one private again."],
-        ['upsell', profile('upsell'), "To make this one private again, you'll need Premium."],
+        ['upsell', profile('upsell'), "To make this one private again, you'll need Pro."],
     ] as const)(
         'under %s, Make public on a private collection asks first, and Keep private sends nothing',
         async (_label, stub, cost) => {

@@ -224,13 +224,13 @@ describe('RecipeEditorSurface — the Private choice', () => {
 
     // REWRITTEN for ADR-0073. It used to say a viewer whose paid features hide Private gets no Private choice. A free cook
     // keeps up to the server's limit of recipes private, paid features or not, so hidden paid features no longer hide it.
-    it('⛔ offers Private to a free cook even when paid features are hidden: a slot, not Premium', () => {
+    it('⛔ offers Private to a free cook even when paid features are hidden: a slot, not Pro', () => {
         mount({ paidFeatures: 'hidden', knownPaidFeatures: 'hidden' });
 
         expect(screen.getByRole('radio', { name: /private/i })).toBeTruthy();
     });
 
-    it('offers no Private choice for an imported public-web recipe to a viewer whose paid features hide it: Premium is still its rule', () => {
+    it('offers no Private choice for an imported public-web recipe to a viewer whose paid features hide it: Pro is still its rule', () => {
         const recipe = makeRecipeDetail({ sourceType: 'imported_public', visibility: 'public' });
 
         mount({ seed: { recipe }, paidFeatures: 'hidden', knownPaidFeatures: 'hidden' });
@@ -251,7 +251,7 @@ describe('RecipeEditorSurface — the Private choice', () => {
         expect(await screen.findByText('12 of 50 private slots left')).toBeTruthy();
     });
 
-    it('⛔ with every slot used, refuses Private on a published recipe with its three ways forward; the first two go to My recipes, Premium opens the sheet', async () => {
+    it('⛔ with every slot used, refuses Private on a published recipe with its three ways forward; the first two go to My recipes, Pro opens the sheet', async () => {
         const user = userEvent.setup();
         const { props } = mount(
             { seed: PUBLISHED_PUBLIC, paidFeatures: 'upsell', knownPaidFeatures: 'upsell' },
@@ -264,7 +264,7 @@ describe('RecipeEditorSurface — the Private choice', () => {
         await user.click(screen.getByRole('button', { name: /Delete a private recipe/u }));
         expect(props.onOpenMyRecipes).toHaveBeenCalledTimes(2);
 
-        await user.click(screen.getByRole('button', { name: /Get Premium/u }));
+        await user.click(screen.getByRole('button', { name: /Get Pro/u }));
         expect(await screen.findByRole('dialog')).toBeTruthy();
     });
 
@@ -329,12 +329,12 @@ describe('RecipeEditorSurface — the Private choice', () => {
         });
     });
 
-    it('Premium sees no count', async () => {
+    it('Pro sees no count', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'unlimited' });
         mount({ paidFeatures: 'granted', knownPaidFeatures: 'granted' }, client);
 
-        // Wait for the read to SETTLE (the "checking" line goes), so the absence below is Premium's, not a read in flight.
+        // Wait for the read to SETTLE (the "checking" line goes), so the absence below is Pro's, not a read in flight.
         await waitFor(() => expect(screen.queryByText('Checking your private slots…')).toBeNull());
 
         expect(screen.queryByText(/private slots/u)).toBeNull();

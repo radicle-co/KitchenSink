@@ -32,7 +32,7 @@ describe('RecipeVisibilityStatement (web)', () => {
         expect(screen.queryByText(v.privateUnavailable)).toBeNull();
     });
 
-    it('⛔ offers no choice: no radio, no group, no Private, no Premium', () => {
+    it('⛔ offers no choice: no radio, no group, no Private, no Pro', () => {
         render(<RecipeVisibilityStatement privateUnavailable={false} focusOnMount={false} />);
 
         expect(screen.queryByRole('radio')).toBeNull();

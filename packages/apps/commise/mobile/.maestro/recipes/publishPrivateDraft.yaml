@@ -5,7 +5,7 @@ appId: ${APP_ID}
 # visibility BEFORE the publish update (`writeVisibilityFirst`), so the recipe is never published public. The flow proves
 # the end state the cook asked for: the published recipe's detail reads Private.
 #
-# The signer is Premium (`visibility.yaml`), so Private is a real choice with no sheet. Every flow is reseeded before it
+# The signer is Pro (`visibility.yaml`), so Private is a real choice with no sheet. Every flow is reseeded before it
 # runs, so the recipe this publishes does not outlive it.
 - runFlow: ../auth/signin.yaml
 

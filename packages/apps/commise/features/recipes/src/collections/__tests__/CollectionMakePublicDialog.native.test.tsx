@@ -62,7 +62,7 @@ describe('CollectionMakePublicDialog (native)', () => {
 
         expect(names).toEqual(expect.arrayContaining(['Keep private', 'Make public']));
         expect(names).toHaveLength(2);
-        expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Pro/u })).toBeNull();
     });
 
     it('Make public confirms; Keep private keeps', () => {

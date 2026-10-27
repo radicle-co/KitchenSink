@@ -9,7 +9,7 @@ import { openRecipeEditor } from './utils/recipeEditor';
 /**
  * Publish with Private chosen, where the server will refuse Private, opens a dialog and never goes public on its own
  * (owner ruling 2026-10-26). Case B here: an imported public-web recipe, held public by the server, that the cook marked
- * Private while they had Premium and then lost it, so the client knows the server will refuse Private: "This recipe can't
+ * Private while they had Pro and then lost it, so the client knows the server will refuse Private: "This recipe can't
  * be private yet". Keep as draft and Publish as public carry equal weight; Escape and Close mean Keep as draft; only
  * "Publish as public" publishes. Case A (slots full) is covered by the component suites. The mobile twin is
  * `mobile/.maestro/recipes/publishBlockedAsk.yaml`.

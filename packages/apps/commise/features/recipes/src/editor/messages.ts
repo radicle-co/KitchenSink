@@ -456,18 +456,18 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             noSlot: {
                 title: 'Your private slots are full',
                 body: 'All {total} of your private slots are in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
-                upsell: 'Premium gives you unlimited private recipes, plus {premiumFeatures}.',
+                upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
             },
             webImport: {
                 title: 'This recipe can’t be private yet',
-                body: 'A recipe from a public web page can be private with Premium, once you have changed it yourself. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                body: 'A recipe from a public web page can be private with Pro, once you have changed it yourself. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
                 bodyNoPaid:
                     'A recipe from a public web page can only be public. You can publish it as public, or keep it as a draft.',
-                upsell: 'Premium gives you unlimited private recipes, plus {premiumFeatures}. This one also needs a change of your own.',
+                upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}. This one also needs a change of your own.',
             },
             publishPublic: 'Publish as public',
             keepDraft: 'Keep as draft',
-            seePremium: 'See Premium',
+            seePremium: 'See Pro',
             close: 'Close',
         },
 
@@ -502,12 +502,12 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             public: 'Public',
             publicHint: 'Anyone can find it in Discover',
             publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
-            publicNeedsPremium: "To make it private again, you'll need Premium.",
+            publicNeedsPremium: "To make it private again, you'll need Pro.",
             privateUnavailable:
                 'A recipe from a public web page can only be public. If it can’t be private when you publish, we will ask what you want to do.',
             // The owner's design wording of 2026-10-26 (`editor privatePremiumOnly`).
             privatePremiumOnly:
-                'A recipe from a public web page needs Premium and a change of your own to be private. If it can’t be private when you publish, we will ask what you want to do.',
+                'A recipe from a public web page needs Pro and a change of your own to be private. If it can’t be private when you publish, we will ask what you want to do.',
             private: 'Private',
             privateHint: 'Only you can see it',
             slotsLeft: '{left} of {total} private slots left',
@@ -518,15 +518,15 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
-            aboutPremium: 'About Premium',
+            aboutPremium: 'About Pro',
             webPrivate:
-                'Not available. A recipe from a public web page needs Premium and a change of your own to be private.',
+                'Not available. A recipe from a public web page needs Pro and a change of your own to be private.',
             waysTitle: 'To keep this recipe private',
             wayMakePublic: 'Make a private recipe public',
             wayMakePublicDetail: 'It frees its slot',
             wayDelete: 'Delete a private recipe',
             wayDeleteDetail: 'It frees its slot',
-            wayPremium: 'Get Premium',
+            wayPremium: 'Get Pro',
             wayPremiumDetail: 'Private recipes with no limit',
         },
     },

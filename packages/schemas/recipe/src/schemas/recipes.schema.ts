@@ -435,7 +435,7 @@ export type SetRecipeVisibilityRequest = z.infer<typeof setRecipeVisibilityReque
 export const privateSlotUsageSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('limited'),
-        /** The cook's private, undeleted recipes (every label, every status). */
+        /** The cook's private, published, undeleted recipes (every label; a draft holds no slot, ADR-0073 section 12). */
         used: z.number().int().nonnegative(),
         /** How many the cook may hold. */
         limit: z.number().int().positive(),

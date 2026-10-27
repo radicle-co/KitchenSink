@@ -8,6 +8,10 @@
 # private, so in BOTH answers Private is offered with the server's count, choosing it applies it and says it uses one
 # slot, and no Premium sheet opens. The limit is the server's, so it is matched by shape, not by number.
 #
+# UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12): a NEW recipe is a DRAFT, and a draft holds no slot, so
+# the Private card says that instead of counting ("N of M private slots left" belongs to a published recipe), and choosing
+# it says Publishing uses a slot. Not run on a device by the change that edited it.
+#
 # The caller clears the device first; this sub-flow does not, so the caller decides whose session it replaces.
 
 appId: ${APP_ID}
@@ -27,11 +31,11 @@ appId: ${APP_ID}
       element: 'Private, Only you can see it.*'
       direction: DOWN
       timeout: 30000
-# The server's count, on the Private card: "N of M private slots left".
-- assertVisible: '.*\d+ of \d+ private slots left.*'
+# A draft holds no slot: the Private card says so, with no count.
+- assertVisible: '.*A private draft uses no slot\. Publishing it uses one\..*'
+- assertNotVisible: '.*\d+ of \d+ private slots left.*'
 - tapOn: 'Private, Only you can see it.*'
-# Choosing it uses a slot; it never opens the Premium sheet, and nothing on the card sells Premium.
-- assertVisible: '.*This recipe uses 1 slot\. \d+ of \d+ left after it\..*'
+# Choosing it applies at once; it never opens the Premium sheet, and nothing on the card sells Premium.
 - assertNotVisible: 'Keep more recipes private'
 - assertNotVisible: 'Private needs Premium for this recipe'
 - assertNotVisible: '.*Premium.*'

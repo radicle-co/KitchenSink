@@ -1220,54 +1220,6 @@ describe('RecipeDetailContainer', () => {
             },
         );
 
-        describe('Save a copy with no private slot (ADR-0073)', () => {
-            const TITLE = 'No private slot for this copy';
-
-            const refusedClone = async (paid: 'upsell' | 'hidden') => {
-                const user = userEvent.setup();
-                useUserProfileMock.mockReturnValue(profileWith(paid));
-                const client = renderOthersDetail();
-                vi.spyOn(client, 'cloneRecipe').mockRejectedValue(new PrivateSlotsFullError(50, 50));
-
-                await user.click(await screen.findByRole('button', { name: 'Save a copy' }));
-
-                return { user, client, dialog: await screen.findByRole('dialog', { name: TITLE }) };
-            };
-
-            it('⛔ opens the refusal, opens no copy, and offers Not now and See Premium', async () => {
-                const { dialog } = await refusedClone('upsell');
-
-                expect(
-                    within(dialog).getByText(
-                        'This copy would be private, and all 50 of your private slots are in use. To free a slot, make a private recipe public or delete one. Premium has no limit.',
-                    ),
-                ).toBeInTheDocument();
-                expect(within(dialog).getByRole('button', { name: 'See Premium' })).toBeInTheDocument();
-                expect(within(dialog).getByRole('button', { name: 'Not now' })).toBeInTheDocument();
-                expect(within(dialog).queryByRole('button', { name: /public/iu })).not.toBeInTheDocument();
-                expect(pushMock).not.toHaveBeenCalled();
-            });
-
-            it('⛔ with paid features hidden, says no word of Premium and offers one OK', async () => {
-                const { dialog, user } = await refusedClone('hidden');
-
-                expect(within(dialog).queryByText(/Premium/u)).not.toBeInTheDocument();
-                expect(within(dialog).queryByRole('button', { name: 'Not now' })).not.toBeInTheDocument();
-
-                await user.click(within(dialog).getByRole('button', { name: 'OK' }));
-
-                await vi.waitFor(() => expect(screen.queryByRole('dialog', { name: TITLE })).not.toBeInTheDocument());
-            });
-
-            it('Not now closes it', async () => {
-                const { dialog, user } = await refusedClone('upsell');
-
-                await user.click(within(dialog).getByRole('button', { name: 'Not now' }));
-
-                await vi.waitFor(() => expect(screen.queryByRole('dialog', { name: TITLE })).not.toBeInTheDocument());
-            });
-        });
-
         it('offers Clear checks while a check is set, and it clears them', async () => {
             const user = userEvent.setup();
             renderOthersDetail();

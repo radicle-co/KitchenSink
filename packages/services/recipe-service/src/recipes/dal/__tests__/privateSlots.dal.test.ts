@@ -71,7 +71,11 @@ describe('PrivateSlotsDal.count', () => {
         expect(methodsOf(control)).not.toContain('execute');
     });
 
-    it('counts exactly the cook, private, undeleted rows: owner AND private AND not tombstoned', async () => {
+    /**
+     * Rewritten for the owner ruling of 2026-10-26 (ADR-0073 section 12): a draft holds no slot, so the count adds
+     * `status = 'published'`. The old test pinned `[USER, 'private']` and would pass a count that included drafts.
+     */
+    it('counts exactly the cook, private, PUBLISHED, undeleted rows: owner AND private AND published AND not tombstoned', async () => {
         control.enqueue([{ used: 1 }]);
 
         await dal.count(control.db, USER);
@@ -81,7 +85,8 @@ describe('PrivateSlotsDal.count', () => {
 
         expect(text).toContain('"owner_id" = $1');
         expect(text).toContain('"visibility" = $2');
+        expect(text).toContain('"status" = $3');
         expect(text).toContain('"deleted_at" is null');
-        expect(params).toEqual([USER, 'private']);
+        expect(params).toEqual([USER, 'private', 'published']);
     });
 });

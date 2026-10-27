@@ -30,7 +30,7 @@
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
-import { recipeQueries } from '@kitchensink/recipe-service-client';
+import { recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useRebindIngredientLine,
     useRecipeServiceClient,
@@ -40,6 +40,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
 import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
+import { recipeIsPublished, refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
@@ -210,6 +211,18 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         privateRefusal,
     });
 
+    // ADR-0073 section 12: a write that PARKS before the first publish may be a Publish the server refused for want of a
+    // private slot the client could not see coming (the slot read had failed or was stale, so the Publish was sent by
+    // design). Try again asks the gate with the standing as it is then, so the standing is re-read now, when it matters.
+    // It is an event in the outbox, outside React, which is what an effect is for. A published recipe's Save changes takes
+    // no slot, so only a recipe not yet published asks.
+    const publishParked = editor.parked !== undefined && editor.lifecycle !== 'published';
+    useEffect(() => {
+        if (publishParked) {
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePrivateSlots });
+        }
+    }, [publishParked, queryClient]);
+
     // Every way out of the editor does what × does (build spec §3.5, ADR-0057 §2): the exit checkpoint. × runs its own
     // first; any later one is refused while that write is on the wire, finds nothing changed, or finds the lane closed by
     // a hand-off (Publish, Save changes, Discard), so a second exit does nothing.
@@ -276,12 +289,13 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
             open: previewing,
             show: () => setPreviewing(true),
             hide: () => setPreviewing(false),
-            // What will be sent, as the field shows it (`effectiveVisibility`).
+            // What will be sent, as the field shows it (`effectiveVisibility`). A draft holds no slot, so it is previewed
+            // under the refusals that apply to a draft (ADR-0073 section 12).
             recipe: previewRecipeOf({
                 values: {
                     ...editor.values,
                     visibility: effectiveVisibility(
-                        privateRefusal,
+                        recipeIsPublished(seed.recipe) ? privateRefusal : refusalWhileDrafting(privateRefusal),
                         heldVisibility(seed.recipe?.visibility ?? RecipeVisibility.PUBLIC, editor.values.visibility),
                         editor.values.visibility,
                     ),

@@ -4,9 +4,12 @@
  * from signed roles, not a dev bypass), `RecipesService`, the visibility and slot policies, the exception filter - with the
  * recipe DAL replaced by a double whose live private count the test sets.
  *
+ * REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a draft holds no slot. The clone case used to expect
+ * a 403 at 50; a clone is a draft, so it is now a 201 and the refusal moved to publishing a private draft (`PATCH`).
+ *
  * It pins what the unit tier cannot: that the refusal reaches the wire as the published `403 PRIVATE_SLOTS_FULL` envelope
  * (parsed with the service's own typed error schema, so a body short of `used` and `limit` fails here), on create,
- * set-visibility and clone; that Premium never reaches the count; and that `GET /api/v1/recipes/private-slots` is routed to
+ * set-visibility and publishing a private draft; that a private draft and a clone never reach the count; that Premium never reaches the count; and that `GET /api/v1/recipes/private-slots` is routed to
  * its own handler and not swallowed by `GET :id` (which would answer a UUID-parse 400).
  *
  * Whether the lock really excludes a second connection, and whether the count is the right rows, are the LOCAL e2e tier's
@@ -66,9 +69,18 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: { readonly ownerId: string; readonly visibility: string }) =>
-    aggregateOf(makeRecipeRow({ id: RECIPE_ID, ownerId: input.ownerId, visibility: input.visibility })),
+const create = vi.fn(
+    async (input: { readonly ownerId: string; readonly visibility: string; readonly status?: string }) =>
+        aggregateOf(
+            makeRecipeRow({
+                id: RECIPE_ID,
+                ownerId: input.ownerId,
+                visibility: input.visibility,
+                status: input.status ?? 'published',
+            }),
+        ),
 );
+const update = vi.fn(async () => aggregateOf({ ...stored, status: 'published' } as RecipeRow));
 const setVisibility = vi.fn(async (_id: string, visibility: string) =>
     aggregateOf({ ...stored, visibility } as RecipeRow),
 );
@@ -131,10 +143,11 @@ beforeAll(async () => {
                 provide: RECIPES_DAL,
                 useValue: {
                     create,
+                    update,
                     setVisibility,
                     lockAndCountPrivateSlots,
                     countPrivateSlots,
-                    lockVisibility: async () => stored.visibility,
+                    lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
                     findById: async (id: string) => (id === stored.id ? aggregateOf(stored) : undefined),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
@@ -241,6 +254,22 @@ describe('POST /api/v1/recipes with visibility private', () => {
         expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
     });
 
+    it.each([50, 60])('⛔ a private DRAFT is saved at %i: 201, never counted, never refused', async (count) => {
+        held = count;
+
+        const response = await call(FREE_COOK, ['default'], 'POST', '/api/v1/recipes', {
+            ...CREATE_BODY,
+            visibility: 'private',
+            status: 'draft',
+        });
+
+        expect(response.status).toBe(201);
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private', status: 'draft' }), {
+            __tx: true,
+        });
+    });
+
     it('a PUBLIC create is never counted', async () => {
         held = 60;
 
@@ -304,8 +333,65 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
     });
 });
 
+describe('PATCH /api/v1/recipes/{id} - publishing a private draft takes a slot', () => {
+    function storeDraft(visibility: 'private' | 'public'): void {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: FREE_COOK,
+            visibility,
+            status: 'draft',
+            cuisine: 'Italian',
+            sourceType: 'user_created',
+            currentVersion: 1,
+        });
+    }
+
+    it('⛔ answers 403 PRIVATE_SLOTS_FULL with used and limit for a free cook at the limit, and writes nothing', async () => {
+        held = 50;
+        storeDraft('private');
+
+        const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+        });
+
+        expect(await refusalOf(response)).toEqual({
+            status: 403,
+            code: 'PRIVATE_SLOTS_FULL',
+            details: { used: 50, limit: 50 },
+        });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('publishes the private draft with a slot free (49), counted under the lock for THAT cook', async () => {
+        held = 49;
+        storeDraft('private');
+
+        const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+        });
+
+        expect(response.status).toBe(200);
+        expect(lockAndCountPrivateSlots).toHaveBeenCalledWith({ __tx: true }, FREE_COOK);
+    });
+
+    it('saving the private draft as a draft at 50 is a success and is never counted', async () => {
+        held = 50;
+        storeDraft('private');
+
+        const response = await call(FREE_COOK, ['default'], 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            title: 'Still a draft',
+        });
+
+        expect(response.status).toBe(200);
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+    });
+});
+
 describe('POST /api/v1/recipes/{id}/clone', () => {
-    it('⛔ answers 403 PRIVATE_SLOTS_FULL for a free cook cloning their own private book recipe at the limit', async () => {
+    it('⛔ a free cook at the limit CAN clone their own private book recipe: the copy is a draft and uses no slot', async () => {
         held = 50;
         stored = makeRecipeRow({
             id: RECIPE_ID,
@@ -316,8 +402,9 @@ describe('POST /api/v1/recipes/{id}/clone', () => {
 
         const response = await call(FREE_COOK, ['default'], 'POST', `/api/v1/recipes/${RECIPE_ID}/clone`);
 
-        expect(await refusalOf(response)).toMatchObject({ status: 403, code: 'PRIVATE_SLOTS_FULL' });
-        expect(create).not.toHaveBeenCalled();
+        expect(response.status).toBe(201);
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }), { __tx: true });
     });
 });
 

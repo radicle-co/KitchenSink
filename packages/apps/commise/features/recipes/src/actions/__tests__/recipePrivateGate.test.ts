@@ -5,13 +5,20 @@
  * Written before `recipePrivateGate.ts`. Collections keep `privateGate.ts` unchanged (their own tests pin it), so nothing
  * here may be read as a rule for a collection.
  *
+ * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12): a DRAFT holds no slot, so a private draft never meets
+ * the out-of-slots refusal and publishing it does. The draft/published cases are the last describe blocks; the earlier ones
+ * are about a recipe that is published (its standing is the server's count, unchanged).
+ *
  * The cases are the rule's whole truth table: two rules (slots, premium) x the standing (unknown, unlimited, open, full)
  * x the paid-feature state, for the five questions a surface asks.
  */
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+    recipeIsPublished,
+    refusalWhileDrafting,
+    slotStandingForRecipe,
     privateRuleOf,
     recipeMakePublicConsequence,
     recipeOffersPrivate,
@@ -251,5 +258,79 @@ describe('showsRecipePremiumBadge', () => {
         for (const state of STATES) {
             expect(showsRecipePremiumBadge(slots(FULL, state), PUBLIC)).toBe(false);
         }
+    });
+});
+
+describe('slotStandingForRecipe - a draft holds no slot (ADR-0073 section 12)', () => {
+    it('a PUBLISHED recipe stands where the cook stands: the server count, unchanged', () => {
+        for (const standing of [OPEN, FULL, OVER, UNKNOWN, LOADING, UNLIMITED]) {
+            expect(slotStandingForRecipe(standing, { published: true, publishRefused: false })).toBe(standing);
+        }
+    });
+
+    it('a DRAFT (or a recipe never saved) has no standing to count, whatever the cook holds', () => {
+        for (const standing of [OPEN, FULL, OVER, UNKNOWN, LOADING]) {
+            expect(slotStandingForRecipe(standing, { published: false, publishRefused: false })).toEqual({
+                kind: 'draft',
+            });
+        }
+    });
+
+    it('⛔ Premium has no slots at all, so a draft stays `unlimited`: it never says "publishing uses a slot"', () => {
+        expect(slotStandingForRecipe(UNLIMITED, { published: false, publishRefused: false })).toBe(UNLIMITED);
+    });
+
+    it('a draft whose Publish was refused for want of a slot stands where the cook stands, so the refusal can be shown', () => {
+        expect(slotStandingForRecipe(FULL, { published: false, publishRefused: true })).toBe(FULL);
+    });
+});
+
+describe('a private DRAFT never meets the out-of-slots refusal; publishing it does', () => {
+    const draft = (state: RecipePrivateFacts['state'] = 'hidden'): RecipePrivateFacts => ({
+        rule: 'slots',
+        standing: slotStandingForRecipe(FULL, { published: false, publishRefused: false }),
+        state,
+    });
+
+    it('choosing Private on a draft applies, even when every slot is used', () => {
+        expect(recipePrivateChoice(draft(), PUBLIC, PRIVATE)).toBe('apply');
+    });
+
+    it('no refusal is known for a draft save (it would be sent)', () => {
+        expect(recipePrivateRefusalOf(draft())).toBeUndefined();
+    });
+
+    it('a private draft made public frees nothing, so no cost is stated', () => {
+        expect(recipeMakePublicConsequence(draft(), PRIVATE)).toBe('none');
+    });
+
+    it('PUBLISHING it is refused with the slots refusal: the same facts, with the cook’s real standing', () => {
+        const publishing: RecipePrivateFacts = { rule: 'slots', standing: FULL, state: 'hidden' };
+
+        expect(recipePrivateRefusalOf(publishing)).toBe('slots');
+        expect(recipePrivateChoice(publishing, PUBLIC, PRIVATE)).toBe('slotsFull');
+    });
+
+    it('the premium rule is not a slot rule: a draft is still refused Private for want of Premium', () => {
+        expect(recipePrivateRefusalOf({ rule: 'premium', standing: { kind: 'draft' }, state: 'upsell' })).toBe(
+            'premium',
+        );
+    });
+});
+
+describe('refusalWhileDrafting - what a draft save may be refused for', () => {
+    it('drops the slots refusal (a draft takes no slot) and keeps the others', () => {
+        expect(refusalWhileDrafting('slots')).toBeUndefined();
+        expect(refusalWhileDrafting('final')).toBe('final');
+        expect(refusalWhileDrafting('premium')).toBe('premium');
+        expect(refusalWhileDrafting(undefined)).toBeUndefined();
+    });
+});
+
+describe('recipeIsPublished - what makes a recipe hold a slot is its STATUS', () => {
+    it('is true only for a published recipe; a draft and a recipe never saved are not', () => {
+        expect(recipeIsPublished({ status: RecipeStatus.PUBLISHED })).toBe(true);
+        expect(recipeIsPublished({ status: RecipeStatus.DRAFT })).toBe(false);
+        expect(recipeIsPublished(undefined)).toBe(false);
     });
 });

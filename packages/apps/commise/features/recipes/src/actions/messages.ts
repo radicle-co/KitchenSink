@@ -94,27 +94,6 @@ export interface RecipeActionMessages {
     readonly detailActions: RecipeDetailActionMessages;
     /** Copy for the Premium sheet "Private" opens for a free-tier cook (build spec §6.4, §7.7). */
     readonly upsell: RecipeUpsellMessages;
-    /** Copy for the refusal of a copy that would be private when every private slot is in use. */
-    readonly cloneNoSlot: RecipeCloneNoSlotMessages;
-}
-
-/**
- * Saving a copy refused for want of a private slot (ADR-0073; redesign canvas v44, `RecipeSaveCopyNoSlot`). The body comes
- * in two whole strings, with and without the Premium sentence: where paid features are hidden nothing sells (DSA Art. 25),
- * and a sentence is never sliced or joined at run time.
- */
-export interface RecipeCloneNoSlotMessages {
-    readonly title: string;
-    /** `{total}` is the server's limit. Ends with the Premium sentence. */
-    readonly body: string;
-    /** `{total}` is the server's limit. No Premium sentence. */
-    readonly bodyNoPremium: string;
-    readonly notNow: string;
-    readonly seePremium: string;
-    /** The single action where paid features are hidden. */
-    readonly ok: string;
-    /** The sheet's Close control name. */
-    readonly close: string;
 }
 
 /** One variant of the Premium sheet: its title and the plain fact under it. */
@@ -249,16 +228,6 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             },
             seePremium: 'See Premium',
             notNow: 'Not now',
-            close: 'Close',
-        },
-        cloneNoSlot: {
-            title: 'No private slot for this copy',
-            body: 'This copy would be private, and all {total} of your private slots are in use. To free a slot, make a private recipe public or delete one. Premium has no limit.',
-            bodyNoPremium:
-                'This copy would be private, and all {total} of your private slots are in use. To free a slot, make a private recipe public or delete one.',
-            notNow: 'Not now',
-            seePremium: 'See Premium',
-            ok: 'OK',
             close: 'Close',
         },
     },

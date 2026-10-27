@@ -5,12 +5,13 @@
  * read back from the constant under test, so a constant changed to 49 or 51 fails here.
  */
 import { describe, expect, it } from 'vitest';
-import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import {
     FREE_PRIVATE_SLOT_LIMIT,
     SLOT_NOT_NEEDED,
     hasFreePrivateSlot,
+    holdsPrivateSlot,
     privateSlotAllowanceOf,
     privateSlotStandingOf,
     requiresPrivateSlotCheck,
@@ -52,19 +53,95 @@ describe('hasFreePrivateSlot - the count boundary', () => {
     });
 });
 
-describe('requiresPrivateSlotCheck - when the lock and the count are worth taking', () => {
+describe('holdsPrivateSlot - what a slot is (ADR-0073 section 12): private AND published', () => {
+    it.each([
+        [RecipeVisibility.PRIVATE, RecipeStatus.PUBLISHED, true],
+        [RecipeVisibility.PRIVATE, RecipeStatus.DRAFT, false],
+        [RecipeVisibility.PUBLIC, RecipeStatus.PUBLISHED, false],
+        [RecipeVisibility.PUBLIC, RecipeStatus.DRAFT, false],
+    ])('visibility %s + status %s holds a slot: %s', (visibility, status, expected) => {
+        expect(holdsPrivateSlot({ visibility, status })).toBe(expected);
+    });
+});
+
+/**
+ * Rewritten for the owner ruling of 2026-10-26 (ADR-0073 section 12, spec 001 FR-003b): the old table keyed on the
+ * REQUESTED visibility alone, so a private draft was checked. The check now runs when a recipe COMES TO HOLD a slot, i.e.
+ * it does not hold one before the write and does after it. Every row is a literal (before, after) pair.
+ */
+describe('requiresPrivateSlotCheck - the check runs when a recipe comes to hold a slot', () => {
     const PUBLIC = RecipeVisibility.PUBLIC;
     const PRIVATE = RecipeVisibility.PRIVATE;
+    const DRAFT = RecipeStatus.DRAFT;
+    const PUBLISHED = RecipeStatus.PUBLISHED;
+    const free = { sourceType: RecipeSourceType.USER_CREATED, isPremium: false } as const;
 
-    it('is false for any public request: making a recipe public frees a slot, it never takes one', () => {
-        for (const sourceType of Object.values(RecipeSourceType)) {
-            expect(requiresPrivateSlotCheck({ sourceType, requested: PUBLIC, isPremium: false })).toBe(false);
-        }
+    it.each([
+        ['a new private recipe, published', undefined, { visibility: PRIVATE, status: PUBLISHED }, true],
+        ['a new private DRAFT', undefined, { visibility: PRIVATE, status: DRAFT }, false],
+        ['a new public recipe, published', undefined, { visibility: PUBLIC, status: PUBLISHED }, false],
+        [
+            'a published public recipe made private',
+            { visibility: PUBLIC, status: PUBLISHED },
+            { visibility: PRIVATE, status: PUBLISHED },
+            true,
+        ],
+        [
+            'a private draft published',
+            { visibility: PRIVATE, status: DRAFT },
+            { visibility: PRIVATE, status: PUBLISHED },
+            true,
+        ],
+        [
+            'a public draft made private (still a draft)',
+            { visibility: PUBLIC, status: DRAFT },
+            { visibility: PRIVATE, status: DRAFT },
+            false,
+        ],
+        [
+            'a private draft saved again',
+            { visibility: PRIVATE, status: DRAFT },
+            { visibility: PRIVATE, status: DRAFT },
+            false,
+        ],
+        [
+            'a published private recipe saved again (already holds its slot)',
+            { visibility: PRIVATE, status: PUBLISHED },
+            { visibility: PRIVATE, status: PUBLISHED },
+            false,
+        ],
+        [
+            'a published private recipe set back to draft (frees its slot)',
+            { visibility: PRIVATE, status: PUBLISHED },
+            { visibility: PRIVATE, status: DRAFT },
+            false,
+        ],
+        [
+            'a published private recipe made public',
+            { visibility: PRIVATE, status: PUBLISHED },
+            { visibility: PUBLIC, status: PUBLISHED },
+            false,
+        ],
+        [
+            'a public draft published',
+            { visibility: PUBLIC, status: DRAFT },
+            { visibility: PUBLIC, status: PUBLISHED },
+            false,
+        ],
+    ])('free cook: %s -> %s', (_label, before, after, expected) => {
+        expect(requiresPrivateSlotCheck({ ...free, before, after })).toBe(expected);
     });
 
     it('is false for Premium: Premium never counts slots', () => {
         for (const sourceType of Object.values(RecipeSourceType)) {
-            expect(requiresPrivateSlotCheck({ sourceType, requested: PRIVATE, isPremium: true })).toBe(false);
+            expect(
+                requiresPrivateSlotCheck({
+                    sourceType,
+                    isPremium: true,
+                    before: undefined,
+                    after: { visibility: PRIVATE, status: PUBLISHED },
+                }),
+            ).toBe(false);
         }
     });
 
@@ -72,16 +149,24 @@ describe('requiresPrivateSlotCheck - when the lock and the count are worth takin
         expect(
             requiresPrivateSlotCheck({
                 sourceType: RecipeSourceType.IMPORTED_PUBLIC,
-                requested: PRIVATE,
                 isPremium: false,
+                before: undefined,
+                after: { visibility: PRIVATE, status: PUBLISHED },
             }),
         ).toBe(false);
     });
 
     it.each([RecipeSourceType.USER_CREATED, RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])(
-        'is true for a free cook moving a %s recipe to private',
+        'is true for a free cook publishing a private %s recipe',
         (sourceType) => {
-            expect(requiresPrivateSlotCheck({ sourceType, requested: PRIVATE, isPremium: false })).toBe(true);
+            expect(
+                requiresPrivateSlotCheck({
+                    sourceType,
+                    isPremium: false,
+                    before: undefined,
+                    after: { visibility: PRIVATE, status: PUBLISHED },
+                }),
+            ).toBe(true);
         },
     );
 });

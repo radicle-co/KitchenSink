@@ -19,6 +19,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         values: defaultRecipeFormValues(),
         refusedFields: new Set(),
         publishAttempted: false,
+        slotsRefused: false,
         lifecycle: 'unsaved',
         recipeId: undefined,
         saveStatus: { kind: 'unsaved' },

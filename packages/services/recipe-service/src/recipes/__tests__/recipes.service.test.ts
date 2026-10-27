@@ -1955,7 +1955,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
-            lockVisibility: vi.fn().mockResolvedValue('public'),
+            lockSlotFacts: vi.fn().mockResolvedValue({ visibility: 'public', status: 'published' }),
             lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50),
             setVisibility,
         });
@@ -1987,7 +1987,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
-            lockVisibility: vi.fn().mockResolvedValue('public'),
+            lockSlotFacts: vi.fn().mockResolvedValue({ visibility: 'public', status: 'published' }),
             lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50),
             setVisibility,
         });

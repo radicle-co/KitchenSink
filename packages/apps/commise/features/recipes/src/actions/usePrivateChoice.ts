@@ -25,6 +25,9 @@ import { effectiveVisibility, heldVisibility, refusedDraftPrivate } from './priv
 import {
     recipeMakePublicConsequence,
     recipePrivateRefusalOf,
+    refusalWhileDrafting,
+    slotStandingForRecipe,
+    usesSlots,
     type PrivateRule,
     type RecipePrivateFacts,
     type SlotStanding,
@@ -43,8 +46,14 @@ export interface UsePrivateChoiceOptions {
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
     /** Which rule the recipe is under (`privateRuleOf`): the cook's slots, or (an imported public-web recipe) Premium. */
     readonly rule: PrivateRule;
-    /** Where the cook stands on private slots (`slotStandingOf`, from `usePrivateSlots`). */
+    /** Where the cook stands on private slots (`slotStandingOf`, from `usePrivateSlots`): the cook's own, whatever the recipe. */
     readonly standing: SlotStanding;
+    /**
+     * Whether the recipe holds a slot yet (ADR-0073 section 12: a DRAFT holds none). `published` is the recipe's stored
+     * status; `publishRefused` is whether this editor's last Publish was refused for want of a slot, which is the one time a
+     * draft is shown the cook's real standing.
+     */
+    readonly publication: { readonly published: boolean; readonly publishRefused: boolean };
     /** The visibility the server held when the editor opened (`public` for a recipe never saved). */
     readonly saved: RecipeVisibility;
     readonly values: RecipeFormValues;
@@ -81,13 +90,22 @@ export interface PrivateChoice {
  * @sideEffect Applying Private changes the draft through `onChange`.
  */
 export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoice {
-    const { state, rule, standing, values, onChange } = options;
+    const { state, rule, values, onChange, publication } = options;
+    // ⛔ A DRAFT holds no slot: its standing is `draft` (nothing to count or refuse) until a Publish was refused for want of one.
+    const standing = slotStandingForRecipe(options.standing, publication);
     // What is SHOWN reads the display state; what is SENT reads the profile's own answer (a failed read is no refusal).
     const shown: RecipePrivateFacts = { rule, standing, state };
     const known: RecipePrivateFacts = { rule, standing, state: options.knownPaidFeatures ?? 'loading' };
-    const refusal = recipePrivateRefusalOf(known);
-    // ⛔ Not `options.saved`: a cook who has moved the draft off Private has given up the free return to it.
-    const saved = heldVisibility(options.saved, values.visibility);
+    // A draft is never SHOWN as refused for slots - not even after a refused Publish: its Private stays chosen, and the
+    // real standing (above) is what draws the refusal and its ways forward.
+    const refusal = publication.published
+        ? recipePrivateRefusalOf(known)
+        : refusalWhileDrafting(recipePrivateRefusalOf(known));
+    // ⛔ Not `options.saved`: a cook who has moved the draft off Private has given up the free return to it. And under the
+    // slots rule a recipe that is not published holds no slot whatever it is stored as (a private DRAFT is stored Private),
+    // so there is nothing held to return to: Publish is what takes the slot.
+    const heldByTheServer = usesSlots(rule) && !publication.published ? RecipeVisibility.PUBLIC : options.saved;
+    const saved = heldVisibility(heldByTheServer, values.visibility);
     const gate = useGatedPrivate({
         facts: shown,
         saved,

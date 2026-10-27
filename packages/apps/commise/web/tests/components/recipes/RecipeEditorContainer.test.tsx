@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { SyncProvider } from '@commise/query/sync';
-import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { NotFoundError, PrivateSlotsFullError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { focusManager, onlineManager } from '@tanstack/react-query';
@@ -386,6 +386,10 @@ describe('RecipeEditorContainer (web)', () => {
  * local ref and then the server id; the new route, reopened on a recipe the server holds, goes to its edit route.
  */
 /**
+ * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12): a DRAFT holds no slot. A slot is a private PUBLISHED
+ * recipe, so the count, the refusal and the over-limit sentence belong to a PUBLISHED recipe (these cases open one) and to
+ * a draft whose Publish was refused; a new recipe is a draft and shows neither.
+ *
  * "Who can see it" end to end through the real container (E1), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26.
  * A recipe is under the SLOTS rule (a free cook's own, book or paid-site recipe: Private works while the server says a
  * slot is free, whatever the paid features say) or the PREMIUM rule (an imported public-web recipe: the paid-feature table
@@ -412,9 +416,10 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
         id: string,
         visibility: RecipeVisibility,
         sourceType: 'user_created' | 'imported_public' | 'imported_physical' | 'imported_paid' = 'user_created',
+        status: 'draft' | 'published' = 'published',
     ): Promise<void> => {
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id, title: 'Secret Stew', visibility, sourceType }),
+            makeRecipeDetail({ id, title: 'Secret Stew', visibility, sourceType, status }),
         );
         renderEditor(client, id);
         await screen.findByDisplayValue('Secret Stew');
@@ -423,16 +428,29 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
     describe('a recipe the cook wrote: the slots rule', () => {
         afterEach(() => onlineManager.setOnline(true));
 
-        it('shows how many private slots are left, from the server`s read', async () => {
+        it('shows how many private slots are left, from the server`s read, on a published recipe', async () => {
             profile.paidFeatures = 'upsell';
-            renderEditor(clientWithSlots({ used: 38, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 38, limit: 50 }), 'rec_count', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText('12 of 50 private slots left')).toBeTruthy();
         });
 
+        it('⛔ a NEW recipe is a draft: it shows no count and no refusal, even with every slot used', async () => {
+            profile.paidFeatures = 'upsell';
+            renderEditor(clientWithSlots({ used: 50, limit: 50 }));
+
+            await choosePrivate();
+
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(screen.getAllByText('A private draft uses no slot. Publishing it uses one.').length).toBeGreaterThan(
+                0,
+            );
+            expect(screen.queryByText('Not available. All 50 of your private slots are in use.')).toBeNull();
+        });
+
         it('⛔ lets a free cook choose Private even when paid features are hidden: a slot, not Premium', async () => {
             profile.paidFeatures = 'hidden';
-            renderEditor(clientWithSlots({ used: 3, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 3, limit: 50 }), 'rec_choose', RecipeVisibility.PUBLIC);
 
             await choosePrivate();
 
@@ -443,7 +461,7 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
 
         it('⛔ with every slot used, refuses Private with its ways forward; the first two go to My recipes', async () => {
             profile.paidFeatures = 'upsell';
-            renderEditor(clientWithSlots({ used: 50, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_full', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
             await choosePrivate();
@@ -459,20 +477,38 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
         // who went to free a slot would come back to a lost recipe.
         it('⛔ leaving by "Make a private recipe public" keeps what the cook typed: the exit checkpoint runs', async () => {
             profile.paidFeatures = 'upsell';
-            window.history.replaceState(null, '', '/en/recipes/new');
+            window.history.replaceState(null, '', '/en/recipes/rec_leave/edit');
             const client = clientWithSlots({ used: 50, limit: 50 });
+            // A private DRAFT: the ways forward appear only once its Publish was refused for want of a slot.
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+                makeRecipeDetail({
+                    id: 'rec_leave',
+                    title: 'Secret Stew',
+                    visibility: RecipeVisibility.PRIVATE,
+                    status: 'draft',
+                }),
+            );
             const view = renderWithRecipeClient(
                 withFoodClient(
                     <SyncProvider subject="user_cook" send={recipeSender(() => client)} store={webDeviceStore}>
-                        <RecipeEditorContainer locale="en" />
+                        <RecipeEditorContainer locale="en" recipeId="rec_leave" />
                     </SyncProvider>,
                 ),
                 client,
             );
+            await screen.findByDisplayValue('Secret Stew');
+            // The refusal is decided from the server's count: wait for it before pressing Publish.
+            await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            });
+            await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
             await screen.findByText('Not available. All 50 of your private slots are in use.');
             // Offline from here, so the checkpoint's write stays in the journal for the assertion below.
             onlineManager.setOnline(false);
-            await userEvent.type(await screen.findByRole('textbox', { name: /title/iu }), 'Soup to keep');
+            const title = await screen.findByRole('textbox', { name: /title/iu });
+            await userEvent.clear(title);
+            await userEvent.type(title, 'Soup to keep');
 
             await userEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
             expect(pushMock).toHaveBeenCalledWith('/en/recipes');
@@ -488,9 +524,50 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
             expect(titles).toEqual(['Soup to keep']);
         });
 
+        // ADDED after review (ADR-0073 section 12). When the slot read had failed at the press the client sends the Publish by
+        // design (the count is a display fact), and the server answers the UPDATE with PRIVATE_SLOTS_FULL - an answer an
+        // update could not give before. That parks behind Try again. Try again must not re-send a Publish the cook's own
+        // standing now says cannot succeed (the stuck save, moved from the create to the publish): the standing is re-read when
+        // the Publish parks, and Try again draws the refusal instead.
+        it('⛔ a Publish the server refused for slots, after an unknown standing: Try again re-reads the standing and draws the refusal instead of re-sending', async () => {
+            profile.paidFeatures = 'upsell';
+            const client = createFakeRecipeServiceClient();
+            // The first read fails (an unknown standing at the press); every later one answers: every slot is used.
+            const getSlots = vi
+                .spyOn(client, 'getPrivateSlots')
+                .mockRejectedValueOnce(new Error('network down'))
+                .mockResolvedValue({ kind: 'limited', used: 50, limit: 50 });
+            const draft = makeRecipeDetail({
+                id: 'rec_stuck',
+                title: 'Secret Stew',
+                visibility: RecipeVisibility.PRIVATE,
+                status: 'draft',
+            });
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
+            const update = vi.spyOn(client, 'updateRecipe').mockRejectedValue(new PrivateSlotsFullError(50, 50));
+            renderEditor(client, 'rec_stuck');
+            await screen.findByDisplayValue('Secret Stew');
+            await waitFor(() => expect(getSlots).toHaveBeenCalled());
+
+            await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            await screen.findByRole('button', { name: 'Try again' });
+            expect(update).toHaveBeenCalledTimes(1);
+
+            // The Publish parking re-read the standing: it now says every slot is used.
+            await waitFor(() => expect(getSlots.mock.calls.length).toBeGreaterThan(1));
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            });
+            await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+            expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+            expect(update).toHaveBeenCalledTimes(1);
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+        });
+
         it('"Get Premium" in the refusal opens the Premium sheet', async () => {
             profile.paidFeatures = 'upsell';
-            renderEditor(clientWithSlots({ used: 50, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_premium', RecipeVisibility.PUBLIC);
 
             await userEvent.click(await screen.findByRole('button', { name: /Get Premium/u }));
 
@@ -499,7 +576,7 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
 
         it('offers no Premium way when paid features are hidden', async () => {
             profile.paidFeatures = 'hidden';
-            renderEditor(clientWithSlots({ used: 50, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_hidden', RecipeVisibility.PUBLIC);
 
             await screen.findByText('Not available. All 50 of your private slots are in use.');
 
@@ -617,14 +694,14 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
 
         it('⛔ says what the cook holds and that it stays private, from the server`s numbers', async () => {
             profile.paidFeatures = 'upsell';
-            renderEditor(clientWithSlots({ used: 60, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText(SENTENCE)).toBeTruthy();
         });
 
         it('⛔ About Premium opens the noSlot sheet with the server`s limit', async () => {
             profile.paidFeatures = 'upsell';
-            renderEditor(clientWithSlots({ used: 60, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
             await userEvent.click(await screen.findByRole('button', { name: 'About Premium' }));
 
@@ -638,7 +715,7 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
 
         it('⛔ with paid features hidden, says the sentence and offers no Premium link', async () => {
             profile.paidFeatures = 'hidden';
-            renderEditor(clientWithSlots({ used: 60, limit: 50 }));
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
             expect(await screen.findByText(SENTENCE)).toBeTruthy();
             expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();

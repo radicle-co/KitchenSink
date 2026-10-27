@@ -1405,6 +1405,42 @@ describe('visibilityFieldOf', () => {
         expect(privateCard(visibilityFieldOf({ ...base, facts: slots({ kind: 'unknown' }) })).note).toBeUndefined();
     });
 
+    /**
+     * ADDED for the owner ruling of 2026-10-26 (ADR-0073 section 12): a draft holds no slot, so the Private card of a
+     * draft says so instead of counting or refusing, and a draft whose Publish was refused for want of a slot shows the
+     * real refusal (the standing the editor then passes is the cook's own).
+     */
+    it('⛔ a private DRAFT shows no count and no refusal, even with every slot used: it says a draft uses no slot', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            draft: RecipeVisibility.PRIVATE,
+            facts: slots({ kind: 'draft' }),
+        });
+
+        expect(privateCard(model).note).toBe(v.slotsDraft);
+        expect(model.slotsFull).toBeUndefined();
+        expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('a private draft made public costs nothing to say (it frees no slot)', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts: slots({ kind: 'draft' }),
+        });
+
+        expect(publicCard(model).note).toBeUndefined();
+    });
+
+    it('a draft whose Publish was refused shows the refusal and its ways forward, and keeps Private chosen', () => {
+        const model = visibilityFieldOf({ ...base, draft: RecipeVisibility.PRIVATE, facts: slots(FULL, 'hidden') });
+
+        expect(privateCard(model).note).toBe('Not available. All 50 of your private slots are in use.');
+        expect(model.slotsFull?.ways.map((way) => way.id)).toEqual(['makePublic', 'delete']);
+        expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+    });
+
     it('with every slot used, refuses Private with the total, and offers the ways forward (Premium among them under the upsell)', () => {
         const model = visibilityFieldOf({ ...base, facts: slots(FULL, 'upsell') });
 

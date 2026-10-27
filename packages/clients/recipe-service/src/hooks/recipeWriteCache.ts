@@ -25,7 +25,7 @@ export function applyRecipeCreated(queryClient: QueryClient): void {
 
 /**
  * A recipe was updated: write the response through to its detail (no refetch round-trip, DA3) and refresh what
- * shows it elsewhere.
+ * shows it elsewhere, the private-slot standing included (an update can publish a draft).
  *
  * @param queryClient - The app's query client.
  * @param detail - The recipe the server returned.
@@ -40,6 +40,9 @@ export async function applyRecipeUpdated(queryClient: QueryClient, detail: Recip
     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });
+    // ADR-0073 section 12: an update can publish a draft or send a published recipe back to draft, and a slot is a private
+    // PUBLISHED recipe, so the cook's private-slot standing may have moved.
+    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePrivateSlots });
 }
 
 /**

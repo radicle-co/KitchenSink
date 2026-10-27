@@ -7,8 +7,9 @@
  *
  * ## The rules that live here
  *
- *  1. **A slot is a row, never a counter.** `COUNT(*)` over the cook's `private`, undeleted recipes, every label and every
- *     status (a private draft holds a slot). A stored counter would be a second copy of a fact `recipes` already holds, kept
+ *  1. **A slot is a row, never a counter.** `COUNT(*)` over the cook's `private`, `published`, undeleted recipes, every
+ *     label (a DRAFT holds no slot: owner ruling 2026-10-26, ADR-0073 section 12; `holdsPrivateSlot` in
+ *     `domain/privateSlotPolicy.ts` is the in-memory twin of this `WHERE`). A stored counter would be a second copy of a fact `recipes` already holds, kept
  *     in step by every path that creates, deletes, erases, purges, clones or flips a recipe; one missed path and it drifts
  *     for good. The tombstone term is the SAME `activeRecipe()` every read uses, not a restatement of `deleted_at IS NULL`.
  *  2. **The lock is the first statement.** `pg_advisory_xact_lock(class, hashtext(owner_id))` serialises one cook's private
@@ -22,6 +23,7 @@
  * The index `idx_recipes_owner_id` (partial, `WHERE deleted_at IS NULL`) serves the count.
  */
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { and, eq, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
@@ -38,7 +40,7 @@ export class PrivateSlotsDal {
      *
      * @param tx - The open transaction (the lock lives and dies with it).
      * @param ownerId - The verified app-user ULID, never a request field.
-     * @returns The cook's private, undeleted recipes, as of the moment the lock was held.
+     * @returns The cook's private, published, undeleted recipes, as of the moment the lock was held.
      * @sideEffect Takes a transaction-scoped advisory lock (blocks while another private write of this cook is in flight).
      */
     public async lockAndCount(tx: Writer, ownerId: string): Promise<number> {
@@ -50,7 +52,7 @@ export class PrivateSlotsDal {
     }
 
     /**
-     * Count the cook's private, undeleted recipes WITHOUT the lock - for display (the slot-usage read), never for a decision.
+     * Count the cook's private, published, undeleted recipes WITHOUT the lock - for display (the slot-usage read), never for a decision.
      *
      * @param reader - A client or an open transaction.
      * @param ownerId - The verified app-user ULID.
@@ -60,7 +62,14 @@ export class PrivateSlotsDal {
         const [row] = await reader
             .select({ used: sql<number>`count(*)::int`.mapWith(Number) })
             .from(recipes)
-            .where(and(eq(recipes.ownerId, ownerId), eq(recipes.visibility, 'private'), activeRecipe()));
+            .where(
+                and(
+                    eq(recipes.ownerId, ownerId),
+                    eq(recipes.visibility, RecipeVisibility.PRIVATE),
+                    eq(recipes.status, RecipeStatus.PUBLISHED),
+                    activeRecipe(),
+                ),
+            );
 
         return row?.used ?? 0;
     }

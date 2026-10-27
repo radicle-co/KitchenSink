@@ -1340,9 +1340,14 @@ export async function mockRecipeApi(
         collections.set(collection.id, collection);
     }
 
-    /** The viewer's private, undeleted recipes in the store: what the real service counts (ADR-0073). */
+    /**
+     * The viewer's private, PUBLISHED, undeleted recipes in the store: what the real service counts (ADR-0073 section 12 -
+     * a draft holds no slot).
+     */
     const privateSlotsUsed = (): number =>
-        [...store.values()].filter((recipe) => recipe.ownerId === viewerId && recipe.visibility === 'private').length;
+        [...store.values()].filter(
+            (recipe) => recipe.ownerId === viewerId && recipe.visibility === 'private' && recipe.status === 'published',
+        ).length;
 
     await page.route('**/api/v1/**', async (route) => {
         const request = route.request();
@@ -1774,17 +1779,8 @@ export async function mockRecipeApi(
         if (clone && method === 'POST') {
             const source = store.get(clone[1] as string);
 
-            // The service refuses a copy that would land PRIVATE when a free cook has no slot, BEFORE any recipe is made
-            // (`defaultCloneVisibility`, then the slot check; ADR-0073 section 3). It lands private when the source is private
-            // or is a book or paid-site recipe; a public copy takes no slot. (This double's own copy is always private, below.)
-            const landsPrivate =
-                source?.visibility === 'private' ||
-                source?.sourceType === 'imported_physical' ||
-                source?.sourceType === 'imported_paid';
-
-            if (landsPrivate && tier === 'free' && privateSlotsUsed() >= privateSlotLimit) {
-                return route.fulfill({ status: 403, json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit) });
-            }
+            // ADR-0073 section 12: a clone is always a DRAFT (below), and a draft holds no slot, so the service never
+            // refuses a copy for slots. The slot is taken when the cook publishes it (the update route).
 
             // Plan 002: mirror the service's clone — the source's private-food lines (the ones a stranger sees as
             // RESOLVED_UNAVAILABLE, with no name) KEEP their binding on the clone, and the response carries the
@@ -1831,10 +1827,12 @@ export async function mockRecipeApi(
                 return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
             }
 
-            // A free cook with every slot used is refused a move TO private; a recipe already private holds its slot.
+            // A free cook with every slot used is refused a move TO private of a PUBLISHED recipe; a recipe already private
+            // and published holds its slot, and a draft holds none (ADR-0073 section 12).
             if (
                 body()['visibility'] === 'private' &&
                 current.visibility !== 'private' &&
+                current.status === 'published' &&
                 tier === 'free' &&
                 privateSlotsUsed() >= privateSlotLimit
             ) {
@@ -1954,6 +1952,20 @@ export async function mockRecipeApi(
                     });
                 }
 
+                // PUBLISHING a private draft takes a slot (ADR-0073 sections 3 and 12): refused when a free cook has none.
+                if (
+                    input['status'] === 'published' &&
+                    current.status === 'draft' &&
+                    current.visibility === 'private' &&
+                    tier === 'free' &&
+                    privateSlotsUsed() >= privateSlotLimit
+                ) {
+                    return route.fulfill({
+                        status: 403,
+                        json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit),
+                    });
+                }
+
                 const updated = applyUpdate(current, input, resolveBinding);
                 store.set(id, updated);
 
@@ -2011,7 +2023,13 @@ export async function mockRecipeApi(
             if (method === 'POST') {
                 const input = body();
 
-                if (input['visibility'] === 'private' && tier === 'free' && privateSlotsUsed() >= privateSlotLimit) {
+                // A private DRAFT takes no slot (ADR-0073 section 12); only a PUBLISHED private recipe does.
+                if (
+                    input['visibility'] === 'private' &&
+                    (input['status'] ?? 'published') === 'published' &&
+                    tier === 'free' &&
+                    privateSlotsUsed() >= privateSlotLimit
+                ) {
                     return route.fulfill({
                         status: 403,
                         json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit),

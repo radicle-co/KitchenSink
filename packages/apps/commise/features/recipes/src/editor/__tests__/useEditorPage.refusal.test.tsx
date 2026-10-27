@@ -30,6 +30,7 @@ vi.mock('@commise/ui/scroll-host', () => ({
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
 import { ingredientNameFieldId } from '../../form/fieldIds.js';
 import type { RecipeFormErrors } from '../../form/validate.js';
+import type { GateOutcome } from '../gate.js';
 import type { EditorPage } from '../useEditorPage.js';
 import { useEditorPage } from '../useEditorPage.js';
 import type { EditorSectionId } from '../sections.js';
@@ -46,9 +47,10 @@ function mountRefusing(
     errors: RecipeFormErrors,
     section: EditorSectionId | undefined,
     pendingEntryFieldId: string | undefined = undefined,
+    outcome: GateOutcome = { kind: 'refused', errors, section },
 ) {
     const seen: { page?: EditorPage } = {};
-    const editor = makeEditorResult({ publish: () => ({ kind: 'refused', errors, section }) });
+    const editor = makeEditorResult({ publish: () => outcome });
 
     const Page = (): ReactElement => {
         const page = useEditorPage({
@@ -145,6 +147,19 @@ describe('useEditorPage — a refused Publish', () => {
 
         expect(host.scrollToSection).not.toHaveBeenCalled();
         expect(page().refusalHeadings).toEqual({});
+    });
+
+    // ADDED for the owner ruling of 2026-10-26 (ADR-0073 section 12): publishing a private draft with every slot used is
+    // refused with `slotsFull`. The visibility field lives in Photos & publish, which is where the cook is taken, and there
+    // is no single control to land on, so the section's heading is the answer.
+    it('takes the cook to the visibility field’s section when Publish is refused for want of a slot', () => {
+        const { page, press } = mountRefusing({}, undefined, undefined, { kind: 'slotsFull' });
+
+        press();
+
+        expect(host.scrollToSection).toHaveBeenCalledExactlyOnceWith('photos');
+        expect(host.scrollToField).not.toHaveBeenCalled();
+        expect(page().refusalHeadings).toEqual({ photos: 1 });
     });
 
     it('counts nothing when Publish is not refused', () => {

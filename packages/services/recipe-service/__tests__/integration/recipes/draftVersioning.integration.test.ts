@@ -16,6 +16,7 @@ import 'reflect-metadata';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
+import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
@@ -140,6 +141,13 @@ beforeAll(async () => {
                     create,
                     update,
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
+                    // Publishing a draft reads the row's slot facts under the lock and counts (ADR-0073 section 12); this cook
+                    // holds none, so a slot is free.
+                    lockAndCountPrivateSlots: async () => 0,
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility as RecipeVisibility,
+                        status: stored.status as RecipeStatus,
+                    }),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },

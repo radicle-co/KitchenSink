@@ -12,7 +12,7 @@ import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { recipeQueries, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { recipeQueries, recipeServiceKeys, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -245,19 +245,68 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         expect(port.submitted.at(-1)?.payload).toMatchObject({ input: { visibility: RecipeVisibility.PUBLIC } });
     });
 
-    // Review S1: the preview shows what will be sent, as the field does — one answer (`effectiveVisibility`).
-    it('⛔ the preview shows a refused draft Private as Public, and an unrefused one as Private', () => {
+    // Review S1: the preview shows what will be sent, as the field does - one answer (`effectiveVisibility`).
+    // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a draft holds no slot, so the slots refusal no
+    // longer turns a DRAFT's Private into Public; `final` and `premium` still do, and a PUBLISHED recipe still meets `slots`.
+    it('⛔ the preview shows a draft Private as Public only under a refusal that applies to drafts', () => {
         const values = { ...toRecipeFormValues(complete()), visibility: RecipeVisibility.PRIVATE, photos: [] };
-        const refused = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'slots' });
+        const final = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'final' });
+        const slots = mount({}, createFakeRecipeServiceClient(), { privateRefusal: 'slots' });
         const granted = mount({}, createFakeRecipeServiceClient(), { privateRefusal: undefined });
 
         act(() => {
-            refused.result.current.editor.setValues(values);
+            final.result.current.editor.setValues(values);
+            slots.result.current.editor.setValues(values);
             granted.result.current.editor.setValues(values);
         });
 
-        expect(refused.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(final.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(slots.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PRIVATE);
         expect(granted.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('a PUBLISHED recipe asked for Private with every slot used previews as Public (a published move needs the slot)', () => {
+        const published = complete({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PUBLIC });
+        const view = mount({ recipe: published }, createFakeRecipeServiceClient(), { privateRefusal: 'slots' });
+
+        act(() => {
+            view.result.current.editor.setValues({
+                ...toRecipeFormValues(published),
+                visibility: RecipeVisibility.PRIVATE,
+                photos: [],
+            });
+        });
+
+        expect(view.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PUBLIC);
+    });
+
+    // ADDED after review (ADR-0073 section 12). A Publish the client could not see coming (the slot read had failed or was
+    // stale) parks when the server refuses the update for want of a slot. Try again asks the gate with the standing as it is
+    // then, so the standing is re-read the moment the Publish parks - not whenever the tab next happens to refocus.
+    it('⛔ re-reads the private-slot standing when a Publish parks, so Try again judges it afresh', async () => {
+        const { result, port, queryClient } = mount({}, createFakeRecipeServiceClient(), { privateRefusal: undefined });
+        const key = recipeServiceKeys.recipePrivateSlots;
+        queryClient.setQueryData(key, { kind: 'limited', used: 3, limit: 50 });
+
+        act(() => {
+            result.current.editor.setValues({
+                ...toRecipeFormValues(complete()),
+                visibility: RecipeVisibility.PRIVATE,
+                photos: [],
+            });
+        });
+        act(() => {
+            result.current.editor.publish('');
+        });
+        await settle();
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+
+        act(() => {
+            port.park(port.lastSeq());
+        });
+        await settle();
+
+        expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
     });
 
     it('a discarded never-published recipe goes to My recipes; a published one`s discarded changes, to the recipe', async () => {

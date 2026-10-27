@@ -16,7 +16,7 @@
  *   a tone
  */
 import type { IconName } from '../icon/props.js';
-import { role, roleDark } from './colors.js';
+import { palette, role, roleDark } from './colors.js';
 
 /** A recipe difficulty. */
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -67,8 +67,14 @@ export const statusToneDark: Readonly<Record<RecipeStatus, StatusTone>> = {
     public: { fill: roleDark.surfaceMuted, text: roleDark.ink, icon: 'globe' },
 };
 
-/** The PRO badge: a neutral chip (`surfaceMuted` under `ink`), as every status is. It no longer has a colour of its own. */
-export const proTone: Tone = { fill: role.surfaceMuted, text: role.ink };
+/**
+ * The PRO badge: GREY, not steel, and not the neutral `surfaceMuted` chip. That chip vanished on a `surfaceMuted` area
+ * (the editor's visibility card), so PRO takes the darker `slate` fill under `snow` in light and a light grey under
+ * `charcoal` in dark: each fill is seen against canvas, paper and `surfaceMuted` (SC 1.4.11) and each label is read on
+ * its fill (SC 1.4.3). Both pairs are measured in `__tests__/redesignContrast.test.ts`. ONE source: web emits it as
+ * `--color-pro-*` and native reads it from the theme.
+ */
+export const proTone: Tone = { fill: palette.slate, text: palette.snow };
 
-/** The PRO badge in the dark theme. */
-export const proToneDark: Tone = { fill: roleDark.surfaceMuted, text: roleDark.ink };
+/** The PRO badge in the dark theme: the dark muted-ink grey under `charcoal`. */
+export const proToneDark: Tone = { fill: roleDark.inkMuted, text: palette.charcoal };

@@ -33,7 +33,7 @@ const AA_TEXT = 4.5;
 const COLOURS: Readonly<Record<string, string>> = {
     ...palette,
     ...Object.fromEntries(Object.entries(role).map(([name, value]) => [kebab(name), value])),
-    // The PRO pair, fixed in both themes (`darkTheme.md` §2), emitted as `--color-pro-*`.
+    // The PRO pair (light), emitted as `--color-pro-*` and overridden in the dark block.
     'pro-fill': proTone.fill,
     'pro-ink': proTone.text,
 };
@@ -120,8 +120,8 @@ describe('StatusBadge (web)', () => {
     it('paints PRO as a neutral chip that re-themes', () => {
         render(<StatusBadge status="pro">PRO</StatusBadge>);
 
-        expect(colourOf(badgeOf('PRO').className, 'bg')).toBe(palette.pearl);
-        expect(colourOf(badgeOf('PRO').className, 'text')).toBe(palette.charcoal);
+        expect(colourOf(badgeOf('PRO').className, 'bg')).toBe(proTone.fill);
+        expect(colourOf(badgeOf('PRO').className, 'text')).toBe(proTone.text);
     });
 
     it('takes the ink-on-tint fallback for attention, and inkMuted on pearl for a note', () => {

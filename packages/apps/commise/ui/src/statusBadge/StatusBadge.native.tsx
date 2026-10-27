@@ -14,18 +14,17 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../icon/Icon.native.js';
 import type { Theme } from '../theme/themeFor.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import { proTone } from '../tokens/tones.js';
 import { nativeTokens } from '../tokens/native.js';
 import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
 
 /**
  * Each status's fill and label in the current theme: the web leaf's pairs (see its note on the `attention` fallback).
- * The PRO pair is fixed in both themes (`darkTheme.md` §2); every other pair re-themes. Pure.
+ * Every pair re-themes, PRO's included (grey in both). Pure.
  */
-function badgePair({ colors }: Theme, status: BadgeStatus): { readonly fill: string; readonly text: string } {
+function badgePair({ colors, pro }: Theme, status: BadgeStatus): { readonly fill: string; readonly text: string } {
     switch (status) {
         case 'pro':
-            return proTone;
+            return pro;
         case 'note':
             return { fill: colors.surfaceMuted, text: colors.inkMuted };
         case 'attention':

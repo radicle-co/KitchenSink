@@ -32,6 +32,12 @@ import { NATIVE, NATIVE_LITERALS, WEB_DARK, WEB_LIGHT } from '../__fixtures__/re
 const RENAMED = { seafoam: 'steel', 'seafoam-light': 'steel-light', sand: 'fog' } as const;
 /** Source palette keys that no longer exist, each a copy of another entry. */
 const RETIRED = ['honey', 'premium'] as const;
+/**
+ * Source custom properties the design session RETUNED after the handoff (the PRO badge, 2026-10-27: grey, not the
+ * neutral chip). The fixture keeps the handoff's values byte for byte, so these rows are skipped there and pinned in
+ * the "retuned" block at the foot instead, the way the danger colours and chart series are.
+ */
+const RETUNED_AFTER_HANDOFF = new Set(['pro-fill', 'pro-ink']);
 
 /** Our name for a source palette key. */
 function ours(key: string): string {
@@ -93,7 +99,9 @@ function emittedName(source: string): string | undefined {
 }
 
 describe('web: tokens.css, light, every custom property', () => {
-    const rows = Object.entries(WEB_LIGHT).filter(([name]) => !name.startsWith('space-') && name !== 'font-display');
+    const rows = Object.entries(WEB_LIGHT).filter(
+        ([name]) => !name.startsWith('space-') && name !== 'font-display' && !RETUNED_AFTER_HANDOFF.has(name),
+    );
 
     it.each(rows)('--%s', (source, value) => {
         const name = emittedName(source);
@@ -121,7 +129,7 @@ describe('web: tokens.css, light, every custom property', () => {
 });
 
 describe('web: tokens.css, dark, every custom property', () => {
-    it.each(Object.entries(WEB_DARK))('--%s', (source, value) => {
+    it.each(Object.entries(WEB_DARK).filter(([name]) => !RETUNED_AFTER_HANDOFF.has(name)))('--%s', (source, value) => {
         const name = emittedName(source);
 
         expect(dark.get(name ?? ''), `--${name} (from --${source}) in the dark block`).toBe(norm(value));
@@ -150,7 +158,7 @@ describe('web: the semantic keys follow the roles in both themes (redesign.css)'
     });
 });
 
-describe('web: difficulty and PRO are neutral chips in both themes (redesign.css, tokens.css)', () => {
+describe('web: difficulty is a neutral chip and PRO a grey one, in both themes (redesign.css, tokens.css)', () => {
     it.each(['easy', 'medium', 'hard'] as const)('%s is surfaceMuted under ink', (level) => {
         expect(difficultyTone[level]).toEqual({ fill: role.surfaceMuted, text: role.ink });
         expect(difficultyToneDark[level]).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink });
@@ -158,9 +166,13 @@ describe('web: difficulty and PRO are neutral chips in both themes (redesign.css
         expect(dark.get(`color-difficulty-${level}-ink`)).toBe(norm(roleDark.ink));
     });
 
-    it('PRO takes the pro-fill and pro-ink of each theme', () => {
-        expect(proTone).toEqual({ fill: role.surfaceMuted, text: role.ink });
-        expect(proToneDark).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink });
+    it('PRO is the retuned grey pair, emitted as pro-fill and pro-ink in each theme', () => {
+        expect(proTone).toEqual({ fill: '#5C646E', text: '#FFFFFF' });
+        expect(proToneDark).toEqual({ fill: '#A3ACB6', text: '#171B20' });
+        expect(light.get('color-pro-fill')).toBe('#5c646e');
+        expect(light.get('color-pro-ink')).toBe('#ffffff');
+        expect(dark.get('color-pro-fill')).toBe('#a3acb6');
+        expect(dark.get('color-pro-ink')).toBe('#171b20');
     });
 });
 

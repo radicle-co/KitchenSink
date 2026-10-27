@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { role, roleDark } from '../../tokens/colors.js';
 import { coverTint, coverTintDark } from '../../tokens/covers.js';
 import { gradient, heroDark } from '../../tokens/gradients.js';
-import { statusTone, statusToneDark } from '../../tokens/tones.js';
+import { proTone, proToneDark, statusTone, statusToneDark } from '../../tokens/tones.js';
 import { themeFor } from '../themeFor.js';
 
 /**
@@ -37,6 +37,13 @@ describe('themeFor', () => {
     it('presses to each scheme’s surfaceMuted, not an ink-alpha wash', () => {
         expect(themeFor('light').wash).toBe(role.surfaceMuted);
         expect(themeFor('dark').wash).toBe(roleDark.surfaceMuted);
+    });
+
+    // The native PRO badge reads its pair from the theme, so the dark scheme paints the dark pair (it used to read the
+    // light constant in both).
+    it('gives each scheme its own PRO pair', () => {
+        expect(themeFor('light').pro).toBe(proTone);
+        expect(themeFor('dark').pro).toBe(proToneDark);
     });
 
     it('returns the same object for the same scheme', () => {

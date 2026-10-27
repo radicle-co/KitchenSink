@@ -295,8 +295,8 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-cover-premium: #F5E9DF;
               --color-cover-success: #E4EDF2;
               --color-cover-warning: #F7E9D7;
-              --color-pro-fill: #E9EDF2;
-              --color-pro-ink: #171B20;
+              --color-pro-fill: #5C646E;
+              --color-pro-ink: #FFFFFF;
               --color-difficulty-easy-fill: #E9EDF2;
               --color-difficulty-easy-ink: #171B20;
               --color-difficulty-medium-fill: #E9EDF2;
@@ -369,8 +369,8 @@ describe('web tokens — generated theme.css artifact', () => {
                   --color-destructive: #E07A60;
                   --color-border: #262F38;
                   --color-ring: #96BCDE;
-                  --color-pro-fill: #212B36;
-                  --color-pro-ink: #EBEFF2;
+                  --color-pro-fill: #A3ACB6;
+                  --color-pro-ink: #171B20;
                   --color-cover-steel: #202B37;
                   --color-cover-coral: #342817;
                   --color-cover-sky: #1C2C38;

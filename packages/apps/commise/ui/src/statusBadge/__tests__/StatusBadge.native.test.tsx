@@ -11,6 +11,7 @@ import { formatRgb, wcagContrast } from 'culori';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { palette, role } from '../../tokens/colors.js';
+import { proTone } from '../../tokens/tones.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { StatusBadge } from '../StatusBadge.native.js';
 import { BADGE_STATUSES } from '../props.js';
@@ -32,6 +33,13 @@ function badgeOf(text: string): HTMLElement {
 }
 
 describe('StatusBadge (native)', () => {
+    it('paints PRO as the grey pair: snow on slate in the light theme', () => {
+        render(<StatusBadge status="pro">PRO</StatusBadge>);
+
+        expect(getComputedStyle(badgeOf('PRO')).backgroundColor).toBe(formatRgb(proTone.fill));
+        expect(getComputedStyle(screen.getByText('PRO')).color).toBe(formatRgb(proTone.text));
+    });
+
     it('renders its words as text a screen reader reads, with no hiding', () => {
         render(<StatusBadge status="note">Custom</StatusBadge>);
 

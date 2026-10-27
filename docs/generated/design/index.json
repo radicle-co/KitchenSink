@@ -167,14 +167,6 @@
             ]
         },
         {
-            "id": "native.borderSubtle",
-            "source": "packages/apps/commise/ui/src/tokens/native.ts",
-            "tokenCount": 2,
-            "kinds": [
-                "color"
-            ]
-        },
-        {
             "id": "native",
             "source": "packages/apps/commise/ui/src/tokens/native.ts",
             "tokenCount": 1,

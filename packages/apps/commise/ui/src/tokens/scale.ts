@@ -9,8 +9,11 @@
  * Values are deliberately unit-NEUTRAL. Lengths are raw pixels (each consumer applies its own
  * unit-aware emission: web ÷16 → `rem`, native → the number as-is); line-heights are px (see `lineHeightPx`);
  * font weights are numbers; families and the border colour are CSS-ready strings. Nothing here imports
- * a platform API, so the module is safe for web, React Native, and Node alike.
+ * a platform API, so the module is safe for web, React Native, and Node alike. (`colors.ts` is the one sibling it
+ * reads, for the `glow` halo's colour; `colors.ts` imports nothing, so there is no cycle.)
  */
+
+import { palette } from './colors.js';
 
 /**
  * Spacing scale in pixels on a 4px base (step index → px). Web emits `rem` (÷16, unitless `0`);
@@ -143,14 +146,18 @@ export interface ElevationLayer {
     readonly opacity: number;
 }
 
+/** A `#RRGGBB` colour as the `r,g,b` triplet a shadow layer carries. */
+function rgbTriplet(hex: string): string {
+    return [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16)).join(',');
+}
+
 /**
  * Elevation specs, each a stack of one or two shadow layers (the redesign's cool, soft shadows). Web composes a CSS
  * `box-shadow` from EVERY layer (spread omitted when 0); native has one shadow per view, so it takes the LAST layer,
  * the diffuse one that carries the depth. `glow` is the focus halo: a 3 px ring, no blur.
  *
- * The `glow` colour is `palette.steel` re-spelled in decimal, because `colors.ts` imports THIS module (it did, for the
- * subtle border) and the reverse import would be a cycle. It is therefore the one place a palette colour lives twice,
- * kept in agreement by `__tests__/scale.test.ts`.
+ * The `glow` colour is DERIVED from `palette.steel` ({@link rgbTriplet}), so the halo cannot drift from the button
+ * it rings.
  */
 export const elevation = {
     sm: [{ offsetX: 0, offsetY: 1, blur: 2, spread: 0, color: '20,30,45', opacity: 0.05 }],
@@ -163,7 +170,7 @@ export const elevation = {
         { offsetX: 0, offsetY: 8, blur: 22, spread: 0, color: '10,20,30', opacity: 0.12 },
     ],
     xl: [{ offsetX: 0, offsetY: 12, blur: 30, spread: 0, color: '10,20,30', opacity: 0.18 }],
-    glow: [{ offsetX: 0, offsetY: 0, blur: 0, spread: 3, color: '50,92,127', opacity: 0.25 }],
+    glow: [{ offsetX: 0, offsetY: 0, blur: 0, spread: 3, color: rgbTriplet(palette.steel), opacity: 0.25 }],
 } as const satisfies Record<string, readonly [ElevationLayer, ...ElevationLayer[]]>;
 
 /**

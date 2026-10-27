@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-account/subscriptionEntryPoints — the ONE switch that says whether any surface may link to,
+ * @module @commise/features-account — the ONE switch that says whether any surface may link to,
  * or sell, the subscription page (spec 010 T-035, FR-042j, FR-042k).
  *
  * ⛔ OFF until feature 010 ships (owner ruling 2026-10-26): there is no subscription page to send a cook to, and none may

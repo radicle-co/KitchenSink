@@ -16,7 +16,7 @@ import { PublishBlockedSheet } from '../PublishBlockedSheet.native.js';
 /** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
 const entryPoints = vi.hoisted(() => ({ on: false }));
 
-vi.mock('@commise/features-account/subscriptionEntryPoints', () => ({
+vi.mock('@commise/features-account', () => ({
     get SUBSCRIPTION_ENTRY_POINTS_ON() {
         return entryPoints.on;
     },

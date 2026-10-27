@@ -16,7 +16,7 @@
  *
  * @pattern Adapter over the design-system `Sheet` — the ask's words and the one dismiss path on the house sheet
  */
-import { SUBSCRIPTION_ENTRY_POINTS_ON } from '@commise/features-account/subscriptionEntryPoints';
+import { SUBSCRIPTION_ENTRY_POINTS_ON } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';

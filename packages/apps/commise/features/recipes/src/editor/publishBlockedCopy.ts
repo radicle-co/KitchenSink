@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/editor — the words of the dialog a Publish opens when the cook chose Private and cannot
  * keep it (owner ruling 2026-10-26). Whether it may sell Pro is the one subscription-entry-point switch
- * (`@commise/features-account/subscriptionEntryPoints`, spec 010 T-035), passed in so both positions are testable.
+ * (`@commise/features-account`, spec 010 T-035), passed in so both positions are testable.
  *
  * Pure and platform-agnostic.
  *

@@ -6,7 +6,7 @@
  *
  * @pattern Adapter over the design-system `Sheet` — the platform expression of the web leaf
  */
-import { SUBSCRIPTION_ENTRY_POINTS_ON } from '@commise/features-account/subscriptionEntryPoints';
+import { SUBSCRIPTION_ENTRY_POINTS_ON } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';

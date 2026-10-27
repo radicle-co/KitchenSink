@@ -74,7 +74,7 @@ describe('ConfirmDialog (native)', () => {
         expect(within(alert).getByRole('heading', { name: 'Discard unsaved changes?' })).toBeTruthy();
         expect(screen.getByText('You have unsaved changes. Leaving now will discard them.')).toBeTruthy();
     });
-    // Parity with the web dialog, whose title is `sectionTitle` (`buildSpec.md` §1.5): Playfair sets names only (F8).
+    // Parity with the web dialog, whose title is `sectionTitle` (`buildSpec.md` §1.5): Manrope sets names only (F8).
     it('sets its title in Inter, never the display face', () => {
         render(<ConfirmDialog {...baseProps()} />);
 
@@ -91,7 +91,7 @@ describe('ConfirmDialog (native)', () => {
             .filter((family) => family !== '');
 
         expect(families.length).toBeGreaterThan(0);
-        expect(families.join(' ')).not.toMatch(/Playfair/u);
+        expect(families.join(' ')).not.toMatch(/Manrope/u);
     });
 
     it('confirming calls onConfirm', () => {

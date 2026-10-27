@@ -26,10 +26,10 @@ describe('fontFiles', () => {
         const registered = files.map((file) => `${file.family}@${file.weight}`);
 
         expect(registered).toContain('Inter@400');
-        expect(registered).toContain('Inter@700');
+        expect(registered).toContain('Inter@600');
         expect(registered).toContain('Inter_400Regular@400');
-        expect(registered).toContain('Playfair Display@600');
-        expect(registered).toContain('PlayfairDisplay_700Bold@400');
+        expect(registered).toContain('Manrope@600');
+        expect(registered).toContain('Manrope_600SemiBold@400');
     });
 
     it('raises missing-font when a font cannot be resolved', () => {
@@ -62,7 +62,7 @@ describe('fontLicences', () => {
     it('ships the SIL Open Font Licence text of both families', () => {
         const licences = fontLicences();
 
-        expect(licences.map((licence) => licence.file).sort()).toEqual(['OFL-Inter.txt', 'OFL-PlayfairDisplay.txt']);
+        expect(licences.map((licence) => licence.file).sort()).toEqual(['OFL-Inter.txt', 'OFL-Manrope.txt']);
 
         for (const licence of licences) {
             expect(existsSync(licence.source), licence.source).toBe(true);

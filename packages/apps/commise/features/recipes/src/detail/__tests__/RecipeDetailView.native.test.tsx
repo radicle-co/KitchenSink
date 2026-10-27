@@ -78,12 +78,12 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByRole('heading', { name: 'Mediterranean Grilled Lamb' })).toBeTruthy();
     });
 
-    // U8 brand leaf: the title must resolve to a REGISTERED Playfair face. A CSS font stack renders as the
+    // U8 brand leaf: the title must resolve to a REGISTERED Manrope face. A CSS font stack renders as the
     // system font on device with no error at all, so this reads the family react-native-web actually applied
     // (the class-compiled rule — `getComputedStyle` does not resolve it) and rejects any stack.
     // REWRITTEN: the large title is the registered 600 face since 60cf38d84 (owner rule C1, the redesign's weight cap),
     // so this reads the face from the role rather than naming a weight.
-    it('paints the title in the large title role’s registered Playfair face, never a CSS font stack', () => {
+    it('paints the title in the large title role’s registered Manrope face, never a CSS font stack', () => {
         render(
             <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ title: 'Lamb' })} />,
         );
@@ -203,6 +203,11 @@ describe('RecipeDetailView (native)', () => {
         );
 
         const lamb = screen.getByRole('heading', { name: 'For the lamb' });
+
+        // C5/C6 (redesign): a group name is weight 500, in the registered medium face (never a weight on a family).
+        expect(appliedFontFamily(lamb)).toBe(nativeTokens.type.caption.fontFamily);
+        // T1: 16 above a group name.
+        expect(getComputedStyle(lamb).paddingTop).toBe(`${nativeTokens.spacing[4]}px`);
         const chickpeas = screen.getByRole('heading', { name: 'For the chickpeas' });
 
         expect(
@@ -655,11 +660,11 @@ describe('RecipeDetailView (native) — tap-to-check and the current step', () =
 });
 
 describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
-    it('gives every ingredient row at least 48 dp and the step toggle 44 pt', () => {
+    it('gives every ingredient row at least 44 dp (REWRITTEN for owner C5 + T1: it was 48) and the step toggle 44 pt', () => {
         render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail()} />);
 
         for (const row of screen.getAllByRole('checkbox')) {
-            expect(appliedStyle(row, 'min-height')).toBe('48px');
+            expect(appliedStyle(row, 'min-height')).toBe('44px');
         }
 
         const toggle = screen.getByRole('button', { name: 'Mark step 1 as current' });
@@ -669,7 +674,7 @@ describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
 });
 
 describe('RecipeDetailView (native) — contrast (WCAG AA)', () => {
-    it('makes the step timer label legible (4.02:1 as seafoam, under the 4.5:1 floor)', () => {
+    it('makes the step timer label legible (4.02:1 as steel, under the 4.5:1 floor)', () => {
         render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
@@ -912,12 +917,12 @@ describe('RecipeDetailView (native) — a long ingredient line cannot push the r
         expect(appliedStyle(block, 'flex-grow')).toBe('1');
     });
 
-    it('keeps the whole row at least 48 dp tall, the touch floor', () => {
+    it('keeps the whole row at least 44 dp tall (REWRITTEN for owner C5 + T1: it was 48), the touch floor', () => {
         render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={longIngredient()} />);
 
         expect(
             appliedStyle(screen.getByRole('checkbox', { name: /Slow-roasted San Marzano tomatoes/u }), 'min-height'),
-        ).toBe('48px');
+        ).toBe('44px');
     });
 });
 
@@ -1129,7 +1134,14 @@ describe('RecipeDetailView (native) — the current step is tellable from the ot
 
         fireEvent.click(screen.getByRole('button', { name: 'Mark step 1 as current' }));
 
-        expect(numeral(1)).toBe(cssColor(palette.seafoam));
+        // C6 (redesign): the step number is weight 500, in the registered medium face.
+        expect(
+            appliedFontFamily(
+                screen.getByRole('button', { name: 'Mark step 1 as current' }).firstElementChild
+                    ?.firstElementChild as Element,
+            ),
+        ).toBe(nativeTokens.type.caption.fontFamily);
+        expect(numeral(1)).toBe(cssColor(palette.steel));
         expect(numeral(2)).not.toBe(numeral(1));
         expect(screen.getByRole('button', { name: 'Mark step 1 as current' }).getAttribute('aria-pressed')).toBe(
             'true',

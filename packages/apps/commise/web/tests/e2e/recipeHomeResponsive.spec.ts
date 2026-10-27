@@ -359,7 +359,7 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         // a UI that no longer ships, which is strictly worse than it failing.
         // Re-baselined for the UI overhaul's slice 1 (no box in a box, §1.6) and slice 6 (the recipe page's layout,
         // §6.1: meta line, stat strip, action row, two columns from a 720 px body). Re-baselined again for the UX
-        // evaluation fixes (`evaluateFinal.md` F7, F8, F10, F15): the title is Playfair `largeTitle`, the stat strip stays
+        // evaluation fixes (`evaluateFinal.md` F7, F8, F10, F15): the title is Manrope `largeTitle`, the stat strip stays
         // 2 x 2 below a 480 px strip, the no-photo hero is the 96 px monogram band at the end, the page gutter is the
         // layout's alone, and "Community rating" is an Inter H2. Re-baselined for the walk-through fixes and the owner's
         // decisions of 2026-10-13: with no photo the 96 px band takes the whole top row with the header under it (P1),

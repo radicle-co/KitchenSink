@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/pending-bar — the web bar that says the results on screen are being replaced.
  *
- * A still, 4px `seafoam` bar. The results it sits above stay at full strength and fully usable while newer ones are
+ * A still, 4px `steel` bar. The results it sits above stay at full strength and fully usable while newer ones are
  * pending: dimming them would take their text below 4.5:1 (SC 1.4.3), and they can still be opened. It does not
  * move, because a moving bar beside usable content is not covered by SC 2.2.2's loading exemption, so reduce-motion
  * viewers see exactly what everyone else sees.

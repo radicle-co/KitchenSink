@@ -24,7 +24,7 @@ const small: ArtifactTokens = {
             { family: 'Inter', file: 'fonts/Inter_400Regular.ttf', weight: '400', style: 'normal' },
             { family: 'Inter_400Regular', file: 'fonts/Inter_400Regular.ttf', weight: '400', style: 'normal' },
         ],
-        families: { display: '"Playfair Display", serif', body: 'Inter, sans-serif', mono: 'Mono' },
+        families: { display: '"Manrope", sans-serif', body: 'Inter, sans-serif', mono: 'Mono' },
         groups: [],
     },
     spacing: { note: '', tokens: [{ name: 'space-1', value: '4px', usage: 'x' }] },
@@ -63,7 +63,7 @@ describe('tokensCss', () => {
         expect(light).toContain('--space-1:4px;');
         expect(light).toContain('--radius-sm:6px;');
         expect(light).toContain('--shadow-sm:0 1px 3px red;');
-        expect(light).toContain('--font-display:"Playfair Display", serif;');
+        expect(light).toContain('--font-display:"Manrope", sans-serif;');
         expect(light).toContain('--font-body:Inter, sans-serif;');
         expect(light).toContain('--font-mono:Mono;');
         expect(light).not.toContain('#000');

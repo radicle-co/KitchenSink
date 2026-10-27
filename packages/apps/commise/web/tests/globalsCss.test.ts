@@ -11,7 +11,7 @@ import { withoutCssComments } from '@kitchensink/repo-guards/sourceComments';
  * `@import` placed after any other rule is INVALID and is silently discarded by the CSS optimizer — the
  * `next build` log mentions it, but nothing fails. That is exactly how the Google Fonts import came to sit
  * below the Tailwind `@source` rules and get dropped, shipping a production bundle with zero webfonts:
- * every heading fell back from Playfair Display to Georgia and every body string from Inter to system-ui,
+ * every heading fell back from Manrope to Georgia and every body string from Inter to system-ui,
  * gracefully enough that no test and no reviewer noticed.
  */
 // Comments can contain anything, including the literal '@import' in prose like this file's own header.
@@ -110,9 +110,12 @@ describe('globals.css', () => {
         // `next/font`, delete this test in the same commit that adds the replacement.
         expect(globalsCss).toContain('fonts.googleapis.com');
 
-        for (const family of ['Inter', 'JetBrains+Mono', 'Playfair+Display']) {
+        for (const family of ['Inter', 'JetBrains+Mono', 'Manrope']) {
             expect(globalsCss, `${family} must stay in the font import`).toContain(family);
         }
+
+        // The title font is Manrope (redesign); Playfair is retired and must not be fetched for nothing.
+        expect(globalsCss).not.toMatch(/Playfair/iu);
     });
 
     /**

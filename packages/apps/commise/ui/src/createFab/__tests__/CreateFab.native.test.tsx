@@ -1,5 +1,5 @@
 /**
- * The native CreateFab (buildSpec §3.4; D13): named by its label in every form; seafoam-tinted interactive Liquid Glass
+ * The native CreateFab (buildSpec §3.4; D13): named by its label in every form; steel-tinted interactive Liquid Glass
  * on iOS 26 and a solid `action` surface elsewhere; a disc while a phone scrolls down; a tablet keeps its label; hidden
  * with the keyboard and while it yields.
  */
@@ -90,7 +90,7 @@ describe('CreateFab (native)', () => {
         expect(screen.getAllByText('New recipe').length).toBeGreaterThanOrEqual(1);
     });
 
-    it('draws seafoam-tinted, interactive Liquid Glass on iOS 26', () => {
+    it('draws steel-tinted, interactive Liquid Glass on iOS 26', () => {
         env.glass = true;
         renderFab();
 

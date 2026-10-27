@@ -1,5 +1,13 @@
 # Commise — Figma Make Mockup Archive
 
+> **SUPERSEDED (2026-10-27).** The colours in this archive are the OLD look: teal actions on a warm sand page, Playfair
+> titles. The shipped look is the redesign (steel on a cool, mist-grey base, dusk dark mode, Manrope titles), whose values
+> live in `packages/apps/commise/ui/src/tokens/` and are pinned to the design session's sources by
+> `ui/src/tokens/__tests__/redesignPin.test.ts` (values) and `redesignContrast.test.ts` (WCAG 2.2 AA, both themes). The
+> test that held this archive to the shipped tokens (`web/tests/mockupContrast.test.ts`) was retired with the redesign:
+> it compared this archive's declarations to `@commise/ui` and could only fail now. Use the archive for LAYOUT and
+> structure, never for colour.
+
 Archive of the Figma Make-generated site for offline reference and design token extraction.
 
 ## Files

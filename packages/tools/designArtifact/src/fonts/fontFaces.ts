@@ -8,7 +8,7 @@ import { bodyFontFace, displayFontFace, fontFamily, fontWeight } from '@commise/
 
 /** One registration of a face: a `@font-face` rule, and the package file it points at. */
 export interface FontFaceRegistration {
-    /** The CSS family: `Inter`, `Playfair Display`, or the native face name. */
+    /** The CSS family: `Inter`, `Manrope`, or the native face name. */
     readonly family: string;
     /** The CSS weight. */
     readonly weight: number;
@@ -42,12 +42,12 @@ const FAMILIES: readonly FamilySource[] = [
     {
         stack: fontFamily.display,
         faces: displayFontFace,
-        packageName: '@expo-google-fonts/playfair-display',
-        licenceName: 'PlayfairDisplay',
+        packageName: '@expo-google-fonts/manrope',
+        licenceName: 'Manrope',
     },
 ];
 
-/** The first family of a CSS stack, unquoted: `"Playfair Display", Georgia, serif` gives `Playfair Display`. */
+/** The first family of a CSS stack, unquoted: `"Manrope", Inter, sans-serif` gives `Manrope`. */
 function primaryFamily(stack: string): string {
     const first = stack.split(',')[0] ?? '';
 
@@ -63,11 +63,11 @@ function isWeightStep(step: string): step is keyof typeof fontWeight {
  * Every font registration the artifact needs: each face under its family at its weight, and under its own native
  * name at 400 (React Native names a face, the web names a family and a weight; the artifact serves both).
  *
- * @returns The registrations, body family first.
+ * @returns The registrations, body family first, each (family, weight, file) once.
  * @throws Error when a face is keyed by a step that is not on the weight scale.
  */
 export function fontFaces(): readonly FontFaceRegistration[] {
-    return FAMILIES.flatMap(({ stack, faces, packageName }) =>
+    const all = FAMILIES.flatMap(({ stack, faces, packageName }) =>
         Object.entries(faces).flatMap(([step, native]) => {
             if (!isWeightStep(step)) {
                 throw new Error(`Font face "${native}" is keyed by "${step}", which is not a weight step.`);
@@ -82,6 +82,15 @@ export function fontFaces(): readonly FontFaceRegistration[] {
                 { family: native, weight: 400, fileName, specifier },
             ];
         }),
+    );
+
+    // Two weight steps can share one face (the 600 ceiling makes `bold` the semibold file), and one rule is enough.
+    return all.filter(
+        (face, index) =>
+            all.findIndex(
+                (other) =>
+                    other.family === face.family && other.weight === face.weight && other.fileName === face.fileName,
+            ) === index,
     );
 }
 

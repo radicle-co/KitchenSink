@@ -6,17 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { palette } from '../colors.js';
-import {
-    borderSubtle,
-    dimmedOpacity,
-    elevation,
-    fontFamily,
-    fontSize,
-    fontWeight,
-    lineHeightPx,
-    radius,
-    spacing,
-} from '../scale.js';
+import { dimmedOpacity, elevation, fontFamily, fontSize, fontWeight, lineHeightPx, radius, spacing } from '../scale.js';
 
 describe('scale — spacing', () => {
     it('is the 4px-base pixel ramp 0,4,8,12,16,24,32,48,64,96', () => {
@@ -31,22 +21,24 @@ describe('scale — spacing', () => {
 });
 
 describe('scale — radius', () => {
-    it('is sm 6 / md 12 / lg 20 / xl 28 / full 9999 (pixels)', () => {
-        expect(radius).toEqual({ sm: 6, md: 12, lg: 20, xl: 28, full: 9999 });
+    // REWRITTEN for the redesign (8 / 12 / 18 / 24; they were 6 / 12 / 20 / 28).
+    it('is sm 8 / md 12 / lg 18 / xl 24 / full 9999 (pixels)', () => {
+        expect(radius).toEqual({ sm: 8, md: 12, lg: 18, xl: 24, full: 9999 });
     });
 });
 
 describe('scale — type', () => {
     it('names the display, body, and mono font stacks', () => {
         expect(fontFamily).toEqual({
-            display: '"Playfair Display", Georgia, serif',
+            display: '"Manrope", Inter, system-ui, sans-serif',
             body: 'Inter, system-ui, sans-serif',
             mono: '"JetBrains Mono", monospace',
         });
     });
 
     it('exposes numeric font weights', () => {
-        expect(fontWeight).toEqual({ normal: 400, medium: 500, semibold: 600, bold: 700 });
+        // REWRITTEN for the redesign: the weight ceiling is 600, so `bold` is 600 (it was 700).
+        expect(fontWeight).toEqual({ normal: 400, medium: 500, semibold: 600, bold: 600 });
     });
 
     it('exposes a px line height for each allowed font size, on the 4 px grid', () => {
@@ -68,7 +60,7 @@ describe('scale — type', () => {
 
     // REWRITTEN for the owner's type-scale ruling (2026-10-25): the display ramp stops at 28 and had 20, 24, 36 and 48
     // steps, none of which exist now.
-    it('contains every size the mobile display (Playfair) ramp needs (16,18,28)', () => {
+    it('contains every size the mobile display (display) ramp needs (16,18,28)', () => {
         const sizes = new Set<number>(Object.values(fontSize));
 
         for (const displayStep of [16, 18, 28]) {
@@ -78,29 +70,32 @@ describe('scale — type', () => {
 });
 
 describe('scale — elevation', () => {
-    it('specifies each shadow as offset/blur/spread + rgb-triplet colour + opacity', () => {
+    // REWRITTEN for the redesign: cool, soft shadows, and `md` and `lg` are two layers (web emits both, native takes the
+    // last). `glow` is a 3 px steel ring now, not a 32 px teal haze. The values are pinned to tokens.css in
+    // `redesignPin.test.ts`; this pins the spec's SHAPE.
+    it('specifies each shadow as one or two layers of offset/blur/spread + rgb-triplet colour + opacity', () => {
         expect(elevation).toEqual({
-            sm: { offsetX: 0, offsetY: 1, blur: 3, spread: 0, color: '45,52,54', opacity: 0.04 },
-            md: { offsetX: 0, offsetY: 4, blur: 6, spread: -1, color: '45,52,54', opacity: 0.07 },
-            lg: { offsetX: 0, offsetY: 10, blur: 15, spread: -3, color: '45,52,54', opacity: 0.08 },
-            xl: { offsetX: 0, offsetY: 20, blur: 25, spread: -5, color: '45,52,54', opacity: 0.09 },
-            glow: { offsetX: 0, offsetY: 0, blur: 32, spread: 0, color: '49,128,122', opacity: 0.25 },
+            sm: [{ offsetX: 0, offsetY: 1, blur: 2, spread: 0, color: '20,30,45', opacity: 0.05 }],
+            md: [
+                { offsetX: 0, offsetY: 1, blur: 2, spread: 0, color: '20,30,45', opacity: 0.05 },
+                { offsetX: 0, offsetY: 2, blur: 8, spread: 0, color: '20,30,45', opacity: 0.05 },
+            ],
+            lg: [
+                { offsetX: 0, offsetY: 2, blur: 4, spread: 0, color: '10,20,30', opacity: 0.08 },
+                { offsetX: 0, offsetY: 8, blur: 22, spread: 0, color: '10,20,30', opacity: 0.12 },
+            ],
+            xl: [{ offsetX: 0, offsetY: 12, blur: 30, spread: 0, color: '10,20,30', opacity: 0.18 }],
+            glow: [{ offsetX: 0, offsetY: 0, blur: 0, spread: 3, color: '50,92,127', opacity: 0.25 }],
         });
     });
 
-    it('keeps the glow halo pointed at the seafoam TOKEN, which it can only re-spell in decimal', () => {
-        // `colors.ts` imports this module for `borderSubtle`, so `scale.ts` cannot import the palette back —
-        // which makes `glow.color` the one place a palette colour is written twice. The #113 lightness move to
-        // `seafoam` left it stale (a halo one hue-step off its own button) until this assertion existed.
-        const channels = [1, 3, 5].map((at) => Number.parseInt(palette.seafoam.slice(at, at + 2), 16));
+    it('keeps the glow halo pointed at the steel TOKEN, which it can only re-spell in decimal', () => {
+        // `colors.ts` is imported by the token modules that read `scale.ts`, so `scale.ts` cannot import the palette back —
+        // which makes `glow.color` the one place a palette colour is written twice. A halo one hue-step off its own
+        // button is what this assertion exists to prevent.
+        const channels = [1, 3, 5].map((at) => Number.parseInt(palette.steel.slice(at, at + 2), 16));
 
-        expect(elevation.glow.color).toBe(channels.join(','));
-    });
-});
-
-describe('scale — borderSubtle', () => {
-    it('is the single source for the subtle border colour', () => {
-        expect(borderSubtle).toBe('rgba(178, 190, 195, 0.3)');
+        expect(elevation.glow[0].color).toBe(channels.join(','));
     });
 });
 

@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
         paddingTop: spacing[1],
     },
     titleBox: { flex: 1, minWidth: 0, paddingTop: spacing[3] },
-    // `barTitle`, Inter 17/600 (`buildSpec.md` §1.5): Playfair sets names only, never a sheet's title (F8).
+    // `barTitle`, Inter 17/600 (`buildSpec.md` §1.5): Manrope sets names only, never a sheet's title (F8).
     title: { ...nativeTokens.type.barTitle },
     close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
     toolbar: { paddingHorizontal: SHEET_EDGE_PADDING_DP, paddingTop: spacing[2], gap: spacing[2] },

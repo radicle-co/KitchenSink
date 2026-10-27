@@ -75,7 +75,7 @@ export interface TypeRoleSpec {
  * leading is whole px on a 4 px grid, and no role tracks its letters. The `overline` role (11 px, capitals, tracked)
  * is retired, not moved to 14: a small heading is `label`, in sentence case.
  *
- * - Playfair (`display`) sets names only, and never a number: both figure roles are Inter.
+ * - Manrope (`display`) sets names only, and never a number: both figure roles are Inter.
  * - `largeTitle` has one size per container class. Web turns that into a bounded `clamp()` in container units
  *   ({@link webTypeRoles}); native picks the size for its class.
  * - `figureInline` takes the size and leading of the line it sits in, so it has neither of its own.

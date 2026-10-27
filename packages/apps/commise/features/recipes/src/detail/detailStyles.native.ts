@@ -14,8 +14,9 @@ export const detailStyles = StyleSheet.create({
     // — the delete dialog's confirm button when it opens — can be scrolled fully into view.
     container: { gap: nativeTokens.spacing[6], paddingBottom: 120 },
     top: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
-    groupLabel: { ...nativeTokens.type.label },
-    groupHeading: { paddingTop: nativeTokens.spacing[2] },
+    // Weight 500, sentence case (owner decisions C5/C6): the medium face, which is the `caption` role's.
+    groupLabel: { ...nativeTokens.type.caption },
+    groupHeading: { paddingTop: nativeTokens.spacing[4] },
     title: { ...nativeTokens.type.largeTitle.narrow },
     ratingLine: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     inline: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },

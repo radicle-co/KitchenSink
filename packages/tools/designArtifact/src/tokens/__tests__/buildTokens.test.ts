@@ -53,9 +53,9 @@ describe('buildTokens', () => {
         });
 
         it('carries a theme-independent brand tone from the palette, as a plain string', () => {
-            expect(colour('brand-seafoam').value).toBe(palette.seafoam);
+            expect(colour('brand-steel').value).toBe(palette.steel);
             expect(colour('brand-warning-dark').value).toBe(palette['warning-dark']);
-            expect(colour('brand-honey').value).toBe(palette.honey);
+            expect(colour('brand-snow').value).toBe(palette.snow);
         });
     });
 

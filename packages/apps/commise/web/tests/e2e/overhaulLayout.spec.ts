@@ -294,7 +294,7 @@ for (const [scheme, colors] of THEMES) {
 
                     const title = page.getByRole('heading', { level: 1, name: LAMB_TITLE });
                     await expect(title).toBeVisible();
-                    expect(await title.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Playfair/u);
+                    expect(await title.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Manrope/u);
 
                     // F7: each stat value on one line ("5 h 30 min", "Medium" whole).
                     for (const value of ['5 h 30 min', '30 min', '5 h', 'Medium']) {
@@ -412,7 +412,7 @@ for (const [scheme, colors] of THEMES) {
 
                     const heading = page.getByRole('heading', { level: 1, name: 'We couldn’t find that page.' });
                     await expect(heading).toBeVisible();
-                    expect(await heading.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Playfair/u);
+                    expect(await heading.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Manrope/u);
                     const back = page.getByRole('link', { name: 'Back to Home' });
 
                     // The Button's 44 px floor; a fine pointer at `md` and up takes the desktop density by design.

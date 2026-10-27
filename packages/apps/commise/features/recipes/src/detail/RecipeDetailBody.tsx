@@ -241,7 +241,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             ))}
                         </p>
                     )}
-                    {/* `min-w-0`: a recipe title is user-authored and unbounded. Playfair `largeTitle`, the header primitive's
+                    {/* `min-w-0`: a recipe title is user-authored and unbounded. Manrope `largeTitle`, the header primitive's
                         class, so the title cannot lose its face again (F8). */}
                     <h1
                         ref={titleRef}
@@ -459,7 +459,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         ingredientGroupRuns(scaled.ingredients).map((run, index) => (
                             <div key={`${run.label ?? ''}-${String(index)}`} className="flex flex-col gap-1">
                                 {run.label !== undefined && (
-                                    <h3 className="pt-2 text-label text-ink-muted">{run.label}</h3>
+                                    <h3 className="pt-4 text-label font-medium text-ink-muted">{run.label}</h3>
                                 )}
                                 <ul className="flex flex-col">
                                     {run.lines.map((ingredient) => (

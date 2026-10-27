@@ -345,12 +345,12 @@ describe('the beach-glow page canvas (compiled)', () => {
         expect(body).toContain('background-color:var(--color-canvas)');
     });
 
-    it('resolves --background-image-hero to the wireframes’ three-stop 135° ramp', async () => {
+    // REWRITTEN for the redesign: the canvas wash is flat (the canvas colour at 180 degrees, owner ruling), not the
+    // wireframes' three-stop 135 degree ramp.
+    it('resolves --background-image-hero to the flat canvas wash', async () => {
         const css = await cssPromise;
 
-        expect(css).toContain(
-            '--background-image-hero: linear-gradient(135deg, #FAF6F0 0%, #F0F7F4 50%, #E8F4F8 100%)',
-        );
+        expect(css).toMatch(/--background-image-hero:\s*linear-gradient\(180deg, #EFF3F6 0%, #EFF3F6 100%\)/iu);
     });
 
     it('generates a usable bg-hero utility (the namespace is live, not merely plausible)', async () => {
@@ -442,7 +442,7 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'bg-bar')).toBe('background-color:var(--color-bar)');
-        expect(css).toMatch(/prefers-color-scheme:\s*dark[\s\S]*--color-bar:\s*rgba\(39, 35, 32, 0\.94\)/u);
+        expect(css).toMatch(/prefers-color-scheme:\s*dark[\s\S]*--color-bar:\s*rgba\(23, 32, 41, 0\.94\)/u);
     });
 
     it('caps a page at 90rem and a reading column at 40rem', async () => {
@@ -467,7 +467,7 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
     it('overrides the role variables in one prefers-color-scheme: dark block', async () => {
         const css = await cssPromise;
 
-        expect(css).toMatch(/@media \(prefers-color-scheme:\s*dark\)\s*\{[^@]*--color-paper:\s*#1e1b18/iu);
+        expect(css).toMatch(/@media \(prefers-color-scheme:\s*dark\)\s*\{[^@]*--color-paper:\s*#172029/iu);
         expect(css).toMatch(/color-scheme:\s*light dark/u);
     });
 
@@ -522,7 +522,7 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(ruleFor(css, 'text-ink-muted')).toBe('color:var(--color-ink-muted)');
         expect(ruleFor(css, 'border-line-control')).toBe('border-color:var(--color-line-control)');
         expect(ruleFor(css, 'bg-selected-fill')).toBe('background-color:var(--color-selected-fill)');
-        expect(css).toMatch(/--color-line-control:\s*#8A847C/iu);
+        expect(css).toMatch(/--color-line-control:\s*#80878F/iu);
     });
 
     it('declares the caption size once, not twice', async () => {

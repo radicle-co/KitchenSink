@@ -1,7 +1,6 @@
 /**
  * The typographic cover tints (`docs/design/uiOverhaul/darkTheme.md` §4, "Typographic recipe covers"): the same six
- * hues in both themes, each carrying `ink` lettering. Light values are the build spec's; dark ones are the hue at 22%
- * over dark `paper`. A cover NAMES its tint, so the theme picks the value at render.
+ * hues in both themes, each carrying `ink` lettering. Values are the redesign's (pinned to the design sources in `redesignPin.test.ts`). A cover NAMES its tint, so the theme picks the value at render.
  */
 import { wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
@@ -11,25 +10,27 @@ import { COVER_TINT_NAMES, coverTint, coverTintDark } from '../covers.js';
 
 describe('cover tints', () => {
     it('names six hues, in a fixed order the hash buckets index', () => {
-        expect(COVER_TINT_NAMES).toEqual(['seafoam', 'coral', 'sky', 'premium', 'success', 'warning']);
+        expect(COVER_TINT_NAMES).toEqual(['steel', 'coral', 'sky', 'premium', 'success', 'warning']);
     });
 
-    it('holds the spec values in both themes', () => {
+    // REWRITTEN for the redesign: the pale washes of the cool palette (light) and their dusk versions (dark). The first
+    // tint was `seafoam`; it is `steel` now, at the same position, so the hash still indexes the same slot.
+    it('holds the redesign values in both themes', () => {
         expect(coverTint).toEqual({
-            seafoam: '#E6F0EF',
-            coral: '#FAE9E4',
-            sky: '#DFF0F8',
-            premium: '#F6EBE0',
-            success: '#E2F2EA',
-            warning: '#FDEFD9',
+            steel: '#E1EDFA',
+            coral: '#F7E9D7',
+            sky: '#DDEEFC',
+            premium: '#F5E9DF',
+            success: '#E4EDF2',
+            warning: '#F7E9D7',
         });
         expect(coverTintDark).toEqual({
-            seafoam: '#22312E',
-            coral: '#4A352E',
-            sky: '#374245',
-            premium: '#46392C',
-            success: '#283C2E',
-            warning: '#4D3C21',
+            steel: '#202B37',
+            coral: '#342817',
+            sky: '#1C2C38',
+            premium: '#32281F',
+            success: '#232B30',
+            warning: '#342817',
         });
     });
 

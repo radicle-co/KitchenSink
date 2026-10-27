@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/check-box-glyph — the web design-system {@link CheckBoxGlyph}.
  *
- * A 24 px box: a 2 px `lineControl` outline when unchecked (a 3:1 graphic under SC 1.4.11), the `action` fill with an
+ * An 18 px box with a 4 px corner (owner decisions C5/T1: a rounded square, never the 8 px radius that reads as a radio; the touch target is the ROW's, not the glyph's): a 1 px `lineControl` outline (thin: owner decision C6) when unchecked (a 3:1 graphic under SC 1.4.11), the `action` fill with an
  * `onAction` check when checked. The check stays mounted and carries the signature motion (§1.9): 120 ms from scale 0.9
  * with an overshoot easing, which `motion-reduce:` turns off. Hidden from assistive technology — the row it sits in is
  * the checkbox.
@@ -19,7 +19,7 @@ import type { CheckBoxGlyphProps } from './props.js';
 export const CheckBoxGlyph: FC<CheckBoxGlyphProps> = ({ checked }) => (
     <span
         aria-hidden="true"
-        className={`flex size-6 shrink-0 items-center justify-center rounded-sm border-2 ${
+        className={`flex size-[18px] shrink-0 items-center justify-center rounded-[4px] border ${
             checked ? 'border-action bg-action text-on-action' : 'border-line-control bg-transparent'
         }`}
     >

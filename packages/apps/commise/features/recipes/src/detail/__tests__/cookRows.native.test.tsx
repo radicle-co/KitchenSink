@@ -8,6 +8,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';
+import { nativeTokens } from '@commise/ui/native';
 import { rgb } from '@commise/ui/testing/system-color-scheme';
 
 import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
@@ -35,6 +36,31 @@ describe('IngredientCheckRow (native)', () => {
 
         fireEvent.click(row);
         expect(onToggle).toHaveBeenCalledWith('ing_lamb');
+    });
+
+    // Owner C5 + T1: the row text is the `list` role, the row pads 8 and is at least 44 tall, sized from the tokens, and a
+    // press anywhere on the row (the text included) toggles it.
+    it('sets the line in the list role, pads 8 and is at least 44 tall', () => {
+        render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        const row = getComputedStyle(screen.getByRole('checkbox', { name: /lamb shoulder/u }));
+
+        expect(row.minHeight).toBe('44px');
+        expect(row.paddingTop).toBe(`${nativeTokens.spacing[2]}px`);
+        expect(row.paddingBottom).toBe(`${nativeTokens.spacing[2]}px`);
+        expect(getComputedStyle(screen.getByText('lamb shoulder')).fontSize).toBe(
+            `${nativeTokens.type.list.fontSize}px`,
+        );
+    });
+
+    it('toggles when the cook presses the text, not only the box', () => {
+        const onToggle = vi.fn();
+        render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={onToggle} />);
+
+        fireEvent.click(screen.getByText('lamb shoulder'));
+        fireEvent.click(screen.getByText('trimmed of excess fat'));
+
+        expect(onToggle).toHaveBeenCalledTimes(2);
     });
 
     it('checked: reports checked and dims the text, with no strike-through', () => {

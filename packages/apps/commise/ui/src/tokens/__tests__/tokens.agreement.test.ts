@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { semantic } from '../colors.js';
+import { role, roleDark, semantic, semanticDark } from '../colors.js';
 import { nativeTokens } from '../native.js';
 import { radius } from '../radius.js';
 import * as scale from '../scale.js';
@@ -106,31 +106,42 @@ describe('type agreement', () => {
 });
 
 describe('elevation agreement', () => {
-    /** Compose the CSS box-shadow the web token uses, from a scale spec (spread omitted when 0). */
-    function composeCss(spec: (typeof scale.elevation)[keyof typeof scale.elevation]): string {
+    /** Compose the CSS box-shadow the web token uses, from a scale entry: every layer, spread omitted when 0. */
+    function composeCss(layers: (typeof scale.elevation)[keyof typeof scale.elevation]): string {
         const len = (n: number): string => (n === 0 ? '0' : `${n}px`);
-        const spread = spec.spread === 0 ? '' : ` ${len(spec.spread)}`;
 
-        return `${len(spec.offsetX)} ${len(spec.offsetY)} ${len(spec.blur)}${spread} rgba(${spec.color},${spec.opacity})`;
+        return layers
+            .map((spec) => {
+                const spread = spec.spread === 0 ? '' : ` ${len(spec.spread)}`;
+
+                return `${len(spec.offsetX)} ${len(spec.offsetY)} ${len(spec.blur)}${spread} rgba(${spec.color},${spec.opacity})`;
+            })
+            .join(', ');
     }
 
-    it('web CSS box-shadow ↔ scale spec, and nativeTokens RN shadow ↔ scale spec', () => {
+    // REWRITTEN for the redesign: an entry is a stack of layers. Web composes all of them; native has one shadow per
+    // view, so it takes the LAST (diffuse) layer.
+    it('web CSS box-shadow ↔ scale layers, and nativeTokens RN shadow ↔ the last layer', () => {
         for (const key of typedKeys(scale.elevation)) {
-            const spec = scale.elevation[key];
-            expect(shadows[key]).toBe(composeCss(spec));
+            const layers = scale.elevation[key];
+            const last = layers[layers.length - 1];
+            expect(shadows[key]).toBe(composeCss(layers));
 
             const native = nativeTokens.elevation[key];
-            expect(native.shadowColor).toBe(`rgb(${spec.color})`);
-            expect(native.shadowOffset).toEqual({ width: spec.offsetX, height: spec.offsetY });
-            expect(native.shadowRadius).toBe(spec.blur);
-            expect(native.shadowOpacity).toBe(spec.opacity);
+            expect(native.shadowColor).toBe(`rgb(${last.color})`);
+            expect(native.shadowOffset).toEqual({ width: last.offsetX, height: last.offsetY });
+            expect(native.shadowRadius).toBe(last.blur);
+            expect(native.shadowOpacity).toBe(last.opacity);
         }
     });
 });
 
-describe('borderSubtle agreement', () => {
-    it('scale ↔ web semantic.border ↔ nativeTokens', () => {
-        expect(semantic.border).toBe(scale.borderSubtle);
-        expect(nativeTokens.borderSubtle).toBe(scale.borderSubtle);
+// REWRITTEN for the redesign: the hairline is the `lineDivider` role on BOTH platforms and in both themes. The old shared
+// string (rgba(178, 190, 195, 0.3)) is gone, so there is one source and web and native cannot disagree on "border".
+describe('border agreement', () => {
+    it('web semantic.border, native borderSubtle and the divider role are one colour per theme', () => {
+        expect(semantic.border).toBe(role.lineDivider);
+        expect(semanticDark.border).toBe(roleDark.lineDivider);
+        expect(nativeTokens.borderSubtle).toEqual({ light: role.lineDivider, dark: roleDark.lineDivider });
     });
 });

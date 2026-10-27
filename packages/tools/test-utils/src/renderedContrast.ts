@@ -17,8 +17,8 @@
  *    jsdom DOES compute, so the leaf's colour is read straight off the DOM.
  *
  * Alpha compositing is explicit and required in both. Commise paints most of its chips and glass on
- * TRANSLUCENT surfaces (`bg-seafoam/10`, `rgba(61,139,133,0.1)`), and a ratio measured against the raw token
- * scores the text against opaque seafoam — which no reader ever sees.
+ * TRANSLUCENT surfaces (`bg-steel/10`, `rgba(61,139,133,0.1)`), and a ratio measured against the raw token
+ * scores the text against opaque steel — which no reader ever sees.
  *
  * `variant` exists because a HOVER state is a state like any other: a chip whose resting pair passes and
  * whose `hover:bg-…` tint pushes it back under the floor is still an inaccessible chip, and that is exactly
@@ -39,7 +39,7 @@ import { compositeOver, contrastRatio } from './contrast.js';
 /**
  * A `text-…` / `bg-…` / `border-…` / `ring-…` utility with an optional leading variant and an optional `/NN`
  * opacity suffix — `bg-coral/10`, `text-slate`, `hover:bg-coral/25`, `border-mist`,
- * `focus-visible:ring-seafoam`.
+ * `focus-visible:ring-steel`.
  *
  * Sizing, side and geometry variants fall out naturally: `border-2`, `border-b-2`, `ring-2` and
  * `ring-offset-2` all carry digits, which `[a-z-]+?` cannot match, and `border-border` / `ring-inset` name no

@@ -4,10 +4,10 @@
    CSS drops any `@import` that follows another rule, and `theme.css` is INLINED here: it carries its own
    `@import "tailwindcss"` plus a `@theme { … }` block, so anything after it is "after a rule" and gets
    discarded. Sitting below the `@source` rules is how this shipped a production bundle with no webfonts at
-   all (Playfair Display silently degraded to Georgia, Inter to system-ui) — and moving it to just below the
+   all (Manrope silently degraded to Georgia, Inter to system-ui) — and moving it to just below the
    theme import does NOT fix that, which a real `next build` shows and the file-shape guard alone cannot.
    Guarded by `tests/globalsCss.test.ts`; verified by grepping `.next/static/css` after a production build. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Manrope:wght@600&display=swap');
 /* Clerk's own styles live in the `clerk` layer (`CLERK_CSS_LAYER`) so that the role classes on its elements win: the
    statement ranks the layer between `base` and `components`, below `utilities`. It must come BEFORE the theme import,
    whose Tailwind import declares its own order, because the first ordering statement of a layer name fixes its place.
@@ -75,7 +75,7 @@
         font-family: var(--font-body);
         /* The brand beach-glow canvas (issue #145). All nine wireframes paint their `body` with the SAME named
            token — `--gradient-beach-glow`, which IS `@commise/ui`'s `gradient.hero` — while the app painted a
-           flat colour, so every surface read as a plain sand page. Applying it HERE, once, is what makes the
+           flat colour, so every surface read as a plain flat page. Applying it HERE, once, is what makes the
            whole app (and every route added later) inherit the wash: the shell used to hand-spell its own
            three-stop `bg-gradient-to-br` ramp, which covered only shell-hosted routes, left sign-in/sign-up
            flat, and had already drifted from the token it duplicated (its mid/end tints were #F5F8FA and
@@ -83,7 +83,7 @@
            comments included, so those classes are DESCRIBED here and never spelled out — writing one verbatim
            regenerates the very utility this replaced.
            `background-color` STAYS as the fallback beneath it — an unsupported or not-yet-painted canvas shows
-           sand rather than nothing, and it is what `prefers-contrast`/forced-colors modes fall back to.
+           the canvas colour rather than nothing, and it is what `prefers-contrast`/forced-colors modes fall back to.
            Verified in the COMPILED stylesheet (`tests/__integration__/tailwindTheme.integration.test.ts`) and
            in a real browser (`tests/e2e/visualRegression.spec.ts`) — a token that exists is not a token that
            renders. Deliberately NOT `background-attachment: fixed`: the wireframes let the ramp span the whole

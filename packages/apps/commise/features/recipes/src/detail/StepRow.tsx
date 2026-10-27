@@ -44,7 +44,7 @@ export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
                 <span
                     data-numeral
                     aria-hidden="true"
-                    className={`flex size-8 items-center justify-center rounded-full text-label tabular-nums lining-nums transition-colors motion-reduce:transition-none ${
+                    className={`flex size-8 items-center justify-center rounded-full text-label font-medium tabular-nums lining-nums transition-colors motion-reduce:transition-none ${
                         current ? 'bg-action text-on-action' : 'bg-selected-fill text-ink'
                     }`}
                 >

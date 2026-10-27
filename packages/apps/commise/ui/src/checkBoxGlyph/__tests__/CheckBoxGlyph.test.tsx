@@ -24,9 +24,23 @@ describe('CheckBoxGlyph (web)', () => {
         const box = container.firstElementChild;
 
         expect(box?.className).toContain('border-line-control');
+        // C6 (redesign): a thin outline, 1 px, not the 2 px frame it was.
+        expect(box?.className).not.toContain('border-2');
+        expect(box?.className).toMatch(/(^|\s)border(\s|$)/u);
         expect(box?.className).not.toContain('bg-action');
         expect(container.querySelector('[data-check]')?.className).toContain('scale-90');
         expect(container.querySelector('[data-check]')?.className).toContain('opacity-0');
+    });
+
+    // Owner C5/T1: the visual box is 18 px with a 4 px corner (a rounded square; the larger radius reads as a radio). The
+    // glyph is smaller than the 44 px touch target, which belongs to the row.
+    it('is an 18 px box with a 4 px corner', () => {
+        const { container } = render(<CheckBoxGlyph checked={false} />);
+        const box = container.firstElementChild;
+
+        expect(box?.className).toContain('size-[18px]');
+        expect(box?.className).toContain('rounded-[4px]');
+        expect(box?.className).not.toMatch(/size-6|rounded-sm/u);
     });
 
     it('checked: the action fill and the check at full scale', () => {

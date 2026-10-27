@@ -1,5 +1,5 @@
-import { borderSubtle, fontFamily } from '@commise/ui/scale';
-import { palette } from '@commise/ui/tokens/colors';
+import { fontFamily } from '@commise/ui/scale';
+import { palette, role } from '@commise/ui/tokens/colors';
 import { createTamagui, createTokens, createFont } from 'tamagui';
 
 import {
@@ -20,11 +20,11 @@ import {
 // re-declared, so web and mobile cannot drift. The drift guard is `tests/theme/scaleTokens.test.ts`.
 const tokens = createTokens({
     color: {
-        seafoam: palette.seafoam,
-        seafoamLight: palette['seafoam-light'],
+        steel: palette.steel,
+        steelLight: palette['steel-light'],
         coral: palette.coral,
         sky: palette.sky,
-        sand: palette.sand,
+        fog: palette.fog,
         oceanDark: palette['ocean-dark'],
         charcoal: palette.charcoal,
         slate: palette.slate,
@@ -35,7 +35,6 @@ const tokens = createTokens({
         warning: palette.warning,
         error: palette.error,
         errorDark: palette['error-dark'],
-        premium: palette.premium,
     },
     space: { ...spaceScale },
     size: { ...sizeScale },
@@ -88,10 +87,10 @@ const displayFont = createFont({
         9: 0,
     },
     face: {
-        400: { normal: 'PlayfairDisplay' },
-        500: { normal: 'PlayfairDisplay' },
-        600: { normal: 'PlayfairDisplay' },
-        700: { normal: 'PlayfairDisplay' },
+        400: { normal: 'Manrope_600SemiBold' },
+        500: { normal: 'Manrope_600SemiBold' },
+        600: { normal: 'Manrope_600SemiBold' },
+        700: { normal: 'Manrope_600SemiBold' },
     },
 });
 
@@ -103,16 +102,16 @@ const config = createTamagui({
     tokens,
     themes: {
         light: {
-            background: tokens.color.sand,
+            background: tokens.color.fog,
             color: tokens.color.charcoal,
             card: tokens.color.white,
-            primary: tokens.color.seafoamLight,
+            primary: tokens.color.steelLight,
             secondary: tokens.color.coral,
             muted: tokens.color.pearl,
             accent: tokens.color.sky,
             destructive: tokens.color.error,
-            borderColor: borderSubtle,
-            focusRing: tokens.color.seafoamLight,
+            borderColor: role.lineDivider,
+            focusRing: tokens.color.steelLight,
         },
     },
 });

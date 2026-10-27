@@ -33,9 +33,9 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
-import { palette, role, roleDark, semantic } from './colors.js';
+import { palette, role, roleDark, semantic, semanticDark } from './colors.js';
 import { coverTint, coverTintDark } from './covers.js';
-import { difficultyTone, difficultyToneDark, proTone, type Difficulty, type Tone } from './tones.js';
+import { difficultyTone, difficultyToneDark, proTone, proToneDark, type Difficulty, type Tone } from './tones.js';
 import { kebab, pxToRemUnit } from './emit.js';
 import { barMaterial } from './barMaterial.js';
 import { gradient, gradientCss, heroDark } from './gradients.js';
@@ -56,7 +56,7 @@ function declarations(prefix: string, tokens: TokenMap, kebabKeys = true): reado
 /**
  * The app-wide CANVAS gradient, as `--background-image-hero`.
  *
- * `gradient.hero` is the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on `body`.
+ * `gradient.hero` is the flat canvas wash all nine screens paint on `body`.
  * It is emitted here for one reason: the web canvas can only be painted from STYLESHEET position. `<body>`'s background is not a React element's inline style, so `globals.css`
  * needs a custom property to reference; native takes the identical spec through `GradientSurface` /
  * `toNativeGradient`, so neither platform re-spells the ramp.
@@ -68,7 +68,7 @@ function declarations(prefix: string, tokens: TokenMap, kebabKeys = true): reado
  * NAMED key to a live namespace is also categorically different from the `--spacing-*` hijack: it introduces
  * `bg-hero` and redefines nothing Tailwind ships.
  *
- * Only the canvas ramp is emitted. `brand` already reaches the web as the Button's `from-seafoam
+ * Only the canvas ramp is emitted. `brand` already reaches the web as the Button's `from-steel
  * to-ocean-dark` utilities and `scrim` as the recipe-detail cover's own, so emitting those would create a
  * second web representation of one piece of knowledge.
  */
@@ -147,8 +147,8 @@ function difficultyDeclarations(tones: Readonly<Record<Difficulty, Tone>>): read
 
 /**
  * The dark theme (`docs/design/uiOverhaul/darkTheme.md` §6): one `prefers-color-scheme: dark` override of the same
- * custom properties the `@theme` block declares — every role from `roleDark`, the cover tints and the canvas
- * wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
+ * custom properties the `@theme` block declares — every role from `roleDark`, the semantic names that follow them,
+ * the PRO chip, the cover tints and the canvas wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
  * Tailwind's `@layer theme` declarations, and every role utility reads `var(--color-*)`, so this block IS the theme
  * switch; no component carries a `dark:` variant. Pure.
  */
@@ -158,6 +158,8 @@ function darkThemeLines(): readonly string[] {
         '@media (prefers-color-scheme: dark) {',
         '    :root {',
         ...declarations('color', roleDark).map((line) => `    ${line}`),
+        ...declarations('color', semanticDark).map((line) => `    ${line}`),
+        ...declarations('color-pro', { fill: proToneDark.fill, ink: proToneDark.text }).map((line) => `    ${line}`),
         ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
         ...difficultyDeclarations(difficultyToneDark).map((line) => `    ${line}`),
         `        --background-image-hero: ${gradientCss(heroDark)};`,

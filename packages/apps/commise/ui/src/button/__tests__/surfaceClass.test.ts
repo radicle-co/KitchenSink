@@ -191,7 +191,7 @@ describe('buttonSurfaceClass — geometry', () => {
 });
 
 describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
-    // REWRITTEN in slice 2 (owner: primary buttons are ONE flat fill, `modernizeB.md` §3): the seafoam → ocean-dark
+    // REWRITTEN in slice 2 (owner: primary buttons are ONE flat fill, `modernizeB.md` §3): the steel → ocean-dark
     // gradient is gone. The fill is the `action` role, the label `onAction`, and press/hover `actionPressed`.
     it('paints primary as ONE flat action fill with an onAction label, actionPressed on hover and press', () => {
         const tokens = tokensOf(buttonSurfaceClass('primary'));

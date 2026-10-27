@@ -5,28 +5,29 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { palette } from '../colors.js';
+import { palette, role, roleDark } from '../colors.js';
 import * as gradients from '../gradients.js';
 import { gradient, gradientCss, toNativeGradient } from '../gradients.js';
 
 describe('gradient specs', () => {
-    it('threads the SAME brand CTA gradient the web Button carries (seafoam → ocean-dark, 135°)', () => {
+    it('threads the SAME brand CTA gradient the web Button carries (steel → ocean-dark, 135°)', () => {
         expect(gradient.brand).toEqual({
             angle: 135,
             stops: [
-                { color: palette.seafoam, position: 0 },
+                { color: palette.steel, position: 0 },
                 { color: palette['ocean-dark'], position: 100 },
             ],
         });
     });
 
-    it('carries the beach-glow hero gradient (sand → tints, 135°) from the mockup', () => {
+    // REWRITTEN for the redesign: the canvas wash is FLAT (owner ruling, redesign.css: "the hero gradient is flat"): the
+    // canvas role top to bottom, at 180 degrees. It used to be the three-stop 135 degree beach-glow ramp.
+    it('carries the flat canvas wash (canvas to canvas, 180 degrees)', () => {
         expect(gradient.hero).toEqual({
-            angle: 135,
+            angle: 180,
             stops: [
-                { color: palette.sand, position: 0 },
-                { color: '#F0F7F4', position: 50 },
-                { color: '#E8F4F8', position: 100 },
+                { color: role.canvas, position: 0 },
+                { color: role.canvas, position: 100 },
             ],
         });
     });
@@ -35,8 +36,8 @@ describe('gradient specs', () => {
         expect(gradient.scrim).toEqual({
             angle: 0,
             stops: [
-                { color: 'rgba(45, 52, 54, 0.6)', position: 0 },
-                { color: 'rgba(45, 52, 54, 0)', position: 100 },
+                { color: 'rgba(23, 27, 32, 0.6)', position: 0 },
+                { color: 'rgba(23, 27, 32, 0)', position: 100 },
             ],
         });
     });
@@ -69,24 +70,40 @@ describe('gradient specs', () => {
 describe('gradientCss (web composition)', () => {
     it('composes a CSS linear-gradient with the angle and percentage stops', () => {
         expect(gradientCss(gradient.brand)).toBe(
-            `linear-gradient(135deg, ${palette.seafoam} 0%, ${palette['ocean-dark']} 100%)`,
+            `linear-gradient(135deg, ${palette.steel} 0%, ${palette['ocean-dark']} 100%)`,
         );
     });
 
-    it('emits every stop for a 3-stop gradient', () => {
-        expect(gradientCss(gradient.hero)).toBe(
-            `linear-gradient(135deg, ${palette.sand} 0%, #F0F7F4 50%, #E8F4F8 100%)`,
-        );
+    it('emits every stop of a multi-stop gradient', () => {
+        expect(
+            gradientCss({
+                angle: 90,
+                stops: [
+                    { color: '#111111', position: 0 },
+                    { color: '#222222', position: 50 },
+                    { color: '#333333', position: 100 },
+                ],
+            }),
+        ).toBe('linear-gradient(90deg, #111111 0%, #222222 50%, #333333 100%)');
     });
 });
 
 describe('toNativeGradient (expo-linear-gradient projection)', () => {
     it('projects the stop colours in order', () => {
-        expect(toNativeGradient(gradient.brand).colors).toEqual([palette.seafoam, palette['ocean-dark']]);
+        expect(toNativeGradient(gradient.brand).colors).toEqual([palette.steel, palette['ocean-dark']]);
     });
 
     it('projects stop positions to 0..1 locations', () => {
-        expect(toNativeGradient(gradient.hero).locations).toEqual([0, 0.5, 1]);
+        expect(
+            toNativeGradient({
+                angle: 90,
+                stops: [
+                    { color: '#111111', position: 0 },
+                    { color: '#222222', position: 50 },
+                    { color: '#333333', position: 100 },
+                ],
+            }).locations,
+        ).toEqual([0, 0.5, 1]);
     });
 
     it('maps the 135° angle to a top-left → bottom-right diagonal', () => {
@@ -104,37 +121,25 @@ describe('toNativeGradient (expo-linear-gradient projection)', () => {
 });
 
 /**
- * The page-canvas ramp (`gradient.hero`) must stay a real, correctly-oriented gradient.
+ * The page-canvas wash (`gradient.hero`) is FLAT in the redesign, on purpose, and derived from the canvas role.
  *
- * `hero` IS the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on their page — and
- * both platforms derive their canvas from it (web's `body` rule via `--background-image-hero`, native's
- * `AppCanvas` via `toNativeGradient`). These are the invariants that keep it from silently degenerating back
- * into the flat fill the apps used to paint (issue #145).
- *
- * VALUE parity against the archive is asserted where the repo already owns mockup parity and has Node's
- * filesystem available: `@commise/web`'s `tests/mockupContrast.test.ts` compares this token to the
- * `--gradient-beach-glow` declaration in every one of the nine screens. It cannot live here — this package
- * deliberately ships no `@types/node`, so a token module's tests cannot read files.
+ * It was a three-stop beach-glow ramp, and a guard here stopped it collapsing into a flat fill (issue #145: native
+ * painted a flat colour per screen). The redesign reverses that decision (steel is an accent and the page is one calm
+ * cool colour), so the guard is REWRITTEN: the wash may be flat, but it must stay DERIVED from the canvas role (so the
+ * page colour has one authority) and must still reach both platforms through the same spec, light and dark.
  */
-describe('gradient specs — the canvas ramp cannot collapse to a flat fill', () => {
-    it('is a real multi-stop ramp, not a flat fill dressed up as a gradient', () => {
-        const distinct = new Set(gradient.hero.stops.map((stop) => stop.color.toLowerCase()));
-
-        expect(gradient.hero.stops.length).toBeGreaterThanOrEqual(3);
-        // A "gradient" whose stops are all one colour renders identically to `background-color` — the exact
-        // regression this whole surface exists to prevent.
-        expect(distinct.size).toBe(gradient.hero.stops.length);
-        expect(gradient.hero.stops[0].position).toBe(0);
-        expect(gradient.hero.stops[gradient.hero.stops.length - 1]?.position).toBe(100);
+describe('gradient specs — the flat canvas wash', () => {
+    it('is the canvas role in both themes, so the page colour has one authority', () => {
+        expect(gradient.hero.stops.map((stop) => stop.color)).toEqual([role.canvas, role.canvas]);
+        expect(gradients.heroDark.stops.map((stop) => stop.color)).toEqual([roleDark.canvas, roleDark.canvas]);
     });
 
-    it('runs top-left → bottom-right on BOTH platforms (the wireframes’ 135° diagonal)', () => {
+    it('runs top to bottom on BOTH platforms (180 degrees)', () => {
         const native = toNativeGradient(gradient.hero);
 
-        expect(gradient.hero.angle).toBe(135);
-        // The native projection must agree with the CSS angle, or the two platforms' washes mirror each other.
-        expect(native.start.x).toBeLessThan(native.end.x);
+        expect(gradient.hero.angle).toBe(180);
         expect(native.start.y).toBeLessThan(native.end.y);
+        expect(native.start.x).toBeCloseTo(native.end.x);
         expect(native.colors).toEqual(gradient.hero.stops.map((stop) => stop.color));
     });
 });

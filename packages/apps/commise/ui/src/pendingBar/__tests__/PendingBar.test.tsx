@@ -36,7 +36,7 @@ describe('PendingBar (web)', () => {
         expect(PENDING_BAR_DELAY_MS).toBe(500);
     });
 
-    it('is a still, 4px seafoam bar that takes no layout space', () => {
+    it('is a still, 4px steel bar that takes no layout space', () => {
         const { container } = render(<PendingBar pending />);
         const className = bar(container)?.className ?? '';
 
@@ -44,8 +44,8 @@ describe('PendingBar (web)', () => {
         expect(className).toContain('inset-x-0');
         expect(className).toContain('h-1');
         expect(className).toContain('rounded-full');
-        // `seafoam`, not `seafoam-light`: the bar is a graphic that owes 3:1 (SC 1.4.11), and the light tint fails.
-        // The `action` role (seafoam in both themes), so the bar re-themes with the rest of the page (D15).
+        // `steel`, not `steel-light`: the bar is a graphic that owes 3:1 (SC 1.4.11), and the light tint fails.
+        // The `action` role (steel in both themes), so the bar re-themes with the rest of the page (D15).
         expect(className).toMatch(/\bbg-action\b(?!-)/);
         // Still, not moving: a moving bar beside usable results is not covered by SC 2.2.2's loading exemption.
         expect(className).not.toMatch(/animate-(pulse|spin|ping|bounce)/);

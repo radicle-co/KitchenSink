@@ -34,8 +34,8 @@ describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)',
         expect(sizeScale).toEqual({ 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64, 9: 96, true: 16 });
     });
 
-    it('createTokens.radius equals the pre-U0 map (0 + sm…full)', () => {
-        expect(radiusScale).toEqual({ 0: 0, 1: 6, 2: 12, 3: 20, 4: 28, 5: 9999 });
+    it('createTokens.radius equals the redesign map (0 + sm…full: 8, 12, 18, 24; REWRITTEN, it was 6, 12, 20, 28)', () => {
+        expect(radiusScale).toEqual({ 0: 0, 1: 8, 2: 12, 3: 18, 4: 24, 5: 9999 });
     });
 
     // REWRITTEN for the owner's type-scale ruling (2026-10-25): sizes 14/16/18/28 only, capped at 28, and the leading is
@@ -48,16 +48,17 @@ describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)',
         expect(bodyLineHeight).toEqual({ 1: 20, 2: 24, 3: 24, 4: 24, 5: 24, 6: 24, 7: 32, 8: 32, 9: 32 });
     });
 
-    it('display (Playfair) createFont size ramp stops at the 28 px large title', () => {
+    it('display (Manrope) createFont size ramp stops at the 28 px large title', () => {
         expect(displayFontSize).toEqual({ 1: 16, 2: 18, 3: 18, 4: 28, 5: 28, 6: 28, 7: 28, 8: 28, 9: 28 });
     });
 
-    it('display (Playfair) createFont lineHeight ramp is whole px', () => {
+    it('display (Manrope) createFont lineHeight ramp is whole px', () => {
         expect(displayLineHeight).toEqual({ 1: 24, 2: 24, 3: 24, 4: 32, 5: 32, 6: 32, 7: 32, 8: 32, 9: 32 });
     });
 
-    it('shared createFont weight ramp is unchanged', () => {
-        expect(fontWeightRamp).toEqual({ 1: '400', 2: '500', 3: '600', 4: '700' });
+    // REWRITTEN for the redesign: the weight ceiling is 600, so step 4 (bold) is '600' (it was '700').
+    it('shared createFont weight ramp tops out at 600', () => {
+        expect(fontWeightRamp).toEqual({ 1: '400', 2: '500', 3: '600', 4: '600' });
     });
 });
 
@@ -97,7 +98,7 @@ describe('mobile Tamagui token ramps — SINGLE-SOURCE (derived from @commise/ui
         });
     });
 
-    it('display sizes select the Playfair ramp steps, which stop at the 28 px large title', () => {
+    it('display sizes select the Manrope ramp steps, which stop at the 28 px large title', () => {
         expect(displayFontSize).toEqual({
             1: fontSize.bodyMd,
             2: fontSize.headingMd,

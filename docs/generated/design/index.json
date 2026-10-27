@@ -7,7 +7,7 @@
         {
             "id": "palette",
             "source": "packages/apps/commise/ui/src/tokens/colors.ts",
-            "tokenCount": 19,
+            "tokenCount": 18,
             "kinds": [
                 "color"
             ]
@@ -167,11 +167,18 @@
             ]
         },
         {
-            "id": "native",
+            "id": "native.borderSubtle",
             "source": "packages/apps/commise/ui/src/tokens/native.ts",
             "tokenCount": 2,
             "kinds": [
-                "color",
+                "color"
+            ]
+        },
+        {
+            "id": "native",
+            "source": "packages/apps/commise/ui/src/tokens/native.ts",
+            "tokenCount": 1,
+            "kinds": [
                 "number"
             ]
         },
@@ -220,7 +227,7 @@
             "source": "packages/apps/commise/ui/src/tokens/scale.ts",
             "tokenCount": 5,
             "kinds": [
-                "shadow"
+                "object"
             ]
         },
         {

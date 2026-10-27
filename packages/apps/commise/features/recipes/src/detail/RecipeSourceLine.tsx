@@ -53,7 +53,7 @@ export const RecipeSourceLine: FC<RecipeSourceLineProps> = ({ sourceUrl, sourceA
                     // site's link equity to a URL any user can author.
                     rel="noopener noreferrer nofollow ugc"
                     // Contrast (WCAG AA): `ocean-dark` on the page surface is 6.20:1 — the same split the
-                    // rest of the detail applies to seafoam-as-TEXT. Underlined, so the affordance is not
+                    // rest of the detail applies to steel-as-TEXT. Underlined, so the affordance is not
                     // carried by colour alone (SC 1.4.1).
                     className="min-w-0 break-all text-body-sm font-medium text-action-text underline underline-offset-2"
                 >

@@ -141,7 +141,7 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.getByText('by \u2068@braise\u2069 (\u2068Eliza Moreno\u2069)')).toBeTruthy();
     });
 
-    // F8 (`evaluateFinal.md`): the recipe title is Playfair `largeTitle` (§1.5). `text-large-title` alone sets no face.
+    // F8 (`evaluateFinal.md`): the recipe title is Manrope `largeTitle` (§1.5). `text-large-title` alone sets no face.
     it('sets the title in the display face', () => {
         render(
             <RecipeDetailView
@@ -193,6 +193,12 @@ describe('RecipeDetailView (web) — header', () => {
         const chickpeas = screen.getByRole('heading', { level: 3, name: 'For the chickpeas' });
 
         expect(lamb.className).toContain('text-label');
+        // C5/C6 (redesign): a group name is weight 500, muted, in sentence case (no uppercase transform).
+        expect(lamb.className).toContain('font-medium');
+        // T1: 16 above a group name.
+        expect(lamb.className).toContain('pt-4');
+        expect(lamb.className).toContain('text-ink-muted');
+        expect(lamb.className).not.toMatch(/uppercase/u);
         expect(
             lamb.compareDocumentPosition(screen.getByText('Lamb shoulder')) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
@@ -290,11 +296,11 @@ describe('RecipeDetailView (web) — header', () => {
 });
 
 /**
- * The hero badge row and the tag chip above are already measured; these are the three seafoam-as-TEXT leaves
- * further down the page that the same pass left under the floor. Which seafoam sites are accents (3:1) and
+ * The hero badge row and the tag chip above are already measured; these are the three steel-as-TEXT leaves
+ * further down the page that the same pass left under the floor. Which steel sites are accents (3:1) and
  * which are text (4.5:1) is stated once, in `@commise/ui`'s palette JSDoc.
  */
-describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA legible', () => {
+describe('RecipeDetailView (web) — steel-as-text below the hero is WCAG-AA legible', () => {
     it('makes a step numeral legible, current and not (the reader reads the number)', async () => {
         const user = userEvent.setup();
         render(
@@ -308,6 +314,8 @@ describe('RecipeDetailView (web) — seafoam-as-text below the hero is WCAG-AA l
         const toggle = screen.getByRole('button', { name: 'Mark step 1 as current' });
         const numeral = (): string => toggle.querySelector('[data-numeral]')?.className ?? '';
         expect(utilityContrast(numeral()), 'step numeral').toBeGreaterThanOrEqual(4.5);
+        // C6 (redesign): the step number is weight 500.
+        expect(numeral()).toContain('font-medium');
 
         await user.click(toggle);
         expect(utilityContrast(numeral()), 'current step numeral').toBeGreaterThanOrEqual(4.5);
@@ -1147,7 +1155,7 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
 });
 
 describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
-    it('gives the step toggle a 44px target and every ingredient row 48px', () => {
+    it('gives the step toggle a 44px target and every ingredient row 44px (REWRITTEN for owner C5 + T1: it was 48)', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -1161,7 +1169,7 @@ describe('RecipeDetailView (web) — touch targets (44px floor)', () => {
         }
 
         for (const row of screen.getAllByRole('checkbox')) {
-            expect(row.className).toContain('min-h-12');
+            expect(row.className).toContain('min-h-11');
         }
     });
 });

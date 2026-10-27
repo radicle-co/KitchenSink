@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { palette, tint } from '../../tokens/colors.js';
+import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { bodyFontFace } from '../../tokens/scale.js';
 import { DialogFrame } from '../DialogFrame.native.js';
@@ -140,7 +140,7 @@ describe('DialogFrame (native)', () => {
     });
 
     // Rewritten for F8 (`evaluateFinal.md`): a dialog title is `sectionTitle` (Inter 600), the web dialog's role.
-    // Playfair sets names only, so neither a dialog nor a sheet title is the display face any longer.
+    // Manrope sets names only, so neither a dialog nor a sheet title is the display face any longer.
     it('sets its title in the sectionTitle role, as the web dialog does', () => {
         renderFrame();
 
@@ -195,12 +195,10 @@ describe('DialogFrame (native)', () => {
         expect(appliedStyle(scrim(), 'padding-left')).toBe(`${nativeTokens.spacing[4]}px`);
     });
 
-    it('dims the screen with the charcoal scrim token, not a near-charcoal of its own', () => {
+    it('dims the screen with the scrim role (REWRITTEN for the redesign: a cool 42% scrim, no longer 40% charcoal), not a colour of its own', () => {
         renderFrame();
 
-        expect(appliedStyle(scrim(), 'background-color')?.replace(/\s/gu, '')).toBe(
-            tint(palette.charcoal, 0.4).replace(/\s/gu, ''),
-        );
+        expect(appliedStyle(scrim(), 'background-color')?.replace(/\s/gu, '')).toBe(role.scrim.replace(/\s/gu, ''));
     });
 
     it('lifts the card clear of the keyboard through the shared modal keyboard avoider', () => {

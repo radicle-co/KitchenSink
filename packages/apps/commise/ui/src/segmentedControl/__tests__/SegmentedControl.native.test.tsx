@@ -79,6 +79,21 @@ describe('SegmentedControl (native) — route', () => {
         );
     });
 
+    // Parity item 11 (`componentFixes` §8): paper on the surfaceMuted track is about 1.18:1, so the selected segment gains a
+    // 1 pt lineControl edge and keeps its shadow. The others carry a transparent edge of the same width, so selecting
+    // one shifts nothing.
+    it('draws the current tab a 1 pt lineControl edge, and every other tab a transparent one of the same width', () => {
+        render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
+        const current = getComputedStyle(screen.getByRole('tab', { name: 'My recipes' }));
+        const other = getComputedStyle(screen.getByRole('tab', { name: 'Collections' }));
+
+        expect(current.borderTopWidth).toBe('1px');
+        expect(current.borderTopColor).toBe(rgb(role.lineControl));
+        expect(current.backgroundColor).toBe(rgb(role.paper));
+        expect(other.borderTopWidth).toBe('1px');
+        expect(other.borderTopColor).not.toBe(rgb(role.lineControl));
+    });
+
     it('is 44 pt tall on iOS and 48 dp on Android', () => {
         for (const [os, height] of [
             ['ios', '44px'],

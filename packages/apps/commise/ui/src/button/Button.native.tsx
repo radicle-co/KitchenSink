@@ -13,6 +13,9 @@
  * - **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.
  * - **Type**: the label is the `cardTitle` role (16/20/600, owner ruling B1) — one registered Inter face per weight and never a `fontWeight` (§1.5),
  *   which on Android resolves to a synthesised or system bold instead of the face.
+ * - **Press**: the pill scales to 0.98 (`PressScale`, skipped under reduce-motion) AND paints its press fill
+ *   (`buttonSurfacePaint`: `theme.wash`, `lineDivider` over a muted parent, `actionPressed` on primary). The paint is not
+ *   gated by reduce-motion, so a quiet or ghost button always answers the touch.
  * - **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to
  *   40%.
  *
@@ -83,6 +86,7 @@ export const Button: FC<ButtonProps> = (props) => {
         iconPlacement = 'start',
         focusRequested = false,
         onFocusRequestHandled,
+        over = 'paper',
     } = props;
     const { variant, tone } = surfaceOf(props);
     const surface: ButtonSurface =
@@ -119,10 +123,16 @@ export const Button: FC<ButtonProps> = (props) => {
 
     // ONE flat surface per tier (the owner removed the primary gradient, `modernizeB.md` §3).
     // Kept, so busy or disabled (`opacity`) never moves the glyph and label into it (`nativeFlattenFlips.test.ts`).
-    const pill = (
+    // The pill is a function of the press, so the paint answers the touch even where the scale does not (reduce-motion).
+    const pill = (pressed: boolean): ReactNode => (
         <View
             collapsable={false}
-            style={[styles.base, geometry, buttonSurfacePaint(theme, surface), inactive ? styles.inactive : null]}
+            style={[
+                styles.base,
+                geometry,
+                buttonSurfacePaint(theme, surface, pressed && !inactive, over),
+                inactive ? styles.inactive : null,
+            ]}
         >
             {content}
         </View>
@@ -141,7 +151,13 @@ export const Button: FC<ButtonProps> = (props) => {
             width={width}
         >
             {/* `sm` draws below the touch floor, so a transparent frame carries the hit area around it. */}
-            {height < touchFloor() ? <View style={[styles.hitFrame, { minHeight: touchFloor() }]}>{pill}</View> : pill}
+            {({ pressed }) =>
+                height < touchFloor() ? (
+                    <View style={[styles.hitFrame, { minHeight: touchFloor() }]}>{pill(pressed)}</View>
+                ) : (
+                    pill(pressed)
+                )
+            }
         </PressScale>
     );
 };

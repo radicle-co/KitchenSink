@@ -24,7 +24,7 @@ import { discoveryMessages } from './messages.js';
 import { DISCOVERY_SORTS, discoverySortLabel, isDiscoverySort, type RecipeDiscoverySortControl } from './model.js';
 
 const ITEM =
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none data-[highlighted]:bg-ink/6';
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none data-[highlighted]:bg-surface-muted';
 
 export const DiscoverySortMenu: FC<RecipeDiscoverySortControl> = ({ active, onChange }) => {
     const discovery = useMessages(discoveryMessages);

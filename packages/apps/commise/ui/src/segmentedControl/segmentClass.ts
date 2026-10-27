@@ -1,7 +1,8 @@
 /**
  * @module @commise/ui/segmented-control — the web class recipes for the segmented control (spec §1.11): a `pearl`
  * track 44 px tall, pill segments that share it equally (`room`: no label is cut or wrapped to fit a neighbour), the
- * current segment `paper` with `shadow-sm` and an `ink` 600 label, the others `inkMuted` and `ink` on hover.
+ * current segment `paper` with `shadow-sm`, a 1 px `lineControl` edge and an `ink` 600 label, the others `inkMuted` and
+ * `ink` on hover, with a transparent edge of the same width.
  *
  * A segment's pill is 36 px inside the track's 4 px padding, so it TAPS across the track's whole 44 px through a
  * transparent overlay (the chip's mechanism, `chipClass.ts`): the padding is part of the target, not a dead band.
@@ -40,11 +41,21 @@ const ROUTE_SEGMENT_FLEX: Readonly<Record<SegmentWidth, string>> = {
     adaptive: 'flex-1 basis-0 @regular/main:flex-none @regular/main:min-w-[8.5rem]',
 };
 
+/**
+ * The current segment: `paper` with its shadow, an `ink` 600 label and a 1 px `lineControl` edge. Steel is an accent, not
+ * a fill, so it stays paper; but paper on the `surfaceMuted` track is about 1.18:1, which fails SC 1.4.11, and the edge
+ * (3.09:1 light, 3.93:1 dark) is what makes the segment findable (`componentFixes.md` §8).
+ */
+const CURRENT_TONE = 'border-line-control bg-paper font-semibold text-ink shadow-sm';
+
+/** Every other segment: `inkMuted`, and a TRANSPARENT edge of the same width, so selecting one moves nothing. */
+const OTHER_TONE = 'border-transparent text-ink-muted hover:text-ink';
+
 /** Every segment. */
 const SEGMENT_BASE =
-    'relative inline-flex items-center justify-center gap-2 rounded-full px-3 text-label transition ' +
+    'relative inline-flex items-center justify-center gap-2 rounded-full border px-3 text-label transition ' +
     "before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] " +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2';
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas';
 
 /**
  * The track's classes. Pure.
@@ -64,7 +75,7 @@ export function trackClass(width: SegmentWidth = 'share'): string {
  * @returns The `className`.
  */
 export function segmentClass(current: boolean, width: SegmentWidth = 'share'): string {
-    const tone = current ? 'bg-paper font-semibold text-ink shadow-sm' : 'text-ink-muted hover:text-ink';
+    const tone = current ? CURRENT_TONE : OTHER_TONE;
 
     return `${SEGMENT_BASE} ${SEGMENT_FLEX[width]} ${tone}`;
 }
@@ -77,7 +88,7 @@ export function segmentClass(current: boolean, width: SegmentWidth = 'share'): s
  * @returns The `className`.
  */
 export function routeSegmentClass(current: boolean, width: SegmentWidth = 'share'): string {
-    const tone = current ? 'bg-paper font-semibold text-ink shadow-sm' : 'text-ink-muted hover:text-ink';
+    const tone = current ? CURRENT_TONE : OTHER_TONE;
 
     return `${SEGMENT_BASE} ${ROUTE_SEGMENT_FLEX[width]} ${tone}`;
 }

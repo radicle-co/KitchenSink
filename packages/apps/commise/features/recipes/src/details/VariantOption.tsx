@@ -63,7 +63,7 @@ export const VariantOption: FC<VariantOptionProps> = ({
         onKeyDown={onKeyDown}
         onFocus={onFocus}
         className={
-            'flex min-h-12 cursor-pointer items-start gap-3 px-4 py-3 outline-none hover:bg-ink/6 focus-visible:bg-ink/6 ' +
+            'flex min-h-12 cursor-pointer items-start gap-3 px-4 py-3 outline-none hover:bg-surface-muted focus-visible:bg-surface-muted ' +
             'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ' +
             (active ? 'bg-surface-muted ring-2 ring-inset ring-focus-ring' : '')
         }

@@ -24,7 +24,7 @@ import { type RecipeListSortControl } from './model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 
 const ITEM =
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none data-[highlighted]:bg-ink/6';
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none data-[highlighted]:bg-surface-muted';
 
 /**
  * Whether a menu value is one of the sorts. Radix reports a string; only a known key is passed on.

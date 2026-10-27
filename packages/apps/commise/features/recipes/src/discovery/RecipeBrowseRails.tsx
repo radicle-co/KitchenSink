@@ -53,7 +53,7 @@ const SECTION_STAGGER_MS = 80;
 
 /** A 36 px round ghost button, for a fine pointer only (`pointer-fine:`); a touch screen has the swipe and the peek. */
 const ROUND =
-    'hidden size-9 shrink-0 items-center justify-center rounded-full text-ink hover:bg-ink/6 pointer-fine:inline-flex ' +
+    'hidden size-9 shrink-0 items-center justify-center rounded-full text-ink hover:bg-surface-muted pointer-fine:inline-flex ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-disabled:opacity-40 ' +
     'aria-disabled:hover:bg-transparent';
 

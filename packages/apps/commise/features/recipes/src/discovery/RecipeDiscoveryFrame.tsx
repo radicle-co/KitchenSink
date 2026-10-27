@@ -111,7 +111,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                                     type="button"
                                     aria-label={fillTemplate(discovery.recentSearchLabel, { query })}
                                     onClick={() => recentSearches.onSelect(query)}
-                                    className="inline-flex min-h-11 w-full items-center rounded-md px-2 text-start text-body text-ink hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                    className="inline-flex min-h-11 w-full items-center rounded-md px-2 text-start text-body text-ink hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                                 >
                                     {query}
                                 </button>

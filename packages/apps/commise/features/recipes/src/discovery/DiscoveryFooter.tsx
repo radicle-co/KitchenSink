@@ -26,7 +26,7 @@ import type { DiscoveryFooterProps } from './model.js';
 
 /** The 44 px icon button. A busy or finished copy keeps the focus ring: the control is inert, not gone. */
 const BUTTON =
-    'inline-flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-ink/6 focus-visible:outline-none ' +
+    'inline-flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface-muted focus-visible:outline-none ' +
     'focus-visible:ring-2 focus-visible:ring-focus-ring';
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({

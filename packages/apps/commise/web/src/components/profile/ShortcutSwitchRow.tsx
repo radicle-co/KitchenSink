@@ -38,7 +38,7 @@ export const ShortcutSwitchRow: FC<ShortcutSwitchRowProps> = ({ checked, onChang
             role="switch"
             aria-checked={checked}
             onClick={() => onChange(!checked)}
-            className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-start text-body text-ink hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+            className="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-2 text-start text-body text-ink hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
         >
             <span>{t.shortcuts}</span>
             <span

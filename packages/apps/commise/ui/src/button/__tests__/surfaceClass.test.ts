@@ -93,14 +93,17 @@ function fillOf(className: string): string {
 
 describe('buttonSurfaceClass — geometry', () => {
     /**
-     * E2 I12 — the floor follows the POINTER, not the width: a touch screen keeps 44 px at every width and only a mouse
-     * at md: and up gets the desktop density. Applies to the default `md` size, the one the mouse reset was made for.
+     * REWRITTEN for owner ruling B1 (parity item 3): the E2 I12 pointer reset (`md:pointer-fine:min-h-0`) is GONE. It
+     * drew a desktop `md` button at 40 px (measured in AppSnackbars), and B1 allows 44 or 52. The floor now holds at
+     * every width and for every pointer. Mutation lens: bring any `min-h-0` reset back and a row fails.
      */
-    it('keeps the 44px floor for touch at every width, and resets it only for a fine pointer at md:', () => {
+    it('keeps the 44px floor at every width and for every pointer, with no min-h reset of any kind', () => {
         for (const { name, className } of SURFACES) {
             expect(tokensOf(className), name).toContain('min-h-11');
-            expect(tokensOf(className), name).toContain('md:pointer-fine:min-h-0');
-            expect(tokensOf(className), name).not.toContain('md:min-h-0');
+            expect(
+                tokensOf(className).filter((token) => /min-h-0$/u.test(token)),
+                name,
+            ).toEqual([]);
         }
     });
 
@@ -411,5 +414,42 @@ describe('buttonToggleSurfaceClass — a switch that wears the secondary button 
 
         expect(wcagContrast(restingColour(className, 'text'), fillOf(className))).toBeGreaterThanOrEqual(AA_TEXT);
         expect(wcagContrast(restingColour(className, 'border'), role.paper)).toBeGreaterThanOrEqual(AA_UI_COMPONENT);
+    });
+});
+
+// Parity item 6: a quiet or ghost press over a `surfaceMuted` parent is invisible if it fills `surfaceMuted`, so a
+// control that says it sits over one presses to `lineDivider`, as a chip does. One rule for every tier.
+describe('buttonSurfaceClass — the press fill over a muted parent', () => {
+    const PAPER_PRESS = ['hover:bg-surface-muted', 'active:bg-surface-muted'];
+    const MUTED_PRESS = ['hover:bg-line-divider', 'active:bg-line-divider'];
+
+    it.each([
+        ['secondary', buttonSurfaceClass('secondary', 'md', 'muted')],
+        ['ghost', buttonSurfaceClass('ghost', 'md', 'muted')],
+        ['quiet', buttonSurfaceClass('quiet', 'md', 'muted')],
+        ['destructive inline', buttonSurfaceClass('destructive', 'md', 'inline', 'muted')],
+    ])('%s presses to lineDivider over muted', (_name, className) => {
+        const tokens = tokensOf(className);
+
+        expect(tokens).toEqual(expect.arrayContaining(MUTED_PRESS));
+        expect(tokens.some((token) => token.endsWith(':bg-surface-muted'))).toBe(false);
+    });
+
+    it('presses to surfaceMuted over paper, the default', () => {
+        expect(tokensOf(buttonSurfaceClass('quiet'))).toEqual(expect.arrayContaining(PAPER_PRESS));
+        expect(buttonSurfaceClass('quiet', 'md', 'paper')).toBe(buttonSurfaceClass('quiet'));
+    });
+
+    it('leaves the filled tiers alone: primary keeps actionPressed and confirm keeps its danger press', () => {
+        expect(buttonSurfaceClass('primary', 'md', 'muted')).toBe(buttonSurfaceClass('primary'));
+        expect(buttonSurfaceClass('destructive', 'md', 'confirm', 'muted')).toBe(
+            buttonSurfaceClass('destructive', 'md', 'confirm'),
+        );
+    });
+
+    it('takes the destructive tone and the surface independently', () => {
+        expect(tokensOf(buttonSurfaceClass('destructive', 'md', 'inline', 'muted'))).toEqual(
+            expect.arrayContaining(MUTED_PRESS),
+        );
     });
 });

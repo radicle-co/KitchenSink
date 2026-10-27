@@ -34,7 +34,13 @@ import { nativeTokens } from '../tokens/native.js';
 import { radius, spacing } from '../tokens/scale.js';
 import { isToolbarCollapsed } from './onScreenKeyboard.js';
 import type { SheetProps } from './props.js';
-import { SHEET_EDGE_PADDING_DP, sheetIsCentred, sheetSideInsetPadding, sheetWidthStyle } from './sheetPresentation.js';
+import {
+    SHEET_EDGE_PADDING_DP,
+    SHEET_HANDLE,
+    sheetIsCentred,
+    sheetSideInsetPadding,
+    sheetWidthStyle,
+} from './sheetPresentation.js';
 import { usePinnedFooter } from '../layout/usePinnedFooter.native.js';
 import { useKeyboardShown } from '../layout/useKeyboardShown.native.js';
 import { useSwipeToDismiss } from './useSwipeToDismiss.native.js';
@@ -103,26 +109,38 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
             ]}
             onLayout={pinning.onFrameLayout}
         >
-            <View style={styles.titleRow} {...panHandlers} onLayout={pinning.onTopLayout}>
-                <View style={styles.titleBox}>
-                    <Text
-                        ref={titleRef}
-                        accessibilityRole="header"
-                        numberOfLines={1}
-                        style={collapsed ? visuallyHidden : [styles.title, { color: colors.ink }]}
+            {/* The swipe zone: the grab handle and the title row, so a drag that starts on the handle dismisses with the
+                same thresholds. The handle is decorative; the labelled Close button stays the accessible way out
+                (WCAG 2.5.7). */}
+            <View {...panHandlers} onLayout={pinning.onTopLayout}>
+                <View
+                    aria-hidden
+                    importantForAccessibility="no-hide-descendants"
+                    // A data attribute, so a test can find the decoration without a test id.
+                    {...{ dataSet: { sheetHandle: '' } }}
+                    style={[styles.handle, { backgroundColor: colors.lineDivider }]}
+                />
+                <View style={styles.titleRow}>
+                    <View style={styles.titleBox}>
+                        <Text
+                            ref={titleRef}
+                            accessibilityRole="header"
+                            numberOfLines={1}
+                            style={collapsed ? visuallyHidden : [styles.title, { color: colors.ink }]}
+                        >
+                            {title}
+                        </Text>
+                        {collapsed ? toolbar.heading : null}
+                    </View>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={closeLabel}
+                        onPress={onClose}
+                        style={styles.close}
                     >
-                        {title}
-                    </Text>
-                    {collapsed ? toolbar.heading : null}
+                        <Icon name="x" size={24} tone="inkMuted" />
+                    </Pressable>
                 </View>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={closeLabel}
-                    onPress={onClose}
-                    style={styles.close}
-                >
-                    <Icon name="x" size={24} tone="inkMuted" />
-                </Pressable>
             </View>
             {toolbar === undefined ? null : (
                 <View style={styles.toolbar}>
@@ -141,20 +159,21 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
 
 const styles = StyleSheet.create({
     sheet: {
-        borderTopLeftRadius: radius.lg,
-        borderTopRightRadius: radius.lg,
+        borderTopLeftRadius: radius.xl,
+        borderTopRightRadius: radius.xl,
         overflow: 'hidden',
     },
     content: { maxHeight: '100%' },
     // A centred dialog rounds all four corners: it floats clear of the screen's foot.
-    centredCard: { borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
+    centredCard: { borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
     full: { height: '100%' },
+    // `radius.full` draws the same pill the owner's 3 pt radius draws on a 5 pt bar, and stays on the radius scale.
+    handle: { ...SHEET_HANDLE, alignSelf: 'center', borderRadius: radius.full },
     titleRow: {
         flexDirection: 'row',
         alignItems: 'flex-start',
         paddingLeft: SHEET_EDGE_PADDING_DP,
         paddingRight: spacing[1],
-        paddingTop: spacing[1],
     },
     titleBox: { flex: 1, minWidth: 0, paddingTop: spacing[3] },
     // `barTitle`, Inter 17/600 (`buildSpec.md` §1.5): Manrope sets names only, never a sheet's title (F8).

@@ -24,14 +24,19 @@ describe('difficultyTone', () => {
         expect(Object.keys(difficultyTone).sort()).toEqual(['easy', 'hard', 'medium']);
     });
 
-    // REWRITTEN for the redesign: a difficulty chip has no hue. Every level is the neutral surfaceMuted under ink and the
-    // three-dot meter tells them apart (it used to be three tints: success, warning, coral).
-    it('is the neutral surfaceMuted under ink for every level', () => {
+    // REWRITTEN for componentFixes §7 (2026-10-27): a neutral badge is PAPER under inkMuted, with a lineDivider edge
+    // the component draws. The surfaceMuted fill it replaces vanished on any surfaceMuted parent (a notice, a pressed
+    // row), which is the whole defect: a badge whose fill IS the parent's fill has no shape.
+    it('is paper under inkMuted for every level, never the surfaceMuted fill', () => {
         expect(difficultyTone).toEqual({
-            easy: { fill: role.surfaceMuted, text: role.ink },
-            medium: { fill: role.surfaceMuted, text: role.ink },
-            hard: { fill: role.surfaceMuted, text: role.ink },
+            easy: { fill: role.paper, text: role.inkMuted },
+            medium: { fill: role.paper, text: role.inkMuted },
+            hard: { fill: role.paper, text: role.inkMuted },
         });
+
+        for (const tone of Object.values(difficultyTone)) {
+            expect(tone.fill).not.toBe(role.surfaceMuted);
+        }
     });
 
     it.each(['easy', 'medium', 'hard'] as const)('%s reads on its tint over paper', (level) => {
@@ -76,12 +81,13 @@ describe('statusTone', () => {
         expect(Object.keys(statusTone).sort()).toEqual(['draft', 'private', 'public']);
     });
 
-    // §1.4: neutral — `pearl` fill, `ink` text, never amber — told apart by the icon, not by colour (SC 1.4.1).
+    // REWRITTEN for componentFixes §7: neutral is paper under inkMuted (was pearl under ink), never amber, told apart by
+    // the icon, not by colour (SC 1.4.1).
     it('is neutral for every status, and the icon tells them apart', () => {
         expect(statusTone).toEqual({
-            draft: { fill: palette.pearl, text: role.ink, icon: 'pencilLine' },
-            private: { fill: palette.pearl, text: role.ink, icon: 'lock' },
-            public: { fill: palette.pearl, text: role.ink, icon: 'globe' },
+            draft: { fill: role.paper, text: role.inkMuted, icon: 'pencilLine' },
+            private: { fill: role.paper, text: role.inkMuted, icon: 'lock' },
+            public: { fill: role.paper, text: role.inkMuted, icon: 'globe' },
         });
     });
 
@@ -119,14 +125,14 @@ function over(color: string, backdrop: string): string {
  * the dark text roles, and the status tones on the dark `surfaceMuted`. Measured over dark paper and the dark canvas.
  */
 describe('the dark tones', () => {
-    // REWRITTEN for the redesign: the dark levels are the neutral dark surfaceMuted under dark ink too.
+    // REWRITTEN for componentFixes §7: the dark levels are dark paper under dark inkMuted (the edge is the component's).
     it('uses the neutral dark pair for every level', () => {
         expect(difficultyToneDark).toEqual({
-            easy: { fill: roleDark.surfaceMuted, text: roleDark.ink },
-            medium: { fill: roleDark.surfaceMuted, text: roleDark.ink },
-            hard: { fill: roleDark.surfaceMuted, text: roleDark.ink },
+            easy: { fill: roleDark.paper, text: roleDark.inkMuted },
+            medium: { fill: roleDark.paper, text: roleDark.inkMuted },
+            hard: { fill: roleDark.paper, text: roleDark.inkMuted },
         });
-        expect(statusToneDark.draft).toEqual({ fill: roleDark.surfaceMuted, text: roleDark.ink, icon: 'pencilLine' });
+        expect(statusToneDark.draft).toEqual({ fill: roleDark.paper, text: roleDark.inkMuted, icon: 'pencilLine' });
     });
 
     it.each(['easy', 'medium', 'hard'] as const)(
@@ -145,9 +151,23 @@ describe('the dark tones', () => {
         expect(wcagContrast(text, fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
-    it('takes the light status fill from the surfaceMuted role (linen), not a palette entry', () => {
-        expect(statusTone.public.fill).toBe(role.surfaceMuted);
+    it('takes the status fill from the paper role, not a palette entry', () => {
+        expect(statusTone.public.fill).toBe(role.paper);
+        expect(statusToneDark.public.fill).toBe(roleDark.paper);
     });
+
+    // The label is read on the badge's own fill AND on every parent a badge can sit on (a muted notice, the canvas):
+    // paper carries its own fill, so the label's contrast never depends on the parent.
+    it.each([
+        ['light', difficultyTone.easy, role],
+        ['dark', difficultyToneDark.easy, roleDark],
+    ] as const)(
+        '%s: the neutral label reads on paper at 4.5:1 and the badge is not its muted parent',
+        (_s, tone, r) => {
+            expect(wcagContrast(tone.text, tone.fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+            expect(tone.fill).not.toBe(r.surfaceMuted);
+        },
+    );
 });
 
 /**

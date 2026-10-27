@@ -42,7 +42,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                         </Dialog.Title>
                         <Dialog.Close
                             aria-label={compare.close}
-                            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                         >
                             <Icon name="x" size={20} />
                         </Dialog.Close>

@@ -222,7 +222,7 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                                   event.currentTarget.parentElement?.querySelector('input')?.focus();
                                   details.onClearQuery();
                               }}
-                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-ink/6 focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-ink-muted hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-focus-ring"
                           >
                               <Icon name="x" size={20} />
                           </button>

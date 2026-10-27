@@ -35,7 +35,7 @@ export const MoveToGroupSheet: FC<{ readonly view: MoveToGroupView }> = ({ view 
                         type="button"
                         aria-current={choice.current || undefined}
                         onClick={choice.onSelect}
-                        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body-md text-ink transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body-md text-ink transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
                     >
                         <span className="min-w-0 break-words">{choice.label}</span>
                         {choice.current && (

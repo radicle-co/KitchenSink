@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { Platform } from 'react-native';
 
 import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
@@ -38,7 +39,7 @@ describe('IngredientCheckRow (native)', () => {
         expect(onToggle).toHaveBeenCalledWith('ing_lamb');
     });
 
-    // Owner C5 + T1: the row text is the `list` role, the row pads 8 and is at least 44 tall, sized from the tokens, and a
+    // Owner C5 + T1: the row text is the `list` role, the row pads 8 and is at least 44 tall (iOS), sized from the tokens, and a
     // press anywhere on the row (the text included) toggles it.
     it('sets the line in the list role, pads 8 and is at least 44 tall', () => {
         render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
@@ -51,6 +52,24 @@ describe('IngredientCheckRow (native)', () => {
         expect(getComputedStyle(screen.getByText('lamb shoulder')).fontSize).toBe(
             `${nativeTokens.type.list.fontSize}px`,
         );
+    });
+
+    // Parity item 16: a literal 44 gave Android a 44 dp row; the touch floor is 44 pt on iOS and 48 dp on Android
+    // (`touchFloor()`, the same source Button and Chip read). Mutation lens: restore the literal and the Android row fails.
+    it.each([
+        ['ios', '44px'],
+        ['android', '48px'],
+    ] as const)('is as tall as the platform touch floor on %s', (os, height) => {
+        const original = Platform.OS;
+        Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
+
+        try {
+            render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+            expect(getComputedStyle(screen.getByRole('checkbox', { name: /lamb shoulder/u })).minHeight).toBe(height);
+        } finally {
+            Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+        }
     });
 
     it('toggles when the cook presses the text, not only the box', () => {

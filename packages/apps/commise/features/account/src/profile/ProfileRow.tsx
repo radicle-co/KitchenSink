@@ -20,7 +20,7 @@ import type { ProfileRowProps } from './props.js';
 
 /** The row's box, shared by the button and the link. */
 const BOX =
-    'flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start hover:bg-ink/6 ' +
+    'flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start hover:bg-surface-muted ' +
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring';
 
 /** The label colour per tone. */

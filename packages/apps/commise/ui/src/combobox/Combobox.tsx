@@ -612,7 +612,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 <div
                     ref={setFloating}
                     style={floatingStyles}
-                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto overscroll-contain rounded-2xl bg-paper-overlay p-1 shadow-lg`}
+                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto overscroll-contain rounded-lg bg-paper-overlay p-1 shadow-lg`}
                 >
                     {status !== undefined && statusLine(status, loadingIcon)}
                     {listShown && (

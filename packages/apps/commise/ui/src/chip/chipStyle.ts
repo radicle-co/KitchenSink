@@ -2,7 +2,7 @@
  * @module @commise/ui/chip — the native chip geometry and surfaces, shared by `Chip.native.tsx` and the options
  * `ChipRow.native.tsx` draws (spec §1.6/§1.10): a 32 pt pill inside a 44 pt hit area (48 dp on Android), `surfaceMuted`
  * with a 1.5 pt transparent edge and an `ink` caption label (14/500) at rest, `lineDivider` while pressed, and when selected the
- * `selectedFill` tint, a 1.5 pt `selectedEdge` and an `actionText` label. A count keeps the semibold figure on both
+ * `selectedFill` tint, a 1.5 pt `selectedEdge` (2 pt while pressed) and an `actionText` label. A count keeps the semibold figure on both
  * platforms. The web leaves spell the same rules as utilities (`chipClass.ts`).
  */
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
@@ -15,6 +15,9 @@ const CHIP_HEIGHT = 32;
 
 /** The chip's edge width, at rest AND selected: the same, so selecting one never shifts its neighbours. */
 const CHIP_EDGE = 1.5;
+
+/** The selected chip's edge while pressed or hovered: a thicker `selectedEdge`, its padding giving the difference back. */
+const CHIP_EDGE_PRESSED = 2;
 
 /** The most lines a chip's label takes before its ellipsis (`chipClass.ts`'s `CHIP_LABEL_CLASS`, the web twin). */
 export const CHIP_LABEL_LINES = 2;
@@ -43,7 +46,14 @@ export function chipPill({ colors }: Theme, selected: boolean, pressed: boolean)
         borderRadius: CHIP_HEIGHT / 2,
         paddingHorizontal: nativeTokens.spacing[3],
         ...(selected
-            ? { backgroundColor: colors.selectedFill, borderWidth: CHIP_EDGE, borderColor: colors.selectedEdge }
+            ? {
+                  backgroundColor: colors.selectedFill,
+                  borderColor: colors.selectedEdge,
+                  // Pressed: a 2 pt edge (`componentFixes` §6), the extra half point taken from the padding so the box
+                  // and the label stay where they were.
+                  borderWidth: pressed ? CHIP_EDGE_PRESSED : CHIP_EDGE,
+                  paddingHorizontal: nativeTokens.spacing[3] - (pressed ? CHIP_EDGE_PRESSED - CHIP_EDGE : 0),
+              }
             : {
                   backgroundColor: pressed ? colors.lineDivider : colors.surfaceMuted,
                   borderWidth: CHIP_EDGE,

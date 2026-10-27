@@ -24,7 +24,7 @@ const LEVEL_CLASS: Readonly<Record<DifficultyLevel, string>> = {
  */
 export const DifficultyBadge: FC<DifficultyBadgeProps> = ({ level, children }) => (
     <span
-        className={`inline-flex min-h-6 max-w-full shrink-0 items-center gap-1 rounded-sm px-2 py-0.5 text-caption font-medium ${LEVEL_CLASS[level]}`}
+        className={`inline-flex min-h-6 max-w-full shrink-0 items-center gap-1 rounded-sm border border-line-divider px-2 py-0.5 text-caption font-medium ${LEVEL_CLASS[level]}`}
     >
         <span aria-hidden="true" className="inline-flex items-center gap-0.5">
             {Array.from({ length: METER_DOTS }, (_unused, index) => (

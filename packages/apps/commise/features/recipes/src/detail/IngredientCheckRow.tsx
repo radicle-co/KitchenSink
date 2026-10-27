@@ -49,7 +49,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                 )}
                 aria-describedby={statuses.length > 0 ? statusId : undefined}
                 onClick={() => onToggle(ingredient.ingredientId)}
-                className="flex min-h-11 w-full items-start gap-3 rounded-md px-3 py-2 text-start transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+                className="flex min-h-11 w-full items-start gap-3 rounded-md px-3 py-2 text-start transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
             >
                 {/* The 18 px box sits on the text's 20 px first line, 1 px down to centre on it. */}
                 <span className="mt-px flex">

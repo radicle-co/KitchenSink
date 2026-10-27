@@ -6847,7 +6847,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/IngredientCheckRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — the native ingredient row the cook checks off (build spec §6.3): the mirror of\n`IngredientCheckRow.tsx`. The whole row is one `checkbox` at least 44 dp tall, named with the full line and hinted\nwith the statuses it carries (react-native-web joins a pressable's texts without spaces, so the name is stated).\nChecked, the box fills with the signature motion and the text dims to `inkMuted`, with no strike-through. Colours\ncome from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native ingredient row the cook checks off (build spec §6.3): the mirror of\n`IngredientCheckRow.tsx`. The whole row is one `checkbox` at least the touch floor tall (44 pt, 48 dp on Android), named with the full line and hinted\nwith the statuses it carries (react-native-web joins a pressable's texts without spaces, so the name is stated).\nChecked, the box fills with the signature motion and the text dims to `inkMuted`, with no strike-through. Colours\ncome from the theme at render.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

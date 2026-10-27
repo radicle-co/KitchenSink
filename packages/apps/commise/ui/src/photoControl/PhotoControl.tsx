@@ -17,7 +17,7 @@ export const PhotoControl: FC<PhotoControlProps> = ({ icon, label, onPress }) =>
         type="button"
         aria-label={label}
         onClick={onPress}
-        className="inline-flex size-11 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2"
+        className="inline-flex size-11 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas "
     >
         <Icon name={icon} size={24} tone="ink" />
     </button>

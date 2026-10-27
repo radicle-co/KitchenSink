@@ -38,6 +38,7 @@ export const RefreshNotice: FC<RefreshNoticeProps> = ({ failed, refreshing, onRe
                     <Text style={[styles.message, { color: colors.inkMuted }]}>{labels.failed}</Text>
                     <Button
                         variant="quiet"
+                        over="muted"
                         icon="refreshCw"
                         busy={refreshing}
                         onPress={onRetry}

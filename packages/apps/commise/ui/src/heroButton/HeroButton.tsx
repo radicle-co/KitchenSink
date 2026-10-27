@@ -20,7 +20,7 @@ import type { HeroButtonProps } from './props.js';
  * Written whole: Tailwind finds a class only when it appears whole in the source.
  */
 export const HERO_DISC_CLASS =
-    'inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2';
+    'inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas';
 
 /** The web control over a photo. */
 export const HeroButton: FC<HeroButtonProps> = ({ icon, label, onPress, href, expanded, disabled = false }) => {

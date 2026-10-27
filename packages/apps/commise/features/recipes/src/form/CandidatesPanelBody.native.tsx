@@ -29,7 +29,7 @@ import { recipeFormMessages } from './messages.js';
 export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick, onRetryRead, onNoneOfThese }) => {
     const m = useMessages(recipeFormMessages);
     // Colour from the theme at render (D15): copy in `ink`, a hint in `inkMuted`, a refused pick in `dangerText` (the
-    // web twin's `text-danger-text`), the press wash `ink` at 6% (its `hover:bg-ink/6`).
+    // web twin's `text-danger-text`), the press wash `surfaceMuted` (its `hover:bg-surface-muted`).
     const { colors, wash } = useTheme();
     const text = [styles.text, { color: colors.ink }];
     const hint = [styles.hint, { color: colors.inkMuted }];

@@ -13,5 +13,5 @@ import type { FabPresentation } from './createFabPolicy.js';
 export function fabSurfaceClass(presentation: Exclude<FabPresentation, 'hidden'>): string {
     const shape = presentation === 'icon' ? 'size-14 justify-center' : 'h-14 gap-2 pe-6 ps-4';
 
-    return `fixed bottom-[calc(var(--bottom-chrome,0px)+1rem)] end-4 z-40 inline-flex items-center rounded-full bg-action text-label text-on-action shadow-lg transition-colors hover:bg-action-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 medium:end-6 nav:hidden ${shape}`;
+    return `fixed bottom-[calc(var(--bottom-chrome,0px)+1rem)] end-4 z-40 inline-flex items-center rounded-full bg-action text-label text-on-action shadow-lg transition-colors hover:bg-action-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas medium:end-6 nav:hidden ${shape}`;
 }

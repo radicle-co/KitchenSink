@@ -102,7 +102,7 @@ const OptionCard: FC<ConflictOptionCardProps & { readonly busy: boolean }> = ({
             {...busyControlProps({ busy: busy && !disabled, blocked: disabled, onClick: onChoose })}
             aria-label={title}
             aria-describedby={descriptionId}
-            className={`flex flex-1 flex-col gap-1 rounded-2xl bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition hover:bg-ink/6 disabled:hover:bg-paper aria-disabled:hover:bg-paper ${UNAVAILABLE_CLASS}`}
+            className={`flex flex-1 flex-col gap-1 rounded-2xl bg-paper p-5 text-left shadow-sm ring-1 ring-line-divider transition hover:bg-surface-muted disabled:hover:bg-paper aria-disabled:hover:bg-paper ${UNAVAILABLE_CLASS}`}
         >
             <span aria-hidden="true" className="font-display text-body-lg font-semibold text-ink">
                 {title}

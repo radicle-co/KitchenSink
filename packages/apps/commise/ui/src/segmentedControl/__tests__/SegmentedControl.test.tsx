@@ -142,6 +142,44 @@ describe('SegmentedControl (web) — view', () => {
         expect(screen.getByRole('radio', { name: 'List view' }).querySelector('svg.lucide-menu')).not.toBeNull();
     });
 
+    // Parity item 11 (`componentFixes` §8): steel is an accent, not a fill, so the selected segment stays paper on the
+    // surfaceMuted track (about 1.18:1, which fails SC 1.4.11) and gains a 1 px lineControl edge (3.09:1 light, 3.93:1
+    // dark). Every OTHER segment carries a transparent 1 px edge, so selecting one moves nothing. Mutation lens: drop the
+    // edge on either form, or leave the others borderless, and a row fails.
+    it.each([
+        [
+            'route',
+            () =>
+                render(
+                    <SegmentedControl
+                        form="route"
+                        label="Recipes"
+                        segments={PLACES}
+                        current="mine"
+                        onSelect={vi.fn()}
+                    />,
+                ),
+            'link',
+        ],
+        ['view', () => render(<ViewSwitch />), 'radio'],
+    ] as const)(
+        '%s: the current segment keeps paper and gains a lineControl edge; the others hold a transparent one',
+        (_form, draw, role) => {
+            draw();
+            const all = screen.getAllByRole(role);
+            const current = tokensOf(all[0] as HTMLElement);
+            const others = all.slice(1).map((segment) => tokensOf(segment));
+
+            expect(current).toEqual(expect.arrayContaining(['bg-paper', 'shadow-sm', 'border', 'border-line-control']));
+            expect(current).not.toContain('border-transparent');
+
+            for (const tokens of others) {
+                expect(tokens).toEqual(expect.arrayContaining(['border', 'border-transparent']));
+                expect(tokens).not.toContain('border-line-control');
+            }
+        },
+    );
+
     it('paints the checked segment as the current one', () => {
         render(<ViewSwitch />);
 

@@ -297,12 +297,12 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-cover-warning: #F7E9D7;
               --color-pro-fill: #5C646E;
               --color-pro-ink: #FFFFFF;
-              --color-difficulty-easy-fill: #E9EDF2;
-              --color-difficulty-easy-ink: #171B20;
-              --color-difficulty-medium-fill: #E9EDF2;
-              --color-difficulty-medium-ink: #171B20;
-              --color-difficulty-hard-fill: #E9EDF2;
-              --color-difficulty-hard-ink: #171B20;
+              --color-difficulty-easy-fill: #FCFDFF;
+              --color-difficulty-easy-ink: #5C646E;
+              --color-difficulty-medium-fill: #FCFDFF;
+              --color-difficulty-medium-ink: #5C646E;
+              --color-difficulty-hard-fill: #FCFDFF;
+              --color-difficulty-hard-ink: #5C646E;
               --color-bar: rgba(252, 253, 255, 0.92);
               --animate-section-enter: section-enter 400ms ease-out both;
               --animate-pending-bar-reveal: pending-bar-reveal 0s linear both;
@@ -377,12 +377,12 @@ describe('web tokens — generated theme.css artifact', () => {
                   --color-cover-peach: #32281F;
                   --color-cover-success: #232B30;
                   --color-cover-warning: #342817;
-                  --color-difficulty-easy-fill: #212B36;
-                  --color-difficulty-easy-ink: #EBEFF2;
-                  --color-difficulty-medium-fill: #212B36;
-                  --color-difficulty-medium-ink: #EBEFF2;
-                  --color-difficulty-hard-fill: #212B36;
-                  --color-difficulty-hard-ink: #EBEFF2;
+                  --color-difficulty-easy-fill: #172029;
+                  --color-difficulty-easy-ink: #A3ACB6;
+                  --color-difficulty-medium-fill: #172029;
+                  --color-difficulty-medium-ink: #A3ACB6;
+                  --color-difficulty-hard-fill: #172029;
+                  --color-difficulty-hard-ink: #A3ACB6;
                   --background-image-hero: linear-gradient(180deg, #0E161E 0%, #0E161E 100%);
                   --color-bar: rgba(23, 32, 41, 0.94);
               }

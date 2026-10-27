@@ -40,4 +40,20 @@ describe('DifficultyBadge (web)', () => {
         expect(badge?.className).toContain(`bg-difficulty-${level}-fill`);
         expect(badge?.className).toContain(`text-difficulty-${level}-ink`);
     });
+
+    // componentFixes §7: DifficultyBadge follows the neutral-badge rule, so it shows on a surfaceMuted parent too.
+    it.each<DifficultyLevel>(['easy', 'medium', 'hard'])(
+        '%s has a lineDivider edge so it reads on a muted parent',
+        (level) => {
+            render(
+                <div className="bg-surface-muted">
+                    <DifficultyBadge level={level}>Word</DifficultyBadge>
+                </div>,
+            );
+            const tokens = (screen.getByText('Word').parentElement?.className ?? '').split(/\s+/u);
+
+            expect(tokens).toContain('border');
+            expect(tokens).toContain('border-line-divider');
+        },
+    );
 });

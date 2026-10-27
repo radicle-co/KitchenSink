@@ -137,10 +137,30 @@ describe('Chip (native) — filter', () => {
         }
     });
 
-    it('keeps the selected pill unchanged while pressed: the tint and the 1.5pt edge', () => {
+    // REWRITTEN for parity item 10 (`componentFixes` §6): the selected pill used to be unchanged while pressed. It now
+    // shows a 2 pt selectedEdge, with its inline padding half a point less so the box and the label stay where they were.
+    it('shows a 2 pt selectedEdge while a selected chip is pressed, keeping the tint and the box size', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            const theme = themeFor(scheme);
+            const rest = chipPill(theme, true, false);
+            const pressed = chipPill(theme, true, true);
+
+            expect(pressed.borderWidth, scheme).toBe(2);
+            expect(pressed.borderColor, scheme).toBe(theme.colors.selectedEdge);
+            expect(pressed.backgroundColor, scheme).toBe(rest.backgroundColor);
+            expect(Number(pressed.paddingHorizontal) + Number(pressed.borderWidth), scheme).toBe(
+                Number(rest.paddingHorizontal) + Number(rest.borderWidth),
+            );
+            expect(pressed.minHeight, scheme).toBe(rest.minHeight);
+        }
+    });
+
+    it('holds the same 1.5 pt edge at rest (transparent) and selected, so selecting never resizes the pill', () => {
         const theme = themeFor('light');
 
-        expect(chipPill(theme, true, true)).toEqual(chipPill(theme, true, false));
+        expect(chipPill(theme, false, false).borderWidth).toBe(1.5);
+        expect(chipPill(theme, true, false).borderWidth).toBe(1.5);
+        expect(chipPill(theme, false, false).borderColor).toBe('transparent');
     });
 
     it('paints the dark scheme from the dark roles', () => {

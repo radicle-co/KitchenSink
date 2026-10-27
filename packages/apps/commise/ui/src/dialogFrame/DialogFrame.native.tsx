@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
         width: '100%',
         maxWidth: DIALOG_CARD_MAX_WIDTH_DP,
         maxHeight: '100%',
-        borderRadius: nativeTokens.radius.lg,
+        borderRadius: nativeTokens.radius.xl,
         borderWidth: 1,
         overflow: 'hidden',
     },

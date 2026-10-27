@@ -808,6 +808,8 @@ The owner ruled on the flags the same day, quoted as the coordinator relayed the
     > One case costs more: a free cook with no free slot whose save the rules block loses the save, and so has nothing
     > to appeal (FR-018). They can free a slot, go Premium, or change the content. This follows ADR-0073's refusal of a
     > book recipe with no slot, and it stops "I wrote this" buying more private storage than the honest statement.
+    > _(2026-10-26: "go Premium" is offered only while 010's subscription page is live, `010-FR-042j`. "Premium" means
+    > a paid plan in 010's [plan register](../010-subscriptions/spec.md#plan-register).)_
 - **FR-014a**: **The lifecycle the cook sees** (owner ruling, 2026-10-26). The stored visibility keeps what the cook
   asked for. The cook-facing state is derived from it and from the outcome, by the same classifier as the read rule:
     - **Checking**: the short time after a publish before the outcome is revealed (FR-051's floor). Only the cook sees

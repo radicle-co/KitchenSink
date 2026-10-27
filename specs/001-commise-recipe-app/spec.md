@@ -21,6 +21,11 @@ This is the **foundational spec** for the Commise product. All other specs depen
 | [009-nutrition-planning](../009-nutrition-planning/spec.md) | Consumes recipe nutritional data via meal plans                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | [010-subscriptions](../010-subscriptions/spec.md)           | Gates premium features (private visibility, etc.)                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 0 (US-000) - Post-Login Home Screen (Priority: P1)

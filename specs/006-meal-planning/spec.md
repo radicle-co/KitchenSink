@@ -25,6 +25,11 @@ AI-powered meal suggestions.
 | [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Downstream — NOT BUILT.** Nutrition plans link to meal plans for compliance.                                                                                                                                                                                                                            |
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Required for Phase 2 — NOT BUILT.** Premium entitlement gates FR-025/026/027. Today `subscriptionTier` lives in the identity service's `accounts` table and is **not** a session-token claim, so no entitlement gate can be enforced yet (C-006-009).                                                   |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 Cross-feature FR references use the qualified `{feature}-FR-{NNN}` namespace required by
 [GR-003](../governance-rules.md#gr-003-fr-identifier-namespace) and are registered in
 [`cross-feature-FR-index.md`](../cross-feature-FR-index.md).

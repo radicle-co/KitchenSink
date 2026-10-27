@@ -16,6 +16,11 @@
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — reward benefits are expressed as entitlements; this feature grants them without owning the tier model                   |
 | [012-creator-profiles](../012-creator-profiles/spec.md)     | **Referenced** — creator-profile eligibility is one benefit this feature may grant; 012 owns the profile itself                          |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 > ⚠️ **Owner ruling, 2026-10-26 — free privacy is live without this feature.** A free cook holds up to **50**
 > private recipes now ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md),
 > `001-FR-003`). Every recipe a free cook holds as private uses a slot, book and paid-site recipes included. D4a is

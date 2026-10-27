@@ -17,6 +17,11 @@
 | [005-ai-integration](../005-ai-integration/spec.md)         | **Downstream** — external agent OAuth (FR-018) builds on the auth layer                  |
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Downstream** — subscription tier is stored on the Account entity (FR-040–043)          |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ## User Scenarios & Testing _(mandatory)_
 
 <!--

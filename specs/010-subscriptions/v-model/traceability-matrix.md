@@ -1,5 +1,9 @@
 # Traceability Matrix
 
+> **Out of date in part (2026-10-26).** This file models one premium tier at $6.99 a month or $59.99 a year.
+> The current plans, prices and AI credits are in [`spec.md`](../spec.md) `FR-041` and its
+> [plan register](../spec.md#plan-register). The subscription page is `FR-042a` to `FR-042k`.
+
 **Generated**: 2026-05-10
 **Source**: `specs/010-subscriptions/v-model/`
 **Execution Status**: Pre-implementation — mapped scenarios remain `⬜ Untested` until real test result ingestion.

@@ -17,6 +17,11 @@
 | [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all grocery features require authentication                                                                                                                                                                                                                               |
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — online ordering is a premium feature                                                                                                                                                                                                                                    |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Grocery List Generation and Online Ordering (Priority: P2)

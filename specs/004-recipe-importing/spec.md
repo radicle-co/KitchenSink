@@ -29,6 +29,11 @@ renumbered so existing links and the index entry keep resolving.
 | [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — imported ingredient lines resolve against the food catalog via `@kitchensink/food-service-client`                                                                                                                                                                           |
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — premium entitlement gates clone-to-private (`004-FR-011`) and lifts the free-tier limit of 50 private recipes (`004-FR-028` as amended 2026-10-26, ADR-0073). Until 010 ships, premium is derived from the signed token's `permissions` (the shipped `PREMIUM_PERMISSION`). |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ### Relationship to shipped 001 — what 004 does NOT build
 
 001 shipped on PR #73. Its implementation **already provides** the persistence and policy layer this feature

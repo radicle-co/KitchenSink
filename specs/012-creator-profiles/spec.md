@@ -20,6 +20,11 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 | [010-subscriptions](../010-subscriptions/spec.md)             | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001. |
 | [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                          |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ## Personas
 
 - **Primary — P11 Robin** (aspiring food creator): wants a shareable profile to build an audience and eventually earn from their recipes.

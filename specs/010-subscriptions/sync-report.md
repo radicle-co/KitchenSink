@@ -1,5 +1,9 @@
 # Sync & Verify Report: 010-subscriptions
 
+> **Out of date in part (2026-10-26).** This file models one premium tier at $6.99 a month or $59.99 a year.
+> The current plans, prices and AI credits are in [`spec.md`](spec.md) `FR-041` and its
+> [plan register](spec.md#plan-register). The subscription page is `FR-042a` to `FR-042k`.
+
 > Feature: `010-subscriptions` | Date: 2026-08-07
 > Layers checked: 8 full + 1 partial / 10 | Skipped: Layer 8 (no `contracts/`), Layer 5 forward (0 completed tasks)
 > Phase: `implement: pending` (feature_mode `v-model`, schema v3)

@@ -2,27 +2,34 @@
 
 **Feature Branch**: `010-subscriptions`
 **Created**: 2026-04-14
-**Last updated**: 2026-05-10
-**Status**: Product decisions revalidated — implementation/test gate blocked pending V-Model regeneration and test execution
+**Last updated**: 2026-10-26
+**Status**: Product decisions revalidated — implementation/test gate blocked pending V-Model regeneration and test execution.
+2026-10-26: two paid tiers now have prices (`FR-041`). The owner now says there are **three plans** and **two levels
+of AI credits**. This spec does not yet hold all of that. See the [plan register](#plan-register) and the
+[owner inputs still needed](#owner-inputs-still-needed). **Nothing links to a subscription page until this feature
+ships** (`FR-042j`).
 **Input**: Split from `001-commise-recipe-app` — free/premium tier definitions, feature gating, upgrade prompts, and subscription lifecycle.
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                                         |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — subscription tier is a property of the authenticated user                                             |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — gates private recipe visibility (001-FR-003)                                                        |
-| [004-recipe-importing](../004-recipe-importing/spec.md)     | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                                            |
-| [005-ai-integration](../005-ai-integration/spec.md)         | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019)                           |
-| [006-meal-planning](../006-meal-planning/spec.md)           | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027) |
-| [007-grocery-lists](../007-grocery-lists/spec.md)           | **Referenced** — gates online ordering (007-FR-031)                                                                  |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Referenced** — gates trainer nutrition planning (009-FR-038)                                                       |
+| Spec                                                                                        | Relationship                                                                                                                            |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                                                   | **Required** — subscription tier is a property of the authenticated user                                                                |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                 | **Referenced** — gates private recipe visibility (001-FR-003)                                                                           |
+| [004-recipe-importing](../004-recipe-importing/spec.md)                                     | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                                                               |
+| [005-ai-integration](../005-ai-integration/spec.md)                                         | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019); AI credits by plan (005-FR-015a to FR-015f) |
+| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                 | **Required**: subscription disclosures and cancellation (016-FR-040–FR-044); counsel items (016-FR-050)                                 |
+| [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)               | **Required**: free cooks hold 50 private recipes; a downgrade never makes a private recipe public                                       |
+| [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md) | **Referenced**: the platform's monthly AI spend ceiling, which is not a cook's credits (`FR-041d`)                                      |
+| [006-meal-planning](../006-meal-planning/spec.md)                                           | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027)                    |
+| [007-grocery-lists](../007-grocery-lists/spec.md)                                           | **Referenced** — gates online ordering (007-FR-031)                                                                                     |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md)                                 | **Referenced** — gates trainer nutrition planning (009-FR-038)                                                                          |
 
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Free and Premium Subscription Tiers (Priority: P3)
 
-New users start on a free tier that provides core functionality: creating, viewing, editing, and deleting their own recipes (all public); sharing and cloning recipes; basic recipe importing; basic meal planning (manual assignment only); grocery list generation (without online ordering); and cooking mode. Premium features (private recipe visibility, AI recipe generation, AI meal plan optimization, food waste optimization, online grocery ordering, nutrition planning for clients, and AI instruction optimization) require a paid subscription.
+New users start on a free tier that provides core functionality: creating, viewing, editing, and deleting their own recipes (public by default, with up to 50 private, ADR-0073); sharing and cloning recipes; basic recipe importing; basic meal planning (manual assignment only); grocery list generation (without online ordering); and cooking mode. Premium features (private recipe visibility, AI recipe generation, AI meal plan optimization, food waste optimization, online grocery ordering, nutrition planning for clients, and AI instruction optimization) require a paid subscription.
 
 **Why this priority**: The monetization model must be designed early but can be built incrementally. The free tier must deliver enough value to hook users without giving away the premium differentiators.
 
@@ -30,18 +37,55 @@ New users start on a free tier that provides core functionality: creating, viewi
 
 **Acceptance Scenarios**:
 
-1. **Given** a new user signs up, **When** their account is created, **Then** they are on the free tier with access to all basic features and all their recipes are public.
-2. **Given** a free-tier user, **When** they attempt to set a recipe to private, **Then** they are prompted to upgrade to premium.
+1. **Given** a new user signs up, **When** their account is created, **Then** they are on the free tier with access to all basic features. New recipes are public by default, and the cook can hold up to 50 private recipes ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). _(Amended 2026-10-26.)_
+2. **Given** a free-tier user holds 50 private recipes, **When** they try to make another private, **Then** the system refuses with the out-of-slots reason (`001-FR-003`). The free ways forward come first. The paid plans appear only while the subscription page is live (`FR-042j`). _(Amended 2026-10-26.)_
 3. **Given** a free-tier user, **When** they attempt to use AI recipe generation, **Then** they see a preview or teaser of the feature with a prompt to upgrade.
 4. **Given** a free-tier user, **When** they attempt to use food waste optimization in meal planning, **Then** they are prompted to upgrade.
-5. **Given** a user upgrades to premium, **When** they access premium features, **Then** all premium functionality is immediately available, including the ability to set recipes to private.
-6. **Given** a premium user, **When** their subscription lapses, **Then** they retain access to all their data but premium features are locked until renewal. Previously private recipes remain private (except imported/attributed recipes, which MUST remain public per source TOS and 004-FR-011), but no new recipes can be set to private until renewal.
+5. **Given** a user upgrades to a paid plan, **When** they use that plan's features, **Then** the features are available at once, with no private-recipe limit. _(Amended 2026-10-26: "premium" is now one of the paid plans in the [plan register](#plan-register).)_
+6. **Given** a paid-plan user, **When** their subscription lapses, **Then** they keep all their data and every private recipe stays private. Nothing is made public or deleted ([ADR-0073 §4](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). Paid features are locked until renewal. A cook who holds more than 50 private recipes cannot make a new recipe private until they hold fewer than 50. _(Amended 2026-10-26. Was: imported recipes stay public and no new recipe can go private until renewal.)_
+
+---
+
+### User Story 6 - The subscription page (Priority: P3)
+
+A cook who meets a paid feature can open one page that explains the plans honestly, lets them choose one, and lets
+them come back to exactly where they were. A subscriber uses the same page to see their plan, change it, or cancel
+it. User Stories 2 to 5 live in [`tasks.md`](./tasks.md), so this story takes the number 6 to match its tasks.
+
+**Why this priority**: The page is where money changes hands. Consumer law and the app stores regulate it. A dark
+pattern here is a legal problem, not only a design problem (`016-FR-040` to `FR-044`).
+
+**Independent Test**: Turn the switch on (`FR-042j`). Open the page from the recipe editor with unsaved changes. Close
+it, and check that the changes are still there. Then check each state in `FR-042g`.
+
+**Acceptance Scenarios**:
+
+1. **Given** a cook has unsaved changes in the recipe editor, **When** they choose the paid-plan link in the publish dialog, **Then** the page opens as a modal over the editor. **When** they close it, **Then** every change is still there.
+2. **Given** the page is open, **Then** it shows each plan's price, billing period, renewal terms, trial terms and contents. This comes before any payment step. No plan is chosen for the cook.
+3. **Given** the page is open, **Then** "Not now" and the close control are always visible and look as strong as the buy buttons.
+4. **Given** a cook leaves for checkout, **When** checkout ends in any way, **Then** the cook comes back to the screen they started from. Their work is intact.
+5. **Given** a subscriber opens the page, **Then** it shows their plan, the next renewal date and amount, and a Cancel control. Cancelling takes no more steps than subscribing took.
+6. **Given** a subscriber chooses another plan, **Then** the page states when the change takes effect and what they pay. It does this before they confirm.
+7. **Given** paid features are hidden for the cook (`account.paidFeatures` is `hidden`), **Then** no entry point to the page is shown anywhere.
+8. **Given** the device is offline, **Then** the page says so and offers no purchase.
 
 ---
 
 ### Edge Cases
 
 - What happens when a premium user downgrades — do they lose access to AI-generated recipes they already saved?
+  _(Answered 2026-10-26: no. A saved recipe is the cook's recipe. A downgrade removes the ability to make new AI
+  content, never content already saved. Private recipes stay private ([ADR-0073 §4](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).)_
+- A cook pays on one platform and opens the app on the other. The plan follows the account, not the device.
+- A cook starts checkout, then closes the tab. On web the editor draft lives in `sessionStorage`
+  ([ADR-0057](../../docs/architecture/decisions/0057-editor-device-draft-and-outbox-format.md)), so a closed tab loses
+  what the server does not hold. Checkout returns to the same tab so the normal path keeps the draft (`FR-042a`).
+- A cook runs out of AI credits in the middle of a month. They see a plain stop with the reset date (`FR-041e`).
+- The platform AI ceiling is reached while a cook still has credits. The cook keeps their credits (`FR-041d`).
+- A purchase is pending (bank check, slow store confirmation). The page shows a pending state and grants nothing until
+  the payment is confirmed.
+- A cook changes plan twice in one billing period. Each change shows its own effective date and amount before
+  confirmation.
 
 ## Requirements _(mandatory)_
 
@@ -49,10 +93,19 @@ New users start on a free tier that provides core functionality: creating, viewi
 
 **Subscription & Monetization**
 
-- **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. All free-tier recipes are public by default; private visibility is not available on the free tier.
-- **FR-041**: System MUST provide a premium tier that unlocks: private recipe visibility, AI recipe generation, AI meal suggestions, auto-generated meal plans, food waste optimization, AI instruction optimization, online grocery ordering, and trainer nutrition planning. Premium is available at **$6.99/month** or **$59.99/year** (annual saves ~29%). New subscribers receive a **14-day free trial** before the first charge.
+- **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. All free-tier recipes are public by default; private visibility is not available on the free tier. _(Amended 2026-10-26, owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md): the last sentence no longer holds. New recipes are public by default, and a free cook can hold up to 50 private recipes, `001-FR-003`.)_
+- **FR-041** _(amended 2026-10-26, owner ruling)_: System MUST provide two paid tiers, each billed **monthly or yearly** at the cook's choice, with a small discount for yearly billing:
+    - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)) and trainer nutrition planning. It includes no AI.
+    - **Pro with AI**, **$19.99/month** or **$199.99/year**: everything in Pro, plus a monthly **AI allowance** (`005-FR-015a`) for AI recipe generation, AI meal suggestions, auto-generated meal plans, food waste optimization and AI instruction optimization.
+      New subscribers to **either** tier receive a **14-day free trial** before the first charge. A Pro with AI trial carries a smaller trial allowance, set from the measured cost per use. Online grocery ordering is not a benefit of either tier until a store partner exists. _(Was: one premium tier at $6.99/month or $59.99/year.)_
 - **FR-042**: System MUST gate premium features with clear upgrade prompts that preview the feature value for free-tier users. Prompts follow a three-tier hierarchy: (1) contextual inline teaser at the feature entry point, (2) modal/bottom-sheet on active invocation, (3) pricing page accessible from any CTA and from account settings.
-- **FR-043**: System MUST retain all user data and non-premium functionality if a premium subscription lapses. Existing private recipes remain private after downgrade; the lapsed user cannot create new private recipes until they renew. A **7-day grace period** applies after a failed payment before premium access is removed.
+- **FR-043**: System MUST retain all user data and non-premium functionality if a premium subscription lapses. Existing private recipes remain private after downgrade; the lapsed user cannot create new private recipes until they renew. _(Amended 2026-10-26 by `FR-043a`. A lapsed cook who holds fewer than 50 private recipes can make another private.)_ A **7-day grace period** applies after a failed payment before premium access is removed.
+- **FR-043a** _(added 2026-10-26, [ADR-0073 §4](../../docs/architecture/decisions/0073-free-tier-private-slots.md))_: On
+  a downgrade or a lapse, every private recipe MUST stay private. Nothing is made public or deleted on a billing
+  event. A cook who holds more than 50 private recipes is over the limit: they keep every recipe, and they cannot
+  make a new recipe private until they hold fewer than 50. A cook under the limit can. A book or paid-site recipe
+  never goes public, so its slot is freed only by deleting it, and the refusal copy says so. The subscription page
+  states this before a downgrade is confirmed (`FR-042h`).
 - **FR-044**: System MUST make a user's subscription tier readable by **every** service, not only the identity service, by publishing it into the Clerk session token as a signed claim (`public_metadata`), using the same mechanism that already carries admin `scopes`/`permissions`. The claim MUST be refreshed when the tier changes, and every consumer MUST **fail closed** — treat an absent or unreadable claim as `free`, never as premium. _(**DRAFT**, added 2026-08-02.)_
 
     **Why this is a requirement and not an implementation note.** `accounts.subscription_tier` already ships
@@ -71,6 +124,140 @@ New users start on a free tier that provides core functionality: creating, viewi
     is only as fresh as the token, so define the maximum tolerated lag between a tier change and enforcement,
     and whether downgrade requires forced token refresh or revocation.
 
+**Plans and AI credits** _(added 2026-10-26, owner ruling: "there are three subscription plans now" and "the
+subscriptions have two levels of AI credits")_
+
+- **FR-041a**: The product MUST offer the plans in the [plan register](#plan-register) and no others. The register
+  records three plans today: Free, Pro and Pro with AI. Counting Free, that is three plans, which matches the
+  literal words of the ruling. It does not match "two levels of AI credits", because only Pro with AI carries an
+  allowance. Either Pro gets a smaller allowance, which reverses "It includes no AI" above, or there is a third paid
+  plan with a second, larger allowance. This is owner input [O-1](#owner-inputs-still-needed). Until it is answered,
+  nothing is built that fixes the number of paid plans.
+- **FR-041b**: The plan register is the one place that says which plan includes which feature. Other specs say
+  "Premium" or "a paid plan" and link to the register. They do not restate plan contents. The entitlement model MUST
+  be able to name each plan and each AI credit level. A single premium flag cannot say "Pro, but no AI". Today every
+  entitlement mechanism is single-tier: the `premium` role, `hasPaidFeatures(roles)` (GR-012 AC-012-c),
+  `account.paidFeatures` (`granted`, `upsell`, `hidden`), the one tier claim of `FR-044`, and `@RequirePremium()`.
+  The design of that change is open for `staff-architect` ([plan §4](./plan.md#4-feature-gating-map)).
+- **FR-041c**: Each plan's AI credit level MUST come from the plan register. A credit is one AI use, counted as
+  `005-FR-015a` defines. A cook on a plan with no credits sees an AI feature as part of a paid plan. That applies to
+  Free too, and only while the subscription page is live (`FR-042j`). While it is not live, the cook sees no AI upsell. Whether a cook
+  with no credits can still use AI with their own key (`005-FR-015`) is owner input
+  [O-7](#owner-inputs-still-needed).
+- **FR-041d**: A cook's AI credits and the platform's AI spend ceiling are two different limits, and the product
+  MUST keep them apart.
+    - The ceiling is [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)'s
+      $100 a month, prod only. It protects the business. The owner treats it as temporary.
+    - Credits are the product limit that a plan sells. They are counted per cook.
+    - A ceiling denial MUST NOT use a cook's credits. ADR-0024 already refunds the full reservation for a call with no
+      billed answer.
+    - The cook sees two different messages. Out of credits: "This month's AI uses are gone. They come back on
+      {date}." Ceiling reached: "AI is not available right now. Your uses are not affected." The final words belong
+      to `staff-ux-engineer` and go through the localization path.
+    - A parse or match line from a paste or a bulk import is not a credit use. When the ceiling denies it, the
+      owner's budget-spent rule applies: the line keeps the CRF answer and every food goes to the cook to choose
+      (ADR-0024 §3, ADR-0071 §9, ADR-0072 §10).
+    - A $100 ceiling cannot carry many paying cooks' credits. Before Pro with AI is sold, the owner MUST amend
+      ADR-0024 §3 to a ceiling that fits the credits sold. That is a dated owner ruling, so it is amended, not
+      edited quietly. Owner input [O-8](#owner-inputs-still-needed) decides what a
+      paying cook sees when the ceiling denies them.
+- **FR-041e**: When a cook has no credits left, AI MUST stop with a plain message that gives the reset date. If the
+  cook turned on automatic use of their own key (`005-FR-015b`), AI uses the key with no further prompt and says
+  which account pays. If a higher plan exists and the page is live, the message can name it once, with an equal
+  "Not now". There is no countdown, no repeated prompt and no pressure copy.
+- **FR-041f**: What happens to unused credits on an upgrade, a downgrade, a lapse or a new month MUST be stated on
+  the subscription page before the cook confirms. The rule itself is owner input [O-6](#owner-inputs-still-needed).
+  Until the owner decides, the spec assumes credits do not roll over.
+
+**The subscription page** _(added 2026-10-26, owner ruling: hide "See Premium" until this feature ships, and record
+the page's UX and legal requirements)_
+
+- **FR-042a**: The subscription page MUST open as a modal over the screen the cook was on. Closing it MUST return the
+  cook to that screen with nothing lost. That also holds for the checkout round trip: when checkout ends in payment,
+  cancellation or failure, the cook returns to the screen they started from. On web the editor draft lives in
+  `sessionStorage` ([ADR-0057](../../docs/architecture/decisions/0057-editor-device-draft-and-outbox-format.md)), so
+  it survives a same-tab round trip but not a closed tab. Checkout MUST therefore return in the same tab. This spec
+  states the outcome, not the mechanism.
+- **FR-042b**: Before any payment step, the page MUST show for each plan:
+    - the price and the billing period, for monthly and for yearly.
+    - the trial length and the date of the first charge.
+    - that the plan renews automatically until the cook cancels, and the renewal amount.
+    - how to cancel.
+    - what the plan includes, including its AI credit level, and what it does not include.
+
+    This is `016-FR-040`. The cook passes through it on the way to payment. It is not a link they have to find.
+
+- **FR-042c**: Nothing that adds cost is chosen for the cook. No plan is pre-selected, no add-on is pre-ticked, and
+  no upgrade is bundled into a decline. If one billing period is shown first, both prices stay visible.
+- **FR-042d**: The page MUST NOT use deceptive patterns. "Not now" and the close control are visible at all times and
+  look as strong as the buy buttons. Decline copy is neutral, with no confirmshaming. There is no fake urgency: no
+  timers, no "today only" and no false scarcity. After "Not now", the same prompt does not come back in the same
+  session. Basis: EU DSA Article 25, EDPB Guidelines 03/2022, and the FTC's 2022 staff report "Bringing Dark Patterns
+  to Light". The `staff-ux-engineer` agent refuses these patterns, it does not weigh them.
+- **FR-042e**: Cancelling MUST be as easy as subscribing. The Cancel control is on the same page, it takes no more
+  steps than subscribing took, and the result is confirmed in writing (`016-FR-041`). No retention offer MUST stand between the
+  cook and the cancel action. A store purchase routes the cook to the store's own
+  cancel flow (`016-FR-042`).
+- **FR-042f**: Where a market gives a withdrawal right, the page MUST state it at purchase (`016-FR-043`). In the EU
+  and UK a consumer has 14 days to withdraw from a distance contract. For digital content supplied at once, that
+  right can end only with the consumer's express consent and acknowledgement. v1 serves the US only (`016-FR-048`). So this is
+  built as a seam under `016-FR-048b`, and the wording goes to counsel (`016-FR-050`).
+- **FR-042g**: The page MUST design and build every state, each with its copy and its localization key:
+    - loading, and an error that offers a retry.
+    - offline: says so and offers no purchase. A plan list that already loaded stays on screen.
+    - purchase pending: grants nothing until the payment is confirmed.
+    - purchase failed: says what failed and what to do, and charges nothing.
+    - purchase restored: the plan follows the account to a new device.
+    - already subscribed: shows the current plan, renewal date and amount, payment method and Cancel.
+    - trial active: shows the trial end date and the first charge.
+    - past due, inside the 7-day grace period (`FR-043`).
+    - cancelled, still active until the end of the paid period.
+    - plan change, upgrade or downgrade (`FR-042h`).
+    - entitlement unreadable: fails closed to Free (`FR-044`), and says the app cannot check the plan now.
+    - hidden: no entry point at all (`FR-042j`).
+- **FR-042h**: Before the cook confirms a plan change, the page MUST state when it takes effect and what the cook
+  pays. Today's plan: an upgrade takes effect at once, with the difference invoiced. A downgrade takes effect at the
+  end of the paid period ([plan §7](./plan.md#7-key-decisions)). The owner confirms this as
+  [O-10](#owner-inputs-still-needed). A downgrade also states what changes. Private recipes stay private
+  (`FR-043a`). AI credits follow `FR-041f`.
+- **FR-042i**: On mobile, the purchase follows the store rules for the market. Status checked 2026-10-26, for counsel
+  to confirm (`016-FR-050`):
+    - Apple: since the court order of 30 April 2025, App Review Guideline 3.1.1(a) lets an app on the US storefront
+      link to an outside purchase with no entitlement. Outside the US, a digital subscription still uses in-app
+      purchase (Guideline 3.1.1).
+    - Google Play: the US external links and alternative billing programs are open, and Google charges service fees
+      on those purchases from 1 October 2026.
+
+    v1 serves the US only (`016-FR-048`). Whether mobile keeps web checkout through an outside link or adds store
+    in-app purchase is owner input [O-9](#owner-inputs-still-needed). If store purchase is added, restore and
+    cancel MUST route to the store (`016-FR-042`).
+
+- **FR-042j**: Every entry point to the subscription page MUST stay hidden until this feature ships, behind **one
+  switch**. The switch is read in one place and shared by web and mobile. It is separate from the paid-features gate:
+  `PAID_FEATURES_GATE_SANDBOX` and `PAID_FEATURES_GATE_PROD` decide whether a cook without a paid role sees an upsell
+  or nothing (`account.paidFeatures`). The switch decides whether a link to a subscription page exists. Nobody but the
+  owner flips the two gate variables, and this feature never flips them. The switch is owed: it does not exist yet.
+  Today "See Premium" only closes the sheet on both platforms (parity audit
+  [H1](../../docs/design/uiOverhaul/parityAudit2026-10-17.md)).
+
+    | `account.paidFeatures` | Switch off (today, until 010 ships)                                                                                                                    | Switch on (010 shipped)                                                         |
+    | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+    | `granted`              | Paid features work. No upsell. No link to manage a plan.                                                                                               | Paid features work. Account settings link to manage the plan.                   |
+    | `upsell`               | A sheet states the plain fact and offers only a close control. No "See Premium", no "About Premium", no Premium way forward in the slots-full refusal. | Sheets show the paid-plan link and an equal "Not now". The link opens the page. |
+    | `hidden`               | No sheet, no badge, no mention of a paid plan.                                                                                                         | The same. The page cannot be reached.                                           |
+
+- **FR-042k**: The switch MUST cover every entry point. Today these are:
+    - `RecipeUpsellSheet`, web and native (making a recipe private under the premium rule).
+    - `CollectionUpsellSheet`, web and native.
+    - the "See Premium" link in the recipe editor's publish dialog.
+    - `RecipeSaveCopyNoSlot`, its premium offer.
+    - the slots-full refusal in `RecipeVisibilityField`, its Premium way forward and its "About Premium" link.
+    - the Home `SubscriptionNudge`, web and native.
+    - account settings (tier 3 of `FR-042`).
+    - the AI paid-plan gate and the out-of-credits screen (`005-FR-015a`).
+
+    A new entry point MUST read the same switch. A guard that finds every caller is part of the build (T-035).
+
 ### Non-Functional Requirements _(constitution-derived)_
 
 - **NFR-001**: All TypeScript MUST compile with `strict: true`; no `any` used outside explicitly marked test doubles. (Constitution Principle I)
@@ -80,7 +267,12 @@ New users start on a free tier that provides core functionality: creating, viewi
 
 ### Key Entities
 
-- **Subscription**: Tracks a user's plan (free/premium), billing cycle, and feature access permissions.
+- **Subscription**: Tracks a user's plan (free/premium), billing cycle, and feature access permissions. _(Amended
+  2026-10-26: the plan is one of the plans in the [plan register](#plan-register), not free or premium.)_
+- **Plan**: One row of the [plan register](#plan-register). It has a name, a monthly and a yearly price, a trial, a
+  private-recipe limit and an AI credit level.
+- **AI credit allowance**: A cook's AI uses for the current period, set by their plan (`005-FR-015a`). It is not the
+  platform spend ceiling of ADR-0024 (`FR-041d`).
 
 ## API Contract & Input Validation (GR-015 / GR-016)
 
@@ -245,6 +437,64 @@ boundary schema is a security and correctness regression**, because this is the 
   `reason`, and the DLQ depth is alarmed (GR-018 §18-c).
 - **No request-derived value reaches `sql.raw()`.**
 
+## Plan register
+
+This table is the one place that says what each plan includes (`FR-041b`). Every other spec links here. Where copy
+says "Premium", it means a paid plan. Which name the product uses is owner input [O-3](#owner-inputs-still-needed).
+
+| Plan              | Status                                               | Price                                          | Private recipes                                   | AI credits                                                            | Also                                         |
+| ----------------- | ---------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------- |
+| Free              | Recorded                                             | None                                           | Up to 50 (ADR-0073). Earned slots add to it (015) | None. Own-key use is [O-7](#owner-inputs-still-needed)                | Everything in `FR-040`                       |
+| Pro               | Recorded 2026-10-26                                  | $9.99 a month or $99.99 a year. 14-day trial   | No limit                                          | None recorded. [O-2](#owner-inputs-still-needed) can change this      | Trainer nutrition planning (`009-FR-038`)    |
+| Pro with AI       | Recorded 2026-10-26                                  | $19.99 a month or $199.99 a year. 14-day trial | No limit                                          | A monthly allowance. Amount not set. A smaller allowance in the trial | Everything in Pro, and the AI features below |
+| A third paid plan | [NEEDS OWNER INPUT: O-1](#owner-inputs-still-needed) | Not recorded                                   | Not recorded                                      | Possibly the second credit level                                      | Not recorded                                 |
+
+| Feature                                                    | FR                          | Plan that includes it                                          |
+| ---------------------------------------------------------- | --------------------------- | -------------------------------------------------------------- |
+| More than 50 private recipes                               | `001-FR-003`                | Pro, Pro with AI                                               |
+| Private `imported_public` recipe, after a substantive edit | `001-FR-003`, ADR-0073 §1   | Pro, Pro with AI                                               |
+| AI recipe generation                                       | `005-FR-016`                | Pro with AI, using credits                                     |
+| AI instruction optimization                                | `005-FR-019`                | Pro with AI, using credits                                     |
+| AI meal suggestions                                        | `006-FR-025`                | Pro with AI, using credits                                     |
+| Auto-generated meal plans                                  | `006-FR-026`                | Pro with AI, using credits                                     |
+| Food waste optimization                                    | `006-FR-027`                | Pro with AI, using credits                                     |
+| Trainer nutrition planning                                 | `009-FR-038`                | Pro, Pro with AI                                               |
+| Online grocery ordering                                    | `007-FR-031`                | No plan, until a store partner exists                          |
+| Every import channel                                       | `004-FR-028`, `016-FR-029a` | Every plan. A paid plan never sells access to imported content |
+| Ingredient parse and match checks                          | ADR-0071, ADR-0072          | Every plan. Not a credit use (`FR-041d`)                       |
+| The content source check                                   | `020`                       | Every plan. Not a credit use                                   |
+
+## Owner inputs still needed
+
+Each item is **[NEEDS OWNER INPUT]**. Other specs link to an item here. They do not copy it.
+
+1. <a id="o-1"></a>**O-1. The three plans.** Are they Free, Pro and Pro with AI, or three paid plans? If there is a
+   third paid plan: its name, its monthly and yearly price, its trial, and what it includes.
+2. <a id="o-2"></a>**O-2. The two levels of AI credits.** Which plans carry which level, and how many uses each level
+   gives per month. The design boards' "50 uses" is a placeholder, not a decision. Also: the trial allowance for each
+   level.
+3. <a id="o-3"></a>**O-3. The names.** The upsell sheets, the slot copy, the publish dialog, ADR-0073 and `001` say
+   "Premium". `FR-041` and the design boards say "Pro" and "Pro with AI". One set of names for every string, on both
+   platforms.
+4. <a id="o-4"></a>**O-4. What one use is.** `005-FR-015a` counts a generation, a suggestion set or an optimization as
+   one use each. Confirm that an auto-generated meal plan and a waste optimization are also one use each, although
+   their costs differ. Also confirm that parse and match checks are never a use.
+5. <a id="o-5"></a>**O-5. When credits reset.** `005-FR-015a` says each billing month. The out-of-credits board shows
+   a calendar month ("Sun 1 Nov" for a cook billed on the 24th). One rule.
+6. <a id="o-6"></a>**O-6. Credits on a change.** What an upgrade in the middle of a month gives, what a downgrade or a
+   lapse takes away and when, and whether unused credits roll over.
+7. <a id="o-7"></a>**O-7. Own key without credits.** Whether a Free or Pro cook can use AI with their own key
+   (`005-FR-015`), or whether AI needs a plan with credits first.
+8. <a id="o-8"></a>**O-8. The ceiling and paying cooks.** The ADR-0024 ceiling denies a paying cook who has credits
+   left. What do they see: a wait message, their own key, or nothing, because the ceiling is raised first? And the new
+   ceiling, or a per-cook scope, before Pro with AI is sold.
+9. <a id="o-9"></a>**O-9. Mobile billing.** Web checkout through an outside link on US mobile, which the stores now
+   allow, or store in-app purchase on iOS and Android, and for which markets.
+10. <a id="o-10"></a>**O-10. Plan change timing.** Confirm: an upgrade takes effect at once with the difference
+    invoiced, and a downgrade waits for the end of the paid period. Also switching between monthly and yearly.
+11. <a id="o-11"></a>**O-11. Trial rules.** One trial per person ever, or one per plan. Whether a card is needed to
+    start a trial.
+
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
@@ -256,7 +506,8 @@ boundary schema is a security and correctness regression**, because this is the 
 
 - The free tier is designed as a conversion funnel — features are gated to demonstrate premium value, not to cripple the free experience.
 - **Family plan is out of scope for v1.** Family/household multi-seat subscriptions are a future consideration only. No FR, no architecture, and no task covers family plans in this release. A dedicated spec change is required before any family-plan work begins.
-- **Web is the primary billing surface.** Stripe Checkout and the Stripe Customer Portal are web-only. Mobile users see upgrade prompts and are deep-linked to the web checkout URL. Native in-app purchase (App Store / Play Store IAP) is out of scope for v1.
+- **Web is the primary billing surface.** Stripe Checkout and the Stripe Customer Portal are web-only. Mobile users see upgrade prompts and are deep-linked to the web checkout URL. Native in-app purchase (App Store / Play Store IAP) is out of scope for v1. _(Reopened 2026-10-26: the store rules
+  changed in 2025 and 2026, so this is owner input [O-9](#owner-inputs-still-needed). See `FR-042i`.)_
 - Imported, attributed recipes are always public regardless of subscription tier, in compliance with source Terms of Service.
 - **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
   conflating them over-blocks downstream work.

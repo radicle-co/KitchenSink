@@ -91,3 +91,5 @@ This inventory defines the screens UX must account for before producing high-fid
 | Pricing page                       | Premium v1          | Web primary, mobile deep-link | 010         | $6.99/mo, $59.99/yr, 14-day trial, feature comparison.        |
 | Paywall modal/bottom sheet         | Premium v1          | Web + mobile                  | 010         | Contextual feature preview and respectful CTA.                |
 | Billing history / restore purchase | Premium v1          | Web + mobile                  | 010         | Web billing portal; mobile deep-link/platform caveat.         |
+
+> **2026-10-26.** The Pricing page row above is out of date. See 010's [plan register](../010-subscriptions/spec.md#plan-register) and its subscription page requirements (`010-FR-042a` to `FR-042k`).

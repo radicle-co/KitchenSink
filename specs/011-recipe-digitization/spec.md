@@ -52,6 +52,11 @@ Decades of family recipes exist only on paper — fragile, unsearchable, and loc
 | P1       | [004-recipe-importing](../004-recipe-importing/spec.md)     | ⏳ pending | **blocks**   | **011 lands AFTER 004 and adds the image branch to 004's import spine** ([ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md)). 011 does **not** create its own path to a saved recipe — it submits extracted candidates to 004's **bulk import processor** (`004-FR-047`). See "Ownership of the photo channel" below. |
 | P1       | [010-monetisation](../010-subscriptions/spec.md)            | ⏳ pending | complements  | Optional entitlement check before enqueuing OCR (Q-002 deferred to implementation). 011 ships ungated if 010 is not yet live.                                                                                                                                                                                                                |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ---
 
 ## Ownership of the photo channel _(added 2026-08-14 — owner ruling; normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md))_

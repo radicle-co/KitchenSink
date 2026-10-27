@@ -22,6 +22,11 @@
 | [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md) | **Constraining** — consumer disclosure (`016-FR-040`…`044`), the content licence (`016-FR-010`…`015b`), notice-and-action (`016-FR-016`…`019`), per-market posture (`016-FR-048`) |
 | [014-notification-service](../014-notification-service/spec.md)             | **Referenced** — application decisions, payout events, dispute deadlines and takedown notices need a delivery channel                                                             |
 
+> **Plans (2026-10-26).** "Premium" in this spec means a paid plan. 010 now has more than one paid plan, and AI
+> credits differ by plan. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ---
 
 ## Why this feature exists

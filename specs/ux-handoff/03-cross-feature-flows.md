@@ -101,7 +101,7 @@ These flows are where users experience Commise as one product rather than a set 
 1. User encounters premium feature.
 2. Inline teaser explains value.
 3. Active invocation opens paywall modal/bottom sheet.
-4. Pricing page shows $6.99/month, $59.99/year, 14-day trial, and feature comparison.
+4. Pricing page shows $6.99/month, $59.99/year, 14-day trial, and feature comparison. _(Out of date 2026-10-26: see 010's [plan register](../010-subscriptions/spec.md#plan-register).)_
 5. Mobile deep-links to web checkout; native IAP is out of scope for v1.
 6. If subscription lapses, existing private recipes remain readable/private, but creating new private recipes is blocked.
 

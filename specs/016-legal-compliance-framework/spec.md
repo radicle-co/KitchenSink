@@ -649,6 +649,10 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
   regime in any market served. An over-aggressive risk-shift is itself a violation in at least one market
   where our other protections are weakest.
 
+    _(2026-10-26.)_ The subscription page that carries `FR-040` to `FR-043` is specified in 010 (`010-FR-042a` to
+    `FR-042k`). There are now several paid plans (010's [plan register](../010-subscriptions/spec.md#plan-register)).
+    Every disclosure here applies to each plan, and to a plan change as well as a first purchase.
+
 #### H. AI transparency — _governed by `GR-010`_
 
 `GR-010` (EU AI Act Compliance Propagation, amended to v3.5.0 from this feature) owns the obligation and
@@ -708,6 +712,25 @@ they do not create a second mechanism.
       recipe. Without it, `imported_paid` and `imported_physical` recipes need a different control. The owner ruled
       that a free cook can keep them private, so this is not limited to paying cooks. A bulk import of a library full of
       cookbook recipes is where that exposure grows fastest.
+    - **The subscription page.** Added 2026-10-26 for 010 (`010-FR-042a` to `FR-042k`). Counsel confirms each part.
+      **What breaks** for each is a page that charges people unlawfully, in a market we serve.
+        - _Auto-renewal disclosures._ The federal rule is still not in force (see Assumptions), so the stricter
+          state laws govern, such as California's Automatic Renewal Law. ROSCA still applies to online subscriptions.
+          Counsel confirms the disclosure wording, the consent step, the trial-to-paid notice, and any renewal
+          reminder these laws need. **What breaks:** a charge without the required consent can be void, and refunds
+          are owed.
+        - _Online cancellation._ The page cancels in no more steps than subscribing took (`FR-041`). Counsel confirms
+          that this meets the state laws. Counsel also says whether a retention offer is allowed, and how.
+        - _Withdrawal right._ In the EU and UK a consumer has 14 days to withdraw. For digital content supplied at
+          once, the right ends only with express consent and an acknowledgement. Counsel confirms the wording and
+          the consent step before any EU or UK market opens (`FR-043`, `FR-048b`).
+        - _App store rules._ Checked 2026-10-26: Apple App Review Guideline 3.1.1(a) lets a US-storefront app link
+          to an outside purchase since the court order of 30 April 2025. Elsewhere, digital subscriptions use
+          in-app purchase. Google Play's US external links and alternative billing programs charge fees from
+          1 October 2026. Counsel confirms what the mobile page can show and link to in each market (`010-FR-042i`).
+          **What breaks:** an app rejected or removed from a store.
+        - _Plan change._ What the page must say about the amount and the timing of an upgrade or a downgrade,
+          before the cook confirms (`010-FR-042h`).
 - **FR-051**: Nutrition figures and allergen-relevant content MUST carry a reachable disclaimer, and the
   product MUST NOT state or imply a medical claim.
 
@@ -862,7 +885,8 @@ they do not create a second mechanism.
   "whether automated means were used" is therefore expected to read "no" at launch.
 - **The federal US auto-renewal rule is absent, not pending.** It was vacated in July 2025 and re-proposed in
   March 2026; `FR-040`–`FR-043` are written to the stricter state regimes and platform rules instead, which
-  makes them robust to whatever replaces it.
+  makes them robust to whatever replaces it. _(Checked again 2026-10-26: still not in force. The FTC still enforces
+  ROSCA against online subscriptions. Counsel confirms the status before launch, `FR-050`.)_
 - **AI Act Art. 50 applies to us from now.** It became applicable 2 August 2026. A transitional allowance to
   2 December 2026 for machine-readable marking of systems already on the market may apply; we do not rely on
   it, because we are not yet on the market.

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `005-ai-integration`
 **Created**: 2026-04-14
-**Last updated**: 2026-08-02
+**Last updated**: 2026-10-26
 **Status**: Product decisions approved — plan/V-Model/test artifacts remain Draft; release audit ❌ BLOCKED
 **Input**: Split from `001-commise-recipe-app` — AI-powered recipe generation (BYOK in-app + external agent platforms via OAuth).
 
@@ -67,13 +67,35 @@ class, and it is not claimed to be more.
 **AI Integration**
 
 - **FR-015**: System MUST allow users to configure their preferred AI provider (e.g., OpenAI, Gemini, Anthropic) by securely storing their own API credentials (BYOK model).
+- **FR-015a** _(new 2026-10-26, owner ruling)_: A **Pro with AI** subscriber (`010-FR-041`) MUST get a monthly AI allowance, counted in **uses** (one generation, suggestion set or optimization each), not in money. The number is set from the measured cost per use so the tier keeps its margin, and it resets each billing month. Spend MUST be metered per user with the reserve-then-settle counter (ADR-0024).
+- **FR-015b** _(new 2026-10-26, owner ruling)_: When a user adds their own key (`FR-015`), the system MUST ask, at that moment, for permission to use the key **automatically** once their allowance is used up, and MUST offer a switch to turn that automatic use on and off at any time **without removing the key**. With the switch on, an exhausted allowance falls through to the user's key with no further prompt, and the AI screens MUST show which account is paying ("Using your OpenAI key"). With the switch off, or with no key, AI stops with a plain message until the allowance resets.
+- **FR-015c** _(new 2026-10-26, owner ruling: "the subscriptions have two levels of AI credits")_: The number of AI
+  uses a cook gets MUST come from their plan, as 010's [plan register](../010-subscriptions/spec.md#plan-register)
+  states it. There are two credit levels. Today only Pro with AI is recorded with an allowance, so the second level
+  and every amount are open (010 [O-1, O-2](../010-subscriptions/spec.md#owner-inputs-still-needed)). What one use
+  is, per feature, is 010 O-4. When the allowance resets is 010 O-5: `FR-015a` says each billing month, and the
+  design board shows a calendar month.
+- **FR-015d** _(new 2026-10-26)_: When a cook has no uses left, AI MUST stop with a plain message that gives the reset
+  date, and keep what the cook typed. With the `FR-015b` switch on, the call goes to the cook's own key and the
+  screen says so. A higher plan is named only if one exists and the subscription page is live (010 `FR-041e`,
+  `FR-042j`). There is no countdown and no repeated prompt.
+- **FR-015e** _(new 2026-10-26)_: A cook's uses and the platform spend ceiling
+  ([ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)) are two limits with
+  two messages (010 `FR-041d`). A ceiling denial MUST NOT take a use. The ceiling is temporary in the owner's words,
+  and it MUST be amended to fit the credits sold before Pro with AI goes on sale. If an allowance-funded call runs on
+  Bedrock, it is a new `SPEND_CALL_SITES` entry under the one verification role (ADR-0024 layer 4b), never a second
+  role with `bedrock:InvokeModel`. Which model and provider an allowance-funded call uses is a plan decision for this
+  feature.
+- **FR-015f** _(new 2026-10-26)_: A cook on a plan with no credits, Free included, gets no allowance. Whether they can
+  still use AI with their own key is 010 [O-7](../010-subscriptions/spec.md#owner-inputs-still-needed). While the
+  subscription page is not live, a cook without credits sees no AI upsell (010 `FR-042j`).
 - **FR-016**: System MUST call the user's configured AI provider to generate recipes based on criteria (ingredients, dietary restrictions, cuisine, calorie targets) and return results within the app.
 - **FR-017**: System MUST allow users to preview AI-generated recipes before optionally saving them to their collection.
 - **FR-018**: System MUST expose an OAuth 2.1-protected API that allows authorized external agents (e.g., ChatGPT GPT Actions, Gemini Extensions) to read the user's recipe collection and create recipes on their behalf. Users MUST explicitly grant consent before any agent can access their account. Read access (`recipes:read`) and write access (`recipes:create`) are separate grants requiring separate, clearly labeled consent steps; users may grant read without granting write, and the two MUST be presented as two distinct checkboxes, never a bundled grant. **The consent surface is Commise's own UI, and the grant is stored in Commise's own record — it is NOT the identity provider's consent screen.** Identity is proven by the provider's OAuth flow; authorization (which scopes an agent holds) is owned and enforced by Commise. _(Decision D-001, 2026-05-10; mechanism revised 2026-08-02 — see ADR-0012)_
 
     > **Why the mechanism changed.** The original wording implied the identity provider would render the two consent checkboxes. It cannot: Clerk supports only a fixed scope set (`profile`, `email`, `public_metadata`, `private_metadata`, `openid`, `user:org:read`) and custom OAuth scopes are not available, so `recipes:read` / `recipes:create` cannot exist as provider scopes. The requirement's **intent is unchanged** — separate, independently grantable, revocable consent — only the surface that renders it and the store that holds it. This also makes revocation immediate (a record update checked per call) rather than bounded by token refresh.
 
-- **FR-019**: System MUST allow recipe owners to request AI-powered optimization of recipe instructions (simplify language or streamline cooking steps). _(Premium)_
+- **FR-019**: System MUST allow recipe owners to request AI-powered optimization of recipe instructions (simplify language or streamline cooking steps). _(Premium. Since 2026-10-26: a plan with AI credits, per 010's [plan register](../010-subscriptions/spec.md#plan-register).)_
 - **FR-020**: AI-generated recipes saved by users (whether via in-app generation or external agent) MUST be treated as private, user-owned recipes. Default visibility is always `private`. External agents MUST NOT set visibility to any value other than `private` on initial save; the `recipe_save` MCP tool must reject non-private visibility payloads with `400`. Users may change visibility through the standard recipe settings flow after saving. _(Decision D-004, 2026-05-10)_
 - **FR-021**: System MUST allow users to revoke external agent authorizations at any time from their account settings.
 - **FR-022**: System MUST display a confidence indicator and guard message on every AI-generated output surface (web and mobile). The standard guard message is: "AI-generated content may be inaccurate. Verify before use." Nutrition-adjacent outputs additionally display: "This is not medical advice. Consult a qualified professional." The guard message is not dismissible on first view; after 3 views it may collapse to an icon with tooltip but cannot be disabled. This requirement is not user-configurable. **The confidence indicator's basis is the FR-023 sanity-validation result plus the generating provider/model identity — it is NOT a model-reported quality score, which we have no reliable way to obtain.** _(Decision D-003, 2026-05-10; resolves W-003 from verify-report.md)_

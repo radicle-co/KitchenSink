@@ -282,7 +282,7 @@ ChatGPT is a genuinely differentiated bet ReciMe has not made.
 
 ### 🔴 P4 — We are priced 50% above the leader, for less, with no way to charge on mobile
 
-**Price.** `010-FR-041`: **$6.99/month, $59.99/year**, 14-day trial. ReciMe: **$39.99/year** (two first-party
+**Price.** `010-FR-041`: **$6.99/month, $59.99/year**, 14-day trial. _(Out of date 2026-10-26: `010-FR-041` now has Pro at $9.99 a month or $99.99 a year and Pro with AI at $19.99 or $199.99, each with a 14-day trial. The owner says there are three plans. See 010's [plan register](../../specs/010-subscriptions/spec.md#plan-register).)_ ReciMe: **$39.99/year** (two first-party
 sources), 7-day trial. AnyList — the collaboration leader — is **$9.99–$14.99/year**. The category's
 mass-market ceiling is ~$60–80/yr, and we have placed ourselves at it while shipping less.
 

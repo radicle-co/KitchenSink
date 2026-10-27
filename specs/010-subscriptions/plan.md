@@ -3,6 +3,10 @@
 **Feature**: `010-subscriptions`
 **Status**: Active — product decisions closed 2026-05-10; implementation not yet started
 
+> **2026-10-26.** The prices, the number of plans and the AI credits changed. [`spec.md`](./spec.md) holds the
+> [plan register](./spec.md#plan-register) and the [owner inputs](./spec.md#owner-inputs-still-needed). This plan
+> still models one paid tier in §2 to §4. Each place that does is marked. §1a adds the subscription page.
+
 ---
 
 ## 1. Architecture Overview
@@ -49,6 +53,27 @@ trialing (14 days) ──────→ active ──────→ past_due (
                        active               active
 ```
 
+### 1a. The subscription page (spec `FR-042a` to `FR-042k`)
+
+The page opens as a modal over the current screen, from any entry point in `FR-042k`. It shows every plan and its
+terms before checkout. Checkout and the portal stay hosted by Stripe, so the page is the one surface we own on the
+money path.
+
+- **Return path.** The page records where the cook came from, and checkout returns there in the same tab. The web
+  editor draft is in `sessionStorage` (ADR-0057), so a same-tab round trip keeps it. A new tab or window does not.
+- **One switch.** A single client value, read in one module and shared by web and mobile, decides whether any entry
+  point links to the page. It is off until this feature ships. It is not `PAID_FEATURES_GATE_*`, which only decides
+  `upsell` or `hidden`. The spec's matrix (`FR-042j`) is the contract. Pattern: one Specification read by every entry
+  point, so a new entry point cannot forget it.
+- **States.** Every state in `FR-042g` is a vitest component test on both platforms, with a Playwright test and a
+  Maestro flow for each happy path.
+- **Mobile.** Today mobile opens web checkout in the system browser. Whether that stays, or store in-app purchase is
+  added, is owner input O-9 (`FR-042i`). If store purchase is added, the entitlement source gains the store as a
+  second writer, and that needs its own design.
+- **Design first.** The page goes through `staff-ux-engineer` (DESIGN, SPECIFY, EVALUATE) before it is built. The
+  design boards on the design branch draw Pro and Pro with AI only, and they need the third plan once O-1 is
+  answered.
+
 ---
 
 ## 2. Data Model
@@ -57,6 +82,10 @@ trialing (14 days) ──────→ active ──────→ past_due (
 
 ```typescript
 // Add to existing Account entity
+// ⚠️ 2026-10-26: 'free' | 'premium' is out of date. The plan is one of the plans in spec.md's plan register
+// (Free, Pro, Pro with AI, and possibly a third, owner input O-1). The billing interval (month or year), a
+// downgrade waiting for the period end, and the AI credit level also need a home. Settle the shape with
+// staff-architect before T-002 (see §4).
 @Column({ type: 'varchar', default: 'free' })
 plan: 'free' | 'premium';
 
@@ -367,6 +396,8 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
 
 ```typescript
 // POST /api/v1/billing/checkout
+// ⚠️ 2026-10-26: the body can no longer be empty. It names the chosen plan and the billing interval, and the
+// screen to return to (spec FR-042a). The shape is authored in T-029.
 Request (empty body — uses user's existing Stripe customer or creates one):
 {}
 
@@ -409,6 +440,18 @@ Response:
 ---
 
 ## 4. Feature Gating Map
+
+> ⚠️ **2026-10-26. Open for `staff-architect`, and it blocks T-004 to T-006.** Every entitlement mechanism here is
+> single-tier. The list: the `premium` role, `hasPaidFeatures(roles)` (GR-012 AC-012-c), `account.paidFeatures`
+> (`granted`, `upsell`, `hidden`), the one tier claim of spec `FR-044`, and `@RequirePremium()`. None can say "Pro,
+> but no AI". The design has to name each plan and each AI credit level (spec `FR-041b`). It crosses services, it
+> lands in the signed token and in stored rows, and it is costly to reverse, so design it before T-002. Amending
+> GR-012 is part of that decision, not a side edit.
+>
+> The table below is the old single-tier map. Two rows are out of date: private visibility is now a slot limit, and
+> a free cook can hold 50 private recipes (ADR-0073), so it is not a route guard. Clone-to-private for imported
+> recipes is the same slot rule. The AI rows use credits, not a yes or no check (`005-FR-015a`). The
+> [plan register](./spec.md#plan-register) says which plan carries each row.
 
 ### @RequirePremium() Applied Per Feature
 
@@ -567,13 +610,14 @@ body handling for **every** identity endpoint to no purpose.
 
 ## 6. Open Questions (OQ from Research)
 
-| #    | Question                         | Decision                                         |
-| ---- | -------------------------------- | ------------------------------------------------ |
-| OQ-1 | Free tier recipe count limit?    | Unlimited public recipes (no count cap)          |
-| OQ-2 | Family/household plan?           | Future consideration; not in v1 scope            |
-| OQ-3 | Annual-only vs monthly+annual?   | Both: $6.99/mo and $59.99/yr                     |
-| OQ-4 | Past-due silent vs notification? | Show banner on all pages when `past_due`         |
-| OQ-5 | Stripe Tax (EU/UK)?              | Defer; implement when expanding to EU/UK markets |
+| #    | Question                              | Decision                                                                   |
+| ---- | ------------------------------------- | -------------------------------------------------------------------------- |
+| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                    |
+| OQ-2 | Family/household plan?                | Future consideration; not in v1 scope                                      |
+| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                 |
+| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                   |
+| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                           |
+| OQ-6 | Plans, credits, names, mobile billing | Open. Spec [owner inputs](./spec.md#owner-inputs-still-needed) O-1 to O-11 |
 
 ---
 
@@ -581,7 +625,7 @@ body handling for **every** identity endpoint to no purpose.
 
 | Decision          | Choice                                  | Rationale                                                 |
 | ----------------- | --------------------------------------- | --------------------------------------------------------- |
-| Pricing           | $6.99/mo or $59.99/yr                   | Competitive with Mealime/Sabor; reflects AI feature depth |
+| Pricing           | Spec `FR-041` (2026-10-26)              | Was $6.99/mo or $59.99/yr. Owner ruling 2026-10-26        |
 | Trial             | 14-day free trial                       | Stripe native support; industry standard                  |
 | Checkout          | Stripe Checkout (hosted)                | No PCI scope; fastest to ship                             |
 | Portal            | Stripe Customer Portal                  | Handles plan switch, cancel, payment update; no custom UI |

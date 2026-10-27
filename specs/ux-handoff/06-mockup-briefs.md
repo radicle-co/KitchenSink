@@ -144,7 +144,7 @@ These briefs translate the portfolio requirements into concrete design assignmen
 
 - Inline premium teaser at feature entry point.
 - Modal/bottom-sheet paywall on active invocation.
-- Pricing page: $6.99/month, $59.99/year, 14-day trial.
+- Pricing page: $6.99/month, $59.99/year, 14-day trial. _(Out of date 2026-10-26: see 010's [plan register](../010-subscriptions/spec.md#plan-register).)_
 - Account subscription status and billing portal/deep-link.
 - Lapse/downgrade messaging preserving existing private recipes.
 

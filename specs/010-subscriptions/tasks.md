@@ -8,13 +8,19 @@
 
 ## US Reference
 
-| US     | Title                                     | Priority | FRs            |
-| ------ | ----------------------------------------- | -------- | -------------- |
-| US-001 | Free and Premium Subscription Tiers       | P3       | FR-040, FR-041 |
-| US-002 | Checkout & Billing Management             | P3       | FR-041         |
-| US-003 | Subscription Lifecycle & Webhook Handling | P3       | FR-043         |
-| US-004 | Upgrade Prompts & Frontend Integration    | P3       | FR-042         |
-| US-005 | Data Retention on Subscription Lapse      | P3       | FR-043         |
+| US     | Title                                     | Priority | FRs                                             |
+| ------ | ----------------------------------------- | -------- | ----------------------------------------------- |
+| US-001 | Free and Premium Subscription Tiers       | P3       | FR-040, FR-041                                  |
+| US-002 | Checkout & Billing Management             | P3       | FR-041                                          |
+| US-003 | Subscription Lifecycle & Webhook Handling | P3       | FR-043                                          |
+| US-004 | Upgrade Prompts & Frontend Integration    | P3       | FR-042                                          |
+| US-005 | Data Retention on Subscription Lapse      | P3       | FR-043                                          |
+| US-006 | The subscription page                     | P3       | FR-041a to FR-041f, FR-042a to FR-042k, FR-043a |
+
+> **2026-10-26.** The plans, prices and AI credits changed ([plan register](./spec.md#plan-register)), and the
+> spec gained the subscription page (User Story 6). T-001 to T-034 still model one paid tier. T-040 settles the
+> entitlement shape before T-002 and T-004 to T-006 are built. Several owner inputs are open
+> ([list](./spec.md#owner-inputs-still-needed)).
 
 ---
 
@@ -286,6 +292,56 @@ either.
 
 ---
 
+## User Story 6 — The subscription page (P3)
+
+> One page opens as a modal from every paid-feature entry point. It shows the plans and their terms before any
+> payment, and it returns the cook to where they were. Implements `FR-041a` to `FR-041f`, `FR-042a` to `FR-042k` and `FR-043a`.
+> ⛔ Every user-facing task here goes through `staff-ux-engineer` (DESIGN, SPECIFY, EVALUATE) first.
+
+- [ ] **T-035** [P0] [US-006] One switch that hides every subscription-page entry point until this feature ships  
+      — `packages/apps/commise/features/account`, `packages/apps/commise/features/recipes`, `packages/apps/commise/web`, `packages/apps/commise/mobile`  
+      **Depends on**: —  
+      **Implements**: FR-042j, FR-042k  
+      **Acceptance**: One value, read in one module and shared by web and mobile, decides whether any entry point links to the page. It is off. With it off, under `upsell` every sheet states the fact and offers only a close control. That removes "See Premium" from the recipe sheet, the collection sheet and the publish dialog. It removes the premium offer in `RecipeSaveCopyNoSlot`, the Premium way forward and the "About Premium" link in the slots-full refusal, and the `SubscriptionNudge`. `PAID_FEATURES_GATE_*` is not read or changed by this task. A repo guard finds every entry point. It fails for an entry point that does not read the switch.  
+      **Tests**: vitest component tests on both platforms, for every entry point, every `account.paidFeatures` value and both switch positions **AND** the repo guard **AND** Playwright and Maestro updates for the flows that show a sheet today.
+
+- [ ] **T-036** [P1] [US-006] The subscription page on web: a modal with every state, and a return path that keeps the cook's work  
+      — `packages/apps/commise/features/account`, `packages/apps/commise/web`  
+      **Depends on**: T-035, T-029, T-040  
+      **Implements**: FR-042a to FR-042h  
+      **Acceptance**: Opens as a modal over the current screen. Shows every plan's price, billing period, trial, first charge date, renewal and contents before checkout. Nothing that adds cost is pre-selected. "Not now" and close are always visible and as strong as the buy buttons. Checkout returns to the starting screen in the same tab, and an unsaved editor draft survives the round trip. Cancel takes no more steps than subscribing. Every state in `FR-042g` is built with copy and localization keys.  
+      **Tests**: vitest component tests for every `FR-042g` state **AND** Playwright for subscribe, cancel, plan change and the editor round trip **AND** a WCAG 2.2 AA check.
+
+- [ ] **T-037** [P1] [US-006] The subscription page on mobile  
+      — `packages/apps/commise/features/account`, `packages/apps/commise/mobile`  
+      **Depends on**: T-036, and owner input O-9  
+      **Implements**: FR-042a to FR-042i  
+      **Acceptance**: The same states and rules as T-036, translated for touch, not ported (staff-ux §3.6). Purchase follows O-9: web checkout through an outside link, or store in-app purchase with restore and store cancel (`016-FR-042`).  
+      **Tests**: vitest component tests for every state **AND** a Maestro flow per happy path.
+
+- [ ] **T-038** [P1] [US-006] Plan change and cancel, with the downgrade rule stated before confirmation  
+      — `packages/services/identity/src/billing`, `packages/apps/commise/features/account`  
+      **Depends on**: T-012, T-036  
+      **Implements**: FR-042e, FR-042h, FR-043a, FR-041f  
+      **Acceptance**: Upgrade, downgrade, monthly to yearly and cancel each state the effective date and amount before confirmation. A downgrade states that private recipes stay private. It also states that a cook over 50 cannot add a new private recipe until under the limit (ADR-0073 §4). Cancel is confirmed in writing (`016-FR-041`).  
+      **Tests**: unit **AND** integration (mocked Stripe) **AND** e2e **AND** Playwright and Maestro.
+
+- [ ] **T-039** [P1] [US-006] AI credit level carried by the entitlement, metered by 005  
+      — `packages/shared/clerk-verify`, `packages/services/identity/src/billing`  
+      **Depends on**: T-040, and owner inputs O-2, O-4, O-5, O-6  
+      **Implements**: FR-041c to FR-041e, `005-FR-015a`  
+      **Acceptance**: A service can read a cook's AI credit level from the signed entitlement. Metering and the out-of-credits stop live in 005 (reserve-then-settle per cook, ADR-0024). A ceiling denial never uses a credit.  
+      **Tests**: unit **AND** integration.
+
+- [ ] **T-040** [P0] [US-006] Design the multi-plan entitlement model with `staff-architect`  
+      — `docs/architecture/decisions/`, `specs/governance-rules.md`  
+      **Depends on**: owner inputs O-1, O-3  
+      **Implements**: FR-041b, FR-044  
+      **Acceptance**: An ADR states how the signed token and identity's rows name each plan and each AI credit level. It states how `hasPaidFeatures(roles)` (GR-012 AC-012-c) and `account.paidFeatures` change, and how `@RequirePremium()` becomes a per-feature check. GR-012 is amended in the same change.  
+      **Tests**: none (a design task). T-002 and T-004 to T-006 do not start before it lands.
+
+---
+
 ## Cross-Cutting — Contract ownership, validation & the client half (GR-015, GR-016, GR-017, GR-018)
 
 > ⛔ **Service ownership is CLOSED.** [ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md)
@@ -394,8 +450,14 @@ either.
 | T-032 | Stripe boundary zod — the §15-d opposite case              | US-003 | T-014               |
 | T-033 | Web + mobile consume the schema package, parse on receipt  | US-002 | T-029, T-021, T-024 |
 | T-034 | k6 load coverage: billing surface + webhook ingress        | US-002 | T-030, T-014        |
+| T-035 | One switch hides every subscription-page entry point       | US-006 | —                   |
+| T-036 | Subscription page, web                                     | US-006 | T-035, T-029, T-040 |
+| T-037 | Subscription page, mobile                                  | US-006 | T-036, O-9          |
+| T-038 | Plan change and cancel, downgrade rule                     | US-006 | T-012, T-036        |
+| T-039 | AI credit level in the entitlement                         | US-006 | T-040               |
+| T-040 | Multi-plan entitlement model (staff-architect)             | US-006 | O-1, O-3            |
 
-**Total tasks: 34** (was 28).
+**Total tasks: 40** (was 34).
 
 ⚠️ **T-029…T-034 close GR-017 §17-e.12.** Before this revision the file had **no** task to extend the schema
 package, wire the `CONTRACT_HASH`/skew surface, or validate a response on receipt — while `plan.md` §3.0 stated

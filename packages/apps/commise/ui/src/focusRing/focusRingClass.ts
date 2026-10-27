@@ -14,8 +14,8 @@
  *    button), drawn by the wrapper;
  *  - `inset`: a ring drawn INSIDE the box, for a control flush with its container (a list row, a menu item) where an
  *    outer ring would be clipped; it has no gap, so it needs no surface;
- *  - `inverse`: a control on an inverse surface (the snackbar's action), ringed in `inverseAction`; the surface table has no
- *    inverse row, so there is no gap colour to read and the ring sits flush;
+ *  - `inverse`: a control on an inverse surface (the snackbar's action), ringed in `inverseAction`. The surface table HAS an
+ *    inverse row, but the ring sits flush against it (no gap), so it reads no gap colour from it;
  *  - `floating`: a control over a photo or over scrolling content (the create button, a photo control) has no single
  *    surface, so its ring is two-tone: a 2 px `paperOverlay` inner band, then a 2 px `focusRing` ring, which reads on
  *    any background (WCAG 2.4.11 and 2.4.13).

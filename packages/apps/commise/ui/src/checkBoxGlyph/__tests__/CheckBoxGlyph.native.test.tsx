@@ -25,6 +25,13 @@ describe('CheckBoxGlyph (native)', () => {
         expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
     });
 
+    // C6 (redesign): a thin outline, 1 dp (it was a 2 dp frame).
+    it('draws a 1 dp outline', () => {
+        const { container } = render(<CheckBoxGlyph checked={false} />);
+
+        expect(getComputedStyle(container.querySelector('[aria-hidden="true"]') as Element).borderTopWidth).toBe('1px');
+    });
+
     it('shows the check only when checked', () => {
         const { container, rerender } = render(<CheckBoxGlyph checked={false} />);
         expect(container.querySelector('[data-icon-name]')).toBeNull();

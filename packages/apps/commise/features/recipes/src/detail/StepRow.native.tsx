@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     hereBar: { position: 'absolute', top: 0, bottom: 0, start: 0, width: 3, borderRadius: 2 },
     toggle: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     numeral: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    numeralText: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
+    numeralText: { ...nativeTokens.type.caption, fontVariant: ['tabular-nums', 'lining-nums'] },
     body: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[2], paddingTop: nativeTokens.spacing[2] },
     text: { ...nativeTokens.type.readingBody },
     timer: {

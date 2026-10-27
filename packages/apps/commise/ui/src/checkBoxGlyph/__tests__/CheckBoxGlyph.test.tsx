@@ -24,6 +24,9 @@ describe('CheckBoxGlyph (web)', () => {
         const box = container.firstElementChild;
 
         expect(box?.className).toContain('border-line-control');
+        // C6 (redesign): a thin outline, 1 px, not the 2 px frame it was.
+        expect(box?.className).not.toContain('border-2');
+        expect(box?.className).toMatch(/(^|\s)border(\s|$)/u);
         expect(box?.className).not.toContain('bg-action');
         expect(container.querySelector('[data-check]')?.className).toContain('scale-90');
         expect(container.querySelector('[data-check]')?.className).toContain('opacity-0');

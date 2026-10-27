@@ -203,6 +203,9 @@ describe('RecipeDetailView (native)', () => {
         );
 
         const lamb = screen.getByRole('heading', { name: 'For the lamb' });
+
+        // C5/C6 (redesign): a group name is weight 500, in the registered medium face (never a weight on a family).
+        expect(appliedFontFamily(lamb)).toBe(nativeTokens.type.caption.fontFamily);
         const chickpeas = screen.getByRole('heading', { name: 'For the chickpeas' });
 
         expect(
@@ -1129,6 +1132,13 @@ describe('RecipeDetailView (native) — the current step is tellable from the ot
 
         fireEvent.click(screen.getByRole('button', { name: 'Mark step 1 as current' }));
 
+        // C6 (redesign): the step number is weight 500, in the registered medium face.
+        expect(
+            appliedFontFamily(
+                screen.getByRole('button', { name: 'Mark step 1 as current' }).firstElementChild
+                    ?.firstElementChild as Element,
+            ),
+        ).toBe(nativeTokens.type.caption.fontFamily);
         expect(numeral(1)).toBe(cssColor(palette.steel));
         expect(numeral(2)).not.toBe(numeral(1));
         expect(screen.getByRole('button', { name: 'Mark step 1 as current' }).getAttribute('aria-pressed')).toBe(

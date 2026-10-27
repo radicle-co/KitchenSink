@@ -193,6 +193,10 @@ describe('RecipeDetailView (web) — header', () => {
         const chickpeas = screen.getByRole('heading', { level: 3, name: 'For the chickpeas' });
 
         expect(lamb.className).toContain('text-label');
+        // C5/C6 (redesign): a group name is weight 500, muted, in sentence case (no uppercase transform).
+        expect(lamb.className).toContain('font-medium');
+        expect(lamb.className).toContain('text-ink-muted');
+        expect(lamb.className).not.toMatch(/uppercase/u);
         expect(
             lamb.compareDocumentPosition(screen.getByText('Lamb shoulder')) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
@@ -308,6 +312,8 @@ describe('RecipeDetailView (web) — steel-as-text below the hero is WCAG-AA leg
         const toggle = screen.getByRole('button', { name: 'Mark step 1 as current' });
         const numeral = (): string => toggle.querySelector('[data-numeral]')?.className ?? '';
         expect(utilityContrast(numeral()), 'step numeral').toBeGreaterThanOrEqual(4.5);
+        // C6 (redesign): the step number is weight 500.
+        expect(numeral()).toContain('font-medium');
 
         await user.click(toggle);
         expect(utilityContrast(numeral()), 'current step numeral').toBeGreaterThanOrEqual(4.5);

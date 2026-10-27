@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { themeFor } from '../../theme/themeFor.js';
-import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, buttonToggleSurfacePaint } from '../surfacePaint.native.js';
+import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, buttonToggleSurfacePaint, pressWash } from '../surfacePaint.native.js';
 
 describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) => {
     const theme = themeFor(scheme);
@@ -56,5 +56,40 @@ describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) =
     it('is not pressed unless told so', () => {
         expect(buttonToggleSurfacePaint(theme, true)).toEqual(buttonToggleSurfacePaint(theme, true, false));
         expect(buttonToggleSurfacePaint(theme, false)).toEqual(buttonToggleSurfacePaint(theme, false, false));
+    });
+});
+
+// Parity item 4: the press fill is ONE rule (`pressWash`) that Button and the Screen on switch both read.
+describe.each(['light', 'dark'] as const)('the native press fill (%s)', (scheme) => {
+    const theme = themeFor(scheme);
+
+    it('is the theme wash over paper and lineDivider over a muted parent', () => {
+        expect(pressWash(theme, 'paper')).toBe(theme.wash);
+        expect(pressWash(theme, 'muted')).toBe(theme.colors.lineDivider);
+        expect(pressWash(theme, 'muted')).not.toBe(theme.colors.surfaceMuted);
+    });
+
+    it.each(['secondary', 'ghost', 'quiet', 'destructiveInline'] as const)(
+        '%s fills with it while pressed',
+        (surface) => {
+            expect(buttonSurfacePaint(theme, surface, true).backgroundColor).toBe(theme.wash);
+            expect(buttonSurfacePaint(theme, surface, true, 'muted').backgroundColor).toBe(theme.colors.lineDivider);
+        },
+    );
+
+    it('leaves the resting paint alone, pressed or not asked', () => {
+        expect(buttonSurfacePaint(theme, 'quiet')).toEqual({ backgroundColor: 'transparent', borderWidth: 0 });
+        expect(buttonSurfacePaint(theme, 'quiet', false, 'muted')).toEqual(buttonSurfacePaint(theme, 'quiet'));
+    });
+
+    it('presses primary to actionPressed and keeps confirm as it is', () => {
+        expect(buttonSurfacePaint(theme, 'primary', true).backgroundColor).toBe(theme.colors.actionPressed);
+        expect(buttonSurfacePaint(theme, 'destructiveConfirm', true)).toEqual(
+            buttonSurfacePaint(theme, 'destructiveConfirm'),
+        );
+    });
+
+    it('the Screen on switch presses with the same rule', () => {
+        expect(buttonToggleSurfacePaint(theme, false, true).backgroundColor).toBe(pressWash(theme, 'paper'));
     });
 });

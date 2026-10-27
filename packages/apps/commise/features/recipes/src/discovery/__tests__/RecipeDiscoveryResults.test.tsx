@@ -329,9 +329,10 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
         expect(screen.queryByRole('button', { name: /Load more|Loading/ })).toBeNull();
     });
 
-    // ⚠️ REWRITTEN: the control is now the quiet Button, whose floor is reset only for a FINE pointer at md (`md:pointer-fine:`),
-    // so a touch iPad at 768 px and wider keeps 44 px; the hand-rolled `md:min-h-0` reset it on width alone.
-    it('gives the load-more action the 44px touch floor, reset for the mouse at md', () => {
+    // ⚠️ REWRITTEN twice: first the control became the quiet Button, whose floor a FINE pointer reset at md; now (owner
+    // ruling B1, parity item 3) that reset is gone, because it drew a desktop button 40 px. The 44 px floor holds at every
+    // width and for every pointer.
+    it('gives the load-more action the 44px touch floor at every width and for every pointer', () => {
         renderResults({
             results: threeResults,
             loadMore: { onLoadMore: noop, loading: false, hasMore: true, failed: false },
@@ -339,7 +340,7 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
 
         const control = screen.getByRole('button', { name: 'Load more' });
         expect(control.className).toContain('min-h-11');
-        expect(control.className).toContain('md:pointer-fine:min-h-0');
+        expect(control.className).not.toMatch(/min-h-0/u);
     });
 });
 

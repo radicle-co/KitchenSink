@@ -55,10 +55,13 @@ export const Button: FC<ButtonProps> = (props) => {
         iconPlacement = 'start',
         focusRequested = false,
         onFocusRequestHandled,
+        over = 'paper',
     } = props;
     const { variant, tone } = surfaceOf(props);
     const surface =
-        variant === 'destructive' ? buttonSurfaceClass(variant, size, tone) : buttonSurfaceClass(variant, size);
+        variant === 'destructive'
+            ? buttonSurfaceClass(variant, size, tone, over)
+            : buttonSurfaceClass(variant, size, over);
     const node = useRef<HTMLButtonElement>(null);
     const descriptionId = useId();
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);

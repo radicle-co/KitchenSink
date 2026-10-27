@@ -194,17 +194,27 @@ describe('Button (web)', () => {
     });
 
     /**
-     * E2 I12 — rewritten to prove the POINTER rule: the old version pinned the width-only `md:min-h-0`, which gave a
-     * touch iPad a 41 px target. The floor is now reset only for a fine pointer at md: and up.
+     * REWRITTEN for owner ruling B1 (parity item 3): the pointer reset `md:pointer-fine:min-h-0` made a desktop md
+     * button 40 px. The 44 px floor now holds at every width, so a desktop cursor gets the same target as a thumb.
      */
-    it('gets a 44px min touch height that only a fine pointer at md: resets (desktop height unchanged)', () => {
+    it('keeps its 44px min height at every width, with no pointer or width reset', () => {
         const { container } = render(<Button icon={plusMeaning}>Save</Button>);
         const classes = (container.querySelector('button')?.className ?? '').split(/\s+/u);
-        // Touch, at every width, gets the comfortable 44px min target…
+
         expect(classes).toContain('min-h-11');
-        // …and only a mouse at md:+ resets it, so the desktop density (py-2.5) is preserved exactly.
-        expect(classes).toContain('md:pointer-fine:min-h-0');
-        expect(classes).not.toContain('md:min-h-0');
+        expect(classes.filter((token) => /min-h-0$/u.test(token))).toEqual([]);
+    });
+
+    it('presses to lineDivider, not the invisible surfaceMuted, when it says it sits over a muted parent', () => {
+        render(
+            <Button variant="quiet" over="muted">
+                Try again
+            </Button>,
+        );
+        const classes = screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/u);
+
+        expect(classes).toEqual(expect.arrayContaining(['hover:bg-line-divider', 'active:bg-line-divider']));
+        expect(classes).not.toContain('active:bg-surface-muted');
     });
 
     it('adopts the PressScale primitive so it scales on press (motion-safe)', () => {

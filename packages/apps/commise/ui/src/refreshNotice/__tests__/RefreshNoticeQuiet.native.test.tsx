@@ -18,7 +18,14 @@ vi.mock('react-native', async (importOriginal) => {
         Pressable: (props: Record<string, unknown>) => {
             seen.buttons.push(props);
 
-            return createElement(actual.View, null, props['children'] as never);
+            // Button hands its pill over as a function of the press state (the press paint), so it is called, unpressed.
+            const children = props['children'];
+
+            return createElement(
+                actual.View,
+                null,
+                (typeof children === 'function' ? children({ pressed: false }) : children) as never,
+            );
         },
     };
 });

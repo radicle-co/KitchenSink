@@ -10,6 +10,7 @@
 import type { ViewStyle } from 'react-native';
 
 import type { Theme } from '../theme/themeFor.js';
+import type { ButtonOver } from './props.js';
 import { nativeTokens } from '../tokens/native.js';
 
 /**
@@ -30,21 +31,49 @@ export const BUTTON_PILL_LAYOUT: ViewStyle = {
 export type ButtonSurface = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructiveInline' | 'destructiveConfirm';
 
 /**
- * A surface's paint in the current theme. Pure.
+ * The press fill of a neutral surface: THE rule for a native press, read by Button and by the Screen on switch (the
+ * twin of web's `PRESS` in `surfaceClass.ts`). Over `paper` it is the theme's wash (`surfaceMuted`); over a `surfaceMuted`
+ * parent that fill is the parent's own and shows nothing, so it is `lineDivider`, as a chip's is. It is painted whether
+ * or not the OS asks for reduced motion: motion is non-essential, a response to the touch is not. Pure.
+ *
+ * @param theme - The theme to paint in.
+ * @param over - What the control sits on.
+ */
+export function pressWash(theme: Theme, over: ButtonOver): string {
+    return over === 'muted' ? theme.colors.lineDivider : theme.wash;
+}
+
+/**
+ * A surface's paint in the current theme. While pressed, a neutral surface fills with {@link pressWash} and `primary`
+ * darkens to `actionPressed` (the web `hover:bg-action-pressed` twin); a confirm keeps its fill, because the web twin
+ * darkens with an alpha (`danger/90`) that has no native role. Pure.
  *
  * @param theme - The theme to paint in.
  * @param surface - The surface.
+ * @param pressed - Whether a press is in progress. Defaults to false.
+ * @param over - What the control sits on. Defaults to `paper`.
  */
-export function buttonSurfacePaint({ colors }: Theme, surface: ButtonSurface): ViewStyle {
+export function buttonSurfacePaint(
+    theme: Theme,
+    surface: ButtonSurface,
+    pressed = false,
+    over: ButtonOver = 'paper',
+): ViewStyle {
+    const { colors } = theme;
+
     switch (surface) {
         case 'primary':
-            return { backgroundColor: colors.action, borderWidth: 0 };
+            return { backgroundColor: pressed ? colors.actionPressed : colors.action, borderWidth: 0 };
         case 'secondary':
         case 'destructiveInline':
-            return { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.lineControl };
+            return {
+                backgroundColor: pressed ? pressWash(theme, over) : colors.paper,
+                borderWidth: 1,
+                borderColor: colors.lineControl,
+            };
         case 'ghost':
         case 'quiet':
-            return { backgroundColor: 'transparent', borderWidth: 0 };
+            return { backgroundColor: pressed ? pressWash(theme, over) : 'transparent', borderWidth: 0 };
         case 'destructiveConfirm':
             return { backgroundColor: colors.danger, borderWidth: 0 };
     }
@@ -65,7 +94,7 @@ export function buttonToggleSurfacePaint(theme: Theme, selected: boolean, presse
     const secondary = buttonSurfacePaint(theme, 'secondary');
 
     if (!selected) {
-        return pressed ? { ...secondary, backgroundColor: theme.wash } : secondary;
+        return pressed ? { ...secondary, backgroundColor: pressWash(theme, 'paper') } : secondary;
     }
 
     const on: ViewStyle = {

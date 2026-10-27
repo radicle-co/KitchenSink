@@ -27,7 +27,7 @@
  * component whenever the control CAN be a `<button>`; reach for this only when it cannot.
  */
 import { BUSY_CONTROL_CLASS } from './busyControlProps.js';
-import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
+import type { ButtonOver, ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
 
 /**
  * Tier-independent surface: the icon+label flex row, the label type role (`cardTitle`, 16/20/600: owner ruling B1, 2026-10-26;
@@ -50,7 +50,7 @@ import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
  */
 const BASE =
     'inline-flex shrink-0 max-w-full items-center justify-center gap-2 px-3 md:px-5 text-card-title transition ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
     `disabled:cursor-not-allowed disabled:opacity-40 ${BUSY_CONTROL_CLASS}`;
 
 /**
@@ -70,10 +70,11 @@ export const GHOST_EDGE_CLASS = '-ms-3 md:-ms-5';
  * together. On one line the browser clamps the radius to half the box, which still draws a pill. A label that wraps
  * (200% text) makes a rounded rectangle, so its words stay inside the curve; on a full pill they ran past it.
  *
- * ## `md` resets its floor only for a fine pointer (E2 I12)
+ * ## The 44 px floor holds at EVERY width and for every pointer (owner ruling B1)
  *
- * A width breakpoint stood in for "has a mouse", and a touch iPad at 768 px and wider got a 41 px target. The reset now
- * needs BOTH `md:` and `pointer: fine`, so a touch screen keeps 44 px at every width and a desktop keeps its density.
+ * `md` once reset its floor for a fine pointer at `md:` and up (E2 I12), which drew a desktop button 40 px (measured in
+ * AppSnackbars). The owner's B1 allows 44 or 52 and nothing between, so the reset is gone: a mouse gets the same 44 px a
+ * thumb does.
  *
  * ## `sm` draws 36 px and is hit at 44
  *
@@ -82,7 +83,7 @@ export const GHOST_EDGE_CLASS = '-ms-3 md:-ms-5';
  */
 const SIZE: Readonly<Record<ButtonSize, string>> = {
     lg: 'min-h-13 rounded-[calc(var(--spacing)*6.5)] py-3',
-    md: 'min-h-11 rounded-[calc(var(--spacing)*5.5)] py-2.5 md:pointer-fine:min-h-0',
+    md: 'min-h-11 rounded-[calc(var(--spacing)*5.5)] py-2.5',
     sm:
         "relative min-h-9 rounded-[calc(var(--spacing)*4.5)] py-1.5 before:content-[''] before:absolute " +
         'before:inset-x-0 before:-inset-y-1',
@@ -110,13 +111,30 @@ const SIZE: Readonly<Record<ButtonSize, string>> = {
  */
 const SURFACE = {
     primary: 'bg-action text-on-action shadow-sm hover:bg-action-pressed active:bg-action-pressed',
-    secondary: 'border border-line-control bg-paper text-ink hover:bg-surface-muted active:bg-surface-muted',
-    ghost: 'text-action-text hover:bg-surface-muted active:bg-surface-muted',
-    quiet: 'text-ink hover:bg-surface-muted active:bg-surface-muted',
-    destructiveInline:
-        'border border-line-control bg-paper text-danger-text hover:bg-surface-muted active:bg-surface-muted',
+    secondary: 'border border-line-control bg-paper text-ink',
+    ghost: 'text-action-text',
+    quiet: 'text-ink',
+    destructiveInline: 'border border-line-control bg-paper text-danger-text',
     destructiveConfirm: 'bg-danger text-on-action shadow-sm hover:bg-danger/90 active:bg-danger/90',
 } as const;
+
+/**
+ * The hover and press fill of the neutral tiers, by what the control sits on ({@link ButtonOver}). Over `paper` it is
+ * `surfaceMuted`; over a `surfaceMuted` parent that fill is the parent's own and shows nothing, so it is `lineDivider`
+ * (parity item 6; the native twin is `pressWash`). The filled tiers carry their own darkening press instead.
+ */
+const PRESS: Readonly<Record<ButtonOver, string>> = {
+    paper: 'hover:bg-surface-muted active:bg-surface-muted',
+    muted: 'hover:bg-line-divider active:bg-line-divider',
+};
+
+/** The surfaces whose press is the neutral fill; a filled tier presses by darkening and has no entry here. */
+const NEUTRAL_PRESS: ReadonlySet<keyof typeof SURFACE> = new Set(['secondary', 'ghost', 'quiet', 'destructiveInline']);
+
+/** A tier's surface classes with its press fill for what it sits on. Pure. */
+function surfaceClassOf(key: keyof typeof SURFACE, over: ButtonOver): string {
+    return NEUTRAL_PRESS.has(key) ? `${SURFACE[key]} ${PRESS[over]}` : SURFACE[key];
+}
 
 /**
  * The class a tier's glyph (and its busy spinner) takes beyond `currentColor`, which is its label's colour. Only `quiet`
@@ -144,25 +162,42 @@ function surfaceKey(variant: ButtonVariant, tone: DestructiveTone): keyof typeof
  *
  * @param variant - The tier. Defaults to `primary`, matching the Button component's default.
  * @param size - The size. Defaults to `md`.
+ * @param over - What the control sits on. Defaults to `paper`; say `muted` on a `surfaceMuted` parent.
  * @returns The `className` to apply to the control.
  */
-export function buttonSurfaceClass(variant?: Exclude<ButtonVariant, 'destructive'>, size?: ButtonSize): string;
+export function buttonSurfaceClass(
+    variant?: Exclude<ButtonVariant, 'destructive'>,
+    size?: ButtonSize,
+    over?: ButtonOver,
+): string;
 /**
  * The destructive Button surface as a Tailwind class string. Pure.
  *
  * @param variant - `destructive`.
  * @param size - The size. Defaults to `md`.
  * @param tone - `inline` (the default) or `confirm`, the filled surface of a confirm dialog's action.
+ * @param over - What the control sits on. Defaults to `paper`.
  * @returns The `className` to apply to the control.
  */
-export function buttonSurfaceClass(variant: 'destructive', size?: ButtonSize, tone?: DestructiveTone): string;
+export function buttonSurfaceClass(
+    variant: 'destructive',
+    size?: ButtonSize,
+    tone?: DestructiveTone,
+    over?: ButtonOver,
+): string;
 
 export function buttonSurfaceClass(
     variant: ButtonVariant = 'primary',
     size: ButtonSize = 'md',
-    tone: DestructiveTone = 'inline',
+    toneOrOver?: DestructiveTone | ButtonOver,
+    maybeOver?: ButtonOver,
 ): string {
-    return `${BASE} ${SIZE[size]} ${SURFACE[surfaceKey(variant, tone)]}`;
+    // `destructive` takes its tone third and its surface fourth; every other tier takes its surface third.
+    const destructive = variant === 'destructive';
+    const tone: DestructiveTone = destructive && toneOrOver === 'confirm' ? 'confirm' : 'inline';
+    const over: ButtonOver = (destructive ? maybeOver : toneOrOver) === 'muted' ? 'muted' : 'paper';
+
+    return `${BASE} ${SIZE[size]} ${surfaceClassOf(surfaceKey(variant, tone), over)}`;
 }
 
 /**

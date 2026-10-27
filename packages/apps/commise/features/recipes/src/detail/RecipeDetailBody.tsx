@@ -418,7 +418,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     {scaled.scaling.isScaled && (
                         <div
                             role="status"
-                            className={`flex flex-col items-start gap-1 rounded-md ${surfaceToneClass('muted')} px-3 py-2`}
+                            className={`flex flex-col items-start gap-1 rounded-lg ${surfaceToneClass('muted')} px-3 py-2`}
                         >
                             <p className="text-meta text-ink">
                                 {fillTemplate(detail.scaledFrom, { original: recipe.servings })}{' '}

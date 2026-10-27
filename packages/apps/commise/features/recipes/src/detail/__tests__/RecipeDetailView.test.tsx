@@ -1428,6 +1428,9 @@ describe('RecipeDetailView (web) — serving scale', () => {
         expect(notice).not.toBeNull();
         expect(surfaceToneOf(notice as Element)).toBe('muted');
         expect(surfaceToneOf(within(notice as HTMLElement).getByRole('button'))).toBe('muted');
+        // A notice takes the 18 px `lg` corner (`componentFixes.md` §10a), as the resume and refresh notices do.
+        expect((notice as Element).className.split(/\s+/u)).toEqual(expect.arrayContaining(['rounded-lg']));
+        expect((notice as Element).className.split(/\s+/u)).not.toContain('rounded-md');
     });
 
     it('opens at the serving count the recipe was created with', () => {

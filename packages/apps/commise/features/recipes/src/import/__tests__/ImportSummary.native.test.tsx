@@ -9,13 +9,16 @@ import { fireEvent } from '@testing-library/dom';
 const windowWidth = vi.hoisted(() => ({ current: 390 }));
 
 vi.mock('react-native', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('react-native')>();
+    const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
+    const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
     return {
         ...actual,
         useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: windowWidth.current }),
     };
 });
+
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { ImportSummary } from '../ImportSummary.native.js';
@@ -51,6 +54,26 @@ function renderSummary(overrides: Partial<ImportSummaryProps> = {}) {
 
     return handlers;
 }
+
+// `componentFixes.md` §10: the as-written block paints `surfaceMuted` and holds Choose foods, in both themes. (Written after
+// the code it covers.)
+describe.each(['light', 'dark'] as const)('ImportSummary (native) — the surface it paints, %s theme', (scheme) => {
+    afterEach(() => {
+        systemScheme.current = null;
+    });
+
+    it('wraps Choose foods in a block painted with the muted fill', () => {
+        systemScheme.current = scheme;
+        renderSummary();
+        let block: HTMLElement | null = screen.getByRole('button', { name: s.chooseFoods });
+
+        while (block !== null && getComputedStyle(block).backgroundColor !== rgb(rolesFor(scheme).surfaceMuted)) {
+            block = block.parentElement;
+        }
+
+        expect(block, 'no ancestor of Choose foods paints the muted fill').not.toBeNull();
+    });
+});
 
 describe('ImportSummary (native)', () => {
     it('says every count, and each action reports', () => {

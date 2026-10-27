@@ -17,6 +17,7 @@
  * session reducer, the adapter) are the real ones.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { StrictMode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -82,7 +83,7 @@ interface Harness {
     readonly pickOnLine: ReturnType<typeof vi.fn<(key: string, pick: IngredientPick) => Promise<LineCommitOutcome>>>;
 }
 
-function setup(job: ParseJobResponse, over: Partial<UsePasteMatchingOptions> = {}) {
+function setup(job: ParseJobResponse, over: Partial<UsePasteMatchingOptions> = {}, strict = false) {
     const markJoined = vi.fn();
     const dispatch = vi.fn<(action: DraftAction) => void>();
     const pickOnLine = vi.fn<(key: string, pick: IngredientPick) => Promise<LineCommitOutcome>>();
@@ -139,7 +140,11 @@ function setup(job: ParseJobResponse, over: Partial<UsePasteMatchingOptions> = {
     });
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const hook = renderHook(() => usePasteMatching(optionsOf()), {
-        wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+        wrapper: ({ children }) => {
+            const provided = <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+
+            return strict ? <StrictMode>{provided}</StrictMode> : provided;
+        },
     });
 
     return {
@@ -734,5 +739,37 @@ describe('usePasteMatching — keys', () => {
 
         expect(hook.state.lineKeys[0]).toMatch(/^n:/u);
         expect(mintLineKey()).toMatch(/^n:/u);
+    });
+});
+
+/**
+ * ADDED with item 6 of the pre-push fix pass (the claim set moved from `useState` to an explicit, justified ref): under
+ * StrictMode the join and the review bind still happen once each. ⚠️ Characterization, not proof of the guard: StrictMode
+ * replays effects only at mount, where no join is yet due, so these pass with the guard removed. A replay of an effect
+ * against unchanged deps (Fast Refresh) cannot be driven from a test.
+ */
+describe('usePasteMatching — an effect the framework replays', () => {
+    it('⛔ joins a line once under StrictMode', async () => {
+        const { dispatch, markJoined } = setup(jobOf(milkLine(makeParseMatch({ candidates: [OAT] }))), {}, true);
+        await settle();
+
+        expect(appended(dispatch)).toHaveLength(1);
+        expect(markJoined).toHaveBeenCalledOnce();
+        expect(mocks.byFood).toHaveBeenCalledOnce();
+    });
+
+    it('⛔ binds the review’s food once under StrictMode', async () => {
+        const checking = milkLine(makeParseMatch({ state: 'checking', reason: 'awaitingReview', candidates: [OAT] }));
+        const confident = milkLine(makeParseMatch({ reason: 'reviewVerified', candidates: [OAT] }));
+        const { read, dispatch } = setup(jobOf(checking), {}, true);
+        await settle();
+        mocks.byFood.mockClear();
+        dispatch.mockClear();
+
+        read(jobOf(confident));
+        await settle();
+
+        expect(mocks.byFood).toHaveBeenCalledOnce();
+        expect(dispatch.mock.calls.filter(([action]) => action.kind === 'rebindIngredient')).toHaveLength(1);
     });
 });

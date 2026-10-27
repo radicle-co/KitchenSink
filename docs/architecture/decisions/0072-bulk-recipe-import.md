@@ -100,10 +100,11 @@ recipe it created, so a repeated `advance` sees the item as done.
 - **Every imported recipe is checked, public or private** (ADR-0074 §3a). It shows "Checking" to the cook. If every
   part is green it goes straight to the visibility the cook chose; otherwise it waits "In review" for a person. Not
   every import waits for a person (owner confirmation, 2026-10-26). Until it is approved it is
-  visible only to the cook, uses no private slot, and has the same restrictions as a draft (spec 001 FR-003b): no
-  collections, meal plans, cooking mode, shopping lists or AI assistant.
-- **On approval**, a public recipe becomes public, and a private one becomes private and takes its slot (ADR-0073
-  §8, §11).
+  visible only to the cook and has the same restrictions as a draft (spec 001 FR-003b): no collections, meal plans,
+  cooking mode, shopping lists or AI assistant. A public one in review uses no slot. A private one **holds its slot
+  from the save until a person checks it**, and the screens say so (owner ruling, 2026-10-26, ADR-0073 §11).
+- **On approval**, a public recipe becomes public, and a private one simply stays private, in the slot it already
+  holds.
 - Because the save publishes, the recipe records its first version then (ADR-0058).
 - The import still binds nothing in the background and never chooses a visibility for the cook.
 - **This is bulk import only.** The single-recipe imports (a link, a paste, a video) are unchanged.
@@ -251,11 +252,12 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   paid-site recipes included. A Premium cook has no limit. A free cook keeps a book or paid-site recipe private only
   while a slot is free. An `imported_public` recipe still goes private only with Premium and a substantive edit, so
   slots never apply to it.
-- **When a free cook runs out of slots, the import pauses** (ADR-0073 §8). The count includes the cook's private
-  recipes still in review, as claims on a slot, so an approval never pushes a free cook past 50. When the private
-  items left exceed the free slots, it saves no more private items and warns the cook. The cook chooses to stop
-  there, or to make the rest public after one list and one confirmation. A book or paid-site item can never go
-  public, so for it the choice is skip or stop. The pause is derived from the live count, and the cook's choice is
+- **When a free cook runs out of slots, the import pauses** (ADR-0073 §8). The ordinary slot count already includes
+  the cook's private recipes in review, because each holds its slot. When the private items left exceed the free
+  slots, it saves no more private items and warns the cook. The cook chooses to stop there, or to make the rest
+  public: one list of the remaining recipes with their sources, which the cook may untick, and one confirmation that
+  records a separate statement for each recipe. A book or paid-site item can never go public, so for it the choice is
+  skip or stop. The pause is derived from the live count, and the cook's choice is
   stored on the item.
 - **Counsel confirms the statement's wording before launch**, both forms included. It is on 016 FR-050's list.
 - **A cook who chooses Private for a public web recipe is refused on a fresh import.** `imported_public` goes
@@ -351,8 +353,8 @@ is reached, this path does not wait for the budget to return.
 - Set the provenance label from the per-recipe statement (§9), and store the statement and citation with the
   recipe.
 - Give `bindingOf` a budget input and build the "to check" list (§10).
-- Build the out-of-slots pause, counting private recipes in review as claims, and take the slot lock on each private
-  save (§9, ADR-0073 §5 and §8). Save every item published, never as a draft (§3).
+- Build the out-of-slots pause and take the slot lock on each private save, so a private recipe holds its slot from
+  the save (§9, ADR-0073 §5 and §8). Save every item published, never as a draft (§3).
 
 ## Related work
 

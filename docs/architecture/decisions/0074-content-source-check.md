@@ -31,7 +31,8 @@ The owner ruled on 2026-10-26, in four rounds:
       approved it. A green is never passed along (ruling 2).
     - Another cook's private recipe is never disclosed (ruling 3).
     - A private recipe is donated at erasure only if it passes (ruling 4).
-- Fifth round: a recipe in review uses no slot and is neither public nor private; the donation deadline is 14 days;
+- Fifth round: a recipe in review is neither public nor private, and a public one uses no slot (a later ruling the same
+  day: a private bulk-import recipe in review holds its slot); the donation deadline is 14 days;
   no random sampling of green recipes for now; and the strict text rule stands.
 
 The REVIEW found nine High defects in the first design. No test in the first design caught five of them:
@@ -124,13 +125,14 @@ owner's rulings, as the coordinator relayed them the same day.
 **Bulk imports are checked whatever their visibility** (owner ruling, 2026-10-26, ADR-0072 §3). After the cook's match
 review, each imported recipe is saved published with the visibility the cook chose. It goes straight to that
 visibility when every part is green, and waits in review for a person otherwise, private ones included. A recipe in
-review, of either visibility, uses no slot and has a draft's restrictions (spec 001 FR-003b). On approval a private
-one takes its slot. "In review" is therefore defined by the check row, not by the stored visibility, and it is one
-exported predicate, `IN_REVIEW_SQL`, beside `SOURCE_CHECK_ALLOWS_SQL`. ADR-0073's slot count, the import's slot
-claims and every feature gate read it. An imported recipe stays subject to review until its content is first
+review, of either visibility, has a draft's restrictions (spec 001 FR-003b). A public one in review uses no slot. A
+private one holds its slot from the save until a person checks it (owner ruling, 2026-10-26, ADR-0073 §11), so the
+ordinary slot count already counts it. "In review" is defined by the check row, not by the stored visibility, and it
+is one exported predicate, `IN_REVIEW_SQL`, beside `SOURCE_CHECK_ALLOWS_SQL`. The cook-facing state, the pickers and
+every feature gate read it. An imported recipe stays subject to review until its content is first
 approved, so switching visibility or a trip through Draft cannot skip it. Recipes a cook makes private in the editor
 are still not checked. A book or paid-site import goes straight to private, with no check, because its statement
-already names the source and it can never be public; that reading is flagged for the owner.
+already names the source and it can never be public (owner ruling, 2026-10-26).
 
 So a recipe leaves review only by approval, by a decision that makes it private and costs a slot, by the cook's own
 move to Private or Draft, or by deletion. A draft uses no slot, but it can be used for nothing except editing (owner

@@ -251,7 +251,7 @@ FR-044a.
 | 004                  | `004-FR-014a` amended (spec FR-040). 020 builds the rightsholder list first, as the one table 004's D-004 blocklist also uses                                                                                                                                                                                                                                                              |
 | 016                  | Decision and referral rows live in the recipe database (research R-13). Referrals appear in 016's reviewer queue (`016-FR-053a`), reached only through its review scope (`016-FR-053g`), granted to staff only. 016's statement **delivery** is generalised to take a 020 decision. Its `notice_decisions` table is not. Out of Scope, Assumptions and counsel items amended (spec FR-041) |
 | ADR-0072             | Readiness waits only for the rule-based detectors on items headed public (spec FR-043). Every item that is not `detected` saves as a draft, and its AI check runs after the save. The import still never publishes                                                                                                                                                                         |
-| ADR-0073             | Amended (§11). A recipe in review uses no slot. Not approved moves it to private, over the limit if need be. A `detected` save with no free slot is refused. A move from review to Private needs a free slot (research R-15)                                                                                                                                                               |
+| ADR-0073             | Amended (§11). A public recipe in review uses no slot; a private one holds its slot. Not approved moves it to private, over the limit if need be. A `detected` save with no free slot is refused. A move from review to Private needs a free slot (research R-15)                                                                                                                          |
 | ADR-0024             | New call site, same pool, same grantee. §3 gains a second path that does not retry a denial. §4c names `SPEND_CALL_SITES`. Layer 4b records the photo read scoped by `lambda:SourceFunctionArn`. Layer-2 guard widened, worst-case reservation for photos                                                                                                                                  |
 | ADR-0027             | A third erasure verdict: time-boxed legal retention, with `purge_after`, for decision rows                                                                                                                                                                                                                                                                                                 |
 | ADR-0039             | Table policy: the switch ledger is a `dictionary` table; markers and source decisions use a new `retireOnly` class                                                                                                                                                                                                                                                                         |
@@ -274,7 +274,8 @@ Amended in place with it:
   citation (spec FR-015a, FR-044). Today `source` exists on create only, so without this amendment "change your
   statement" has no route.
 - **ADR-0072 §7**: readiness waits only for the rule-based detectors on items headed public (spec FR-043).
-- **ADR-0073** §11: in review uses no slot, and not approved becomes private (research R-15).
+- **ADR-0073** §11: a public recipe in review uses no slot, a private one holds its slot, and not approved becomes
+  private (research R-15).
 
 ## Delivery slices
 
@@ -303,7 +304,8 @@ in spec FR-047.
 
 A fifth round the same day answered the rest (spec Clarifications):
 
-- **In review uses no slot and is neither public nor private.** Not approved ends review and makes the recipe the
+- **In review is neither public nor private.** A public one uses no slot; a private bulk import holds its slot (eighth
+  round). Not approved ends review and makes the recipe the
   cook's private recipe, even over the limit. This resolves ADR-0073's open question (research R-15).
 - **The donation deadline is 14 days.**
 - **No random sampling of green recipes for now.** The residual is accepted.
@@ -317,11 +319,6 @@ editing (`001-FR-003b`), which closes the Draft path.
 
 **Still open**:
 
-- **The bulk import slot pause** (ADR-0073 §8), for the owner. The default reading counts private recipes in review
-  as claims, and pauses with stop or "make the rest public after one list and one confirmation". The first ruling
-  asked for one confirmation per recipe, so the owner confirms which.
-- **Book and paid-site imports skip the check**, a reading of the owner's ruling, for the owner to confirm (spec
-  FR-003b).
 - **Reviewing private imports costs model spend and staff time** on content nobody else sees (research R-15).
 - The counsel items of spec FR-041.
 

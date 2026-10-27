@@ -17,6 +17,7 @@ sourceCheck: null                         // only when the current digest has no
            | {
                contentDigest: string      // the digest this state belongs to (opaque to clients)
                cookState: 'checking' | 'public' | 'inReview' | 'notApproved'   // spec FR-014a
+               holdsSlot: boolean         // inReview and private: "holds a slot until a person checks it" (ADR-0073 §11)
                publiclyVisible: boolean   // the read rule's answer for this recipe now
                evidence: Array<{          // only when cookState is 'notApproved' by the rules (detected); else []
                  field: 'title' | 'description' | 'tags' | 'ingredient' | 'step' | 'citation'

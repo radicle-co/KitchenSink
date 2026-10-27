@@ -397,7 +397,7 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   A late verdict never replaces a cook's pick; the client keeps it. Do not match in the parse worker.
 - **ADR-0072 — bulk import lives at `/api/v1/import`, and the client drives it.** Each `advance` call does a bounded
   step as the cook; nothing matches or binds in the background. Each recipe is saved once, published with the cook's chosen visibility, and checked
-  whatever its visibility; it waits in review, using no slot, unless all green (ADR-0074).
+  whatever its visibility; it waits in review unless all green, and a private one holds its slot meanwhile (ADR-0074).
   `ingredients.bound_by` records who bound each line. Bulk import has its own allowance of 1,000 recipes a rolling day,
   separate from paste's 200. Each recipe carries its own statement ("I wrote this", or "From a source" with a
   citation), and the statement sets the label, `imported_public` included, as the one exception to ADR-0023's curator
@@ -414,7 +414,8 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   save; a model item or photo signal only sends a recipe to a person. The enforcement mode is stamped per outcome and
   never returns to `shadow`. A match counts only through a person's own latest decision, by an ordered table, the
   same-items rule and no passing along. Another cook's private recipe is never disclosed to a cook. A recipe in review
-  is owner-only, labelled "In review", and uses no private slot; a person's decision always ends review, and "not
+  is owner-only and labelled "In review"; a public one uses no slot and a private one holds its slot until a person
+  checks it; a person's decision always ends review, and "not
   approved" makes it the cook's private recipe (ADR-0073 §11). A rejection gives one fixed reason and the reviewer's
   note; `notYours` is offered only for a public match. A draft uses no slot and can be used for nothing but editing
   (ADR-0073 §12).

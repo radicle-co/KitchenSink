@@ -104,21 +104,21 @@ The owner's rulings set what happens next:
 
 ### Words used in this spec
 
-| Word                 | Meaning                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Source check**     | The automated check this feature adds. We never call it a "review". The review gate (ADR-0071) and the review wizard (ADR-0072) use that word                                         |
-| **Checked content**  | What the check reads: title, description, tags, ingredient lines as written, steps, text taken from a photo by OCR, and the photos the cook uploaded                                  |
-| **Evidence**         | One thing the check found: its kind, where it is in the recipe, and whether code proved it                                                                                            |
-| **Outcome**          | The result for one recipe and one version of its checked content: `clear`, `possible`, `detected` or `unchecked`. It depends on the evidence and on the recipe's label and citation   |
-| **Publication hold** | The fact that a recipe cannot be publicly visible now, because of its outcome. It is separate from the label, and a person can lift it. The cook sees it as "Checking" or "In review" |
-| **Checking**         | The short state after a publish, before the outcome is revealed. Visible only to the cook                                                                                             |
-| **In review**        | A recipe the cook wants public that waits for a person. Owner-only, neither public nor private, and it uses no private slot (FR-014a)                                                 |
-| **Not approved**     | A recipe the rules blocked, or that a person did not approve. It becomes the cook's private recipe and is never published with that content (FR-014a)                                 |
-| **Referral**         | A recipe sent to a person to decide: automatically for `possible` and `unchecked`, or by the cook's appeal                                                                            |
-| **Appeal**           | The cook asking a person to decide on a hold                                                                                                                                          |
-| **Match**            | A recipe or a source in our own database that the lookup found for this recipe, with what a person decided about it (section J)                                                       |
-| **Enforcement mode** | `shadow`, `blocking` or `paused`. It is stamped on each outcome when the recipe is first headed for public view with that content (FR-019)                                            |
-| **Donation**         | At account erasure, a cook may elect recipes to leave behind as public. A donated recipe passes the same check (FR-018a)                                                              |
+| Word                 | Meaning                                                                                                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Source check**     | The automated check this feature adds. We never call it a "review". The review gate (ADR-0071) and the review wizard (ADR-0072) use that word                                                                          |
+| **Checked content**  | What the check reads: title, description, tags, ingredient lines as written, steps, text taken from a photo by OCR, and the photos the cook uploaded                                                                   |
+| **Evidence**         | One thing the check found: its kind, where it is in the recipe, and whether code proved it                                                                                                                             |
+| **Outcome**          | The result for one recipe and one version of its checked content: `clear`, `possible`, `detected` or `unchecked`. It depends on the evidence and on the recipe's label and citation                                    |
+| **Publication hold** | The fact that a recipe cannot be publicly visible now, because of its outcome. It is separate from the label, and a person can lift it. The cook sees it as "Checking" or "In review"                                  |
+| **Checking**         | The short state after a publish, before the outcome is revealed. Visible only to the cook                                                                                                                              |
+| **In review**        | A recipe that waits for a person: one the cook wants public, or any bulk import. Owner-only and neither public nor private. A public one uses no slot; a private one holds its slot until a person checks it (FR-014a) |
+| **Not approved**     | A recipe the rules blocked, or that a person did not approve. It becomes the cook's private recipe and is never published with that content (FR-014a)                                                                  |
+| **Referral**         | A recipe sent to a person to decide: automatically for `possible` and `unchecked`, or by the cook's appeal                                                                                                             |
+| **Appeal**           | The cook asking a person to decide on a hold                                                                                                                                                                           |
+| **Match**            | A recipe or a source in our own database that the lookup found for this recipe, with what a person decided about it (section J)                                                                                        |
+| **Enforcement mode** | `shadow`, `blocking` or `paused`. It is stamped on each outcome when the recipe is first headed for public view with that content (FR-019)                                                                             |
+| **Donation**         | At account erasure, a cook may elect recipes to leave behind as public. A donated recipe passes the same check (FR-018a)                                                                                               |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -161,17 +161,19 @@ A free cook imports 300 recipes from another app, some chosen public and some pr
 matches and give its statement. Then each recipe is saved published, with the visibility they chose, and checked. The
 rule-based detectors find four that are from a book: those are not saved, and each can be kept private (it is then
 "not approved"), skipped, or the import stopped. Most of the rest are all green and go straight to public or private.
-Eleven are not, and sit "In review" for a person. Until a recipe is approved it is visible only to the cook, uses no
-private slot, and cannot be added to a collection, a meal plan or a shopping list. Their private slots run short
-part-way through, so the import pauses, and they choose to make the rest public after one list and one confirmation.
+Eleven are not, and sit "In review" for a person. Until a recipe is approved it is visible only to the cook and cannot
+be added to a collection, a meal plan or a shopping list. A public one in review uses no slot. A private one holds its
+slot until a person checks it, and the screen says so. Their private slots run short part-way through, so the import
+pauses. They choose to make the rest public: one list of the remaining recipes with their sources, two unticked, and
+one confirmation that records a statement for each.
 
 **Why this priority**: The owner named this case. Bulk import is where the volume is, and the owner ruled that every
 imported recipe, public or private, is checked and sits in review until it is approved.
 
 **Independent Test**: Run a bulk import for a free cook with few slots left, mixing public and private items, items
 with blocking evidence, items with weak signs and clean items. Blocked items are never saved as public. Clean items go
-straight to their chosen visibility. Unsure items, public or private, wait in review, use no slot and cannot be used.
-The import pauses before approvals could push the cook past 50.
+straight to their chosen visibility. Unsure items, public or private, wait in review and cannot be used. Public ones
+in review use no slot; private ones hold theirs. The import pauses before private items could pass 50.
 
 **Acceptance Scenarios**:
 
@@ -182,13 +184,15 @@ The import pauses before approvals could push the cook past 50.
 3. **Given** an item that is not `detected`, **When** it is saved, **Then** it is saved published with the chosen
    visibility, shows "Checking" to the cook, and goes straight to that visibility if every part is green, or to "In
    review" otherwise. This holds for private items too (FR-003b, FR-024a).
-4. **Given** a recipe in review from an import, public or private, **When** the cook looks at their library, **Then**
-   it is labelled "In review", uses no private slot, and cannot be added to a collection, a meal plan, a shopping list,
-   cooking mode or the AI assistant (`001-FR-003b`).
-5. **Given** a free cook whose private items left would exceed their free slots, counting private recipes already in
-   review as claims, **When** the import reaches the next private item, **Then** it pauses, and the cook can stop
-   there, or make the rest public after one list and one confirmation. A book or paid-site item can only be skipped or
-   the import stopped (ADR-0073 §8).
+4. **Given** a recipe in review from an import, **When** the cook looks at their library, **Then** it is labelled "In
+   review" and cannot be added to a collection, a meal plan, a shopping list, cooking mode or the AI assistant
+   (`001-FR-003b`). If it is public it uses no slot. If it is private it holds a slot, and the screen says it "holds a
+   slot until a person checks it".
+5. **Given** a free cook whose private items left would exceed their free slots, counting the private recipes they
+   already hold in review, **When** the import reaches the next private item, **Then** it pauses. The cook can stop
+   there, or make the rest public: one list of the remaining recipes with their sources, which they may untick, and one
+   confirmation that records a separate statement for each recipe. A book or paid-site item can only be skipped or the
+   import stopped (ADR-0073 §8).
 6. **Given** a recipe without its statement, **When** the import reaches it, **Then** it stays in the import under
    "Needs your statement", uses no slot, is not saved to the library and cannot be published until the cook gives the
    statement (ADR-0072 §9).
@@ -608,18 +612,30 @@ The owner ruled the same day, quoted as the coordinator relayed it:
   setting the user chose when they started the upload and sits in review and not visible (except to the user) until
   they are approved (while review is private it is not a private slot since users can't share or add private recipes
   to collections or use the recipe with meal planning, cooking mode, shopping lists, and all other features - like
-  drafts)." So every imported recipe, public or private, is checked; a recipe in review uses no slot and has a
-  draft's restrictions; on approval a public recipe becomes public and a private one becomes private and takes its
-  slot (FR-003b, FR-024a). Editor-made private recipes are still not checked.
+  drafts)." So every imported recipe, public or private, is checked, and a recipe in review has a draft's
+  restrictions (FR-003b, FR-024a). The eighth round settled slots: a public one in review uses no slot, and a private
+  one holds its slot until a person checks it. Editor-made private recipes are still not checked.
 - The owner confirmed that an imported recipe goes straight to its chosen visibility when every part is green, and
   waits in review for a person otherwise. Not every import waits for a person.
 - A recipe without its statement stays in the import under "Needs your statement", uses no slot, cannot be published
   until the statement is given, and is purged 30 days after the import ends (FR-024b).
-- **The slot gap**, the coordinator's reading, recorded as the default and flagged for the owner: the import's slot
-  check counts private recipes in review as claims, pauses with stop or "make the rest public after one list and one
-  confirmation", and an approval that still finds no free slot goes private over the limit (FR-025a).
+- **The slot gap** was first recorded as the coordinator's reading; the next round ruled it (below).
 - Setting a published recipe back to draft removes it from meal plans and collections after a confirmation that names
   the counts; shopping-list items stay as plain ingredients (`001-FR-003b`).
+
+### Session 2026-10-26 (eighth round: slots in review and the one confirmation)
+
+The owner ruled on the flags the same day, quoted as the coordinator relayed them:
+
+- **Slots.** A PRIVATE imported recipe in review holds a slot until a person checks it, and the screens say so ("holds
+  a slot until a person checks it"). A PUBLIC one in review uses no slot. The import pauses when private recipes would
+  exceed free slots, counting private ones in review. An approval that finds no free slot can then only happen through
+  a race, which keeps "private over the limit" (FR-003b, FR-025a).
+- **The one confirmation.** "Make the rest public" is ONE list of the remaining recipes with their sources and ONE
+  confirmation that records a separate statement per recipe. The cook can untick any first (FR-025a, ADR-0073 §8).
+- **The other readings stand.** Book and paid-site imports skip the check and go straight to private. Review cannot be
+  skipped by switching visibility or by Draft. An edit back into review keeps plan and collection places, marked In
+  review and unusable.
 
 ## Requirements _(mandatory)_
 
@@ -645,15 +661,16 @@ The owner ruled the same day, quoted as the coordinator relayed it:
 - **FR-003b**: **Every bulk-imported recipe is checked, public or private** (owner ruling, 2026-10-26). After the
   cook's match review it is saved published, with the visibility the cook chose when the upload started (ADR-0072 §3).
   It shows "Checking", then goes straight to that visibility if every part is green, or waits "In review" for a person.
-  On approval a public recipe becomes public, and a private one becomes private and takes its slot.
-    - Until it is approved it is visible only to the cook, uses no private slot, and has the same restrictions as a
-      draft (`001-FR-003b`).
+  On approval a public recipe becomes public, and a private one stays private.
+    - Until it is approved it is visible only to the cook and has the same restrictions as a draft (`001-FR-003b`). A
+      public one uses no slot. A private one holds its slot from the save until a person checks it, and the screens
+      say so (owner ruling, 2026-10-26).
     - It stays subject to review until its content is first approved: switching its visibility while it is in review
       does not end review, and a trip through Draft does not either. Its next publish is checked again, private or
       public. After its content is approved, it follows the editor's rules like any other recipe.
     - A book or paid-site import (`imported_physical`, `imported_paid`) states its own source and can never be public,
       so the check has nothing to decide for it. It goes straight to private and takes its slot, with no model call and
-      no person. This is a reading of the owner's ruling, flagged for the owner.
+      no person (owner ruling, 2026-10-26).
     - The single-recipe imports (a link, a paste, a video) are unchanged.
 - **FR-003a**: A recipe whose provenance was declared under the curator grant (ADR-0023 §1) MUST be checked and
   reviewed like any other. The grant MUST NOT count as a person's review, and MUST NOT clear any outcome (owner ruling,
@@ -797,8 +814,9 @@ The owner ruled the same day, quoted as the coordinator relayed it:
       the recipe.
     - **Public**: the outcome allows it (all green, or a person approved it).
     - **In review**: the cook wants it public, or it is a bulk-imported recipe of either visibility (FR-003b), and a
-      person has not decided yet. It is neither public nor private. Only the cook sees it, labelled "In review", it
-      uses **no** private slot (ADR-0073), and it has the same restrictions as a draft (`001-FR-003b`). A recipe
+      person has not decided yet. It is neither public nor private. Only the cook sees it, labelled "In review", and it
+      has the same restrictions as a draft (`001-FR-003b`). A public one uses **no** slot. A private bulk-import one
+      **holds its slot until a person checks it**, and the screens say so (ADR-0073 §11). A recipe
       already in a collection or meal plan that goes into review after an edit keeps those places, and is shown there
       as "In review" and cannot be used until approved. Nothing the cook made is removed by a review.
     - **Not approved**: the rules blocked it (`detected`), or a person did not approve it, or a person upheld a hold on
@@ -962,12 +980,13 @@ The owner ruled the same day, quoted as the coordinator relayed it:
 - **FR-025**: In a bulk import, a `detected` item MUST NOT be saved as public. The cook MUST be able to keep it private
   (it is then "not approved", and it needs a free slot), skip it, or stop the import. This follows the owner's ruling:
   a recipe known to be from a book or paid site can only be kept private, skipped or stopped, never made public.
-- **FR-025a**: The import's slot pause (ADR-0073 §8, a default reading flagged for the owner) counts the cook's private
-  recipes that hold a slot **plus** their private recipes still in review, as claims, so that an approval never pushes
-  a free cook past 50. When the private items left exceed the free slots, the import pauses, and the cook can stop
-  there, or make the rest public after one list and one confirmation. A book or paid-site item can only be skipped or
-  the import stopped. If approval still finds no free slot, because one was used meanwhile, the recipe becomes private
-  over the limit, as after a downgrade.
+- **FR-025a**: **The import's slot pause** (owner rulings, 2026-10-26, ADR-0073 §8). A private import takes its slot
+  at the save and holds it while in review, so the ordinary slot count already includes the cook's private recipes in
+  review. When the private items left exceed the free slots, the import pauses. The cook can stop there, or make the
+  rest public: **one list** of the remaining recipes with their sources, which the cook may untick, and **one
+  confirmation** that records a separate statement for each recipe left ticked. A book or paid-site item can only be
+  skipped or the import stopped. An approval takes no new slot, so a recipe without a free slot can only come from a
+  race; it then stays private over the limit, as after a downgrade.
 
 #### F. People, referrals, appeals and statements of reasons
 
@@ -1370,9 +1389,11 @@ The owner ruled the same day, quoted as the coordinator relayed it:
 
 - **ADR-0073 owns the slot rule.** Free cooks hold up to 50 private recipes. A slot is a private, undeleted recipe,
   counted live. 020 does not own it and only reads it.
-- **A recipe in review uses no slot, and a not-approved one does** (owner ruling, 2026-10-26). ADR-0073 counts
-  `visibility = 'private'` only. A recipe in review keeps its stored `public` visibility and is hidden by the read rule,
-  so it uses no slot. A decision moves it to `private`, so it counts.
+- **A public recipe in review uses no slot; a private one holds its slot; a not-approved one is private** (owner
+  rulings, 2026-10-26). ADR-0073 counts private, published, undeleted recipes. A public recipe in review keeps its
+  stored `public` visibility and is hidden by the read rule, so it uses no slot. A private bulk-import recipe in review
+  is private and published, so it holds its slot. A decision that does not approve a public recipe moves it to
+  `private`, so it counts.
 - **The Draft path is closed** (owner ruling, 2026-10-26, `001-FR-003b`). A cook can move a recipe from In review
   back to Draft, and a draft uses no slot. But a draft cannot be used in meal planning, collections, the planned AI
   assistant, cooking mode or a shopping list, and opening it opens the editor. So a draft is not a free private store.

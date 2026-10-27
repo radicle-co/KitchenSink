@@ -15,7 +15,7 @@ sourceFlag: 'needsStatement' // no per-recipe statement yet: held in the import,
           | 'notChecked'     // a book or paid-site item: it goes straight to private (spec FR-003b)
           | 'checking'       // saved published; the AI check runs after the save
           | 'approved'       // every part green, or a person approved it: now public or private as chosen
-          | 'inReview'       // waits for a person; owner-only, no slot, draft restrictions (001-FR-003b)
+          | 'inReview'       // waits for a person; owner-only, draft restrictions (001-FR-003b); private holds a slot
           | 'notApproved'    // the rules or a person did not approve it; it is the cook's private recipe
           | 'detected'       // the rules blocked it before the save; choices below
 sourceChoices: Array<'keepPrivate' | 'skip'>   // empty unless the item is detected
@@ -43,12 +43,16 @@ FR-010, FR-047). So it cannot change whether an item is saved. It runs in the wo
 save, keyed by the saved recipe's id (spec FR-053). This is also what owner ruling 3 needs: the lookup never runs in a
 request.
 
-## The slot pause (ADR-0073 §8, a default reading flagged for the owner)
+## The slot pause (owner rulings, 2026-10-26, ADR-0073 §8)
 
-When `advance` reaches a private item, it counts under ADR-0073's lock: the cook's private recipes that hold a slot,
-plus their private recipes still in review, which are claims on a slot. With no free slot left on that count, the
-import pauses and reports `used` and `limit`. The cook chooses to stop, or to make the rest public after one list and
-one confirmation. A book or paid-site item can only be skipped, or the import stopped.
+A private import takes its slot at the save, under ADR-0073's lock, and holds it while it is in review. So the
+ordinary slot count already includes the cook's private recipes in review. When `advance` reaches a private item and no
+slot is free on that count, the import pauses and reports `used` and `limit`. The cook chooses:
+
+- **Stop.** Items already saved stay.
+- **Make the rest public.** One list of the remaining recipes with their sources, which the cook may untick, and one
+  confirmation that records a separate statement for each recipe left ticked.
+- **Skip**, for a book or paid-site item, which can only be skipped or the import stopped.
 
 ## Recording the cook's choice
 

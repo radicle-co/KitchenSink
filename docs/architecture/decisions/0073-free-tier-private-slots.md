@@ -53,9 +53,10 @@ while the cook had Premium. **Status matters: a draft holds no slot** (owner rul
 condition holds for every used slot: `status = 'published'`. The existing index serves it, because a cook's own rows
 are few.
 
-**A recipe in review holds no slot either** (owner ruling, 2026-10-26, §11). A private recipe from a bulk import is
-published but waits in review until approved, so a fifth condition holds: the recipe is not in review. That is the
-content source check's `IN_REVIEW_SQL` (ADR-0074 §1), the one exported definition of "in review", never a second copy.
+**A private recipe in review holds its slot** (owner ruling, 2026-10-26, §11). A private recipe from a bulk import is
+saved published and waits in review until a person checks it. It is private and published, so the four conditions
+already count it, and no fifth condition is needed. A **public** recipe in review is stored `public`, so it holds no
+slot. The screens say so: a private recipe in review "holds a slot until a person checks it".
 
 **The count is a live `COUNT(*)` over those rows.** It is never a stored counter. A counter is a second copy of a
 fact that the `recipes` table already holds. Each path that writes a recipe must then keep the counter in step: create,
@@ -70,8 +71,8 @@ The slot fact matters only on a move **to** private. These are the moves:
 - A published recipe set to private by the set-visibility endpoint.
 - A private draft published, which is how a private clone or an owner's own copy comes to hold a slot (§12). Saving
   either as a draft never checks slots.
-- A private bulk-import recipe approved after review (§8, §11). The import's own count already left room for it, and
-  if a slot was used meanwhile the approval never refuses: the cook is over the limit, as after a downgrade (§4).
+- A private bulk-import recipe saved after the cook's match review (§8). It takes its slot at the save, under the
+  lock, and keeps it while it is in review. Approval takes no new slot.
 
 Editing a recipe that is already private never checks slots. Making a recipe public never checks slots. It frees one.
 When the live count is below the limit, a free cook has a free slot.
@@ -150,29 +151,25 @@ compile until it decides what the fact is. With a default, a site can keep the o
 
 This extends ADR-0072 §9.
 
-Owner ruling, 2026-10-26: bulk import saves every recipe **published**, with the visibility the cook chose, and each
-waits in review until it is approved (ADR-0072 §3). A private recipe in review holds no slot (§2), and takes one on
-approval. So the import counts slots differently from everywhere else, so that an approval never pushes a free cook
-past 50.
+Owner rulings, 2026-10-26: bulk import saves every recipe **published**, with the visibility the cook chose, and each
+waits in review unless every part is green (ADR-0072 §3). A private one holds its slot from the save, in review or not
+(§2), so the import counts slots the ordinary way.
 
-**Default reading, recorded for the owner to confirm** (relayed by the coordinator):
-
-- When `advance` reaches an item the cook chose to keep private, it counts under the lock (§5): the cook's private
-  recipes that hold a slot, **plus** their private recipes still in review, which are claims on a slot. If that count
-  leaves no free slot, it does not save that item or any later private item. It still saves items chosen public.
+- When `advance` reaches an item the cook chose to keep private, it counts slots under the lock (§5). That count
+  already includes the cook's private recipes in review. If no slot is free, it does not save that item or any later
+  private item. It still saves items chosen public.
 - The import view reports the pause, with `used` and `limit`. The pause is **derived** from the live count on each
   read, never stored. If the cook frees slots (by deleting a recipe or making one public), the next `advance` goes on.
 - The cook chooses:
     - **Stop here.** The import ends. Items already saved stay. The rest are not saved.
     - **Make the rest public.** Only items whose label allows public (`user_created` and `imported_public`). The cook
-      sees one list of those recipes, each with its own statement, and confirms once. Each recipe still carries its
-      own statement from the upload, so the per-recipe attestation of 004 FR-014a stands. (The first ruling asked for
-      one confirmation per recipe. The coordinator's reading is one list and one confirmation, and the owner
-      confirms which.)
+      sees **one list** of the remaining recipes, each with its source, may untick any of them, and confirms **once**.
+      That one confirmation records a separate statement for each recipe left ticked, so the per-recipe attestation of
+      004 FR-014a stands. An unticked recipe is not saved.
     - **Skip.** For a book or paid-site item. It can never go public, so the only choices for it are skip or stop.
-- **If approval still finds no free slot**, because the cook used one meanwhile in the editor, the recipe becomes
-  private anyway and the cook is over the limit, as after a downgrade (§4). The claim count is used only by the
-  import, so the editor can still use a slot that an import is counting on.
+- **A race.** Because the slot is taken at the save, an approval never needs a new one. If a race ever leaves a
+  private recipe without a free slot (two private writes, one slipping past the lock), it stays private and the cook
+  is over the limit, as after a downgrade (§4).
 - The cook's choice is stored on the item, the way the wizard's choices are, so `advance` stays safe to repeat.
 - A Premium cook never pauses for slots.
 - This pause is separate from the daily allowance pause (`IMPORT_QUOTA_EXCEEDED`, ADR-0072 §8). An import can be in
@@ -199,16 +196,17 @@ a private `user_created` recipe, privacy no longer means Premium. The badge then
   Premium.
 - It is still derived on read, in one place, and it changes in the same commit as the policy.
 
-### 11. A recipe in review uses no slot, and a recipe not approved becomes private
+### 11. A public recipe in review uses no slot, a private one holds its slot, and a recipe not approved becomes private
 
 Owner ruling, 2026-10-26: "The review process does not take a slot and doesn't become visible as public or private
 until it's been approved. While it's in review it is labeled as such." The content source check (ADR-0074 §3a) holds
 some recipes for a person to review.
 
-- **In review uses no slot.** For a public recipe its stored visibility stays `public` and the read rule hides it. For
-  a private bulk-import recipe in review, §2's fifth condition leaves it out of the count. On approval it takes its
-  slot. A recipe in review has the same restrictions as a draft (§12): no collections, meal plans, cooking mode,
-  shopping lists or AI assistant.
+- **A public recipe in review uses no slot.** Its stored visibility stays `public` and the read rule hides it.
+- **A private bulk-import recipe in review holds a slot until a person checks it** (owner ruling, 2026-10-26). It took
+  the slot at the save, and the screens say so. On approval it simply stays private.
+- A recipe in review, of either visibility, has the same restrictions as a draft (§12): no collections, meal plans,
+  cooking mode, shopping lists or AI assistant.
 - **Not approved becomes private, and uses a slot.** When the rules block a save, or a person does not approve a
   recipe, it moves to `private` in the same transaction, under this ADR's lock. A person's decision never refuses: a
   free cook with no free slot is then over the limit, exactly as after a downgrade (§4). They keep every recipe and
@@ -323,6 +321,7 @@ cook holds a recipe whose slot status this changes.
 - **Making recipes public on a downgrade.** It publishes content the cook chose to keep private, on a billing event.
 - **Making a book or paid-site item public as a way out of the pause.** FR-014a's own rule forbids it. Such a
   recipe can never go public.
-- **One confirmation for "make the rest public".** One statement for many recipes is not the per-recipe attestation
-  FR-014a requires.
+- **One statement for all of "make the rest public".** One statement for many recipes is not the per-recipe
+  attestation FR-014a requires. The chosen form is one list and one confirmation that records a separate statement for
+  each recipe (§8).
 - **Waiting for 015's earning rules.** The owner ruled that the 50 ships now and earning adds later.

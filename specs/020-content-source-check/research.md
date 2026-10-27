@@ -392,7 +392,8 @@ been approved. While it's in review it is labeled as such."
 
 - **In review** is a derived state, not a new visibility value. The stored visibility keeps what the cook asked for
   (`public`), the read rule hides the recipe, and the cook sees "In review". ADR-0073 counts `visibility = 'private'`
-  only, so a recipe in review uses no slot, as the owner ruled. This keeps ADR-0074's "the hold lives in the read rule"
+  only, so a public recipe in review uses no slot, as the owner ruled. A private bulk-import recipe in review is
+  stored `private`, so it holds its slot until a person checks it (owner ruling, eighth round). This keeps ADR-0074's "the hold lives in the read rule"
   design: nothing in the ruling needs a new enum value, and a new value would be a one-way door on a wire enum that
   installed clients switch over.
 - **Not approved** ends review. The rules blocking a save, a person's non-approval, and an upheld appeal each move the
@@ -409,8 +410,8 @@ been approved. While it's in review it is labeled as such."
   through Draft. So review always reaches a person's decision, and it cannot become a free private store.
 
 **Private bulk imports are reviewed too** (owner ruling, 2026-10-26). Every imported recipe, public or private, is
-saved published and checked. A private one in review is defined by its check row, not its visibility, so ADR-0073's
-count leaves it out through `IN_REVIEW_SQL`. The cost is real and accepted by the ruling: private recipes now reach
+saved published and checked. A private one in review is defined by its check row, not its visibility, and it holds
+its slot until a person checks it (owner ruling, 2026-10-26), so ADR-0073's ordinary count already includes it. The cost is real and accepted by the ruling: private recipes now reach
 the model and, when not green, a person, which 016 finding 1 had avoided for the editor path. Editor-made private
 recipes are still not checked.
 

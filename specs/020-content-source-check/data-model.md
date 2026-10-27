@@ -201,9 +201,9 @@ CREATE INDEX recipe_source_checks_budget ON recipe_source_checks (budget_period)
   or `notApproved` (or `draft` and `private` as today). "In review" is a published recipe whose current digest has an
   `enforced = true` row that does not allow it and that no decision has ended (`review_ended_at IS NULL`). Its stored
   visibility is what the cook asked for: `public`, or `private` for a bulk-import recipe (spec FR-003b). It needs no new
-  visibility value. A public one is hidden by the read rule. A private one is owner-only anyway, and ADR-0073 §2 leaves
-  it out of the slot count through `IN_REVIEW_SQL` (section 8). Either way it uses no slot (owner ruling: review does
-  not take a slot), and it has the same restrictions as a draft (`001-FR-003b`).
+  visibility value. A public one is hidden by the read rule and uses no slot. A private one is owner-only anyway, and it
+  **holds its slot** from the save until a person checks it, because ADR-0073 §2 counts every private, published
+  recipe (owner ruling, 2026-10-26). Either way it has the same restrictions as a draft (`001-FR-003b`).
 - **Not approved moves the recipe to private.** A `detected` save (with a free slot), a reviewer's `referralNotApproved`
   and an `appealUpheld` each set `recipes.visibility = 'private'` in the same transaction as the decision, under
   ADR-0073's per-user lock. For a person's decision the move never refuses: with no free slot, the cook is over the
@@ -589,9 +589,10 @@ EXISTS (SELECT 1 FROM recipe_source_checks rsc
               AND rsc.enforced = true AND NOT rsc.allows AND rsc.review_ended_at IS NULL)
     ```
 
-    ADR-0073's slot count uses `NOT IN_REVIEW_SQL`, the bulk import's slot claim count uses it without the `NOT`, and
-    the cook-facing classifier, the pickers and the feature gates (`001-FR-003b`) use it to treat a recipe in review like
-    a draft.
+    The cook-facing classifier, the pickers and the feature gates (`001-FR-003b`) use it to treat a recipe in review
+    like a draft, and the screens use it to say that a private one "holds a slot until a person checks it". ADR-0073's
+    slot count does **not** use it: a private recipe in review holds its slot, so the count of private, published,
+    undeleted recipes is already right.
 
 - A repo guard fails any SQL text outside `holdSpecification.ts` and the writers that reads `recipe_source_checks`
   with `allows`, `enforced` or `review_ended_at`, so a fifth hand-written copy cannot appear (review H6).

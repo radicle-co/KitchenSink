@@ -7,14 +7,12 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
-import { usePressFill } from '@commise/ui/surface-tone';
-import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { SortOptionRow } from '../common/SortOptionRow.native.js';
 import { recipeMessages } from '../messages.js';
 import { LIBRARY_SORTS, sortLabelOf } from './library.js';
 import { type RecipeListSortControl } from './model.js';
@@ -57,7 +55,7 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
                         const chosen = sort === value;
 
                         return (
-                            <SortOption
+                            <SortOptionRow
                                 key={sort}
                                 label={sortLabelOf(sort, list)}
                                 chosen={chosen}
@@ -74,44 +72,6 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
     );
 };
 
-interface SortOptionProps {
-    readonly label: string;
-    readonly chosen: boolean;
-    readonly onChoose: () => void;
-}
-
-/**
- * One radio row of the sort sheet. Its own component, so `usePressFill` reads the surface the SHEET states
- * (`paperOverlay`), not the one the menu was opened from.
- */
-const SortOption: FC<SortOptionProps> = ({ label, chosen, onChoose }) => {
-    const { colors } = useTheme();
-    const pressFill = usePressFill();
-
-    return (
-        <Pressable
-            role="radio"
-            aria-checked={chosen}
-            aria-label={label}
-            onPress={onChoose}
-            style={({ pressed }) => [styles.row, pressed ? { backgroundColor: pressFill } : null]}
-        >
-            <View style={styles.check}>{chosen ? <Icon name="check" size={20} tone="ink" /> : null}</View>
-            <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
-        </Pressable>
-    );
-};
-
 const styles = StyleSheet.create({
     group: { paddingVertical: nativeTokens.spacing[2] },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: nativeTokens.spacing[3],
-        minHeight: 48,
-        paddingHorizontal: nativeTokens.spacing[4],
-        borderRadius: nativeTokens.radius.md,
-    },
-    check: { width: 20, alignItems: 'center' },
-    label: { ...nativeTokens.type.body },
 });

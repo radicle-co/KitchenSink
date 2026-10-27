@@ -32,8 +32,10 @@ import {
     describeRankingQuery,
     describeRankingName,
     foldForRanking,
+    rankingHeadOf,
     rankingKeyOf,
     rankingTokens,
+    replaceBracketedGroups,
     singularizeRankingText,
     singularizeRankingToken,
 } from '../rankingTerms.js';
@@ -282,5 +284,79 @@ describe("describeCatalogName — a root's default terms (ADR-0070 §4)", () => 
 
     it('holds no default keys for a root with no default terms', () => {
         expect(describeCatalogName('1% milk', [], []).defaultKeys).toEqual([]);
+    });
+});
+
+/**
+ * CodeQL js/polynomial-redos on the head reader (rankingTerms.ts). `\([^)]*\)` retried every `(` of a run that has no
+ * `)` after it, scanning to the end each time: quadratic. The scan is now bounded by the LAST `)`. The output must stay
+ * byte-identical, because the SQL mirror `rank_head_of` (migration 0025) is one `regexp_replace` and
+ * `rankingConformance` compares the two.
+ */
+describe('the head reader is linear on adversarial input', () => {
+    const BUDGET_MS = 250;
+
+    it.each([
+        ['an unclosed run of "("', '('.repeat(200_000)],
+        ['an unclosed run of "(" with text after', `${'('.repeat(200_000)} flour`],
+        ['a run of "(" closed once at the very end', `${'('.repeat(200_000)})`],
+        ['a long run of spaces with no " in "', `${' '.repeat(200_000)}i`],
+        ['a long run of " in" with no trailing whitespace', ' in'.repeat(100_000)],
+        ['a long run of mixed whitespace', ' \t\n'.repeat(100_000)],
+    ])('%s completes within budget', (_name, input) => {
+        const started = performance.now();
+
+        rankingHeadOf(input);
+
+        expect(performance.now() - started).toBeLessThan(BUDGET_MS);
+    });
+});
+
+describe('replaceBracketedGroups is byte-identical to the non-nested `\\([^)]*\\)` replacement', () => {
+    const REFERENCE = (text: string): string => text.replace(/\([^)]*\)/g, ' ');
+
+    it.each([
+        '',
+        'flour',
+        'Tamales (Navajo)',
+        'a (b) c (d) e',
+        'a (b c',
+        'a (b (c) d) e',
+        '((x)',
+        '(a(b)c)',
+        ') (',
+        '()',
+        '(',
+        ')',
+        'x (y) z (w',
+        '(a)(b)(c)',
+        'no brackets, only commas',
+        '(\n)\n(',
+        'trailing )',
+        'a) (b) (c',
+    ])('%j', (input) => {
+        expect(replaceBracketedGroups(input)).toBe(REFERENCE(input));
+    });
+
+    it('agrees with the reference over every string of up to 7 characters from "( ) a"', () => {
+        const alphabet = ['(', ')', 'a', ' '];
+        let checked = 0;
+
+        const visit = (prefix: string, depth: number): void => {
+            expect(replaceBracketedGroups(prefix)).toBe(REFERENCE(prefix));
+            checked += 1;
+
+            if (depth === 0) {
+                return;
+            }
+
+            for (const character of alphabet) {
+                visit(prefix + character, depth - 1);
+            }
+        };
+
+        visit('', 7);
+
+        expect(checked).toBeGreaterThan(20_000);
     });
 });

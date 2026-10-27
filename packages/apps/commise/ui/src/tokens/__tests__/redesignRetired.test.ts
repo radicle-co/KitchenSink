@@ -232,9 +232,11 @@ describe('the retired teal-and-sand values', () => {
         ).toEqual([]);
     });
 
+    // Reads the whole app and feature tree: 1.2 s alone, 8.7 s under the full parallel gate, so it gets the 30 s that
+    // `repoGuards`' own tree-scanning suites run under, not vitest's 5 s default.
     it('are not hard-coded, by value or by name, in app or feature source', () => {
         expect(SCANNED.flatMap((root) => scan(join(APPS, root), CODE_FILE, true))).toEqual([]);
-    });
+    }, 30_000);
 
     // Reads another package's shipped content. It FAILS until the design session's fix to that content lands; that is
     // expected and this test is deliberately not skipped.

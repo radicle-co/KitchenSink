@@ -35,7 +35,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { APP_SOURCE_EXCLUDED, appSourceModules, stringLikeTexts } from './appSources.js';
+import { APP_SOURCE_EXCLUDED, appSourceModules, parseModule, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** A Tailwind arbitrary text size: `text-[13px]`, `text-[0.8125rem]`, behind any variant prefix. */
@@ -93,8 +93,7 @@ export function typeScaleLiterals(
     fileName: string,
     source: string,
 ): readonly { readonly line: number; readonly found: string }[] {
-    const kind = /\.tsx$/u.test(fileName) ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-    const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind);
+    const file = parseModule(fileName, source);
     const found: { line: number; found: string }[] = [];
 
     const report = (node: ts.Node, text: string): void => {
@@ -146,13 +145,14 @@ export function typeScaleLiterals(
     visit(file);
 
     // The arbitrary-size class is a string-like node's text, read by the shared reader (`appSources.ts`).
-    for (const { node, text } of stringLikeTexts(fileName, source)) {
+    for (const { line, text } of stringLikeTexts(fileName, source)) {
         if (ARBITRARY_TEXT_SIZE.test(text)) {
-            report(node, (ARBITRARY_TEXT_SIZE.exec(text)?.[0] ?? '').replace(/^[\s"'`:]+/u, ''));
+            found.push({ line, found: (ARBITRARY_TEXT_SIZE.exec(text)?.[0] ?? '').replace(/^[\s"'`:]+/u, '') });
         }
     }
 
-    return found;
+    // Two readings contribute (the syntax tree, then the string-like nodes); `sort` is stable, so one line keeps its order.
+    return found.sort((a, b) => a.line - b.line);
 }
 
 describe('the type-scale literal reader', () => {
@@ -174,6 +174,11 @@ describe('the type-scale literal reader', () => {
         },
         { shape: 'a JSX size attribute', source: `const e = <Text fontSize={13} />;`, found: ['fontSize={13}'] },
         { shape: 'an arbitrary px class', source: `const c = 'flex text-[13px] gap-2';`, found: ['text-[13px]'] },
+        {
+            shape: 'a class before a literal (reported in line order, not by reading)',
+            source: `const c = 'text-[13px]';\nconst s = { fontSize: 11 };\nconst d = 'text-[15px]';`,
+            found: ['text-[13px]', 'fontSize: 11', 'text-[15px]'],
+        },
         { shape: 'an arbitrary rem class', source: 'const c = `text-[0.8125rem] ${x}`;', found: ['text-[0.8125rem]'] },
         { shape: 'a variant arbitrary class', source: `const c = "medium:text-[15px]";`, found: ['text-[15px]'] },
         {

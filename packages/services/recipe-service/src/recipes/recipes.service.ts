@@ -1061,10 +1061,8 @@ export class RecipesService {
         const isPremium = isPremiumPrincipal(principal);
         const existingStatus = recipeStatusSchema.parse(existing.recipe.status);
         const afterStatus = dto.status ?? existingStatus;
-        const mayTakeSlot =
-            existingStatus === RecipeStatus.DRAFT &&
-            afterStatus === RecipeStatus.PUBLISHED &&
-            slotRuleApplies({ sourceType, isPremium });
+        const publishesDraft = existingStatus === RecipeStatus.DRAFT && afterStatus === RecipeStatus.PUBLISHED;
+        const takesSlotLock = publishesDraft && slotRuleApplies({ sourceType, isPremium });
 
         // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
         // calls `dal.readConflict`, which opens its own transaction AND issues
@@ -1076,7 +1074,7 @@ export class RecipesService {
             // ⛔ ADR-0073 sections 3 and 12: publishing a draft is where it may come to hold a slot (a private draft holds
             // none; the same recipe published does). The per-user lock and the count are the FIRST statements of the
             // transaction; the row's facts are read FOR UPDATE below, after the byline (see the order note there).
-            const counted = mayTakeSlot ? await this.slotStandingIn(tx, ownerId, isPremium) : undefined;
+            const counted = takesSlotLock ? await this.slotStandingIn(tx, ownerId, isPremium) : undefined;
 
             // The version's attribution: the editor's byline, read-model-first inside this transaction (plan
             // 2026-10-15-010 D8). Read BEFORE the recipe row is written, as `create` and `clone` do: the handle-sync
@@ -1085,7 +1083,7 @@ export class RecipesService {
             // the row lock too, so the two never wait on each other the other way round.
             const editor = await this.bylineIn(tx, principal);
 
-            if (counted !== undefined) {
+            if (publishesDraft) {
                 // The visibility NOW, under the lock: set-visibility does not bump the version, so the CAS below cannot see a
                 // flip made after `existing` was read.
                 const current = await this.dal.lockSlotFacts(tx, id);
@@ -1094,15 +1092,28 @@ export class RecipesService {
                     return undefined;
                 }
 
-                const takesSlot = requiresPrivateSlotCheck({
-                    sourceType,
-                    isPremium,
-                    before: { visibility: current.visibility, status: existingStatus },
-                    after: { visibility: current.visibility, status: afterStatus },
-                });
+                if (current.visibility === RecipeVisibility.PRIVATE) {
+                    // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy (the
+                    // only door a private `imported_public` recipe has is Premium plus a substantive edit - a slot never makes
+                    // one private, ADR-0073 section 6) with the slot fact counted under the lock where a slot can matter.
+                    const takesSlot = requiresPrivateSlotCheck({
+                        sourceType,
+                        isPremium,
+                        before: { visibility: current.visibility, status: existingStatus },
+                        after: { visibility: current.visibility, status: afterStatus },
+                    });
 
-                if (takesSlot && !counted.hasAvailablePrivateSlot) {
-                    throw slotsFullError(counted);
+                    assertVisibilityAllowed(
+                        {
+                            principalKind: principal.principalKind,
+                            containment: principal.containment,
+                            sourceType,
+                            isPremium,
+                            hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit || newlySubstantive,
+                            requested: RecipeVisibility.PRIVATE,
+                        },
+                        takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
+                    );
                 }
             }
 

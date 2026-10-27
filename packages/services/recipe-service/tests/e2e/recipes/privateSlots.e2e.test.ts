@@ -336,6 +336,36 @@ describe('Free-tier private slots (ADR-0073)', () => {
             expect(await privateCount(cook)).toBe(50);
         });
 
+        // ADDED after review. A downgraded cook keeps a private web-import they made while Premium; a clone of it is a private
+        // DRAFT. Publishing it private needs Premium and a substantive edit (ADR-0073 section 6), whatever the slot count: the
+        // old clone check counted this label, and the publish path must not let the cook walk round that rule.
+        it('⛔ a downgraded cook cannot publish a private clone of a web import: 400 INVALID_VISIBILITY, and it stays a draft', async () => {
+            const cook = newCook();
+            await seed(cook, 49);
+            const webId = await seedComplete(cook, { sourceType: 'imported_public' });
+            expect(await privateCount(cook)).toBe(50);
+
+            const copied = await fetch(`${baseUrl}/api/v1/recipes/${webId}/clone`, { method: 'POST' });
+            expect(copied.status, await copied.clone().text()).toBe(201);
+            const copy = (await copied.json()) as RecipeBody & { currentVersion: number };
+            expect(copy).toMatchObject({ visibility: 'private', status: 'draft' });
+
+            const refused = await patchRecipe(copy.id, {
+                expectedVersion: copy.currentVersion,
+                status: 'published',
+                steps: [{ instruction: 'A substantive change' }],
+            });
+
+            expect(refused.status).toBe(400);
+            expect(((await refused.json()) as ErrorBody).code).toBe('INVALID_VISIBILITY');
+            const [row] = await db
+                .select({ status: recipes.status })
+                .from(recipes)
+                .where(sql`${recipes.id} = ${copy.id}`);
+            expect(row?.status).toBe('draft');
+            expect(await privateCount(cook)).toBe(50);
+        });
+
         it('a draft deleted frees nothing (it held nothing) and a published private deleted frees one', async () => {
             const cook = newCook();
             const ids = await seed(cook, 50);

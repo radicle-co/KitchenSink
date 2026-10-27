@@ -179,3 +179,22 @@ press, `surface-muted` on canvas, was 1.05:1, so light changes too.
   no single surface, so its focus ring is two-tone: a 2 px `paper-overlay` inner ring, then a 2 px `focus-ring` outer
   ring. It reads on any background (WCAG 2.4.11 and 2.4.13).
 - Notices use `radius.lg` (18). ResumeNotice's `rounded-md` is drift.
+
+### 10b. Rulings on the built surface tones (fix/im-surface, 2026-10-27)
+
+The peer built §10 and §10a and listed seven deviations. The design lead ruled on each.
+
+1. Accepted: `floating` is a focus-ring recipe, not a row in the tone table. A floating control has no single surface,
+   so it cannot take a press fill or a chip fill from one.
+2. Changed: the inverse wash is a token. The Undo snackbar puts an action on `inverse`, so a control does sit there.
+   `press-inverse` is the inverse fill with the inverse ink mixed over it by the §10a rule (10% light, 12% dark):
+   light `#171B20` → `#2E3236` (1.34:1), dark `#EBEFF2` → `#D2D6D9` (1.26:1). Both pass the 1.2:1 floor.
+3. Changed: `paper-raised` is a distinct tone, built like the other four, with its press derived by the same rule:
+   light `#FFFFFF` → `#E8E8E9`, dark `#212B36` → `#39434D`. It is stated by SectionIndex, FoodChoiceList,
+   ImportModeChoice and ChromeSurface.
+4. Accepted: the 2 px gap between ring and control, the press fill on `:active`, and the ring on `:focus-visible` only.
+5. Confirmed: the Clerk card states `paper` from 480 px. Below 480 px it is the page and states nothing.
+6. Accepted: the additions the peer made beyond §10a.
+7. Accepted: the scale notice uses `radius.lg` (18), as every notice does.
+
+The Design System shows the tones on its Surface card: each tone holds a secondary button and a filter chip.

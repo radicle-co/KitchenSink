@@ -73,6 +73,35 @@ describe('Chip (web) — filter', () => {
         expect(tokens).not.toContain('text-label');
     });
 
+    // Parity item 10 (`componentFixes` §6): a 1 px edge at rest and 1.5 px selected made a chip grow when it was selected.
+    // The edge is 1.5 px in BOTH states (transparent at rest), so selecting changes colour, never size. The 16 px check
+    // may widen the chip (that change is where the cook just tapped); the edge may not.
+    it('holds the same 1.5 px edge at rest (transparent) and selected, so the edge never moves layout', () => {
+        const rest = chipClass(false).split(/\s+/u);
+        const selected = chipClass(true).split(/\s+/u);
+
+        expect(rest).toContain('border-[1.5px]');
+        expect(rest).toContain('border-transparent');
+        expect(rest).not.toContain('border');
+        expect(selected).toContain('border-[1.5px]');
+        expect(selected).toContain('border-selected-edge');
+    });
+
+    it('gives a selected chip a hover and press edge of 2 px selectedEdge, its padding giving the half pixel back', () => {
+        const selected = chipClass(true).split(/\s+/u);
+
+        expect(selected).toEqual(
+            expect.arrayContaining(['hover:border-2', 'active:border-2', 'hover:px-[calc(var(--spacing)*3_-_0.5px)]']),
+        );
+        expect(selected).toContain('active:px-[calc(var(--spacing)*3_-_0.5px)]');
+        // A resting chip's own press is the lineDivider fill: it never takes the selected edge.
+        expect(
+            chipClass(false)
+                .split(/\s+/u)
+                .filter((token) => token.includes('border-2')),
+        ).toEqual([]);
+    });
+
     it('⛔ cannot be mistaken for a secondary button: they share neither a fill nor an edge at rest', () => {
         const fillAndEdge = (className: string): readonly string[] =>
             className.split(/\s+/u).filter((token) => /^(bg|border)-/u.test(token));

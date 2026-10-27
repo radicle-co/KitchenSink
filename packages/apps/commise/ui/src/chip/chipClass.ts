@@ -8,8 +8,9 @@
  * rest a `surfaceMuted` fill and no visible edge, and the `caption` role (14/500) in `ink`, never the 14/600 `label` a
  * button sets. The pressed fill is `lineDivider`: over a `surfaceMuted` fill a `surfaceMuted` press would not show (`componentFixes` issue 3).
  *
- * The overlay reaches 8 px past the padding box. It is placed from inside the edge, so a selected chip's 1.5 px edge
- * leaves 32 - 3 + 16 = 45 px, and a resting chip's 1 px (transparent) edge 46 px; at 6 px it would be 41 px selected.
+ * The overlay reaches 8 px past the padding box. It is placed from inside the edge, and the edge is 1.5 px at rest and
+ * selected alike (2 px while a selected chip is hovered or pressed), so the target is 32 - 3 + 16 = 45 px; at 6 px it
+ * would be 41 px.
  * Selected: the `selectedFill` tint, a 1.5 px `selectedEdge` and an `actionText` label (5.18:1 on the tint) — the check
  * glyph the leaf draws is what keeps selection from resting on colour alone.
  *
@@ -25,7 +26,7 @@ import type { ChipRowOverflow } from './props.js';
 /** Tier-independent chip geometry and states. */
 const CHIP_BASE =
     "relative inline-flex min-h-8 max-w-full shrink-0 snap-start items-center gap-1 rounded-full px-3 text-caption transition before:absolute before:inset-x-0 before:content-[''] pointer-coarse:before:-inset-y-2 " +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
     'disabled:cursor-not-allowed disabled:opacity-40';
 
 /**
@@ -36,8 +37,15 @@ const CHIP_BASE =
 export const CHIP_LABEL_CLASS = 'line-clamp-2 min-w-0 text-start [overflow-wrap:anywhere]';
 
 /** The resting and selected surfaces. */
-const CHIP_REST = 'border border-transparent bg-surface-muted text-ink hover:bg-line-divider active:bg-line-divider';
-const CHIP_SELECTED = 'border-[1.5px] border-selected-edge bg-selected-fill text-action-text';
+const CHIP_REST =
+    'border-[1.5px] border-transparent bg-surface-muted text-ink hover:bg-line-divider active:bg-line-divider';
+/**
+ * Selected holds the SAME 1.5 px edge as rest, so selecting changes a colour and not a size. Hover and press show a 2 px
+ * `selectedEdge` (`componentFixes.md` §6); the extra half pixel comes out of the inline padding, so the box stays put.
+ */
+const CHIP_SELECTED =
+    'border-[1.5px] border-selected-edge bg-selected-fill text-action-text hover:border-2 active:border-2 ' +
+    'hover:px-[calc(var(--spacing)*3_-_0.5px)] active:px-[calc(var(--spacing)*3_-_0.5px)]';
 
 /**
  * A chip's classes. Pure.

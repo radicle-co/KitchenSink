@@ -14,6 +14,8 @@
  *    button), drawn by the wrapper;
  *  - `inset`: a ring drawn INSIDE the box, for a control flush with its container (a list row, a menu item) where an
  *    outer ring would be clipped; it has no gap, so it needs no surface;
+ *  - `inverse`: a control on an inverse surface (the snackbar's action), ringed in `inverseAction`; the surface table has no
+ *    inverse row, so there is no gap colour to read and the ring sits flush;
  *  - `floating`: a control over a photo or over scrolling content (the create button, a photo control) has no single
  *    surface, so its ring is two-tone: a 2 px `paperOverlay` inner band, then a 2 px `focusRing` ring, which reads on
  *    any background (WCAG 2.4.11 and 2.4.13).
@@ -28,6 +30,7 @@ export const FOCUS_RING_CLASS = {
         'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus-ring has-[:focus-visible]:ring-offset-2 ' +
         'has-[:focus-visible]:ring-offset-(--cm-surface,var(--color-canvas))',
     inset: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring',
+    inverse: 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inverse-action',
     floating:
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 ' +
         'focus-visible:ring-offset-paper-overlay',

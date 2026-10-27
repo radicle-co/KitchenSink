@@ -84,6 +84,7 @@ import { OptionLabel } from '../optionLabel/OptionLabel.js';
 import { PopupInsetsContext, type PopupInsetsReader } from '../popupInsets/popupInsetsContext.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The keys that move the caret: §3e gives Home and End to the field, and APG returns visual focus to it on all four. */
 const CARET_KEYS: ReadonlySet<string> = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight']);
@@ -583,7 +584,7 @@ export const Combobox: FC<ComboboxProps> = ({
                             type="button"
                             aria-label={cancel.name}
                             onClick={cancel.onPress}
-                            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
                         >
                             {cancel.text}
                         </button>

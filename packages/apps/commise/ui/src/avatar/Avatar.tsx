@@ -15,10 +15,10 @@ import type { FC } from 'react';
 import { RouteAction } from '../routeLink/RouteAction.js';
 import { AvatarDisc } from './AvatarDisc.js';
 import type { AvatarProps } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The 44 × 44 target, its focus ring, and the 32 px disc inside it (§3.3). */
-const TARGET_CLASS =
-    'inline-flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+const TARGET_CLASS = `inline-flex size-11 shrink-0 items-center justify-center rounded-full ${FOCUS_RING_CLASS.offset}`;
 
 /** The web design-system avatar. */
 export const Avatar: FC<AvatarProps> = ({ status, initials, label, onPress, href }) => {

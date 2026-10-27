@@ -52,7 +52,7 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
         <DropdownMenu.Root>
             <DropdownMenu.Trigger
                 aria-label={fillTemplate(list.sortButton, { choice })}
-                className={buttonSurfaceClass('ghost', 'sm')}
+                className={buttonSurfaceClass('ghost', { size: 'sm' })}
             >
                 <span>{choice}</span>
                 <Icon name="chevronDown" size={16} />

@@ -28,6 +28,7 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { SearchField } from '@commise/ui/search-field';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { useState } from 'react';
 import type { FC, ReactNode } from 'react';
 
@@ -111,7 +112,7 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                                     type="button"
                                     aria-label={fillTemplate(discovery.recentSearchLabel, { query })}
                                     onClick={() => recentSearches.onSelect(query)}
-                                    className="inline-flex min-h-11 w-full items-center rounded-md px-2 text-start text-body text-ink hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                    className={`inline-flex min-h-11 w-full items-center rounded-md px-2 text-start text-body text-ink hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
                                 >
                                     {query}
                                 </button>

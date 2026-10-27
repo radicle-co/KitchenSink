@@ -43,6 +43,7 @@ import {
     shownCountOf,
     type ProgressSegment,
 } from './sectionIndexModel.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The text-colour utility of each role a tone can take (literal, so Tailwind emits them). */
 const TEXT_CLASS: Readonly<Partial<Record<Role, string>>> = {
@@ -59,7 +60,7 @@ const SEGMENT_CLASS: Readonly<Record<ProgressSegment, string>> = {
     empty: 'bg-surface-muted',
 };
 
-const FOCUS = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring';
+const FOCUS = FOCUS_RING_CLASS.inset;
 
 /** A link's click: keep the browser from following the fragment, and jump through the host instead. */
 type Jump = (id: string) => void;

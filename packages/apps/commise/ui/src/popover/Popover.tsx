@@ -29,6 +29,7 @@ import { Icon } from '../icon/Icon.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import type { PopoverProps } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /**
  * The busy glyph, in the icon's own box: `currentColor`, and still under `prefers-reduced-motion` (it then shows as a
@@ -85,9 +86,9 @@ export const Popover: FC<PopoverProps> = ({
                 aria-describedby={describedBy}
                 className={
                     triggerText === undefined
-                        ? 'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring'
+                        ? `inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`
                         : // The attention line: at least 32 px tall (2.5.8 asks 24), its words in `attention`.
-                          'inline-flex min-h-8 items-center gap-1 rounded-sm text-left text-caption font-medium text-attention transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring'
+                          `inline-flex min-h-8 items-center gap-1 rounded-sm text-left text-caption font-medium text-attention transition hover:underline ${FOCUS_RING_CLASS.offset}`
                 }
             >
                 <span aria-hidden="true" className="inline-flex">
@@ -119,7 +120,7 @@ export const Popover: FC<PopoverProps> = ({
                     </div>
                     <RadixPopover.Close
                         aria-label={closeLabel}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
                     >
                         <Icon name="x" size={20} />
                     </RadixPopover.Close>

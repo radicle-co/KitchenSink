@@ -14,13 +14,13 @@ import type { FC } from 'react';
 import { Icon } from '../icon/Icon.js';
 import { RouteAction } from '../routeLink/RouteAction.js';
 import type { HeroButtonProps } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /**
  * The disc's classes, shared with the ⋯ menu's trigger (`ActionMenu` `appearance="disc"`) so the two cannot differ.
  * Written whole: Tailwind finds a class only when it appears whole in the source.
  */
-export const HERO_DISC_CLASS =
-    'inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas';
+export const HERO_DISC_CLASS = `inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-photo-chip text-ink shadow-sm ${FOCUS_RING_CLASS.floating}`;
 
 /** The web control over a photo. */
 export const HeroButton: FC<HeroButtonProps> = ({ icon, label, onPress, href, expanded, disabled = false }) => {

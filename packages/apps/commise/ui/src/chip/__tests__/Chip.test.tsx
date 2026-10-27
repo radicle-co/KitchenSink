@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { Chip } from '../Chip.js';
 import { buttonSurfaceClass } from '../../button/surfaceClass.js';
+import { CHIP_REST_FILL_CLASS, PRESS_FILL_CLASS } from '../../surfaceTone/surfaceToneClass.js';
 import { ChipRow } from '../ChipRow.js';
 import { chipClass, chipRowClass, SCROLL_BOX_CLASS } from '../chipClass.js';
 import type { ChipOption } from '../props.js';
@@ -47,19 +48,18 @@ describe('Chip (web) — filter', () => {
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('rests on surfaceMuted with no visible edge and an ink caption label, a lineDivider fill on hover and press', () => {
+    it('rests on its surface’s chip fill (surfaceMuted by default) with no visible edge and an ink caption label, and presses to that fill’s row', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
 
         const tokens = tokensOf(screen.getByRole('button', { name: 'Vegan' }));
 
         expect(tokens).toEqual(
             expect.arrayContaining([
-                'bg-surface-muted',
+                ...CHIP_REST_FILL_CLASS.split(' '),
                 'border-transparent',
                 'text-ink',
                 'text-caption',
-                'hover:bg-line-divider',
-                'active:bg-line-divider',
+                ...PRESS_FILL_CLASS.chip.split(' '),
                 'rounded-full',
                 'min-h-8',
                 'focus-visible:ring-focus-ring',
@@ -67,6 +67,8 @@ describe('Chip (web) — filter', () => {
             ]),
         );
         expect(tokens).not.toContain('bg-paper');
+        expect(tokens).not.toContain('bg-surface-muted');
+        expect(tokens).not.toContain('hover:bg-line-divider');
         expect(tokens).not.toContain('border-line-control');
         expect(tokens).not.toContain('min-h-9');
         // The label is the caption role (14/500), never the 14/600 `label` role a button sets.

@@ -27,7 +27,9 @@
  * component whenever the control CAN be a `<button>`; reach for this only when it cannot.
  */
 import { BUSY_CONTROL_CLASS } from './busyControlProps.js';
-import type { ButtonOver, ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
+import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
 
 /**
  * Tier-independent surface: the icon+label flex row, the label type role (`cardTitle`, 16/20/600: owner ruling B1, 2026-10-26;
@@ -50,7 +52,7 @@ import type { ButtonOver, ButtonSize, ButtonVariant, DestructiveTone } from './p
  */
 const BASE =
     'inline-flex shrink-0 max-w-full items-center justify-center gap-2 px-3 md:px-5 text-card-title transition ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
+    `${FOCUS_RING_CLASS.offset} ` +
     `disabled:cursor-not-allowed disabled:opacity-40 ${BUSY_CONTROL_CLASS}`;
 
 /**
@@ -119,21 +121,15 @@ const SURFACE = {
 } as const;
 
 /**
- * The hover and press fill of the neutral tiers, by what the control sits on ({@link ButtonOver}). Over `paper` it is
- * `surfaceMuted`; over a `surfaceMuted` parent that fill is the parent's own and shows nothing, so it is `lineDivider`
- * (parity item 6; the native twin is `pressWash`). The filled tiers carry their own darkening press instead.
+ * The surfaces whose press is the neutral fill, which they READ from the surface they sit on
+ * (`PRESS_FILL_CLASS.pointer`, `componentFixes.md` §10: ink laid over that surface's fill, so it shows on paper, on a
+ * sheet and on a muted card alike). A filled tier presses by darkening instead and has no entry here.
  */
-const PRESS: Readonly<Record<ButtonOver, string>> = {
-    paper: 'hover:bg-surface-muted active:bg-surface-muted',
-    muted: 'hover:bg-line-divider active:bg-line-divider',
-};
-
-/** The surfaces whose press is the neutral fill; a filled tier presses by darkening and has no entry here. */
 const NEUTRAL_PRESS: ReadonlySet<keyof typeof SURFACE> = new Set(['secondary', 'ghost', 'quiet', 'destructiveInline']);
 
-/** A tier's surface classes with its press fill for what it sits on. Pure. */
-function surfaceClassOf(key: keyof typeof SURFACE, over: ButtonOver): string {
-    return NEUTRAL_PRESS.has(key) ? `${SURFACE[key]} ${PRESS[over]}` : SURFACE[key];
+/** A tier's surface classes with its press fill. Pure. */
+function surfaceClassOf(key: keyof typeof SURFACE): string {
+    return NEUTRAL_PRESS.has(key) ? `${SURFACE[key]} ${PRESS_FILL_CLASS.pointer}` : SURFACE[key];
 }
 
 /**
@@ -157,47 +153,48 @@ function surfaceKey(variant: ButtonVariant, tone: DestructiveTone): keyof typeof
     return tone === 'confirm' ? 'destructiveConfirm' : 'destructiveInline';
 }
 
+/** What a Button surface takes besides its tier. */
+export interface ButtonSurfaceOptions {
+    /** The size. Defaults to `md`. */
+    readonly size?: ButtonSize;
+}
+
+/** What a destructive Button surface takes besides its size. */
+export interface DestructiveSurfaceOptions extends ButtonSurfaceOptions {
+    /** `inline` (the default) or the filled `confirm` surface of a confirm dialog's action. */
+    readonly tone?: DestructiveTone;
+}
+
 /**
  * The design-system Button surface as a Tailwind class string. Pure.
  *
+ * It takes no surface: the press fill and the focus-ring gap are read from the surface the control sits on
+ * (`surfaceToneClass`), so a control is correct wherever it is placed.
+ *
  * @param variant - The tier. Defaults to `primary`, matching the Button component's default.
- * @param size - The size. Defaults to `md`.
- * @param over - What the control sits on. Defaults to `paper`; say `muted` on a `surfaceMuted` parent.
+ * @param options - The size (default `md`).
  * @returns The `className` to apply to the control.
  */
 export function buttonSurfaceClass(
     variant?: Exclude<ButtonVariant, 'destructive'>,
-    size?: ButtonSize,
-    over?: ButtonOver,
+    options?: ButtonSurfaceOptions,
 ): string;
 /**
  * The destructive Button surface as a Tailwind class string. Pure.
  *
  * @param variant - `destructive`.
- * @param size - The size. Defaults to `md`.
- * @param tone - `inline` (the default) or `confirm`, the filled surface of a confirm dialog's action.
- * @param over - What the control sits on. Defaults to `paper`.
+ * @param options - The size (default `md`) and the tone: `inline` (the default) or the filled `confirm`.
  * @returns The `className` to apply to the control.
  */
-export function buttonSurfaceClass(
-    variant: 'destructive',
-    size?: ButtonSize,
-    tone?: DestructiveTone,
-    over?: ButtonOver,
-): string;
+export function buttonSurfaceClass(variant: 'destructive', options?: DestructiveSurfaceOptions): string;
 
 export function buttonSurfaceClass(
     variant: ButtonVariant = 'primary',
-    size: ButtonSize = 'md',
-    toneOrOver?: DestructiveTone | ButtonOver,
-    maybeOver?: ButtonOver,
+    options: DestructiveSurfaceOptions = {},
 ): string {
-    // `destructive` takes its tone third and its surface fourth; every other tier takes its surface third.
-    const destructive = variant === 'destructive';
-    const tone: DestructiveTone = destructive && toneOrOver === 'confirm' ? 'confirm' : 'inline';
-    const over: ButtonOver = (destructive ? maybeOver : toneOrOver) === 'muted' ? 'muted' : 'paper';
+    const { size = 'md', tone = 'inline' } = options;
 
-    return `${BASE} ${SIZE[size]} ${surfaceClassOf(surfaceKey(variant, tone), over)}`;
+    return `${BASE} ${SIZE[size]} ${surfaceClassOf(surfaceKey(variant, tone))}`;
 }
 
 /**
@@ -213,5 +210,5 @@ export function buttonSurfaceClass(
 export function buttonToggleSurfaceClass(selected: boolean, size: ButtonSize = 'md'): string {
     return selected
         ? `${BASE} ${SIZE[size]} border border-selected-edge bg-selected-fill text-ink active:ring-1 active:ring-inset active:ring-selected-edge`
-        : buttonSurfaceClass('secondary', size);
+        : buttonSurfaceClass('secondary', { size });
 }

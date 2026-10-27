@@ -20,6 +20,7 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 
@@ -150,7 +151,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
                                   <button
                                       type="button"
                                       onClick={() => onViewSource(sourceCollectionId)}
-                                      className="rounded-sm text-action-text underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                                      className={`rounded-sm text-action-text underline-offset-2 hover:underline ${FOCUS_RING_CLASS.offset}`}
                                   >
                                       {copiedFrom}
                                   </button>

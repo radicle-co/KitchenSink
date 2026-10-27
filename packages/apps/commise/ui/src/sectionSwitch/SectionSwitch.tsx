@@ -22,6 +22,7 @@ import type { FC } from 'react';
 import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import type { SectionSwitchProps } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The web section switch. */
 export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, currentId, trailing, onJump }) => {
@@ -48,7 +49,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
                                             scrollToSection(section.id);
                                             onJump?.(section.id);
                                         }}
-                                        className={`relative inline-flex min-h-11 items-center px-2 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                                        className={`relative inline-flex min-h-11 items-center px-2 text-label ${FOCUS_RING_CLASS.inset} ${
                                             current ? 'text-ink' : 'text-ink-muted hover:text-ink'
                                         }`}
                                     >

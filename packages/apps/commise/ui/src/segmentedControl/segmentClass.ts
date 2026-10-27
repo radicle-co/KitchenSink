@@ -7,6 +7,8 @@
  * A segment's pill is 36 px inside the track's 4 px padding, so it TAPS across the track's whole 44 px through a
  * transparent overlay (the chip's mechanism, `chipClass.ts`): the padding is part of the target, not a dead band.
  */
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 /**
  * How a control takes the row: `share` (labelled segments split the whole row equally) or `content` (an icon-only
@@ -19,12 +21,17 @@
  */
 export type SegmentWidth = 'share' | 'content' | 'adaptive';
 
+/**
+ * The track paints `surfaceMuted` and holds the segments, so it states that surface once (`componentFixes.md` §10): a
+ * segment's focus-ring gap and press read it, instead of the canvas.
+ */
+const MUTED = surfaceToneClass('muted');
+
 /** The track, per width. */
 const TRACK: Readonly<Record<SegmentWidth, string>> = {
-    share: 'flex min-h-11 w-full items-stretch gap-1 rounded-full bg-surface-muted p-1',
-    content: 'inline-flex shrink-0 min-h-11 items-stretch gap-1 rounded-full bg-surface-muted p-1',
-    adaptive:
-        'flex min-h-11 w-full items-stretch gap-1 rounded-full bg-surface-muted p-1 @regular/main:inline-flex @regular/main:w-auto @regular/main:shrink-0',
+    share: `flex min-h-11 w-full items-stretch gap-1 rounded-full ${MUTED} p-1`,
+    content: `inline-flex shrink-0 min-h-11 items-stretch gap-1 rounded-full ${MUTED} p-1`,
+    adaptive: `flex min-h-11 w-full items-stretch gap-1 rounded-full ${MUTED} p-1 @regular/main:inline-flex @regular/main:w-auto @regular/main:shrink-0`,
 };
 
 /** How a segment takes its share of the track, per width. */
@@ -55,7 +62,7 @@ const OTHER_TONE = 'border-transparent text-ink-muted hover:text-ink';
 const SEGMENT_BASE =
     'relative inline-flex items-center justify-center gap-2 rounded-full border px-3 text-label transition ' +
     "before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] " +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas';
+    FOCUS_RING_CLASS.offset;
 
 /**
  * The track's classes. Pure.

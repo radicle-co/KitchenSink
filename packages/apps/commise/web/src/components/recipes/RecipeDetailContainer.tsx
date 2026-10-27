@@ -271,7 +271,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                         <span className="hidden nav:contents">
                             <Link
                                 href={backHref as Route}
-                                className={`${buttonSurfaceClass('ghost', 'sm')} ${GHOST_EDGE_CLASS} self-start`}
+                                className={`${buttonSurfaceClass('ghost', { size: 'sm' })} ${GHOST_EDGE_CLASS} self-start`}
                             >
                                 <Icon name="chevronLeft" size={16} />
                                 {detailActions.backToRecipes}

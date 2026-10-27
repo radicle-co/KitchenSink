@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { Button } from '../Button.js';
+import { FOCUS_RING_CLASS } from '../../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../../surfaceTone/surfaceToneClass.js';
 import { buttonSurfaceClass } from '../surfaceClass.js';
 
 /**
@@ -205,16 +207,20 @@ describe('Button (web)', () => {
         expect(classes.filter((token) => /min-h-0$/u.test(token))).toEqual([]);
     });
 
-    it('presses to lineDivider, not the invisible surfaceMuted, when it says it sits over a muted parent', () => {
-        render(
-            <Button variant="quiet" over="muted">
-                Try again
-            </Button>,
-        );
+    it('presses to the surface’s press fill (--cm-press), never to a fixed colour', () => {
+        render(<Button variant="quiet">Try again</Button>);
         const classes = screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/u);
 
-        expect(classes).toEqual(expect.arrayContaining(['hover:bg-line-divider', 'active:bg-line-divider']));
+        expect(classes).toEqual(expect.arrayContaining(PRESS_FILL_CLASS.pointer.split(' ')));
         expect(classes).not.toContain('active:bg-surface-muted');
+        expect(classes).not.toContain('active:bg-line-divider');
+    });
+
+    it('rings its focus in the surface it sits on, from the one recipe', () => {
+        render(<Button icon={plusMeaning}>Save</Button>);
+        const classes = screen.getByRole('button', { name: 'Save' }).className.split(/\s+/u);
+
+        expect(classes).toEqual(expect.arrayContaining(FOCUS_RING_CLASS.offset.split(' ')));
     });
 
     it('adopts the PressScale primitive so it scales on press (motion-safe)', () => {
@@ -238,7 +244,7 @@ describe('Button (web)', () => {
                     </Button>,
                 );
 
-                expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass(variant, size));
+                expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass(variant, { size }));
                 unmount();
             }
 
@@ -247,7 +253,7 @@ describe('Button (web)', () => {
                     Tier
                 </Button>,
             );
-            expect(ghost.container.querySelector('button')?.className).toBe(buttonSurfaceClass('ghost', size));
+            expect(ghost.container.querySelector('button')?.className).toBe(buttonSurfaceClass('ghost', { size }));
             ghost.unmount();
 
             for (const tone of ['inline', 'confirm'] as const) {
@@ -258,7 +264,7 @@ describe('Button (web)', () => {
                 );
 
                 expect(container.querySelector('button')?.className).toBe(
-                    buttonSurfaceClass('destructive', size, tone),
+                    buttonSurfaceClass('destructive', { size, tone }),
                 );
                 unmount();
             }
@@ -268,7 +274,7 @@ describe('Button (web)', () => {
     it('defaults to the primary tier at md', () => {
         const { container } = render(<Button icon={plusMeaning}>Default</Button>);
 
-        expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass('primary', 'md'));
+        expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass('primary'));
     });
 
     it('defaults a destructive button to its inline tone', () => {
@@ -278,7 +284,9 @@ describe('Button (web)', () => {
             </Button>,
         );
 
-        expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass('destructive', 'md', 'inline'));
+        expect(container.querySelector('button')?.className).toBe(
+            buttonSurfaceClass('destructive', { tone: 'inline' }),
+        );
     });
 
     it('lets a ghost button have no glyph at all, and still be a named button', () => {

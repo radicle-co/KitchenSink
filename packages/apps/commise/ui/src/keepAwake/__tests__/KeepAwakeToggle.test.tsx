@@ -5,6 +5,7 @@ import { fireEvent } from '@testing-library/dom';
 import { Button } from '../../button/Button.js';
 import { buttonSurfaceClass, buttonToggleSurfaceClass } from '../../button/surfaceClass.js';
 import { chipClass } from '../../chip/chipClass.js';
+import { PRESS_FILL_CLASS } from '../../surfaceTone/surfaceToneClass.js';
 import { KeepAwakeToggle } from '../KeepAwakeToggle.js';
 import { useKeepAwake } from '../useKeepAwake.js';
 
@@ -59,7 +60,7 @@ describe('KeepAwakeToggle (web)', () => {
 
         const toggle = screen.getByRole('switch', { name: 'Screen on' });
 
-        expect(toggle.className).toBe(`${buttonSurfaceClass('secondary', 'md')}`);
+        expect(toggle.className).toBe(`${buttonSurfaceClass('secondary', { size: 'md' })}`);
         expect(toggle.className).not.toBe(chipClass(false));
         expect(toggle.className).toContain('min-h-11');
         expect(toggle.className).toContain('border-line-control');
@@ -68,7 +69,7 @@ describe('KeepAwakeToggle (web)', () => {
 
     // The switch presses as a Button does. `Button` wraps its `<button>` in `PressScale`, whose span scales while the
     // child is `:active`; the toggle must wear the SAME wrapper, and while off the SAME hover and pressed fill as
-    // Button's secondary pill (`surface-muted` over paper). Mutation lens: drop the wrapper, or swap the fill, and this fails.
+    // Button's secondary pill (the surface's press fill). Mutation lens: drop the wrapper, or swap the fill, and this fails.
     it('⛔ presses like Button: the same PressScale wrapper, and the secondary pill’s hover and pressed fill', () => {
         const { container: button } = render(
             <Button icon="check" variant="secondary">
@@ -90,10 +91,7 @@ describe('KeepAwakeToggle (web)', () => {
         expect(pressed(toggleWrapper?.querySelector('[role="switch"]'))).toEqual(
             pressed(buttonWrapper?.querySelector('button')),
         );
-        expect(pressed(toggleWrapper?.querySelector('[role="switch"]'))).toEqual([
-            'hover:bg-surface-muted',
-            'active:bg-surface-muted',
-        ]);
+        expect(pressed(toggleWrapper?.querySelector('[role="switch"]'))).toEqual(PRESS_FILL_CLASS.pointer.split(' '));
     });
 
     it('on: the selectedFill with a selectedEdge outline, the same edge width and size as off', () => {

@@ -14,6 +14,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { FC } from 'react';
 
 import { recipeActionMessages } from '../actions/messages.js';
@@ -27,7 +28,7 @@ import type { DiscoveryFooterProps } from './model.js';
 /** The 44 px icon button. A busy or finished copy keeps the focus ring: the control is inert, not gone. */
 const BUTTON =
     'inline-flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-surface-muted focus-visible:outline-none ' +
-    'focus-visible:ring-2 focus-visible:ring-focus-ring';
+    FOCUS_RING_CLASS.offset;
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     title,

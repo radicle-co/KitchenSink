@@ -18,9 +18,9 @@ import type { FC } from 'react';
 import { Icon } from '../icon/Icon.js';
 import { RouteAction } from '../routeLink/RouteAction.js';
 import type { HeaderBack } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
-const CLASS_NAME =
-    'col-start-1 row-start-1 hidden min-h-11 min-w-11 items-center gap-1 self-center justify-self-start rounded-md text-action-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring nav:inline-flex nav:basis-full nav:min-h-6 nav:text-label';
+const CLASS_NAME = `col-start-1 row-start-1 hidden min-h-11 min-w-11 items-center gap-1 self-center justify-self-start rounded-md text-action-text ${FOCUS_RING_CLASS.offset} nav:inline-flex nav:basis-full nav:min-h-6 nav:text-label`;
 
 /** Props for {@link HeaderEyebrowBack}. */
 export interface HeaderEyebrowBackProps {

@@ -14,8 +14,8 @@ import { FOCUS_RING_CLASS } from '../focusRingClass.js';
 const tokens = (classes: string): readonly string[] => classes.split(/\s+/u);
 
 describe('FOCUS_RING_CLASS', () => {
-    it('has the four recipes and no more', () => {
-        expect(Object.keys(FOCUS_RING_CLASS).sort()).toEqual(['floating', 'inset', 'offset', 'within']);
+    it('has the five recipes and no more', () => {
+        expect(Object.keys(FOCUS_RING_CLASS).sort()).toEqual(['floating', 'inset', 'inverse', 'offset', 'within']);
     });
 
     it('offset: a 2 px ring, 2 px off, the gap read from --cm-surface and falling back to the canvas', () => {
@@ -56,6 +56,13 @@ describe('FOCUS_RING_CLASS', () => {
             ]),
         );
         expect(FOCUS_RING_CLASS.floating).not.toContain(SURFACE_VAR);
+    });
+
+    it('inverse: the inverse-action ring on an inverse surface (a snackbar), with no gap to colour', () => {
+        expect(tokens(FOCUS_RING_CLASS.inverse)).toEqual(
+            expect.arrayContaining(['focus-visible:ring-2', 'focus-visible:ring-inverse-action']),
+        );
+        expect(FOCUS_RING_CLASS.inverse).not.toContain('ring-offset');
     });
 
     it('never names the canvas as a fixed offset colour', () => {

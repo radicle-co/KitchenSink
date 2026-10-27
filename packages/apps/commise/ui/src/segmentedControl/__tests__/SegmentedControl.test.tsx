@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
+import { surfaceToneClass } from '../../surfaceTone/surfaceToneClass.js';
 import { SegmentedControl } from '../SegmentedControl.js';
 
 /**
@@ -86,7 +87,7 @@ describe('SegmentedControl (web) — route', () => {
         );
         expect(tokensOf(screen.getByRole('link', { name: 'Collections' }))).not.toContain('bg-paper');
         expect(tokensOf(screen.getByRole('navigation', { name: 'Recipes' }).firstElementChild as Element)).toEqual(
-            expect.arrayContaining(['bg-surface-muted', 'min-h-11', 'rounded-full']),
+            expect.arrayContaining([...surfaceToneClass('muted').split(' '), 'min-h-11', 'rounded-full']),
         );
     });
 

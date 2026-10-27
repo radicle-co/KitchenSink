@@ -7,6 +7,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { RouteAction } from '@commise/ui/route-link';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -39,7 +40,7 @@ export const RecipeWidgetEmptyState: FC<RecipeWidgetEmptyStateProps> = ({ firstR
                     <RouteAction
                         {...(firstRun.discoverHref === undefined ? {} : { href: firstRun.discoverHref })}
                         onPress={firstRun.onFindOnDiscover}
-                        className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-label text-action-text hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className={`inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-label text-action-text hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
                     >
                         <Icon name="compass" size={20} />
                         {home.findOnDiscover}

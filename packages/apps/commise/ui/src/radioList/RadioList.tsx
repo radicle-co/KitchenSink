@@ -18,6 +18,7 @@ import * as RadioGroup from '@radix-ui/react-radio-group';
 import { useId, type FC } from 'react';
 
 import type { RadioListProps } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The web design-system option list. */
 export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange }) => {
@@ -43,7 +44,7 @@ export const RadioList: FC<RadioListProps> = ({ label, options, value, onChange 
                         value={option.id}
                         aria-labelledby={labelId}
                         {...(option.hint === undefined ? {} : { 'aria-describedby': hintId })}
-                        className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-line-divider bg-paper px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border border-line-divider bg-paper px-4 py-3 text-left ${FOCUS_RING_CLASS.offset}`}
                     >
                         <span
                             aria-hidden="true"

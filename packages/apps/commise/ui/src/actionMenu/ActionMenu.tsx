@@ -36,13 +36,13 @@ import { Icon } from '../icon/Icon.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The space the menu keeps from the viewport's edge, and from the page's chrome. */
 const EDGE = 8;
 
 /** The bare ⋯ of a row: 44 px, with a hover wash. */
-const PLAIN_TRIGGER_CLASS =
-    'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+const PLAIN_TRIGGER_CLASS = `inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink transition hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`;
 
 /** An item: a 44 px row, highlighted in `pearl`. */
 const ITEM =

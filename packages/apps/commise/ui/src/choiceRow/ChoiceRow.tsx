@@ -26,9 +26,10 @@ import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.js';
 import { Spinner } from '../spinner/Spinner.js';
 import type { ChoiceRowProps } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The row: a 48 px button across its list. */
-const ROW_CLASS = `flex min-h-12 w-full items-center gap-3 px-3 py-2 text-start hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${BUSY_CONTROL_CLASS}`;
+const ROW_CLASS = `flex min-h-12 w-full items-center gap-3 px-3 py-2 text-start hover:bg-surface-muted ${FOCUS_RING_CLASS.inset} ${BUSY_CONTROL_CLASS}`;
 
 /** The web choice row. */
 export const ChoiceRow: FC<ChoiceRowProps> = ({

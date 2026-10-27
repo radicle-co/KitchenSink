@@ -577,32 +577,32 @@ describe('Button (native) — horizontal padding equals web’s', () => {
         {
             name: 'primary',
             props: (size) => ({ icon: 'plus', size, children: 'Padded' }),
-            web: (size) => buttonSurfaceClass('primary', size),
+            web: (size) => buttonSurfaceClass('primary', { size }),
         },
         {
             name: 'secondary',
             props: (size) => ({ icon: 'plus', variant: 'secondary', size, children: 'Padded' }),
-            web: (size) => buttonSurfaceClass('secondary', size),
+            web: (size) => buttonSurfaceClass('secondary', { size }),
         },
         {
             name: 'ghost',
             props: (size) => ({ variant: 'ghost', size, children: 'Padded' }),
-            web: (size) => buttonSurfaceClass('ghost', size),
+            web: (size) => buttonSurfaceClass('ghost', { size }),
         },
         {
             name: 'quiet',
             props: (size) => ({ variant: 'quiet', size, children: 'Padded' }),
-            web: (size) => buttonSurfaceClass('quiet', size),
+            web: (size) => buttonSurfaceClass('quiet', { size }),
         },
         {
             name: 'destructive inline',
             props: (size) => ({ icon: 'trash', variant: 'destructive', size, children: 'Padded' }),
-            web: (size) => buttonSurfaceClass('destructive', size, 'inline'),
+            web: (size) => buttonSurfaceClass('destructive', { size, tone: 'inline' }),
         },
         {
             name: 'destructive confirm',
             props: (size) => ({ icon: 'trash', variant: 'destructive', tone: 'confirm', size, children: 'Padded' }),
-            web: (size) => buttonSurfaceClass('destructive', size, 'confirm'),
+            web: (size) => buttonSurfaceClass('destructive', { size, tone: 'confirm' }),
         },
     ];
 

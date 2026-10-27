@@ -23,6 +23,7 @@ import { Popover } from '@commise/ui/popover';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { useRef, type FC, type ReactNode } from 'react';
 
 import {
@@ -73,7 +74,7 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
             aria-label={row.openLabel}
             aria-expanded={expanded}
             onClick={row.onOpen}
-            className="flex min-h-12 min-w-0 flex-1 items-start gap-3 rounded-md py-3 text-left transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className={`flex min-h-12 min-w-0 flex-1 items-start gap-3 rounded-md py-3 text-left transition hover:bg-surface-muted ${FOCUS_RING_CLASS.offset}`}
         >
             {/* No amount: the column stays empty, never an invented "1" (F5). */}
             <span className="w-[4.5rem] shrink-0 break-words text-body-md text-figure-inline font-semibold text-ink @regular/main:w-24">
@@ -187,7 +188,7 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         type="button"
                         aria-label={secondLine.label}
                         onClick={row.onBeginEntry}
-                        className="inline-flex min-h-8 items-center gap-1 self-start rounded-sm text-left text-caption font-medium text-attention transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                        className={`inline-flex min-h-8 items-center gap-1 self-start rounded-sm text-left text-caption font-medium text-attention transition hover:underline ${FOCUS_RING_CLASS.offset}`}
                     >
                         <span aria-hidden="true" className="inline-flex">
                             <Icon name="triangleAlert" size={16} />

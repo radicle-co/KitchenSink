@@ -6,7 +6,7 @@
  * chip is pressable, so it is a pill), hit at 44 px on a coarse pointer by a transparent `::before` overlay. Buttons are
  * pills too, so a chip is told apart from a secondary button by its fill, its height and its type, not its shape: at
  * rest a `surfaceMuted` fill and no visible edge, and the `caption` role (14/500) in `ink`, never the 14/600 `label` a
- * button sets. The pressed fill is `lineDivider`: over a `surfaceMuted` fill a `surfaceMuted` press would not show (`componentFixes` issue 3).
+ * button sets. A chip rests on the fill its surface gives chips (`surfaceMuted`; `paper` on a muted surface, where a muted chip would be invisible) and presses to that fill's row of the surface table (`componentFixes.md` §10a).
  *
  * The overlay reaches 8 px past the padding box. It is placed from inside the edge, and the edge is 1.5 px at rest and
  * selected alike (2 px while a selected chip is hovered or pressed), so the target is 32 - 3 + 16 = 45 px; at 6 px it
@@ -22,11 +22,13 @@
  * does not move.
  */
 import type { ChipRowOverflow } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { CHIP_REST_FILL_CLASS, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** Tier-independent chip geometry and states. */
 const CHIP_BASE =
     "relative inline-flex min-h-8 max-w-full shrink-0 snap-start items-center gap-1 rounded-full px-3 text-caption transition before:absolute before:inset-x-0 before:content-[''] pointer-coarse:before:-inset-y-2 " +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ' +
+    `${FOCUS_RING_CLASS.offset} ` +
     'disabled:cursor-not-allowed disabled:opacity-40';
 
 /**
@@ -37,8 +39,7 @@ const CHIP_BASE =
 export const CHIP_LABEL_CLASS = 'line-clamp-2 min-w-0 text-start [overflow-wrap:anywhere]';
 
 /** The resting and selected surfaces. */
-const CHIP_REST =
-    'border-[1.5px] border-transparent bg-surface-muted text-ink hover:bg-line-divider active:bg-line-divider';
+const CHIP_REST = `border-[1.5px] border-transparent ${CHIP_REST_FILL_CLASS} text-ink ${PRESS_FILL_CLASS.chip}`;
 /**
  * Selected holds the SAME 1.5 px edge as rest, so selecting changes a colour and not a size. Hover and press show a 2 px
  * `selectedEdge` (`componentFixes.md` §6); the extra half pixel comes out of the inline padding, so the box stays put.

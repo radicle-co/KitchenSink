@@ -36,6 +36,9 @@ import postcss from 'postcss';
 import tailwind from '@tailwindcss/postcss';
 import { describe, expect, it } from 'vitest';
 
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS, SURFACE_TONE_CLASS } from '@commise/ui/surface-tone';
+
 const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
 
 /** Utilities probed below. Forced into the build so the test never depends on current app usage. */
@@ -77,7 +80,6 @@ const PROBES = [
     'size-18',
     '@regular:w-30',
     'min-[480px]:bg-paper',
-    'focus-visible:ring-offset-canvas',
 ] as const;
 
 /**
@@ -88,7 +90,14 @@ const PROBES = [
  */
 async function compileAppCss(): Promise<string> {
     const source = await readFile(GLOBALS_CSS, 'utf8');
-    const withProbes = `${source}\n@source inline("${PROBES.join(' ')}");\n`;
+    // The surface-tone and focus-ring recipes are probed from their own exports, so the test reads the very literals the
+    // apps ship and never a copy of them; an app that stopped using one still has it compiled and checked.
+    const recipes = [
+        ...Object.values(FOCUS_RING_CLASS),
+        ...Object.values(PRESS_FILL_CLASS),
+        ...Object.values(SURFACE_TONE_CLASS),
+    ].flatMap((classes) => classes.split(' '));
+    const withProbes = `${source}\n@source inline("${[...PROBES, ...recipes].join(' ')}");\n`;
 
     const result = await postcss([tailwind()]).process(withProbes, { from: GLOBALS_CSS });
 
@@ -531,19 +540,91 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
     });
 });
 
-// Parity item 14: `ring-offset-2` paints the gap between a control and its focus ring in Tailwind's default offset colour,
-// white, so in dark every focus ring wore a white halo. Tailwind registers `--tw-ring-offset-color` with `inherits:
-// false`, so a `:root` override in the dark block never reaches a control; each control names `ring-offset-canvas`
-// beside its `ring-offset-2` instead, and the canvas role follows the theme. Read from the COMPILED stylesheet: only the
-// compiler knows what the utility resolves to.
-describe('the focus ring offset colour, compiled', () => {
-    it('resolves ring-offset-canvas to the canvas role, which the dark block re-themes', async () => {
+// `componentFixes.md` §10, §10a. `ring-offset-2` paints the gap between a control and its focus ring in
+// `--tw-ring-offset-color`, which Tailwind registers with `inherits: false` and defaults to WHITE (a halo in dark). The
+// gap is now the colour of the SURFACE the control sits on: a surface sets the INHERITING custom property `--cm-surface`
+// (and `--cm-press`, the press fill), and a control reads them with a canvas fallback. That only works if the compiler
+// emits them as plain inheriting properties, so it is asserted on the COMPILED stylesheet: only the compiler knows what
+// a utility resolves to, and a registered `@property --cm-surface` (inherits: false by default) would silently break
+// every control below its surface.
+describe('the surface tone, compiled', () => {
+    const squashed = (css: string): string => css.replace(/\s+/gu, '');
+
+    it('gives a focus-visible ring a gap read from --cm-surface, falling back to the canvas role', async () => {
+        const css = squashed(await compileAppCss());
+
+        expect(css).toMatch(/:focus-visible\{[^}]*--tw-ring-offset-color:var\(--cm-surface,var\(--color-canvas\)\)/u);
+        expect(css).toMatch(
+            /:has\(:is\(:focus-visible\)\)\{[^}]*--tw-ring-offset-color:var\(--cm-surface,var\(--color-canvas\)\)/u,
+        );
+        // No control names the canvas as its fixed gap any more (a test that names the old class in prose may be scanned).
+        expect(css).not.toContain('.focus-visible\\:ring-offset-canvas');
+    });
+
+    it('keeps the ring-offset colour property non-inheriting, which is why a control must name its own', async () => {
+        expect(await compileAppCss()).toMatch(/@property --tw-ring-offset-color\s*\{[^}]*inherits:\s*false/u);
+    });
+
+    it('presses a hover, an active and a highlighted item to --cm-press, falling back to the canvas row', async () => {
+        const css = squashed(await compileAppCss());
+        const fill = 'background-color:var(--cm-press,var(--color-press-canvas))';
+
+        expect(css).toMatch(new RegExp(`:hover\\{[^}]*${fill.replace(/[()]/gu, '\\$&')}`, 'u'));
+        expect(css).toMatch(new RegExp(`:active\\{[^}]*${fill.replace(/[()]/gu, '\\$&')}`, 'u'));
+        expect(css).toMatch(new RegExp(`\\[data-highlighted\\]\\{[^}]*${fill.replace(/[()]/gu, '\\$&')}`, 'u'));
+    });
+
+    it('lets a chip rest on the surface’s chip fill and press to its chip press, each with a fallback', async () => {
+        const css = squashed(await compileAppCss());
+
+        expect(css).toContain('background-color:var(--cm-chip-fill,var(--color-surface-muted))');
+        expect(css).toContain('background-color:var(--cm-chip-press,var(--color-press-muted))');
+    });
+
+    it('paints each tone and sets its four properties to the roles of the table', async () => {
+        const css = squashed(await compileAppCss());
+
+        for (const [fillRole, tone, chipFill, chipPress] of [
+            ['canvas', 'canvas', 'surface-muted', 'muted'],
+            ['paper', 'paper', 'surface-muted', 'muted'],
+            ['paper-overlay', 'paper-overlay', 'surface-muted', 'muted'],
+            ['surface-muted', 'muted', 'paper', 'paper'],
+        ] as const) {
+            expect(css, `${tone} fill`).toContain(`--cm-surface:var(--color-${fillRole})`);
+            expect(css, `${tone} press`).toContain(`--cm-press:var(--color-press-${tone})`);
+            expect(css, `${tone} chip fill`).toContain(`--cm-chip-fill:var(--color-${chipFill})`);
+            expect(css, `${tone} chip press`).toContain(`--cm-chip-press:var(--color-press-${chipPress})`);
+        }
+    });
+
+    it('registers none of the tone properties, so they inherit down the tree', async () => {
         const css = await compileAppCss();
 
-        // The variant is part of the selector, and the declaration is the role's custom property, which the dark block re-themes.
-        expect(css).toMatch(
-            /\.focus-visible\\:ring-offset-canvas:focus-visible\s*\{\s*--tw-ring-offset-color:\s*var\(--color-canvas\)/u,
-        );
-        expect(css).toMatch(/@property --tw-ring-offset-color\s*\{[^}]*inherits:\s*false/u);
+        for (const property of ['--cm-surface', '--cm-press', '--cm-chip-fill', '--cm-chip-press']) {
+            expect(css, property).not.toMatch(new RegExp(`@property\\s+${property}`, 'u'));
+        }
+    });
+
+    it('defines each press role in the light theme and again, re-themed, in the dark block', async () => {
+        const css = await compileAppCss();
+        const darkAt = css.indexOf('@media (prefers-color-scheme: dark)');
+
+        expect(darkAt).toBeGreaterThan(-1);
+
+        for (const [tone, light, dark] of [
+            ['canvas', '#d9dde1', '#293037'],
+            ['paper', '#e5e6e9', '#303941'],
+            ['paper-overlay', '#e8e8e9', '#3e4853'],
+            ['muted', '#d4d8dd', '#39434d'],
+        ] as const) {
+            expect(css.slice(0, darkAt), `${tone} light`).toContain(`--color-press-${tone}: ${light}`);
+            expect(css.slice(darkAt), `${tone} dark`).toContain(`--color-press-${tone}: ${dark}`);
+        }
+    });
+
+    it('draws the floating ring as a paperOverlay band inside a focusRing ring', async () => {
+        const css = squashed(await compileAppCss());
+
+        expect(css).toMatch(/:focus-visible\{[^}]*--tw-ring-offset-color:var\(--color-paper-overlay\)/u);
     });
 });

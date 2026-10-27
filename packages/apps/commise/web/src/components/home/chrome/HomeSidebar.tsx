@@ -17,6 +17,7 @@ import { NAV_ITEM_GLYPH, initialsFor, resolveHomeNav, type HomeNavItemId } from 
 import { AvatarDisc } from '@commise/ui/avatar';
 import { Icon } from '@commise/ui/icon';
 import { Tooltip } from '@commise/ui/tooltip';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
@@ -43,8 +44,7 @@ export interface HomeSidebarProps {
 }
 
 /** A 44 px row's shape, shared by the destinations and the profile row. */
-const ROW_CLASS =
-    'flex min-h-11 items-center gap-3 rounded-md px-3 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+const ROW_CLASS = `flex min-h-11 items-center gap-3 rounded-md px-3 text-label ${FOCUS_RING_CLASS.offset}`;
 
 /**
  * A collapsed row's visual label. The rail is 80 px and clips anything past its edge, so the label is the design

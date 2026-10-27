@@ -31,7 +31,7 @@ export const DiscoverySortMenu: FC<RecipeDiscoverySortControl> = ({ active, onCh
 
     return (
         <DropdownMenu.Root>
-            <DropdownMenu.Trigger className={buttonSurfaceClass('ghost', 'sm')}>
+            <DropdownMenu.Trigger className={buttonSurfaceClass('ghost', { size: 'sm' })}>
                 <span>{fillTemplate(discovery.sortButton, { choice: discoverySortLabel(active, discovery) })}</span>
                 <Icon name="chevronDown" size={16} />
             </DropdownMenu.Trigger>

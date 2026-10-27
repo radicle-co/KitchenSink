@@ -10,6 +10,7 @@
  */
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Icon } from '@commise/ui/icon';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { FC, KeyboardEvent } from 'react';
 
 /** Props of one option. */
@@ -64,7 +65,7 @@ export const VariantOption: FC<VariantOptionProps> = ({
         onFocus={onFocus}
         className={
             'flex min-h-12 cursor-pointer items-start gap-3 px-4 py-3 outline-none hover:bg-surface-muted focus-visible:bg-surface-muted ' +
-            'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ' +
+            `${FOCUS_RING_CLASS.inset} ` +
             (active ? 'bg-surface-muted ring-2 ring-inset ring-focus-ring' : '')
         }
     >

@@ -28,6 +28,7 @@ import type { HorizontalScrollerProps, ScrollerSnap } from './props.js';
 import { scrollBehaviorOf } from './scrollBehavior.js';
 import { itemStepOf, scrollHintOf } from './scrollHint.js';
 import { useScrollHint } from './useScrollHint.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 const NO_SNAP: ScrollerSnap = { kind: 'none' };
 
@@ -46,7 +47,7 @@ const SCROLLER =
     `data-[hint=start]:[mask-image:${START}] rtl:data-[hint=start]:[mask-image:${START_RTL}]`;
 
 /** A named scroller's focus ring is drawn inside it: the mask would erase an outer one. */
-const REGION = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring';
+const REGION = FOCUS_RING_CLASS.inset;
 
 const SNAP: Readonly<Record<ScrollerSnap['kind'], string>> = {
     none: '',

@@ -1,6 +1,7 @@
 import { themeFor, type ColorSchemeName } from './theme/themeFor.js';
 import { radius } from './tokens/radius.js';
 import { fonts, fontSizes, fontWeights } from './tokens/typography.js';
+import { FOCUS_RING_CLASS } from './focusRing/focusRingClass.js';
 
 /**
  * @module @commise/ui/clerk — the appearance object Clerk's hosted components render the auth surface with, in BOTH
@@ -76,7 +77,7 @@ export const CLERK_CSS_LAYER = 'clerk';
  */
 const FIELD =
     'h-12 max-h-none rounded-md border border-line-control bg-paper px-4 text-body text-ink shadow-none outline-none ' +
-    'focus:border-focus-ring focus:ring-2 focus:ring-focus-ring';
+    `focus:border-focus-ring ${FOCUS_RING_CLASS.offset}`;
 
 /**
  * A one-time-code cell: the field's edge, fill and focus, with NO horizontal padding and the digit centred. The cell is
@@ -85,7 +86,7 @@ const FIELD =
  */
 const OTP_FIELD =
     'h-12 max-h-none rounded-md border border-line-control bg-paper text-center text-body text-ink shadow-none outline-none ' +
-    'focus:border-focus-ring focus:ring-2 focus:ring-focus-ring';
+    `focus:border-focus-ring ${FOCUS_RING_CLASS.offset}`;
 
 /**
  * Clerk's appearance for one colour scheme.

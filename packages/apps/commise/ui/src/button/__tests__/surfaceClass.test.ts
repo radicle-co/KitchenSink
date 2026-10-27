@@ -385,12 +385,25 @@ describe('buttonToggleSurfaceClass — a switch that wears the secondary button 
     it('swaps only the fill and the edge colour when selected: same geometry, same edge width', () => {
         const off = tokensOf(buttonToggleSurfaceClass(false));
         const on = tokensOf(buttonToggleSurfaceClass(true));
-        const colour = (token: string): boolean => /^(?:bg|border|text|hover:bg|active:bg)-/u.test(token);
+        const colour = (token: string): boolean => /^(?:bg|border|text|hover:bg|active:bg|active:ring)-/u.test(token);
 
         expect(on.filter((token) => !colour(token))).toEqual(off.filter((token) => !colour(token)));
         expect(on).toEqual(expect.arrayContaining(['bg-selected-fill', 'border-selected-edge']));
         expect(on).not.toContain('bg-paper');
         expect(on).not.toContain('border-line-control');
+    });
+
+    // `componentFixes` §5: pressing a switch that is ON shows a 2 px `selectedEdge`. A 1 px inset ring over the 1 px border
+    // makes the 2 px without changing the box, so nothing around the control moves. Off keeps Button's own fill press.
+    it('presses to a 2 px selectedEdge while on (1 px border + 1 px inset ring), and only while on', () => {
+        const on = tokensOf(buttonToggleSurfaceClass(true));
+
+        expect(on).toEqual(expect.arrayContaining(['active:ring-1', 'active:ring-inset', 'active:ring-selected-edge']));
+        expect(on.filter((token) => /^active:/u.test(token))).not.toContain('active:bg-surface-muted');
+        expect(tokensOf(buttonToggleSurfaceClass(false)).filter((token) => token.startsWith('active:ring'))).toEqual(
+            [],
+        );
+        expect(tokensOf(buttonToggleSurfaceClass(false))).toContain('active:bg-surface-muted');
     });
 
     it('keeps the label readable at 4.5:1 on the selected fill and the edge at 3:1 against paper (SC 1.4.3, 1.4.11)', () => {

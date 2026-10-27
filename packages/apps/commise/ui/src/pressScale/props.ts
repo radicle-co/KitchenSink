@@ -21,7 +21,7 @@ import type { ReactNode, Ref } from 'react';
 import type { View } from 'react-native';
 
 /** The accessibility roles a native `PressScale` may expose on its `Pressable` (native-only). */
-export type PressScaleRole = 'button' | 'link' | 'none';
+export type PressScaleRole = 'button' | 'link' | 'switch' | 'none';
 
 /**
  * How the control sizes across its parent (R9, `docs/design/rowEditorOpenDecisions.md`). `auto` leaves it to the
@@ -30,10 +30,20 @@ export type PressScaleRole = 'button' | 'link' | 'none';
  */
 export type PressScaleWidth = 'auto' | 'fill';
 
+/** What a function child is told about the press. */
+export interface PressScaleState {
+    /** Whether a press is in progress. */
+    readonly pressed: boolean;
+}
+
 /** The cross-platform contract shared by the web and native `PressScale` leaves. */
 export interface PressScaleProps {
-    /** The content that scales on press (native) / the interactive child that drives the scale (web). */
-    readonly children: ReactNode;
+    /**
+     * The content that scales on press (native) / the interactive child that drives the scale (web). Native may also be
+     * given a function of the press state, for a control that paints its own pressed look; web press state is CSS, so
+     * the web leaf calls such a function with `pressed: false`.
+     */
+    readonly children: ReactNode | ((state: PressScaleState) => ReactNode);
     /**
      * Press handler. Consumed by the NATIVE leaf, which owns the `Pressable`. On WEB the wrapped child owns
      * the press, so this is ignored there — attach your handler to the child.
@@ -49,6 +59,12 @@ export interface PressScaleProps {
     readonly accessibilityHint?: string;
     /** Accessibility role for the native `Pressable`. Defaults to `button`. Native-only. */
     readonly accessibilityRole?: PressScaleRole;
+    /**
+     * The on/off state of a `switch`. Stated only with `accessibilityRole="switch"`; leave it undefined for any other
+     * role, because an absent state is a different statement from `false`. Native-only (the web child carries its own
+     * `aria-checked`).
+     */
+    readonly checked?: boolean;
     /**
      * A handle on the native `Pressable` (React 19's plain `ref` prop) — for moving SCREEN-READER focus onto the
      * control, which has no declarative form. Native-only: on web, ref the child you wrap.

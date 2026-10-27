@@ -36,5 +36,7 @@ const WRAPPER_BOX: Record<PressScaleWidth, string> = {
 
 /** The Commise press-feedback wrapper — the wrapped child's `:active` scales this span (motion-safe). */
 export const PressScale: FC<PressScaleProps> = ({ children, width = 'auto' }) => (
-    <span className={`${WRAPPER_BOX[width]} ${PRESS_MOTION}`}>{children}</span>
+    <span className={`${WRAPPER_BOX[width]} ${PRESS_MOTION}`}>
+        {typeof children === 'function' ? children({ pressed: false }) : children}
+    </span>
 );

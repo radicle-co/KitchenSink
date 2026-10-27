@@ -111,4 +111,11 @@ describe('PressScale (web) — width', () => {
         );
         expect(tokens).not.toContain('inline-flex');
     });
+
+    // Web press state is CSS (`:active`), so a function child is told `pressed: false` rather than left uncalled.
+    it('renders a function child with pressed false', () => {
+        render(<PressScale>{({ pressed }) => <button type="button">{pressed ? 'down' : 'up'}</button>}</PressScale>);
+
+        expect(screen.getByRole('button', { name: 'up' })).toBeTruthy();
+    });
 });

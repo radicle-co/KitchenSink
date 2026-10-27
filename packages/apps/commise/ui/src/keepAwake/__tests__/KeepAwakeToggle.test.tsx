@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, renderHook, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
+import { Button } from '../../button/Button.js';
 import { buttonSurfaceClass, buttonToggleSurfaceClass } from '../../button/surfaceClass.js';
 import { chipClass } from '../../chip/chipClass.js';
 import { KeepAwakeToggle } from '../KeepAwakeToggle.js';
@@ -63,6 +64,36 @@ describe('KeepAwakeToggle (web)', () => {
         expect(toggle.className).toContain('min-h-11');
         expect(toggle.className).toContain('border-line-control');
         expect(toggle.className).toContain('text-card-title');
+    });
+
+    // The switch presses as a Button does. `Button` wraps its `<button>` in `PressScale`, whose span scales while the
+    // child is `:active`; the toggle must wear the SAME wrapper, and while off the SAME hover and pressed fill as
+    // Button's secondary pill (`surface-muted` over paper). Mutation lens: drop the wrapper, or swap the fill, and this fails.
+    it('⛔ presses like Button: the same PressScale wrapper, and the secondary pill’s hover and pressed fill', () => {
+        const { container: button } = render(
+            <Button icon="check" variant="secondary">
+                Done
+            </Button>,
+        );
+        const { container: toggle } = render(
+            <KeepAwakeToggle on={false} onChange={vi.fn()} label="Screen on" display="labelled" />,
+        );
+        const buttonWrapper = button.querySelector('span');
+        const toggleWrapper = toggle.querySelector('span');
+
+        expect(toggleWrapper?.className).toBe(buttonWrapper?.className);
+        expect(toggleWrapper?.querySelector('[role="switch"]')).not.toBeNull();
+
+        const pressed = (element: Element | null | undefined): string[] =>
+            (element?.className ?? '').split(/\s+/u).filter((token) => /^(?:hover|active):/u.test(token));
+
+        expect(pressed(toggleWrapper?.querySelector('[role="switch"]'))).toEqual(
+            pressed(buttonWrapper?.querySelector('button')),
+        );
+        expect(pressed(toggleWrapper?.querySelector('[role="switch"]'))).toEqual([
+            'hover:bg-surface-muted',
+            'active:bg-surface-muted',
+        ]);
     });
 
     it('on: the selectedFill with a selectedEdge outline, the same edge width and size as off', () => {

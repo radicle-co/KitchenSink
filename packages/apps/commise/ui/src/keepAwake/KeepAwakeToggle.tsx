@@ -8,6 +8,9 @@
  * on it takes the `selectedFill` with a `selectedEdge` outline of the same width, and the `sun` glyph is filled, so the
  * state never rests on colour alone. Icon-only it keeps "Screen on" as its name.
  *
+ * It presses as `Button` does: the same `PressScale` wrapper, and while off the secondary pill's own hover and pressed
+ * fill (`surface-muted`).
+ *
  * Presentational apart from one capability read: with no Wake Lock API (an older browser, an insecure context) it
  * renders nothing at all. It is never shown disabled, because a control the cook can never use is noise.
  *
@@ -17,6 +20,7 @@ import type { FC } from 'react';
 
 import { buttonToggleSurfaceClass } from '../button/surfaceClass.js';
 import { Icon } from '../icon/Icon.js';
+import { PressScale } from '../pressScale/PressScale.js';
 import type { KeepAwakeToggleProps } from './props.js';
 import { useKeepAwakeAvailable } from './useKeepAwakeAvailable.js';
 
@@ -29,16 +33,20 @@ export const KeepAwakeToggle: FC<KeepAwakeToggleProps> = ({ on, onChange, label,
     }
 
     return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label={display === 'icon' ? label : undefined}
-            onClick={() => onChange(!on)}
-            className={display === 'icon' ? `${buttonToggleSurfaceClass(on)} min-w-11` : buttonToggleSurfaceClass(on)}
-        >
-            <Icon name="sun" size={20} filled={on} />
-            {display === 'labelled' ? <span>{label}</span> : null}
-        </button>
+        <PressScale>
+            <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                aria-label={display === 'icon' ? label : undefined}
+                onClick={() => onChange(!on)}
+                className={
+                    display === 'icon' ? `${buttonToggleSurfaceClass(on)} min-w-11` : buttonToggleSurfaceClass(on)
+                }
+            >
+                <Icon name="sun" size={20} filled={on} />
+                {display === 'labelled' ? <span>{label}</span> : null}
+            </button>
+        </PressScale>
     );
 };

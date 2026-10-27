@@ -53,15 +53,33 @@ export function buttonSurfacePaint({ colors }: Theme, surface: ButtonSurface): V
 /**
  * The paint of a SWITCH that wears the secondary button (`componentFixes` issue 6): unselected it IS the secondary paint;
  * selected it takes `selectedFill` and `selectedEdge` at the SAME edge width, so turning it on moves nothing around it.
- * Pure.
+ * While pressed, an unselected switch takes the press wash (`theme.wash`, the twin of the web `bg-surface-muted` press)
+ * and a selected one shows a 2 pt `selectedEdge` (`componentFixes` §5), its padding one point less so the box and the
+ * content stay put. Pure.
  *
  * @param theme - The theme to paint in.
  * @param selected - Whether the switch is on.
+ * @param pressed - Whether a press is in progress. Defaults to false.
  */
-export function buttonToggleSurfacePaint(theme: Theme, selected: boolean): ViewStyle {
+export function buttonToggleSurfacePaint(theme: Theme, selected: boolean, pressed = false): ViewStyle {
     const secondary = buttonSurfacePaint(theme, 'secondary');
 
-    return selected
-        ? { ...secondary, backgroundColor: theme.colors.selectedFill, borderColor: theme.colors.selectedEdge }
-        : secondary;
+    if (!selected) {
+        return pressed ? { ...secondary, backgroundColor: theme.wash } : secondary;
+    }
+
+    const on: ViewStyle = {
+        ...secondary,
+        backgroundColor: theme.colors.selectedFill,
+        borderColor: theme.colors.selectedEdge,
+    };
+
+    return pressed
+        ? {
+              ...on,
+              borderWidth: 2,
+              paddingVertical: Number(BUTTON_PILL_LAYOUT.paddingVertical) - 1,
+              paddingHorizontal: Number(BUTTON_PILL_LAYOUT.paddingHorizontal) - 1,
+          }
+        : on;
 }

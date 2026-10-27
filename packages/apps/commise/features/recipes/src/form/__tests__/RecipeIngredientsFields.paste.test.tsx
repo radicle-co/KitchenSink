@@ -577,6 +577,24 @@ describe('where focus goes once a pick saves (web, host gap rule 3)', () => {
         expect(expandTo).not.toHaveBeenCalled();
     });
 
+    // The pane follows the FIRST OPEN line until the cook places it. A pick closes the line it is on, so without a place the
+    // pane slid to the next open line the instant a food was chosen: the browser showed "Line 2 of 2" under the cook's
+    // finger (`pasteMatchPane.spec.ts`). Mutation lens: drop the `moveTo` from `onPick` and this fails.
+    it('⛔ at the wide class a pick pins the pane to its line, so it cannot slide to the next open line', async () => {
+        layout.container = 'wide';
+        const user = userEvent.setup();
+        const moveTo = vi.fn();
+
+        render(<Harness matching={matchingOf([MILK_OPEN, makeNeedsChoiceLine()], { moveTo, pick: vi.fn() })} />);
+        await user.click(
+            within(screen.getByRole('complementary', { name: 'Choose a food' })).getByRole('button', {
+                name: 'Skim milk',
+            }),
+        );
+
+        expect(moveTo).toHaveBeenCalledWith('milk');
+    });
+
     it('⛔ not when the cook has gone to another line meanwhile', async () => {
         const user = userEvent.setup();
         const expandTo = vi.fn();

@@ -21,13 +21,12 @@
  *
  * @pattern Fitness Function over the source of every app
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { appSourceModules, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** A Tailwind background in the ink family at a fractional opacity, after the start of a token. */
@@ -44,37 +43,13 @@ export function pressWashLiterals(
     fileName: string,
     source: string,
 ): readonly { readonly line: number; readonly found: string }[] {
-    const kind = /\.tsx$/u.test(fileName) ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-    const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind);
-    const found: { line: number; found: string }[] = [];
-
-    const visit = (node: ts.Node): void => {
-        if (
-            ts.isStringLiteralLike(node) ||
-            ts.isTemplateHead(node) ||
-            ts.isTemplateMiddle(node) ||
-            ts.isTemplateTail(node) ||
-            ts.isJsxText(node)
-        ) {
-            // A token can sit at either end of a template part, so each part is read with a space on both sides.
-            for (const token of ` ${node.text} `.split(/\s+/u)) {
-                const hit = INK_ALPHA_FILL.exec(` ${token} `);
-
-                if (hit?.[1] !== undefined) {
-                    found.push({
-                        line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1,
-                        found: token,
-                    });
-                }
-            }
-        }
-
-        ts.forEachChild(node, visit);
-    };
-
-    visit(file);
-
-    return found;
+    return stringLikeTexts(fileName, source).flatMap(({ line, text }) =>
+        // A token can sit at either end of a template part, so each part is read with a space on both sides.
+        ` ${text} `
+            .split(/\s+/u)
+            .filter((token) => INK_ALPHA_FILL.test(` ${token} `))
+            .map((token) => ({ line, found: token })),
+    );
 }
 
 describe('the ink-alpha wash reader', () => {
@@ -132,22 +107,9 @@ describe('the ink-alpha wash reader', () => {
     }
 });
 
-/** Every app module the guard reads: git-tracked source under `packages/apps/**`, minus the scope exclusions. */
-function appModules(): readonly string[] {
-    return execFileSync('git', ['ls-files', '--', 'packages/apps'], { cwd: repoRoot, encoding: 'utf8' })
-        .split('\n')
-        .filter((file) => /\.tsx?$/u.test(file) && !file.endsWith('.d.ts'))
-        .filter(
-            (file) =>
-                !/(?:^|\/)(?:__tests__|__fixtures__|tests|node_modules|dist|\.expo|android|ios|\.next)\//u.test(file) &&
-                !/\.(?:test|spec)\.tsx?$/u.test(file),
-        )
-        .sort();
-}
-
 describe('apps write no ink-alpha press wash', () => {
     it('discovers the app modules, web and native, where the washes were (a vacuous pass would hide the rule)', () => {
-        const modules = appModules();
+        const modules = appSourceModules();
 
         expect(modules).toContain('packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx');
         expect(modules).toContain('packages/apps/commise/features/recipes/src/detail/IngredientCheckRow.tsx');
@@ -156,7 +118,7 @@ describe('apps write no ink-alpha press wash', () => {
     });
 
     it('lets no app module state a `bg-ink/<n>` fill behind any variant', () => {
-        const offenders = appModules().flatMap((file) =>
+        const offenders = appSourceModules().flatMap((file) =>
             pressWashLiterals(file, readFileSync(path.join(repoRoot, file), 'utf8')).map(
                 (hit) => `${file}:${String(hit.line)}  ${hit.found}`,
             ),

@@ -29,13 +29,13 @@
  *
  * @pattern Fitness Function over the source of every app
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { APP_SOURCE_EXCLUDED, appSourceModules } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** A Tailwind arbitrary text size: `text-[13px]`, `text-[0.8125rem]`, behind any variant prefix. */
@@ -227,19 +227,9 @@ describe('the type-scale literal reader', () => {
     }
 });
 
-/** Every app module the guard reads: git-tracked source under `packages/apps/**`, minus the scope exclusions. */
-function appModules(): readonly string[] {
-    return execFileSync('git', ['ls-files', '--', 'packages/apps'], { cwd: repoRoot, encoding: 'utf8' })
-        .split('\n')
-        .filter((file) => /\.tsx?$/u.test(file) && !file.endsWith('.d.ts'))
-        .filter(
-            (file) =>
-                !file.includes('/ui/src/tokens/') &&
-                !/(?:^|\/)(?:__tests__|__fixtures__|tests|node_modules|dist|\.expo|android|ios|\.next)\//u.test(file) &&
-                !/\.(?:test|spec)\.tsx?$/u.test(file),
-        )
-        .sort();
-}
+/** The design system's own token tables state the sizes by definition; every other app module may not. */
+const appModules = (): readonly string[] =>
+    appSourceModules(['packages/apps'], new RegExp(`/ui/src/tokens/|${APP_SOURCE_EXCLUDED.source}`, 'u'));
 
 describe('apps write no type size as a number', () => {
     it('discovers the app modules, native and web, beside the ones that were hard-coded (a vacuous pass would hide the rule)', () => {

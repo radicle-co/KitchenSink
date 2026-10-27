@@ -61,7 +61,7 @@ const ClonePrivateFoodsBanner: FC<{ readonly text: string }> = ({ text }): JSX.E
     }
 
     return (
-        <div className="flex items-start gap-3 rounded-xl bg-attention-tint p-3">
+        <div className="flex items-start gap-3 rounded-lg bg-attention-tint p-3">
             <p role="note" className="flex-1 text-body-sm text-ink">
                 {text}
             </p>
@@ -190,7 +190,7 @@ const OwnerAmbiguityReview: FC<Pick<AmbiguityReviewProps, 'recipe'>> = ({ recipe
                         type="button"
                         onClick={() => setOpen((value) => !value)}
                         aria-expanded={open}
-                        className="flex items-center gap-2 rounded-xl border border-line-divider bg-paper p-3 text-left"
+                        className="flex items-center gap-2 rounded-lg border border-line-divider bg-paper p-3 text-left"
                     >
                         {/* The name is the content in visible order, the count sentence then the badge (WCAG 1.3.1, 2.5.3);
                             the space keeps the two apart where a name is joined from inline boxes. */}

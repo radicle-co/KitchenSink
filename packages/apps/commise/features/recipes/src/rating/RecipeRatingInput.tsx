@@ -60,7 +60,7 @@ export const RecipeRatingInput: FC<RecipeRatingInputProps> = ({
                                 <label
                                     key={value}
                                     aria-label={optionLabel}
-                                    className={`relative rounded p-0.5 transition motion-reduce:transition-none ${
+                                    className={`relative rounded-sm p-0.5 transition motion-reduce:transition-none ${
                                         pending ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-110'
                                     }`}
                                 >

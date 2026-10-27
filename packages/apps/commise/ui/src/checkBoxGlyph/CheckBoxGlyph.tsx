@@ -9,17 +9,19 @@
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *
  * @pattern Adapter over a CSS transition — the signature check motion, declared once for every whole-row checkbox
+ * @pattern Glyph — a fixed 18 px mark that owns its corner (`GLYPH_CORNER`), which no radius step fits
  */
 import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
-import type { CheckBoxGlyphProps } from './props.js';
+import { GLYPH_CORNER, type CheckBoxGlyphProps } from './props.js';
 
 /** The web whole-row checkbox's box. */
 export const CheckBoxGlyph: FC<CheckBoxGlyphProps> = ({ checked }) => (
     <span
         aria-hidden="true"
-        className={`flex size-[18px] shrink-0 items-center justify-center rounded-[4px] border ${
+        style={{ borderRadius: GLYPH_CORNER }}
+        className={`flex size-[18px] shrink-0 items-center justify-center border ${
             checked ? 'border-action bg-action text-on-action' : 'border-line-control bg-transparent'
         }`}
     >

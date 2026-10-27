@@ -57,7 +57,7 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             type="button"
                             aria-label={fillTemplate(detail.photoOpen, { title, index: index + 1 })}
                             onClick={() => setActiveIndex(index)}
-                            className="block w-full overflow-hidden rounded-2xl"
+                            className="block w-full overflow-hidden rounded-lg"
                         >
                             <img
                                 src={photo.url}

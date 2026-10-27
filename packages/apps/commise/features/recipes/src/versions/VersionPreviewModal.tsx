@@ -93,7 +93,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-2xl bg-paper p-6 shadow-lg md:max-w-2xl"
+                    className="fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-xl bg-paper p-6 shadow-lg md:max-w-2xl"
                 >
                     <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
 
@@ -112,7 +112,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only in
                         the list behind the dialog (`namelessLineCopy.md` §5). */}
                     {restoreErrorText !== undefined && (
-                        <p role="alert" className="rounded-2xl bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
+                        <p role="alert" className="rounded-lg bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
                             {restoreErrorText}
                         </p>
                     )}
@@ -143,7 +143,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                 <h3 className="font-display text-body-md font-semibold text-ink">
                                     {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
                                 </h3>
-                                <ul className="flex flex-col divide-y divide-line-divider rounded-2xl bg-surface-muted p-2">
+                                <ul className="flex flex-col divide-y divide-line-divider rounded-lg bg-surface-muted p-2">
                                     {toVersionPreviewIngredientLines(
                                         version.snapshot.ingredients,
                                         preview,
@@ -192,7 +192,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                     <h3 className="font-display text-body-md font-semibold text-ink">
                                         {fillTemplate(preview.stepsHeading, { version: version.versionNumber })}
                                     </h3>
-                                    <ol className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-3">
+                                    <ol className="flex flex-col gap-2 rounded-lg bg-surface-muted p-3">
                                         {toVersionPreviewSteps(version.snapshot.steps).map((step) => (
                                             <li key={step.key} className="flex gap-2 text-body-sm text-ink">
                                                 <span className="shrink-0 tabular-nums text-ink-muted">

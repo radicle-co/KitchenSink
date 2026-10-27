@@ -8,6 +8,7 @@
  *
  * @pattern Adapter over React Native's imperative `Animated` spring — the signature check motion, owned here so the
  *     rows that draw it stay pure
+ * @pattern Glyph — a fixed 18 pt mark that owns its corner (`GLYPH_CORNER`), which no radius step fits
  */
 import { useEffect, useState, type FC } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
@@ -15,7 +16,7 @@ import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { Icon } from '../icon/Icon.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import type { CheckBoxGlyphProps } from './props.js';
+import { GLYPH_CORNER, type CheckBoxGlyphProps } from './props.js';
 
 /** The spring of the one signature motion (`buildSpec.md` §1.9). */
 const CHECK_SPRING = { stiffness: 600, damping: 28, mass: 1 } as const;
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
     box: {
         width: 18,
         height: 18,
-        borderRadius: 4,
+        borderRadius: GLYPH_CORNER,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',

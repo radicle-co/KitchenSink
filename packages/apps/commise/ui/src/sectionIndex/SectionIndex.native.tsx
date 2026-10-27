@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     },
     railRow: { minHeight: 48 },
     sheetRow: { minHeight: 56 },
-    startBar: { position: 'absolute', top: 4, bottom: 4, start: 0, width: 3, borderRadius: 2 },
+    startBar: { position: 'absolute', top: 4, bottom: 4, start: 0, width: 3, borderRadius: nativeTokens.radius.full },
     line: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
     // The label at 400 is the `meta` face: a native face is chosen by weight, never by `fontWeight` (tokens/native.ts).
     label: { ...nativeTokens.type.meta },
@@ -343,7 +343,14 @@ const styles = StyleSheet.create({
         gap: 4,
         paddingHorizontal: nativeTokens.spacing[3],
     },
-    underBar: { position: 'absolute', bottom: 0, start: 12, end: 12, height: 3, borderRadius: 2 },
+    underBar: {
+        position: 'absolute',
+        bottom: 0,
+        start: 12,
+        end: 12,
+        height: 3,
+        borderRadius: nativeTokens.radius.full,
+    },
     bar: {
         flexDirection: 'row',
         alignItems: 'center',

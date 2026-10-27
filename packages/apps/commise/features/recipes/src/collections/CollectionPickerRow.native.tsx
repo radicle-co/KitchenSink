@@ -98,6 +98,12 @@ const styles = StyleSheet.create({
     text: { flex: 1, minWidth: 0 },
     title: { ...nativeTokens.type.cardTitle },
     meta: { ...nativeTokens.type.meta },
-    circle: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    circle: {
+        width: 28,
+        height: 28,
+        borderRadius: nativeTokens.radius.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     alert: { paddingHorizontal: nativeTokens.spacing[2] },
 });

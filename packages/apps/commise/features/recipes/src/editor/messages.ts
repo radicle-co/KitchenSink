@@ -455,9 +455,9 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
             publicNeedsPremium: "To make it private again, you'll need Premium.",
             privateUnavailable: "Private isn't available, so this recipe will be public when you publish.",
-            // The second sentence of `webPrivate` plus the original's consequence. COMBINED WORDING, owed a design pass.
+            // The owner's design wording of 2026-10-26 (`editor privatePremiumOnly`).
             privatePremiumOnly:
-                'A recipe from a public web page needs Premium and a change of your own to be private, so this one will be public when you publish.',
+                'A recipe from a public web page needs Premium and a change of your own to be private. Until then, it will be public when you publish.',
             private: 'Private',
             privateHint: 'Only you can see it',
             slotsLeft: '{left} of {total} private slots left',

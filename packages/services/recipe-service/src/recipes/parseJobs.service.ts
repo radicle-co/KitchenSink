@@ -37,7 +37,6 @@ import type { ParseLineJobMessage } from '@kitchensink/recipe-core/parsing/parse
 
 import { isBatchEnqueueError } from '../common/batchEnqueueError.js';
 import { sha256Hex } from '../common/sha256.js';
-import type { ImportAllowanceTier } from '../common/importAllowancePolicy.js';
 import { DEFAULT_COPY_FORWARD_MAX_AGE_HOURS } from '../config/config.types.js';
 import {
     evaluateCopyForward,
@@ -126,7 +125,6 @@ export type JobAdmission =
           readonly kind: 'charge';
           readonly channel: ImportAllowanceChannel;
           readonly units: number;
-          readonly tier: ImportAllowanceTier;
       }
     /** The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8): admit nothing here. */
     | { readonly kind: 'prepaid' };
@@ -326,16 +324,19 @@ export class ParseJobsService {
      *
      * @param ownerId - The verified caller.
      * @param text - The pasted block.
-     * @param tier - The caller's tier (today it changes nothing; 010 will).
      * @throws `IMPORT_QUOTA_EXCEEDED` (429, `details.resetsAt`) when the allowance is spent.
      * @sideEffect Writes the parse-job tables and the allowance ledger, and enqueues SQS messages.
      */
-    public async create(ownerId: string, text: string, tier: ImportAllowanceTier): Promise<ParseJobResponse> {
-        return this.createWith(ownerId, splitParseJobLines(text), { kind: 'charge', channel: 'paste', units: 1, tier });
+    public async create(ownerId: string, text: string): Promise<ParseJobResponse> {
+        return this.createWith(ownerId, splitParseJobLines(text), { kind: 'charge', channel: 'paste', units: 1 });
     }
 
     /**
      * Create a job for lines whose unit the caller ALREADY spent (a bulk import's recipe, ADR-0072 §8: one `bulk` unit per recipe).
+     *
+     * ⛔ NO LIVE ROUTE MAY CALL THIS. It exists for the parked bulk-import lane (ADR-0072 section 8), which has no route
+     * yet; today the only door to a job is {@link create}, which charges the paste allowance. A controller that called this
+     * would hand every caller an uncharged parse job.
      *
      * ⛔ THIS IS NOT A FREE PATH. It is legitimate only for a caller that has already charged a `bulk` unit for the
      * recipe these lines came from (and recorded that on the item, so a repeat never charges it twice); a caller that has

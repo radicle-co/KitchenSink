@@ -29,7 +29,6 @@ import { recipeDb } from '../../support/roleDb.js';
 
 const USER = '01JIMPORTALLOWANCEE2E00001';
 const OTHER = '01JIMPORTALLOWANCEE2E00002';
-const FREE = { isPremium: false } as const;
 const roleDb = recipeDb();
 
 describe('the per-channel import allowance (LOCAL e2e)', () => {
@@ -52,7 +51,7 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
 
     /** One admission in its own transaction, the way a service call makes it. */
     function admit(channel: 'paste' | 'bulk', units: number, userId: string = USER): Promise<AdmitOutcome> {
-        return db.transaction((tx) => dal.admit(tx, userId, { channel, units, tier: FREE }));
+        return db.transaction((tx) => dal.admit(tx, userId, { channel, units }));
     }
 
     /** One ledger row of `units` on `channel`, `ageHours` old. */

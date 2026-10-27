@@ -21,7 +21,6 @@ import { ParseJobsService } from '../../src/recipes/parseJobs.service.js';
 import { recipeDb } from '../support/roleDb.js';
 
 const OWNER = '01JPARSEATTRIBUTIONOWNER0A';
-const FREE_TIER = { isPremium: false } as const;
 const QUEUE_URL = 'https://sqs.test.invalid/recipe-parse-line';
 const PASTE = '2 cups flour\n1 tsp salt\n3 large eggs';
 const roleDb = recipeDb();
@@ -82,7 +81,7 @@ describe('parse-job enqueue attribution (LOCAL e2e, real Postgres)', () => {
             Failed: [{ Id: '1', Code: 'InternalError', SenderFault: false, Message: 'throttled' }],
         }));
 
-        const view = await service.create(OWNER, PASTE, FREE_TIER);
+        const view = await service.create(OWNER, PASTE);
 
         expect(await storedStatuses(view.id)).toEqual(['pending', 'failed_retryable', 'pending']);
         expect(view.lines.map((line) => line.status)).toEqual(['pending', 'failed_retryable', 'pending']);
@@ -101,7 +100,7 @@ describe('parse-job enqueue attribution (LOCAL e2e, real Postgres)', () => {
             Failed: [{ Id: '1', Code: 'InternalError', SenderFault: false }],
         }));
 
-        const view = await service.create(OWNER, PASTE, FREE_TIER);
+        const view = await service.create(OWNER, PASTE);
 
         expect(view.status).toBe(await storedJobStatus(view.id));
     });
@@ -116,7 +115,7 @@ describe('parse-job enqueue attribution (LOCAL e2e, real Postgres)', () => {
             throw new Error('ECONNREFUSED');
         });
 
-        const view = await service.create(OWNER, PASTE, FREE_TIER);
+        const view = await service.create(OWNER, PASTE);
 
         expect(await storedStatuses(view.id)).toEqual(['failed_retryable', 'failed_retryable', 'failed_retryable']);
     });
@@ -124,7 +123,7 @@ describe('parse-job enqueue attribution (LOCAL e2e, real Postgres)', () => {
     it('leaves every line pending when the whole batch lands', async () => {
         const service = serviceOver(async () => ({ $metadata: {}, Successful: [], Failed: [] }));
 
-        const view = await service.create(OWNER, PASTE, FREE_TIER);
+        const view = await service.create(OWNER, PASTE);
 
         expect(await storedStatuses(view.id)).toEqual(['pending', 'pending', 'pending']);
         expect(view.status).toBe('running');

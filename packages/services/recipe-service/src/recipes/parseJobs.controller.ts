@@ -47,7 +47,7 @@ import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
 import { CurrentPrincipal } from '../auth/currentPrincipal.decorator.js';
-import { actingPrincipalOf, isPremiumPrincipal, type Principal } from '../auth/principal.js';
+import { actingPrincipalOf, type Principal } from '../auth/principal.js';
 import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
@@ -81,9 +81,7 @@ export class ParseJobsController {
         return this.matchView.decorate(
             actingPrincipalOf(principal),
             caller,
-            await this.parseJobsService.create(principal.userId, body.text, {
-                isPremium: isPremiumPrincipal(principal),
-            }),
+            await this.parseJobsService.create(principal.userId, body.text),
         );
     }
 

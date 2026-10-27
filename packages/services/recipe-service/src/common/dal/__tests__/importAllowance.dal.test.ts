@@ -20,7 +20,6 @@ import { ImportAllowanceDal } from '../importAllowance.dal.js';
 
 const USER = '01JIMPORTALLOWANCEUSER0001';
 const NOW = new Date('2026-10-26T12:00:00.000Z');
-const FREE = { isPremium: false } as const;
 
 const dialect = new PgDialect();
 
@@ -59,7 +58,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('takes the per-user lock BEFORE it reads the clock, the window or writes', async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
+        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
 
         expect(methodsOf(control)[0]).toBe('execute');
         expect(methodsOf(control).indexOf('select')).toBeGreaterThan(0);
@@ -69,7 +68,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('records the admitted unit with the SAME instant it decided on', async () => {
         queueReads([]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
+        const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
 
         expect(outcome).toEqual({ kind: 'admitted', units: 1 });
         expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'paste', units: 1, createdAt: NOW }]);
@@ -84,7 +83,7 @@ describe('ImportAllowanceDal.admit', () => {
         }));
         queueReads([{ channel: 'paste', units: 1, createdAt: oldest }, ...rest]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
+        const outcome = await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
 
         expect(outcome).toEqual({
             kind: 'refused',
@@ -96,7 +95,7 @@ describe('ImportAllowanceDal.admit', () => {
     it("prunes the caller's expired units under the lock, before it reads the window", async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
+        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
 
         const methods = methodsOf(control);
 
@@ -107,7 +106,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('⛔ takes the lock on the REGISTERED class and the caller’s own id, in the transaction-scoped form', async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
+        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
 
         const lock = rendered(firstArgumentOf('execute'));
 
@@ -119,7 +118,7 @@ describe('ImportAllowanceDal.admit', () => {
     it("⛔ prunes ONLY this user's rows at or before EACH CHANNEL's window edge, and reads ONLY this user's rows after it", async () => {
         queueReads([]);
 
-        await dal.admit(control.db, USER, { channel: 'paste', units: 1, tier: FREE });
+        await dal.admit(control.db, USER, { channel: 'paste', units: 1 });
 
         const edge = new Date(NOW.getTime() - IMPORT_ALLOWANCE_RULES.paste.windowMs).toISOString();
         const wheres = control.calls.filter((call) => call.method === 'where').map((call) => rendered(call.args[0]));
@@ -152,7 +151,7 @@ describe('ImportAllowanceDal.admit', () => {
             })),
         );
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 5, tier: FREE });
+        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 5 });
 
         expect(outcome).toEqual({ kind: 'admitted', units: 5 });
         expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'bulk', units: 5, createdAt: NOW }]);
@@ -161,7 +160,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('⛔ writes ONLY the units that fit, and answers partial with when more opens', async () => {
         queueReads([{ channel: 'bulk', units: 990, createdAt: new Date(NOW.getTime() - 3_600_000) }]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 50, tier: FREE });
+        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 50 });
 
         expect(outcome).toEqual({
             kind: 'partial',

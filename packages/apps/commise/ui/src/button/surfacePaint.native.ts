@@ -50,14 +50,15 @@ export function pressWash(theme: Theme, tone: SurfaceTone): string {
  *
  * @param theme - The theme to paint in.
  * @param surface - The surface.
+ * @param tone - The surface the control sits on (`useSurfaceTone()`). Required: a default would be a surface asserted for
+ *   every caller that had not thought about it.
  * @param pressed - Whether a press is in progress. Defaults to false.
- * @param tone - The surface the control sits on. Defaults to the canvas.
  */
 export function buttonSurfacePaint(
     theme: Theme,
     surface: ButtonSurface,
+    tone: SurfaceTone,
     pressed = false,
-    tone: SurfaceTone = 'canvas',
 ): ViewStyle {
     const { colors } = theme;
 
@@ -88,16 +89,16 @@ export function buttonSurfacePaint(
  *
  * @param theme - The theme to paint in.
  * @param selected - Whether the switch is on.
+ * @param tone - The surface the switch sits on (`useSurfaceTone()`). Required, as for {@link buttonSurfacePaint}.
  * @param pressed - Whether a press is in progress. Defaults to false.
- * @param tone - The surface the switch sits on. Defaults to the canvas.
  */
 export function buttonToggleSurfacePaint(
     theme: Theme,
     selected: boolean,
+    tone: SurfaceTone,
     pressed = false,
-    tone: SurfaceTone = 'canvas',
 ): ViewStyle {
-    const secondary = buttonSurfacePaint(theme, 'secondary');
+    const secondary = buttonSurfacePaint(theme, 'secondary', tone);
 
     if (!selected) {
         return pressed ? { ...secondary, backgroundColor: pressWash(theme, tone) } : secondary;

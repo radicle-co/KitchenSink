@@ -12,7 +12,7 @@ describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) =
     const theme = themeFor(scheme);
 
     it('secondary is paper with a 1 pt lineControl edge', () => {
-        expect(buttonSurfacePaint(theme, 'secondary')).toEqual({
+        expect(buttonSurfacePaint(theme, 'secondary', 'canvas')).toEqual({
             backgroundColor: theme.colors.paper,
             borderWidth: 1,
             borderColor: theme.colors.lineControl,
@@ -20,15 +20,17 @@ describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) =
     });
 
     it('a switch that is off IS the secondary paint, key for key', () => {
-        expect(buttonToggleSurfacePaint(theme, false)).toEqual(buttonSurfacePaint(theme, 'secondary'));
+        expect(buttonToggleSurfacePaint(theme, false, 'canvas')).toEqual(
+            buttonSurfacePaint(theme, 'secondary', 'canvas'),
+        );
     });
 
     it('a switch that is on takes selectedFill and selectedEdge at the SAME edge width', () => {
-        const on = buttonToggleSurfacePaint(theme, true);
+        const on = buttonToggleSurfacePaint(theme, true, 'canvas');
 
         expect(on).toEqual({
             backgroundColor: theme.colors.selectedFill,
-            borderWidth: buttonSurfacePaint(theme, 'secondary').borderWidth,
+            borderWidth: buttonSurfacePaint(theme, 'secondary', 'canvas').borderWidth,
             borderColor: theme.colors.selectedEdge,
         });
     });
@@ -36,15 +38,15 @@ describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) =
     // Pressing: off takes Button's pressed fill over paper (the press of its surface, the twin of the web press); on shows a
     // 2 pt selectedEdge (`componentFixes` §5), its padding one point less so the box and content do not move.
     it('a switch that is off and pressed fills with its surface’s press, keeping the secondary edge', () => {
-        expect(buttonToggleSurfacePaint(theme, false, true)).toEqual({
-            ...buttonSurfacePaint(theme, 'secondary'),
+        expect(buttonToggleSurfacePaint(theme, false, 'canvas', true)).toEqual({
+            ...buttonSurfacePaint(theme, 'secondary', 'canvas'),
             backgroundColor: theme.press.canvas,
         });
-        expect(buttonToggleSurfacePaint(theme, false, true, 'muted').backgroundColor).toBe(theme.press.muted);
+        expect(buttonToggleSurfacePaint(theme, false, 'muted', true).backgroundColor).toBe(theme.press.muted);
     });
 
     it('a switch that is on and pressed doubles the selectedEdge and gives the point back in padding', () => {
-        const pressed = buttonToggleSurfacePaint(theme, true, true);
+        const pressed = buttonToggleSurfacePaint(theme, true, 'canvas', true);
 
         expect(pressed).toEqual({
             backgroundColor: theme.colors.selectedFill,
@@ -56,8 +58,12 @@ describe.each(['light', 'dark'] as const)('native button paint (%s)', (scheme) =
     });
 
     it('is not pressed unless told so', () => {
-        expect(buttonToggleSurfacePaint(theme, true)).toEqual(buttonToggleSurfacePaint(theme, true, false));
-        expect(buttonToggleSurfacePaint(theme, false)).toEqual(buttonToggleSurfacePaint(theme, false, false));
+        expect(buttonToggleSurfacePaint(theme, true, 'canvas')).toEqual(
+            buttonToggleSurfacePaint(theme, true, 'canvas', false),
+        );
+        expect(buttonToggleSurfacePaint(theme, false, 'canvas')).toEqual(
+            buttonToggleSurfacePaint(theme, false, 'canvas', false),
+        );
     });
 });
 
@@ -75,21 +81,26 @@ describe.each(['light', 'dark'] as const)('the native press fill (%s)', (scheme)
     it.each(['secondary', 'ghost', 'quiet', 'destructiveInline'] as const)(
         '%s fills with it while pressed',
         (surface) => {
-            expect(buttonSurfacePaint(theme, surface, true).backgroundColor).toBe(theme.press.canvas);
-            expect(buttonSurfacePaint(theme, surface, true, 'muted').backgroundColor).toBe(theme.press.muted);
+            expect(buttonSurfacePaint(theme, surface, 'canvas', true).backgroundColor).toBe(theme.press.canvas);
+            expect(buttonSurfacePaint(theme, surface, 'muted', true).backgroundColor).toBe(theme.press.muted);
         },
     );
 
     it('leaves the resting paint alone, pressed or not asked', () => {
-        expect(buttonSurfacePaint(theme, 'quiet')).toEqual({ backgroundColor: 'transparent', borderWidth: 0 });
-        expect(buttonSurfacePaint(theme, 'quiet', false, 'muted')).toEqual(buttonSurfacePaint(theme, 'quiet'));
+        expect(buttonSurfacePaint(theme, 'quiet', 'canvas')).toEqual({
+            backgroundColor: 'transparent',
+            borderWidth: 0,
+        });
+        expect(buttonSurfacePaint(theme, 'quiet', 'muted', false)).toEqual(
+            buttonSurfacePaint(theme, 'quiet', 'canvas'),
+        );
     });
 
     // Rewritten: the confirm used to keep its fill on press (no native role for web's `danger/90`). dangerPressed is that role.
     it('presses primary to actionPressed and confirm to dangerPressed', () => {
-        expect(buttonSurfacePaint(theme, 'primary', true).backgroundColor).toBe(theme.colors.actionPressed);
-        expect(buttonSurfacePaint(theme, 'destructiveConfirm').backgroundColor).toBe(theme.colors.danger);
-        expect(buttonSurfacePaint(theme, 'destructiveConfirm', true)).toEqual({
+        expect(buttonSurfacePaint(theme, 'primary', 'canvas', true).backgroundColor).toBe(theme.colors.actionPressed);
+        expect(buttonSurfacePaint(theme, 'destructiveConfirm', 'canvas').backgroundColor).toBe(theme.colors.danger);
+        expect(buttonSurfacePaint(theme, 'destructiveConfirm', 'canvas', true)).toEqual({
             backgroundColor: theme.colors.dangerPressed,
             borderWidth: 0,
         });
@@ -98,7 +109,7 @@ describe.each(['light', 'dark'] as const)('the native press fill (%s)', (scheme)
 
     it('the Screen on switch presses with the same rule', () => {
         for (const tone of ['canvas', 'paper', 'paperOverlay', 'muted'] as const) {
-            expect(buttonToggleSurfacePaint(theme, false, true, tone).backgroundColor).toBe(pressWash(theme, tone));
+            expect(buttonToggleSurfacePaint(theme, false, tone, true).backgroundColor).toBe(pressWash(theme, tone));
         }
     });
 });

@@ -48,7 +48,7 @@ export const KeepAwakeToggle: FC<KeepAwakeToggleProps> = ({ on, onChange, label,
                                 minHeight: height,
                                 minWidth: height,
                                 borderRadius: height / 2,
-                                ...buttonToggleSurfacePaint(theme, on, pressed, tone),
+                                ...buttonToggleSurfacePaint(theme, on, tone, pressed),
                             },
                         ]}
                     >

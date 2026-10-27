@@ -136,7 +136,7 @@ export const Button: FC<ButtonProps> = (props) => {
             style={[
                 styles.base,
                 geometry,
-                buttonSurfacePaint(theme, surface, pressed && !inactive, tone),
+                buttonSurfacePaint(theme, surface, tone, pressed && !inactive),
                 inactive ? styles.inactive : null,
             ]}
         >

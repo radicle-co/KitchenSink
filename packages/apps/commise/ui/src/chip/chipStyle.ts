@@ -35,15 +35,11 @@ export const chipHit: ViewStyle = { justifyContent: 'center', maxWidth: '100%' }
  * @param theme - The current theme (`useTheme()`).
  * @param selected - Whether it shows selected.
  * @param pressed - Whether a press is in progress.
- * @param tone - The surface the chip rests on: it decides the resting fill and the press (`componentFixes.md` §10a).
+ * @param tone - The surface the chip rests on (`useSurfaceTone()`): it decides the resting fill and the press
+ *   (`componentFixes.md` §10a). Required, so a caller cannot forget it and rest on the wrong fill.
  * @returns The pill's style.
  */
-export function chipPill(
-    { colors, press }: Theme,
-    selected: boolean,
-    pressed: boolean,
-    tone: SurfaceTone = 'canvas',
-): ViewStyle {
+export function chipPill({ colors, press }: Theme, selected: boolean, pressed: boolean, tone: SurfaceTone): ViewStyle {
     return {
         flexDirection: 'row',
         alignItems: 'center',

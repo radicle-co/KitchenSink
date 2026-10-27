@@ -5,7 +5,7 @@
  * the same split `.github/scripts/deployGate.sh` uses (pure `decide`, impure `evaluate`).
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -14,6 +14,7 @@ import { globSync } from 'glob';
 import { LOCAL_DB } from '../src/composePlan.js';
 import type { PackageManifest } from '../src/discoverApps.js';
 import { pruneStepFor } from '../src/localImages.js';
+import { generateStandInKeys, type StandInKeys } from '../src/remoteSearchStandIn.js';
 import { readSeedBundleModule } from '../src/seedBundleModule.js';
 import { inferSynthEnv } from '../src/synthEnv.js';
 import type { SynthRequest, SynthResult } from '../src/synthesize.js';
@@ -511,4 +512,73 @@ export function countLiveFoods(database: string): number {
     );
 
     return Number.parseInt((result.stdout ?? '').trim(), 10) || 0;
+}
+
+/**
+ * Build the remote search stand-in's files under `<generatedDir>/remoteSearch/` and return its keys.
+ *
+ * The directory holds what the sidecar mounts: `main.mjs` (the stand-in's bundle), `lambda/` (the search function's own
+ * Lambda bundle, unchanged), and `publicKey.pem`. The keys persist in `keys.json` (owner-only) so a restart does not
+ * invalidate the references food has already sealed; they are throwaway material that signs nothing real.
+ *
+ * @param generatedDir - `.local-sandbox`.
+ * @param options.skipBuild - Reuse the bundles already there (`LOCAL_SANDBOX_SKIP_BUILD`); they must exist.
+ * @returns The keys, or why the stand-in could not be built.
+ * @sideEffect Runs two npm builds, and writes files under `generatedDir`.
+ */
+export function prepareRemoteSearchStandIn(
+    generatedDir: string,
+    options: { readonly skipBuild: boolean },
+): { readonly ok: true; readonly keys: StandInKeys } | { readonly ok: false; readonly output: string } {
+    const dir = path.join(generatedDir, 'remoteSearch');
+    const keysFile = path.join(dir, 'keys.json');
+
+    if (!options.skipBuild) {
+        for (const script of [
+            ['bundle:lambda', '@kitchensink/remote-search-service'],
+            ['bundle', '@kitchensink/remote-search-edge'],
+        ] as const) {
+            const built = spawnSync('npm', ['run', script[0], `--workspace=${script[1]}`], {
+                cwd: REPO_ROOT,
+                encoding: 'utf8',
+            });
+
+            if (built.status !== 0) {
+                return { ok: false, output: `${built.stdout ?? ''}${built.stderr ?? ''}` };
+            }
+        }
+    }
+
+    mkdirSync(dir, { recursive: true });
+    rmSync(path.join(dir, 'lambda'), { recursive: true, force: true });
+    cpSync(path.join(REPO_ROOT, 'packages/services/remote-search/dist-lambda'), path.join(dir, 'lambda'), {
+        recursive: true,
+    });
+    cpSync(path.join(REPO_ROOT, 'packages/tools/remote-search-edge/dist/main.mjs'), path.join(dir, 'main.mjs'));
+
+    let keys: StandInKeys | undefined;
+
+    try {
+        const stored = JSON.parse(readFileSync(keysFile, 'utf8')) as Partial<StandInKeys>;
+
+        if (
+            typeof stored.privateKeyPem === 'string' &&
+            typeof stored.publicKeyPem === 'string' &&
+            typeof stored.referenceKey === 'string'
+        ) {
+            keys = {
+                privateKeyPem: stored.privateKeyPem,
+                publicKeyPem: stored.publicKeyPem,
+                referenceKey: stored.referenceKey,
+            };
+        }
+    } catch {
+        // No usable keys yet; generated below.
+    }
+
+    keys ??= generateStandInKeys();
+    writeFileSync(keysFile, `${JSON.stringify(keys, null, 4)}\n`, { mode: 0o600 });
+    writeFileSync(path.join(dir, 'publicKey.pem'), keys.publicKeyPem);
+
+    return { ok: true, keys };
 }

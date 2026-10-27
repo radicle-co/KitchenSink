@@ -236,6 +236,10 @@ export const LOCAL_SUPPORT: Readonly<Record<string, LocalSupport>> = Object.free
     // validates signed requests at the edge with these; the LOCAL e2e tier reaches the handler directly,
     // so none of it has a local consumer. Stated rather than skipped for the same reason as the
     // distribution above: a sandbox that silently omitted them would claim signing parity it cannot have.
+    //
+    // ⚠️ NOT "nothing local": `local:up` runs a STAND-IN for the distribution (`remoteSearchStandIn.ts`, package
+    // `@kitchensink/remote-search-edge`), which verifies signed requests with a key pair it GENERATES. It is a model
+    // of the check, not CloudFront, and these types stay unsupported because none of them is created from the CDK.
     // (The cache policy is also emitted by the router edge — `EdgeStack` declares its own — so its reason
     // covers both emitters.)
     'AWS::CloudFront::PublicKey': {

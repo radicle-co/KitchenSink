@@ -24,7 +24,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { discoverImageBuilds, localContainerEnv, portConflicts, pruneStepFor } from '../localImages.js';
+import {
+    discoverImageBuilds,
+    hostPortOverridesFrom,
+    localContainerEnv,
+    portConflicts,
+    pruneStepFor,
+} from '../localImages.js';
 
 const taskTemplate = (image: unknown): unknown => ({
     Resources: {
@@ -606,5 +612,41 @@ describe('localContainerEnv — a sibling URL uses the CONTAINER port', () => {
         });
 
         expect(env['FOOD_SERVICE_URL']).toBe('http://food:3000');
+    });
+});
+
+describe('hostPortOverridesFrom — moving a published host port off one something else holds', () => {
+    /**
+     * ⚠️ Found by running `local:up` on the owner's machine: their session UI listens on 127.0.0.1:3000, the port
+     * recipe-service publishes, and the pre-flight rightly refuses. The container port never moves (siblings reach it
+     * by compose name on it); only the HOST side does, and a device or simulator reaches it through `adb reverse` /
+     * an SSH tunnel that names the port, so the app's own `localhost:3000` is untouched.
+     */
+    it('is empty when unset', () => {
+        expect(hostPortOverridesFrom(undefined)).toEqual({});
+        expect(hostPortOverridesFrom('')).toEqual({});
+    });
+
+    it('reads service=port pairs', () => {
+        expect(hostPortOverridesFrom('recipes=3010, food=3012')).toEqual({ recipes: 3010, food: 3012 });
+    });
+
+    it.each([
+        'recipes',
+        'recipes=',
+        '=3010',
+        'recipes=abc',
+        'recipes=80',
+        'recipes=70000',
+        'recipes=3010.5',
+        'a=3010,a=3011',
+    ])('refuses %j', (raw) => {
+        expect(() => hostPortOverridesFrom(raw)).toThrow(/LOCAL_SANDBOX_HOST_PORTS/u);
+    });
+
+    it('answers for an inherited name no more than for any other', () => {
+        expect(hostPortOverridesFrom('constructor=3010').constructor).not.toBe(Object);
+        expect(Object.keys(hostPortOverridesFrom('constructor=3010'))).toEqual(['constructor']);
+        expect({}.constructor).toBe(Object);
     });
 });

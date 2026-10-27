@@ -41,10 +41,11 @@ import {
     resolveSsmParameters,
     sharedLiteralEnv,
 } from '../src/runPlan.js';
-import { discoverImageBuilds, localContainerEnv, portConflicts } from '../src/localImages.js';
+import { discoverImageBuilds, hostPortOverridesFrom, localContainerEnv, portConflicts } from '../src/localImages.js';
 import { secretRefsOf, ssmRefsOf } from '../src/secretRefs.js';
 import { MIGRATION_TABLE, pendingMigrations } from '../src/pendingMigrations.js';
 import { composeValue } from '../src/composeValue.js';
+import { foodRemoteSearchEnv, remoteSearchSidecar } from '../src/remoteSearchStandIn.js';
 import {
     creatableResources,
     importRefsOf,
@@ -64,6 +65,7 @@ import {
     fetchSecret,
     fetchSsmParameter,
     createLocalResource,
+    prepareRemoteSearchStandIn,
     localPortFor,
     readManifests,
     countLiveFoods,
@@ -92,8 +94,12 @@ function toYaml(plan: ReturnType<typeof planCompose>): string {
             `        image: ${service.image}`,
             `        container_name: local-sandbox-${name}`,
             '        restart: unless-stopped',
-            '        ports:',
-            ...service.ports.map((port) => `            - '${port}'`),
+            // A service in another's network namespace may not publish ports.
+            ...(service.networkMode === undefined ? [] : [`        network_mode: ${service.networkMode}`]),
+            ...(service.command === undefined ? [] : [`        command: ${JSON.stringify(service.command)}`]),
+            ...(service.ports.length === 0
+                ? []
+                : ['        ports:', ...service.ports.map((port) => `            - '${port}'`)]),
             '        environment:',
             ...Object.entries(service.environment).map(([key, value]) => `            ${key}: ${composeValue(value)}`),
             '        healthcheck:',
@@ -339,6 +345,25 @@ async function main(): Promise<void> {
         }
     }
 
+    // ── The remote search stand-in (gap: food's remote search group was absent, so provision threw) ──
+    //
+    // Built BEFORE the service environments, because food's environment carries its keys. The sidecar that serves it
+    // is added to the compose plan below and joins food's network namespace (see `remoteSearchStandIn.ts`).
+    const standIn = prepareRemoteSearchStandIn(GENERATED_DIR, {
+        skipBuild: process.env['LOCAL_SANDBOX_SKIP_BUILD'] === '1',
+    });
+
+    if (!standIn.ok) {
+        process.stderr.write(
+            `\n  remote search stand-in FAILED to build\n${standIn.output.split('\n').slice(-12).join('\n')}\n`,
+        );
+        process.exitCode = 1;
+
+        return;
+    }
+
+    const foodStated = foodRemoteSearchEnv(standIn.keys);
+
     // ── Build OUR images, then point the local stack at them ────────────────────────────────────────
     //
     // ⛔ The CDK names the repository (`ContainerImage.fromEcrRepository`) but cannot say how to build it —
@@ -346,6 +371,20 @@ async function main(): Promise<void> {
     // synthesised the stack owns the Dockerfile, and its own `docker:prepare` is what CI runs first.
     const imageBuilds = stacks.flatMap((entry) => [...discoverImageBuilds(entry.stack, entry.template, entry.app)]);
     const uniqueBuilds = [...new Map(imageBuilds.map((build) => [build.localImage, build])).values()];
+    // A host port something else holds can be moved (`LOCAL_SANDBOX_HOST_PORTS=recipes=3010`); see `hostPortOverridesFrom`.
+    const hostPortOverrides = hostPortOverridesFrom(process.env['LOCAL_SANDBOX_HOST_PORTS']);
+    const knownServices = new Set(uniqueBuilds.map((build) => build.repository.replace(/^kitchensink-/u, '')));
+    const unknownOverrides = Object.keys(hostPortOverrides).filter((name) => !knownServices.has(name));
+
+    if (unknownOverrides.length > 0) {
+        process.stderr.write(
+            `\nLOCAL_SANDBOX_HOST_PORTS names no service: ${unknownOverrides.join(', ')} (services: ${[...knownServices].join(', ')})\n`,
+        );
+        process.exitCode = 1;
+
+        return;
+    }
+
     const serviceContainers: ServiceContainer[] = [];
     const siblings: Record<string, { hostPort: number; containerPort: number }> = Object.create(null) as Record<
         string,
@@ -371,7 +410,11 @@ async function main(): Promise<void> {
 
     for (const build of uniqueBuilds) {
         const name = build.repository.replace(/^kitchensink-/u, '');
-        const hostPort = localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ?? build.containerPort ?? 3000;
+        const hostPort =
+            hostPortOverrides[name] ??
+            localPortFor(build.dockerfile.replace(/\/Dockerfile$/u, '')) ??
+            build.containerPort ??
+            3000;
         // The stack's own database — the same resolution the migrations use.
         const stackEntry = stacks.find((entry) => entry.stack.startsWith(build.stack));
         const stackDbs =
@@ -411,6 +454,8 @@ async function main(): Promise<void> {
                 database: stackDbs[0] ?? 'postgres',
                 port: build.containerPort ?? 3000,
                 siblings,
+                // Only food searches and picks remote hits; every other container keeps the group absent.
+                ...(name === 'food' ? { stated: foodStated } : {}),
                 // A literal the stack's tasks all state (`CLERK_ADMIT_NATIVE_CLIENT: 'true'`) ranks with what AWS resolved;
                 // without it every such value became a placeholder and the native app's tokens 401'd.
                 resolved: {
@@ -562,7 +607,11 @@ async function main(): Promise<void> {
         }
     }
 
-    const plan = planCompose(requirements, { databases, serviceContainers });
+    const plan = planCompose(requirements, {
+        databases,
+        serviceContainers,
+        sidecars: serviceContainers.some((container) => container.name === 'food') ? [remoteSearchSidecar()] : [],
+    });
 
     mkdirSync(GENERATED_DIR, { recursive: true });
     writeFileSync(path.join(GENERATED_DIR, 'compose.yml'), toYaml(plan));

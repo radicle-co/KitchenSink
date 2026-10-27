@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 
 import { placeholderContrast } from '@commise/test-utils';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { FieldLabel } from '../FieldLabel.native.js';
 import { Input } from '../Input.native.js';
 import { TextArea } from '../TextArea.native.js';
@@ -318,10 +318,7 @@ describe('TextArea (native)', () => {
 
     it('still grows to fit a device-style report, the text height alone', () => {
         reportsPadding = false;
-        const original = Platform.OS;
-        Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
-
-        try {
+        withPlatformOs('ios', () => {
             renderSteps(2, 4);
 
             const line = nativeTokens.type.body.lineHeight ?? 0;
@@ -333,9 +330,7 @@ describe('TextArea (native)', () => {
 
             measure(line);
             expect(heightOf()).toBe(`${2 * line + 34}px`);
-        } finally {
-            Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-        }
+        });
     });
 
     it('is a multi-line field named by its FieldLabel', () => {

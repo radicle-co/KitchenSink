@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 import { useState } from 'react';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Chip } from '../Chip.native.js';
 import { ChipRow } from '../ChipRow.native.js';
@@ -45,14 +45,6 @@ function pillOf(chip: HTMLElement): HTMLElement {
 
 const glyphIn = (element: HTMLElement): string | undefined =>
     element.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'];
-
-/** Render under a given React Native platform, restoring react-native-web's own `web` afterwards. */
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-}
 
 describe('Chip (native) — filter', () => {
     it('is a checkbox whose checked state follows selected', () => {
@@ -204,18 +196,14 @@ describe('Chip (native) — filter', () => {
             ['ios', '44px'],
             ['android', '48px'],
         ] as const) {
-            const restore = onPlatform(os);
-
-            try {
+            withPlatformOs(os, () => {
                 const { unmount } = render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
                 const chip = screen.getByRole('checkbox', { name: 'Vegan' });
 
                 expect(getComputedStyle(chip).minHeight, os).toBe(hit);
                 expect(getComputedStyle(pillOf(chip)).minHeight, os).toBe('32px');
                 unmount();
-            } finally {
-                restore();
-            }
+            });
         }
     });
 

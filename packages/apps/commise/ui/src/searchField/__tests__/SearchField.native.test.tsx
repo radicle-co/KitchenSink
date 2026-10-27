@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { AccessibilityInfo, Platform } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 import { useState } from 'react';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { SearchField } from '../SearchField.native.js';
 import type { SearchFieldProps } from '../props.js';
@@ -31,13 +32,6 @@ function rgb(hex: string): string {
     const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
 
     return `rgb(${r}, ${g}, ${b})`;
-}
-
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
 }
 
 function Search(props: Partial<SearchFieldProps> & { readonly initial?: string }) {
@@ -121,18 +115,14 @@ describe('SearchField (native)', () => {
             ['ios', '44px'],
             ['android', '48px'],
         ] as const) {
-            const restore = onPlatform(os);
-
-            try {
+            withPlatformOs(os, () => {
                 const { unmount } = render(<Search initial="lemon" />);
                 const clear = getComputedStyle(screen.getByRole('button', { name: 'Clear search' }));
 
                 expect(clear.minWidth, os).toBe(size);
                 expect(clear.minHeight, os).toBe(size);
                 unmount();
-            } finally {
-                restore();
-            }
+            });
         }
     });
 

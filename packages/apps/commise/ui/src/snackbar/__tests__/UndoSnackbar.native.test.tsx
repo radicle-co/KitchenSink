@@ -11,28 +11,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const press = vi.hoisted(() => ({ pressed: false }));
 
 vi.mock('react-native', async (importOriginal) => {
+    const { pressedPressable } = await import('../../testing/pressedPressable.js');
     const { withSystemScheme } = await import('../../testing/systemColorScheme.js');
-    const { createElement } = await import('react');
     const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
-    return {
-        ...actual,
-        Pressable: (props: {
-            readonly children: unknown;
-            readonly style: unknown;
-            readonly role?: string;
-            readonly 'aria-label'?: string;
-        }) =>
-            createElement(
-                actual.View,
-                {
-                    role: props.role as never,
-                    'aria-label': props['aria-label'],
-                    style: typeof props.style === 'function' ? props.style({ pressed: press.pressed }) : props.style,
-                },
-                props.children as never,
-            ),
-    };
+    return { ...actual, Pressable: pressedPressable(actual, () => press.pressed) };
 });
 
 import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js';

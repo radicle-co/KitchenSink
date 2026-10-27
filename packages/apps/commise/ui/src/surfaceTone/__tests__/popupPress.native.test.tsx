@@ -17,38 +17,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const press = vi.hoisted(() => ({ pressed: false }));
 
 vi.mock('react-native', async (importOriginal) => {
+    const { pressedPressable } = await import('../../testing/pressedPressable.js');
     const { withSystemScheme } = await import('../../testing/systemColorScheme.js');
-    const { createElement } = await import('react');
     const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
-    return {
-        ...actual,
-        Pressable: (props: {
-            readonly children: unknown;
-            readonly style: unknown;
-            readonly onPress?: () => void;
-            readonly accessibilityRole?: string;
-            readonly accessibilityLabel?: string;
-            readonly role?: string;
-            readonly 'aria-label'?: string;
-            readonly 'aria-checked'?: boolean;
-            readonly 'aria-expanded'?: boolean;
-        }) =>
-            createElement(
-                actual.View,
-                {
-                    role: (props.role ?? props.accessibilityRole) as never,
-                    'aria-label': props['aria-label'] ?? props.accessibilityLabel,
-                    'aria-checked': props['aria-checked'],
-                    'aria-expanded': props['aria-expanded'],
-                    ...({ onClick: props.onPress } as object),
-                    style: typeof props.style === 'function' ? props.style({ pressed: press.pressed }) : props.style,
-                },
-                typeof props.children === 'function'
-                    ? (props.children as (state: { pressed: boolean }) => never)({ pressed: press.pressed })
-                    : (props.children as never),
-            ),
-    };
+    return { ...actual, Pressable: pressedPressable(actual, () => press.pressed) };
 });
 
 import { ActionMenu } from '../../actionMenu/ActionMenu.native.js';

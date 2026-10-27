@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { AccessibilityInfo, Platform } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
 import { BUTTON_VISUAL_HEIGHT, type ButtonProps, type ButtonSize } from '../props.js';
@@ -47,14 +48,6 @@ afterEach(() => {
     scheme.current = null;
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
-
-/** Render under a given React Native platform, restoring react-native-web's own `web` afterwards. */
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-}
 
 /** Every element in `root`, itself first. */
 const allIn = (root: HTMLElement): HTMLElement[] => [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
@@ -342,17 +335,13 @@ describe('Button (native)', () => {
             ['ios', 44],
             ['android', 48],
         ] as const) {
-            const restore = onPlatform(os);
-
-            try {
+            withPlatformOs(os, () => {
                 const { unmount } = render(<Button variant="quiet">Keep as written</Button>);
                 const button = screen.getByRole('button', { name: 'Keep as written' });
 
                 expect(getComputedStyle(pillOf(button)).minHeight, os).toBe(`${String(floor)}px`);
                 unmount();
-            } finally {
-                restore();
-            }
+            });
         }
     });
 
@@ -391,9 +380,7 @@ describe('Button (native)', () => {
     });
 
     it('sizes lg at 52, md at 44 and sm at 36 visual points on iOS', () => {
-        const restore = onPlatform('ios');
-
-        try {
+        withPlatformOs('ios', () => {
             for (const [size, visual] of [
                 ['lg', 52],
                 ['md', 44],
@@ -412,15 +399,11 @@ describe('Button (native)', () => {
                 expect(Number.parseFloat(pill.borderTopLeftRadius), size).toBe(visual / 2);
                 unmount();
             }
-        } finally {
-            restore();
-        }
+        });
     });
 
     it('gives the 36pt sm button a 44pt hit area on iOS', () => {
-        const restore = onPlatform('ios');
-
-        try {
+        withPlatformOs('ios', () => {
             render(
                 <Button icon="plus" size="sm">
                     Small
@@ -428,9 +411,7 @@ describe('Button (native)', () => {
             );
 
             expect(withMinHeight(screen.getByRole('button', { name: 'Small' }), '44px')).not.toBeNull();
-        } finally {
-            restore();
-        }
+        });
     });
 
     // The type-scale ruling (2026-10-25) set the label's leading at 20 px (it was 16.8). The pill is
@@ -445,9 +426,7 @@ describe('Button (native)', () => {
     });
 
     it('raises the md button and the sm hit area to 48 dp on Android (spec §1.6)', () => {
-        const restore = onPlatform('android');
-
-        try {
+        withPlatformOs('android', () => {
             const { unmount } = render(<Button icon="plus">Medium</Button>);
             expect(getComputedStyle(pillOf(screen.getByRole('button', { name: 'Medium' }))).minHeight).toBe('48px');
             unmount();
@@ -459,9 +438,7 @@ describe('Button (native)', () => {
             );
             expect(withMinHeight(screen.getByRole('button', { name: 'Small' }), '48px')).not.toBeNull();
             expect(getComputedStyle(pillOf(screen.getByRole('button', { name: 'Small' }))).minHeight).toBe('36px');
-        } finally {
-            restore();
-        }
+        });
     });
 
     it('adopts PressScale so the pill carries a press-scale transform (resting = neutral)', () => {

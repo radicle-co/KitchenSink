@@ -20,6 +20,7 @@
         "@aws-sdk/cloudfront-signer": "^3.1138.0",
         "@kitchensink/eslint": "*",
         "@kitchensink/remote-search-edge": "*",
+        "@kitchensink/service-test-harness": "*",
         "@kitchensink/vitest": "*",
         "@types/aws-lambda": "^8.10.0",
         "@types/node": "^24.13.3",

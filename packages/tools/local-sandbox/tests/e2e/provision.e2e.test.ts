@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ListQueuesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
@@ -73,6 +74,15 @@ beforeAll(async () => {
         E2E_SEED_WEB_ORIGIN: 'http://localhost:3000',
         E2E_SEED_STATE_DIR: stateDir,
     };
+});
+
+describe('the erasure plumbing local:up creates', () => {
+    // Identity's `DELETION_QUEUE_URL` is stated from this queue; without it every self-service erasure answered 500.
+    it('has the data stack’s deletion queue in LocalStack', async () => {
+        const { QueueUrls } = await new SQSClient({}).send(new ListQueuesCommand({}));
+
+        expect((QueueUrls ?? []).filter((url) => /-deletionqueue[0-9a-f]*$/u.test(url))).toHaveLength(1);
+    });
 });
 
 describe('e2e-seed provision against the local stack', () => {

@@ -22,6 +22,7 @@
 import { useState, type FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { useContainerClass } from '../layout/useContainerClass.native.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
@@ -39,6 +40,7 @@ import {
     shownCountOf,
 } from './sectionIndexModel.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 type Colors = ReturnType<typeof useTheme>['colors'];
 
@@ -69,6 +71,7 @@ interface ListRowProps {
 /** One rail or sheet row: the label, then the status line in `caption`, then the hint. */
 const ListRow: FC<ListRowProps> = ({ item, current, height, colors, onChoose }) => {
     const glyph = TONE_GLYPH[item.tone];
+    const pressFill = usePressFill();
 
     return (
         <Pressable
@@ -77,7 +80,7 @@ const ListRow: FC<ListRowProps> = ({ item, current, height, colors, onChoose }) 
             style={({ pressed }) => [
                 styles.row,
                 height === 'rail' ? styles.railRow : styles.sheetRow,
-                pressed ? { backgroundColor: colors.surfaceMuted } : null,
+                pressed ? { backgroundColor: pressFill } : null,
             ]}
         >
             {current ? <View style={[styles.startBar, { backgroundColor: colors.hereBar }]} /> : null}
@@ -338,7 +341,7 @@ const styles = StyleSheet.create({
     stripItem: {
         flexShrink: 1,
         minWidth: 0,
-        minHeight: 44,
+        minHeight: touchFloor(),
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
@@ -355,7 +358,7 @@ const styles = StyleSheet.create({
     bar: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 44,
+        minHeight: touchFloor(),
         gap: nativeTokens.spacing[2],
         paddingHorizontal: nativeTokens.spacing[4],
     },

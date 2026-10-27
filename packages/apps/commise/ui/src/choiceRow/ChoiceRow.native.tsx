@@ -5,7 +5,7 @@
  *
  * Busy and refused rows are disabled — a disabled `Pressable` keeps the screen-reader cursor on device — and dimmed to
  * the Combobox's busy option's 60 % (web's `BUSY_CONTROL_CLASS`); only the busy row reads busy. The chosen row takes the
- * selected fill; a pressed row the muted surface. Colours come from the theme at render.
+ * selected fill; a pressed row the press fill of the surface it sits on. Colours come from the theme at render.
  *
  * Presentational: props → JSX; the focus request is the one effect, and the one reason this leaf holds a ref.
  *
@@ -19,6 +19,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { ChoiceRowProps } from './props.js';
@@ -35,6 +36,7 @@ export const ChoiceRow: FC<ChoiceRowProps> = ({
     onFocusRequestHandled,
 }) => {
     const { colors } = useTheme();
+    const pressFill = usePressFill();
     const node = useRef<View>(null);
     useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
     const inactive = busy || refused;
@@ -50,7 +52,7 @@ export const ChoiceRow: FC<ChoiceRowProps> = ({
             style={({ pressed }) => [
                 styles.row,
                 chosen && { backgroundColor: colors.selectedFill },
-                pressed && { backgroundColor: colors.surfaceMuted },
+                pressed && { backgroundColor: pressFill },
                 inactive && styles.inactive,
             ]}
         >

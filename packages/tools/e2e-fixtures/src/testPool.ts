@@ -384,7 +384,7 @@ export function maestroShardCapacity(platform: MaestroPlatform): number {
 }
 
 /**
- * The slot a 1-based Maestro shard of one platform signs in as, for one role. Pure.
+ * The slot a 1-based Maestro shard of one platform signs in as, for one role. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * ⛔ It THROWS past the declared lanes rather than wrapping, for the reason {@link slotForShard} records: a
  * wrap would put two shards of one run on one user — the collision the pool exists to rule out — and would
@@ -429,7 +429,7 @@ export const MAESTRO_ERASURE_SHARD = 1;
 
 /**
  * The erasure subjects a 1-based Maestro shard of one platform may lease, in declared order: that platform's
- * own subjects for {@link MAESTRO_ERASURE_SHARD}, and none for any other shard. Pure.
+ * own subjects for {@link MAESTRO_ERASURE_SHARD}, and none for any other shard. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * ## The lease contract (2026-10-08 stride -> one lane; 2026-10-13 one lane PER PLATFORM)
  *
@@ -552,12 +552,12 @@ export function knownPoolAddresses(): ReadonlySet<string> {
     );
 }
 
-/** Every slot, in declared order (tier order, then lane order). Pure. */
+/** Every slot, in declared order (tier order, then lane order). Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function rosterSlots(): readonly PoolSlot[] {
     return POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared, activeNamespace())));
 }
 
-/** The slot a tier declares under `id`; throws for a lane that tier does not declare. Pure. */
+/** The slot a tier declares under `id`; throws for a lane that tier does not declare. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function slotFor(tier: PoolTier, id: string): PoolSlot {
     const declared = POOL_ROSTER[tier].find((candidate) => candidate.id === id);
 
@@ -569,7 +569,7 @@ export function slotFor(tier: PoolTier, id: string): PoolSlot {
 }
 
 /**
- * The slot a 1-based Playwright shard leases: the lane at index `shard - 1`. Pure.
+ * The slot a 1-based Playwright shard leases: the lane at index `shard - 1`. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * ⛔ It THROWS past the declared lanes rather than wrapping. Wrapping would put two shards of one run on one
  * user — the collision the whole pool exists to rule out — and it would do so silently.
@@ -593,7 +593,7 @@ export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number)
 
 /**
  * The peer of a web slot: the `webPeer` lane at the same index, the SECOND cook `sessionHandoff.spec.ts` signs in after
- * the slot's own user signs out. Pure.
+ * the slot's own user signs out. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * Derived from the slot rather than from a shard number so a caller that already holds its slot (`webPoolSlot`) does
  * not parse the shard a second time. It throws for a slot of any other tier.
@@ -622,7 +622,7 @@ export function k6VuLanes(lanes: readonly PoolLane[]): readonly PoolLane[] {
     return lanes.filter((declared) => K6_VU_ID_SET.has(declared.id));
 }
 
-/** The first `count` k6 VU slots, in declared order — never the admin. Pure. */
+/** The first `count` k6 VU slots, in declared order — never the admin. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function k6VuSlots(count: number): readonly PoolSlot[] {
     const vus = k6VuLanes(POOL_ROSTER.k6);
 
@@ -637,7 +637,7 @@ export function k6VuSlots(count: number): readonly PoolSlot[] {
     return vus.slice(0, count).map((declared) => toSlot('k6', declared, activeNamespace()));
 }
 
-/** A tier's consumable slots, in declared order. Pure. */
+/** A tier's consumable slots, in declared order. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function consumableSlots(tier: PoolTier): readonly PoolSlot[] {
     return POOL_ROSTER[tier]
         .filter((declared) => declared.consumable)
@@ -645,7 +645,7 @@ export function consumableSlots(tier: PoolTier): readonly PoolSlot[] {
 }
 
 /**
- * Refuse any address that is not on the roster. Pure.
+ * Refuse any address that is not on the roster. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
  * Exact match after lowercasing only — no trimming, no subaddress folding — because every leniency is a way for
  * an address that is not a pool user to be admitted.

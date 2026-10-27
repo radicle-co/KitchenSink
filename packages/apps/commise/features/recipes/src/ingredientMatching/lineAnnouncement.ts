@@ -44,7 +44,17 @@ const resolvedOf = (line: MatchLine, text: string, copy: MatchCopy): string | un
         return fillTemplate(copy.line.announce.matched, { line: text, food: pick.name });
     }
 
-    return isOpenLine(line) ? fillTemplate(copy.line.announce.needsChoice, { line: text }) : undefined;
+    if (!isOpenLine(line)) {
+        return undefined;
+    }
+
+    // A check that never ran did not "finish": the line says so instead (owner design 2026-10-26).
+    return fillTemplate(
+        line.state === 'needsChoice' && line.budgetSpent !== undefined
+            ? copy.line.announce.budgetSpent
+            : copy.line.announce.needsChoice,
+        { line: text },
+    );
 };
 
 /** A line's late review note's food, if it carries one. Pure. */

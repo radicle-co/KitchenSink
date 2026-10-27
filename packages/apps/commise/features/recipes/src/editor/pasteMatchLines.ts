@@ -54,6 +54,9 @@ export interface PasteMatchLinesInput {
     readonly reviewReasonOf: (reason: string) => string;
 }
 
+/** The wire `reason` of a line the spent AI budget left for the cook (ADR-0024 section 3, ADR-0071 section 9). */
+const REVIEW_BUDGET_SPENT_REASON = 'reviewBudgetSpent';
+
 /** The reasons whose bound food the REVIEW (or a remembered review) vouched for. */
 const REVIEW_REASONS: ReadonlySet<string> = new Set(['rememberedMatch', 'reviewVerified']);
 
@@ -166,7 +169,16 @@ function lineOf(
             return { key, line, state: 'default', noun: food.name, candidates, binding };
 
         case 'needsChoice':
-            return { key, line, state: 'needsChoice', candidates, binding };
+            return {
+                key,
+                line,
+                state: 'needsChoice',
+                candidates,
+                binding,
+                ...(match.reason === REVIEW_BUDGET_SPENT_REASON
+                    ? { budgetSpent: { resetsAt: match.reviewResetsAt } }
+                    : {}),
+            };
 
         case 'noMatch':
             return { key, line, state: 'noMatch', binding };

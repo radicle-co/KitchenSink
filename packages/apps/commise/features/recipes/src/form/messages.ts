@@ -592,6 +592,12 @@ export interface RecipeFormMessages {
         };
         /** 004 FR-022's daily limit; `{time}` is when it resets. */
         readonly quota: { readonly body: string };
+        /**
+         * `import.paste.noAiCheck` (owner design 2026-10-26, board ImportPasteNoAiCheck): the month's AI check is used up
+         * and these foods were matched without it; `{date}` is the day it comes back, as a day and month in the cook's
+         * locale.
+         */
+        readonly noAiCheck: { readonly body: string };
     };
 
     /** Localized copy for each `RecipeFormErrorCode` validation error (B20). */
@@ -889,6 +895,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
             },
             quota: {
                 body: 'You’ve added a lot today. Matching starts again at {time}. These lines are kept as written, and you can choose foods for them then.',
+            },
+            noAiCheck: {
+                body: 'This month’s AI check is used up, so these foods were matched without it, your matches from before included. Confirm or change each one. The check comes back on {date}.',
             },
         },
 

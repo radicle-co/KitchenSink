@@ -74,6 +74,9 @@ const leafOf = ({ row, focus, retry, ...handlers }: MatchRowProps): ReactElement
                     onRetryPick={() => {
                         handlers.onRetryPick(row.key);
                     }}
+                    onSeeWhy={(reason) => {
+                        handlers.onSeeWhy(row.key, reason);
+                    }}
                 />
             );
         case 'closed':

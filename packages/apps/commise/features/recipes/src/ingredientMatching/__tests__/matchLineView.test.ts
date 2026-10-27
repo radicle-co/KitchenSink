@@ -179,6 +179,48 @@ describe('the open row’s prompt', () => {
     });
 });
 
+/**
+ * ADDED for the AI budget spent (owner ruling 2026-10-26): a needsChoice line the spent budget left for the cook opens
+ * its reason under See why ("Our check did not run this month…"). No second notice per line: the line's prompt is the
+ * ordinary one, and the reason is only behind See why.
+ */
+describe('the open row’s See why — a line matched without the AI check', () => {
+    const spent = makeNeedsChoiceLine({ budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' } });
+
+    it('carries the budget reason behind the See why label', () => {
+        expect(rowOf('open', spent, { expanded: true }).view.why).toEqual({
+            label: 'See why',
+            reason: 'Our check did not run this month, so this is our best guess. Choose the food you use.',
+        });
+    });
+
+    it('keeps the ordinary prompt, so there is no second notice on the line', () => {
+        expect(rowOf('open', spent, { expanded: true }).view.prompt).toBe(
+            'More than one food fits. Nothing is chosen for you.',
+        );
+    });
+
+    it('is absent on a line the check did run for, and on a bound line reopened by Change', () => {
+        expect(rowOf('open', makeNeedsChoiceLine(), { expanded: true }).view.why).toBeUndefined();
+        expect(rowOf('open', { ...spent, binding: cookPicked(SKIM) }, { expanded: true }).view.why).toBeUndefined();
+    });
+
+    it('the proposal stays first and nothing is pre-selected; Default shows only on a seeded default', () => {
+        const withDefault = makeNeedsChoiceLine({
+            budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' },
+            candidates: [
+                { id: 'a', name: 'Butter, salted', isDefault: false },
+                { id: 'b', name: 'Butter, unsalted', isDefault: true },
+            ],
+        });
+        const rows = rowOf('open', withDefault, { expanded: true }).view.list.rows;
+
+        expect(rows.map((row) => row.label)).toEqual(['Butter, salted', 'Butter, unsalted']);
+        expect(rows.map((row) => row.tag)).toEqual([undefined, 'Default']);
+        expect(rows.every((row) => !row.chosen)).toBe(true);
+    });
+});
+
 describe('choiceListViewOf — search, the options, Keep as written', () => {
     it('keeps the server’s order and tags the default by its flag, not its position', () => {
         const { rows } = listOf(makeDefaultLine());

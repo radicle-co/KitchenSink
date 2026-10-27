@@ -23,12 +23,7 @@ import { useState } from 'react';
 
 import type { PasteMatchingView, PasteMatchLayout } from '../form/props.js';
 import { recipeFormMessages } from '../form/messages.js';
-import {
-    paneStepsOf,
-    pasteMatchPaneViewOf,
-    pasteMatchSummaryOf,
-    type PasteMatchNotice,
-} from '../form/pasteMatchView.js';
+import { paneStepsOf, pasteMatchNoticeFor, pasteMatchPaneViewOf, pasteMatchSummaryOf } from '../form/pasteMatchView.js';
 import { lineChangesOf, type ListSnapshot } from '../ingredientMatching/lineAnnouncement.js';
 import {
     matchCountsOf,
@@ -255,22 +250,19 @@ export function usePasteMatchView(options: UsePasteMatchViewOptions): PasteMatch
                 onPrevious: () => step(steps.previousKey),
                 onNext: () => step(steps.nextKey),
                 onRetryPick: () => handlers.onRetryPick(paneKey),
+                onSeeWhy: (reason) => handlers.onSeeWhy(paneKey, reason),
                 retry: retryOf(paneKey),
             },
         };
     };
 
-    const notice = ((): PasteMatchNotice | undefined => {
-        if (options.quota !== undefined) {
-            return {
-                kind: 'quota',
-                resetsAt: options.quota.resetsAt,
-                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            };
-        }
-
-        return options.offline && matching.lines.length > 0 ? { kind: 'offline', keep: options.keep } : undefined;
-    })();
+    const notice = pasteMatchNoticeFor({
+        quota: options.quota,
+        offline: options.offline,
+        keep: options.keep,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        lines: matching.lines,
+    });
 
     return {
         view: {

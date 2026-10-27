@@ -18,6 +18,7 @@ import type { FC } from 'react';
 
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
+import { SeeWhy } from '../ingredientMatching/SeeWhy.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
 
@@ -27,11 +28,13 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({
     onPrevious,
     onNext,
     onRetryPick,
+    onSeeWhy,
     retry: hostRetry,
     ...list
 }) => {
     const ownRetry = useRetryFocus([view.open.send])(view.open.send.key);
     const retry = hostRetry ?? ownRetry;
+    const { why } = view.open;
 
     return (
         <aside aria-label={view.label} className="flex flex-col gap-3 p-4">
@@ -40,6 +43,14 @@ export const PasteChoicePane: FC<PasteChoicePaneProps> = ({
                 <h2 className="break-words text-card-title text-ink">{view.heading}</h2>
                 {view.open.prompt === undefined ? null : (
                     <p className="break-words text-list text-ink-muted">{view.open.prompt}</p>
+                )}
+                {why === undefined ? null : (
+                    <SeeWhy
+                        key={view.open.send.key}
+                        label={why.label}
+                        reason={why.reason}
+                        onOpen={() => onSeeWhy(why.reason)}
+                    />
                 )}
                 {view.open.failure === undefined ? null : (
                     <MatchFailureLine failure={view.open.failure} onRetry={onRetryPick} focus={retry.tryAgain} />

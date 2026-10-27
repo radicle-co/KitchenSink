@@ -16,7 +16,7 @@
  * - M4: the pane counts over ALL the recipe's lines ("Line 3 of 5") and steps to the previous and next OPEN line, so a
  *   line it shows keeps its place once chosen; it counted only the open lines.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { recipeMessages } from '../../messages.js';
 import {
@@ -32,7 +32,9 @@ import type { MatchLine } from '../../ingredientMatching/matchLine.js';
 import { matchLineMessages } from '../../ingredientMatching/messages.js';
 import { recipeFormMessages } from '../messages.js';
 import {
+    noAiCheckBodyOf,
     paneStepsOf,
+    pasteMatchNoticeFor,
     pasteMatchNoticeOf,
     pasteMatchPaneViewOf,
     pasteMatchSummaryOf,
@@ -196,5 +198,77 @@ describe('pasteMatchNoticeOf', () => {
 
         expect(pasteMatchNoticeOf(notice, m, 'en')).toBe(quotaBodyOf(notice.resetsAt, m, 'en', notice.timeZone));
         expect(pasteMatchNoticeOf(notice, m, 'en')).toContain('12:00 AM');
+    });
+});
+
+/**
+ * ADDED for the AI budget spent (owner ruling 2026-10-26; board ImportPasteNoAiCheck, `import.paste.noAiCheck`): the
+ * notice above the ingredient list says this month's check is used up and when it comes back. {date} is
+ * `reviewResetsAt` as a day and month in the cook's locale.
+ *
+ * ⛔ The instant is the first of next month at 00:00 UTC (the spend period's end, ADR-0024), so the date is read in UTC:
+ * read in a zone west of UTC it would say "31 October" and name a day before the period ends.
+ */
+describe('noAiCheckBodyOf', () => {
+    const resetsAt = '2026-11-01T00:00:00.000Z';
+    const originalZone = process.env['TZ'];
+
+    afterEach(() => {
+        if (originalZone === undefined) {
+            delete process.env['TZ'];
+        } else {
+            process.env['TZ'] = originalZone;
+        }
+    });
+
+    it('says this month’s check is used up and when it comes back, day first in en-GB', () => {
+        expect(noAiCheckBodyOf(resetsAt, m, 'en-GB')).toBe(
+            'This month’s AI check is used up, so these foods were matched without it, your matches from before included. Confirm or change each one. The check comes back on 1 November.',
+        );
+    });
+
+    it('puts the month first in en-US', () => {
+        expect(noAiCheckBodyOf(resetsAt, m, 'en-US')).toContain('The check comes back on November 1.');
+    });
+
+    it('⛔ names the 1st for a cook west of UTC, where the local time is still 31 October', () => {
+        process.env['TZ'] = 'America/Los_Angeles';
+
+        expect(noAiCheckBodyOf(resetsAt, m, 'en-GB')).toContain('The check comes back on 1 November.');
+    });
+});
+
+describe('pasteMatchNoticeFor', () => {
+    const spent = makeNeedsChoiceLine({ budgetSpent: { resetsAt: '2026-11-01T00:00:00.000Z' } });
+    const base = { quota: undefined, offline: false, keep: 'disk', timeZone: 'UTC', lines: [spent] } as const;
+
+    it('is the AI-check notice when a line was matched without the check', () => {
+        expect(pasteMatchNoticeFor(base)).toEqual({ kind: 'noAiCheck', resetsAt: '2026-11-01T00:00:00.000Z' });
+    });
+
+    it('is none when no line carries the fact, or the server sent no date', () => {
+        expect(pasteMatchNoticeFor({ ...base, lines: [makeNeedsChoiceLine()] })).toBeUndefined();
+        expect(
+            pasteMatchNoticeFor({ ...base, lines: [makeNeedsChoiceLine({ budgetSpent: { resetsAt: undefined } })] }),
+        ).toBeUndefined();
+    });
+
+    it('the daily limit and being offline each outrank it: the notice is a status, so one fact at a time', () => {
+        expect(pasteMatchNoticeFor({ ...base, quota: { resetsAt: '2026-10-26T04:00:00.000Z' } })).toMatchObject({
+            kind: 'quota',
+        });
+        expect(pasteMatchNoticeFor({ ...base, offline: true })).toEqual({ kind: 'offline', keep: 'disk' });
+    });
+
+    it('offline with no lines yet says nothing', () => {
+        expect(pasteMatchNoticeFor({ ...base, offline: true, lines: [] })).toBeUndefined();
+    });
+});
+
+describe('pasteMatchNoticeOf — the AI check', () => {
+    it('words the notice with the date', () => {
+        expect(pasteMatchNoticeOf({ kind: 'noAiCheck', resetsAt: '2026-11-01T00:00:00.000Z' }, m, 'en-GB')).toBe(
+            noAiCheckBodyOf('2026-11-01T00:00:00.000Z', m, 'en-GB'),
+        );
     });
 });

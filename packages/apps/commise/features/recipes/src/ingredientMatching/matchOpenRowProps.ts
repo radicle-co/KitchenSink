@@ -15,6 +15,8 @@ export interface MatchOpenRowProps extends Omit<FoodChoiceListProps, 'view' | 'l
     readonly view: OpenLineView;
     /** Try again, after a pick that did not save. */
     readonly onRetryPick: () => void;
+    /** See why was opened: the host says the reason once in its polite region. */
+    readonly onSeeWhy: (reason: string) => void;
     /** Where focus goes when Try again is pressed and when its retry fails again (`useRetryFocus`). */
     readonly retry: LineRetryFocus;
 }

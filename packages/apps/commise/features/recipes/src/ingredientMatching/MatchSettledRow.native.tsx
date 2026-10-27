@@ -19,6 +19,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { MatchFailureLine } from './MatchFailureLine.native.js';
 import { settledControlFocusOf } from './listControlFocus.js';
 import { MatchLineText } from './MatchLineText.native.js';
+import { SeeWhy } from './SeeWhy.native.js';
 import type { SettledStatus } from './matchLineView.js';
 import type { MatchSettledRowProps } from './matchSettledRowProps.js';
 
@@ -118,9 +119,12 @@ export const MatchSettledRow: FC<MatchSettledRowProps> = ({ line, view, onAction
             {view.note === undefined ? null : (
                 <View style={styles.note}>
                     <Text style={[styles.noteText, { color: colors.inkMuted }]}>{view.note.sentence}</Text>
-                    <Button variant="ghost" size="sm" accessibilityLabel={view.note.seeWhyName} onPress={onSeeWhy}>
-                        {view.note.seeWhy}
-                    </Button>
+                    <SeeWhy
+                        label={view.note.seeWhy}
+                        name={view.note.seeWhyName}
+                        reason={view.note.reason}
+                        onOpen={onSeeWhy}
+                    />
                 </View>
             )}
         </View>

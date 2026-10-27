@@ -473,63 +473,17 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
             expect(screen.getByRole('button', { name: /Get Premium/u })).toBeTruthy();
         });
 
-        // The ways forward leave the editor, so they must do what × does: the exit checkpoint (ADR-0057 section 2), or the cook
-        // who went to free a slot would come back to a lost recipe.
-        it('⛔ leaving by "Make a private recipe public" keeps what the cook typed: the exit checkpoint runs', async () => {
-            profile.paidFeatures = 'upsell';
-            window.history.replaceState(null, '', '/en/recipes/rec_leave/edit');
-            const client = clientWithSlots({ used: 50, limit: 50 });
-            // A private DRAFT: the ways forward appear only once its Publish was refused for want of a slot.
-            vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({
-                    id: 'rec_leave',
-                    title: 'Secret Stew',
-                    visibility: RecipeVisibility.PRIVATE,
-                    status: 'draft',
-                }),
-            );
-            const view = renderWithRecipeClient(
-                withFoodClient(
-                    <SyncProvider subject="user_cook" send={recipeSender(() => client)} store={webDeviceStore}>
-                        <RecipeEditorContainer locale="en" recipeId="rec_leave" />
-                    </SyncProvider>,
-                ),
-                client,
-            );
-            await screen.findByDisplayValue('Secret Stew');
-            // The refusal is decided from the server's count: wait for it before pressing Publish.
-            await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
-            await act(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 20));
-            });
-            await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
-            await screen.findByText('Not available. All 50 of your private slots are in use.');
-            // Offline from here, so the checkpoint's write stays in the journal for the assertion below.
-            onlineManager.setOnline(false);
-            const title = await screen.findByRole('textbox', { name: /title/iu });
-            await userEvent.clear(title);
-            await userEvent.type(title, 'Soup to keep');
-
-            await userEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
-            expect(pushMock).toHaveBeenCalledWith('/en/recipes');
-            // The router leaves the page, which unmounts the editor: that is a leave.
-            view.unmount();
-            await act(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 0));
-            });
-
-            const titles = (await loadOutbox(webDeviceStore, 'user_cook')).records.map(
-                (record) => (record.payload as { readonly input?: { readonly title?: string } }).input?.title,
-            );
-            expect(titles).toEqual(['Soup to keep']);
-        });
+        // REMOVED (owner ruling 2026-10-26): "leaving by Make a private recipe public keeps what the cook typed" drove the ways
+        // forward a refused Publish of a private DRAFT used to draw inline. That Publish now opens the "Your private slots are
+        // full" dialog with Publish as public and Keep as draft, and nothing leaves the editor. The exit checkpoint itself is
+        // covered by the sibling leave tests.
 
         // ADDED after review (ADR-0073 section 12). When the slot read had failed at the press the client sends the Publish by
         // design (the count is a display fact), and the server answers the UPDATE with PRIVATE_SLOTS_FULL - an answer an
         // update could not give before. That parks behind Try again. Try again must not re-send a Publish the cook's own
         // standing now says cannot succeed (the stuck save, moved from the create to the publish): the standing is re-read when
         // the Publish parks, and Try again draws the refusal instead.
-        it('⛔ a Publish the server refused for slots, after an unknown standing: Try again re-reads the standing and draws the refusal instead of re-sending', async () => {
+        it('⛔ a Publish the server refused for slots, after an unknown standing: Try again re-reads the standing and opens the dialog instead of re-sending', async () => {
             profile.paidFeatures = 'upsell';
             const client = createFakeRecipeServiceClient();
             // The first read fails (an unknown standing at the press); every later one answers: every slot is used.
@@ -560,9 +514,11 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Premium
             });
             await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
-            expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+            expect(await screen.findByRole('dialog', { name: 'Your private slots are full' })).toBeTruthy();
             expect(update).toHaveBeenCalledTimes(1);
-            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect((screen.getByRole('radio', { name: /^Private/u, hidden: true }) as HTMLInputElement).checked).toBe(
+                true,
+            );
         });
 
         it('"Get Premium" in the refusal opens the Premium sheet', async () => {

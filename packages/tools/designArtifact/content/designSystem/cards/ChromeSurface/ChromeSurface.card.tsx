@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
 const stripes =
-    'repeating-linear-gradient(90deg,var(--cover-coral),var(--cover-coral) 30px,var(--cover-seafoam) 30px,var(--cover-seafoam) 60px)';
+    'repeating-linear-gradient(90deg,var(--cover-coral),var(--cover-coral) 30px,var(--cover-steel) 30px,var(--cover-steel) 60px)';
 
 export default defineCard({
     group: 'Layout',

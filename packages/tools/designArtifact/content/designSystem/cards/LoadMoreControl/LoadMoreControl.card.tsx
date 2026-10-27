@@ -12,7 +12,12 @@ const labels = {
     retry: 'Try again',
     failed: 'We couldn’t load more recipes.',
 };
-const box = { background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 12, padding: 12 } as const;
+const box = {
+    background: 'var(--paper)',
+    border: '1px solid var(--line-divider)',
+    borderRadius: 12,
+    padding: 12,
+} as const;
 
 function boxed(control: ReactNode): ReactNode {
     return <div style={box}>{control}</div>;

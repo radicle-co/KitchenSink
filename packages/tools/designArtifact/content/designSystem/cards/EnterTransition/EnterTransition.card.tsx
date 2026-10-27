@@ -8,7 +8,7 @@ const items = ['Chopped onions', 'Minced garlic', 'Crushed tomatoes'];
 
 const card = {
     background: 'var(--paper)',
-    border: '1px solid var(--line)',
+    border: '1px solid var(--line-divider)',
     borderRadius: 12,
     padding: 12,
 } as const;

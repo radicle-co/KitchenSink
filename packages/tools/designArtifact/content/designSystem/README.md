@@ -1,6 +1,6 @@
 # Commise
 
-A warm, calm kitchen interface. Sand pages, teal actions, serif headlines.
+A calm, cool kitchen interface. Mist-grey pages, storm-blue actions, clean sans headlines.
 
 This is the design system for everything a person sees in KitchenSink. KitchenSink holds the Commise recipe and meal-planning apps on web (Next.js) and mobile (Expo). The backend services (identity, food, recipe) have no interface. The source of truth is the `@commise/ui` package. Values here were read from `src/tokens/` in PR 91.
 
@@ -10,13 +10,13 @@ Write short, plain, kind sentences. Name the thing the cook is doing. Prefer "Sa
 
 ## Visual foundations
 
-- **Warm neutrals.** The page is `canvas` (sand). Cards are `paper`. Greys lean warm, never blue.
-- **One call to action.** Each view has one filled `primary` button, in `action` (seafoam) with a white label.
+- **Cool neutrals.** The page is `canvas` (mist grey). Cards are `paper`. Greys lean cool, toward the storm blue.
+- **One call to action.** Each view has one filled `primary` button, in `action` (storm blue) with a white label. Steel blue is an accent, never a large fill.
 - **Roles, not tones.** A screen names a role (`ink`, `action-text`, `danger-text`) and never a palette tone. A re-theme then moves one line.
 - **Contrast is measured.** Dark fills take white labels. Light fills take charcoal. A tone that fails as text has a darker text sibling: `action-text`, `danger-text`, `attention`. `line-divider` is never text and never a control edge.
-- **Type.** Playfair Display for titles, Inter for everything else, JetBrains Mono for figures in code. Weight is chosen by face on native, so no `fontWeight` is set there.
-- **Shape.** 4px spacing steps. Radii 6, 12, 20, 28. Only pressable controls are pills.
-- **Elevation.** Soft warm shadows. `glow` is the seafoam halo for the FAB.
+- **Type.** Manrope 600 for titles, Inter for everything else, JetBrains Mono for figures in code. Weight is chosen by face on native, so no `fontWeight` is set there.
+- **Shape.** 4px spacing steps. Corners follow the `radius` tokens. Buttons are pills. A filter chip is shorter than a button, on `surface-muted` with no edge, so it never reads as a button.
+- **Elevation.** Soft cool shadows. `glow` is the storm-blue focus halo.
 - **Dark mode.** Same roles, new values, switched by the system colour scheme.
 - **Layout.** Breakpoints at 600 and 840 px. Content widths: reading 640, list 768, detail 1152, page 1440. Gutters 16, 24, 32.
 
@@ -33,7 +33,7 @@ The native column is close to a device but not identical. Liquid Glass, haptics 
 
 ## Fonts
 
-The real font files ship in `fonts/`: Inter 400 to 700 and Playfair Display 600 and 700, copied from `@expo-google-fonts`. Each file is also registered under its native face name (`Inter_400Regular`, `PlayfairDisplay_700Bold`), because React Native names a face, not a family.
+The real font files ship in `fonts/`: Inter 400, 500 and 600 and Manrope 600, copied from `@expo-google-fonts`. No 700 face ships: 600 is the heaviest weight. Each file is also registered under its native face name (`Inter_400Regular`, `Manrope_600SemiBold`), because React Native names a face, not a family.
 
 ## Accessibility
 

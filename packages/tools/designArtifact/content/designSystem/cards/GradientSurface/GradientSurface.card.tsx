@@ -10,7 +10,7 @@ import { defineCard } from '../../../../src/cards/defineCard.js';
 function copy(title: string): ReactNode {
     return (
         <>
-            <h2 style={{ margin: '0 0 4px', font: '700 24px/1.2 "Playfair Display",Georgia,serif' }}>{title}</h2>
+            <h2 style={{ margin: '0 0 4px', font: '600 28px/32px var(--font-display)' }}>{title}</h2>
             <p style={{ margin: 0 }}>Seasonal recipes for the week ahead.</p>
         </>
     );

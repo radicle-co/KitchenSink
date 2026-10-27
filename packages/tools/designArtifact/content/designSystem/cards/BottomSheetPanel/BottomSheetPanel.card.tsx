@@ -19,7 +19,7 @@ const stageStyle: CSSProperties = {
     transform: 'translateZ(0)',
 };
 
-const rowStyle: CSSProperties = { padding: '12px 0', borderBottom: '1px solid var(--line)', fontSize: 16 };
+const rowStyle: CSSProperties = { padding: '12px 0', borderBottom: '1px solid var(--line-divider)', fontSize: 16 };
 
 export default defineCard({
     group: 'Overlays',

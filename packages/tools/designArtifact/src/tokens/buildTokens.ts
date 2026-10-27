@@ -13,7 +13,7 @@ import { barMaterial } from '@commise/ui/tokens/barMaterial';
 import { coverTint, coverTintDark } from '@commise/ui/tokens/covers';
 import { kebab } from '@commise/ui/tokens/emit';
 import { shadows } from '@commise/ui/tokens/shadows';
-import { proTone } from '@commise/ui/tokens/tones';
+import { proTone, proToneDark } from '@commise/ui/tokens/tones';
 import { typeRole, type TypeRole, type TypeRoleSpec } from '@commise/ui/tokens/typography';
 
 import { fontFaces } from '../fonts/fontFaces.js';
@@ -55,12 +55,12 @@ function colourTokens(): readonly ArtifactColorToken[] {
         { name: 'bar', value: { light: barMaterial.light, dark: barMaterial.dark }, usage: EXTRA_COLOR_USAGE.bar },
         {
             name: 'pro-fill',
-            value: { light: proTone.fill, dark: proTone.fill },
+            value: { light: proTone.fill, dark: proToneDark.fill },
             usage: EXTRA_COLOR_USAGE.proFill,
         },
         {
             name: 'pro-ink',
-            value: { light: proTone.text, dark: proTone.text },
+            value: { light: proTone.text, dark: proToneDark.text },
             usage: EXTRA_COLOR_USAGE.proInk,
         },
     ];

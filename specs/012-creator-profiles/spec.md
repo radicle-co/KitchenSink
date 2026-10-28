@@ -96,7 +96,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-004** A creator MUST be able to deactivate their profile, which hides the public page and removes them from discovery surfaces without deleting underlying recipes.
 
-- **FR-005** Handle changes MUST be rate-limited to once per 30 days; the previous handle MUST be reserved for 14 days to prevent squatting.
+- **FR-005** Handle changes MUST be rate-limited to once per 30 days; the previous handle MUST be reserved for 14 days to prevent squatting. _(Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md).)_ During those 14 days the previous handle redirects to the new one. After them it stops redirecting, but it is still never given to another account, because search engines and old links point at it. An erased cook's handle is never given to another account either (`021-FR-073`).
 
 ### Public Profile URL & Discovery (FR-006 … FR-009)
 

@@ -162,7 +162,8 @@ app and check the preview card. Share a private recipe and check that no link is
 4. **Given** a private recipe, a draft or a recipe in review, **When** its owner taps Share, **Then** no link is
    offered. The control says, in neutral words, that only they can see it, with no pre-selected action (FR-032).
 5. **Given** a recipe imported from a public website, **When** a signed-in reader taps Share, **Then** the link opens
-   the source card for a signed-out friend and the full recipe for a signed-in one.
+   the source card for everyone. After the page loads, a signed-in friend also sees a link to the full recipe in the
+   app (FR-014).
 6. **Given** a cook with no network on mobile, **When** they tap Share on an open recipe, **Then** the share sheet
    still opens, because the address does not need the server.
 
@@ -504,18 +505,23 @@ creator page.
   ingredient line with its amount, every step, the tags and the cuisine. With at least one rating, it shows the rating
   total and count. With none, it shows no average (`001-FR-013a`). Partial nutrition is shown with its honest partial
   flag (`001-FR-007a`). No part of the recipe is hidden, cut short or blurred for a signed-out visitor.
-- **FR-012**: The page's HTML response MUST be the same for every viewer and MUST NOT set a cookie. A signed-in viewer's
-  actions (save, rate, add to a plan) MUST appear only after the page loads in the browser. They come from the
-  viewer's own session, and MUST never be part of the cached response.
+- **FR-012**: The server's response at a public address MUST always be the signed-out version, the same for every
+  viewer, and MUST NOT set a cookie. This holds for an open recipe, a source card, a creator page and the
+  not-available answer alike. Anything more for a signed-in viewer MUST appear only after the page loads in the
+  browser, from the viewer's own session. It MUST never be part of the cached response. That covers their actions
+  (save, rate, add to a plan), the owner's note (FR-017), and links into the app (FR-013, FR-014). A cache keyed on the
+  path alone (FR-062) is safe only because of this rule.
 - **FR-013**: Every address that is not an open recipe, an active creator page or a source card MUST get one
   **not-available** answer: status `404`, `noindex`, the same words ("This recipe is not available"), a sign-in link,
   and a generic Commise preview card. It MUST NOT differ between private, draft, deleted, erased, held, in review, not
-  approved, book or paid-site, and never existed. The signed-in owner of such a recipe is sent to the recipe in the
-  app instead.
+  approved, book or paid-site, and never existed. Sometimes a signed-in viewer's own session can read the recipe.
+  Then, after the page loads, their browser MUST offer a link to it in the app (FR-012). The server never redirects
+  on identity.
 - **FR-014**: The **source card** MUST be the signed-out answer for an `imported_public` recipe. It shows the title, the
   source site's name and a link to the original, a sign-up control, and a Commise preview card with the title. It MUST
   NOT show ingredients, steps, the description or any photo. It MUST answer `noindex` and MUST NOT appear in any
-  sitemap. A signed-in viewer at the same address gets the full recipe.
+  sitemap. The server's response is the source card for every viewer. After the page loads, a signed-in viewer's
+  browser MUST offer a link to the full recipe on its in-app route (FR-012).
 - **FR-015**: An active creator page (`012-FR-006`) MUST be readable signed out. It shows the profile fields the cook
   set (avatar, display name, bio), the follower count, and the cook's open recipes, newest first, at most 24 per page.
   It MUST NOT list any recipe that is not open, and MUST NOT show who follows the cook (`012-FR-009`).
@@ -526,8 +532,8 @@ creator page.
     - Closing the public view, or opening the app with no link, MUST land on sign-in (`001-FR-045a`).
     - The public view is a link destination, not a landing screen. It MUST be reachable only through a link. The auth
       gate can gain a member for it, and MUST still have no landing member.
-- **FR-017**: The signed-in owner viewing their own open recipe's page MUST see a note that this is how others see it,
-  and a link to edit it.
+- **FR-017**: After the page loads, the signed-in owner of an open recipe MUST see, from their own session, a note
+  that this is how others see it, and a link to edit it (FR-012).
 - **FR-018**: A signed-in visitor who opens an in-app recipe address for an open recipe they do not own MUST see the
   recipe. A signed-out visitor at that in-app address MUST be sent to the recipe's public page, not to sign-in.
   So a copied in-app address still works for a friend.
@@ -632,8 +638,11 @@ creator page.
 
 #### E. Licence, takedown and moderation
 
-- **FR-040**: The cook makes a recipe public. If they did not yet accept the current licence version, the publish
-  surface MUST first show these points in plain words, and link the full terms:
+- **FR-040**: The cook makes a recipe public. If they did not yet accept the current licence version, the surface
+  they use MUST first show these points in plain words, and link the full terms. Every route to Public counts, and
+  none skips the panel. The routes are publishing from the editor, switching a recipe to Public and publishing a clone.
+  They also include choosing Public for a bulk import, and the import's one "make the rest public" confirmation
+  (ADR-0073 §8). The points are:
     - Anyone with the link can read it, without an account.
     - It can appear in search results.
     - Link previews and search engines can show its title, a short excerpt and its photo.
@@ -851,7 +860,9 @@ creator page.
 - **SC-003**: 100% of indexable recipes with a photo carry Recipe structured data that has `name` and `image` and
   passes a schema test. Zero carry a value that is not visible on the page, checked by a parity test.
 - **SC-004**: Zero public responses set a cookie or change with the viewer, checked by a contract test that requests
-  each surface with and without a credential and compares the bytes.
+  each surface with and without a credential and compares the bytes. The test covers an open recipe, a source card, a
+  creator page and the not-available answer. It requests each one as its owner, as another signed-in user, and
+  signed out.
 - **SC-005**: Zero public responses contain an internal user id or image metadata, checked by a scan of rendered pages,
   structured data, preview tags and served images.
 - **SC-006**: Public recipe pages on mobile meet the "good" Core Web Vitals at the 75th percentile: largest contentful

@@ -375,7 +375,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             mergeSummaryMineCountOther: '{count} from yours',
             mergeNoSelectionHint: 'Pick at least one change to save.',
             staleBaseWarning:
-                'Many changes were saved elsewhere since you started, and some of them can’t be shown here. Keeping yours or comparing now may undo changes you can’t see.',
+                'Some changes saved elsewhere can’t be shown here. Keeping yours or comparing may undo changes you can’t see.',
             staleBaseConfirmLabel: 'I understand. Let me choose anyway',
             titleLabel: 'Title',
             descriptionLabel: 'Description',

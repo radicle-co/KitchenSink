@@ -284,7 +284,7 @@ describe('RecipeConflictView (native) — A/B/C option cards (X2)', () => {
         expect(screen.getByText('See each change side by side, then choose.')).toBeTruthy();
     });
 
-    it('Option A fires onKeepServer', () => {
+    it('Use theirs fires onKeepServer', () => {
         freezeClock();
         const onKeepServer = vi.fn();
         renderConflict({ onKeepServer });
@@ -294,7 +294,7 @@ describe('RecipeConflictView (native) — A/B/C option cards (X2)', () => {
         expect(onKeepServer).toHaveBeenCalledTimes(1);
     });
 
-    it('Option B fires onOverwrite', () => {
+    it('Keep mine fires onOverwrite', () => {
         freezeClock();
         const onOverwrite = vi.fn();
         renderConflict({ onOverwrite });
@@ -304,7 +304,7 @@ describe('RecipeConflictView (native) — A/B/C option cards (X2)', () => {
         expect(onOverwrite).toHaveBeenCalledTimes(1);
     });
 
-    it('Option C enters the merge panel', () => {
+    it('Compare enters the merge panel', () => {
         freezeClock();
         renderConflict();
 
@@ -752,6 +752,21 @@ describe('RecipeConflictView (native) — stale-base warning + confirm gate (W7 
 
         fireEvent.click(overwrite);
         expect(onOverwrite).toHaveBeenCalledTimes(1);
+    });
+
+    // One sentence serves both causes (the server is far ahead, or the base fell out of history), so it must not claim
+    // a count: with a dropped base and `versionsBehind: 1` "Many changes" would be false.
+    it.each([
+        ['the server is more than 10 versions ahead', { versionsBehind: 11 }],
+        ['the base was dropped from history, with only one version behind', { base: undefined, versionsBehind: 1 }],
+    ])('says the same true thing when %s', (_cause, props) => {
+        freezeClock();
+        renderConflict(props);
+
+        const text = screen.getByRole('alert').textContent ?? '';
+        expect(text).toContain('Some changes saved elsewhere can’t be shown here.');
+        expect(text).toContain('Keeping yours or comparing may undo changes you can’t see.');
+        expect(text).not.toContain('Many changes');
     });
 
     it('renders the warning when base is undefined, even with a LOW versionsBehind (unreliable alone)', () => {

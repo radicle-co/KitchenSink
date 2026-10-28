@@ -84,7 +84,8 @@ user_pantry_items (
   owner_id VARCHAR(255) NOT NULL,  -- app-user ULID; NO FK
   usda_fdc_id INT,                 -- kitchensink_food — no FK
   quantity_g DECIMAL,
-  expires_at TIMESTAMP,  -- 7 days from last update
+  expires_at TIMESTAMP,  -- 7 days from last update. Not used to prune an item with a use_by date (spec FR-035)
+  use_by DATE,           -- optional, Pro (spec FR-034, added 2026-10-27). The key below is open (spec FR-040)
   PRIMARY KEY (owner_id, usda_fdc_id)
 )
 ```
@@ -249,12 +250,13 @@ authors** the zod; GR-016 decides **where it runs**. ✅ **§3.0 now names the o
 - **✅ The Walmart/Instacart boundary parse is REQUIRED by GR-016, not merely permitted by §15-d.** Order-status
   polling is the sharpest case, exactly as §15-d says: an unvalidated status string decides whether we tell a
   user their groceries are coming. Nothing in GR-016 licenses converging those adapter schemas away.
-- **Non-HTTP ingress is in scope, and 007 has two named ones.** (1) The **`@Cron` pantry-expiry prune** implied
+- **Non-HTTP ingress is in scope, and 007 has three named ones** (the third added 2026-10-27). (1) The **`@Cron` pantry-expiry prune** implied
   by `user_pantry_items.expires_at` and its 7-day TTL (§8 _Resolved Questions_ 6; its acceptance criterion
   already says "expired items pruned on `@Cron` schedule"), and (2) the **order-status polling** loop that
-  reads each retailer (§8 _Resolved Questions_ 2 — **polling, not webhooks**). A scheduled invocation still
+  reads each retailer (§8 _Resolved Questions_ 2 — **polling, not webhooks**), and (3) the daily **use-by reminder
+  scan** of spec FR-036, which publishes through 014. A scheduled invocation still
   parses its own event, because "the payload is ours" is an assumption about a deploy that has already drifted
-  once. Both run in `@kitchensink/recipe-workers`, not in the API process (ADR-0017 decision 5).
+  once. All three run in `@kitchensink/recipe-workers`, not in the API process (ADR-0017 decision 5).
     - ⚠️ **No retailer webhook exists today** — 007 chose polling deliberately. **If one is ever added**, it
       gets **signature THEN schema**, in that order, never one instead of the other: a signature proves
       **origin, not shape** (GR-016 §16-b). And per
@@ -493,6 +495,11 @@ The 006 meal plan view change is a cross-feature UI task. It is documented here 
 ### 6. Pantry TTL: 7 days standard; "always exclude" deferred
 
 **Decision**: 7-day TTL is the MVP default. A persistent "always exclude" pantry option is deferred to a post-MVP iteration. Power users can work around this by re-marking items after TTL expiry.
+
+**Amended 2026-10-27 (owner ruling, Pro match).** The 7-day TTL now applies only to an item with no use-by date. An
+item with a use-by date (spec FR-034, Pro) is removed by the cook, or 7 days after its use-by date has passed (spec
+FR-035). The prune applies both rules. Whether the key stays one row per food, and whether a household shares a
+pantry, are open for `staff-architect` (spec FR-040).
 
 ### 7. Recipe scaling
 

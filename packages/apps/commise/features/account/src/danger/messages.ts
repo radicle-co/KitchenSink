@@ -95,7 +95,7 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
             confirm: 'Close account',
             cancel: 'Cancel',
             busyLabel: 'Closing…',
-            error: 'We couldn’t close your account. Please try again.',
+            error: 'We couldn’t close your account. Try again.',
             closedLabel: 'Account closed',
             signOutFailed:
                 'Your account is closed, but we couldn’t sign you out. Sign out to finish leaving this account.',
@@ -125,7 +125,7 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
             confirm: 'Erase my data',
             cancel: 'Cancel',
             busyLabel: 'Erasing…',
-            error: 'We couldn’t start erasing your data. Please try again.',
+            error: 'We couldn’t start erasing your data. Try again.',
             signOutFailed:
                 'Your data is being erased, but we couldn’t sign you out. Sign out to finish leaving this account.',
         },

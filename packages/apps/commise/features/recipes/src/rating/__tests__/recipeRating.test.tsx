@@ -195,7 +195,7 @@ describe('RecipeRatingInput (web) — interactive variant', () => {
     it('surfaces a generic error when a rating write fails', () => {
         renderInput({ error: 'generic' });
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your rating. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t save your rating. Try again.');
     });
 });
 

@@ -308,7 +308,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             restoringStatus: 'Restoring version {version}…',
             restoreConflictError:
                 'This recipe changed since you opened its history. Review the refreshed list and try again.',
-            restoreGenericError: 'We couldn’t restore that version. Please try again.',
+            restoreGenericError: 'We couldn’t restore that version. Try again.',
             restoreUnrestorableErrorOne:
                 'This version can’t be restored: one of its ingredients no longer exists, and this version didn’t save its name. Nothing was changed. Preview the version to see which one.',
             restoreUnrestorableErrorMany:
@@ -399,7 +399,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             caloriesLabel: '{calories} cal',
             changedFromCurrent: 'Changed from current: {ingredients}, {steps}',
             loading: 'Loading version preview…',
-            error: 'We couldn’t load that version. Please try again.',
+            error: 'We couldn’t load that version. Try again.',
             keepCurrent: 'Keep current version',
             restoreThis: 'Restore this version',
             restoringThis: 'Restoring…',

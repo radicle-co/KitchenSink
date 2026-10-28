@@ -1262,9 +1262,7 @@ describe('RecipeDetailContainer', () => {
 
             // §6.4: the generic failure shares the slot under the rating and visibility line, not the foot of the page.
             expect(
-                (await screen.findByText('We couldn’t change who can see this recipe. Please try again.')).closest(
-                    'header',
-                ),
+                (await screen.findByText('We couldn’t change who can see this recipe. Try again.')).closest('header'),
             ).not.toBeNull();
         });
 
@@ -1390,12 +1388,10 @@ describe('RecipeDetailContainer', () => {
             await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
 
             expect(
-                await within(dialog).findByText('We couldn’t change who can see this recipe. Please try again.'),
+                await within(dialog).findByText('We couldn’t change who can see this recipe. Try again.'),
             ).toBeInTheDocument();
             // Said once, inside the confirm — not again under the page behind it.
-            expect(screen.getAllByText('We couldn’t change who can see this recipe. Please try again.')).toHaveLength(
-                1,
-            );
+            expect(screen.getAllByText('We couldn’t change who can see this recipe. Try again.')).toHaveLength(1);
         });
 
         /**
@@ -1430,7 +1426,7 @@ describe('RecipeDetailContainer', () => {
             expect(notice.closest('[role="alert"]')).not.toBeNull();
             // §6.4: in the header under the rating and visibility line, where the cook lands, not at the page foot.
             expect(notice.closest('header')).not.toBeNull();
-            expect(screen.queryByText('We couldn’t change who can see this recipe. Please try again.')).toBeNull();
+            expect(screen.queryByText('We couldn’t change who can see this recipe. Try again.')).toBeNull();
         });
 
         // Review S3: an earlier failure is not news to a confirm opened afresh.
@@ -1451,7 +1447,7 @@ describe('RecipeDetailContainer', () => {
 
             const first = await openConfirm();
             await user.click(within(first).getByRole('button', { name: 'Make public' }));
-            await within(first).findByText('We couldn’t change who can see this recipe. Please try again.');
+            await within(first).findByText('We couldn’t change who can see this recipe. Try again.');
             await user.click(within(first).getByRole('button', { name: 'Keep private' }));
 
             const second = await openConfirm();
@@ -1578,7 +1574,7 @@ describe('RecipeDetailContainer', () => {
             expect(
                 await screen.findByText('Not available. All 50 of your private slots are in use.'),
             ).toBeInTheDocument();
-            expect(screen.queryByText('We couldn’t change who can see this recipe. Please try again.')).toBeNull();
+            expect(screen.queryByText('We couldn’t change who can see this recipe. Try again.')).toBeNull();
         });
 
         it('a granted owner who taps Make private makes the recipe private, with no sheet', async () => {

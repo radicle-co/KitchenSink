@@ -360,7 +360,7 @@ describe('RecipePhotoUploaderContainer', () => {
 
         await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
-        expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t remove this photo. Please try again.');
+        expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t remove this photo. Try again.');
 
         del.mockReturnValue(new Promise(() => {}));
         await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
@@ -433,9 +433,7 @@ describe('RecipePhotoUploaderContainer', () => {
 
             await chooseFromTile(user, 'Actions for photo 2', 'Move earlier');
 
-            expect(await screen.findByRole('alert')).toHaveTextContent(
-                'We couldn’t move that photo. Please try again.',
-            );
+            expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t move that photo. Try again.');
         });
 
         it('offers no way off either end: the cover cannot go earlier and the last photo cannot go later', async () => {

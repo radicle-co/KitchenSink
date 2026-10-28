@@ -120,7 +120,7 @@ describe('PullUpdatesDialog (web) — generic error', () => {
     it('shows a generic error alert', () => {
         render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff, error: 'generic' })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t check for updates. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t check for updates. Try again.');
     });
 });
 

@@ -300,9 +300,7 @@ describe('RecipeVersionsContainer', () => {
             await chooseRowAction(user, 1, 'Restore this version');
 
             await vi.waitFor(() =>
-                expect(screen.getByRole('alert').textContent).toBe(
-                    'We couldn’t restore that version. Please try again.',
-                ),
+                expect(screen.getByRole('alert').textContent).toBe('We couldn’t restore that version. Try again.'),
             );
         });
 

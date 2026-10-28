@@ -253,7 +253,7 @@ describe('AccountEraseForm (web) — confirm', () => {
 
         expect(await screen.findByRole('alert')).toHaveProperty(
             'textContent',
-            'We couldn’t start erasing your data. Please try again.',
+            'We couldn’t start erasing your data. Try again.',
         );
         expect(signOut).not.toHaveBeenCalled();
         expect(navigateTo).not.toHaveBeenCalled();
@@ -282,7 +282,7 @@ describe('AccountEraseForm (web) — confirm', () => {
 
         expect(await screen.findByRole('alert')).toHaveProperty(
             'textContent',
-            'We couldn’t start erasing your data. Please try again.',
+            'We couldn’t start erasing your data. Try again.',
         );
         expect(accountEraseFn).not.toHaveBeenCalled();
         expect(signOut).not.toHaveBeenCalled();
@@ -434,7 +434,7 @@ describe('AccountEraseForm (web) — the ACCOUNT-erasure leg has its own busy an
 
         expect(await screen.findByRole('alert')).toHaveProperty(
             'textContent',
-            'We couldn’t start erasing your data. Please try again.',
+            'We couldn’t start erasing your data. Try again.',
         );
     });
 });

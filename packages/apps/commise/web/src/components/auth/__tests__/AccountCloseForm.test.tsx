@@ -184,7 +184,7 @@ describe('AccountCloseForm (web) — confirm', () => {
 
         expect(await screen.findByRole('alert')).toHaveProperty(
             'textContent',
-            'We couldn’t close your account. Please try again.',
+            'We couldn’t close your account. Try again.',
         );
         expect(signOut).not.toHaveBeenCalled();
         // …and the viewer is left exactly where they are: no sign-out, no navigation away from the error.
@@ -275,7 +275,7 @@ describe('AccountCloseForm (web) — the account IS closed but the sign-out fail
         await arriveAtExitFailure();
 
         expect(screen.getByRole('alert').textContent).toBe(CLOSED_ALERT);
-        expect(screen.queryByText('We couldn’t close your account. Please try again.')).toBeNull();
+        expect(screen.queryByText('We couldn’t close your account. Try again.')).toBeNull();
         expect(navigateTo).not.toHaveBeenCalled();
     });
 

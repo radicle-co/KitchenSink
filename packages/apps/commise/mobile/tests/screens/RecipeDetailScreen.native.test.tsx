@@ -872,7 +872,7 @@ describe('RecipeDetailScreen — owner actions', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         // §6.4: the generic failure shares the slot under the rating and visibility line, not the foot of the page.
-        const notice = screen.getByText('We couldn’t change who can see this recipe. Please try again.');
+        const notice = screen.getByText('We couldn’t change who can see this recipe. Try again.');
 
         expect(screen.getByRole('heading', { name: 'Weeknight Pasta' }).parentElement?.contains(notice)).toBe(true);
     });

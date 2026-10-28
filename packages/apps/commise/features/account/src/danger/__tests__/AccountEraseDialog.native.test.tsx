@@ -204,7 +204,7 @@ describe('AccountEraseDialog (native) — submitting / error (B17: no silent sto
     it('surfaces the failure copy when the erasure request fails', () => {
         renderDialog({ phrase: PHRASE, submitError: true });
 
-        expect(screen.getByText('We couldn’t start erasing your data. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t start erasing your data. Try again.')).toBeTruthy();
     });
 
     it('does not show the error while a submit is still in flight', () => {

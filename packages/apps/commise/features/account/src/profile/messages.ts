@@ -110,7 +110,7 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         signOutFailed: 'We couldn’t sign you out. Try again.',
         dangerZone: 'Danger zone',
         avatarChangeAction: 'Change photo',
-        avatarUploadError: 'We couldn’t update your photo. Please try again.',
+        avatarUploadError: 'We couldn’t update your photo. Try again.',
         avatarTooLargeError: 'That photo is larger than {maxMb} MB. Choose a smaller file.',
         avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
     },

@@ -9,11 +9,11 @@
  * enforce it — only the production build does). No-op for the mobile `.native.tsx` variant (Metro ignores it).
  *
  * FULLY controlled, presentational conflict resolver for FR-007c. This is the W7 rebuild of the DEFAULT
- * (options) view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2)
- * — [A] keep server, [B] overwrite with mine, [C] merge field by field — and the changed-only diff panel
+ * (options) view (Task 3): two per-side cards (theirs ALWAYS first — X7), three option cards (X2)
+ * — Keep mine, Use theirs, Compare (field by field) — and the changed-only diff panel
  * (W7 Task 4 / X1) below the cards, driven by the precomputed `ConflictDiff` (W7 Task 1): one row PER
- * changed-or-conflicting field/element, each with an accessible marker (`[→]` changed / `[!!]` conflict —
- * text/role, never colour alone) and Server-then-Yours values (X7), plus a legend.
+ * changed-or-conflicting field/element, each with a word badge ("Changed" / "Both changed" —
+ * text, never colour or a glyph alone) and Theirs-then-Yours values (X7).
  *
  * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows` — the CHANGED fields/elements, one radiogroup
  * per row, Server FIRST then Yours (X7), reusing `conflictRowLabel` so a merge
@@ -45,7 +45,6 @@ import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import {
-    LEGEND_MARKERS,
     type ConflictOptionCardProps,
     type DiscardAndCloseProps,
     type RecipeConflictViewProps,
@@ -54,14 +53,11 @@ import {
     type VersionSideCardProps,
     conflictCopyOf,
     formatMergeSummary,
-    formatServerBanner,
-    formatServerCardHeading,
-    formatVersionCardSavedLine,
-    formatYourCardHeading,
+    formatTheirsCardSavedLine,
+    formatYoursCardStatus,
 } from './conflictView.js';
 import {
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
+    conflictMarkerBadge,
     conflictOptionLabel,
     conflictOptionName,
     conflictRowLabel,
@@ -136,16 +132,13 @@ const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndCl
 );
 
 /**
- * One two-column per-side summary card (wireframe gap #2 — `conflict-resolution.md:46-50`) — a heading plus
- * an optional "Saved:" line and an optional "Device:" line, omitted (never fabricated) when the underlying
- * side carries no such data. Rendered ONLY in the default (options) view — the merge panel does not repeat
- * it (see `model.ts`'s own module note on why this is a SEPARATE rendering of the banner's data, not a
- * replacement for it).
+ * One two-column per-side summary card (wireframe gap #2): a heading and a status line (when it was saved, or that it
+ * is not saved yet). Rendered ONLY in the default (options) view — the merge panel does not repeat it.
  */
-const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => (
+const VersionSideCard: FC<VersionSideCardProps> = ({ heading, statusLine }) => (
     <div className="flex-1 rounded-lg bg-paper p-4 ring-1 ring-line-divider">
         <p className="text-label text-ink">{heading}</p>
-        {savedLine !== undefined && <p className="text-body-sm text-ink-muted">{savedLine}</p>}
+        <p className="text-body-sm text-ink-muted">{statusLine}</p>
     </div>
 );
 
@@ -196,11 +189,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     const conflict = conflictCopyOf(useMessages(recipeVersionMessages).conflict, neverPublished);
     const locale = useLocale();
     const view = useConflictView({ server, base, versionsBehind, neverPublished, selections, onSelectionsChange });
-
-    // Reading the clock is THIS component's own side effect (mirrors `HomeGreeting`'s split of "the caller
-    // reads `new Date()`, the pure formatter only maps an instant to a string") — `formatServerBanner`/
-    // `formatRelativeTimeAgo` stay pure and testable without freezing time.
-    const now = new Date();
 
     const staleWarning = view.isStale ? (
         <StaleBaseWarning
@@ -285,52 +273,42 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             <h2 className="text-section-title text-ink">{conflict.heading}</h2>
             <p className="text-body-md text-ink-muted">{conflict.explanation}</p>
 
-            {/* Per-side banner (X3) — server is ALWAYS first (X7). */}
-            <div className="flex flex-col gap-1 rounded-lg bg-paper p-4 ring-1 ring-line-divider">
-                <p className="text-body-md text-ink">{formatServerBanner(server, now, conflict, locale)}</p>
-                <p className="text-body-md text-ink">{conflict.mineBanner}</p>
-            </div>
-
-            {/* Two-column per-side summary cards (wireframe gap #2) — server ALWAYS first (X7). */}
+            {/* Two-column per-side summary cards (wireframe gap #2) — theirs ALWAYS first (X7). */}
             <div className="flex flex-col gap-4 sm:flex-row">
                 <VersionSideCard
-                    heading={formatServerCardHeading(server, conflict)}
-                    savedLine={formatVersionCardSavedLine(server, locale, conflict)}
+                    heading={conflict.theirsCardHeading}
+                    statusLine={formatTheirsCardSavedLine(server, locale, conflict)}
                 />
                 <VersionSideCard
-                    heading={formatYourCardHeading(base, conflict)}
-                    {...(base === undefined
-                        ? {}
-                        : {
-                              savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                          })}
+                    heading={conflict.yoursCardHeading}
+                    statusLine={formatYoursCardStatus(base, locale, conflict)}
                 />
             </div>
 
-            {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
+            {/* Stale-base warning (W7 Task 5 / X6) — gates Keep mine below. */}
             {staleWarning}
 
-            {/* Three A/B/C option cards (X2). `isResolving` (concurrency/double-submit fix) busies ALL three —
-                combined with, not replacing, Overwrite's existing stale-base gate — while a resolve is in flight,
+            {/* Three option cards (X2): Keep mine, Use theirs, Compare. `isResolving` (concurrency/double-submit fix) busies ALL three —
+                combined with, not replacing, Keep mine's existing stale-base gate — while a resolve is in flight,
                 so a rapid double-click cannot fire a second resolve before the first settles. Busy refuses the
                 press without natively disabling the card the cook just pressed. */}
             <div className="flex flex-col gap-4 sm:flex-row">
                 <OptionCard
-                    title={conflict.optionServerTitle}
-                    description={conflict.optionServerDescription}
-                    onChoose={onKeepServer}
-                    busy={isResolving}
-                />
-                <OptionCard
-                    title={conflict.optionOverwriteTitle}
-                    description={conflict.optionOverwriteDescription}
+                    title={conflict.optionKeepMineTitle}
+                    description={conflict.optionKeepMineDescription}
                     onChoose={onOverwrite}
                     disabled={view.overwriteBlocked}
                     busy={isResolving}
                 />
                 <OptionCard
-                    title={conflict.optionMergeTitle}
-                    description={conflict.optionMergeDescription}
+                    title={conflict.optionUseTheirsTitle}
+                    description={conflict.optionUseTheirsDescription}
+                    onChoose={onKeepServer}
+                    busy={isResolving}
+                />
+                <OptionCard
+                    title={conflict.optionCompareTitle}
+                    description={conflict.optionCompareDescription}
                     onChoose={view.startMerge}
                     busy={isResolving}
                 />
@@ -347,12 +325,8 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 className="flex flex-col gap-2 rounded-lg bg-paper p-3 ring-1 ring-line-divider"
                             >
                                 <div className="flex items-center gap-2">
-                                    <span
-                                        role="img"
-                                        aria-label={conflictMarkerLabel(row.marker, conflict)}
-                                        className="font-mono text-body-sm text-ink-muted"
-                                    >
-                                        {conflictMarkerGlyph(row.marker, conflict)}
+                                    <span className="rounded-full px-2 text-caption font-semibold text-ink-muted ring-1 ring-line-divider">
+                                        {conflictMarkerBadge(row.marker, conflict)}
                                     </span>
                                     <span className="text-label text-ink-muted">{conflictRowLabel(row, conflict)}</span>
                                 </div>
@@ -363,7 +337,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                         </span>
                                     </SideValue>
                                 )}
-                                {/* Server value FIRST, then Yours (X7). */}
+                                {/* Theirs FIRST, then Yours (X7). */}
                                 {(['theirs', 'mine'] as const).map((side) => (
                                     <SideValue key={side} parts={conflictSideParts(row, side)}>
                                         <span className="text-body-sm text-ink">
@@ -371,19 +345,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                         </span>
                                     </SideValue>
                                 ))}
-                            </li>
-                        ))}
-                    </ul>
-                    <ul
-                        aria-label={conflict.legendHeading}
-                        className="flex flex-wrap gap-3 text-caption text-ink-muted"
-                    >
-                        {LEGEND_MARKERS.map((marker) => (
-                            <li key={marker}>
-                                {fillTemplate(conflict.legendEntryTemplate, {
-                                    glyph: conflictMarkerGlyph(marker, conflict),
-                                    label: conflictMarkerLabel(marker, conflict),
-                                })}
                             </li>
                         ))}
                     </ul>

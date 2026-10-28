@@ -69,7 +69,7 @@ export function formatNameCounter(template: string, counter: NameCounter): strin
 /**
  * @param template - The localized username line, with `{username}` (`profileMessages.usernameValue`).
  * @param username - The Clerk username.
- * @returns The line the header shows, such as `@braise`. Pure.
+ * @returns The value the Username row shows, such as `@braise`. Pure.
  */
 export function formatUsername(template: string, username: string): string {
     return template.replace('{username}', () => username);

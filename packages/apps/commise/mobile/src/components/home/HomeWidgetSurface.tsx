@@ -198,24 +198,27 @@ export function HomeWidgetSurface({
                             {...(headerAction === undefined ? {} : { action: headerAction })}
                         />
 
-                        {curated.live.map(renderWidget)}
+                        {/* The widgets pad themselves: the title insets its own sides, so the region does not pad. */}
+                        <View style={styles.widgets}>
+                            {curated.live.map(renderWidget)}
 
-                        {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
+                            {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
                         ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
-                        {curated.comingSoon.length > 0 && (
-                            <View style={styles.comingSoon}>
-                                <Text
-                                    accessibilityRole="header"
-                                    style={[styles.comingSoonHeading, { color: colors.ink }]}
-                                >
-                                    {home.roadmap.comingSoonHeading}
-                                </Text>
-                                <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
-                                    {home.roadmap.comingSoonBody}
-                                </Text>
-                                {curated.comingSoon.map(renderWidget)}
-                            </View>
-                        )}
+                            {curated.comingSoon.length > 0 && (
+                                <View style={styles.comingSoon}>
+                                    <Text
+                                        accessibilityRole="header"
+                                        style={[styles.comingSoonHeading, { color: colors.ink }]}
+                                    >
+                                        {home.roadmap.comingSoonHeading}
+                                    </Text>
+                                    <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
+                                        {home.roadmap.comingSoonBody}
+                                    </Text>
+                                    {curated.comingSoon.map(renderWidget)}
+                                </View>
+                            )}
+                        </View>
                     </ScrollView>
                 </RecipeWidgetPropsContext.Provider>
             </HomeNudgeContext.Provider>
@@ -231,7 +234,8 @@ const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
     // The foot clears the floating create button (its height + 32, `buildSpec.md` §3.4), which floats over it.
-    regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
+    regionContent: { paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
+    widgets: { paddingHorizontal: 16, gap: 16 },
     comingSoon: { gap: nativeTokens.spacing[4] },
     comingSoonHeading: { ...nativeTokens.type.sectionTitle },
     comingSoonBody: { ...nativeTokens.type.body, marginTop: -nativeTokens.spacing[3] },

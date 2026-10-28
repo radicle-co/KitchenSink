@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/versions — Resolving a diff row's localized LABEL or GLYPH from the shared conflict copy.
+ * @module @commise/features-recipes/versions — Resolving a diff row's localized LABEL or BADGE from the shared conflict copy.
  *
  * ⛔ This module takes {@link RecipeConflictMessages} and NEVER a `Locale` — the mirror of `timeFormat.ts`.
  *
@@ -18,7 +18,7 @@ import {
     conflictSideParts,
     type ConflictFieldKind,
     type ConflictFieldRow,
-    type ConflictMarker,
+    type ConflictRowMarker,
     type ConflictRowSide,
 } from './conflictDiff.js';
 import type { SnapshotFieldKey } from './diff.js';
@@ -89,43 +89,22 @@ export const conflictFieldKindLabel = (fieldKind: ConflictFieldKind, messages: R
 
 // ─── Changed-only diff panel: markers + per-row labels (W7 Task 4 / X1) ─────────────────────────────
 
-/** Which localized glyph key names each {@link ConflictMarker}'s ASCII glyph (`[=]` / `[→]` / `[!!]`). */
-const CONFLICT_MARKER_GLYPH_KEY: Readonly<Record<ConflictMarker, keyof RecipeConflictMessages>> = {
-    unchanged: 'markerGlyphUnchanged',
-    changed: 'markerGlyphChanged',
-    conflict: 'markerGlyphConflict',
-};
-
-/** Which localized label key names each {@link ConflictMarker}'s ACCESSIBLE name — a DIFFERENT string per
- *  marker, so the marker is conveyed by text/role, never colour (or the glyph's shape) alone. */
-const CONFLICT_MARKER_LABEL_KEY: Readonly<Record<ConflictMarker, keyof RecipeConflictMessages>> = {
-    unchanged: 'markerLabelUnchanged',
-    changed: 'markerLabelChanged',
-    conflict: 'markerLabelConflict',
+/** Which localized badge key names each {@link ConflictRowMarker}: a WORD, so the marker is conveyed by text, never by
+ *  colour or a glyph's shape alone (X1). A row is changed-or-conflicting only, so `unchanged` has no badge. */
+const CONFLICT_MARKER_BADGE_KEY: Readonly<Record<ConflictRowMarker, keyof RecipeConflictMessages>> = {
+    changed: 'markerBadgeChanged',
+    conflict: 'markerBadgeConflict',
 };
 
 /**
- * The localized ASCII glyph (see {@link CONFLICT_MARKER_GLYPH_KEY}) rendered for one {@link ConflictMarker}
- * — the VISIBLE marker text (e.g. `[→]`). Pure.
+ * The localized word badge (see {@link CONFLICT_MARKER_BADGE_KEY}) shown on one diff row: "Changed" or "Both changed". Pure.
  *
  * @param marker - The row's marker classification.
  * @param messages - The shared conflict-panel copy.
- * @returns The localized glyph.
+ * @returns The localized badge text.
  */
-export const conflictMarkerGlyph = (marker: ConflictMarker, messages: RecipeConflictMessages): string =>
-    messages[CONFLICT_MARKER_GLYPH_KEY[marker]];
-
-/**
- * The localized ACCESSIBLE label (see {@link CONFLICT_MARKER_LABEL_KEY}) for one {@link ConflictMarker} —
- * the name assistive tech announces for the marker (e.g. "changed"), distinct from its glyph so the
- * distinction survives without colour or shape (X1). Pure.
- *
- * @param marker - The row's marker classification.
- * @param messages - The shared conflict-panel copy.
- * @returns The localized accessible marker name.
- */
-export const conflictMarkerLabel = (marker: ConflictMarker, messages: RecipeConflictMessages): string =>
-    messages[CONFLICT_MARKER_LABEL_KEY[marker]];
+export const conflictMarkerBadge = (marker: ConflictRowMarker, messages: RecipeConflictMessages): string =>
+    messages[CONFLICT_MARKER_BADGE_KEY[marker]];
 
 /** The side an ingredient row's label reads: SERVER-FIRST (X7), the first non-empty of theirs, mine, base. Pure. */
 const labelledSide = (row: ConflictFieldRow): ConflictRowSide => {
@@ -192,14 +171,14 @@ export const conflictRowName = (row: ConflictFieldRow, messages: RecipeConflictM
           });
 };
 
-/** The visible side label for each merge side — Server is the "latest saved version" (X7). */
+/** The visible side label for each merge side — Server is "Theirs", the cook's own draft "Yours" (X7). */
 const MERGE_SIDE_LABEL_KEY: Readonly<Record<MergeSide, 'mergeServerLabel' | 'mergeMineLabel'>> = {
     theirs: 'mergeServerLabel',
     mine: 'mergeMineLabel',
 };
 
 /**
- * One side's visible value line on a row — `Latest saved version: {value}` — in the diff panel and as a merge option's
+ * One side's visible value line on a row — `Theirs: {value}` or `Yours: {value}` — in the diff panel and as a merge option's
  * text. Never the parts: the dotted line under it shows them (R25). Pure.
  *
  * @param row - The row.

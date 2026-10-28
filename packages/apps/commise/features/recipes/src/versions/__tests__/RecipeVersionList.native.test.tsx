@@ -5,6 +5,7 @@
  * explanation. The two-version checkbox selection is gone; its coverage moved to `compare.test.ts`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { sideInsetOf } from '@commise/test-utils';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
@@ -180,5 +181,24 @@ describe('RecipeVersionList (native)', () => {
         renderList({ versions: threeVersions, currentVersion: 3, restoreError: { kind: 'generic', versionNumber: 2 } });
 
         expect(within(screen.getByRole('alert')).getByText(versionList.restoreGenericError)).toBeTruthy();
+    });
+});
+
+describe('RecipeVersionList (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
+    it('insets the title once (its own 16) and the rows, the restore alert and the empty state by 16', () => {
+        renderList({
+            versions: threeVersions,
+            currentVersion: 3,
+            restoreError: { kind: 'generic', versionNumber: 2 },
+        });
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: versionList.heading }))).toBe(16);
+        expect(sideInsetOf(screen.getAllByText(versionList.initialVersion)[0] as HTMLElement)).toBe(16);
+        // The alert keeps a 16 margin and pads its text 12, so its text starts 28 in.
+        expect(sideInsetOf(within(screen.getByRole('alert')).getByText(/./u))).toBe(28);
+
+        cleanup();
+        renderList({ versions: [], currentVersion: 1 });
+        expect(sideInsetOf(screen.getByText(versionList.empty))).toBe(16);
     });
 });

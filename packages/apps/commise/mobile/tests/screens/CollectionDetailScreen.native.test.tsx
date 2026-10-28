@@ -20,7 +20,7 @@ import { createElement, type ComponentProps, type ReactElement } from 'react';
 import { AccessibilityInfo, type ScrollView as ScrollViewType } from 'react-native';
 
 import { collectionMessages } from '@commise/features-recipes';
-import { renderWithRecipeClient } from '@commise/test-utils';
+import { renderWithRecipeClient, sideInsetOf } from '@commise/test-utils';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import {
     NotFoundError,
@@ -307,6 +307,20 @@ describe('CollectionDetailScreen — one pinned Back in every state', () => {
             heading.compareDocumentPosition(screen.getByRole('button', { name: 'Add recipes' })) &
                 Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
+    });
+
+    // Bug sweep B11: the large title insets its own sides 16, so the screen's scroller does not pad around it; the header
+    // pads its own lines and `CollectionDetailGutter` pads the parts after it. This is the whole screen, scroller included:
+    // a scroller that padded again would read 32, and one that cancelled its padding with a negative margin would read 0.
+    it('insets the title once (its own 16), and the header’s Add recipes and the notice under it by 16', async () => {
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView: vi.fn(), saveFailed: true });
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        const heading = await screen.findByRole('heading', { name: 'Weeknight favourites' });
+
+        expect(sideInsetOf(heading)).toBe(16);
+        expect(sideInsetOf(screen.getByRole('button', { name: 'Add recipes' }))).toBe(16);
+        expect(sideInsetOf(screen.getByText('We couldn’t save your view. Try choosing it again.'))).toBe(16);
     });
 
     it('puts the “view not saved” notice after the header, so the heading stays the scroller’s first child', async () => {

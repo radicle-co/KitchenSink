@@ -34,7 +34,7 @@ export type RowPanelBody =
     | { readonly kind: 'explanation'; readonly key: RowPanelExplanationKey }
     /** Row 2's two equal paths (§5a), naming Create my own food (`errorPromptEntryMode`). */
     | { readonly kind: 'twoPaths' }
-    /** A nameless row 12, naming Change food (`statusExplainFoodRemovedUnnamed`, `namelessLineCopy.md` §6c). */
+    /** A nameless row 12, explained (`statusExplainFoodRemovedUnnamed`, `namelessLineCopy.md` §6c). */
     | { readonly kind: 'foodRemovedNameless' }
     /** Row 6: the binding's own candidates to choose from, and None of these (SPECIFY.1 row 6). */
     | { readonly kind: 'candidates' }

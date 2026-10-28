@@ -207,7 +207,7 @@ describe('AccountEraseDialog (web) — submitting / error (B17: no silent stop)'
 
         expect(screen.getByRole('alert')).toHaveProperty(
             'textContent',
-            'We couldn’t start erasing your data. Please try again.',
+            'We couldn’t start erasing your data. Try again.',
         );
     });
 

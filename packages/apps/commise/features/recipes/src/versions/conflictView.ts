@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/versions — The concurrent-edit conflict view's model: the banner and card copy, the staleness gate, the
+ * @module @commise/features-recipes/versions — The concurrent-edit conflict view's model: the card copy, the staleness gate, the
  * running summary of the viewer's choices, and the prop contracts of the parts both leaves draw.
  *
  * These four members (`isConflictBaseStale`, `MergeSelectionCounts`, `countMergeSelections`,
@@ -18,15 +18,15 @@ import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import type { ConflictDiff, ConflictMarker } from './conflictDiff.js';
+import type { ConflictDiff } from './conflictDiff.js';
 import type { RecipeConflictMessages } from './messages.js';
-import { formatRelativeTimeAgo, formatVersionTimestamp } from './timeFormat.js';
+import { formatVersionTimestamp } from './timeFormat.js';
 import { type RecipeMergeSelections } from './merge.js';
 
 /**
  * Props for the concurrent-edit conflict view (T070 / C-005 / CP-6 P1 / W7) — a FULLY controlled,
  * presentational component. Server-first ordering (X7): `server` is always the FIRST/LEFT side, everywhere
- * this view renders anything two-sided — the per-side banner, and (Option C) the field-by-field merge panel.
+ * this view renders anything two-sided — the two side cards, and (Compare) the field-by-field merge panel.
  * It delegates every choice upward, including the field-by-field merge panel's own selection state:
  * `selections` comes in from the caller (the `useRecipeEditor` machine's `conflict.mergeSelections`) and every
  * toggle reports back via `onSelectionsChange` — this view owns no merge data of its own (only the "is the
@@ -47,7 +47,7 @@ export interface RecipeConflictViewProps {
      *  to decide whether the stale-base warning + confirm gate applies. */
     readonly base?: VersionConflictSide;
     /** The precomputed 3-way diff (`computeConflictDiff`, W7 Task 1) — changed-or-conflicting rows only.
-     *  Rendered as the changed-only diff panel below the three options, with a per-row marker + legend
+     *  Rendered as the changed-only diff panel below the three options, with a per-row word badge
      *  (W7 Task 4 / X1). */
     readonly diff: ConflictDiff;
     /** `server.versionNumber - (base?.versionNumber ?? 0)` (the X6 staleness signal) — passed to
@@ -65,11 +65,11 @@ export interface RecipeConflictViewProps {
     readonly selections: RecipeMergeSelections;
     /** Invoked with the next selections on every per-field radio toggle, and to reset on merge-panel exit. */
     readonly onSelectionsChange: (selections: RecipeMergeSelections) => void;
-    /** Option A: keep the server version, discarding the user's local changes. */
+    /** Use theirs: keep the server version, discarding the user's local changes. */
     readonly onKeepServer: () => void;
-    /** Option B: overwrite the server version with the user's own draft. */
+    /** Keep mine: overwrite the server version with the user's own draft. */
     readonly onOverwrite: () => void;
-    /** Option C submit: invoked with the current per-field selections when the user saves a merge (FR-007c
+    /** Compare, submit: invoked with the current per-field selections when the user saves a merge (FR-007c
      *  option c); the caller composes the merged draft (`composeConflictMerge`) and submits it. */
     readonly onMerge: (selections: RecipeMergeSelections) => void;
     /** The header "Discard and close" exit (wireframe gap #1 — `conflict-resolution.md:34`'s
@@ -84,86 +84,45 @@ export interface RecipeConflictViewProps {
     readonly neverPublished?: boolean;
 }
 
-/**
- * Render the server-side banner line: "Server version (v{n}): Saved {time}". Pure — the caller supplies
- * `now`.
- *
- * ⚠️ There is exactly ONE rendering: no ` on {device}` suffix (owner ruling of **2026-08-26** on device
- * attribution). Do not reintroduce an optional suffix.
- *
- * @param server - The 409's winning server side.
- * @param now - The current instant, supplied by the caller.
- * @param messages - The localized conflict copy.
- * @param locale - The active BCP-47 locale.
- * @returns The formatted server-side banner line.
- */
-export const formatServerBanner = (
-    server: VersionConflictSide,
-    now: Date,
-    messages: RecipeConflictMessages,
-    locale: Locale,
-): string =>
-    fillTemplate(messages.serverBanner, {
-        version: server.versionNumber,
-        time: formatRelativeTimeAgo(server.updatedAt, now, locale),
-    });
-
-// ─── Two-column per-side summary cards (wireframe gap #2 — `conflict-resolution.md:46-50`) ──────────
+// ─── Two-column per-side summary cards (wireframe gap #2) ─────────────────────────────────────────────
 //
-// Below the prose banner above, the wireframe ALSO shows two dedicated cards — "SERVER VERSION (v6)" /
-// "YOUR VERSION (v5)", each with a "Saved:" and (when known) a "Device:" row. This is a SEPARATE rendering
-// of the same underlying data (versionNumber/updatedAt), not a replacement for the banner: the
-// banner reads as a sentence with a RELATIVE time ("Saved 2 minutes ago"); the cards are a structured,
-// scannable ABSOLUTE-date summary, matching the wireframe's own two distinct blocks. ⚠️ The wireframe's
-// per-card "Device:" row is not rendered (2026-08-26 owner ruling on device attribution); a card is its
-// heading and its Saved line. "Your version"'s data
-// is `base` (the version the draft was edited from) — the wireframe's own `client_version`/`client_recipe`;
-// `base` is ABSENT when evicted from version
-// history, in which case the card falls back to a version-less heading with no Saved row (mirroring
-// `mineBanner`'s own "local unsaved changes" framing for the same case).
+// Two cards say whose changes are whose: THEIRS ("Saved elsewhere", with the time it was saved) and YOURS ("Your changes",
+// "Not saved yet", with the time the draft started from when `base` is known). Neither names a version number: a cook
+// does not know what "v6" is, and the 2026-10-27 bug sweep (finding #20) dropped them together with the prose banner
+// that repeated the same data. ⚠️ The wireframe's per-card "Device:" row is not rendered (2026-08-26 owner ruling on
+// device attribution). `base` is ABSENT when evicted from version history, in which case YOURS says only "Not saved yet".
 
 /**
- * The SERVER card's heading — "Server version (v{n})" (wireframe gap #2). Pure.
+ * The THEIRS card's saved-time line — the ABSOLUTE localized date ({@link formatVersionTimestamp}). Pure.
  *
  * @param server - The 409's winning server side.
+ * @param locale - The active BCP-47 locale.
  * @param messages - The localized conflict copy.
- * @returns The formatted heading.
+ * @returns The formatted saved-time line.
  */
-export const formatServerCardHeading = (server: VersionConflictSide, messages: RecipeConflictMessages): string =>
-    fillTemplate(messages.serverCardHeading, { version: server.versionNumber });
+export const formatTheirsCardSavedLine = (
+    server: VersionConflictSide,
+    locale: Locale,
+    messages: RecipeConflictMessages,
+): string => fillTemplate(messages.versionCardSavedLabel, { time: formatVersionTimestamp(server.updatedAt, locale) });
 
 /**
- * The YOUR-version card's heading — "Edited from v{n}" when `base` is known (the card shows the version the draft was
- * edited FROM, so it is named for that, not as the draft's own save), or the version-less fallback when it was evicted
- * from version history (wireframe gap #2). Pure.
+ * The YOURS card's status line — "Not saved yet. Started from {date}" when `base` (the version the draft was edited
+ * from) is known, or just "Not saved yet" when it was evicted from version history. Pure.
  *
  * @param base - The 409's base side, or `undefined` when evicted.
+ * @param locale - The active BCP-47 locale.
  * @param messages - The localized conflict copy.
- * @returns The formatted heading.
+ * @returns The formatted status line.
  */
-export const formatYourCardHeading = (
+export const formatYoursCardStatus = (
     base: VersionConflictSide | undefined,
+    locale: Locale,
     messages: RecipeConflictMessages,
 ): string =>
     base === undefined
-        ? messages.yourCardHeadingUnknown
-        : fillTemplate(messages.yourCardHeading, { version: base.versionNumber });
-
-/**
- * A side's card "Saved: {date}" line — the ABSOLUTE localized date ({@link formatVersionTimestamp}),
- * deliberately distinct from the prose banner's own RELATIVE "N minutes ago" ({@link formatRelativeTimeAgo})
- * (wireframe gap #2). Pure.
- *
- * @param side - The card's own side (`server` or `base`).
- * @param locale - The active BCP-47 locale.
- * @param messages - The localized conflict copy.
- * @returns The formatted "Saved: {date}" line.
- */
-export const formatVersionCardSavedLine = (
-    side: VersionConflictSide,
-    locale: Locale,
-    messages: RecipeConflictMessages,
-): string => fillTemplate(messages.versionCardSavedLabel, { time: formatVersionTimestamp(side.updatedAt, locale) });
+        ? messages.yoursCardStatusUnknown
+        : fillTemplate(messages.yoursCardStatus, { time: formatVersionTimestamp(base.updatedAt, locale) });
 
 // ─── Selection-gating, choice summary + stale-base warning (W7 Task 5 / X5, X6) ─────────────────────
 //
@@ -198,7 +157,7 @@ export const isConflictBaseStale = (
 
 /**
  * The conflict copy for this recipe. A never-published draft records no versions (ADR-0058), so its 409 never has a
- * `base`: its copy speaks of a draft saved elsewhere, with no version numbers and no "evicted" fallback. Pure.
+ * `base`: its copy speaks of a draft saved elsewhere, with no "evicted" fallback. Pure.
  *
  * @param messages - The localized conflict copy.
  * @param neverPublished - Whether the recipe is a draft that was never published.
@@ -210,10 +169,6 @@ export const conflictCopyOf = (messages: RecipeConflictMessages, neverPublished:
               ...messages,
               heading: messages.draftHeading,
               explanation: messages.draftExplanation,
-              serverBanner: messages.draftServerBanner,
-              serverCardHeading: messages.draftServerCardHeading,
-              yourCardHeading: messages.draftYourCardHeading,
-              yourCardHeadingUnknown: messages.draftYourCardHeading,
           }
         : messages;
 
@@ -276,12 +231,9 @@ export const formatMergeSummary = (
 
 // ─── The parts both leaves draw ─────────────────────────────────────────────────────────────────────
 
-/** The three markers, in the order the legend explains them (the wireframe's own `[=] [→] [!!]` order). */
-export const LEGEND_MARKERS: readonly ConflictMarker[] = ['unchanged', 'changed', 'conflict'];
-
 /**
- * One A/B/C option card (X2): a title, a description, and the choice it fires. `disabled` is the stale-base confirm
- * gate on Option B, Overwrite (W7 Task 5 / X6); Options A and C are never gated that way.
+ * One option card (X2: Keep mine, Use theirs, Compare): a title, a description, and the choice it fires. `disabled` is the stale-base confirm
+ * gate on Keep mine (W7 Task 5 / X6); Use theirs and Compare are never gated that way.
  */
 export interface ConflictOptionCardProps {
     readonly title: string;
@@ -296,10 +248,10 @@ export interface DiscardAndCloseProps {
     readonly onDiscardAndClose: () => void;
 }
 
-/** One per-side summary card (wireframe gap #2): its heading, and its "Saved:" line when the side carries one. */
+/** One per-side summary card (wireframe gap #2): its heading, and its status line (saved time, or "Not saved yet"). */
 export interface VersionSideCardProps {
     readonly heading: string;
-    readonly savedLine?: string;
+    readonly statusLine: string;
 }
 
 /** One side's value, and that side's variant parts when it is variant-bound (curated U15, R25). */

@@ -179,7 +179,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             groupLabel: 'Recipe visibility',
             publicLabel: 'Public',
             privateLabel: 'Private',
-            error: 'We couldn’t change who can see this recipe. Please try again.',
+            error: 'We couldn’t change who can see this recipe. Try again.',
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
                 // The owner's design wording of 2026-10-26 (`actions privateRefused.premium`): the premium rule is the imported

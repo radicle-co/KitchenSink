@@ -59,7 +59,7 @@ export const recipeRatingMessages: LocalizedMessages<{ rating: RecipeRatingMessa
             submittingLabel: 'Saving your rating…',
             ownRecipeNote: 'You can’t rate your own recipe.',
             errorNotAvailable: 'This recipe isn’t available.',
-            errorGeneric: 'We couldn’t save your rating. Please try again.',
+            errorGeneric: 'We couldn’t save your rating. Try again.',
         },
     },
 };

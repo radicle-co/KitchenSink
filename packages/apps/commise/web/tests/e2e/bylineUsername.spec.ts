@@ -99,9 +99,12 @@ test.describe('the byline is the username', () => {
         await page.goto(route('/profile'));
 
         await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
-        // Header only (owner ruling 2026-10-16): the username shows once, with no Username row under Account.
+        // Owner ruling S2 (2026-10-27): the username shows once, as a read-only Username row under Account — not in
+        // the header.
         await expect(page.getByRole('main').getByText('@braise')).toHaveCount(1);
-        await expect(page.getByRole('region', { name: 'Account' })).not.toContainText('Username');
+        const account = page.getByRole('region', { name: 'Account' });
+        await expect(account.getByText('Username', { exact: true })).toBeVisible();
+        await expect(account.getByText('@braise', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: /Username/u })).toHaveCount(0);
     });
 });

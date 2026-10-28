@@ -441,8 +441,8 @@ export interface RecipeFormMessages {
      */
     readonly errorPromptEntryMode: string;
     /**
-     * A nameless row 12's panel (contains `{changeFoodLabel}`, `statusActionChangeFood`;
-     * `docs/design/namelessLineCopy.md` §6c).
+     * A nameless row 12's panel (`docs/design/namelessLineCopy.md` §6c). It names no action: the panel's one primary
+     * action is its own button (bug sweep #11, spec row 24).
      */
     readonly statusExplainFoodRemovedUnnamed: string;
 
@@ -815,7 +815,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         errorPromptEntryMode:
             'Fix the name above if it’s not quite right — or, if you know the name is correct, use “{createLabel}”.',
         statusExplainFoodRemovedUnnamed:
-            'This food was removed from our food database, and its name went with it. Your amount is unchanged. Use “{changeFoodLabel}” to pick another.',
+            'This food was removed from our food database, and its name went with it. Your amount is unchanged.',
 
         nutritionNoneAvailable: 'No nutritional data available',
         nutritionWorking: 'We’re still looking this food up — figures will appear once it’s matched.',

@@ -829,11 +829,11 @@ describe('RecipePhotoUploader — remove', () => {
         const options = mutate.mock.calls[0]?.[1] as { onError: () => void };
         act(() => options.onError());
 
-        expect(screen.getByText('We couldn’t remove this photo. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t remove this photo. Try again.')).toBeTruthy();
 
         chooseFromTile('Actions for photo 1, the cover', 'Remove');
 
-        expect(screen.queryByText('We couldn’t remove this photo. Please try again.')).toBeNull();
+        expect(screen.queryByText('We couldn’t remove this photo. Try again.')).toBeNull();
     });
 
     it('busies the row whose removal is in flight', () => {
@@ -923,7 +923,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         render(<RecipePhotoUploader recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Replace');
 
-        expect(await screen.findByText('We couldn’t upload that photo. Please try again.')).toBeTruthy();
+        expect(await screen.findByText('We couldn’t upload that photo. Try again.')).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
         expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
     });
@@ -1078,7 +1078,7 @@ describe('RecipePhotoUploader — reordering from the tile’s menu (2026-10-17)
         const options = reorderMutate.mock.calls[0]?.[1] as { onError: () => void };
         act(() => options.onError());
 
-        expect(screen.getByText('We couldn’t move that photo. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t move that photo. Try again.')).toBeTruthy();
     });
 
     it('disables the moves while a reorder is in flight, and sends nothing', () => {

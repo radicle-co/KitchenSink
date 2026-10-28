@@ -14,13 +14,13 @@ afterEach(cleanup);
 
 describe('BoundaryErrorNotice (web)', () => {
     it('renders an alert with the shared title, the app’s body and a retry', () => {
-        render(<BoundaryErrorNotice body="We couldn’t load this page. Please try again." onRetry={vi.fn()} />);
+        render(<BoundaryErrorNotice body="We couldn’t load this page. Try again." onRetry={vi.fn()} />);
 
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.getByRole('heading', { name: boundaryMessages.en.errorTitle })).toBeTruthy();
         // The button carries the body again as an aria-hidden description, so the visible copy is found past it.
         expect(
-            screen.getByText('We couldn’t load this page. Please try again.', {
+            screen.getByText('We couldn’t load this page. Try again.', {
                 ignore: '[aria-hidden="true"], script, style',
             }),
         ).toBeTruthy();

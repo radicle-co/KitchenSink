@@ -18,6 +18,8 @@
  * The H1's ref is `useScreenReaderFocusOnSignal`'s, sanctioned in the ref register: moving the screen-reader cursor has
  * no declarative form.
  *
+ * The header insets itself {@link SIDE_INSET} on both sides; the action, placed absolutely, carries the same inset.
+ *
  * Presentational: props → JSX.
  *
  * @pattern Visitor — an exhaustive switch over the `HeaderAction` union
@@ -34,6 +36,13 @@ import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
 
 /** The height of the row that holds the action, pt (§3.3). */
 const ROW_HEIGHT = 44;
+
+/**
+ * The header's own side inset, pt. The header owns it so a screen cannot forget it and leave the title on the screen
+ * edge (bug sweep, B11). A screen that wraps the header in its own side padding must not also keep that padding for the
+ * header, or the title moves in twice.
+ */
+const SIDE_INSET = nativeTokens.spacing[4];
 
 /** The action group, at the end of the row. */
 function actionOf(action: HeaderAction): ReactNode {
@@ -90,13 +99,14 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
 };
 
 const styles = StyleSheet.create({
-    header: { position: 'relative', paddingBottom: nativeTokens.spacing[2] },
+    header: { position: 'relative', paddingBottom: nativeTokens.spacing[2], paddingHorizontal: SIDE_INSET },
     titleBlock: { gap: nativeTokens.spacing[1] },
     underRow: { paddingTop: ROW_HEIGHT },
     action: {
         position: 'absolute',
         top: 0,
-        end: 0,
+        // An absolute child is placed from the parent's edge, not its padding edge, so it carries the inset itself.
+        end: SIDE_INSET,
         height: ROW_HEIGHT,
         alignItems: 'center',
         justifyContent: 'center',

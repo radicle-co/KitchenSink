@@ -17,6 +17,7 @@
  * is reachable in every body state, as `recipe-search.md`'s loading and load-error states require.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { sideInsetOf } from '@commise/test-utils';
 import { AccessibilityInfo, Text, type ScrollView as ScrollViewType } from 'react-native';
 import { createElement, type ComponentProps } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -518,5 +519,22 @@ describe('RecipeDiscoveryFrame (native) — N1: each name is said once, by its h
 
         expect(screen.getAllByRole('heading', { name: 'Recent searches' })).toHaveLength(1);
         expect(screen.queryAllByLabelText('Recent searches')).toEqual([]);
+    });
+});
+
+describe('RecipeDiscoveryFrame (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
+    it('insets the title once (its own 16) and pads the content under it by 16', () => {
+        renderFrame();
+
+        expect(sideInsetOf(screen.getByRole('heading'))).toBe(16);
+        expect(sideInsetOf(screen.getByText('boundary content'))).toBe(16);
+    });
+
+    it('with the filter panel, still insets the title once and pads the panel row by 16', () => {
+        renderFrame({ filters: PANEL_FILTERS });
+
+        expect(sideInsetOf(screen.getByRole('heading'))).toBe(16);
+        expect(sideInsetOf(screen.getByText('FILTER PANEL'))).toBe(16);
+        expect(sideInsetOf(screen.getByText('boundary content'))).toBe(16);
     });
 });

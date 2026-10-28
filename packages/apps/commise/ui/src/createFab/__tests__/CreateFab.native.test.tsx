@@ -5,6 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { Pressable, Text } from 'react-native';
 
 const env = vi.hoisted(() => ({
     glass: false,
@@ -39,6 +41,8 @@ import type { ScrollBind } from '../../scrollHost/props.js';
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
 import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
+import { SnackbarHost } from '../../snackbar/SnackbarHost.native.js';
+import { useSnackbar } from '../../snackbar/useSnackbar.js';
 import { CreateFab } from '../CreateFab.native.js';
 
 beforeEach(() => {
@@ -195,5 +199,74 @@ describe('CreateFab (native)', () => {
 
             expect(endOffset()).toBe(`${String(nativeTokens.spacing[6] + 20)}px`);
         });
+    });
+});
+
+// Bug sweep P7: the snackbar floats over the same corner as the button and covered it. The host (the app's root, outside
+// the screen) tells the button how tall the snackbar is; the button rises above it by that plus 8 (Material's rule).
+describe('CreateFab (native) — clear of a showing snackbar', () => {
+    function Opener(): ReactElement {
+        const { show } = useSnackbar();
+
+        return (
+            <Pressable
+                accessibilityRole="button"
+                onPress={() =>
+                    show({ message: 'Recipe deleted', action: { label: 'Undo', onAction: () => undefined } })
+                }
+            >
+                <Text>open snackbar</Text>
+            </Pressable>
+        );
+    }
+
+    function renderWithHost(): void {
+        render(
+            <SnackbarHost>
+                <ScrollHost>
+                    {() => (
+                        <>
+                            <Opener />
+                            <CreateFab label="New recipe" icon="plus" onPress={vi.fn()} />
+                        </>
+                    )}
+                </ScrollHost>
+            </SnackbarHost>,
+        );
+    }
+
+    /** Reports the snackbar region's height as react-native-web would: it stores the handler on the node. */
+    const measureSnackbar = (height: number): void => {
+        const region = screen.getByRole('status') as HTMLElement & {
+            __reactLayoutHandler?: (event: unknown) => void;
+        };
+
+        act(() => region.__reactLayoutHandler?.({ nativeEvent: { layout: { y: 0, height } } }));
+    };
+
+    it('sits 16 dp above the foot when no snackbar shows', () => {
+        renderWithHost();
+
+        expect(fab().style.bottom).toBe('16px');
+    });
+
+    it('rises above a showing snackbar by its height plus 8, and comes back down when it goes', () => {
+        renderWithHost();
+
+        fireEvent.click(screen.getByRole('button', { name: 'open snackbar' }));
+        measureSnackbar(56);
+
+        expect(fab().style.bottom).toBe('80px');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+        expect(fab().style.bottom).toBe('16px');
+    });
+
+    it('ignores a height reported while nothing shows', () => {
+        renderWithHost();
+        measureSnackbar(56);
+
+        expect(fab().style.bottom).toBe('16px');
     });
 });

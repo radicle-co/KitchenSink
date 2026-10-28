@@ -38,7 +38,7 @@ describe('avatarCopyOf', () => {
 
     it('carries the control name and both failure messages', () => {
         expect(copy.changeAction).toBe('Change photo');
-        expect(copy.uploadError).toBe('We couldn’t update your photo. Please try again.');
+        expect(copy.uploadError).toBe('We couldn’t update your photo. Try again.');
         expect(copy.unsupportedTypeError).toBe('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.');
     });
 });

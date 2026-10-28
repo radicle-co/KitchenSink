@@ -137,49 +137,46 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         });
     }
 
-    test('the conflict shows the per-side banner and the changed-only diff (markers, Server before Yours)', async ({
+    test('the conflict shows the two side cards and the changed-only diff (word badges, Server before Yours)', async ({
         page,
     }) => {
         await enterConflict(page, { serverChanges: { servings: 8 } });
 
-        // Per-side banner (X3): server side names its version and when it saved — mine has no version of its
-        // own (never persisted). The banner's trailing ` on {device}` clause went with the 2026-08-26 owner
-        // ruling; the `$` anchor is what keeps it from creeping back. A side saved under a minute ago reads "now", the
-        // locale's word, never "0 minutes ago" (P6, `formatRelativeTimeAgo`); this fixture's server side was just saved.
-        await expect(page.getByText(/^Server version \(v2\): Saved (?:now|\d+ minutes? ago)$/u)).toBeVisible();
-        await expect(page.getByText('Your version: local unsaved changes')).toBeVisible();
+        // The two side cards (no version numbers, no banner): theirs first, then yours.
+        await expect(page.getByText('Saved elsewhere', { exact: true })).toBeVisible();
+        await expect(page.getByText('Your changes', { exact: true })).toBeVisible();
 
         // Changed-only diff (X1/X7): title (mine changed it) and servings (theirs changed it) — Server's
         // value rendered BEFORE Yours on each row.
         const diffPanel = page.getByRole('region', { name: 'Changed fields' });
 
         const titleRow = diffPanel.getByRole('listitem').filter({ hasText: 'Title' });
-        await expect(titleRow.getByRole('img', { name: 'changed' })).toBeVisible();
-        await expect(titleRow.getByText('Was: Original Title')).toBeVisible();
-        await expect(titleRow.getByText('Latest saved version: Original Title')).toBeVisible();
-        await expect(titleRow.getByText('Your version: My Merged Title')).toBeVisible();
+        await expect(titleRow.getByText('Changed', { exact: true })).toBeVisible();
+        await expect(titleRow.getByText('Before: Original Title')).toBeVisible();
+        await expect(titleRow.getByText('Theirs: Original Title')).toBeVisible();
+        await expect(titleRow.getByText('Yours: My Merged Title')).toBeVisible();
 
         const servingsRow = diffPanel.getByRole('listitem').filter({ hasText: 'Servings' });
-        await expect(servingsRow.getByRole('img', { name: 'changed' })).toBeVisible();
-        await expect(servingsRow.getByText('Was: 4')).toBeVisible();
-        await expect(servingsRow.getByText('Latest saved version: 8')).toBeVisible();
-        await expect(servingsRow.getByText('Your version: 4')).toBeVisible();
+        await expect(servingsRow.getByText('Changed', { exact: true })).toBeVisible();
+        await expect(servingsRow.getByText('Before: 4')).toBeVisible();
+        await expect(servingsRow.getByText('Theirs: 8')).toBeVisible();
+        await expect(servingsRow.getByText('Yours: 4')).toBeVisible();
 
         // Changed-ONLY: fields neither side touched (description, prep/cook time) never get a row.
         await expect(diffPanel.getByRole('listitem').filter({ hasText: 'Description' })).toHaveCount(0);
         await expect(diffPanel.getByRole('listitem').filter({ hasText: 'Prep time' })).toHaveCount(0);
         await expect(diffPanel.getByRole('listitem').filter({ hasText: 'Cook time' })).toHaveCount(0);
 
-        // The marker legend explaining the glyph vocabulary.
-        await expect(page.getByRole('list', { name: 'Legend' })).toBeVisible();
+        // The badges are words, so there is no legend to decode.
+        await expect(page.getByRole('list', { name: 'Legend' })).toHaveCount(0);
     });
 
     test('renders the three A/B/C option cards', async ({ page }) => {
         await enterConflict(page, { serverChanges: { servings: 8 } });
 
-        await expect(page.getByRole('button', { name: 'Keep server version' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Overwrite with your version' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Merge manually' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Use theirs' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Keep mine' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Compare' })).toBeVisible();
     });
 
     test('[A] Keep server discards the local changes with NO write and lands on the recipe detail', async ({
@@ -191,7 +188,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         // server's title) at conflict time. Capturing it lets us prove Keep server writes NOTHING further.
         expect(store.get('ec000000-0000-4000-8000-000000000009')?.currentVersion).toBe(2);
 
-        await page.getByRole('button', { name: 'Keep server version' }).click();
+        await page.getByRole('button', { name: 'Use theirs' }).click();
 
         // Lands on the recipe detail (OQ-1 / Task-6 discarded→detail wiring) showing the SERVER's title —
         // the local 'My Merged Title' edit was discarded, never persisted.
@@ -233,7 +230,7 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
     test('[B] Overwrite resubmits the draft as-is and lands on the recipe detail', async ({ page }) => {
         const store = await enterConflict(page, { serverChanges: { servings: 8 } });
 
-        await page.getByRole('button', { name: 'Overwrite with your version' }).click();
+        await page.getByRole('button', { name: 'Keep mine' }).click();
 
         // Lands on the recipe detail (OQ-1) with the user's values persisted — including that Overwrite
         // discards the OTHER device's servings change too (mine wins WHOLESALE, not merged).
@@ -247,16 +244,16 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
     test('[C] Merge gates Save on a selection, then persists the per-field composition', async ({ page }) => {
         const store = await enterConflict(page, { serverChanges: { servings: 8 } });
 
-        await page.getByRole('button', { name: 'Merge manually' }).click();
-        await expect(page.getByRole('heading', { name: 'Merge changes field by field' })).toBeVisible();
+        await page.getByRole('button', { name: 'Compare' }).click();
+        await expect(page.getByRole('heading', { name: 'Compare and choose' })).toBeVisible();
 
         // Gating (X5): no selection yet → Save is disabled, with an inline hint explaining why.
-        const saveButton = page.getByRole('button', { name: 'Save merged version' });
+        const saveButton = page.getByRole('button', { name: 'Save my choices' });
         await expect(saveButton).toBeDisabled();
-        await expect(page.getByText('Choose a value for at least one field to save the merged version.')).toBeVisible();
+        await expect(page.getByText('Pick at least one change to save.')).toBeVisible();
 
         // Pick the server's servings for this one field; title stays unselected (defaults to mine).
-        await page.getByRole('radio', { name: 'Latest saved version: 8' }).check();
+        await page.getByRole('radio', { name: 'Theirs: 8' }).check();
         await expect(saveButton).toBeEnabled();
 
         await saveButton.click();
@@ -276,10 +273,10 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         const warning = page.getByRole('alert').filter({ hasText: 'far ahead of the version you started from' });
         await expect(warning).toBeVisible();
 
-        const overwriteButton = page.getByRole('button', { name: 'Overwrite with your version' });
+        const overwriteButton = page.getByRole('button', { name: 'Keep mine' });
         await expect(overwriteButton).toBeDisabled();
 
-        await page.getByRole('checkbox', { name: 'I understand — continue anyway' }).check();
+        await page.getByRole('checkbox', { name: 'I understand. Let me choose anyway' }).check();
         await expect(overwriteButton).toBeEnabled();
     });
 
@@ -332,14 +329,14 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         );
 
         const diffPanel = page.getByRole('region', { name: 'Changed fields' });
-        const flatRow = diffPanel.getByRole('listitem').filter({ hasText: 'Was: 2 lb beef brisket' });
+        const flatRow = diffPanel.getByRole('listitem').filter({ hasText: 'Before: 2 lb beef brisket' });
         const pointRow = diffPanel.getByRole('listitem').filter({ hasText: 'point half' });
 
         // Both rows read "2 lb beef brisket"; the dotted line under each side is what tells them apart.
-        await expect(flatRow).toContainText('Your version: 2 lb beef brisket');
+        await expect(flatRow).toContainText('Yours: 2 lb beef brisket');
         await expect(flatRow).toContainText('flat half ·');
         await expect(flatRow).not.toContainText('point half');
-        await expect(pointRow).toContainText('Latest saved version: 2 lb beef brisket');
+        await expect(pointRow).toContainText('Theirs: 2 lb beef brisket');
         await expect(pointRow).toContainText('point half ·');
         await expect(pointRow).not.toContainText('flat half');
         // Never a comma-joined label; the cook's own comma-joined words on the olive oil row prove the check can see one.
@@ -349,17 +346,17 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
             'flat half, select',
         );
 
-        await page.getByRole('button', { name: 'Merge manually' }).click();
+        await page.getByRole('button', { name: 'Compare' }).click();
 
         // The names carry the parts for a screen reader (R27); the visible text shows them as the dotted line.
         const flatGroup = page.getByRole('radiogroup', { name: 'Ingredient: 2 lb beef brisket, flat half, select' });
         const pointGroup = page.getByRole('radiogroup', { name: 'Ingredient: 2 lb beef brisket, point half, choice' });
 
         await expect(
-            flatGroup.getByRole('radio', { name: 'Your version: 2 lb beef brisket, flat half, select' }),
+            flatGroup.getByRole('radio', { name: 'Yours: 2 lb beef brisket, flat half, select' }),
         ).toBeVisible();
         await expect(
-            pointGroup.getByRole('radio', { name: 'Latest saved version: 2 lb beef brisket, point half, choice' }),
+            pointGroup.getByRole('radio', { name: 'Theirs: 2 lb beef brisket, point half, choice' }),
         ).toBeVisible();
         await expect(flatGroup).toContainText('flat half ·');
         await expect(pointGroup).toContainText('point half ·');

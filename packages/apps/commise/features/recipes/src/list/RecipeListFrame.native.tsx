@@ -85,7 +85,7 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
         // No name on the container: the header Text inside it says it (`nativeContainerNames.md` N1).
         <View collapsable={false} style={[styles.container, compact && styles.containerCompact]}>
             {/* ONE header group in every layout, the field its last child, so the field never remounts. */}
-            <View style={compact ? styles.headerGroupCompact : styles.headerGroup}>
+            <View style={compact ? [styles.headerGroupCompact, styles.inset] : styles.headerGroup}>
                 {/* The large title (slice 3) with the avatar and the segments; in compact height — a phone held sideways — the
                     plain heading shares its row with the field, so the list keeps its room. */}
                 {compact ? (
@@ -110,7 +110,7 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
                 )}
 
                 {searchVisible ? (
-                    <View style={compact ? styles.searchCompact : null}>
+                    <View style={compact ? styles.searchCompact : styles.inset}>
                         <SearchField
                             id={searchId}
                             label={list.searchLabel}
@@ -124,7 +124,7 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
                 ) : null}
             </View>
 
-            {children}
+            <View style={styles.content}>{children}</View>
             {/* A sibling after the boundary: it floats over the screen's foot and never leaves with a pending, offline or
                 failed read (§3.4). The host decides when it yields. */}
             <RecipeCreateButton onCreateRecipe={onCreateRecipe} yielded={createEntryYields} />
@@ -136,9 +136,11 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         gap: nativeTokens.spacing[4],
-        paddingHorizontal: nativeTokens.spacing[4],
         paddingTop: nativeTokens.spacing[2],
     },
+    // The large title insets its own sides, so everything else pads itself.
+    inset: { paddingHorizontal: nativeTokens.spacing[4] },
+    content: { flex: 1, paddingHorizontal: nativeTokens.spacing[4] },
     containerCompact: { gap: nativeTokens.spacing[2] },
     headerGroup: { gap: nativeTokens.spacing[4] },
     headerGroupCompact: {

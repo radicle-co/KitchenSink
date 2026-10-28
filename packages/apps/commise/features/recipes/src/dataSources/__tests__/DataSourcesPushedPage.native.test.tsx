@@ -5,6 +5,7 @@
  * sentences show whatever state the read is in, and Back to Profile is the one visible way out.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { sideInsetOf } from '@commise/test-utils';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { AccessibilityInfo, Text } from 'react-native';
 import { role, roleDark } from '@commise/ui/colors';
@@ -141,5 +142,18 @@ describe.each(['light', 'dark'] as const)('DataSourcesPushedPage (native) — th
         expect(getComputedStyle(screen.getByRole('heading', { name: m.title })).color).toBe(rgb(colours.ink));
         expect(getComputedStyle(screen.getByText(m.intro)).color).toBe(rgb(colours.ink));
         expect(getComputedStyle(screen.getByText(m.closeMatchNote)).color).toBe(rgb(colours.inkMuted));
+    });
+});
+
+describe('DataSourcesPushedPage (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
+    it('insets the title once (its own 16) and pads the content under it by 16', () => {
+        render(
+            <DataSourcesPushedPage back={BACK} headingFocusSignal={0}>
+                <Text>sources list</Text>
+            </DataSourcesPushedPage>,
+        );
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: 'Data sources', level: 1 }))).toBe(16);
+        expect(sideInsetOf(screen.getByText('sources list'))).toBe(16);
     });
 });

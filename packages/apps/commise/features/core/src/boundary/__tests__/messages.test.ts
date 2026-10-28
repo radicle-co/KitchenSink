@@ -9,10 +9,10 @@ import { boundaryMessages } from '../messages.js';
 
 describe('boundaryMessages', () => {
     it('states one body for any crashed view, noun-free, in the "couldn’t load" register of every sibling error', () => {
-        expect(boundaryMessages.en.errorBody).toBe('We couldn’t load this. Please try again.');
+        expect(boundaryMessages.en.errorBody).toBe('We couldn’t load this. Try again.');
     });
 
     it('states the Home variant separately, because Home offers no Back to Home', () => {
-        expect(boundaryMessages.en.errorBodyHome).toBe('We couldn’t load Home. Please try again.');
+        expect(boundaryMessages.en.errorBodyHome).toBe('We couldn’t load Home. Try again.');
     });
 });

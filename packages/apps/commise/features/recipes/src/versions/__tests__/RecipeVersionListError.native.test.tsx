@@ -6,6 +6,7 @@
  * pinned bar owns it in every state (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §2).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { sideInsetOf } from '@commise/test-utils';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { RecipeVersionListError } from '../RecipeVersionListError.native.js';
@@ -46,5 +47,14 @@ describe('RecipeVersionListError (native)', () => {
 
         expect(screen.queryAllByRole('button', { name: versionList.backToRecipe, hidden: true })).toHaveLength(0);
         expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    });
+});
+
+describe('RecipeVersionListError (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
+    it('insets the title once (its own 16) and pads the alert under it by 16', () => {
+        render(<RecipeVersionListError {...props} />);
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: versionList.heading }))).toBe(16);
+        expect(sideInsetOf(screen.getByText(props.title))).toBe(16);
     });
 });

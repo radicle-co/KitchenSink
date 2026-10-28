@@ -298,7 +298,7 @@ describe('VersionPreviewModal (web) — error', () => {
         const onCancel = vi.fn();
         render(<VersionPreviewModal {...baseProps({ error: true, onCancel })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Try again.');
         expect(screen.queryByRole('status')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
 
@@ -314,7 +314,7 @@ describe('VersionPreviewModal (web) — error', () => {
         const onCancel = vi.fn();
         render(<VersionPreviewModal {...baseProps({ isLoading: false, onCancel })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Try again.');
         expect(screen.queryByRole('status')).toBeNull();
 
         await user.click(screen.getByRole('button', { name: 'Keep current version' }));

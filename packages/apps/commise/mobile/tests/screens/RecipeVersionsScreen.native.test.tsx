@@ -383,7 +383,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
 
         chooseRowAction(1, 'Restore this version');
 
-        expect(await screen.findByText('We couldn’t restore that version. Please try again.')).toBeTruthy();
+        expect(await screen.findByText('We couldn’t restore that version. Try again.')).toBeTruthy();
     });
 
     it('refetches history + recipe when the restore fails with a conflict', async () => {
@@ -405,7 +405,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
 
         chooseRowAction(1, 'Restore this version');
 
-        await screen.findByText('We couldn’t restore that version. Please try again.');
+        await screen.findByText('We couldn’t restore that version. Try again.');
         expect(client.listRecipeVersions).toHaveBeenCalledTimes(1);
         expect(client.getRecipeById).toHaveBeenCalledTimes(1);
     });

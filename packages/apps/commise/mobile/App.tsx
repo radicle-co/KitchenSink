@@ -25,7 +25,7 @@ LogBox.ignoreLogs([/Clerk has been loaded with development keys/]);
 // The @formatjs polyfills self-check and no-op when a native impl already exists.
 //
 // `RelativeTimeFormat` is load-bearing, not belt-and-braces: `formatRelativeTime` (recipe card footer) and
-// `formatRelativeTimeAgo` (version-conflict banner) both construct it, and without it EVERY recipe card older
+// `formatRelativeTimeAgo` (version-conflict side cards) both construct it, and without it EVERY recipe card older
 // than 60 seconds crashed its screen into the root error boundary (a fresher card returns the "just now" label
 // before reaching `Intl`, which is why the crash looked intermittent). `tests/intlPolyfills.test.ts` pins this
 // list against the `new Intl.*` calls in the shared sources so the next addition cannot be missed the same way.

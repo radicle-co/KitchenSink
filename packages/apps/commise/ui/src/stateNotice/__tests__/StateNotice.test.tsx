@@ -24,11 +24,11 @@ describe('StateNotice (web)', () => {
     it('shows the body only when it has one', () => {
         const { rerender } = render(<StateNotice title="Something went wrong." />);
 
-        expect(screen.queryByText('Please try again.')).toBeNull();
+        expect(screen.queryByText('Try again.')).toBeNull();
 
-        rerender(<StateNotice title="Something went wrong." body="Please try again." />);
+        rerender(<StateNotice title="Something went wrong." body="Try again." />);
 
-        expect(screen.getByText('Please try again.')).toBeTruthy();
+        expect(screen.getByText('Try again.')).toBeTruthy();
     });
 
     it('draws no action row when there is no way out', () => {

@@ -7,5 +7,5 @@
  */
 import { createContext } from 'react';
 
-/** The height in dp of the snackbar now showing; `0` when none shows, and outside a host. */
+/** The height (dp on native, px on web) of the snackbar now showing; `0` when none shows, and outside a host. */
 export const SnackbarClearanceContext = createContext(0);

@@ -696,7 +696,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.native.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (native): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill. The value takes the room the label leaves and wraps, so a long email never runs off the screen.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (native): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill. It is ONE accessibility element, so a screen reader reads the label and the value together in a\nsingle swipe. The value takes the room the label leaves and wraps, so a long email never runs off the screen.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

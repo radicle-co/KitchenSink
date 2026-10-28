@@ -1,7 +1,8 @@
 /**
  * @module @commise/features-account/profile/ProfileFactRow — a read-only Profile row (native): the label and a value the
  * cook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no
- * chevron, no press fill. The value takes the room the label leaves and wraps, so a long email never runs off the screen.
+ * chevron, no press fill. It is ONE accessibility element, so a screen reader reads the label and the value together in a
+ * single swipe. The value takes the room the label leaves and wraps, so a long email never runs off the screen.
  *
  * Presentational: props → JSX.
  */
@@ -17,7 +18,7 @@ export const ProfileFactRow: FC<ProfileFactRowProps> = ({ label, value }) => {
     const { colors } = useTheme();
 
     return (
-        <View style={styles.row}>
+        <View accessible style={styles.row}>
             <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
             <Text style={[styles.value, { color: colors.inkMuted }]}>{value}</Text>
         </View>

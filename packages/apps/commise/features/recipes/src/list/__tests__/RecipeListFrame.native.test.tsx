@@ -10,6 +10,7 @@
  * there), and the field hides on the first run. The compact-height and focus invariants are kept.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { sideInsetOf } from '../../__tests__/sideInset.js';
 import { AccessibilityInfo, Text } from 'react-native';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
@@ -277,5 +278,21 @@ describe('RecipeListFrame (native) — compact height', () => {
             expect(screen.getByLabelText('Search your recipes')).toBe(field);
             expect(document.activeElement).toBe(field);
         }
+    });
+});
+
+describe('RecipeListFrame (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
+    it('insets the title once (its own 16) and pads the content under it by 16', () => {
+        render(frame());
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: 'Recipes' }))).toBe(16);
+        expect(sideInsetOf(screen.getByText('boundary content'))).toBe(16);
+    });
+
+    it('pads the compact heading row by 16 too, where the large title is not drawn', () => {
+        layout.compact = true;
+        render(frame());
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: 'Recipes' }))).toBe(16);
     });
 });

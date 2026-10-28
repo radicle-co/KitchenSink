@@ -83,6 +83,26 @@ describe('LargeTitleHeader (native)', () => {
         expect(getComputedStyle(titleBlock()).paddingTop).toBe('44px');
     });
 
+    // Bug sweep (pagesDesignerB, component item): a screen that forgot to pad put the title on the screen edge, so the
+    // inset belongs to the header. The action is absolutely placed, which ignores the parent's padding, so it carries
+    // the same inset itself: otherwise it would sit on the edge the title just left.
+    it('insets its own content 16 pt from each side, so a screen need not pad it', () => {
+        render(
+            <LargeTitleHeader
+                headingId="h"
+                title="Recipes"
+                subtitle="12 recipes"
+                action={{ kind: 'controls', menu: <Text>more</Text> }}
+            />,
+        );
+        const header = screen.getByRole('heading', { name: 'Recipes' }).parentElement!.parentElement!;
+        const action = screen.getByText('more').parentElement!;
+
+        expect(getComputedStyle(header).paddingLeft).toBe('16px');
+        expect(getComputedStyle(header).paddingRight).toBe('16px');
+        expect(getComputedStyle(action).right).toBe('16px');
+    });
+
     it('reports the title block’s layout to its ScrollHost, which then condenses past it', () => {
         const seen: { condensed?: boolean; scroll?: (y: number) => void } = {};
 

@@ -125,39 +125,41 @@ function ProfileSurface({ scrollBind, inset, headingId, onOpenDataSources }: Pro
                 keyboardShouldPersistTaps="handled"
             >
                 <LargeTitleHeader headingId={headingId} title={t.title} />
-                {user === undefined ? null : <SuspensionBanner status={user.status} />}
-                <ProfileHeader
-                    read={read}
-                    initials={initials}
-                    onRetry={() => void query.refetch()}
-                    avatar={
-                        <AvatarField
-                            value={photoUrl}
-                            initials={initials}
-                            onChange={({ key, previewUri }) => {
-                                setPickedPreview(previewUri);
-                                photoUpdate.mutate({ avatarKey: key });
-                            }}
-                            onError={setPickError}
-                            messages={avatarCopyOf(t)}
-                        />
-                    }
-                />
-                {photoError === undefined ? null : (
-                    <Text role="alert" style={[styles.photoError, { color: colors.dangerText }]}>
-                        {photoError}
-                    </Text>
-                )}
-                {read.status === 'ready' ? (
-                    <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet} />
-                ) : null}
-                <ProfileGroup heading={t.preferences}>
-                    <ProfileRow label={t.dataSources} tone="ink" chevron onPress={onOpenDataSources} />
-                </ProfileGroup>
-                <ProfileGroup label={t.signOut}>
-                    <SignOutButton />
-                </ProfileGroup>
-                <AccountDangerZone />
+                <View style={styles.body}>
+                    {user === undefined ? null : <SuspensionBanner status={user.status} />}
+                    <ProfileHeader
+                        read={read}
+                        initials={initials}
+                        onRetry={() => void query.refetch()}
+                        avatar={
+                            <AvatarField
+                                value={photoUrl}
+                                initials={initials}
+                                onChange={({ key, previewUri }) => {
+                                    setPickedPreview(previewUri);
+                                    photoUpdate.mutate({ avatarKey: key });
+                                }}
+                                onError={setPickError}
+                                messages={avatarCopyOf(t)}
+                            />
+                        }
+                    />
+                    {photoError === undefined ? null : (
+                        <Text role="alert" style={[styles.photoError, { color: colors.dangerText }]}>
+                            {photoError}
+                        </Text>
+                    )}
+                    {read.status === 'ready' ? (
+                        <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet} />
+                    ) : null}
+                    <ProfileGroup heading={t.preferences}>
+                        <ProfileRow label={t.dataSources} tone="ink" chevron onPress={onOpenDataSources} />
+                    </ProfileGroup>
+                    <ProfileGroup label={t.signOut}>
+                        <SignOutButton />
+                    </ProfileGroup>
+                    <AccountDangerZone />
+                </View>
             </ScrollView>
             <DisplayNameSheet
                 open={editor.open}
@@ -178,9 +180,10 @@ const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
     content: {
-        paddingHorizontal: nativeTokens.spacing[4],
         paddingBottom: nativeTokens.spacing[6],
         gap: nativeTokens.spacing[5],
     },
+    // Everything under the title: the title insets its own sides, so the rest pads itself.
+    body: { paddingHorizontal: nativeTokens.spacing[4], gap: nativeTokens.spacing[5] },
     photoError: { ...nativeTokens.type.caption },
 });

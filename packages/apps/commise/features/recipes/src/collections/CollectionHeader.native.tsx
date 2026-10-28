@@ -87,12 +87,17 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
 
     return (
         <View style={styles.stack}>
-            <LargeTitleHeader
-                headingId={headingId}
-                title={name}
-                focusSignal={focusSignal}
-                {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add } } : {})}
-            />
+            {/* `CollectionDetailScreen` pads its whole content 16 pt a side and the shared `CollectionDetailBody` cannot
+                pad around the title alone, while the title now insets itself the same 16 pt: the bleed takes the screen's
+                padding back so the title moves in once, not twice. */}
+            <View style={styles.titleBleed}>
+                <LargeTitleHeader
+                    headingId={headingId}
+                    title={name}
+                    focusSignal={focusSignal}
+                    {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add } } : {})}
+                />
+            </View>
             <View style={styles.metaRow}>
                 {metaItem(
                     'visibility',
@@ -152,6 +157,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
 
 const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[3] },
+    titleBleed: { marginHorizontal: -nativeTokens.spacing[4] },
     metaRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',

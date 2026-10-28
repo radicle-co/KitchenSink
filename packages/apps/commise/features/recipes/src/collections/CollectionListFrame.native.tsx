@@ -66,7 +66,7 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
                           ),
                       })}
             />
-            {children}
+            <View style={styles.content}>{children}</View>
             <CreateFab label={list.createCta} icon="plus" onPress={onCreate} yielded={createEntryYields} />
         </View>
     );
@@ -76,7 +76,8 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         gap: nativeTokens.spacing[4],
-        paddingHorizontal: nativeTokens.spacing[4],
         paddingTop: nativeTokens.spacing[2],
     },
+    // The title insets its own sides, so the content under it pads itself.
+    content: { flex: 1, paddingHorizontal: nativeTokens.spacing[4] },
 });

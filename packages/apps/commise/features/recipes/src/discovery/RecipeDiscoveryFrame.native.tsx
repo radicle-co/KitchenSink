@@ -103,18 +103,8 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
             </LiveRegion>
         );
 
-    const body = (
-        <View style={panel === undefined ? styles.fill : styles.resultsColumn}>
-            {panel === undefined ? (
-                <DiscoveryHeaderGroup
-                    compact={compact}
-                    headingFocusSignal={headingFocusSignal}
-                    headerAction={headerAction}
-                    search={search}
-                />
-            ) : (
-                search
-            )}
+    const rest = (
+        <>
             <DiscoveryRecentSearches
                 recentSearches={recentSearches}
                 fieldFocused={searchFocused}
@@ -137,6 +127,24 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
             )}
             {children}
             {sheet?.sheet}
+        </>
+    );
+
+    const body = (
+        <View style={panel === undefined ? styles.fill : styles.resultsColumn}>
+            {panel === undefined ? (
+                <DiscoveryHeaderGroup
+                    compact={compact}
+                    headingFocusSignal={headingFocusSignal}
+                    headerAction={headerAction}
+                    search={search}
+                />
+            ) : (
+                search
+            )}
+            {/* Without the panel the large title is in the header group above and insets its own sides, so everything
+                under it pads itself here; with the panel the row that holds the panel and this column pads instead. */}
+            <View style={panel === undefined ? styles.rest : styles.restInPanel}>{rest}</View>
         </View>
     );
 
@@ -161,13 +169,20 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         gap: nativeTokens.spacing[4],
-        paddingHorizontal: nativeTokens.spacing[4],
         paddingTop: nativeTokens.spacing[2],
     },
+    rest: { flex: 1, gap: nativeTokens.spacing[4], paddingHorizontal: nativeTokens.spacing[4] },
+    restInPanel: { flex: 1, gap: nativeTokens.spacing[4] },
     containerCompact: { gap: nativeTokens.spacing[2] },
     fill: { flex: 1, gap: nativeTokens.spacing[4] },
     resultsColumn: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[4] },
-    panelRow: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: nativeTokens.spacing[6] },
+    panelRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: nativeTokens.spacing[6],
+        paddingHorizontal: nativeTokens.spacing[4],
+    },
     countRow: {
         flexDirection: 'row',
         alignItems: 'center',

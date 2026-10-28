@@ -49,7 +49,7 @@ export const DiscoveryHeaderGroup: FC<DiscoveryHeaderGroupProps> = ({
     const headingRef = useScreenReaderFocusOnSignal<Text>(headingFocusSignal);
 
     return (
-        <View style={compact ? styles.rowGroup : styles.headerGroup}>
+        <View style={compact ? [styles.rowGroup, styles.inset] : styles.headerGroup}>
             {/* The large title (slice 3, `buildSpec.md` §3.3) with the avatar; in compact height the plain heading
                 shares its row with the field. */}
             {compact ? (
@@ -59,7 +59,7 @@ export const DiscoveryHeaderGroup: FC<DiscoveryHeaderGroupProps> = ({
             ) : (
                 <DiscoveryTitle focusSignal={headingFocusSignal} action={headerAction} />
             )}
-            <View style={compact ? styles.searchCompact : null}>{search}</View>
+            <View style={compact ? styles.searchCompact : styles.inset}>{search}</View>
         </View>
     );
 };
@@ -69,5 +69,7 @@ const styles = StyleSheet.create({
     // Compact height: the heading and the field share a row, and wrap onto two at a large text size or a narrow window.
     rowGroup: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[3] },
     searchCompact: { flexGrow: 1, flexBasis: 240, minWidth: 0 },
+    // The large title insets its own sides, so the field and the compact row pad themselves.
+    inset: { paddingHorizontal: nativeTokens.spacing[4] },
     heading: { ...nativeTokens.type.largeTitle.narrow },
 });

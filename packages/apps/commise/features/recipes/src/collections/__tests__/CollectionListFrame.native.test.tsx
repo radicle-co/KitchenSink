@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo, Text } from 'react-native';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import { sideInsetOf } from '../../__tests__/sideInset.js';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionListFrame } from '../CollectionListFrame.native.js';
@@ -134,5 +135,18 @@ describe('CollectionListFrame (native) — the floating create button (UI overha
         );
 
         expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
+    });
+});
+
+describe('CollectionListFrame (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
+    it('insets the title once (its own 16) and pads the content under it by 16', () => {
+        render(
+            <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
+                <Text>boundary content</Text>
+            </CollectionListFrame>,
+        );
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: 'Recipes' }))).toBe(16);
+        expect(sideInsetOf(screen.getByText('boundary content'))).toBe(16);
     });
 });

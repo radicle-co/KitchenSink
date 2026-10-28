@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo, Text } from 'react-native';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { sideInsetOf } from '../../__tests__/sideInset.js';
+import { sideInsetOf } from '@commise/test-utils';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionListFrame } from '../CollectionListFrame.native.js';

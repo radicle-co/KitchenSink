@@ -17,7 +17,7 @@
  * is reachable in every body state, as `recipe-search.md`'s loading and load-error states require.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sideInsetOf } from '../../__tests__/sideInset.js';
+import { sideInsetOf } from '@commise/test-utils';
 import { AccessibilityInfo, Text, type ScrollView as ScrollViewType } from 'react-native';
 import { createElement, type ComponentProps } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';

@@ -10,7 +10,7 @@
  * there), and the field hides on the first run. The compact-height and focus invariants are kept.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sideInsetOf } from '../../__tests__/sideInset.js';
+import { sideInsetOf } from '@commise/test-utils';
 import { AccessibilityInfo, Text } from 'react-native';
 import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';

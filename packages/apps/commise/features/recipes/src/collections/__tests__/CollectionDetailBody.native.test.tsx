@@ -14,7 +14,7 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import type { FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { sideInsetOf } from '../../__tests__/sideInset.js';
+import { sideInsetOf } from '@commise/test-utils';
 import { CollectionDetailBody } from '../CollectionDetailBody.js';
 import { useCollectionDetail } from '../useCollectionDetail.js';
 

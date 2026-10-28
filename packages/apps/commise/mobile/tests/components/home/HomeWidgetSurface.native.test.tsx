@@ -20,7 +20,7 @@ import {
     type HomeWidgetDescriptor,
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
-import { renderWithProviders } from '@commise/test-utils';
+import { renderWithProviders, sideInsetOf } from '@commise/test-utils';
 import { createContainer, type Container } from 'ditox';
 import { Pressable, Text } from 'react-native';
 
@@ -135,6 +135,18 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         expect(
             screen.getByRole('heading', { name: /^Good afternoon/u }).closest('[data-commise-stub="linear-gradient"]'),
         ).toBeNull();
+    });
+
+    // Bug sweep B11: the large title insets its own sides 16, so the region does not pad around it, and the widgets
+    // under it pad themselves 16. A region that also padded would move the title in twice (32).
+    it('insets the title once (its own 16) and the widgets under it by 16', async () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: /^Good (morning|afternoon|evening)/u }))).toBe(16);
+        expect(sideInsetOf(await screen.findByText('fake-recipe-widget'))).toBe(16);
     });
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {

@@ -5,7 +5,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { sideInsetOf } from '../../__tests__/sideInset.js';
+import { sideInsetOf } from '@commise/test-utils';
 import { CollectionDetailAlert } from '../CollectionDetailAlert.js';
 import { CollectionDetailGutter } from '../CollectionDetailGutter.js';
 

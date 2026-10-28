@@ -12,6 +12,7 @@
  * Rendered through react-native-web under jsdom. Hooks that reach the network are mocked; the design-system leaves and
  * the Profile leaves of `@commise/features-account/profile` are REAL, so colour, roles and names are what ships.
  */
+import { sideInsetOf } from '@commise/test-utils';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -182,6 +183,15 @@ afterEach(() => {
 });
 
 describe('ProfileScreen — the one page (§9.1)', () => {
+    // Bug sweep B11: the large title insets its own sides 16, so the scroller does not pad around it, and the body under
+    // it pads itself 16. A scroller that also padded would move the title in twice (32).
+    it('insets the title once (its own 16) and the body under it by 16', () => {
+        renderProfile();
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: t.title, level: 1 }))).toBe(16);
+        expect(sideInsetOf(screen.getByRole('button', { name: /Display name/u }))).toBe(16);
+    });
+
     it('is a titled page with a back control that leaves it', () => {
         const onBack = renderProfile();
 

@@ -5,7 +5,7 @@
  * sentences show whatever state the read is in, and Back to Profile is the one visible way out.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { sideInsetOf } from '../../__tests__/sideInset.js';
+import { sideInsetOf } from '@commise/test-utils';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { AccessibilityInfo, Text } from 'react-native';
 import { role, roleDark } from '@commise/ui/colors';

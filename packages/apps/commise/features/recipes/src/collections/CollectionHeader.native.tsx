@@ -8,6 +8,9 @@
  * pinnedBackBar.md` §7), the menu as `CollectionMoreMenu`. Their props stay because the web header, which shares this
  * contract, draws both.
  *
+ * The title insets itself 16 pt; the meta line, description, Add recipes and refresh notice sit in a 16 pt gutter of the
+ * header's own, so no screen has to pad around the title.
+ *
  * Add recipes sits at the end of the title row from a 600 container and under the description below it, decided by the
  * host (`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).
  *
@@ -87,77 +90,77 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
 
     return (
         <View style={styles.stack}>
-            {/* `CollectionDetailScreen` pads its whole content 16 pt a side and the shared `CollectionDetailBody` cannot
-                pad around the title alone, while the title now insets itself the same 16 pt: the bleed takes the screen's
-                padding back so the title moves in once, not twice. */}
-            <View style={styles.titleBleed}>
-                <LargeTitleHeader
-                    headingId={headingId}
-                    title={name}
-                    focusSignal={focusSignal}
-                    {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add } } : {})}
-                />
-            </View>
-            <View style={styles.metaRow}>
-                {metaItem(
-                    'visibility',
-                    <>
-                        <Icon name={isPublic ? 'globe' : 'lock'} size={16} tone="inkMuted" />
-                        <Text style={metaText}>{isPublic ? detail.visibilityPublic : detail.visibilityPrivate}</Text>
-                    </>,
+            {/* The title insets itself 16 pt, so it sits outside the gutter the lines below take. */}
+            <LargeTitleHeader
+                headingId={headingId}
+                title={name}
+                focusSignal={focusSignal}
+                {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add } } : {})}
+            />
+            <View style={styles.lines}>
+                <View style={styles.metaRow}>
+                    {metaItem(
+                        'visibility',
+                        <>
+                            <Icon name={isPublic ? 'globe' : 'lock'} size={16} tone="inkMuted" />
+                            <Text style={metaText}>
+                                {isPublic ? detail.visibilityPublic : detail.visibilityPrivate}
+                            </Text>
+                        </>,
+                    )}
+                    {metaItem(
+                        'count',
+                        <Text style={metaText}>
+                            {formatRecipeCount(
+                                recipeCount,
+                                { one: detail.recipeCountOne, other: detail.recipeCountOther },
+                                locale,
+                            )}
+                        </Text>,
+                    )}
+                    {isCopy
+                        ? metaItem(
+                              'source',
+                              onViewSource !== undefined && sourceCollectionId !== undefined ? (
+                                  <Pressable
+                                      role="button"
+                                      aria-label={copiedFrom}
+                                      onPress={() => onViewSource(sourceCollectionId)}
+                                      style={styles.link}
+                                  >
+                                      <Text style={[styles.meta, { color: colors.actionText }]}>{copiedFrom}</Text>
+                                  </Pressable>
+                              ) : (
+                                  <Text style={metaText}>{copiedFrom}</Text>
+                              ),
+                          )
+                        : null}
+                </View>
+                {lastPulledAt === undefined ? null : (
+                    <Text style={[styles.caption, { color: colors.inkMuted }]}>
+                        {fillTemplate(header.lastPulled, { date: formatCollectionDate(lastPulledAt, locale) })}
+                    </Text>
                 )}
-                {metaItem(
-                    'count',
-                    <Text style={metaText}>
-                        {formatRecipeCount(
-                            recipeCount,
-                            { one: detail.recipeCountOne, other: detail.recipeCountOther },
-                            locale,
-                        )}
-                    </Text>,
+                {description === undefined || description === '' ? null : (
+                    <Text style={[styles.body, { color: colors.ink }]}>{description}</Text>
                 )}
-                {isCopy
-                    ? metaItem(
-                          'source',
-                          onViewSource !== undefined && sourceCollectionId !== undefined ? (
-                              <Pressable
-                                  role="button"
-                                  aria-label={copiedFrom}
-                                  onPress={() => onViewSource(sourceCollectionId)}
-                                  style={styles.link}
-                              >
-                                  <Text style={[styles.meta, { color: colors.actionText }]}>{copiedFrom}</Text>
-                              </Pressable>
-                          ) : (
-                              <Text style={metaText}>{copiedFrom}</Text>
-                          ),
-                      )
-                    : null}
+                {actionsPlacement === 'below' ? add : null}
+                {refreshNotice === undefined ? null : (
+                    <RefreshNotice
+                        failed={refreshNotice.failed}
+                        refreshing={refreshNotice.refreshing}
+                        onRetry={refreshNotice.onRetry}
+                        labels={{ failed: detail.refreshError, retry: detail.refreshRetry }}
+                    />
+                )}
             </View>
-            {lastPulledAt === undefined ? null : (
-                <Text style={[styles.caption, { color: colors.inkMuted }]}>
-                    {fillTemplate(header.lastPulled, { date: formatCollectionDate(lastPulledAt, locale) })}
-                </Text>
-            )}
-            {description === undefined || description === '' ? null : (
-                <Text style={[styles.body, { color: colors.ink }]}>{description}</Text>
-            )}
-            {actionsPlacement === 'below' ? add : null}
-            {refreshNotice === undefined ? null : (
-                <RefreshNotice
-                    failed={refreshNotice.failed}
-                    refreshing={refreshNotice.refreshing}
-                    onRetry={refreshNotice.onRetry}
-                    labels={{ failed: detail.refreshError, retry: detail.refreshRetry }}
-                />
-            )}
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[3] },
-    titleBleed: { marginHorizontal: -nativeTokens.spacing[4] },
+    lines: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
     metaRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',

@@ -38,7 +38,6 @@ import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { LoadingNotice } from '@commise/ui/loading-notice';
-import { nativeTokens } from '@commise/ui/native';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { collectionQueries } from '@kitchensink/recipe-service-client';
@@ -176,9 +175,9 @@ function CollectionDetailView({
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    // The screen gutter the Collections list keeps (`CollectionListFrame`), so the title and its row do not start at
-    // the screen's edge.
+    // No side padding: the large title insets itself, and the header and the parts after it take their own gutter
+    // (`CollectionHeader`, `CollectionDetailGutter`), so nothing moves in twice.
     // The room under the pinned bar is the frame's: it hands each branch its `inset`, which is merged in beside these.
-    content: { paddingHorizontal: nativeTokens.spacing[4], paddingBottom: 120 },
+    content: { paddingBottom: 120 },
     beneathBar: { flex: 1 },
 });

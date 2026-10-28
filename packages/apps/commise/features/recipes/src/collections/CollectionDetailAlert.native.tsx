@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the
- * collection detail says when an action failed, as an alert in the danger text colour at the screen's gutter. The colour
- * is read from the theme at render.
+ * collection detail says when an action failed, as an alert in the danger text colour. It draws no side gutter: `CollectionDetailGutter` around it
+ * does. The colour is read from the theme at render.
  *
  * Presentational: props → JSX.
  */
@@ -23,5 +23,5 @@ export const CollectionDetailAlert: FC<CollectionDetailAlertProps> = ({ text }) 
 };
 
 const styles = StyleSheet.create({
-    alert: { paddingHorizontal: nativeTokens.spacing[4], paddingVertical: nativeTokens.spacing[2] },
+    alert: { paddingVertical: nativeTokens.spacing[2] },
 });

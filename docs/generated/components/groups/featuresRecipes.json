@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 182,
-        "implementations": 314,
-        "props": 1656,
-        "documentedComponents": 182,
-        "implementationsWithModuleDoc": 314,
+        "components": 183,
+        "implementations": 316,
+        "props": 1658,
+        "documentedComponents": 183,
+        "implementationsWithModuleDoc": 316,
         "implementationsWithComponentDoc": 207,
-        "documentedProps": 1377,
-        "classifiedComponents": 162,
+        "documentedProps": 1379,
+        "classifiedComponents": 163,
         "componentsWithPatternTag": 84,
-        "crossPlatformComponents": 132
+        "crossPlatformComponents": 133
     },
     "components": [
         {
@@ -1019,7 +1019,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailAlert.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the\ncollection detail says when an action failed, as an alert in the danger text colour at the screen's gutter. The colour\nis read from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the\ncollection detail says when an action failed, as an alert in the danger text colour. It draws no side gutter: `CollectionDetailGutter` around it\ndoes. The colour is read from the theme at render.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1074,7 +1074,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add\nrecipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —\nrename, delete, make-public, Premium, the add-recipes picker and the pull-updates dialog.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the\n{@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on\nweb, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.\n\nThe picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may\nnot import `@commise/query`), handed in as {@link CollectionDetailBodyProps.PickerBoundary}.",
+                    "moduleDoc": "@commise/features-recipes/collections — the SETTLED collection detail, composed once for web and mobile\n(`docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3): the {@link CollectionHeader} (back, name, meta, description, Add\nrecipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —\nrename, delete, make-public, Premium, the add-recipes picker and the pull-updates dialog.\n\nThe header and the parts after it each take their own side gutter on native (`CollectionDetailGutter`): the screen's\nscroller does not pad, because the large title insets itself.\n\nOrchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the\n{@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on\nweb, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.\n\nThe picker's read boundary is the app's (`ClientQueryBoundary` on web, `QueryBoundary` on mobile; this package may\nnot import `@commise/query`), handed in as {@link CollectionDetailBodyProps.PickerBoundary}.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1163,6 +1163,93 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/collections/CollectionDetailGutter",
+            "name": "CollectionDetailGutter",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/collections",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CollectionDetailGutter",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — the side gutter around the parts of the collection detail that come\nafter its header (web). The page already pads its content, so this passes its children straight through. The native\ntwin pads them 16 pt, because there the screen's scroller does not and the large title insets only itself.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — the side gutter around the parts of the collection detail that come"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What sits in the gutter.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CollectionDetailGutter",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/collections",
+                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailGutter`: a view that pads\nwhat it holds 16 pt a side. The collection screen's scroller does not pad its content, because the large title insets\nitself (padding around it would move it in twice), so each part draws its own gutter: the header pads its own lines\nand this pads the notice slot, the failure lines and the members.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailGutter`: a view that pads"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What sits in the gutter.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]
@@ -1424,7 +1511,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionHeader.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the native collection header (W5 Task 6; slice 5 of the UI overhaul),\nthe twin of the web leaf (`docs/design/uiOverhaul/buildSpec.md` §5.2): the name as the screen's large title, the meta\nline — visibility as an icon and a word, \"6 recipes\" and, for a copy, \"Copied from @clara\" — the description, and ONE\nprimary (Add recipes).\n\nIt draws NO Back and NO ⋯ menu: on native both are in the screen's pinned bar (`docs/design/uiRefreshWorkshop5/\npinnedBackBar.md` §7), the menu as `CollectionMoreMenu`. Their props stay because the web header, which shares this\ncontract, draws both.\n\nAdd recipes sits at the end of the title row from a 600 container and under the description below it, decided by the\nhost (`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).",
+                    "moduleDoc": "@commise/features-recipes/collections — the native collection header (W5 Task 6; slice 5 of the UI overhaul),\nthe twin of the web leaf (`docs/design/uiOverhaul/buildSpec.md` §5.2): the name as the screen's large title, the meta\nline — visibility as an icon and a word, \"6 recipes\" and, for a copy, \"Copied from @clara\" — the description, and ONE\nprimary (Add recipes).\n\nIt draws NO Back and NO ⋯ menu: on native both are in the screen's pinned bar (`docs/design/uiRefreshWorkshop5/\npinnedBackBar.md` §7), the menu as `CollectionMoreMenu`. Their props stay because the web header, which shares this\ncontract, draws both.\n\nThe title insets itself 16 pt; the meta line, description, Add recipes and refresh notice sit in a 16 pt gutter of the\nheader's own, so no screen has to pad around the title.\n\nAdd recipes sits at the end of the title row from a 600 container and under the description below it, decided by the\nhost (`actionsPlacement`), and is drawn once. Colour is read from the theme at render (D15).",
                     "moduleTags": [
                         {
                             "name": "module",

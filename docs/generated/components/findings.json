@@ -4,7 +4,7 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 20,
-        "missing-component-doc": 156,
+        "missing-component-doc": 158,
         "missing-module-doc": 21,
         "platform-singleton": 70,
         "ref-api": 15,
@@ -904,6 +904,22 @@
                 "detail",
                 "links"
             ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionDetailGutter",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionDetailGutter",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
         },
         {
             "rule": "missing-component-doc",

@@ -6,6 +6,9 @@
  * recipes and the ⋯ menu), the two failure lines, the {@link CollectionMembers} list, and the sheets the header opens —
  * rename, delete, make-public, Premium, the add-recipes picker and the pull-updates dialog.
  *
+ * The header and the parts after it each take their own side gutter on native (`CollectionDetailGutter`): the screen's
+ * scroller does not pad, because the large title insets itself.
+ *
  * Orchestration: every piece it draws is a leaf pair that resolves per platform, and what it reads is the
  * {@link CollectionDetail} view-model — plain `.tsx` with no native twin. The app keeps only what differs: the frame around it (a page `<section>` on
  * web, a `ScrollView` on mobile), the read boundary, the navigation, and the links web needs so a card is a real anchor.
@@ -22,6 +25,7 @@ import { type ComponentType, type FC, type ReactNode, useMemo } from 'react';
 import { nutritionSlotRenderer } from '../nutrition/nutritionSlotRenderer.js';
 import { CollectionDeleteDialog } from './CollectionDeleteDialog.js';
 import { CollectionDetailAlert } from './CollectionDetailAlert.js';
+import { CollectionDetailGutter } from './CollectionDetailGutter.js';
 import { CollectionHeader } from './CollectionHeader.js';
 import { CollectionMakePublicDialog } from './CollectionMakePublicDialog.js';
 import { headerSourceProps } from './collectionHeaderSource.js';
@@ -110,24 +114,26 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
                 onDelete={deletion.onStart}
             />
 
-            {afterHeader}
+            <CollectionDetailGutter>
+                {afterHeader}
 
-            {visibility.failed ? <CollectionDetailAlert text={copy.visibilityFailed} /> : null}
-            {detail.saveCopy.failed ? <CollectionDetailAlert text={copy.saveCopyFailed} /> : null}
+                {visibility.failed ? <CollectionDetailAlert text={copy.visibilityFailed} /> : null}
+                {detail.saveCopy.failed ? <CollectionDetailAlert text={copy.saveCopyFailed} /> : null}
 
-            <CollectionMembers
-                members={members}
-                viewMode={layout.viewMode}
-                onViewModeChange={layout.onViewModeChange}
-                variant={layout.variant}
-                {...(links === undefined ? {} : { hrefOf: links.recipeOf })}
-                onSelectRecipe={onSelectRecipe}
-                onRemoveRecipe={removal.remove}
-                onAddRecipes={picker.onOpen}
-                {...(removal.failedTitle === undefined ? {} : { removeFailedTitle: removal.failedTitle })}
-                renderNutrition={renderNutrition}
-                headingId={COLLECTION_TITLE_ID}
-            />
+                <CollectionMembers
+                    members={members}
+                    viewMode={layout.viewMode}
+                    onViewModeChange={layout.onViewModeChange}
+                    variant={layout.variant}
+                    {...(links === undefined ? {} : { hrefOf: links.recipeOf })}
+                    onSelectRecipe={onSelectRecipe}
+                    onRemoveRecipe={removal.remove}
+                    onAddRecipes={picker.onOpen}
+                    {...(removal.failedTitle === undefined ? {} : { removeFailedTitle: removal.failedTitle })}
+                    renderNutrition={renderNutrition}
+                    headingId={COLLECTION_TITLE_ID}
+                />
+            </CollectionDetailGutter>
 
             <CollectionSheet
                 open={rename.open}

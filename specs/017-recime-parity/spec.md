@@ -2,7 +2,8 @@
 
 **Feature Branch**: `chore/code-quality-enforcement-phase-1-2` (no new branch — standing owner directive)
 **Created**: 2026-08-22
-**Status**: Draft — clarifications resolved; **one cross-feature conflict flagged for 016**
+**Status**: Draft — clarifications resolved; **one cross-feature conflict flagged for 016**. 2026-10-27: one open
+question, FR-034k (Free households).
 **Input**: User description: "we want parity with the feature gaps against recime that
 911043cd-1ce2-4e5b-8608-50a8524b5b98 review and discovered. We also have the artifact
 https://claude.ai/code/artifact/18e8fcdc-0992-4861-8bd8-6d5a3b7baf41"
@@ -39,24 +40,24 @@ Seventeen of the gap analysis's twenty-four deltas. Owner rulings 2026-08-22: _e
 five-tier_ import waterfall; _pull D18 in_; _promote the voice surface 008 already analysed_; _subscriptions
 only for now_.
 
-| Delta   | Change                                                                                    | Owner spec            | Requirements          |
-| ------- | ----------------------------------------------------------------------------------------- | --------------------- | --------------------- |
-| D1      | Video import — five-tier waterfall                                                        | `004`                 | FR-001…FR-008, FR-011 |
-| D8      | Reach Instagram without Meta Graph API approval                                           | `004`                 | FR-009                |
-| D20     | Unquantified ingredients ("salt to taste") representable                                  | `004` / `001`         | FR-010                |
-| D2      | Share-sheet capture, iOS + Android                                                        | `004`                 | FR-012…FR-013         |
-| D3      | Browser extension                                                                         | `004`                 | FR-014…FR-015         |
-| D15     | Migration importers (Paprika, AnyList, Copy Me That, ReciMe)                              | `004`                 | FR-016…FR-017         |
-| D14     | Recipe export — JSON + PDF                                                                | `001`                 | FR-018…FR-020         |
-| D13     | Cook mode beyond four FRs, incl. the voice surface                                        | `008`                 | FR-021…FR-024         |
-| D22     | Offline read + cook                                                                       | `008`                 | FR-025                |
-| D11     | Unit conversion metric ⇄ imperial                                                         | `001`                 | FR-026                |
-| D21     | Dark mode                                                                                 | `001`                 | FR-027                |
-| D9      | Aisle grouping lifted from plan into an FR                                                | `007`                 | FR-028…FR-029         |
-| **D18** | **Household as a first-class entity** _(owner ruling — pulled in from the Strategic set)_ | `006` / `007` / `010` | FR-030…FR-032, FR-034 |
-| D10     | Household grocery-list sharing                                                            | `007`                 | FR-033                |
-| D12     | Write FRs for shipped-but-unspecified behaviour                                           | `001` / `008`         | FR-035…FR-036         |
-| D7      | Invert BYOK → platform-managed inference **(prerequisite of D1)**                         | `005`                 | FR-037…FR-039         |
+| Delta   | Change                                                                                    | Owner spec            | Requirements                                                             |
+| ------- | ----------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------ |
+| D1      | Video import — five-tier waterfall                                                        | `004`                 | FR-001…FR-008, FR-011. Added 2026-10-27: FR-001c to FR-001e              |
+| D8      | Reach Instagram without Meta Graph API approval                                           | `004`                 | FR-009                                                                   |
+| D20     | Unquantified ingredients ("salt to taste") representable                                  | `004` / `001`         | FR-010                                                                   |
+| D2      | Share-sheet capture, iOS + Android                                                        | `004`                 | FR-012…FR-013                                                            |
+| D3      | Browser extension                                                                         | `004`                 | FR-014…FR-015                                                            |
+| D15     | Migration importers (Paprika, AnyList, Copy Me That, ReciMe)                              | `004`                 | FR-016…FR-017. Added 2026-10-27: FR-016a to FR-016d                      |
+| D14     | Recipe export — JSON + PDF                                                                | `001`                 | FR-018…FR-020. Added 2026-10-27: FR-018a to FR-018c                      |
+| D13     | Cook mode beyond four FRs, incl. the voice surface                                        | `008`                 | FR-021…FR-024                                                            |
+| D22     | Offline read + cook                                                                       | `008`                 | FR-025                                                                   |
+| D11     | Unit conversion metric ⇄ imperial                                                         | `001`                 | FR-026                                                                   |
+| D21     | Dark mode                                                                                 | `001`                 | FR-027                                                                   |
+| D9      | Aisle grouping lifted from plan into an FR                                                | `007`                 | FR-028…FR-029                                                            |
+| **D18** | **Household as a first-class entity** _(owner ruling — pulled in from the Strategic set)_ | `006` / `007` / `010` | FR-030…FR-032, FR-034. Amended 2026-10-27: FR-034 and FR-034a to FR-034k |
+| D10     | Household grocery-list sharing                                                            | `007`                 | FR-033                                                                   |
+| D12     | Write FRs for shipped-but-unspecified behaviour                                           | `001` / `008`         | FR-035…FR-036                                                            |
+| D7      | Invert BYOK → platform-managed inference **(prerequisite of D1)**                         | `005`                 | FR-037…FR-039                                                            |
 
 ### Deliberately NOT in scope
 
@@ -82,6 +83,21 @@ only for now_.
 - Q: Is FR-030c's complete-vs-delete split accepted (U-5)? → A: **Accepted.** `complete`/`archive` is a member action; `delete` is owner-only.
 - Q: Does that split apply to meal plans as well as grocery lists? → A: **Yes — one truth table** across grocery lists, meal plans and the aisle taxonomy. No per-resource exceptions.
 - Q: The "sole owner cannot leave" invariant is unenforceable against GDPR erasure — what happens? → A: **Ownership auto-transfers to the longest-tenured active member.** Erasure is never blocked and no reserved action becomes unreachable.
+
+### Session 2026-10-27
+
+- Owner ruling, 2026-10-27: "Include the other recommendations in either new features or expanding existing
+  features." And: "assume that we can do this and figure out how." Three go-to-market recommendations land here:
+  easy switching, capture from social video, and household sharing in Pro at no extra cost. Referrals, growth
+  measurement and interview recruitment are a new feature,
+  [023](../023-referrals-and-growth-measurement/spec.md).
+- Q: Does D1 cover TikTok, Instagram, YouTube Shorts and Pinterest through the share sheet on both platforms? → A:
+  FR-001 and FR-012 cover TikTok, Instagram Reels and YouTube Shorts on iOS and Android. Pinterest was missing.
+  FR-001c adds it. FR-001d covers what a share from these apps really sends: short links and tracking parameters.
+- Q: Do ReciMe and AnyList offer an export file to import? → A: No. Research on 2026-10-27 found no bulk export for
+  either. FR-016 is corrected, and FR-016a gives each a per-recipe path.
+- Q: How does a household relate to paid seats? → A: There are no paid seats. One Pro or Pro with AI subscription
+  covers its household (FR-034, amended).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -147,6 +163,8 @@ app/site and confirm a draft is created without the user opening Commise first.
    dependency on Meta Graph API approval.
 4. **Given** any capture surface, **When** it produces a draft, **Then** that draft is indistinguishable in
    handling from one created through the in-app chooser of `004-FR-046`.
+5. **Given** a Pinterest pin that links to a recipe blog, **When** the user shares it to Commise, **Then** the blog
+   page is imported and attributed, and the pin is not named as the source. _(Added 2026-10-27, FR-001c.)_
 
 ---
 
@@ -166,7 +184,8 @@ the result and re-import it, asserting equivalence.
 **Acceptance Scenarios**:
 
 1. **Given** a Paprika, AnyList, Copy Me That, or ReciMe export file, **When** the user imports it, **Then**
-   recipes are created and a per-recipe outcome report is produced.
+   recipes are created and a per-recipe outcome report is produced. _(Corrected 2026-10-27: AnyList and ReciMe have
+   no export file. FR-016a lists each app's real path.)_
 2. **Given** an import in which some recipes fail, **When** it completes, **Then** successful recipes are kept
    and each failure is individually reported — a partial import is never discarded wholesale.
 3. **Given** any user on any tier, **When** they request an export, **Then** they receive both a lossless
@@ -223,8 +242,8 @@ one-way-door data-model choice — and retrofitting it later is precisely what e
 doing badly.
 
 **Independent Test**: Create a household of two, share a plan and its generated list, and confirm both members
-can act on both, that seats are enforced against the subscription, and that removing a member leaves the
-household's content intact.
+can act on both, that the member limit is enforced, and that removing a member leaves the household's content
+intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 
 **Acceptance Scenarios**:
 
@@ -234,12 +253,17 @@ household's content intact.
    the other sees it.
 3. **Given** the default aisle categories do not match the household's store, **When** a member customises
    them, **Then** the grouping follows their categories and persists.
-4. **Given** a household at its seat limit, **When** another invite is attempted, **Then** it is refused with
-   a clear explanation rather than silently failing.
+4. **Given** a household at its member limit (FR-034), **When** another invite is attempted, **Then** it is
+   refused with a clear explanation rather than silently failing.
 5. **Given** a member is removed or leaves, **When** the household is next opened, **Then** the household's
    plans and lists remain intact and the departing member retains their own personal recipes.
 6. **Given** a household member's subscription lapses, **When** they open a shared plan, **Then** behaviour
    follows `010-FR-043`'s retention rule rather than destroying shared content.
+7. **Given** an owner who pays for Pro and a member on Free, **When** the member opens a Pro feature, **Then** it
+   works, and any AI use draws on the household's one pool (FR-034a, FR-034c). _(Added 2026-10-27.)_
+8. **Given** the only payer leaves the household, **When** the other members next open the app, **Then** each sees
+   that coverage ended, each is back on their own plan, and every private recipe stays private (FR-034d). _(Added
+   2026-10-27.)_
 
 ---
 
@@ -281,7 +305,12 @@ household's content intact.
   _voluntary_ case only and is deliberately unenforceable against a legal erasure request.
 - **The sole owner's subscription lapses but members remain.** Distinct from departure: the owner is still
   present, so no transfer fires. Content is retained per `010-FR-043`; what a lapsed household may still _do_
-  is `010`'s to answer, not this feature's.
+  is `010`'s to answer, not this feature's. _(Since 2026-10-27, an owner who was the only payer takes coverage away
+  from every member at the lapse. Each member returns to their own plan (FR-034d).)_
+- **A cook who already pays joins a covered household.** They then pay twice. The app tells them before they
+  accept that their own subscription keeps running, and where to cancel it (FR-034e). _(Added 2026-10-27.)_
+- **A cook in a household of one accepts an invite.** Leaving a household of one removes it (FR-032a). Their plans
+  and lists move into the household they join (FR-034g). _(Added 2026-10-27.)_
 - **Two members joined at the same instant and the sole owner is erased.** FR-032a must be deterministic —
   ties resolve by a stable secondary key, never by whichever row the query returns first.
 - **Two household members edit the same plan entry at once.** `006-FR-032`'s idempotency key was written for a
@@ -317,6 +346,20 @@ household's content intact.
   load-bearing for the feature's success criteria. _(ReciMe took a staff-acknowledged import outage across
   Instagram, TikTok and Facebook Reels in 2026 while running the conservative posture; platform access is an
   operational risk to be measured, not an assumption.)_
+- **FR-001c** `→ 004 ADDED` _(added 2026-10-27, owner ruling)_: System MUST import recipes from public Pinterest
+  pins. It works through the share sheet on iOS and Android and by a pasted link on the web. A video pin runs the
+  waterfall of FR-002. A pin that links out to a recipe page follows that one link, once, on the user's action. The
+  page is then imported by `004-FR-008`, with its rights check and its attribution. The page is the source, not the
+  pin. A pin with neither resolves `no_recipe` (FR-008).
+- **FR-001d** `→ 004 ADDED` _(added 2026-10-27)_: A share from TikTok, Instagram, YouTube or Pinterest often sends a
+  short link, a link with tracking parameters, or text with a link inside it. System MUST find the link in the
+  shared text and follow its redirects once to the post's own address. It MUST strip tracking parameters before
+  deduplication (`004` C-001). Following a redirect is part of the one user-directed retrieval of FR-001a. It is
+  never a crawl. A share that carries only images, such as a carousel, goes to the screenshot path.
+- **FR-001e** `→ 004 ADDED` _(added 2026-10-27)_: TikTok, Instagram Reels, YouTube Shorts and Pinterest MUST each be
+  reachable from every capture surface on its platform. On iOS and Android that is the share sheet (FR-012). On web
+  and mobile it is a pasted link in the in-app chooser (`004-FR-046`). On desktop it is the browser extension
+  (FR-014). SC-012's per-platform report MUST list all four.
 - **FR-002** `→ 004 ADDED`: System MUST attempt extraction as an ordered **waterfall**, stopping at the first
   tier that yields a structurally complete recipe: **(1)** caption/description text, **(2)** audio transcript,
   **(3)** on-screen text from sampled frames, **(4)** visual analysis of sampled frames, **(5)** lookup of the
@@ -386,6 +429,50 @@ household's content intact.
 
 - **FR-016** `→ 004 ADDED`: System MUST import recipe libraries exported from Paprika, AnyList, Copy Me That,
   and ReciMe.
+    > ⚠️ **Corrected 2026-10-27.** AnyList and ReciMe offer no bulk export file. ReciMe exports one recipe at a time
+    > as a PDF ([ReciMe help](https://help.recime.app/en/articles/11626121-can-i-print-or-export-my-recipes)).
+    > AnyList sends one recipe at a time by email ([AnyList help](https://help.anylist.com/articles/send-recipe/)).
+    > So for these two apps, "import their library" cannot mean a file. FR-016a gives each a path that works.
+- **FR-016a** `→ 004 ADDED` _(added 2026-10-27, owner ruling)_: System MUST support these switching paths at launch:
+
+    | App          | What the user can export                                                             | How Commise reads it                                                                                   | Source                                                                                  |
+    | ------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+    | Paprika      | `.paprikarecipes`, "essentially a zip file containing gzipped JSON files". Also HTML | The whole file                                                                                         | [Paprika help](https://paprikaapp.com/help/ios/)                                        |
+    | Mela         | `.melarecipes`, a zipped folder of `.melarecipe` JSON files                          | The whole file                                                                                         | [Mela file format](https://mela.recipes/fileformat/index.html)                          |
+    | Plan to Eat  | CSV, one row per recipe, or TXT, from the website only                               | The CSV                                                                                                | [Plan to Eat help](https://learn.plantoeat.com/help/export-your-recipe-book)            |
+    | Mealie       | A JSON export, and zip backups                                                       | The JSON export                                                                                        | [Mealie features](https://mealie.io/documentation/getting-started/features/)            |
+    | Copy Me That | A download of every recipe. Only a third-party guide names the format                | The file, after a plan-time check of a real export                                                     | [Copy Me That](https://www.copymethat.com/features/recipe-manager/)                     |
+    | Crouton      | A zip of `.crumb` JSON files. Only a third-party guide says so                       | The file, after a plan-time check of a real export                                                     | [RecipeSage guide](https://docs.recipesage.com/docs/tutorials/settings/import/crouton/) |
+    | ReciMe       | One recipe at a time, as a PDF. No bulk export                                       | Each PDF the user uploads, read as text into a draft. Or each recipe shared from ReciMe's share button | ReciMe help, above                                                                      |
+    | AnyList      | One recipe at a time, by email. No bulk export                                       | The recipe text the user pastes or shares into paste import                                            | AnyList help, above                                                                     |
+    | Commise      | Our own export (FR-018)                                                              | The round-trip importer (FR-020)                                                                       | This spec                                                                               |
+
+    Every per-recipe path is user-directed. The user supplies the bytes, or acts once per recipe (FR-001a). Nothing
+    signs in to another app for the user. Samsung Food is not listed, because no export was found. Its recipes come
+    across one at a time through the share sheet.
+
+- **FR-016b** `→ 004 ADDED` _(added 2026-10-27)_: System MUST offer a guided "Switch from another app" flow on web and
+  mobile. It is reachable from first run, from the import chooser and from settings. The cook picks their old app.
+  The flow then shows these steps:
+    - how to export from that app, kept as content that staff can update without a release,
+    - where the file lands on the device,
+    - the upload,
+    - a preview with the number of recipes found and any that cannot be read,
+    - the review list of ADR-0072.
+
+    For an app with no export file, the flow shows its per-recipe path instead. Before the upload, the flow states the
+    bulk allowance: 1,000 recipes a rolling day on a paid plan and 200 on Free (`004-FR-022`). It also gives the day the
+    rest will follow.
+
+- **FR-016c** `→ 004 ADDED` _(added 2026-10-27)_: A migrated recipe still needs its own statement (ADR-0072 §9). The
+  file can hold a source address for a recipe. In that case, the review list MUST prefill "From a source" with that
+  address as the citation. The cook approves the list once, and the system records one statement per recipe, as
+  ADR-0073 §8 does for "Make the rest public". A recipe with no source field gets no prefilled statement. It waits
+  under "Needs your statement", and it is never set to "I wrote this" by default.
+- **FR-016d** `→ 004 ADDED` _(added 2026-10-27)_: System MUST detect a file's format from its contents, not from its
+  name. A file it cannot read MUST get a message that names the supported apps and links to the guided flow. Each
+  format has its own reader behind one interface, a Strategy set like `004` C-007. The plan first looks for a
+  maintained library for each format.
 - **FR-017** `→ 004 ADDED`: A library migration MUST report a per-recipe outcome, MUST retain successfully
   imported recipes when others fail, and MUST be restartable without duplicating already-imported recipes.
     > ⚠️ **Open question OQ-P1 (owner to confirm): the URL for library migration.** The route
@@ -403,6 +490,22 @@ household's content intact.
   human-readable document.
 - **FR-020** `→ 001 ADDED`: An export re-imported into an empty account MUST reproduce every user-visible field,
   including provenance classification and attribution.
+- **FR-018a** `→ 001 ADDED` _(added 2026-10-27, owner ruling)_: The library export MUST use open, documented formats
+  that another app can read. One download carries all three:
+    - the lossless JSON of FR-018, with its schema published under an open licence and a version number. The schema
+      is derived from the service's zod contract, as `openapi.yaml` already is (ADR-0014),
+    - each recipe also as schema.org `Recipe` JSON-LD, the public vocabulary that recipe sites use,
+    - the human-readable document of FR-019.
+
+    Before launch, a test MUST import a Commise export into at least one other recipe app.
+
+- **FR-018b** `→ 001 ADDED` _(added 2026-10-27)_: A cook MUST be able to export their whole library at any time, on
+  every plan, with no limit tied to price. This holds after a lapse, while over the private limit (`010-FR-043a`),
+  after declining new terms (`016-FR-006`), and during account closure. The export screen and the guided switch flow
+  state this promise in plain words, and the terms carry it. The privacy request of `016-FR-034` stays a separate
+  path.
+- **FR-018c** `→ 001 ADDED` _(added 2026-10-27)_: Account closure and account erasure MUST offer the full export
+  before their final step.
 
 #### D. The kitchen — D13, D22, D11, D21
 
@@ -448,9 +551,9 @@ household's content intact.
 - **FR-030b** `→ 006 ADDED, → 007 ADDED, → 010 ADDED`: The following are reserved to an **owner**: inviting a
   member, removing a member, deleting the household, and **deleting shared content** (a meal plan, a grocery
   list, or the aisle taxonomy). A member attempting a reserved action receives a refusal that names the
-  restriction. _(Membership control follows the seat allowance the subscriber pays for, so a member can
-  neither spend the payer's seats nor remove the payer; reserving deletion makes shared content
-  accident-resistant.)_
+  restriction. _(Membership control stays with the owner, so a member can neither fill the household's member
+  limit nor remove the payer. Reserving deletion makes shared content accident-resistant. Amended 2026-10-27: this
+  used to speak of paid seats, which FR-034 removes.)_
 - **FR-030c** `→ 006 ADDED, → 007 ADDED` _(confirmed by owner, 2026-08-22)_: Completing or archiving shared
   content is **not** a deletion and MUST remain available to every active member. This applies uniformly to
   **grocery lists, meal plans and the aisle taxonomy** — there are no per-resource exceptions, so the policy
@@ -477,9 +580,73 @@ household's content intact.
   MUST retain their own personal recipes.
 - **FR-033** `→ 007 ADDED`: Every member of a household MUST be able to view and check off items on that
   household's grocery lists, and a check-off by one member MUST become visible to the others.
-- **FR-034** `→ 010 ADDED`: A subscription MUST carry a **seat count** bounding household membership. Exceeding
-  it MUST be refused with a clear explanation. Lapse behaviour follows `010-FR-043`'s existing retention rule —
-  shared content is retained, not destroyed.
+- **FR-034** `→ 010 ADDED` _(amended 2026-10-27, owner ruling)_: One Pro or Pro with AI subscription MUST cover its
+  whole household. There are no paid seats. The owner ruled on 2026-10-27: "Include the other recommendations in
+  either new features or expanding existing features." That accepts the recommendation "Include household sharing
+  in Pro at no extra cost". A household holds at most the member limit in 010's
+  [plan register](../010-subscriptions/spec.md#plan-register), which is 6 accounts. An invite past the limit MUST be
+  refused with a clear explanation. Lapse follows `010-FR-043`: shared content is kept, not destroyed. _(Was: "A
+  subscription MUST carry a **seat count** bounding household membership.")_
+- **FR-034a** `→ 010 ADDED` _(added 2026-10-27)_: While any active member holds Pro or Pro with AI, every active member
+  MUST have that plan's features. These are private recipes with no limit, the paid bulk allowance, own AI keys, and
+  the Pro with AI features on that plan. When two members pay, the household gets the higher plan. Coverage changes
+  nothing about who owns a recipe.
+- **FR-034b** `→ 010 ADDED` _(added 2026-10-27)_: A cook's effective plan MUST be computed in one place. Its inputs are
+  the cook's own RevenueCat entitlement, any promotional entitlement (`023-FR-027`) and the household's coverage. It
+  feeds the tier claim of `010-FR-044` and fails closed to Free. It MUST refresh at each of these events: the payer
+  lapses, leaves or is removed, or a member joins or leaves. The household lives in recipe-service and identity
+  publishes the claim, so this crosses a service boundary. `staff-architect` designs it at plan time, with the most
+  staleness allowed.
+- **FR-034c** `→ 010 ADDED, → 005 ADDED` _(added 2026-10-27)_: AI uses MUST be one pool per household, equal to the
+  covering plan's monthly allowance (`005-FR-015a`): 30 uses for Pro, 300 for Pro with AI. Each member's use draws on
+  the pool. Each member sees what is left in the pool and their own use. No member sees another member's prompts.
+  With the pool empty, a member can fall back to their own keys (`010-FR-041c`). A member who pays for their own plan
+  uses their own allowance, not the pool. The pool resets on the payer's billing date. _Why one pool, not one per cook_: 300 uses cost at most about $10.35 a
+  month, at $0.0345 a use (business plan draft of 2026-10-27, section 7.8). Six members with 300 uses each can cost up
+  to about $62.10 a month, against a price of $19.99. A pool keeps a household's AI cost the same as one cook's.
+- **FR-034d** `→ 010 ADDED` _(added 2026-10-27)_: A Free account MUST be able to join a covered household and be covered
+  at once. Coverage can end: the member leaves, is removed, or the payer lapses. Then the member returns to their own
+  plan. Every private recipe stays private, and the over-limit rule of `010-FR-043a` applies. Each member gets a
+  notice 7 days before a known end, and at once for a sudden one.
+- **FR-034e** `→ 010 ADDED` _(added 2026-10-27)_: A cook who already pays MUST be told, before they accept an invite to a
+  covered household, that their own subscription keeps running, and where to cancel it (ADR-0075 §5). The server
+  never cancels a store subscription. The cook's effective plan is the higher of the two.
+- **FR-034f** `→ 010 ADDED` _(added 2026-10-27)_: The member limit MUST be 6 accounts, the payer included. That matches
+  the two family systems mobile cooks already know. The number lives in 010's plan register and nowhere else. The
+  norms behind it:
+
+    | Product                    | Household model                                                                          | Limit     | Source                                                              |
+    | -------------------------- | ---------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------- |
+    | Deglaze                    | "one Pro subscription covers your whole household", as quoted by the business plan draft | Not given | [Deglaze blog](https://www.deglaze.app/blog/deglaze-vs-recime)      |
+    | Plan to Eat                | One shared login: "We do not offer ... multiple logins"                                  | 1 login   | [Plan to Eat FAQ](https://learn.plantoeat.com/help/plan-to-eat-faq) |
+    | Paprika 4                  | One sync login shared by the household. We found no published count of family logins     | Not found | Research, 2026-10-27                                                |
+    | AnyList                    | A household plan at $14.99 a year, against $9.99 a year for one person                   | Not given | [AnyList Premium](https://www.anylist.com/premium)                  |
+    | Apple Family Sharing       | The organizer and "up to five family members"                                            | 6         | [Apple](https://support.apple.com/en-us/108380)                     |
+    | Google Play Family Library | "up to 5 family members" with the manager                                                | 6         | [Google](https://support.google.com/googleplay/answer/7007852)      |
+
+- **FR-034g** `→ 006 ADDED, → 007 ADDED` _(added 2026-10-27)_: A cook in a household of one can accept an invite. Their
+  meal plans and grocery lists MUST then move into the household they join. The joined household keeps its own aisle
+  taxonomy. The accept screen shows what will move. Without this rule, leaving a household of one removes it, with
+  its content (FR-032a).
+- **FR-034h** `→ 010 ADDED` _(added 2026-10-27)_: One subscription must not be shared with strangers. So an account
+  MUST join a different household at most twice in any 12 months, and a household MUST accept at most 10 joins in any
+  12 months. An invite expires after 7 days. Each limit gives a clear refusal with the date it lifts.
+- **FR-034i** `→ 010 ADDED` _(added 2026-10-27)_: Family Sharing MUST stay off on every App Store subscription product.
+  Apple's setting cannot be turned off once it is on
+  ([Apple](https://developer.apple.com/help/app-store-connect/configure-in-app-purchase-settings/turn-on-family-sharing-for-in-app-purchases)).
+  It also covers an Apple family, which is not the Commise household. The household is the one way coverage works,
+  on every platform and every billing rail.
+- **FR-034j** `→ 001 ADDED, → 006 ADDED` _(added 2026-10-27)_: A recipe on a household meal plan MUST be readable by
+  every active member while it is on the plan, even where it is private to its author. Without this, a shared plan
+  can point at a recipe a member cannot open. The same holds for a household collection, which the household owns
+  and to which any member adds recipes. This audience is not public. It runs no source check (020) and uses no extra
+  private slot. A member can cook, plan and list from the recipe, but not edit or clone it. It is a new audience
+  in the read rule (`GR-014`, `isRecipeViewableBy`), so `staff-architect` designs it at plan time. It adds no new
+  visibility value. Its merge into 001 waits for 001's current writer.
+- **FR-034k** `→ 010 ADDED` _(added 2026-10-27)_: Free cooks forming a household of more than one is
+  [NEEDS CLARIFICATION: can two Free cooks share plans and lists as a household, with a paid plan adding coverage of
+  paid features? Recommended: yes. Plans, lists and aisle categories are on every plan (`010-FR-040`), Deglaze makes
+  sharing free, and each invite is a free growth loop].
 
 #### F. Shipped behaviour with no requirement — D12
 
@@ -529,9 +696,9 @@ household's content intact.
   representation FR-010 requires end-to-end.
 - **Library migration** — one competitor-export import, its per-recipe outcomes, and its restart position.
 - **Unit preference** — a per-user display preference; never a property of a recipe.
-- **Household** — the ownership boundary for meal plans and grocery lists, with named members and a seat
-  allowance drawn from the subscription. Every account belongs to exactly one; a solo user is a household of
-  one.
+- **Household** — the ownership boundary for meal plans and grocery lists, with named members, a member limit from
+  010's plan register, and coverage from any active member's paid plan (amended 2026-10-27, FR-034). Every account
+  belongs to exactly one; a solo user is a household of one.
 - **Household membership** — the join between an account and its household, carrying invite state and the
   lifecycle of FR-032.
 - **Aisle taxonomy** — a per-household ordered set of grocery categories, defaulting to a system taxonomy.
@@ -572,6 +739,10 @@ household's content intact.
   invalidating the claim.
 - **SC-010**: A two-person household shares a plan and its list with **zero** cases of one member's action
   being invisible to the other, and **zero** cases of a departing member's exit destroying household content.
+- **SC-013** _(added 2026-10-27)_: After a payer joins, lapses or leaves, every member's effective plan changes
+  within the staleness bound FR-034b sets. Zero members keep paid features after coverage ends.
+- **SC-014** _(added 2026-10-27)_: A real export from each app in FR-016a's file rows imports with a per-recipe outcome
+  for every entry.
 - **SC-011**: Voice navigation never mutates cooking state on a misrecognised or ambient utterance across a
   scripted noise-and-crosstalk test set.
 
@@ -599,7 +770,8 @@ household's content intact.
 8. **A household is created implicitly at signup**, so there is no "user without a household" state and no
    migration flag day. This is the cheap seam CLAUDE.md's YAGNI carve-out calls for on an expensive-to-reverse
    boundary.
-9. **Subscriptions only.** Per the owner ruling of 2026-08-22, FR-034's seats are a subscription attribute.
+9. **Subscriptions only.** Per the owner ruling of 2026-08-22, coverage comes only from a subscription. Since
+   2026-10-27, any active member's Pro or Pro with AI subscription covers the household, with no seats (FR-034).
    No one-time or lifetime purchase shape is designed for or designed against here.
 
 ## Dependencies
@@ -619,6 +791,8 @@ household's content intact.
 | **`006-FR-032` idempotency under multi-member editing** | Written for a single owner                    | FR-031 introduces concurrent editors that `006`'s idempotency key was not designed against.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | **Feature `015`**                                       | ⏸ Paused                                      | D4b/D5 (D4a decided by ADR-0073). See Assumption 2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **D23 one-time / lifetime tier**                        | Deferred — subscriptions only                 | Revisit in `010` once FR-039 yields a real AI cost model.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **`023` referrals and growth measurement**              | Specified 2026-10-27                          | Its reward rule refuses a friend in the inviter's household (`023-FR-030`). Its effective plan includes household coverage (FR-034b).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **`staff-ux-engineer` DESIGN and SPECIFY**              | Owed at plan time (2026-10-27)                | The guided switch flow (FR-016b), the export promise (FR-018b), the coverage notices (FR-034d, FR-034e) and the pool display (FR-034c) are new surfaces. Each is designed before it is built.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **`cross-feature-FR-index.md`** (GR-003 AC-003-b)       | Must be updated                               | This spec adds cross-feature citations to 001, 004, 005, 006, 007, 008, 010, 013, and 016.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ## Out of Scope
@@ -634,6 +808,9 @@ household's content intact.
 ## Status
 
 **Draft — all three clarifications resolved. Ready for `/speckit-plan`.**
+
+_2026-10-27: the growth expansion adds one open question, FR-034k (can Free cooks form a household?). It blocks
+only the Free-household part of US5._
 
 An earlier draft of this spec flagged a blocking conflict with `016` over frame sampling. Reading `016-FR-027`
 and `016-FR-027c` closely, that was **overstated**: `016` prohibits _persisting_ a copy and _rendering derived

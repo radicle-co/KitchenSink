@@ -50,6 +50,10 @@ household_members
    redelivery (FR-032b). `display_name` is re-derived if it carried the erased owner's handle (FR-032c).
 6. **Seats** are `min(subscription seat allowance, active member count)`. The allowance is read from the
    signed `public_metadata` claim `010-FR-044` already publishes — **no new lookup, no new token claim**.
+   ⚠️ **Amended 2026-10-27 (FR-034, owner ruling).** There are no paid seats. The limit is 6 accounts for every
+   household, from 010's plan register. Coverage is the higher paid plan held by any active member (FR-034a). It
+   flows into each member's effective plan (FR-034b), so the claim now carries more than one cook's own purchase.
+   `staff-architect` decides at plan time whether that still needs no new lookup.
 
 **Migration ordering (EXPAND-FIRST)**: create tables → backfill one household per existing account →
 add `household_id` to plans/lists **nullable** → dual-write → flip reads → drop owner-scoping in a _later_

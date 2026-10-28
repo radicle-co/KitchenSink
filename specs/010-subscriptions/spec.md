@@ -26,6 +26,8 @@ ships** (`FR-042j`).
 | [006-meal-planning](../006-meal-planning/spec.md)                                                       | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027)                    |
 | [007-grocery-lists](../007-grocery-lists/spec.md)                                                       | **Referenced** — gates online ordering (007-FR-031)                                                                                     |
 | [009-nutrition-planning](../009-nutrition-planning/spec.md)                                             | **Referenced** — gates trainer nutrition planning (009-FR-038)                                                                          |
+| [017-recime-parity](../017-recime-parity/spec.md)                                                       | **Required, amended 2026-10-27**: one Pro or Pro with AI subscription covers its household (`017-FR-034` to `FR-034k`, `FR-041j`)       |
+| [023-referrals-and-growth-measurement](../023-referrals-and-growth-measurement/spec.md)                 | **Referenced**: referral reward time reaches the cook through the plans and the store rails (`023-FR-027`)                              |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -126,6 +128,11 @@ it, and check that the changes are still there. Then check each state in `FR-042
     is only as fresh as the token, so define the maximum tolerated lag between a tier change and enforcement,
     and whether downgrade requires forced token refresh or revocation.
 
+    > ⚠️ **Amended 2026-10-27.** The claim now publishes the cook's **effective** plan, not only their own purchase.
+    > It also counts the promotional entitlement of a referral reward (`023-FR-027e`) and household coverage
+    > (`017-FR-034b`). One computation produces it, and it fails closed to Free. The design is owed in this spec's
+    > plan, with `staff-architect`.
+
 **Plans and AI credits** _(added 2026-10-26, owner ruling: "there are three subscription plans now" and "the
 subscriptions have two levels of AI credits". Answered 2026-10-27: the three plans are Free, Pro and Pro with AI, and
 the paid plans are called "Pro" everywhere.)_
@@ -155,6 +162,8 @@ the paid plans are called "Pro" everywhere.)_
     - The ceiling is [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)'s
       $100 a month, prod only. It protects the business. The owner treats it as temporary.
     - Credits are the product limit that a plan sells. They are counted per cook.
+      _(Amended 2026-10-27: inside a covered household they are one pool for the household, `FR-041j` and
+      `017-FR-034c`. The pool resets on the payer's billing date.)_
     - A ceiling denial MUST NOT use a cook's credits. ADR-0024 already refunds the full reservation for a call with no
       billed answer.
     - The cook sees two different messages. Out of credits: "This month's AI uses are gone. They come back on
@@ -203,6 +212,18 @@ the paid plans are called "Pro" everywhere.)_
   "private room" model, where a draft counts against private room after 30 days (its `015-FR-007d`, `FR-007o`,
   `FR-007p` and `FR-007q`), is **retired** (owner, 2026-10-27). A merge MUST NOT bring it back, in this spec, in 015,
   in 016's `FR-029a` or in 001's draft note.
+
+- **FR-041j** _(owner, 2026-10-27)_: One Pro or Pro with AI subscription MUST cover its household (`017-FR-034`). The
+  rules:
+    - Every active member gets the covering plan's features (`017-FR-034a`), Free members included (`017-FR-034d`).
+    - A household holds at most 6 accounts, the payer included. The plan register holds the number.
+    - AI uses are one pool per household, equal to the covering plan's allowance (`017-FR-034c`). The pool resets on
+      the payer's billing date. A member who pays for their own plan uses their own allowance.
+    - Each cook's effective plan comes from one computation, over their own purchase, any referral reward
+      (`023-FR-027`) and household coverage. The claim of `FR-044` publishes it (`017-FR-034b`).
+    - When coverage ends, `FR-043a` applies to each member.
+    - App Store Family Sharing stays off (`017-FR-034i`).
+    - Whether Free cooks can form a household with no payer is open (`017-FR-034k`).
 
 **The subscription page** _(added 2026-10-26, owner ruling: hide "See Premium" until this feature ships, and record
 the page's UX and legal requirements)_
@@ -499,28 +520,31 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 | Pro         | Recorded 2026-10-26 | $9.99 a month or $99.99 a year. 14-day trial   | No limit                                          | 30 uses a month, the middle credit level. Resets on the billing date                    | Trainer nutrition planning (`009-FR-038`)    |
 | Pro with AI | Recorded 2026-10-26 | $19.99 a month or $199.99 a year. 14-day trial | No limit                                          | 300 uses a month, the second credit level. 100 in the trial. Resets on the billing date | Everything in Pro, and the AI features below |
 
-| Feature                                                    | FR                          | Plan that includes it                                                                     |
-| ---------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
-| More than 50 private recipes                               | `001-FR-003`                | Pro, Pro with AI                                                                          |
-| Private `imported_public` recipe, after a substantive edit | `001-FR-003`, ADR-0073 §1   | Pro, Pro with AI                                                                          |
-| AI recipe generation                                       | `005-FR-016`                | Free, Pro and Pro with AI, using credits                                                  |
-| AI instruction optimization                                | `005-FR-019`                | Free, Pro and Pro with AI, using credits                                                  |
-| AI meal suggestions                                        | `006-FR-025`                | Free, Pro and Pro with AI, using credits                                                  |
-| Auto-generated meal plans                                  | `006-FR-026`                | Pro with AI only, using credits                                                           |
-| Food waste optimization                                    | `006-FR-027`                | Pro with AI only, using credits                                                           |
-| Own AI keys, several, in an order the cook sets            | `005-FR-015`                | Pro, Pro with AI. Never Free                                                              |
-| Bulk import allowance                                      | ADR-0072 §8                 | Free 200 recipes a rolling day. Paid plans 1,000 a rolling day                            |
-| Trainer nutrition planning                                 | `009-FR-038`                | Pro, Pro with AI                                                                          |
-| AI recipe swap suggestions                                 | `009-FR-039`                | Free, Pro and Pro with AI, using credits. Inferred: 009 calls it AI                       |
-| Online grocery ordering                                    | `007-FR-031`                | No plan, until a store partner exists                                                     |
-| Every import channel                                       | `004-FR-028`, `016-FR-029a` | Every plan. A paid plan never sells access to imported content (`016-FR-029a` guardrails) |
-| Ingredient parse and match checks                          | ADR-0071, ADR-0072          | Every plan. Not a credit use (`FR-041d`)                                                  |
-| The content source check                                   | `020`                       | Every plan. Not a credit use                                                              |
+| Feature                                                    | FR                          | Plan that includes it                                                                                                                                     |
+| ---------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| More than 50 private recipes                               | `001-FR-003`                | Pro, Pro with AI                                                                                                                                          |
+| Private `imported_public` recipe, after a substantive edit | `001-FR-003`, ADR-0073 §1   | Pro, Pro with AI                                                                                                                                          |
+| AI recipe generation                                       | `005-FR-016`                | Free, Pro and Pro with AI, using credits                                                                                                                  |
+| AI instruction optimization                                | `005-FR-019`                | Free, Pro and Pro with AI, using credits                                                                                                                  |
+| AI meal suggestions                                        | `006-FR-025`                | Free, Pro and Pro with AI, using credits                                                                                                                  |
+| Auto-generated meal plans                                  | `006-FR-026`                | Pro with AI only, using credits                                                                                                                           |
+| Food waste optimization                                    | `006-FR-027`                | Pro with AI only, using credits                                                                                                                           |
+| Own AI keys, several, in an order the cook sets            | `005-FR-015`                | Pro, Pro with AI. Never Free                                                                                                                              |
+| Bulk import allowance                                      | ADR-0072 §8                 | Free 200 recipes a rolling day. Paid plans 1,000 a rolling day                                                                                            |
+| Trainer nutrition planning                                 | `009-FR-038`                | Pro, Pro with AI                                                                                                                                          |
+| AI recipe swap suggestions                                 | `009-FR-039`                | Free, Pro and Pro with AI, using credits. Inferred: 009 calls it AI                                                                                       |
+| Online grocery ordering                                    | `007-FR-031`                | No plan, until a store partner exists                                                                                                                     |
+| Every import channel                                       | `004-FR-028`, `016-FR-029a` | Every plan. A paid plan never sells access to imported content (`016-FR-029a` guardrails)                                                                 |
+| Ingredient parse and match checks                          | ADR-0071, ADR-0072          | Every plan. Not a credit use (`FR-041d`)                                                                                                                  |
+| The content source check                                   | `020`                       | Every plan. Not a credit use                                                                                                                              |
+| Household coverage: every active member gets the plan      | `017-FR-034`, `FR-041j`     | Pro, Pro with AI. Up to 6 accounts, the payer included. One AI pool per household (added 2026-10-27)                                                      |
+| Shared household plans, lists and aisle categories         | `017-FR-030`                | Paid households. Free households are open (`017-FR-034k`)                                                                                                 |
+| Referral reward time                                       | `023-FR-020`, `023-FR-022`  | Any plan earns it. A cook who does not pay gets 30 days of Pro features with no extra AI uses. A payer gets 30 more days of their own plan (`023-FR-024`) |
 
 ## Owner inputs still needed
 
 Other specs link to this section and its anchors. Most items are now answered. The answers are the rulings of
-2026-10-27. The numbers are kept so existing links work. Every item is answered.
+2026-10-27. The numbers are kept so existing links work. Every item is answered except O-12, added 2026-10-27.
 
 - <a id="o-2"></a>**O-2. The two levels of AI credits. Answered 2026-10-27.** Free gets 3 single-call uses a month.
   Pro gets 30 uses a month (owner, 2026-10-27, see `005-FR-015a`). Pro with AI gets 300 uses a month. The Pro with AI trial gets 100 uses. The design boards' "50 uses" was a
@@ -545,6 +569,8 @@ Other specs link to this section and its anchors. Most items are now answered. T
 - <a id="o-10"></a>**O-10. Plan change timing. Answered 2026-10-27.** See `FR-041i`.
 - <a id="o-11"></a>**O-11. Trial rules. Answered 2026-10-27.** One trial per person ever, with a card required. See
   `FR-041h`.
+- <a id="o-12"></a>**O-12. Free households. Open, added 2026-10-27.** Can two Free cooks share plans and lists as a
+  household, with a paid plan adding coverage of paid features? See `017-FR-034k`, which recommends yes.
 
 ## Success Criteria _(mandatory)_
 
@@ -556,7 +582,13 @@ Other specs link to this section and its anchors. Most items are now answered. T
 ## Assumptions
 
 - The free tier is designed as a conversion funnel — features are gated to demonstrate Pro value, not to cripple the free experience.
-- **Family plan is out of scope for v1.** Family/household multi-seat subscriptions are a future consideration only. No FR, no architecture, and no task covers family plans in this release. A dedicated spec change is required before any family-plan work begins.
+- **Household coverage is in scope (amended 2026-10-27, owner ruling).** The owner ruled on 2026-10-27: "Include the
+  other recommendations in either new features or expanding existing features." That accepts the recommendation
+  "Include household sharing in Pro at no extra cost". So one Pro or Pro with AI subscription covers its household
+  (`FR-041j`, and `017-FR-034` onward). There is no separate family plan and no paid seat. _(Was: "Family plan is out
+  of scope for v1. Family/household multi-seat subscriptions are a future consideration only. No FR, no
+  architecture, and no task covers family plans in this release. A dedicated spec change is required before any
+  family-plan work begins." This amendment is that spec change.)_
 - **Web sells through Stripe. The phone apps sell through the stores.** Stripe Checkout and the Stripe Customer Portal are web-only. iPhone sales use App Store in-app purchase and Android sales use Google Play Billing. RevenueCat joins the three into one entitlement record per cook ([O-9](#owner-inputs-still-needed), `FR-042i`, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md)). _(Was: mobile users are deep-linked to web checkout and in-app purchase is out of scope for v1. Reversed 2026-10-27.)_
 - Imported, attributed recipes are always public regardless of subscription tier, in compliance with source Terms of Service.
 - **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;

@@ -69,29 +69,33 @@ class, and it is not claimed to be more.
 - **FR-015** _(amended 2026-10-27, owner ruling)_: System MUST allow a **Pro** or **Pro with AI** cook (`010-FR-041`) to
   configure their own AI providers by securely storing their own API credentials (BYOK model). **Free cooks never
   get this.** A cook may add several keys (e.g., OpenAI, Gemini, Anthropic) and MUST be able to set the order in which
-  they are tried. A Pro cook has no allowance, so every AI call uses their keys in that order. A Pro with AI cook uses
-  the platform allowance first and falls back to their keys only after the allowance runs out (`FR-015b`). Decision D-005
+  they are tried. A Pro or Pro with AI cook uses the platform allowance first and falls back to their keys only after
+  the allowance runs out (`FR-015b`). Decision D-005
   in `review.md` still holds: one active key per provider. The order is across providers.
-- **FR-015a** _(new 2026-10-26, amended 2026-10-27, owner ruling)_: A **Pro with AI** subscriber (`010-FR-041`) MUST
-  get a monthly AI allowance of **300 uses**. A use is **one AI call made on the cook's request**, whatever it
+- **FR-015a** _(new 2026-10-26, amended 2026-10-27, owner ruling)_: A **Pro** subscriber (`010-FR-041`) MUST get a
+  monthly AI allowance of **30 uses**. A **Pro with AI** subscriber MUST get **300 uses** a month. A use is **one AI call made on the cook's request**, whatever it
   produces (a plan or a recipe). Parse, match and review calls are operating cost and are **never a use**. Uses reset
   on the cook's **billing date**, not on the calendar month. A yearly plan resets on the same day each month. A Free
-  cook resets on the day the account was created. Unused uses do not roll over. Spend MUST be metered per user with
+  cook resets on the day the account was created. Unused uses do not roll over. An upgrade gives the new plan's full
+  allowance at once, so the allowance is fresh on upgrade. Spend MUST be metered per user with
   the reserve-then-settle counter (ADR-0024).
-- **FR-015b** _(new 2026-10-26, amended 2026-10-27, owner ruling)_: When a Pro with AI cook adds their own key
+- **FR-015b** _(new 2026-10-26, amended 2026-10-27, owner ruling)_: When a Pro or Pro with AI cook adds their own key
   (`FR-015`), the system MUST ask, at that moment, for permission to use the keys **automatically** once their
   allowance is used up, and MUST offer a switch to turn that automatic use on and off at any time **without removing
   a key**. With the switch on, an exhausted allowance falls through to the cook's keys, in the order they set, with no
   further prompt, and the AI screens MUST show which account is paying ("Using your OpenAI key"). With the switch
-  off, or with no key, AI stops with a plain message until the allowance resets. A Pro cook has no allowance, so
-  their keys are used directly and the switch does not apply.
+  off, or with no key, AI stops with a plain message until the allowance resets.
 - **FR-015c** _(new 2026-10-26, amended 2026-10-27, owner ruling: "the subscriptions have two levels of AI credits")_:
   The number of AI uses a cook gets MUST come from their plan, as 010's
   [plan register](../010-subscriptions/spec.md#plan-register) states it:
     - **Free**: 3 single-call uses a month (see `FR-015f`).
-    - **Pro**: none. Pro has no allowance.
+    - **Pro**: 30 uses a month (`FR-015a`).
     - **Pro with AI**: 300 uses a month (`FR-015a`).
     - **Pro with AI trial**: 100 uses for the trial (`010-FR-041h`).
+
+    The cost of the Pro level is about $0.21 per cook a month: 30 uses at about $0.0069 a use on Claude Haiku 4.5
+    (owner ruling, 2026-10-27).
+
 - **FR-015d** _(new 2026-10-26, amended 2026-10-27)_: When a cook has no uses left, AI MUST stop with a plain message
   that gives the reset date, and keep what the cook typed. With the `FR-015b` switch on, the call goes to the cook's
   own key and the screen says so. A higher plan is named only if one exists and the subscription page is live (010
@@ -104,9 +108,9 @@ class, and it is not claimed to be more.
   on Bedrock, it is a new `SPEND_CALL_SITES` entry under the one verification role (ADR-0024 layer 4b), never a second
   role with `bedrock:InvokeModel`. Which model and provider an allowance-funded call uses is a plan decision for this
   feature.
-- **FR-015f** _(new 2026-10-26, amended 2026-10-27)_: A Pro cook gets no allowance. A Free cook gets **3 single-call
-  uses a month** and nothing more. **Auto-generated meal plans and food waste optimization are Pro with AI only.**
-  Free uses cover single-call features such as one recipe or one set of suggestions. A Free cook has no own-key
+- **FR-015f** _(new 2026-10-26, amended 2026-10-27)_: A Free cook gets **3 single-call uses a month** and nothing
+  more. A Pro cook gets 30 (`FR-015a`). **Auto-generated meal plans and food waste optimization are Pro with AI only.**
+  Free and Pro uses cover single-call features such as one recipe or one set of suggestions. A Free cook has no own-key
   fallback (`FR-015`). While the subscription page is not live, a cook without credits sees no AI upsell (010
   `FR-042j`).
 - **FR-016**: System MUST call the user's configured AI provider to generate recipes based on criteria (ingredients, dietary restrictions, cuisine, calorie targets) and return results within the app.

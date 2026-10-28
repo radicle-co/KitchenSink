@@ -5,26 +5,27 @@
 **Last updated**: 2026-10-27
 **Status**: Product decisions revalidated — implementation/test gate blocked pending V-Model regeneration and test execution.
 2026-10-27: the three plans are **Free, Pro and Pro with AI**, and the paid plans are called "Pro" everywhere
-(owner rulings 2026-10-26 and 2026-10-27). AI credits come in two levels, held by Free and Pro with AI. Amounts are
-still open. See the [plan register](#plan-register) and the
+(owner rulings 2026-10-26 and 2026-10-27). AI credits come in three levels, held by Free, Pro and Pro with AI: 3, 30
+and 300 uses a month. See the [plan register](#plan-register) and the
 [owner inputs still needed](#owner-inputs-still-needed). **Nothing links to a subscription page until this feature
 ships** (`FR-042j`).
 **Input**: Split from `001-commise-recipe-app` — free/Pro tier definitions, feature gating, upgrade prompts, and subscription lifecycle.
 
 ## Dependencies
 
-| Spec                                                                                        | Relationship                                                                                                                            |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)                                                   | **Required** — subscription tier is a property of the authenticated user                                                                |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                 | **Referenced** — gates private recipe visibility (001-FR-003)                                                                           |
-| [004-recipe-importing](../004-recipe-importing/spec.md)                                     | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                                                               |
-| [005-ai-integration](../005-ai-integration/spec.md)                                         | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019); AI credits by plan (005-FR-015a to FR-015f) |
-| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                 | **Required**: subscription disclosures and cancellation (016-FR-040–FR-044); counsel items (016-FR-050)                                 |
-| [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)               | **Required**: free cooks hold 50 private recipes; a downgrade never makes a private recipe public                                       |
-| [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md) | **Referenced**: the platform's monthly AI spend ceiling, which is not a cook's credits (`FR-041d`)                                      |
-| [006-meal-planning](../006-meal-planning/spec.md)                                           | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027)                    |
-| [007-grocery-lists](../007-grocery-lists/spec.md)                                           | **Referenced** — gates online ordering (007-FR-031)                                                                                     |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)                                 | **Referenced** — gates trainer nutrition planning (009-FR-038)                                                                          |
+| Spec                                                                                                    | Relationship                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                                                               | **Required** — subscription tier is a property of the authenticated user                                                                |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                             | **Referenced** — gates private recipe visibility (001-FR-003)                                                                           |
+| [004-recipe-importing](../004-recipe-importing/spec.md)                                                 | **Referenced** — gates clone-to-private for imported recipes (004-FR-011)                                                               |
+| [005-ai-integration](../005-ai-integration/spec.md)                                                     | **Referenced** — gates AI generation and instruction optimization (005-FR-016, 005-FR-019); AI credits by plan (005-FR-015a to FR-015f) |
+| [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                             | **Required**: subscription disclosures and cancellation (016-FR-040–FR-044); counsel items (016-FR-050)                                 |
+| [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)                           | **Required**: free cooks hold 50 private recipes; a downgrade never makes a private recipe public                                       |
+| [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)             | **Referenced**: the platform's monthly AI spend ceiling, which is not a cook's credits (`FR-041d`)                                      |
+| [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Required**: store billing, RevenueCat and Stripe sell the plans (`FR-042i`)                                                           |
+| [006-meal-planning](../006-meal-planning/spec.md)                                                       | **Referenced** — gates AI meal suggestions, auto-generation, waste optimization (006-FR-025, 006-FR-026, 006-FR-027)                    |
+| [007-grocery-lists](../007-grocery-lists/spec.md)                                                       | **Referenced** — gates online ordering (007-FR-031)                                                                                     |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md)                                             | **Referenced** — gates trainer nutrition planning (009-FR-038)                                                                          |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -96,8 +97,8 @@ it, and check that the changes are still there. Then check each state in `FR-042
 
 - **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. New recipes are public by default, and a free cook can hold up to 50 private recipes (`001-FR-003`). _(Amended 2026-10-26, owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md). Was: "All free-tier recipes are public by default; private visibility is not available on the free tier.")_
 - **FR-041** _(amended 2026-10-26, owner ruling)_: System MUST provide two paid tiers, each billed **monthly or yearly** at the cook's choice, with a small discount for yearly billing:
-    - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)) and trainer nutrition planning. It includes no AI.
-    - **Pro with AI**, **$19.99/month** or **$199.99/year**: everything in Pro, plus a monthly **AI allowance** (`005-FR-015a`) for AI recipe generation, AI meal suggestions, auto-generated meal plans, food waste optimization and AI instruction optimization.
+    - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)) and trainer nutrition planning. It includes a small monthly AI allowance of 30 uses (`005-FR-015a`).
+    - **Pro with AI**, **$19.99/month** or **$199.99/year**: everything in Pro, plus a larger monthly **AI allowance** of 300 uses (`005-FR-015a`) for AI recipe generation, AI meal suggestions, auto-generated meal plans, food waste optimization and AI instruction optimization.
       New subscribers to **either** tier receive a **14-day free trial** before the first charge. A Pro with AI trial carries a smaller allowance of 100 uses (`FR-041h`). Online grocery ordering is not a benefit of either tier until a store partner exists. _(Was: one Pro tier at $6.99/month or $59.99/year.)_
 - **FR-042**: System MUST gate Pro features with clear upgrade prompts that preview the feature value for free-tier users. Prompts follow a three-tier hierarchy: (1) contextual inline teaser at the feature entry point, (2) modal/bottom-sheet on active invocation, (3) pricing page accessible from any CTA and from account settings.
 - **FR-043**: System MUST retain all user data and non-Pro functionality if a Pro subscription lapses. Existing private recipes remain private after downgrade (`FR-043a`). A lapsed cook who holds fewer than 50 private recipes can make another private. _(Amended 2026-10-26, ADR-0073 §4. Was: "the lapsed user cannot create new private recipes until they renew.")_ A **7-day grace period** applies after a failed payment before Pro access is removed.
@@ -130,9 +131,9 @@ subscriptions have two levels of AI credits". Answered 2026-10-27: the three pla
 the paid plans are called "Pro" everywhere.)_
 
 - **FR-041a**: The product MUST offer exactly three plans: **Free**, **Pro** and **Pro with AI** (owner, 2026-10-27).
-  Free counts as the third plan. The two levels of AI credits belong to two of these plans. Free gets a small
-  monthly allowance of 3 uses, and Pro with AI gets the full allowance of 300 uses (owner, 2026-10-27, answers O-2).
-  Pro has no AI allowance. `005-FR-015c` and `005-FR-015d` state the amounts and the 90-day review.
+  Free counts as the third plan. The three levels of AI credits belong to these three plans. Free gets a small
+  monthly allowance of 3 uses, Pro gets 30 uses, and Pro with AI gets the full allowance of 300 uses (owner,
+  2026-10-27, answers O-2). `005-FR-015c` and `005-FR-015d` state the amounts and the 90-day review.
 - **FR-041a1**: The paid plans MUST be called "Pro" and "Pro with AI" in every string, on both platforms. The name
   "Premium" is retired (owner, 2026-10-27). Specs and ADRs now say "Pro". "Premium" survives only in quoted rulings and
   in strings the app ships today, and those strings MUST change to "Pro" when this feature ships: "See Premium",
@@ -140,16 +141,15 @@ the paid plans are called "Pro" everywhere.)_
   role and `@RequirePremium()` are a separate rename that belongs to T-040.
 - **FR-041b**: The plan register is the one place that says which plan includes which feature. Other specs say
   "Pro" or "a paid plan" and link to the register. They do not restate plan contents. The entitlement model MUST
-  be able to name each plan and each AI credit level. A single paid flag cannot say "Pro, but no AI". Today every
+  be able to name each plan and each AI credit level. A single paid flag cannot say "Pro, but not Pro with AI". Today every
   entitlement mechanism is single-tier: the `premium` role, `hasPaidFeatures(roles)` (GR-012 AC-012-c),
   `account.paidFeatures` (`granted`, `upsell`, `hidden`), the one tier claim of `FR-044`, and `@RequirePremium()`.
   The design of that change is open for `staff-architect` ([plan §4](./plan.md#4-feature-gating-map)).
 - **FR-041c**: Each plan's AI credit level MUST come from the plan register. A credit is one AI use, counted as
-  `005-FR-015a` defines. Free has the small level (3 uses), Pro has none, and Pro with AI has the full level (300 uses). A cook with no
-  credits left sees Pro with AI as the way to more, only while the subscription page is live (`FR-042j`). While it is
+  `005-FR-015a` defines. Free has the small level (3 uses), Pro has the middle level (30 uses), and Pro with AI has the full level (300 uses). A cook with no
+  credits left sees the next plan up as the way to more, only while the subscription page is live (`FR-042j`). While it is
   not live, the cook sees no AI upsell. Own keys (`005-FR-015`) are for Pro and Pro with AI only, never Free (owner,
-  2026-10-27, answers O-7). A Pro cook uses their keys for every AI call. A Pro with AI cook uses their keys only
-  after the 300 uses run out.
+  2026-10-27, answers O-7). A Pro or Pro with AI cook uses their keys only after the plan's uses run out (30 for Pro, 300 for Pro with AI).
 - **FR-041d**: A cook's AI credits and the platform's AI spend ceiling are two different limits, and the product
   MUST keep them apart.
     - The ceiling is [ADR-0024](../../docs/architecture/decisions/0024-llm-spend-ceiling-reserve-then-settle.md)'s
@@ -170,13 +170,14 @@ the paid plans are called "Pro" everywhere.)_
       That is a dated owner ruling, so it is amended in the ADR, not edited quietly. Until then a paying cook who is
       denied sees the ceiling message above and keeps their uses (owner, 2026-10-27, answers O-8).
 - **FR-041e**: When a cook has no credits left, AI MUST stop with a plain message that gives the reset date. The one
-  exception is a Pro with AI cook who has added a key and turned on automatic use (`005-FR-015b`). For that cook, AI
+  exception is a Pro or Pro with AI cook who has added a key and turned on automatic use (`005-FR-015b`). For that cook, AI
   goes on with the first working key, with no further prompt, and the screen says which account pays. If a higher
   plan exists and the page is live, the message can name it once, with an equal "Not now". There is no countdown, no
   repeated prompt and no pressure copy.
 - **FR-041f**: What happens to unused credits on an upgrade, a downgrade, a lapse or a new period MUST be stated on
   the subscription page before the cook confirms. The rule (owner, 2026-10-27, answers O-6) is:
-    - An upgrade to Pro with AI gives the full 300 uses at once.
+    - An upgrade gives the new plan's full allowance at once: 30 uses for Pro, 300 for Pro with AI. The allowance is
+      fresh on upgrade.
     - On a downgrade or a lapse, the uses left last until the paid period ends.
     - Unused uses never roll over.
     - Uses reset on the cook's billing date (`005-FR-015a`).
@@ -262,9 +263,22 @@ the page's UX and legal requirements)_
     - Google Play: the US external links and alternative billing programs are open, and Google charges service fees
       on those purchases from 1 October 2026.
 
-    v1 serves the US only (`016-FR-048`). Whether mobile keeps web checkout through an outside link or adds store
-    in-app purchase is owner input [O-9](#owner-inputs-still-needed). If store purchase is added, restore and
-    cancel MUST route to the store (`016-FR-042`).
+    v1 serves the US only (`016-FR-048`). The owner answered [O-9](#owner-inputs-still-needed) on 2026-10-27, and
+    [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) records the decision. It sets these rules:
+
+    - iPhone sales use App Store in-app purchase. Android sales use Google Play Billing. Restore and cancel on a
+      store purchase MUST route to the store (`016-FR-042`).
+    - The web app sells through Stripe Billing. RevenueCat joins the App Store, Google Play and web purchases into
+      one entitlement record per cook. The Clerk user ID is RevenueCat's app user ID on all three platforms.
+    - At first, web sales go to US buyers only, with Commise as the seller. Commise handles US sales tax with Stripe
+      Tax. Stripe Managed Payments, where Stripe is the seller, is switched on once Stripe confirms our product is
+      eligible. Web sales widen to other countries only after that. Paddle, through RevenueCat, is the fallback if
+      Managed Payments is refused.
+    - The US "pay on the web" link inside the iPhone app is built behind a remote switch and kept **off**. It turns
+      on only when Apple's US rate is settled and our own test shows a loss of no more than about 4% of iPhone
+      proceeds.
+    - A cook can change or cancel a subscription only on the platform where they bought it. The subscription page
+      and the account screen MUST show where each cook pays.
 
 - **FR-042j**: Every entry point to the subscription page MUST stay hidden until this feature ships, behind **one
   switch**. The switch is read in one place and shared by web and mobile. It is separate from the paid-features gate:
@@ -340,7 +354,7 @@ in `@kitchensink/schema-identity`. One request carries one of each.
 | Stripe webhook handler                    | `@kitchensink/identity-webhooks` — **not** the ECS API                                        |
 | Schema package (**generated**, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`, extended, **never hand-edited** |
 | Consuming client                          | the identity consumer named by **002's own OPEN item** — see the note below                   |
-| Consuming apps                            | `@commise/web` (the primary billing surface), `@commise/mobile` (deep-links to web checkout)  |
+| Consuming apps                            | `@commise/web` (the primary billing surface), `@commise/mobile` (store purchase, `FR-042i`)   |
 | Entitlement guard                         | a **shared** package under `packages/shared/*` — never an import of the identity service      |
 
 ⚠️ **The consuming client is still 002's question, and 010 does not pre-empt it.** 002's plan carries its own 🟠
@@ -482,22 +496,22 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 | Plan        | Status              | Price                                          | Private recipes                                   | AI credits                                                                              | Also                                         |
 | ----------- | ------------------- | ---------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------- |
 | Free        | Recorded 2026-10-27 | None                                           | Up to 50 (ADR-0073). Earned slots add to it (015) | 3 single-call uses a month, the first credit level. Reviewed at 90 days (`005-FR-015d`) | Everything in `FR-040`                       |
-| Pro         | Recorded 2026-10-26 | $9.99 a month or $99.99 a year. 14-day trial   | No limit                                          | None. Pro has no AI                                                                     | Trainer nutrition planning (`009-FR-038`)    |
+| Pro         | Recorded 2026-10-26 | $9.99 a month or $99.99 a year. 14-day trial   | No limit                                          | 30 uses a month, the middle credit level. Resets on the billing date                    | Trainer nutrition planning (`009-FR-038`)    |
 | Pro with AI | Recorded 2026-10-26 | $19.99 a month or $199.99 a year. 14-day trial | No limit                                          | 300 uses a month, the second credit level. 100 in the trial. Resets on the billing date | Everything in Pro, and the AI features below |
 
 | Feature                                                    | FR                          | Plan that includes it                                                                     |
 | ---------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
 | More than 50 private recipes                               | `001-FR-003`                | Pro, Pro with AI                                                                          |
 | Private `imported_public` recipe, after a substantive edit | `001-FR-003`, ADR-0073 §1   | Pro, Pro with AI                                                                          |
-| AI recipe generation                                       | `005-FR-016`                | Free and Pro with AI, using credits                                                       |
-| AI instruction optimization                                | `005-FR-019`                | Free and Pro with AI, using credits                                                       |
-| AI meal suggestions                                        | `006-FR-025`                | Free and Pro with AI, using credits                                                       |
+| AI recipe generation                                       | `005-FR-016`                | Free, Pro and Pro with AI, using credits                                                  |
+| AI instruction optimization                                | `005-FR-019`                | Free, Pro and Pro with AI, using credits                                                  |
+| AI meal suggestions                                        | `006-FR-025`                | Free, Pro and Pro with AI, using credits                                                  |
 | Auto-generated meal plans                                  | `006-FR-026`                | Pro with AI only, using credits                                                           |
 | Food waste optimization                                    | `006-FR-027`                | Pro with AI only, using credits                                                           |
 | Own AI keys, several, in an order the cook sets            | `005-FR-015`                | Pro, Pro with AI. Never Free                                                              |
 | Bulk import allowance                                      | ADR-0072 §8                 | Free 200 recipes a rolling day. Paid plans 1,000 a rolling day                            |
 | Trainer nutrition planning                                 | `009-FR-038`                | Pro, Pro with AI                                                                          |
-| AI recipe swap suggestions                                 | `009-FR-039`                | Free and Pro with AI, using credits. Inferred: 009 calls it AI                            |
+| AI recipe swap suggestions                                 | `009-FR-039`                | Free, Pro and Pro with AI, using credits. Inferred: 009 calls it AI                       |
 | Online grocery ordering                                    | `007-FR-031`                | No plan, until a store partner exists                                                     |
 | Every import channel                                       | `004-FR-028`, `016-FR-029a` | Every plan. A paid plan never sells access to imported content (`016-FR-029a` guardrails) |
 | Ingredient parse and match checks                          | ADR-0071, ADR-0072          | Every plan. Not a credit use (`FR-041d`)                                                  |
@@ -506,10 +520,10 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 ## Owner inputs still needed
 
 Other specs link to this section and its anchors. Most items are now answered. The answers are the rulings of
-2026-10-27. The numbers are kept so existing links work. Only O-9 is still open.
+2026-10-27. The numbers are kept so existing links work. Every item is answered.
 
 - <a id="o-2"></a>**O-2. The two levels of AI credits. Answered 2026-10-27.** Free gets 3 single-call uses a month.
-  Pro with AI gets 300 uses a month. The Pro with AI trial gets 100 uses. The design boards' "50 uses" was a
+  Pro gets 30 uses a month (owner, 2026-10-27, see `005-FR-015a`). Pro with AI gets 300 uses a month. The Pro with AI trial gets 100 uses. The design boards' "50 uses" was a
   placeholder and is replaced. See `FR-041a` and `005-FR-015c`.
 - <a id="o-4"></a>**O-4. What one use is. Answered 2026-10-27.** A use is one AI call made on the cook's request,
   whatever it produces (a plan or a recipe). Parse, match and review calls are operating cost and are never a use.
@@ -519,13 +533,15 @@ Other specs link to this section and its anchors. Most items are now answered. T
   calendar-month reset. See `005-FR-015a`.
 - <a id="o-6"></a>**O-6. Credits on a change. Answered 2026-10-27.** See `FR-041f`.
 - <a id="o-7"></a>**O-7. Own key without credits. Answered 2026-10-27.** Own keys are for Pro and Pro with AI only.
-  A cook may add several keys and set the order they are tried. A Pro with AI cook falls back to keys only after the
-  allowance runs out. See `FR-041c` and `005-FR-015`.
+  A cook may add several keys and set the order they are tried. A Pro or Pro with AI cook falls back to keys only after
+  the allowance runs out. See `FR-041c` and `005-FR-015`.
 - <a id="o-8"></a>**O-8. The ceiling and paying cooks. Answered 2026-10-27.** The $100 ceiling stays until launch
   funding. The go-live plan is in ADR-0024: a separate operating-AI budget with alarms, and headroom so a paying cook
   with uses left is never refused. See `FR-041d`.
-- <a id="o-9"></a>**O-9. Mobile billing. OPEN, under research.** Web checkout through an outside link on US mobile,
-  which the stores now allow, or store in-app purchase on iOS and Android, and for which markets.
+- <a id="o-9"></a>**O-9. Mobile billing. RESOLVED 2026-10-27.** The question was web checkout through an outside link
+  on US mobile, or store in-app purchase on iOS and Android, and for which markets. The answer: in-app purchase on
+  both stores, Stripe Billing on the web, and RevenueCat joining them. The US "pay on the web" link on iPhone is
+  built behind a remote switch and kept off. See `FR-042i` and [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md).
 - <a id="o-10"></a>**O-10. Plan change timing. Answered 2026-10-27.** See `FR-041i`.
 - <a id="o-11"></a>**O-11. Trial rules. Answered 2026-10-27.** One trial per person ever, with a card required. See
   `FR-041h`.
@@ -541,8 +557,7 @@ Other specs link to this section and its anchors. Most items are now answered. T
 
 - The free tier is designed as a conversion funnel — features are gated to demonstrate Pro value, not to cripple the free experience.
 - **Family plan is out of scope for v1.** Family/household multi-seat subscriptions are a future consideration only. No FR, no architecture, and no task covers family plans in this release. A dedicated spec change is required before any family-plan work begins.
-- **Web is the primary billing surface.** Stripe Checkout and the Stripe Customer Portal are web-only. Mobile users see upgrade prompts and are deep-linked to the web checkout URL. Native in-app purchase (App Store / Play Store IAP) is out of scope for v1. _(Reopened 2026-10-26: the store rules
-  changed in 2025 and 2026, so this is owner input [O-9](#owner-inputs-still-needed). See `FR-042i`.)_
+- **Web sells through Stripe. The phone apps sell through the stores.** Stripe Checkout and the Stripe Customer Portal are web-only. iPhone sales use App Store in-app purchase and Android sales use Google Play Billing. RevenueCat joins the three into one entitlement record per cook ([O-9](#owner-inputs-still-needed), `FR-042i`, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md)). _(Was: mobile users are deep-linked to web checkout and in-app purchase is out of scope for v1. Reversed 2026-10-27.)_
 - Imported, attributed recipes are always public regardless of subscription tier, in compliance with source Terms of Service.
 - **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
   conflating them over-blocks downstream work.

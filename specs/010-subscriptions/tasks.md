@@ -314,9 +314,9 @@ either.
 
 - [ ] **T-037** [P1] [US-006] The subscription page on mobile  
       — `packages/apps/commise/features/account`, `packages/apps/commise/mobile`  
-      **Depends on**: T-036, and owner input O-9  
+      **Depends on**: T-036. Owner input O-9 is resolved (ADR-0075)  
       **Implements**: FR-042a to FR-042i  
-      **Acceptance**: The same states and rules as T-036, translated for touch, not ported (staff-ux §3.6). Purchase follows O-9: web checkout through an outside link, or store in-app purchase with restore and store cancel (`016-FR-042`).  
+      **Acceptance**: The same states and rules as T-036, translated for touch, not ported (staff-ux §3.6). Purchase follows O-9 and ADR-0075: iPhone uses App Store in-app purchase and Android uses Google Play Billing, with restore and store cancel (`016-FR-042`). The page shows where the cook pays. The US "pay on the web" link on iPhone is built behind a remote switch and stays off.  
       **Tests**: vitest component tests for every state **AND** a Maestro flow per happy path.
 
 - [ ] **T-038** [P1] [US-006] Plan change and cancel, with the downgrade rule stated before confirmation  

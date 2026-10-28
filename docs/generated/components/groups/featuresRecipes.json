@@ -26200,7 +26200,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Option C submit: invoked with the current per-field selections when the user saves a merge (FR-007c\noption c); the caller composes the merged draft (`composeConflictMerge`) and submits it.",
+                            "description": "Compare, submit: invoked with the current per-field selections when the user saves a merge (FR-007c\noption c); the caller composes the merged draft (`composeConflictMerge`) and submits it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/conflictView.ts"
                         },
                         {
@@ -26209,7 +26209,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Option B: overwrite the server version with the user's own draft.",
+                            "description": "Keep mine: overwrite the server version with the user's own draft.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/conflictView.ts"
                         },
                         {
@@ -26333,7 +26333,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Option C submit: invoked with the current per-field selections when the user saves a merge (FR-007c\noption c); the caller composes the merged draft (`composeConflictMerge`) and submits it.",
+                            "description": "Compare, submit: invoked with the current per-field selections when the user saves a merge (FR-007c\noption c); the caller composes the merged draft (`composeConflictMerge`) and submits it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/conflictView.ts"
                         },
                         {
@@ -26342,7 +26342,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Option B: overwrite the server version with the user's own draft.",
+                            "description": "Keep mine: overwrite the server version with the user's own draft.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/conflictView.ts"
                         },
                         {

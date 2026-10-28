@@ -1,9 +1,9 @@
 appId: ${APP_ID}
 ---
-# Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — banner + changed-only diff + A/B/C
-# cards + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
+# Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — two side cards + changed-only diff + three
+# option cards (Keep mine, Use theirs, Compare) + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
 # "Merge field by field" flow this file used to drive). Mobile mirror of the web Playwright
-# `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same per-side banner copy, same
+# `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same side-card copy, same
 # changed-only diff/legend, same gating, asserted here against `RecipeConflictView.native.tsx`. Also asserts
 # the "Discard and close" header exit (wireframe gap #1) is visible.
 #
@@ -122,8 +122,8 @@ appId: ${APP_ID}
 # bar pins to the foot again, wherever the page is scrolled.
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
-# If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and
-# all three W7 FR-007c resolutions (A/B/C). UN-DRIVABLE without a conflict-seeding harness — see module note.
+# If a concurrent save landed first, the conflict view offers the two side cards, the changed-only diff, and
+# all three W7 FR-007c resolutions (Keep mine, Use theirs, Compare). UN-DRIVABLE without a conflict-seeding harness — see module note.
 - runFlow:
       when:
           visible: 'This recipe changed while you were editing'
@@ -143,12 +143,12 @@ appId: ${APP_ID}
           # fast path), so the heading is unconditionally present here (the badges are words; there is no legend).
           - assertVisible: 'Changed fields'
 
-          # The three W7 A/B/C option cards (X2) — server-keep, overwrite, and manual merge.
+          # The three option cards (X2) — use theirs, keep mine, and compare to merge.
           - assertVisible: 'Use theirs'
           - assertVisible: 'Keep mine'
           - assertVisible: 'Compare'
 
-          # Enter the per-field/per-element merge panel (Option C).
+          # Enter the per-field/per-element merge panel (Compare).
           - tapOn: 'Compare'
           - assertVisible: 'Compare and choose'
 
@@ -158,10 +158,12 @@ appId: ${APP_ID}
                 enabled: false
           - assertVisible: 'Pick at least one change to save.'
 
-          # Pull one row from the latest saved version (every other row stays on my draft by default — the
+          # Pull one row from Theirs, the version saved elsewhere (every other row stays on my draft by default — the
           # per-element `steps[N]`/`ingredients:<id>` keys this W7 panel adds have no bearing on the FIRST
           # matching row Maestro's substring match picks, same as the pre-W7 flow's own approach).
-          - tapOn: 'Theirs'
+          # Anchored to the option label "Theirs: {value}", so it cannot hit the merge explanation sentence
+          # "Pick theirs or yours for each change." or the "Theirs: ..." line of the diff panel's own wording.
+          - tapOn: '^Theirs: .*'
           - assertVisible:
                 text: 'Save my choices'
                 enabled: true

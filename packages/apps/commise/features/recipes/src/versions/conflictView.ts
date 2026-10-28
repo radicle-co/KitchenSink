@@ -26,7 +26,7 @@ import { type RecipeMergeSelections } from './merge.js';
 /**
  * Props for the concurrent-edit conflict view (T070 / C-005 / CP-6 P1 / W7) — a FULLY controlled,
  * presentational component. Server-first ordering (X7): `server` is always the FIRST/LEFT side, everywhere
- * this view renders anything two-sided — the per-side banner, and (Option C) the field-by-field merge panel.
+ * this view renders anything two-sided — the two side cards, and (Compare) the field-by-field merge panel.
  * It delegates every choice upward, including the field-by-field merge panel's own selection state:
  * `selections` comes in from the caller (the `useRecipeEditor` machine's `conflict.mergeSelections`) and every
  * toggle reports back via `onSelectionsChange` — this view owns no merge data of its own (only the "is the
@@ -67,9 +67,9 @@ export interface RecipeConflictViewProps {
     readonly onSelectionsChange: (selections: RecipeMergeSelections) => void;
     /** Use theirs: keep the server version, discarding the user's local changes. */
     readonly onKeepServer: () => void;
-    /** Option B: overwrite the server version with the user's own draft. */
+    /** Keep mine: overwrite the server version with the user's own draft. */
     readonly onOverwrite: () => void;
-    /** Option C submit: invoked with the current per-field selections when the user saves a merge (FR-007c
+    /** Compare, submit: invoked with the current per-field selections when the user saves a merge (FR-007c
      *  option c); the caller composes the merged draft (`composeConflictMerge`) and submits it. */
     readonly onMerge: (selections: RecipeMergeSelections) => void;
     /** The header "Discard and close" exit (wireframe gap #1 — `conflict-resolution.md:34`'s
@@ -232,8 +232,8 @@ export const formatMergeSummary = (
 // ─── The parts both leaves draw ─────────────────────────────────────────────────────────────────────
 
 /**
- * One A/B/C option card (X2): a title, a description, and the choice it fires. `disabled` is the stale-base confirm
- * gate on Option B, Overwrite (W7 Task 5 / X6); Options A and C are never gated that way.
+ * One option card (X2: Keep mine, Use theirs, Compare): a title, a description, and the choice it fires. `disabled` is the stale-base confirm
+ * gate on Keep mine (W7 Task 5 / X6); Use theirs and Compare are never gated that way.
  */
 export interface ConflictOptionCardProps {
     readonly title: string;

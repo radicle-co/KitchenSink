@@ -164,8 +164,8 @@ accounts show Pro features for 30 days, then return to Free with every private r
    check passes.
 3. **Given** a friend who installs the iPhone app after opening the link, **When** they reach sign-up, **Then** the
    app offers a one-tap paste control and a field to type the code, and sign-up never needs either.
-4. **Given** a friend who signs up but does not activate within 30 days, **When** the window ends, **Then** the
-   inviter earns nothing and the inviter's screen says so without naming the friend.
+4. **Given** a friend who signs up but does not do FR-008's activation actions within 30 days, **When** the window
+   ends, **Then** the inviter earns nothing and the inviter's screen says so without naming the friend.
 5. **Given** a friend who activates, **When** they qualify, **Then** the inviter's reward is earned and applied on the
    inviter's billing rail (User Story 4).
 6. **Given** reward time is ending, **When** 3 days are left, **Then** the cook gets an in-app notice that it ends on a
@@ -244,10 +244,10 @@ from the staff research list.
 
 **Acceptance Scenarios**:
 
-1. **Given** an active cook whose recorded age basis is 18 or older, **When** they open the card, **Then** they see
-   what contact means, what the thank-you is, how long the data is kept and how to withdraw.
-2. **Given** a cook under 18 or with no adult age basis, **When** the app decides whether to show the card, **Then**
-   it is never shown.
+1. **Given** an active cook, **When** they open the card, **Then** they see what contact means, the thank-you, the
+   retention and how to withdraw. They must also state that they are 18 or older.
+2. **Given** a cook whose recorded age basis says they are under 18, **When** the app decides whether to show the
+   card, **Then** it is never shown.
 3. **Given** a cook who agrees, **When** they submit, **Then** a consent record for "research contact" is stored with
    the wording version and the time.
 4. **Given** a cook who dismisses the card, **When** they use the app later, **Then** it never comes back. The opt-in
@@ -328,8 +328,9 @@ from the staff research list.
     - **iPhone, other ad networks**: AdAttributionKit, with conversion values that encode the funnel stage reached
       (sign-up, activation, trial start, paid). It works on iOS 17.4 and later. It gives aggregate postbacks with no
       user-level data. It needs no tracking prompt. Source:
-      [Apple ad attribution](https://developer.apple.com/app-store/ad-attribution/). Set it up only for the first
-      approved non-Apple ad campaign.
+      [Apple ad attribution](https://developer.apple.com/app-store/ad-attribution/). AdAttributionKit builds on
+      SKAdNetwork, and SKAdNetwork is the fallback below iOS 17.4. Set up both only for the first approved non-Apple
+      ad campaign.
     - **Both**: a universal link or app link opened after install, carrying a campaign or invite code.
 - **FR-006**: When signals disagree, the source MUST follow one fixed order: invite code, then Apple Ads token, then
   install referrer, then web UTM, then universal link campaign, then the cook's own answer, then `unknown`. The order
@@ -412,7 +413,8 @@ from the staff research list.
 - **FR-021**: A friend is **qualified**, and the inviter's reward is earned, at the moment all of these hold:
     - the friend's account was created through the invite, or the code was added within FR-018's 7 days,
     - the friend passes the one-person check,
-    - the friend reached activation (FR-008) within 30 days of sign-up,
+    - within 30 days of sign-up, the friend did the actions FR-008 counts as activation: a saved recipe plus one
+      plan, list or cooking-mode action. Measurement keeps FR-008's 7-day window. The referral allows 30 days,
     - at that moment, the friend is not in the inviter's household (FR-030),
     - the inviter's account still exists and is under the yearly cap (FR-029).
 - **FR-022**: The inviter's reward MUST be applied by section D. A payer gets 30 more days of their own plan. A cook
@@ -471,8 +473,8 @@ from the staff research list.
 - **FR-028**: The one-person check MUST be the same check that enforces one trial per person ever (`010-FR-041h`,
   ADR-0075 §6). A person who has had an account, a trial or a paid plan is not new, and earns no friend reward and no
   inviter reward. This spec adds no second identity check.
-- **FR-029**: An inviter MUST earn at most 12 rewards in any rolling 12 months. At 30 days each, the most one cook can
-  receive in a year is about one year of Pro, $119.88 at the Pro monthly list price.
+- **FR-029**: An inviter MUST earn at most 12 rewards in any rolling 12 months. At 30 days each, one cook can receive
+  at most about 12 months of their own plan in a year (FR-036).
 - **FR-030**: An inviter MUST NOT earn a reward for a friend who is an active member of the inviter's household at the
   moment the friend qualifies.
 - **FR-031**: The system MUST NOT use device fingerprinting, IP address and user-agent matching, probabilistic
@@ -499,8 +501,10 @@ from the staff research list.
 - **FR-035**: A reward MUST be non-cash, non-transferable and not exchangeable for money. The program terms MUST be a
   versioned document (`016-FR-003`), shown before a cook's first invite, and changeable with notice. Ending the program
   never takes back a reward already earned.
-- **FR-036**: The yearly cap (FR-029) keeps one cook's reward value at about $119.88 at list. Whether that value
-  creates any tax reporting or sales tax duty is a question for the tax adviser and counsel (section I). Cash and gift
+- **FR-036**: The yearly cap (FR-029) bounds one cook's referral rewards at 12 months of their own plan in a year. At
+  monthly list prices that is $119.88 on Pro and $239.88 on Pro with AI. An interview thank-you adds 3 months
+  (FR-043). Whether that value creates any tax reporting or sales tax duty is a question for the tax adviser and
+  counsel (section I). Cash and gift
   cards are not used as rewards, so no tax form is collected from cooks.
 
 #### G. Waitlist and interview recruitment
@@ -517,8 +521,9 @@ from the staff research list.
 - **FR-039**: When a person creates an account with the verified email of a verified waitlist entry, the entry's
   source and research consent MUST move to the account with an in-app notice, and the entry MUST be deleted.
 - **FR-040**: The system MUST offer an opt-in to talk to the team: a dismissible card shown once, after activation, and
-  an entry in settings. It is never shown during onboarding and never as a modal. It is shown only to accounts whose
-  age basis (`016-FR-008`) is 18 or older.
+  an entry in settings. It is never shown during onboarding and never as a modal. It is never shown to an account whose
+  age basis (`016-FR-008`) says it is under 18. That basis can hold only the minimum account age, so the opt-in
+  also asks the cook to state that they are 18 or older. The statement is stored with the consent record.
 - **FR-041**: Before the cook agrees, the opt-in MUST explain five things:
     - what contact means: an email from the team about a 30-minute call,
     - the thank-you (FR-043),
@@ -548,8 +553,8 @@ from the staff research list.
   NOT share account-level data with an ad network. A change that needs ATT is a change to this spec.
 - **FR-046**: The attribution record is personal data. Its purpose is product measurement. The privacy notice MUST say
   so. Each market can switch the record off (`016-FR-048b`). A market can need consent. Without that consent, no
-  record is written and the source counts as `unknown`. The soft launch runs in the US only, as web billing does
-  (ADR-0075 §3).
+  record is written and the source counts as `unknown`. The soft launch runs in the US only. The business plan puts
+  billing live "in the US stores" (section 8.5.2), and web sales start US only too (ADR-0075 §3).
 - **FR-047**: Account erasure MUST delete the attribution record, the invite code, research consent, screener answers,
   and every reward ledger row's link to the person. Counts already added to aggregates stay, with no identity. Otherwise
   the attribution record is deleted 14 months after sign-up. By then the earliest cohort's first annual renewal is
@@ -571,8 +576,8 @@ This change does not edit 001, 016 or the cross-feature FR index. These items ar
       agree on this reading before launch. **What breaks**: App Review can disagree. Then the "no active paid plan" row on
       iPhone moves to Apple offer codes. Those start a renewing subscription, so `010-FR-041h`'s card and notice rules
       apply.
-    - **Tax on reward value.** Whether non-cash Pro time worth up to $119.88 a year per cook creates information
-      reporting or sales tax duties. **What breaks**: a duty we did not plan for.
+    - **Tax on reward value.** Whether non-cash plan time creates information reporting or sales tax duties. One
+      cook can receive up to $239.88 a year at list, plus a 3-month interview thank-you (FR-036). **What breaks**: a duty we did not plan for.
     - **Attribution consent outside the US.** Whether reading the install referrer and storing UTMs needs consent
       under ePrivacy rules before any EU or UK market opens. **What breaks**: attribution without a lawful basis.
     - **Research recruitment.** The consent wording, the 12-month retention and the thank-you. **What breaks**: a

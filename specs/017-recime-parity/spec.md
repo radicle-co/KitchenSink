@@ -2,7 +2,8 @@
 
 **Feature Branch**: `chore/code-quality-enforcement-phase-1-2` (no new branch — standing owner directive)
 **Created**: 2026-08-22
-**Status**: Draft — clarifications resolved; **one cross-feature conflict flagged for 016**
+**Status**: Draft — clarifications resolved; **one cross-feature conflict flagged for 016**. 2026-10-27: one open
+question, FR-034k (Free households).
 **Input**: User description: "we want parity with the feature gaps against recime that
 911043cd-1ce2-4e5b-8608-50a8524b5b98 review and discovered. We also have the artifact
 https://claude.ai/code/artifact/18e8fcdc-0992-4861-8bd8-6d5a3b7baf41"
@@ -600,7 +601,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   covering plan's monthly allowance (`005-FR-015a`): 30 uses for Pro, 300 for Pro with AI. Each member's use draws on
   the pool. Each member sees what is left in the pool and their own use. No member sees another member's prompts.
   With the pool empty, a member can fall back to their own keys (`010-FR-041c`). A member who pays for their own plan
-  uses their own allowance, not the pool. _Why one pool, not one per cook_: 300 uses cost at most about $10.35 a
+  uses their own allowance, not the pool. The pool resets on the payer's billing date. _Why one pool, not one per cook_: 300 uses cost at most about $10.35 a
   month, at $0.0345 a use (business plan draft of 2026-10-27, section 7.8). Six members with 300 uses each can cost up
   to about $62.10 a month, against a price of $19.99. A pool keeps a household's AI cost the same as one cook's.
 - **FR-034d** `→ 010 ADDED` _(added 2026-10-27)_: A Free account MUST be able to join a covered household and be covered
@@ -807,6 +808,9 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 ## Status
 
 **Draft — all three clarifications resolved. Ready for `/speckit-plan`.**
+
+_2026-10-27: the growth expansion adds one open question, FR-034k (can Free cooks form a household?). It blocks
+only the Free-household part of US5._
 
 An earlier draft of this spec flagged a blocking conflict with `016` over frame sampling. Reading `016-FR-027`
 and `016-FR-027c` closely, that was **overstated**: `016` prohibits _persisting_ a copy and _rendering derived

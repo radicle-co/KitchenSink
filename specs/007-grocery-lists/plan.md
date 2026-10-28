@@ -496,10 +496,10 @@ The 006 meal plan view change is a cross-feature UI task. It is documented here 
 
 **Decision**: 7-day TTL is the MVP default. A persistent "always exclude" pantry option is deferred to a post-MVP iteration. Power users can work around this by re-marking items after TTL expiry.
 
-**Amended 2026-10-27 (owner ruling, Pro match).** The 7-day TTL now applies only to an item with no use-by date. An
-item with a use-by date (spec FR-034, Pro) is removed by the cook, or 7 days after its use-by date has passed (spec
-FR-035). The prune applies both rules. Whether the key stays one row per food, and whether a household shares a
-pantry, are open for `staff-architect` (spec FR-040).
+**Amended 2026-10-27 (owner ruling, Pro match).** The 7-day TTL now applies only to an item with no use-by date. An item
+with a use-by date (spec FR-034, Pro) is removed by the cook, or 7 days after its use-by date (spec FR-035). The prune
+applies both rules. Whether the key stays one row per food, and whether a household shares a pantry, are open for
+`staff-architect` (spec FR-040).
 
 ### 7. Recipe scaling
 

@@ -789,13 +789,14 @@ they do not create a second mechanism.
   decided.
 - **FR-053g**: The dashboard MUST be gated by a dedicated review scope, distinct from any other administrative
   capability, so reviewing notices does not confer unrelated administrative power.
-- **FR-053h** _(added 2026-10-27, owner ruling, [ADR-0076](../../docs/architecture/decisions/0076-founder-reviews-at-launch-with-a-paid-backup.md))_:
-  At launch, the founder decides notices and 020's referrals, and one paid backup reviewer covers the founder. The
-  owner ruled on 2026-10-27 that "the founder reviews flagged public content at launch, with a paid backup reviewer of
-  about $555 a month". The rules:
-    - **The backup** is a named, part-time, hourly employee of the operator, so `020-FR-026b` holds for referrals.
-      The budget is about 4 hours a week at $32.01 an hour (the BLS 43-4051 median wage times a 1.429 employer load),
-      which is about $555 a month. Extra hours are paid at the same rate.
+- **FR-053h** _(added 2026-10-27, owner ruling,
+  [ADR-0076](../../docs/architecture/decisions/0076-founder-reviews-at-launch-with-a-paid-backup.md))_: At launch, the
+  founder decides notices and 020's referrals. One paid backup reviewer covers the founder. The owner ruled on
+  2026-10-27 that "the founder reviews flagged public content at launch, with a paid backup reviewer of about $555 a
+  month". The rules:
+    - **The backup** is a named, part-time, hourly employee of the operator, so `020-FR-026b` holds for referrals. The
+      budget is about 4 hours a week at $32.01 an hour, which is about $555 a month. The rate is the BLS 43-4051 median
+      wage times a 1.429 employer load. Extra hours are paid at the same rate.
     - **Each reviewer** has their own account with the review scope (`FR-053f`, `FR-053g`), and is trained on the
       written review guideline before the scope is granted.
     - **Scheduled hours.** The backup's regular hours are review on days the founder is off.
@@ -809,9 +810,8 @@ they do not create a second mechanism.
       publishes or removes anything.
     - The 24-hour and 7-day targets of `FR-017a`, and every other requirement of this spec, are unchanged. Only who
       does the work changes.
-- **FR-053i** _(added 2026-10-27, owner ruling, ADR-0076)_: The half-time reviewer (0.5 FTE, an employee) MUST be
-  hired when a volume trigger is met. This FR is the one place the trigger is defined. The trigger fires when any one
-  of these holds:
+- **FR-053i** _(added 2026-10-27, owner ruling, ADR-0076)_: A volume trigger MUST start the hire of the half-time
+  reviewer (0.5 FTE, an employee). This FR is the one place the trigger is defined. Any one of these fires the trigger:
     - **Review load** is above 20 hours a week for 4 weeks in a row. A week's review load is the number of items
       decided that week (notices, 020 referrals and appeals) times the median handling minutes per item. At 3
       minutes an item, 20 hours is 400 items a week.
@@ -823,10 +823,10 @@ they do not create a second mechanism.
       `020-FR-030` is unchanged.
 
     The dashboard MUST record the handling minutes of each decision, from the moment a reviewer opens the item to the
-    moment the decision is saved. It MUST show each measure every week, and MUST raise an operational alert to the
-    owner when a trigger fires. The owner starts the hire. Until the new reviewer starts, the backup works more hours
-    at the hourly rate. The numbers above are a first setting from the 2026-10-27 path-to-success analysis and from
-    `SC-015`, not from measured load. Shadow mode (`020-FR-039a`) gives the first forecast of that load.
+    moment the decision is saved. It MUST show each measure every week. When a trigger fires, it MUST raise an
+    operational alert to the owner. The owner starts the hire. Until the new reviewer starts, the backup works more
+    hours at the hourly rate. The numbers above are a first setting from the 2026-10-27 path-to-success analysis and
+    from `SC-015`, not from measured load. Shadow mode (`020-FR-039a`) gives the first forecast of that load.
 
 #### J. Records and auditability
 
@@ -956,8 +956,8 @@ they do not create a second mechanism.
   adjudication surface.
 - **A human decides notices.** Volume is low; no automated adjudication is specified, and `FR-018`'s
   "whether automated means were used" is therefore expected to read "no" at launch.
-- **At launch that human is the founder, with a paid backup** (`FR-053h`, owner ruling, 2026-10-27). A half-time
-  reviewer is hired when `FR-053i`'s trigger fires.
+- **At launch that human is the founder, with a paid backup** (`FR-053h`, owner ruling, 2026-10-27). `FR-053i`'s trigger
+  starts the hire of a half-time reviewer.
 - **The federal US auto-renewal rule is absent, not pending.** It was vacated in July 2025 and re-proposed in
   March 2026; `FR-040`–`FR-043` are written to the stricter state regimes and platform rules instead, which
   makes them robust to whatever replaces it. _(Checked again 2026-10-26: still not in force. The FTC still enforces

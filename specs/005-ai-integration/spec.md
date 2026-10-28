@@ -108,13 +108,13 @@ class, and it is not claimed to be more.
   on Bedrock, it is a new `SPEND_CALL_SITES` entry under the one verification role (ADR-0024 layer 4b), never a second
   role with `bedrock:InvokeModel`. Which model and provider an allowance-funded call uses is a plan decision for this
   feature.
-- **FR-015f** _(new 2026-10-26, amended 2026-10-27, and amended again 2026-10-27 by the Pro-match ruling)_: A Free
-  cook gets **3 single-call uses a month** and nothing more. A Pro cook gets 30 (`FR-015a`). **Auto-generated meal
-  plans are in Pro and Pro with AI. Food waste optimization is Pro with AI only.** 010's
+- **FR-015f** _(new 2026-10-26, amended 2026-10-27, and amended again 2026-10-27 by the Pro-match ruling)_: A Free cook
+  gets **3 single-call uses a month** and nothing more. A Pro cook gets 30 (`FR-015a`). **Auto-generated meal plans are
+  in Pro and Pro with AI. Food waste optimization is Pro with AI only.** 010's
   [plan register](../010-subscriptions/spec.md#plan-register) is the authority for both. Free uses cover single-call
   features such as one recipe or one set of suggestions. Pro and Pro with AI uses also cover meal plans. Every model
   call is one use, as `FR-015a` defines, whatever it produces. A meal plan made in one call costs one use. A plan
-  feature that makes more than one call costs one use per call, and the cook MUST see that number before it runs
+  feature that makes more than one call costs one use per call. The cook MUST see that number before it runs
   (`006-FR-026`). A Free cook has no own-key fallback (`FR-015`). While the subscription page is not live, a cook
   without credits sees no AI upsell (010 `FR-042j`).
 

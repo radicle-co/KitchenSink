@@ -32,8 +32,8 @@ at the BLS 43-4051 median wage for customer service representatives, times a 1.4
 the plan's first-month revenue. Nothing in the specs required it, and no measured workload supported it. Shadow mode
 (`020-FR-039a`) exists to forecast that workload before anyone is hired.
 
-The owner ruled on 2026-10-27 that the founder reviews flagged public content at launch. A paid backup reviewer
-costs about $555 a month. The half-time reviewer is hired once a volume trigger is met. The owner also ruled to keep
+The owner ruled on 2026-10-27: "the founder reviews flagged public content at launch, with a paid backup reviewer of
+about $555 a month, and the half-time reviewer is hired when a volume trigger is met." The owner also ruled to keep
 the 24-hour target and every legal requirement, and to change only who does the work and when.
 
 ## Decision
@@ -62,8 +62,8 @@ an individual account with the review scope, never a shared one (`016-FR-053f`, 
 - **Planned absence.** The founder records each planned absence in a rota before it starts. During it, the backup is
   the first reviewer for both notices and referrals.
 - **Unplanned absence, for notices.** A notice still undecided at half its target pages the founder and the backup
-  together: at 12 hours for the 24-hour tier, and at 3.5 days for the 7-day tier. If it is still undecided 2 hours
-  after the page, the backup decides it. This is an alert before the deadline. `016-FR-017c` fires only once a notice
+  together. If it is still undecided a short time after the page, the backup decides it. `016-FR-053h` holds the
+  hours. This is an alert before the deadline. `016-FR-017c` fires only once a notice
   is already overdue, which is too late to bring anyone in.
 - **Referrals.** They have no time target (`020-FR-030`) and page nobody. The backup works them in scheduled hours
   and during absences.

@@ -99,10 +99,20 @@ it, and check that the changes are still there. Then check each state in `FR-042
 
 - **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. New recipes are public by default, and a free cook can hold up to 50 private recipes (`001-FR-003`). _(Amended 2026-10-26, owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md). Was: "All free-tier recipes are public by default; private visibility is not available on the free tier.")_
 - **FR-041** _(amended 2026-10-26, owner ruling)_: System MUST provide two paid tiers, each billed **monthly or yearly** at the cook's choice, with a small discount for yearly billing:
-    - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)), trainer nutrition planning, a pantry with use-by dates, reminders and "use it up" suggestions (`007-FR-034` to `007-FR-040`), and household coverage (`FR-041j`). It includes a monthly AI allowance of 30 uses (`005-FR-015a`), which also pays for auto-generated meal plans (`006-FR-026`).
-    - **Pro with AI**, **$19.99/month** or **$199.99/year**: everything in Pro, plus a larger monthly **AI allowance** of 300 uses (`005-FR-015a`) for AI recipe generation, AI meal suggestions, auto-generated meal plans and AI instruction optimization, and AI food waste optimization (`006-FR-027`), which only this plan has.
-      _(Amended 2026-10-27, owner ruling, Pro match: "Pro stays at $99.99 a year, and Free keeps its 50 private recipes (ADR-0073 unchanged). Pro matches Samsung Food+'s $59.99 features." Pro gains the pantry and AI meal plans. Pro with AI keeps 300 uses and AI waste optimization. Was: auto-generated meal plans were Pro with AI only.)_
-      New subscribers to **either** tier receive a **14-day free trial** before the first charge. A Pro with AI trial carries a smaller allowance of 100 uses (`FR-041h`). Online grocery ordering is not a benefit of either tier until a store partner exists. _(Was: one Pro tier at $6.99/month or $59.99/year.)_
+    - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit
+      ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)) and trainer nutrition planning.
+      It also has a pantry with use-by dates, reminders and "use it up" suggestions (`007-FR-034` to `007-FR-040`), and
+      household coverage (`FR-041j`). It includes a monthly AI allowance of 30 uses (`005-FR-015a`). Those uses also pay
+      for auto-generated meal plans (`006-FR-026`).
+    - **Pro with AI**, **$19.99/month** or **$199.99/year**: everything in Pro, plus a larger monthly **AI allowance**
+      of 300 uses (`005-FR-015a`) for AI recipe generation, AI meal suggestions, auto-generated meal plans and AI
+      instruction optimization. It also has AI food waste optimization (`006-FR-027`), which only this plan has.
+      _(Amended 2026-10-27, owner ruling, Pro match: "Pro stays at $99.99 a year, and Free keeps its 50 private recipes
+      (ADR-0073 unchanged). Pro matches Samsung Food+'s $59.99 features." Pro gains the pantry and AI meal plans. Pro
+      with AI keeps 300 uses and AI waste optimization. Was: auto-generated meal plans were Pro with AI only.)_ New
+      subscribers to **either** tier receive a **14-day free trial** before the first charge. A Pro with AI trial
+      carries a smaller allowance of 100 uses (`FR-041h`). Online grocery ordering is not a benefit of either tier until
+      a store partner exists. _(Was: one Pro tier at $6.99/month or $59.99/year.)_
 - **FR-042**: System MUST gate Pro features with clear upgrade prompts that preview the feature value for free-tier users. Prompts follow a three-tier hierarchy: (1) contextual inline teaser at the feature entry point, (2) modal/bottom-sheet on active invocation, (3) pricing page accessible from any CTA and from account settings.
 - **FR-043**: System MUST retain all user data and non-Pro functionality if a Pro subscription lapses. Existing private recipes remain private after downgrade (`FR-043a`). A lapsed cook who holds fewer than 50 private recipes can make another private. _(Amended 2026-10-26, ADR-0073 §4. Was: "the lapsed user cannot create new private recipes until they renew.")_ A **7-day grace period** applies after a failed payment before Pro access is removed.
 - **FR-043a** _(added 2026-10-26, [ADR-0073 §4](../../docs/architecture/decisions/0073-free-tier-private-slots.md))_: On
@@ -519,13 +529,13 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 > (ADR-0073 unchanged). Pro matches Samsung Food+'s $59.99 features." Three changes follow, and this table records
 > them:
 >
-> - A pantry with use-by dates, reminders and simple "use it up" suggestions, without AI, is in Pro (`007-FR-034` to
+> - Pro gains a pantry with use-by dates, reminders and simple "use it up" suggestions. They use no AI (`007-FR-034` to
 >   `007-FR-040`). AI-driven waste optimization stays Pro with AI only (`006-FR-027`).
 > - AI meal plans are in Pro and Pro with AI (`006-FR-026`). A Pro cook spends their 30 monthly uses on them. One call
 >   to the model is one use (`005-FR-015a`). Pro with AI keeps 300 uses and AI waste optimization.
-> - Household sharing was already specced in 017. The household row below was checked against `017-FR-034` to
->   `FR-034k` and `FR-041j` on 2026-10-27: up to 6 accounts, the payer included, and one Pro or Pro with AI
->   subscription covers its household. They match, so nothing changed. A covered member gets the pantry features
+> - Household sharing was already specced in 017. The household row below was checked against `017-FR-034` to `FR-034k`
+>   and `FR-041j` on 2026-10-27. All of them say up to 6 accounts, the payer included. All of them say one Pro or Pro
+>   with AI subscription covers its household. They match, so nothing changed. A covered member gets the pantry features
 >   and AI meal plans through `017-FR-034a`.
 
 | Plan        | Status              | Price                                          | Private recipes                                   | AI credits                                                                              | Also                                         |

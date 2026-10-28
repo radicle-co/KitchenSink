@@ -1010,15 +1010,15 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
   to a different reviewer when one is available. With one reviewer, the same person decides it, and the record says so.
   _(Amended 2026-10-27, owner ruling, ADR-0076.)_ From launch there are two reviewers, the founder and the paid backup
   (`016-FR-053h`). An appeal of the founder's hold goes to the backup, and an appeal of the backup's hold goes to the
-  founder. The one-reviewer case remains only for a time when one of them cannot act.
+  founder. The one-reviewer case now applies only while one of them cannot act.
 - **FR-026b**: Every reviewer MUST be an **employee** of the operator, never a user or a member of the community (owner
   ruling, 2026-10-26). 016's review scope (`016-FR-053g`) MUST be granted only to staff accounts. No user-facing role,
-  reputation or volunteer path MAY lead to it. Every action is attributed to the individual employee
-  (`016-FR-053f`). A staff reviewer's read of a cook's held recipe and its photos is new access to another person's
-  content. It MUST pass a security review before it ships, and every read MUST be logged. _(Amended 2026-10-27, owner
-  ruling, ADR-0076: the rule is unchanged, and it now names who meets it at launch. The founder counts as staff. The
-  paid backup reviewer is a part-time hourly employee, never a contractor, so this rule holds. A half-time employee
-  reviewer is hired when `016-FR-053i`'s trigger fires.)_
+  reputation or volunteer path MAY lead to it. Every action is attributed to the individual employee (`016-FR-053f`). A
+  staff reviewer's read of a cook's held recipe and its photos is new access to another person's content. It MUST pass a
+  security review before it ships, and every read MUST be logged. _(Amended 2026-10-27, owner ruling, ADR-0076: the rule
+  is unchanged, and it now names who meets it at launch. The founder counts as staff. The paid backup reviewer is a
+  part-time hourly employee, never a contractor, so this rule holds. `016-FR-053i`'s trigger starts the hire of a
+  half-time employee reviewer.)_
 - **FR-027**: Every person's decision MUST record who decided, when, the reason and the facts relied on, and MUST NOT
   be saved without them (`016-FR-017`, `016-FR-053b`). No referral is ever decided by the check.
     - **A rejection tells the cook why** (owner ruling, 2026-10-26). A reviewer who does not approve a recipe MUST pick
@@ -1424,8 +1424,8 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
 - **The model is one already in ADR-0024's registry** that takes images and stays in the deploy region. The plan
   chooses it, under FR-033.
 - **Reviewers are employees** (FR-026b). At launch they are the founder and a paid backup, a part-time hourly employee
-  (owner ruling, 2026-10-27, `016-FR-053h`, ADR-0076). The backup is what makes FR-026a's "a different person"
-  possible from launch. A half-time reviewer is hired when `016-FR-053i`'s trigger fires.
+  (owner ruling, 2026-10-27, `016-FR-053h`, ADR-0076). The backup is what makes FR-026a's "a different person" possible
+  from launch. `016-FR-053i`'s trigger starts the hire of a half-time reviewer.
 - **Rule-based detectors come first.** We expect most `detected` outcomes to come from them. The model widens what is
   found. It never decides what blocks, and it never clears a photo signal.
 - **Bulk import does not publish** (ADR-0072 §3). "Headed public" means the cook chose public visibility for the item.

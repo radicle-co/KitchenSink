@@ -329,10 +329,11 @@ editing (`001-FR-003b`), which closes the Draft path.
 - **Only an all-green recipe skips review.** Any one grey part (a photo the budget did not cover, an unreadable
   citation, one unproven quote) sends the whole recipe to staff. That is the ruling's intent, and its cost is staff
   time.
-- **The queue has no automatic way out.** With no time target and no automatic release, a backlog means cooks wait.
-  At launch the reviewers are the founder and a paid backup (spec 016 `FR-053h`, owner ruling, 2026-10-27). A busy
-  week, a spent AI budget or one curated book can still hold recipes for a long time. `016-FR-053i`'s trigger hires a
-  half-time reviewer when the load is measured, and it does not shorten a backlog that already exists. The forecast shows this before launch. Nothing in the design can make it go away.
+- **The queue has no automatic way out.** With no time target and no automatic release, a backlog means cooks wait. At
+  launch the reviewers are the founder and a paid backup (spec 016 `FR-053h`, owner ruling, 2026-10-27). A busy week, a
+  spent AI budget or one curated book can still hold recipes for a long time. Once the measured load crosses
+  `016-FR-053i`'s trigger, a half-time reviewer is hired. The hire does not shorten a backlog that already exists. The
+  forecast shows this before launch. Nothing in the design can make it go away.
 - **A curated book is a one-time backlog of close to all its recipes.** Old cookbooks carry page references. A staff
   source decision approving the book makes its source reference green, but each recipe's text still needs a person
   unless it is all green.

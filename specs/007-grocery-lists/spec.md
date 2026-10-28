@@ -82,8 +82,8 @@ Eight days later the rice is still in the pantry.
 7. **Given** a Free cook, **When** they use the pantry, **Then** they have the 7-day "already have" pantry with no
    use-by field, reminder or suggestion. An upgrade prompt shows only while the subscription page is live
    (`010-FR-042j`).
-8. **Given** a Pro cook whose plan lapses, **When** they open the pantry, **Then** every item and date is still
-   there, reminders and suggestions have stopped, and they come back if the cook subscribes again (FR-039).
+8. **Given** a Pro cook whose plan lapses, **When** they open the pantry, **Then** every item and date is still there.
+   Reminders and suggestions are off. If the cook subscribes again, they come back (FR-039).
 
 ---
 
@@ -121,19 +121,18 @@ Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#pla
   time zone, stored as an ISO 8601 date (`YYYY-MM-DD`) with no time part. The cook MUST be able to set, change and
   clear it, and to mark an item used, which removes it. Setting a date is a paid-plan feature (FR-039).
 - **FR-035**: The pantry prune MUST apply two rules. An item with no use-by date keeps today's rule: it is removed 7
-  days after its last update (plan §8, Resolved Question 6). An item with a use-by date MUST NOT be removed by the
-  7-day rule. It is removed when the cook removes it or marks it used, or 7 days after its use-by date has passed.
+  days after its last update (plan §8, Resolved Question 6). An item with a use-by date MUST NOT be removed by the 7-day
+  rule. Three things remove it: the cook removes it, the cook marks it used, or 7 days pass after its use-by date.
   Without this rule, the prune deletes every item whose date is more than a week away.
 - **FR-036**: Once a day, in the morning in the cook's time zone, the system MUST publish **one** in-app notification
-  through 014 to each Pro cook who has reminders on and has at least one item newly due. An item is due when its
-  use-by date is today or in the next 2 days. Each item is listed in at most one reminder for a given use-by date. A
-  changed date makes it due again. The notification's `messageType` is registered under its producer in 014's
-  registry (`014-FR-016`, `014-FR-041`), and its `idempotencyKey` is built from stored state, the cook and the
-  items with their dates, never from a clock or a random value (`014-FR-030`). Reminders are on by default for a
-  paid cook, and the cook can turn them off in settings. The setting is a typed, nullable column in identity's
-  settings table, and NULL means the default (ADR-0059). At launch the reminder is in-app only, because 014 has no
-  push or email transport (014 A-005). When 014 gains one, this FR does not change. The plan states how the cook's
-  time zone is known.
+  through 014. It goes to each Pro cook who has reminders on and at least one item newly due. An item is due on its
+  use-by date and on the 2 days before it. Each item is listed in at most one reminder for a given use-by date. A
+  changed date makes it due again. The notification's `messageType` is registered under its producer in 014's registry
+  (`014-FR-016`, `014-FR-041`). Its `idempotencyKey` is built from stored state: the cook, and the items with their
+  dates. It is never built from a clock or a random value (`014-FR-030`). Reminders are on by default for a paid cook,
+  and the cook can turn them off in settings. The setting is a typed, nullable column in identity's settings table, and
+  NULL means the default (ADR-0059). At launch the reminder is in-app only, because 014 has no push or email transport
+  (014 A-005). When 014 gains one, this FR does not change. The plan states how the cook's time zone is known.
 - **FR-037**: An item past its use-by date MUST be shown as past its date. It MUST NOT be used to rank a suggestion,
   and the app MUST NOT say or imply that the food is still safe to eat. The date is the cook's own, and the app
   makes no food-safety judgement about it.
@@ -144,8 +143,8 @@ Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#pla
     - **A match** is an ingredient line bound to the same food as the pantry item, by food id. An unresolved line
       never matches.
     - **Soon-to-expire** means a use-by date of today or the next 2 days, never a past date (FR-037).
-    - **The order**, each rule breaking the ties of the one before: more soon-to-expire items used, then the
-      earliest use-by date among them, then fewer ingredient lines the pantry does not hold, then the recipe id, so
+    - **The order** uses four rules. Each rule breaks the ties of the one before: more soon-to-expire items used, then
+      the earliest use-by date among them, then fewer ingredient lines the pantry does not hold, then the recipe id, so
       the order is stable.
     - Each suggestion MUST say which items it uses, so the cook can see why it is there.
     - The ranking is one pure function, testable with no database.
@@ -158,13 +157,13 @@ Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#pla
   them:
     - **One row per food, or one per pack.** `user_pantry_items` has the key `(owner_id, usda_fdc_id)`, so one food
       holds one row and one date. Two packs of milk with different dates cannot both be recorded. This spec requires
-      only that a cook can record when each item must be used.
+      only one thing: a cook can record a use-by date for each item.
     - **A cook's pantry or a household's.** `017-FR-030` shares plans, lists and aisle categories in a household, not
       the pantry. Until that is decided, the pantry belongs to the cook.
 
-    Every new pantry surface ships on web and mobile in the same release (CODING_STANDARDS §14), and goes through
-    `staff-ux-engineer` DESIGN and SPECIFY before it is built. The AI kind of waste optimization is a different
-    feature, `006-FR-027`, on Pro with AI only.
+    Every new pantry surface ships on web and mobile in the same release (CODING_STANDARDS §14). Each one goes through
+    `staff-ux-engineer` DESIGN and SPECIFY before it is built. The AI kind of waste optimization is a different feature,
+    `006-FR-027`, on Pro with AI only.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -175,8 +174,8 @@ Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#pla
 
 ### Key Entities
 
-- **Pantry Item**: A food the cook already has, persisted in `user_pantry_items`. It may carry a use-by date
-  (FR-034, Pro). It is removed by the cook, or by the prune rule of FR-035. _(Added 2026-10-27.)_
+- **Pantry Item**: A food the cook already has, persisted in `user_pantry_items`. It can carry a use-by date (FR-034,
+  Pro). It is removed by the cook, or by the prune rule of FR-035. _(Added 2026-10-27.)_
 - **Grocery List**: An aggregated, deduplicated list of ingredients. May be generated from a meal plan or created standalone. Items can be marked as "already have" or mapped to store products for online ordering. A list retains a nullable reference to its originating meal plan.
 
 ## API Contract & Input Validation (GR-015 / GR-016)
@@ -293,14 +292,14 @@ adapters are the **OPPOSITE** case:
   is generated from the storage schema and **no storage type enters a wire schema**. **A floor is not a target**:
   `grocery_lists.name` is unbounded `text()`, so its limit is a **product decision 007 owns**. Enforcement is the
   per-service parity test of GR-017 §17-d, its mapping asserted complete **in both directions**.
-- **Non-HTTP ingress — 007 has three.** (1) A **`@Cron` pantry-expiry prune**, implied by `user_pantry_items`' 7-day
-  TTL and, since 2026-10-27, by the use-by rule of FR-035, (2) the **order-status polling** loop, and (3) the daily
-  **use-by reminder scan** of FR-036 (added 2026-10-27). All three run in `@kitchensink/recipe-workers` and all three
-  parse their own event, because "the payload is ours" is an assumption about a deploy that has already drifted once.
-  **Order status is POLLING, not webhooks** — a deliberate MVP decision, since neither candidate partner
-  guarantees webhook delivery. ⚠️ **If a signed retailer callback is ever added it gets signature THEN schema**,
-  in that order (a signature proves **origin, not shape**), and per GR-018 §18-c a sender that retries on any
-  non-2xx is answered **`2xx`** with the rejection in the body, the logs, a per-`reason` counter and an alarm.
+- **Non-HTTP ingress — 007 has three.** (1) A **`@Cron` pantry-expiry prune**, implied by `user_pantry_items`' 7-day TTL
+  and, since 2026-10-27, by FR-035's use-by rule. (2) The **order-status polling** loop. (3) The daily **use-by reminder
+  scan** of FR-036 (added 2026-10-27). All three run in `@kitchensink/recipe-workers`. Each parses its own event,
+  because "the payload is ours" is an assumption about a deploy that has already drifted once. **Order status is
+  POLLING, not webhooks** — a deliberate MVP decision, since neither candidate partner guarantees webhook delivery. ⚠️
+  **If a signed retailer callback is ever added it gets signature THEN schema**, in that order (a signature proves
+  **origin, not shape**), and per GR-018 §18-c a sender that retries on any non-2xx is answered **`2xx`** with the
+  rejection in the body, the logs, a per-`reason` counter and an alarm.
 - **No request-derived value reaches `sql.raw()`**; a request-selected sort or aisle grouping maps through a
   validated enum to a **closed allowlist of literals** in code.
 

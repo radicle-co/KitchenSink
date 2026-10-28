@@ -19,7 +19,7 @@ import { openRecipeEditor } from './utils/recipeEditor';
  * VERSION_CONFLICT`, enriched with the W8-a.5 `server`/`base` `VersionConflictSide` sides); the rebuilt
  * `RecipeConflictView` then presents the per-side banner, the changed-only diff (markers + legend), the
  * three A/B/C option cards, and — for Option C — a per-element merge panel gated on an explicit selection.
- * This is the W7 REWRITE of the pre-rebuild spec: the old "Merge field by field" / "Save my choices" flow
+ * This is the W7 REWRITE of the pre-rebuild spec: the old "Merge field by field" / "Save merged version" flow
  * asserted a 2-way `mine`/`theirs` model and stale button copy; this rewrite asserts the CURRENT
  * `versions/messages.ts` copy verbatim and exercises Options B and C against the new UI (`RecipeEditorContainer`
  * → `useRecipeEditor` → `RecipeConflictView`). The seed is PUBLISHED, so the losing write is Save changes (slice 7, D1). Owner actions gate on the Clerk `external_id` claim, so every
@@ -143,8 +143,8 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         await enterConflict(page, { serverChanges: { servings: 8 } });
 
         // The two side cards (no version numbers, no banner): theirs first, then yours.
-        await expect(page.getByText('Saved elsewhere')).toBeVisible();
-        await expect(page.getByText('Your changes')).toBeVisible();
+        await expect(page.getByText('Saved elsewhere', { exact: true })).toBeVisible();
+        await expect(page.getByText('Your changes', { exact: true })).toBeVisible();
 
         // Changed-only diff (X1/X7): title (mine changed it) and servings (theirs changed it) — Server's
         // value rendered BEFORE Yours on each row.

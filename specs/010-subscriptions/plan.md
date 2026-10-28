@@ -453,6 +453,10 @@ Response:
 > a free cook can hold 50 private recipes (ADR-0073), so it is not a route guard. Clone-to-private for imported
 > recipes is the same slot rule. The AI rows use credits, not a yes or no check (`005-FR-015a`). The
 > [plan register](./spec.md#plan-register) says which plan carries each row.
+>
+> Since the Pro-match ruling of 2026-10-27, auto-generated meal plans are on both paid plans. Only AI food waste
+> optimization needs Pro with AI. A single paid flag can gate the meal-plan row, but not the waste row. The new Pro
+> pantry endpoints (`007-FR-034` to `007-FR-040`) are a paid-plan check with no credit use.
 
 ### @RequirePremium() Applied Per Feature
 

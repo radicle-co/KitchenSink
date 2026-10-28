@@ -789,6 +789,44 @@ they do not create a second mechanism.
   decided.
 - **FR-053g**: The dashboard MUST be gated by a dedicated review scope, distinct from any other administrative
   capability, so reviewing notices does not confer unrelated administrative power.
+- **FR-053h** _(added 2026-10-27, owner ruling,
+  [ADR-0076](../../docs/architecture/decisions/0076-founder-reviews-at-launch-with-a-paid-backup.md))_: At launch, the
+  founder decides notices and 020's referrals. One paid backup reviewer covers the founder. The owner ruled on
+  2026-10-27 that "the founder reviews flagged public content at launch, with a paid backup reviewer of about $555 a
+  month". The rules:
+    - **The backup** is a named, part-time, hourly employee of the operator, so `020-FR-026b` holds for referrals. The
+      budget is about 4 hours a week at $32.01 an hour, which is about $555 a month. The rate is the BLS 43-4051 median
+      wage times a 1.429 employer load. Extra hours are paid at the same rate.
+    - **Each reviewer** has their own account with the review scope (`FR-053f`, `FR-053g`), and is trained on the
+      written review guideline before the scope is granted.
+    - **Scheduled hours.** The backup's regular hours are review on days the founder is off.
+    - **Planned absence.** The founder records each planned absence in a rota before it starts. During it, the
+      backup is the first reviewer.
+    - **Unplanned absence.** A notice still undecided at half its `FR-017a` target MUST page the founder and the
+      backup together: at 12 hours for the 24-hour tier, and at 3.5 days for the 7-day tier. If it is still undecided
+      2 hours after the page, the backup decides it. This page comes before the deadline. `FR-017c`'s alert comes
+      only after it.
+    - **Both unavailable.** The notice goes overdue and `FR-017c` alerts. The miss counts toward `FR-053i`. No timer
+      publishes or removes anything.
+    - The 24-hour and 7-day targets of `FR-017a`, and every other requirement of this spec, are unchanged. Only who
+      does the work changes.
+- **FR-053i** _(added 2026-10-27, owner ruling, ADR-0076)_: A volume trigger MUST start the hire of the half-time
+  reviewer (0.5 FTE, an employee). This FR is the one place the trigger is defined. Any one of these fires the trigger:
+    - **Review load** is above 20 hours a week for 4 weeks in a row. A week's review load is the number of items
+      decided that week (notices, 020 referrals and appeals) times the median handling minutes per item. At 3
+      minutes an item, 20 hours is 400 items a week.
+    - **The notice target.** Fewer than 95% of `copyright` and `illegal_content` notices are decided within 24 hours
+      over any rolling 4 weeks (`SC-015`).
+    - **Backup hours** are above 8 a week, twice the budget, for 4 weeks in a row.
+    - **Referral wait.** The median time from a 020 referral to its decision is above 72 hours for 4 weeks in a row.
+      This is a staffing signal only. It is not a decision time target, it promises the cook nothing, and
+      `020-FR-030` is unchanged.
+
+    The dashboard MUST record the handling minutes of each decision, from the moment a reviewer opens the item to the
+    moment the decision is saved. It MUST show each measure every week. When a trigger fires, it MUST raise an
+    operational alert to the owner. The owner starts the hire. Until the new reviewer starts, the backup works more
+    hours at the hourly rate. The numbers above are a first setting from the 2026-10-27 path-to-success analysis and
+    from `SC-015`, not from measured load. Shadow mode (`020-FR-039a`) gives the first forecast of that load.
 
 #### J. Records and auditability
 
@@ -887,6 +925,8 @@ they do not create a second mechanism.
   and 95% of all others within 7 days. Every breach is visible as overdue rather than discovered later.
 - **SC-016**: Zero records persist past their retention period without a recorded legal hold, and zero
   reporter contact details survive a closed counter-notice window.
+- **SC-017** _(added 2026-10-27)_: Every notice still undecided at half its target pages both reviewers
+  (`FR-053h`), and every measure of `FR-053i` is visible on the dashboard each week.
 
 ## Assumptions
 
@@ -916,6 +956,8 @@ they do not create a second mechanism.
   adjudication surface.
 - **A human decides notices.** Volume is low; no automated adjudication is specified, and `FR-018`'s
   "whether automated means were used" is therefore expected to read "no" at launch.
+- **At launch that human is the founder, with a paid backup** (`FR-053h`, owner ruling, 2026-10-27). `FR-053i`'s trigger
+  starts the hire of a half-time reviewer.
 - **The federal US auto-renewal rule is absent, not pending.** It was vacated in July 2025 and re-proposed in
   March 2026; `FR-040`–`FR-043` are written to the stricter state regimes and platform rules instead, which
   makes them robust to whatever replaces it. _(Checked again 2026-10-26: still not in force. The FTC still enforces
@@ -1090,6 +1132,18 @@ are specified in `001/data-model.md`, and both are implementation work requiring
     public-by-default pattern `FR-038` and feature `015` exist to remove. It is materially weaker here — the
     content was already public, so what is newly exposed is the _cloner's association_ with it rather than the
     content — but it is not nothing, and it is recorded rather than re-litigated.
+
+### Session 2026-10-27: who reviews at launch (owner ruling)
+
+- **C-016-004: the founder reviews at launch, a paid backup covers, and a half-time reviewer is hired on a volume
+  trigger.** The owner ruled on 2026-10-27 that "the founder reviews flagged public content at launch, with a paid
+  backup reviewer of about $555 a month, and the half-time reviewer is hired when a volume trigger is met." The
+  24-hour target stays, and every legal requirement stays. Only who does the work, and when, changes. The business
+  plan had budgeted a half-time employee reviewer from the first month, at about $2,773 a month. No requirement in
+  this spec or in 020 asked for that. They asked only that a person decides, within `FR-017a`'s targets, and that a
+  recipe reviewer is an employee (`020-FR-026b`). `FR-053h` says who reviews and how the backup is engaged.
+  `FR-053i` defines the trigger. [ADR-0076](../../docs/architecture/decisions/0076-founder-reviews-at-launch-with-a-paid-backup.md)
+  records the decision.
 
 ## Owner decisions required
 

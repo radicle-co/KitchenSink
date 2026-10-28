@@ -108,11 +108,26 @@ class, and it is not claimed to be more.
   on Bedrock, it is a new `SPEND_CALL_SITES` entry under the one verification role (ADR-0024 layer 4b), never a second
   role with `bedrock:InvokeModel`. Which model and provider an allowance-funded call uses is a plan decision for this
   feature.
-- **FR-015f** _(new 2026-10-26, amended 2026-10-27)_: A Free cook gets **3 single-call uses a month** and nothing
-  more. A Pro cook gets 30 (`FR-015a`). **Auto-generated meal plans and food waste optimization are Pro with AI only.**
-  Free and Pro uses cover single-call features such as one recipe or one set of suggestions. A Free cook has no own-key
-  fallback (`FR-015`). While the subscription page is not live, a cook without credits sees no AI upsell (010
-  `FR-042j`).
+- **FR-015f** _(new 2026-10-26, amended 2026-10-27, and amended again 2026-10-27 by the Pro-match ruling)_: A Free cook
+  gets **3 single-call uses a month** and nothing more. A Pro cook gets 30 (`FR-015a`). **Auto-generated meal plans are
+  in Pro and Pro with AI. Food waste optimization is Pro with AI only.** 010's
+  [plan register](../010-subscriptions/spec.md#plan-register) is the authority for both. Free uses cover single-call
+  features such as one recipe or one set of suggestions. Pro and Pro with AI uses also cover meal plans. Every model
+  call is one use, as `FR-015a` defines, whatever it produces. A meal plan made in one call costs one use. A plan
+  feature that makes more than one call costs one use per call. The cook MUST see that number before it runs
+  (`006-FR-026`). A Free cook has no own-key fallback (`FR-015`). While the subscription page is not live, a cook
+  without credits sees no AI upsell (010 `FR-042j`).
+
+    > **Owner ruling, 2026-10-27 (Pro match).** "Pro stays at $99.99 a year, and Free keeps its 50 private recipes.
+    > Pro matches Samsung Food+'s $59.99 features." On meal plans: "A Pro cook can generate meal plans with their 30
+    > monthly AI uses. One call to the model is one use." Pro with AI keeps its 300 uses and AI waste optimization.
+    > Was: "Auto-generated meal plans and food waste optimization are Pro with AI only."
+    >
+    > **Cost risk, recorded and not reopened.** `FR-015c`'s cost of about $0.0069 a use was worked out for one
+    > recipe. A week's plan made in one call has a much longer answer, so one use can cost several times that. The
+    > one-call-one-use rule stands. The plan for `006-FR-026` MUST measure the real cost of a plan call and cap its
+    > output tokens under ADR-0024's reservation rule.
+
 - **FR-016**: System MUST call the user's configured AI provider to generate recipes based on criteria (ingredients, dietary restrictions, cuisine, calorie targets) and return results within the app.
 - **FR-017**: System MUST allow users to preview AI-generated recipes before optionally saving them to their collection.
 - **FR-018**: System MUST expose an OAuth 2.1-protected API that allows authorized external agents (e.g., ChatGPT GPT Actions, Gemini Extensions) to read the user's recipe collection and create recipes on their behalf. Users MUST explicitly grant consent before any agent can access their account. Read access (`recipes:read`) and write access (`recipes:create`) are separate grants requiring separate, clearly labeled consent steps; users may grant read without granting write, and the two MUST be presented as two distinct checkboxes, never a bundled grant. **The consent surface is Commise's own UI, and the grant is stored in Commise's own record — it is NOT the identity provider's consent screen.** Identity is proven by the provider's OAuth flow; authorization (which scopes an agent holds) is owned and enforced by Commise. _(Decision D-001, 2026-05-10; mechanism revised 2026-08-02 — see ADR-0012)_

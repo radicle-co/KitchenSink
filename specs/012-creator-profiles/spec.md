@@ -13,12 +13,13 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 
 ## Dependencies
 
-| Spec                                                          | Relationship                                                                                                                                                                   |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account                                                                    |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — recipes are the primary content surface on a creator profile                                                                                                    |
-| [010-subscriptions](../010-subscriptions/spec.md)             | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001. |
-| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                          |
+| Spec                                                                            | Relationship                                                                                                                                                                   |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [002-user-auth](../002-user-auth/spec.md)                                       | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account                                                                    |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                     | **Required** — recipes are the primary content surface on a creator profile                                                                                                    |
+| [010-subscriptions](../010-subscriptions/spec.md)                               | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001. |
+| [011-recipe-digitization](../011-recipe-digitization/spec.md)                   | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                          |
+| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md) | **Required (2026-10-27).** Owns what a signed-out visitor sees, the open-to-web rule, indexing, previews and takedown reach. Resolves the conflict with `001-FR-045`           |
 
 > **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
 > name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
@@ -34,6 +35,16 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 ## Audience Scope Defined Here
 
 `public-profile`: content visible to any unauthenticated visitor on a creator's `/@handle` page. It is distinct from `circle` (private invite groups, owned by 011) and `published-lesson` (lesson/course access rules applied by 013).
+
+> **Amended 2026-10-27 (owner ruling, [021](../021-public-discovery-and-sharing/spec.md)). The conflict with
+> `001-FR-045` is resolved.** 001 required sign-in for everything, while this page was "viewable without
+> authentication". The owner ruled for signed-out creator pages. Owner, 2026-10-27: "Let's add a feature and spec for
+> indexing and sharing as you note." The accepted recommendation allows signed-out reading of public recipes that
+> cooks wrote themselves, and of creator pages. Everything else stays behind sign-in. `001-FR-045` now names this page
+> as an exception. To a signed-out visitor the page lists only recipes that are **open to the web** (`021-FR-002`):
+> recipes the cook wrote, never imported ones. A signed-in visitor sees every public recipe the creator owns. Public
+> collection pages stay behind sign-in until the owner answers 021's Q2 (`021-FR-008`). 021 owns the page's search,
+> preview, privacy and takedown rules. The requirements below are amended to match.
 
 ## Source-of-Truth Note
 
@@ -89,11 +100,11 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Public Profile URL & Discovery (FR-006 … FR-009)
 
-- **FR-006** _(domain corrected 2026-10-26, owner ruling)_ Every active `CreatorProfile` MUST be accessible at `commise.app/@{handle}` (canonical URL) without authentication.
+- **FR-006** _(domain corrected 2026-10-26, owner ruling. Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Every active `CreatorProfile` MUST be accessible at `commise.app/@{handle}` (canonical URL) without authentication, as `001-FR-045` now allows. A deactivated or suspended profile gets 021's one not-available answer (`021-FR-013`). An erased cook's handle, and a renamed handle, is never given to another account (`021-FR-073`).
 
-- **FR-007** Profile pages MUST be server-side rendered (Next.js SSR) with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields.
+- **FR-007** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Profile pages MUST be server-side rendered with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields. Indexing, `ProfilePage` structured data, canonical addresses and sitemaps follow `021-FR-020` to `021-FR-029a`. A page with no indexable recipe answers `noindex` (`021-FR-025`). The HTML response is the same for every viewer and sets no cookie (`021-FR-012`).
 
-- **FR-008** The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes.
+- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`), at most 24 per page, and no public collections until 021's Q2 is answered (`021-FR-015`, `021-FR-008`). The avatar address carries no user id (`021-FR-071`).
 
 - **FR-009** Follower lists MUST NOT be publicly visible; only the aggregate `followerCount` is exposed.
 
@@ -129,7 +140,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-021** A suspended creator MUST receive an in-app notification stating the reason and an appeal path.
 
-- **FR-022** DMCA takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice.
+- **FR-022** DMCA takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice. _(Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md).)_ The route is 016's one notice mechanism (`016-FR-026`). Every public page carries a Report link to it (`021-FR-045`). A removal reaches every public surface within 021's purge bound (`021-FR-061`).
 
 ### Analytics (FR-023 … FR-025)
 
@@ -141,7 +152,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Embed Widget (FR-026 … FR-027)
 
-- **FR-026** `GET /api/v1/creators/:handle/widget` MUST return a static HTML fragment (no JavaScript) rendering: avatar, display name, follower count, and the 3 most-recently-published public recipes.
+- **FR-026** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ `GET /api/v1/creators/:handle/widget` MUST return a static HTML fragment (no JavaScript) rendering: avatar, display name, follower count, and the 3 most-recently-published recipes that are open to the web. The widget is signed-out, so it reads 021's one open-to-web rule (`021-FR-001`) and never lists an imported recipe.
 
 - **FR-027** The widget response MUST carry `Cache-Control: public, max-age=300` for CloudFront CDN caching; p95 latency on a cache hit MUST be < 50 ms.
 

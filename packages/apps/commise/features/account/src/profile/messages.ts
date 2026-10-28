@@ -35,7 +35,11 @@ export interface ProfileMessages {
     readonly namePrompt: string;
     /** The hint under the display-name field: where the name shows. */
     readonly nameHint: string;
-    /** The username as the header shows it, read-only (contains `{username}`): "@braise". */
+    /** The label of the read-only username row. */
+    readonly usernameLabel: string;
+    /** The label of the read-only email row. */
+    readonly emailLabel: string;
+    /** The username as its row shows it, read-only (contains `{username}`): "@braise". */
     readonly usernameValue: string;
     /** The counter under the field near its limit; `{count}` and `{max}` are filled in ("85/100"). */
     readonly nameCounter: string;
@@ -93,6 +97,8 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         displayNameUnset: 'Add your name',
         namePrompt: 'What should we call you?',
         nameHint: 'Shown next to your username on recipes you publish.',
+        usernameLabel: 'Username',
+        emailLabel: 'Email',
         usernameValue: '@{username}',
         nameCounter: '{count}/{max}',
         nameLimitReached: 'That is the longest name we can take.',

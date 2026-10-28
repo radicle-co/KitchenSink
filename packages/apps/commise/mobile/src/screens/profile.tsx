@@ -150,7 +150,12 @@ function ProfileSurface({ scrollBind, inset, headingId, onOpenDataSources }: Pro
                         </Text>
                     )}
                     {read.status === 'ready' ? (
-                        <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet} />
+                        <ProfileAccountGroup
+                            displayName={read.displayName}
+                            username={read.username}
+                            email={read.email}
+                            onEditDisplayName={editor.openSheet}
+                        />
                     ) : null}
                     <ProfileGroup heading={t.preferences}>
                         <ProfileRow label={t.dataSources} tone="ink" chevron onPress={onOpenDataSources} />

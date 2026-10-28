@@ -4,16 +4,16 @@
     "packageName": "@commise/features-account",
     "layer": "feature",
     "coverage": {
-        "components": 7,
-        "implementations": 13,
-        "props": 82,
-        "documentedComponents": 7,
-        "implementationsWithModuleDoc": 13,
-        "implementationsWithComponentDoc": 11,
-        "documentedProps": 64,
-        "classifiedComponents": 5,
+        "components": 8,
+        "implementations": 15,
+        "props": 88,
+        "documentedComponents": 8,
+        "implementationsWithModuleDoc": 15,
+        "implementationsWithComponentDoc": 13,
+        "documentedProps": 66,
+        "classifiedComponents": 6,
         "componentsWithPatternTag": 4,
-        "crossPlatformComponents": 6
+        "crossPlatformComponents": 7
     },
     "components": [
         {
@@ -573,7 +573,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileAccountGroup — the Profile page's \"Account\" group, once for both apps:\nthe display-name row that opens the editor sheet.\n\nBoth pages draw the same row with the same value rule (the name, or \"Add your name\" when none is saved). The username\nand email are read once, in the header, on both apps (owner ruling 2026-10-16), so this group holds no read-only rows.\n\nPresentational: props → JSX. The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one\nmodule serves both platforms.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileAccountGroup — the Profile page's \"Account\" group, once for both apps:\nthe display-name row that opens the editor sheet.\n\nBoth pages draw the same row with the same value rule (the name, or \"Add your name\" when none is saved). After it come\nthe read-only Username (only when the cook has one — never a \"Not set\" they cannot act on) and Email rows. They show\nhere once and not in the header (owner ruling S2, 2026-10-27, replacing the 2026-10-16 ruling that read them there).\n\nPresentational: props → JSX. The leaves it composes (`ProfileGroup`, `ProfileRow`) resolve to their web or native file at bundle time, so this one\nmodule serves both platforms.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -595,6 +595,15 @@
                             "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
                         },
                         {
+                            "name": "email",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The account's email.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
+                        },
+                        {
                             "name": "onEditDisplayName",
                             "type": "() => void",
                             "typeDetail": null,
@@ -602,6 +611,120 @@
                             "defaultValue": null,
                             "description": "Open the display-name editor.",
                             "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
+                        },
+                        {
+                            "name": "username",
+                            "type": "string | null",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The Clerk username, or `null` when the cook has none.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/ProfileAccountGroup.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/profile/ProfileFactRow",
+            "name": "ProfileFactRow",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ProfileFactRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (web): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill, so nothing invites a press that does nothing. A long value wraps anywhere rather than\noverflowing 320 px.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (web): the label and a value the"
+                        }
+                    ],
+                    "description": "The read-only row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "ProfileFactRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (native): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill. The value takes the room the label leaves and wraps, so a long email never runs off the screen.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (native): the label and a value the"
+                        }
+                    ],
+                    "description": "The read-only row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -760,7 +883,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileHeader.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (web): a 72 px avatar\ndisc, the display name, the \"@username\" (read-only — Clerk owns it; plan 2026-10-15-010 D12) and the email\n(`buildSpec.md` §9.1, §3.8). A cook with no username sees no username line, never a \"Not set\" they cannot act on.\n\nThree states, never a blocked page: loading is a skeleton (the groups under it still render), ready is the name and\nemail, and failed shows the `user` glyph and says so with a Try again control. A cook with no name yet sees only the\nemail: the page never invents one.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (web): a 72 px avatar\ndisc and the display name (`buildSpec.md` §9.1, §3.8). The read-only username and email are NOT here: they show once,\nin the Account group (`ProfileAccountGroup`), because a fact the page does not let you edit is shown one time (owner\nruling S2, 2026-10-27, which replaces the 2026-10-16 ruling that read them in the header).\n\nThree states, never a blocked page: loading is a skeleton (the groups under it still render), ready is the avatar and\nthe name, and failed shows the `user` glyph and says so with a Try again control. A cook with no name yet sees only the\navatar: the page never invents one.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -825,7 +948,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileHeader.native.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar,\nthe display name and the email (`buildSpec.md` §9.1, §3.8). The cook's photo control (`AvatarField`) stays an\napp-level native control; the host passes it as `avatar` and it replaces the initials disc, so there is one avatar.\n\nThree states, never a blocked page: loading is a skeleton, ready is the name and email, failed shows the `user`\nglyph and says so with a Try again control. Colour comes from the theme at render.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar,\nand the display name (`buildSpec.md` §9.1, §3.8). The read-only username and email show once, in the Account group,\nnot here (owner ruling S2, 2026-10-27). The cook's photo control (`AvatarField`) stays an\napp-level native control; the host passes it as `avatar` and it replaces the initials disc, so there is one avatar.\n\nThree states, never a blocked page: loading is a skeleton, ready is the avatar and the name, failed shows the `user`\nglyph and says so with a Try again control. Colour comes from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",

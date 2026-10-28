@@ -47,6 +47,12 @@ export interface ProfileRowProps {
     readonly focusSignal?: number;
 }
 
+/** A read-only Profile row: a label and a fact the cook cannot change here. */
+export interface ProfileFactRowProps {
+    readonly label: string;
+    readonly value: string;
+}
+
 /** The header: the avatar disc, the name and the email — or its loading skeleton, or its failure. */
 export interface ProfileHeaderProps {
     readonly read: ProfileRead;

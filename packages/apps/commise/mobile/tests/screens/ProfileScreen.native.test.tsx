@@ -204,22 +204,23 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(backs[0]!.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    // Owner 2026-10-13: the Email row stays OUT (a3e787f52, evaluateFinal.md). The header is the identity block and
-    // carries the address; a read-only Email row repeats it.
-    it('shows the email once, in the header, and the display-name row in the Account group', () => {
+    // Owner ruling S2 (2026-10-27), replacing 2026-10-13/16: the header is the avatar and the name, and the read-only
+    // Email is a row in the Account group, so the address shows once.
+    it('shows the email once, as a read-only Account row, and the display-name row in the same group', () => {
         renderProfile();
 
         const account = screen.getByRole('button', { name: t.displayName });
         expect(account.textContent).toContain('Eliza Moreno');
         expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
-        expect(screen.queryByText('Email')).toBeNull();
+        expect(screen.getByText('Email')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Email/u })).toBeNull();
     });
 
-    // Plan 2026-10-15-010 D12: the header carries the username, read-only; native has no Account row for it.
-    it('shows the username once, read-only, in the header', () => {
+    it('shows the username once, as a read-only Account row', () => {
         renderProfile();
 
         expect(screen.getAllByText('@braise')).toHaveLength(1);
+        expect(screen.getByText('Username')).toBeTruthy();
     });
 
     it('shows no username line for a cook without one', () => {
@@ -235,10 +236,10 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(screen.getAllByRole('button', { name: 'Pick photo' })).toHaveLength(1);
         // The initials disc is the photo control's fallback, not a second disc beside it.
         expect(screen.queryByText('EM')).toBeNull();
-        // It stands in the header row, beside the name and the address (not in the Account group's card).
+        // It stands in the header row, beside the name (not in the Account group's card).
         const photoControl = screen.getByRole('button', { name: 'Pick photo' });
-        const email = screen.getAllByText('eliza@example.com')[0] as HTMLElement;
-        expect(photoControl.parentElement?.parentElement).toBe(email.parentElement?.parentElement);
+        const name = screen.getAllByText('Eliza Moreno')[0] as HTMLElement;
+        expect(photoControl.parentElement?.parentElement).toBe(name.parentElement?.parentElement);
     });
 
     it('hands the photo control the cook’s initials as its no-photo fallback', () => {

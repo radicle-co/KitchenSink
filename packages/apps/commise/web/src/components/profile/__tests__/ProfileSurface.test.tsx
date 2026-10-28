@@ -124,22 +124,24 @@ describe('ProfileSurface — the page', () => {
         expect(screen.getAllByText(/Back to Home|Home/).length).toBeGreaterThan(0);
     });
 
-    // Owner ruling 2026-10-16: "Header only, like mobile" - the email is read once, in the header.
-    it('shows the name and the email once, in the header, when the profile is ready', () => {
+    // Owner ruling S2 (2026-10-27), replacing 2026-10-16's "header only": the header is the avatar and the name; the
+    // read-only email is a row in the Account group, so it shows once.
+    it('shows the name in the header and the email once, as a read-only Account row', () => {
         mount();
 
         expect(screen.getAllByText('Eliza Moreno').length).toBeGreaterThan(0);
         expect(screen.getAllByText('eliza@example.com')).toHaveLength(1);
-        expect(screen.queryByText('Email')).toBeNull();
+        expect(screen.getByText('Email')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Email/u })).toBeNull();
         expect(screen.getByRole('button', { name: /Display name/ })).toBeTruthy();
     });
 
-    // Plan 2026-10-15-010 D12 (amended 2026-10-16): the username is read-only (Clerk owns it) and shown once, in the header.
-    it('shows the username once, in the header, with no row and no way to edit it', () => {
+    // Plan 2026-10-15-010 D12 (amended by S2): the username is read-only (Clerk owns it) and shows once, as a row.
+    it('shows the username once, as a read-only Account row with no way to edit it', () => {
         mount();
 
         expect(screen.getAllByText('@braise')).toHaveLength(1);
-        expect(screen.queryByText('Username')).toBeNull();
+        expect(screen.getByText('Username')).toBeTruthy();
         expect(screen.queryByRole('button', { name: /Username/u })).toBeNull();
     });
 

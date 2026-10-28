@@ -27,7 +27,7 @@ describe('ProfileHeader (web)', () => {
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
-    it('shows the name and the email once ready, with the initials decorative', () => {
+    it('shows the avatar and the display name once ready, with the initials decorative', () => {
         render(
             <ProfileHeader
                 read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
@@ -37,24 +37,14 @@ describe('ProfileHeader (web)', () => {
         );
 
         expect(screen.getByText('Eliza Moreno')).toBeTruthy();
-        expect(screen.getByText('eliza@example.com')).toBeTruthy();
+        // S2: facts the page does not let you edit show once, in the Account group, never also in the header.
+        expect(screen.queryByText('eliza@example.com')).toBeNull();
         expect(screen.getByText('EM').getAttribute('aria-hidden')).toBe('true');
     });
 
-    it('lets an unbroken email wrap anywhere instead of overflowing 320 px', () => {
-        render(
-            <ProfileHeader
-                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: null }}
-                initials=""
-                onRetry={noop}
-            />,
-        );
-
-        expect(screen.getByText('a@b.co').className).toContain('[overflow-wrap:anywhere]');
-    });
-
-    // Plan 2026-10-15-010 D12: the public "@username" under the display name, read-only (Clerk owns it).
-    it('shows the username under the name, read-only, when the cook has one', () => {
+    // S2 (owner, 2026-10-27): the header is the avatar and the display name. The read-only username and email show once,
+    // in the Account group (`ProfileAccountGroup`), so a cook sees each fact one time.
+    it('shows neither the username nor the email in the header', () => {
         render(
             <ProfileHeader
                 read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: 'braise' }}
@@ -63,21 +53,22 @@ describe('ProfileHeader (web)', () => {
             />,
         );
 
-        expect(screen.getByText('@braise')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: /username/iu })).toBeNull();
+        expect(screen.getByText('Eliza Moreno')).toBeTruthy();
+        expect(screen.queryByText('@braise')).toBeNull();
+        expect(screen.queryByText('eliza@example.com')).toBeNull();
     });
 
-    it('shows no username line for a cook without one — never a “Not set” with no way to set it', () => {
+    it('shows no text at all for a cook with no name yet — the page never invents one', () => {
         render(
             <ProfileHeader
-                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
-                initials="EM"
+                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: null }}
+                initials=""
                 onRetry={noop}
             />,
         );
 
-        expect(screen.queryByText(/^@/u)).toBeNull();
-        expect(screen.getByText('eliza@example.com')).toBeTruthy();
+        expect(screen.queryByText('a@b.co')).toBeNull();
+        expect(screen.queryByText('Add your name')).toBeNull();
     });
 
     it('reports a failed read with a Try again control that retries', async () => {

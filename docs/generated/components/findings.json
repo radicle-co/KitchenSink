@@ -9,7 +9,7 @@
         "platform-singleton": 70,
         "ref-api": 15,
         "unclassified-layer": 92,
-        "undocumented-prop": 175
+        "undocumented-prop": 177
     },
     "findings": [
         {
@@ -3972,6 +3972,28 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresAccount/profile/ProfileFactRow",
+            "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "label",
+                "value"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresAccount/profile/ProfileFactRow",
+            "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "label",
+                "value"
             ]
         },
         {

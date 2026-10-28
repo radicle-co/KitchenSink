@@ -8,6 +8,9 @@
  * while a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own
  * remaining time.
  *
+ * It also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button
+ * rises above the bar instead of sitting under it.
+ *
  * @pattern Mediator — the host stands between the screens that ask and the one snackbar that shows; the queue's rules
  *     are the pure reducer's (State + Command)
  */
@@ -17,6 +20,7 @@ import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { PopupInsetsContext } from '../popupInsets/popupInsetsContext.js';
 import { nativeTokens } from '../tokens/native.js';
 import { SNACKBAR_GAP, type SnackbarHostProps } from './props.js';
+import { SnackbarClearanceContext } from './snackbarClearanceContext.js';
 import { SnackbarContext } from './snackbarContext.js';
 import { UndoSnackbar } from './UndoSnackbar.native.js';
 import { useSnackbarQueue } from './useSnackbarQueue.js';
@@ -27,6 +31,7 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const readInsets = useContext(PopupInsetsContext);
     const [bottom, setBottom] = useState(SNACKBAR_GAP);
     const [screenReader, setScreenReader] = useState(false);
+    const [regionHeight, setRegionHeight] = useState(0);
     const { current } = queue;
     const action = current?.input.action;
     const currentId = current?.id;
@@ -72,13 +77,15 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
                 },
             }}
         >
-            {children}
+            {/* The measured height, or 0 when nothing shows, so the floating create button can rise above the bar. */}
+            <SnackbarClearanceContext value={current === null ? 0 : regionHeight}>{children}</SnackbarClearanceContext>
             <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
                 <View
                     collapsable={false}
                     role="status"
                     aria-live="polite"
                     pointerEvents="box-none"
+                    onLayout={(event) => setRegionHeight(event.nativeEvent.layout.height)}
                     style={[styles.region, { bottom }]}
                 >
                     {current === null ? null : (

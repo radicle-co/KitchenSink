@@ -330,13 +330,15 @@ editing (`001-FR-003b`), which closes the Draft path.
   citation, one unproven quote) sends the whole recipe to staff. That is the ruling's intent, and its cost is staff
   time.
 - **The queue has no automatic way out.** With no time target and no automatic release, a backlog means cooks wait.
-  With the owner as the only reviewer, a busy week, a spent AI budget or one curated book can hold recipes for a long
-  time. The forecast shows this before launch. Nothing in the design can make it go away.
+  At launch the reviewers are the founder and a paid backup (spec 016 `FR-053h`, owner ruling, 2026-10-27). A busy
+  week, a spent AI budget or one curated book can still hold recipes for a long time. `016-FR-053i`'s trigger hires a
+  half-time reviewer when the load is measured, and it does not shorten a backlog that already exists. The forecast shows this before launch. Nothing in the design can make it go away.
 - **A curated book is a one-time backlog of close to all its recipes.** Old cookbooks carry page references. A staff
   source decision approving the book makes its source reference green, but each recipe's text still needs a person
   unless it is all green.
-- **"A different reviewer" for an appeal of a person's hold** (FR-026a) needs two staff reviewers. With one, the same
-  person decides, and the record says so.
+- **"A different reviewer" for an appeal of a person's hold** (FR-026a) needs two staff reviewers. From launch there
+  are two, the founder and the paid backup (2026-10-27). When one of them cannot act, the same person decides, and
+  the record says so.
 - **The duplicate lookup can only see what we keep.** An erased or deleted recipe's match text is gone, so a copy of a
   recipe a person approved for an erased cook is judged afresh. A held recipe that was erased can still be caught as an
   exact copy, by the hash kept on its hold decision, but not as a near copy.

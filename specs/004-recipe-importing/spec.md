@@ -862,6 +862,14 @@ The section above decides **who authors** the contract; this one is where it **r
   One draft per recipe (so nothing is fabricated and every rule still applies), with **split review**: complete
   drafts confirm in one action, incomplete ones are surfaced individually. Bulk **URL** submission stays out of
   scope — it multiplies outbound fetching for a far rarer case.
+    > ⚠️ **Switching at launch.** Owner ruling, 2026-10-27: "Include the other recommendations in either new
+    > features or expanding existing features." The formats and paths for launch are in
+    > [017's FR-016a](../017-recime-parity/spec.md). They are Paprika `.paprikarecipes`, Mela `.melarecipes`, Plan to
+    > Eat CSV and Mealie JSON. Copy Me That and Crouton follow a plan-time check of a real export. ReciMe and AnyList
+    > have no bulk export, so each gets a per-recipe path. A guided "Switch from another app" flow wraps this decision
+    > (`017-FR-016b`). Each migrated recipe still carries its own statement. The file's source field prefills it
+    > where there is one (`017-FR-016c`). Export out of Commise in open formats is `017-FR-018a` to `017-FR-018c`.
+    > Every new surface here needs `staff-ux-engineer` DESIGN and SPECIFY before it is built.
 - **D-010 (Mutation thresholds, 2026-08-02)**: Mutation testing is gated **where it is meaningful, not
   uniformly**. The pure core carries a hard threshold — `policy/` and `normalize/` at **90%**, `ssrf-guard.ts`
   at **95%**, `extractors/` at **80%** — and the build fails below it. I/O-heavy adapters are **reported but

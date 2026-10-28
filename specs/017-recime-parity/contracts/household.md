@@ -30,7 +30,12 @@
 2. **The last active owner cannot leave.** `DELETE` on the sole owner is `409`, not a silent orphan.
 3. `seats.allowance` is read from the signed `public_metadata` claim `010-FR-044` already publishes.
    ⛔ Never from a client-supplied tier — that is the forgeable-header class PR #39 removed.
-4. Exceeding seats is a **`409` with a stated reason** (FR-034), never a silent no-op.
+   ⚠️ **Amended 2026-10-27 (FR-034, owner ruling).** There are no paid seats. One Pro or Pro with AI subscription
+   covers the household. `seats.allowance` becomes the member limit from 010's plan register (6 accounts), the same
+   for every household. The response also needs the covering plan and the shared AI pool (FR-034a, FR-034c). The
+   effective plan comes from one computation (FR-034b), and `staff-architect` redraws this shape at plan time.
+4. Exceeding seats is a **`409` with a stated reason** (FR-034), never a silent no-op. Since 2026-10-27, "seats"
+   here means the member limit.
 5. Lapse follows `010-FR-043`: shared content is **retained**, not destroyed.
 6. Removing a member leaves household content intact; the member keeps their own recipes (FR-032).
 

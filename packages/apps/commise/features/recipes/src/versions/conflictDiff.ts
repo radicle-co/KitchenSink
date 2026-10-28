@@ -51,9 +51,13 @@ import { formatIngredientLine } from '../detail/model.js';
 import type { IngredientLineNameMessages } from '../messages.js';
 import { ingredientContentChanged, ingredientIdentity, stepContentChanged } from './diff.js';
 
-/** Whether a field/element differs between two sides: `[=]` neither side changed it, `[→]` exactly one side
- *  changed it (or both changed it to the SAME value), `[!!]` both sides changed it to DIFFERENT values. */
+/** Whether a field/element differs between two sides: `unchanged` neither side changed it, `changed` exactly one side
+ *  changed it (or both changed it to the SAME value), `conflict` both sides changed it to DIFFERENT values. */
 export type ConflictMarker = 'unchanged' | 'changed' | 'conflict';
+
+/** The markers a ROW can carry: a row exists only for a changed-or-conflicting field, so `unchanged` is unrepresentable
+ *  on it (and the word badges, one per marker a row can have, need no `unchanged` entry). */
+export type ConflictRowMarker = Exclude<ConflictMarker, 'unchanged'>;
 
 /** The kind of field a {@link ConflictFieldRow} reports — the 5 scalar `RecipeSnapshot` fields, plus the two
  *  per-element collection kinds (one row PER changed step/ingredient, never one row for the whole collection). */
@@ -65,7 +69,7 @@ interface ConflictRowValues {
     /** Stable key: the scalar field name (`'title'`) for scalars, or a per-element key (`'steps[2]'`,
      *  `'ingredients:<ingredientId>'`) for collection rows. */
     readonly key: string;
-    readonly marker: ConflictMarker;
+    readonly marker: ConflictRowMarker;
     /** The formatted base value. ABSENT when `base` itself is evicted/undefined (see module docs), OR when
      *  the element does not exist in `base` at all (an element added by mine and/or theirs has no base
      *  value to show). */

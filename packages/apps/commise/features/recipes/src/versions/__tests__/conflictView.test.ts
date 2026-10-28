@@ -1,5 +1,5 @@
 /**
- * Unit tests for the conflict view's banner, cards, staleness gate and choice summary (`versions/conflictView.ts`).
+ * Unit tests for the conflict view's cards, staleness gate and choice summary (`versions/conflictView.ts`).
  */
 import { describe, expect, it } from 'vitest';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
@@ -8,10 +8,8 @@ import {
     conflictCopyOf,
     countMergeSelections,
     formatMergeSummary,
-    formatServerBanner,
-    formatServerCardHeading,
-    formatVersionCardSavedLine,
-    formatYourCardHeading,
+    formatTheirsCardSavedLine,
+    formatYoursCardStatus,
     isConflictBaseStale,
 } from '../conflictView.js';
 import type { RecipeMergeSelections } from '../merge.js';
@@ -19,63 +17,30 @@ import { recipeVersionMessages } from '../messages.js';
 
 const conflict = recipeVersionMessages.en.conflict;
 
-/**
- * REWRITTEN for the 2026-08-26 owner ruling on device attribution (no `deviceLabel`). The banner has ONE
- * rendering, so the case below asserts the WHOLE string (never `toContain`),
- * which is what makes it fail if the version number, the relative time, or the template wording moves.
- */
-describe('formatServerBanner (W7 Task 3 / X3)', () => {
-    it('renders "Server version (vN): Saved {time} ago" — version and relative time, and nothing else', () => {
-        const server = makeVersionConflictSide({
-            versionNumber: 6,
-            updatedAt: '2026-05-09T14:30:00.000Z',
-        });
-
-        expect(formatServerBanner(server, new Date('2026-05-09T14:32:00.000Z'), conflict, 'en')).toBe(
-            'Server version (v6): Saved 2 minutes ago',
-        );
-    });
-
-    it('carries no device clause even when the caller hands it a stray deviceLabel-shaped property', () => {
-        // The field is gone from `VersionConflictSide`, but an OLD server (or a stale cache) can still put
-        // the key on the wire. The banner must ignore it rather than resurrect the deleted suffix.
-        const server = { ...makeVersionConflictSide({ versionNumber: 6, updatedAt: '2026-05-09T14:30:00.000Z' }) };
-
-        expect(
-            formatServerBanner(
-                { ...server, deviceLabel: 'iPhone' } as typeof server,
-                new Date('2026-05-09T14:32:00.000Z'),
-                conflict,
-                'en',
-            ),
-        ).toBe('Server version (v6): Saved 2 minutes ago');
-    });
-});
-
-describe('two-column per-side summary cards (wireframe gap #2)', () => {
+describe('the two side cards (wireframe gap #2; slice 7 wording: Saved elsewhere / Your changes)', () => {
     const server = makeVersionConflictSide({
         versionNumber: 6,
         updatedAt: '2026-05-09T14:30:00.000Z',
     });
 
-    it('formatServerCardHeading renders "Server version (v{n})"', () => {
-        expect(formatServerCardHeading(server, conflict)).toBe('Server version (v6)');
+    it('the card headings carry no version number', () => {
+        expect(conflict.theirsCardHeading).toBe('Saved elsewhere');
+        expect(conflict.yoursCardHeading).toBe('Your changes');
     });
 
-    // E18: the card shows the version the cook's draft was edited FROM, beside "Your version: local unsaved changes", so
-    // "Your version (v5)" read as the draft's own save. It is named for what it is.
-    it('formatYourCardHeading renders "Edited from v{n}" when base is known', () => {
-        const base = makeVersionConflictSide({ versionNumber: 5 });
-
-        expect(formatYourCardHeading(base, conflict)).toBe('Edited from v5');
+    it('formatTheirsCardSavedLine renders the ABSOLUTE date alone, no "Saved:" prefix and no version', () => {
+        expect(formatTheirsCardSavedLine(server, 'en', conflict)).toBe('May 9, 2026, 2:30 PM');
     });
 
-    it('formatYourCardHeading falls back to the version-less heading when base is undefined (evicted)', () => {
-        expect(formatYourCardHeading(undefined, conflict)).toBe('Your version');
+    // The card shows the version the cook's draft was edited FROM; it never claims the draft was saved.
+    it('formatYoursCardStatus says "Not saved yet. Started from {time}" when base is known', () => {
+        const base = makeVersionConflictSide({ versionNumber: 5, updatedAt: '2026-05-08T10:00:00.000Z' });
+
+        expect(formatYoursCardStatus(base, 'en', conflict)).toBe('Not saved yet. Started from May 8, 2026, 10:00 AM');
     });
 
-    it('formatVersionCardSavedLine renders an ABSOLUTE date, distinct from the banner’s relative time', () => {
-        expect(formatVersionCardSavedLine(server, 'en', conflict)).toContain('Saved: May 9, 2026');
+    it('formatYoursCardStatus falls back to "Not saved yet" when base is undefined (evicted)', () => {
+        expect(formatYoursCardStatus(undefined, 'en', conflict)).toBe('Not saved yet');
     });
 });
 
@@ -100,9 +65,7 @@ describe('isConflictBaseStale (W7 Task 5 / X6)', () => {
 describe('countMergeSelections / formatMergeSummary (W7 Task 5 — running "Summary of choices")', () => {
     it('counts zero of both sides for empty selections', () => {
         expect(countMergeSelections({})).toEqual({ server: 0, mine: 0 });
-        expect(formatMergeSummary({}, conflict, 'en')).toBe(
-            'Summary: 0 choices from server, 0 choices from your version',
-        );
+        expect(formatMergeSummary({}, conflict, 'en')).toBe('Picked: 0 from theirs, 0 from yours');
     });
 
     it('tallies each side’s explicit picks, correctly pluralized', () => {
@@ -113,9 +76,7 @@ describe('countMergeSelections / formatMergeSummary (W7 Task 5 — running "Summ
         };
 
         expect(countMergeSelections(selections)).toEqual({ server: 2, mine: 1 });
-        expect(formatMergeSummary(selections, conflict, 'en')).toBe(
-            'Summary: 2 choices from server, 1 choice from your version',
-        );
+        expect(formatMergeSummary(selections, conflict, 'en')).toBe('Picked: 2 from theirs, 1 from yours');
     });
 
     it('does not count an absent key — only EXPLICIT selections, not the implied default', () => {
@@ -140,9 +101,8 @@ describe('a never-published draft`s conflict', () => {
         expect(copy.explanation).toBe(
             'You saved this draft in another tab or on another device while you were editing here. Choose which one to keep.',
         );
-        expect(copy.serverCardHeading).not.toContain('{version}');
-        expect(copy.yourCardHeading).toBe('This screen');
-        expect(copy.yourCardHeadingUnknown).toBe('This screen');
+        expect(copy.theirsCardHeading).toBe('Saved elsewhere');
+        expect(copy.yoursCardHeading).toBe('Your changes');
     });
 
     it('leaves a published recipe`s copy as it is', () => {

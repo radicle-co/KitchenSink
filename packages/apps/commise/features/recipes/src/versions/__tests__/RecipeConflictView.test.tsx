@@ -132,30 +132,14 @@ describe('RecipeConflictView (web) — structure', () => {
     });
 });
 
-describe('RecipeConflictView (web) — per-side banner (X3)', () => {
-    it('renders the server banner with version and relative time, and no device clause', () => {
+describe('RecipeConflictView (web) — no version-number banner', () => {
+    it('draws no per-side banner and no version numbers: the cards carry the two sides', () => {
         freezeClock();
         renderConflict();
 
-        // The WHOLE string, so the 2026-08-26 ruling's removal of the ` on {device}` suffix stays removed.
-        expect(screen.getByText('Server version (v6): Saved 2 minutes ago')).toBeTruthy();
-    });
-
-    it('renders the user’s own banner as local unsaved changes', () => {
-        freezeClock();
-        renderConflict();
-
-        expect(screen.getByText('Your version: local unsaved changes')).toBeTruthy();
-    });
-
-    it('renders the server banner BEFORE the your-version banner (X7 — server-first ordering)', () => {
-        freezeClock();
-        renderConflict();
-
-        const serverBanner = screen.getByText('Server version (v6): Saved 2 minutes ago');
-        const mineBanner = screen.getByText('Your version: local unsaved changes');
-
-        expect(serverBanner.compareDocumentPosition(mineBanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.queryByText(/Server version/)).toBeNull();
+        expect(screen.queryByText(/local unsaved changes/)).toBeNull();
+        expect(screen.queryByText(/\bv\d+\b/)).toBeNull();
     });
 
     /**
@@ -232,8 +216,8 @@ describe('RecipeConflictView (web) — "Discard and close" header exit (wirefram
         const onDiscardAndClose = vi.fn();
         renderConflict({ onDiscardAndClose });
 
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
-        expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
+        expect(screen.getByRole('heading', { name: 'Compare and choose' })).toBeTruthy();
 
         await user.click(screen.getByRole('button', { name: 'Discard and close' }));
         expect(onDiscardAndClose).toHaveBeenCalledTimes(1);
@@ -246,42 +230,41 @@ describe('RecipeConflictView (web) — two-column per-side summary cards (wirefr
     // strings. The cards' "Device:" row went with the 2026-08-26 owner ruling.
     const distinctBase = { ...base, updatedAt: '2026-05-08T10:00:00.000Z' };
 
-    it('renders the SERVER card with its heading and Saved line', () => {
+    it('renders the THEIRS card with its heading and saved time', () => {
         freezeClock();
         renderConflict({ base: distinctBase });
 
-        expect(screen.getByText('Server version (v6)')).toBeTruthy();
-        expect(screen.getByText('Saved: May 9, 2026, 2:30 PM')).toBeTruthy();
+        expect(screen.getByText('Saved elsewhere')).toBeTruthy();
+        expect(screen.getByText('May 9, 2026, 2:30 PM')).toBeTruthy();
         // The 2026-08-26 ruling removed the card's device row; nothing on a card may reintroduce it.
         expect(screen.queryByText(/^Device:/)).toBeNull();
     });
 
-    it('renders the YOUR-version card from `base`, with its OWN heading and Saved line', () => {
+    it('renders the YOURS card from `base`: "Your changes", not saved yet, started from the base time', () => {
         freezeClock();
         renderConflict({ base: distinctBase });
 
-        expect(screen.getByText('Edited from v5')).toBeTruthy();
-        expect(screen.getByText('Saved: May 8, 2026, 10:00 AM')).toBeTruthy();
+        expect(screen.getByText('Your changes')).toBeTruthy();
+        expect(screen.getByText('Not saved yet. Started from May 8, 2026, 10:00 AM')).toBeTruthy();
     });
 
-    it('renders the SERVER card BEFORE the YOUR-version card (X7 — server-first ordering)', () => {
+    it('renders the THEIRS card BEFORE the YOURS card (X7 — server-first ordering)', () => {
         freezeClock();
         renderConflict();
 
-        const serverHeading = screen.getByText('Server version (v6)');
-        const yourHeading = screen.getByText('Edited from v5');
+        const theirsHeading = screen.getByText('Saved elsewhere');
+        const yoursHeading = screen.getByText('Your changes');
 
-        expect(serverHeading.compareDocumentPosition(yourHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(theirsHeading.compareDocumentPosition(yoursHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('falls back to a version-less YOUR-version heading, with no Saved row, when base is undefined (evicted)', () => {
+    it('says only "Not saved yet" on the YOURS card when base is undefined (evicted)', () => {
         freezeClock();
         renderConflict({ base: undefined });
 
-        expect(screen.getByText('Your version')).toBeTruthy();
-        expect(screen.queryByText('Edited from v5')).toBeNull();
-        // Only the SERVER card's Saved line is present — no fabricated one for the your-version card.
-        expect(screen.getAllByText(/^Saved:/)).toHaveLength(1);
+        expect(screen.getByText('Your changes')).toBeTruthy();
+        expect(screen.getByText('Not saved yet')).toBeTruthy();
+        expect(screen.queryByText(/Started from/)).toBeNull();
     });
 });
 
@@ -290,12 +273,12 @@ describe('RecipeConflictView (web) — A/B/C option cards (X2)', () => {
         freezeClock();
         renderConflict();
 
-        expect(screen.getByRole('button', { name: 'Keep server version' })).toBeTruthy();
-        expect(screen.getByText('Discard your local changes and keep the server version.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Overwrite with your version' })).toBeTruthy();
-        expect(screen.getByText('Your local changes win and become the new version.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Merge manually' })).toBeTruthy();
-        expect(screen.getByText('Review each changed field and choose which version to keep.')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Use theirs' })).toBeTruthy();
+        expect(screen.getByText('Use the version saved elsewhere. Your changes here are dropped.')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Keep mine' })).toBeTruthy();
+        expect(screen.getByText('Save your changes. They replace the version saved elsewhere.')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Compare' })).toBeTruthy();
+        expect(screen.getByText('See each change side by side, then choose.')).toBeTruthy();
     });
 
     it('Option A fires onKeepServer', async () => {
@@ -304,7 +287,7 @@ describe('RecipeConflictView (web) — A/B/C option cards (X2)', () => {
         const onKeepServer = vi.fn();
         renderConflict({ onKeepServer });
 
-        await user.click(screen.getByRole('button', { name: 'Keep server version' }));
+        await user.click(screen.getByRole('button', { name: 'Use theirs' }));
 
         expect(onKeepServer).toHaveBeenCalledTimes(1);
     });
@@ -315,7 +298,7 @@ describe('RecipeConflictView (web) — A/B/C option cards (X2)', () => {
         const onOverwrite = vi.fn();
         renderConflict({ onOverwrite });
 
-        await user.click(screen.getByRole('button', { name: 'Overwrite with your version' }));
+        await user.click(screen.getByRole('button', { name: 'Keep mine' }));
 
         expect(onOverwrite).toHaveBeenCalledTimes(1);
     });
@@ -325,9 +308,9 @@ describe('RecipeConflictView (web) — A/B/C option cards (X2)', () => {
         const user = userEvent.setup({ delay: null });
         renderConflict();
 
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
 
-        expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Compare and choose' })).toBeTruthy();
     });
 });
 
@@ -344,7 +327,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
         const onOverwrite = vi.fn();
         renderConflict({ isResolving: true, onKeepServer, onOverwrite });
 
-        for (const name of ['Keep server version', 'Overwrite with your version', 'Merge manually']) {
+        for (const name of ['Use theirs', 'Keep mine', 'Compare']) {
             const card = screen.getByRole<HTMLButtonElement>('button', { name });
             expect(card.disabled).toBe(false);
             expect(card.getAttribute('aria-disabled')).toBe('true');
@@ -353,7 +336,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
 
         expect(onKeepServer).not.toHaveBeenCalled();
         expect(onOverwrite).not.toHaveBeenCalled();
-        expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Compare and choose' })).toBeNull();
     });
 
     it('a double-click on Overwrite while isResolving fires onOverwrite at most once (the second click is a no-op because disabled)', async () => {
@@ -362,7 +345,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
         const onOverwrite = vi.fn();
         renderConflict({ onOverwrite });
 
-        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' });
         await user.click(overwrite);
         expect(onOverwrite).toHaveBeenCalledTimes(1);
 
@@ -371,7 +354,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
         // the SAME button, now disabled, swallows a second click instead of firing a second resolve.
         cleanup();
         renderConflict({ onOverwrite, isResolving: true });
-        await user.click(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }));
+        await user.click(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' }));
 
         expect(onOverwrite).toHaveBeenCalledTimes(1);
     });
@@ -380,14 +363,12 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
         freezeClock();
         renderConflict({ isResolving: false });
 
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep server version' }).disabled).toBe(false);
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
-            false,
-        );
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Merge manually' }).disabled).toBe(false);
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Use theirs' }).disabled).toBe(false);
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' }).disabled).toBe(false);
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Compare' }).disabled).toBe(false);
     });
 
-    it('disables "Save merged version" while isResolving, combined with (not replacing) the selection + stale-base gates', async () => {
+    it('disables "Save my choices" while isResolving, combined with (not replacing) the selection + stale-base gates', async () => {
         freezeClock();
         const user = userEvent.setup({ delay: null });
         const onMerge = vi.fn();
@@ -407,9 +388,9 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
                 onDiscardAndClose={noop}
             />,
         );
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
-        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Theirs: 4' }));
 
         rerender(
             <ControlledConflict
@@ -425,7 +406,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
             />,
         );
 
-        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save my choices' });
         // REWRITTEN from `disabled`: Save is the control just pressed, so it keeps focus while busy (SC 2.4.3).
         expect(save.disabled).toBe(false);
         expect(save.getAttribute('aria-disabled')).toBe('true');
@@ -434,7 +415,7 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
         expect(onMerge).not.toHaveBeenCalled();
     });
 
-    it('a double-click on Save merged version while resolving fires onMerge at most once', async () => {
+    it('a double-click on Save my choices while resolving fires onMerge at most once', async () => {
         freezeClock();
         const user = userEvent.setup({ delay: null });
         const onMerge = vi.fn();
@@ -454,11 +435,11 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
             />,
         );
 
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
-        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Theirs: 4' }));
 
-        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save my choices' });
         await user.click(save);
         expect(onMerge).toHaveBeenCalledTimes(1);
 
@@ -477,13 +458,13 @@ describe('RecipeConflictView (web) — isResolving disables the resolver while a
                 onDiscardAndClose={noop}
             />,
         );
-        await user.click(screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' }));
+        await user.click(screen.getByRole<HTMLButtonElement>('button', { name: 'Save my choices' }));
 
         expect(onMerge).toHaveBeenCalledTimes(1);
     });
 });
 
-describe('RecipeConflictView (web) — changed-only diff panel with markers + legend (W7 Task 4 / X1)', () => {
+describe('RecipeConflictView (web) — changed-only diff panel with word badges (W7 Task 4 / X1)', () => {
     const changedOnlyDiff: ConflictDiff = {
         rows: [
             {
@@ -524,8 +505,8 @@ describe('RecipeConflictView (web) — changed-only diff panel with markers + le
         freezeClock();
         renderConflict({ diff: changedOnlyDiff });
 
-        const serverValue = screen.getByText('Latest saved version: Weeknight Pasta');
-        const mineValue = screen.getByText('Your version: My Draft Title');
+        const serverValue = screen.getByText('Theirs: Weeknight Pasta');
+        const mineValue = screen.getByText('Yours: My Draft Title');
 
         expect(serverValue.compareDocumentPosition(mineValue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
@@ -534,8 +515,8 @@ describe('RecipeConflictView (web) — changed-only diff panel with markers + le
         freezeClock();
         renderConflict({ diff: changedOnlyDiff });
 
-        expect(screen.getByText('Was: Weeknight Pasta')).toBeTruthy();
-        expect(screen.getByText('Was: 4')).toBeTruthy();
+        expect(screen.getByText('Before: Weeknight Pasta')).toBeTruthy();
+        expect(screen.getByText('Before: 4')).toBeTruthy();
     });
 
     it('omits the "was" line when a row carries no base (base-evicted 2-way fallback)', () => {
@@ -557,32 +538,32 @@ describe('RecipeConflictView (web) — changed-only diff panel with markers + le
         };
         renderConflict({ diff: fallbackDiff });
 
-        expect(screen.queryByText(/^Was:/)).toBeNull();
+        expect(screen.queryByText(/^Before:/)).toBeNull();
     });
 
-    it('marks a `changed` row with an accessible "changed" marker (not colour alone)', () => {
+    it('marks a `changed` row with the visible word "Changed" (text, not colour or a glyph)', () => {
         freezeClock();
         renderConflict({ diff: changedOnlyDiff });
 
-        expect(screen.getByRole('img', { name: 'changed' })).toBeTruthy();
+        expect(screen.getByText('Changed')).toBeTruthy();
     });
 
-    it('marks a `conflict` row with an accessible "conflict" marker, distinct from "changed"', () => {
+    it('marks a `conflict` row with the visible word "Both changed", distinct from "Changed"', () => {
         freezeClock();
         renderConflict({ diff: changedOnlyDiff });
 
-        expect(screen.getByRole('img', { name: 'conflict' })).toBeTruthy();
-        // Exactly one marker per row — no stray accessible-image nodes.
-        expect(screen.getAllByRole('img')).toHaveLength(2);
+        expect(screen.getByText('Both changed')).toBeTruthy();
+        // The word badge replaced the glyph: no stray accessible-image nodes and no `[→]` / `[!!]` glyphs.
+        expect(screen.queryByRole('img')).toBeNull();
+        expect(screen.queryByText(/\[(→|!!|=)\]/)).toBeNull();
     });
 
-    it('renders a legend explaining all three markers', () => {
+    it('draws no legend: the badges are words, so there is nothing to decode', () => {
         freezeClock();
         renderConflict({ diff: changedOnlyDiff });
 
-        expect(screen.getByText('[=] unchanged')).toBeTruthy();
-        expect(screen.getByText('[→] changed')).toBeTruthy();
-        expect(screen.getByText('[!!] conflict')).toBeTruthy();
+        expect(screen.queryByRole('list', { name: 'Legend' })).toBeNull();
+        expect(screen.queryByText('Legend')).toBeNull();
     });
 
     it('includes the step’s position in a per-element step row’s label', () => {
@@ -636,14 +617,13 @@ describe('RecipeConflictView (web) — changed-only diff panel with markers + le
         renderConflict({ diff: { rows: [], hasConflict: false, isEmpty: true } });
 
         expect(screen.getByText('No differences to show.')).toBeTruthy();
-        expect(screen.queryByRole('img')).toBeNull();
-        expect(screen.queryByText('[→] changed')).toBeNull();
+        expect(screen.queryByText('Changed')).toBeNull();
     });
 });
 
 describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)', () => {
     const enterMerge = async (user: UserEvent) => {
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
     };
 
     it('lists ONLY the changed fields/elements from diff.rows — an unchanged field never appears', async () => {
@@ -652,7 +632,7 @@ describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)',
         renderControlledConflict();
         await enterMerge(user);
 
-        expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Compare and choose' })).toBeTruthy();
         expect(screen.getByRole('radiogroup', { name: 'Title' })).toBeTruthy();
         expect(screen.getByRole('radiogroup', { name: 'Servings' })).toBeTruthy();
         // The fixture `diff` carries exactly 2 rows — no extra field (e.g. Description) is invented.
@@ -670,10 +650,8 @@ describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)',
         const radios = within(titleGroup).getAllByRole('radio');
 
         expect(radios).toHaveLength(2);
-        expect((radios[0] as HTMLInputElement).labels?.[0]?.textContent).toBe(
-            'Latest saved version: Latest Saved Title',
-        );
-        expect((radios[1] as HTMLInputElement).labels?.[0]?.textContent).toBe('Your version: My Draft Title');
+        expect((radios[0] as HTMLInputElement).labels?.[0]?.textContent).toBe('Theirs: Latest Saved Title');
+        expect((radios[1] as HTMLInputElement).labels?.[0]?.textContent).toBe('Yours: My Draft Title');
     });
 
     it('starts with NEITHER radio checked — nothing is auto-selected', async () => {
@@ -686,13 +664,12 @@ describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)',
         expect(
             (
                 within(titleGroup).getByRole('radio', {
-                    name: 'Latest saved version: Latest Saved Title',
+                    name: 'Theirs: Latest Saved Title',
                 }) as HTMLInputElement
             ).checked,
         ).toBe(false);
         expect(
-            (within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' }) as HTMLInputElement)
-                .checked,
+            (within(titleGroup).getByRole('radio', { name: 'Yours: My Draft Title' }) as HTMLInputElement).checked,
         ).toBe(false);
     });
 
@@ -702,39 +679,39 @@ describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)',
         renderControlledConflict();
         await enterMerge(user);
 
-        expect(screen.getByText('Summary: 0 choices from server, 0 choices from your version')).toBeTruthy();
+        expect(screen.getByText('Picked: 0 from theirs, 0 from yours')).toBeTruthy();
 
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
-        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Theirs: 4' }));
 
-        expect(
-            (within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }) as HTMLInputElement).checked,
-        ).toBe(true);
-        expect(screen.getByText('Summary: 1 choice from server, 0 choices from your version')).toBeTruthy();
+        expect((within(servingsGroup).getByRole('radio', { name: 'Theirs: 4' }) as HTMLInputElement).checked).toBe(
+            true,
+        );
+        expect(screen.getByText('Picked: 1 from theirs, 0 from yours')).toBeTruthy();
 
         const titleGroup = screen.getByRole('radiogroup', { name: 'Title' });
-        await user.click(within(titleGroup).getByRole('radio', { name: 'Your version: My Draft Title' }));
+        await user.click(within(titleGroup).getByRole('radio', { name: 'Yours: My Draft Title' }));
 
-        expect(screen.getByText('Summary: 1 choice from server, 1 choice from your version')).toBeTruthy();
+        expect(screen.getByText('Picked: 1 from theirs, 1 from yours')).toBeTruthy();
     });
 
-    it('gating (X5): Save merged version is disabled with zero selections, and clicking it fires nothing', async () => {
+    it('gating (X5): Save my choices is disabled with zero selections, and clicking it fires nothing', async () => {
         freezeClock();
         const user = userEvent.setup({ delay: null });
         const onMerge = vi.fn();
         renderControlledConflict({ onMerge });
         await enterMerge(user);
 
-        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save my choices' });
         expect(save.disabled).toBe(true);
-        expect(screen.getByText('Choose a value for at least one field to save the merged version.')).toBeTruthy();
+        expect(screen.getByText('Pick at least one change to save.')).toBeTruthy();
 
         await user.click(save);
 
         expect(onMerge).not.toHaveBeenCalled();
     });
 
-    it('gating (X5): Save merged version enables after one selection and fires onMerge with it', async () => {
+    it('gating (X5): Save my choices enables after one selection and fires onMerge with it', async () => {
         freezeClock();
         const user = userEvent.setup({ delay: null });
         const onMerge = vi.fn();
@@ -742,11 +719,11 @@ describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)',
         await enterMerge(user);
 
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
-        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Theirs: 4' }));
 
-        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save my choices' });
         expect(save.disabled).toBe(false);
-        expect(screen.queryByText('Choose a value for at least one field to save the merged version.')).toBeNull();
+        expect(screen.queryByText('Pick at least one change to save.')).toBeNull();
 
         await user.click(save);
 
@@ -765,12 +742,12 @@ describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)',
         expect(
             (
                 within(titleGroup).getByRole('radio', {
-                    name: 'Latest saved version: Latest Saved Title',
+                    name: 'Theirs: Latest Saved Title',
                 }) as HTMLInputElement
             ).checked,
         ).toBe(true);
 
-        await user.click(screen.getByRole('button', { name: 'Save merged version' }));
+        await user.click(screen.getByRole('button', { name: 'Save my choices' }));
 
         expect(onMerge).toHaveBeenCalledWith({ title: 'theirs' });
     });
@@ -785,8 +762,8 @@ describe('RecipeConflictView (web) — per-element merge (Option C, W7 Task 5)',
         await user.click(screen.getByRole('button', { name: 'Back to options' }));
 
         expect(onSelectionsChange).toHaveBeenCalledWith({});
-        expect(screen.getByRole('button', { name: 'Keep server version' })).toBeTruthy();
-        expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Use theirs' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Compare and choose' })).toBeNull();
     });
 });
 
@@ -796,9 +773,7 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         renderConflict({ versionsBehind: 5 });
 
         expect(screen.queryByRole('alert')).toBeNull();
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
-            false,
-        );
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' }).disabled).toBe(false);
     });
 
     it('renders the warning + blocks Overwrite until confirmed when versionsBehind > 10', async () => {
@@ -808,13 +783,13 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         renderConflict({ versionsBehind: 11, onOverwrite });
 
         expect(screen.getByRole('alert')).toBeTruthy();
-        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' });
         expect(overwrite.disabled).toBe(true);
 
         await user.click(overwrite);
         expect(onOverwrite).not.toHaveBeenCalled();
 
-        await user.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        await user.click(screen.getByRole('checkbox', { name: 'I understand. Let me choose anyway' }));
         expect(overwrite.disabled).toBe(false);
 
         await user.click(overwrite);
@@ -826,9 +801,7 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         renderConflict({ base: undefined, versionsBehind: 1 });
 
         expect(screen.getByRole('alert')).toBeTruthy();
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
-            true,
-        );
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' }).disabled).toBe(true);
     });
 
     it('keeps a stale-blocked Overwrite natively disabled while another option resolves — out of the tab order', () => {
@@ -838,7 +811,7 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         freezeClock();
         renderConflict({ versionsBehind: 11, isResolving: true });
 
-        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' });
         expect(overwrite.disabled).toBe(true);
         expect(overwrite.getAttribute('aria-disabled')).toBeNull();
         expect(overwrite.getAttribute('aria-busy')).toBeNull();
@@ -848,29 +821,29 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         freezeClock();
         renderConflict({ versionsBehind: 11, isResolving: true });
 
-        const overwrite = screen.getByRole('button', { name: 'Overwrite with your version' });
-        const keepServer = screen.getByRole('button', { name: 'Keep server version' });
+        const overwrite = screen.getByRole('button', { name: 'Keep mine' });
+        const keepServer = screen.getByRole('button', { name: 'Use theirs' });
         expect(overwrite.className).toContain('disabled:opacity-50');
         expect(keepServer.className).toContain('aria-disabled:opacity-50');
         expect(keepServer.className).not.toContain('aria-disabled:opacity-60');
     });
 
-    it('blocks Save merged version in the merge panel until confirmed, alongside the selection gate', async () => {
+    it('blocks Save my choices in the merge panel until confirmed, alongside the selection gate', async () => {
         freezeClock();
         const user = userEvent.setup({ delay: null });
         const onMerge = vi.fn();
         renderControlledConflict({ onMerge, versionsBehind: 11 });
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
 
         const servingsGroup = screen.getByRole('radiogroup', { name: 'Servings' });
-        await user.click(within(servingsGroup).getByRole('radio', { name: 'Latest saved version: 4' }));
+        await user.click(within(servingsGroup).getByRole('radio', { name: 'Theirs: 4' }));
 
-        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save merged version' });
+        const save = screen.getByRole<HTMLButtonElement>('button', { name: 'Save my choices' });
         expect(save.disabled).toBe(true);
         await user.click(save);
         expect(onMerge).not.toHaveBeenCalled();
 
-        await user.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        await user.click(screen.getByRole('checkbox', { name: 'I understand. Let me choose anyway' }));
         expect(save.disabled).toBe(false);
 
         await user.click(save);
@@ -897,13 +870,13 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         const { rerender } = render(<RecipeConflictView {...firstProps} />);
 
         // Enter the merge panel for the FIRST conflict and confirm its stale-base warning there (the same
-        // shared checkbox gates Save merged version).
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
-        expect(screen.getByRole('heading', { name: 'Merge changes field by field' })).toBeTruthy();
-        await user.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
-        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'I understand — continue anyway' }).checked).toBe(
-            true,
-        );
+        // shared checkbox gates Save my choices).
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
+        expect(screen.getByRole('heading', { name: 'Compare and choose' })).toBeTruthy();
+        await user.click(screen.getByRole('checkbox', { name: 'I understand. Let me choose anyway' }));
+        expect(
+            screen.getByRole<HTMLInputElement>('checkbox', { name: 'I understand. Let me choose anyway' }).checked,
+        ).toBe(true);
 
         // A SECOND, still-stale conflict lands on the SAME component instance (new props, e.g. a retried
         // Overwrite that 409'd again) — a different server versionNumber identifies it as a NEW conflict.
@@ -911,21 +884,21 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
         rerender(<RecipeConflictView {...firstProps} server={secondServer} />);
 
         // The merge panel toggle resets — a NEW conflict restarts at the options view.
-        expect(screen.queryByRole('heading', { name: 'Merge changes field by field' })).toBeNull();
+        expect(screen.queryByRole('heading', { name: 'Compare and choose' })).toBeNull();
         expect(screen.getByRole('heading', { name: 'This recipe changed while you were editing' })).toBeTruthy();
 
         // The confirm checkbox is UNCHECKED again, and Overwrite is BLOCKED until re-confirmed for THIS
         // conflict — the stale checkbox state must not survive across conflicts.
-        expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'I understand — continue anyway' }).checked).toBe(
-            false,
-        );
-        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' });
+        expect(
+            screen.getByRole<HTMLInputElement>('checkbox', { name: 'I understand. Let me choose anyway' }).checked,
+        ).toBe(false);
+        const overwrite = screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' });
         expect(overwrite.disabled).toBe(true);
 
         await user.click(overwrite);
         expect(onOverwrite).not.toHaveBeenCalled();
 
-        await user.click(screen.getByRole('checkbox', { name: 'I understand — continue anyway' }));
+        await user.click(screen.getByRole('checkbox', { name: 'I understand. Let me choose anyway' }));
         expect(overwrite.disabled).toBe(false);
         await user.click(overwrite);
         expect(onOverwrite).toHaveBeenCalledTimes(1);
@@ -1056,11 +1029,11 @@ describe('RecipeConflictView (web) — a variant-bound ingredient row (curated U
             freezeClock();
             renderConflict({ diff: variantDiff });
 
-            expect(shownParts(sideOf('Was: 2 lb beef brisket'))).toEqual(['flat half', 'select']);
-            expect(shownParts(sideOf('Latest saved version: 4 lb beef brisket'))).toEqual(['flat half', 'select']);
-            expect(shownParts(sideOf('Your version: 3 lb beef brisket'))).toEqual(['flat half', 'select']);
-            const value = screen.getByText('Latest saved version: 4 lb beef brisket');
-            const firstPart = sideOf('Latest saved version: 4 lb beef brisket').querySelector('[lang="en"]');
+            expect(shownParts(sideOf('Before: 2 lb beef brisket'))).toEqual(['flat half', 'select']);
+            expect(shownParts(sideOf('Theirs: 4 lb beef brisket'))).toEqual(['flat half', 'select']);
+            expect(shownParts(sideOf('Yours: 3 lb beef brisket'))).toEqual(['flat half', 'select']);
+            const value = screen.getByText('Theirs: 4 lb beef brisket');
+            const firstPart = sideOf('Theirs: 4 lb beef brisket').querySelector('[lang="en"]');
             expect(firstPart === null ? 0 : value.compareDocumentPosition(firstPart)).toBe(
                 Node.DOCUMENT_POSITION_FOLLOWING,
             );
@@ -1070,9 +1043,9 @@ describe('RecipeConflictView (web) — a variant-bound ingredient row (curated U
             freezeClock();
             renderConflict({ diff: variantDiff });
 
-            expect(shownParts(sideOf('Was: 1 lb beef chuck'))).toEqual([]);
-            expect(shownParts(sideOf('Latest saved version: 5 lb beef chuck'))).toEqual(['boneless', 'choice']);
-            expect(shownParts(sideOf('Your version: 2 lb beef chuck'))).toEqual(['boneless']);
+            expect(shownParts(sideOf('Before: 1 lb beef chuck'))).toEqual([]);
+            expect(shownParts(sideOf('Theirs: 5 lb beef chuck'))).toEqual(['boneless', 'choice']);
+            expect(shownParts(sideOf('Yours: 2 lb beef chuck'))).toEqual(['boneless']);
         });
 
         it('draws no dotted line for a side that has no such line', () => {
@@ -1080,31 +1053,31 @@ describe('RecipeConflictView (web) — a variant-bound ingredient row (curated U
             renderConflict({ diff: variantDiff });
 
             // The side that holds the line shows its parts, and the row shows nothing else: none under the empty side.
-            expect(shownParts(sideOf('Latest saved version: 6 lb beef brisket'))).toEqual(['point half', 'choice']);
-            expect(shownParts(itemOf('Latest saved version: 6 lb beef brisket'))).toEqual(['point half', 'choice']);
+            expect(shownParts(sideOf('Theirs: 6 lb beef brisket'))).toEqual(['point half', 'choice']);
+            expect(shownParts(itemOf('Theirs: 6 lb beef brisket'))).toEqual(['point half', 'choice']);
         });
 
         it('draws mine and theirs, and no "Was" line, on a base-evicted row', () => {
             freezeClock();
             renderConflict({ diff: fallbackDiff });
 
-            expect(screen.queryByText(/^Was:/)).toBeNull();
-            expect(shownParts(sideOf('Latest saved version: 4 lb beef brisket'))).toEqual(['flat half', 'choice']);
-            expect(shownParts(sideOf('Your version: 3 lb beef brisket'))).toEqual(['flat half', 'select']);
+            expect(screen.queryByText(/^Before:/)).toBeNull();
+            expect(shownParts(sideOf('Theirs: 4 lb beef brisket'))).toEqual(['flat half', 'choice']);
+            expect(shownParts(sideOf('Yours: 3 lb beef brisket'))).toEqual(['flat half', 'select']);
         });
 
         it('finds a comma-joined label in the cook’s own words (the control), and none from a dotted line', () => {
             freezeClock();
             renderConflict({ diff: variantDiff });
 
-            expect(commaJoinedTexts(itemOf('Your version: 200 g Butter (flat half, select)'), FLAT)).toHaveLength(1);
-            expect(commaJoinedTexts(itemOf('Your version: 3 lb beef brisket'), FLAT)).toEqual([]);
+            expect(commaJoinedTexts(itemOf('Yours: 200 g Butter (flat half, select)'), FLAT)).toHaveLength(1);
+            expect(commaJoinedTexts(itemOf('Yours: 3 lb beef brisket'), FLAT)).toEqual([]);
         });
     });
 
     describe('the merge panel', () => {
         const enterMerge = async (user: UserEvent) => {
-            await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+            await user.click(screen.getByRole('button', { name: 'Compare' }));
         };
 
         it('names each option with its own side’s parts and draws them under its value inside the option', async () => {
@@ -1115,10 +1088,10 @@ describe('RecipeConflictView (web) — a variant-bound ingredient row (curated U
 
             const group = screen.getByRole('radiogroup', { name: 'Ingredient: 5 lb beef chuck, boneless, choice' });
             const server = within(group).getByRole('radio', {
-                name: 'Latest saved version: 5 lb beef chuck, boneless, choice',
+                name: 'Theirs: 5 lb beef chuck, boneless, choice',
             }) as HTMLInputElement;
             const mine = within(group).getByRole('radio', {
-                name: 'Your version: 2 lb beef chuck, boneless',
+                name: 'Yours: 2 lb beef chuck, boneless',
             }) as HTMLInputElement;
 
             expect(shownParts(labelOf(server))).toEqual(['boneless', 'choice']);
@@ -1148,8 +1121,8 @@ describe('RecipeConflictView (web) — a variant-bound ingredient row (curated U
             const radios = within(group).getAllByRole('radio') as HTMLInputElement[];
 
             expect(radios.map((radio) => radio.getAttribute('aria-label'))).toEqual([
-                'Latest saved version: 6 lb beef brisket, point half, choice',
-                'Your version: ',
+                'Theirs: 6 lb beef brisket, point half, choice',
+                'Yours: ',
             ]);
             expect(shownParts(group)).toEqual(['point half', 'choice']);
         });
@@ -1177,9 +1150,9 @@ describe('RecipeConflictView (web) — the design-system Button (UI overhaul sli
         const user = userEvent.setup({ delay: null });
         renderConflict();
 
-        await user.click(screen.getByRole('button', { name: 'Merge manually' }));
+        await user.click(screen.getByRole('button', { name: 'Compare' }));
 
-        expectDesignSystemButton(screen.getByRole('button', { name: 'Save merged version' }), 'primary', 'check');
+        expectDesignSystemButton(screen.getByRole('button', { name: 'Save my choices' }), 'primary', 'check');
         expectDesignSystemButton(screen.getByRole('button', { name: 'Back to options' }), 'secondary', 'chevron-left');
     });
 });
@@ -1195,12 +1168,11 @@ describe('RecipeConflictView (web) — a never-published draft', () => {
         renderConflict({ base: undefined, versionsBehind: 6, neverPublished: true });
 
         expect(screen.getByRole('heading', { name: 'This draft changed somewhere else' })).toBeTruthy();
-        expect(screen.getByText('Saved elsewhere 2 minutes ago')).toBeTruthy();
-        expect(screen.getByText('This screen')).toBeTruthy();
+        expect(screen.getByText('Saved elsewhere')).toBeTruthy();
+        expect(screen.getByText('Not saved yet')).toBeTruthy();
+        expect(screen.getByText('Your changes')).toBeTruthy();
         expect(screen.queryByText(/v6/)).toBeNull();
         expect(screen.queryByRole('alert')).toBeNull();
-        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Overwrite with your version' }).disabled).toBe(
-            false,
-        );
+        expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Keep mine' }).disabled).toBe(false);
     });
 });

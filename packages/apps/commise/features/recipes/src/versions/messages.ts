@@ -89,40 +89,21 @@ export interface RecipeConflictMessages {
     readonly heading: string;
     /** Explanatory copy describing why the conflict is shown. */
     readonly explanation: string;
-    /** The per-side server banner template (W7 Task 3 / X3; contains `{version}` and `{time}`, where `{time}`
-     *  is an already-formatted "N units ago" string — see `formatRelativeTimeAgo`).
-     *  Server is ALWAYS the first/left side (X7). */
-    readonly serverBanner: string;
-    /** The user's own banner line (W7 Task 3 / X3) — the in-progress draft was never persisted, so it carries
-     *  no version number of its own; static copy, no template. */
-    readonly mineBanner: string;
-    /** Heading for the two-column per-side SERVER summary card (wireframe gap #2 — `conflict-resolution.md:46-
-     *  50`'s "SERVER VERSION (v6)" box, contains `{version}`), rendered below the prose banner in the default
-     *  (options) view only — the merge panel does not repeat it. */
-    readonly serverCardHeading: string;
-    /** Heading for the two-column per-side YOUR-version summary card when `base` (the version the draft was
-     *  edited from — the wireframe's own `client_version`) is known (contains `{version}`). See
-     *  {@link serverCardHeading}. */
-    readonly yourCardHeading: string;
-    /** The same card's heading when `base` was evicted from version history (no version number to show) —
-     *  see `isConflictBaseStale`. */
-    readonly yourCardHeadingUnknown: string;
-    /** A card's "Saved: {date}" line template (contains `{time}`, an ABSOLUTE localized date via
-     *  `formatVersionTimestamp`) — deliberately distinct from the prose banner's
-     *  own RELATIVE "N minutes ago" (`formatRelativeTimeAgo`); the wireframe itself
-     *  uses an absolute date for the card. */
+    /** Heading of the THEIRS card: the version saved somewhere else. Carries no version number. */
+    readonly theirsCardHeading: string;
+    /** Heading of the YOURS card: the cook's own unsaved edits. Carries no version number. */
+    readonly yoursCardHeading: string;
+    /** The YOURS card's status line when `base` is known (contains `{time}`, the absolute date the draft started from). */
+    readonly yoursCardStatus: string;
+    /** The YOURS card's status line when `base` was evicted from history (see `isConflictBaseStale`). */
+    readonly yoursCardStatusUnknown: string;
+    /** The THEIRS card's saved-time line (contains `{time}`): an ABSOLUTE localized date via `formatVersionTimestamp`. */
     readonly versionCardSavedLabel: string;
     /** A never-published draft's heading (ADR-0058: a draft records no versions, so nothing in its copy speaks of
      *  version numbers or history). `conflictCopyOf` lays the `draft*` slots over their published-recipe twins. */
     readonly draftHeading: string;
     /** A never-published draft's explanation: the other writer is the same cook, in another tab or on another device. */
     readonly draftExplanation: string;
-    /** A never-published draft's server banner (contains `{time}`, no `{version}`). */
-    readonly draftServerBanner: string;
-    /** A never-published draft's server card heading. */
-    readonly draftServerCardHeading: string;
-    /** A never-published draft's own card heading. */
-    readonly draftYourCardHeading: string;
     /** Shown when a save hit a version conflict this hook could NOT resolve into a side-by-side view (an
      *  un-enriched 409 body, or no cached recipe to project it onto) — `useRecipeEditor`'s
      *  `conflictDataUnavailable` flag. The save did NOT apply; this is the generic actionable fallback so the
@@ -130,9 +111,9 @@ export interface RecipeConflictMessages {
     readonly dataUnavailable: string;
     /** Heading for the changed-only diff panel rendered below the three options (W7 Task 3 → Task 4). */
     readonly changedFieldsHeading: string;
-    /** The "was" (base) value line template (contains `{value}`), rendered on a diff row ONLY when its
-     *  `ConflictFieldRow.base` is present (W7 Task 4 / X1) — per the
-     *  wireframe, absent on the base-evicted 2-way-fallback rows (see `conflictDiff.ts` module docs). */
+    /** The "before" (base) value line template (contains `{value}`), rendered on a diff row ONLY when its
+     *  `ConflictFieldRow.base` is present (W7 Task 4 / X1), absent on the base-evicted 2-way-fallback rows
+     *  (see `conflictDiff.ts` module docs). Read as Before / Theirs / Yours beside the two side labels. */
     readonly wasValueLabel: string;
     /** Per-element STEP row label template (contains `{position}`, 1-based — W7 Task 4 / X1), e.g. "Step 3".
      *  Reused instead of the plural {@link stepsLabel} for a `ConflictFieldRow` (`./conflictDiff.ts`) whose
@@ -146,42 +127,26 @@ export interface RecipeConflictMessages {
      *  the parts as `spokenVariantParts` joins them; curated U15, R27). Never visible text: the dotted line shows the
      *  parts (R25). */
     readonly ingredientRowLabelWithDetails: string;
-    /** The changed-only diff panel's ASCII glyph for a `marker: 'unchanged'` row (W7 Task 4 / X1) — never
-     *  actually rendered today (the panel is changed-only), but part of the shared 3-glyph vocabulary the
-     *  legend explains. */
-    readonly markerGlyphUnchanged: string;
-    /** The ASCII glyph for a `marker: 'changed'` row. See {@link markerGlyphUnchanged}. */
-    readonly markerGlyphChanged: string;
-    /** The ASCII glyph for a `marker: 'conflict'` row. See {@link markerGlyphUnchanged}. */
-    readonly markerGlyphConflict: string;
-    /** The accessible (screen-reader) name for a `marker: 'unchanged'` row — paired with its glyph so the
-     *  marker is conveyed by TEXT/role, never colour alone (W7 Task 4 / X1). */
-    readonly markerLabelUnchanged: string;
-    /** The accessible name for a `marker: 'changed'` row. See {@link markerLabelUnchanged}. */
-    readonly markerLabelChanged: string;
-    /** The accessible name for a `marker: 'conflict'` row. See {@link markerLabelUnchanged}. */
-    readonly markerLabelConflict: string;
-    /** Accessible heading/label for the marker legend (W7 Task 4 / X1). */
-    readonly legendHeading: string;
-    /** One legend entry's template (contains `{glyph}` and `{label}` — see {@link markerGlyphUnchanged} /
-     *  {@link markerLabelUnchanged}), e.g. "[→] changed". */
-    readonly legendEntryTemplate: string;
-    /** Shown in place of the diff panel when `diff.rows` is empty — a defensive fallback (Task 2 already
+    /** The word badge on a `marker: 'changed'` row: one side changed it. Text, so the marker is never colour or a glyph alone. */
+    readonly markerBadgeChanged: string;
+    /** The word badge on a `marker: 'conflict'` row: both sides changed it. */
+    readonly markerBadgeConflict: string;
+    /** Shown in place of the diff panel when `diff.rows` is empty: a defensive fallback (Task 2 already
      *  fast-paths a genuinely phantom-empty diff away from this view entirely, so this should not normally
      *  be reached) rather than rendering a silently blank panel (W7 Task 4). */
     readonly noDifferencesMessage: string;
-    /** Option A's title: keep the server version. */
-    readonly optionServerTitle: string;
+    /** Option A's title: keep my changes, replacing the version saved elsewhere (the machine's Overwrite). */
+    readonly optionKeepMineTitle: string;
     /** Option A's description. */
-    readonly optionServerDescription: string;
-    /** Option B's title: overwrite the server version with the user's own draft. */
-    readonly optionOverwriteTitle: string;
+    readonly optionKeepMineDescription: string;
+    /** Option B's title: use the version saved elsewhere and drop my changes (the machine's Keep server). */
+    readonly optionUseTheirsTitle: string;
     /** Option B's description. */
-    readonly optionOverwriteDescription: string;
-    /** Option C's title: merge field by field (enters the per-field merge panel — FR-007c option c). */
-    readonly optionMergeTitle: string;
+    readonly optionUseTheirsDescription: string;
+    /** Option C's title: compare field by field, then choose (enters the merge panel, FR-007c option c). */
+    readonly optionCompareTitle: string;
     /** Option C's description. */
-    readonly optionMergeDescription: string;
+    readonly optionCompareDescription: string;
     /** Heading for the per-field merge panel. */
     readonly mergeHeading: string;
     /** Explanatory copy for the per-field merge panel. */
@@ -369,58 +334,49 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
         conflict: {
             discardAndClose: 'Discard and close',
             heading: 'This recipe changed while you were editing',
-            explanation: 'Someone saved a new version while you were making changes. Choose which version to keep.',
-            serverBanner: 'Server version (v{version}): Saved {time}',
-            mineBanner: 'Your version: local unsaved changes',
-            serverCardHeading: 'Server version (v{version})',
-            yourCardHeading: 'Edited from v{version}',
-            yourCardHeadingUnknown: 'Your version',
-            versionCardSavedLabel: 'Saved: {time}',
+            explanation:
+                'A newer version was saved somewhere else while you were editing here. Choose which one to keep.',
+            theirsCardHeading: 'Saved elsewhere',
+            versionCardSavedLabel: '{time}',
+            yoursCardHeading: 'Your changes',
+            yoursCardStatus: 'Not saved yet. Started from {time}',
+            yoursCardStatusUnknown: 'Not saved yet',
             draftHeading: 'This draft changed somewhere else',
             draftExplanation:
                 'You saved this draft in another tab or on another device while you were editing here. Choose which one to keep.',
-            draftServerBanner: 'Saved elsewhere {time}',
-            draftServerCardHeading: 'Saved elsewhere',
-            draftYourCardHeading: 'This screen',
             dataUnavailable: 'This recipe was changed elsewhere. Reload and try again.',
             changedFieldsHeading: 'Changed fields',
-            wasValueLabel: 'Was: {value}',
+            wasValueLabel: 'Before: {value}',
             stepPositionLabel: 'Step {position}',
             ingredientRowLabel: 'Ingredient: {value}',
             ingredientRowLabelWithDetails: 'Ingredient: {value}, {parts}',
-            markerGlyphUnchanged: '[=]',
-            markerGlyphChanged: '[→]',
-            markerGlyphConflict: '[!!]',
-            markerLabelUnchanged: 'unchanged',
-            markerLabelChanged: 'changed',
-            markerLabelConflict: 'conflict',
-            legendHeading: 'Legend',
-            legendEntryTemplate: '{glyph} {label}',
+            markerBadgeChanged: 'Changed',
+            markerBadgeConflict: 'Both changed',
             noDifferencesMessage: 'No differences to show.',
-            optionServerTitle: 'Keep server version',
-            optionServerDescription: 'Discard your local changes and keep the server version.',
-            optionOverwriteTitle: 'Overwrite with your version',
-            optionOverwriteDescription: 'Your local changes win and become the new version.',
-            optionMergeTitle: 'Merge manually',
-            optionMergeDescription: 'Review each changed field and choose which version to keep.',
-            mergeHeading: 'Merge changes field by field',
+            optionKeepMineTitle: 'Keep mine',
+            optionKeepMineDescription: 'Save your changes. They replace the version saved elsewhere.',
+            optionUseTheirsTitle: 'Use theirs',
+            optionUseTheirsDescription: 'Use the version saved elsewhere. Your changes here are dropped.',
+            optionCompareTitle: 'Compare',
+            optionCompareDescription: 'See each change side by side, then choose.',
+            mergeHeading: 'Compare and choose',
             mergeExplanation:
-                'Choose a value for each changed field. Nothing is selected by default; the Save button stays disabled until you pick at least one.',
-            mergeMineLabel: 'Your version',
-            mergeServerLabel: 'Latest saved version',
+                'Pick theirs or yours for each change. Nothing is picked for you. Save stays off until you pick at least one.',
+            mergeMineLabel: 'Yours',
+            mergeServerLabel: 'Theirs',
             mergeOptionLabel: '{side}: {value}',
             mergeOptionWithDetailsLabel: '{side}: {value}, {parts}',
-            mergeSubmit: 'Save merged version',
+            mergeSubmit: 'Save my choices',
             mergeBack: 'Back to options',
-            mergeSummaryTemplate: 'Summary: {server}, {mine}',
-            mergeSummaryServerCountOne: '{count} choice from server',
-            mergeSummaryServerCountOther: '{count} choices from server',
-            mergeSummaryMineCountOne: '{count} choice from your version',
-            mergeSummaryMineCountOther: '{count} choices from your version',
-            mergeNoSelectionHint: 'Choose a value for at least one field to save the merged version.',
+            mergeSummaryTemplate: 'Picked: {server}, {mine}',
+            mergeSummaryServerCountOne: '{count} from theirs',
+            mergeSummaryServerCountOther: '{count} from theirs',
+            mergeSummaryMineCountOne: '{count} from yours',
+            mergeSummaryMineCountOther: '{count} from yours',
+            mergeNoSelectionHint: 'Pick at least one change to save.',
             staleBaseWarning:
-                'This recipe is far ahead of the version you started from, or that starting version is no longer available. Overwriting or merging now may discard changes you can’t see here.',
-            staleBaseConfirmLabel: 'I understand — continue anyway',
+                'Many changes were saved elsewhere since you started, and some of them can’t be shown here. Keeping yours or comparing now may undo changes you can’t see.',
+            staleBaseConfirmLabel: 'I understand. Let me choose anyway',
             titleLabel: 'Title',
             descriptionLabel: 'Description',
             servingsLabel: 'Servings',

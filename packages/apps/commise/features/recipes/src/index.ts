@@ -250,20 +250,20 @@ export { VersionPreviewModal } from './versions/VersionPreviewModal.js';
 export { compareRowsOf, compareWithCurrent } from './versions/compare.js';
 export type { CompareRow, VersionCompareViewProps } from './versions/compare.js';
 export { computeConflictDiff } from './versions/conflictDiff.js';
-export type { ConflictDiff, ConflictFieldKind, ConflictFieldRow, ConflictMarker } from './versions/conflictDiff.js';
-export {
-    countMergeSelections,
-    formatMergeSummary,
-    formatServerBanner,
-    isConflictBaseStale,
-} from './versions/conflictView.js';
+export type {
+    ConflictDiff,
+    ConflictFieldKind,
+    ConflictFieldRow,
+    ConflictMarker,
+    ConflictRowMarker,
+} from './versions/conflictDiff.js';
+export { countMergeSelections, formatMergeSummary, isConflictBaseStale } from './versions/conflictView.js';
 export type { MergeSelectionCounts, RecipeConflictViewProps } from './versions/conflictView.js';
 export { diffSnapshots } from './versions/diff.js';
 export type { DiffTally, SnapshotDiff, SnapshotFieldKey } from './versions/diff.js';
 export {
     conflictFieldKindLabel,
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
+    conflictMarkerBadge,
     conflictRowLabel,
     snapshotFieldLabel,
 } from './versions/diffLabels.js';

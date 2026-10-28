@@ -438,11 +438,9 @@ creator page.
 - **Reading: "ping search engines".** Google retired its sitemap ping endpoint in 2023, and its Indexing API covers
   only job postings and livestreams. So "ping" means: remove the address from our sitemap, answer `404` with `noindex`,
   and send a removal notice through IndexNow to the engines that take it (FR-074).
-- **Q1. AI crawlers.** [NEEDS CLARIFICATION: Do the robots rules block AI crawlers that collect training data, and
-  allow the ones that search and answer? Options: (A) allow every crawler. (B) block training-only crawlers and allow
-  search and answer crawlers. (C) block every AI crawler. Recommended: B. The licence covers showing recipes to promote
-  Commise, not training other companies' models, and answer engines can still send readers. Robots rules are a request
-  that a polite crawler honours, not a control.]
+- **Q1. AI crawlers. RESOLVED 2026-10-27.** The owner chose option B, "Block training only": the robots rules block
+  crawlers that only collect AI training data, and allow search and answer crawlers that link back. Robots rules are a
+  request that a polite crawler honours, not a control.
 - **Q2. What else is outside the ruling.** [NEEDS CLARIFICATION: The ruling keeps "everything else" behind sign-in. Two
   existing specs open more than that. `018-FR-017` makes the chef directory and its search readable signed out.
   `012-FR-008` puts public collections on the signed-out creator page, each with its own address. Is either one
@@ -530,6 +528,7 @@ creator page.
     - Signed out: the **public view**, a read-only screen with the same content and states as the web page, plus
       sign-in and sign-up controls.
     - Closing the public view, or opening the app with no link, MUST land on sign-in (`001-FR-045a`).
+    - The owner approved this public view on 2026-10-27 ("Read-only view"), for links only.
     - The public view is a link destination, not a landing screen. It MUST be reachable only through a link. The auth
       gate can gain a member for it, and MUST still have no landing member.
 - **FR-017**: After the page loads, the signed-in owner of an open recipe MUST see, from their own session, a note

@@ -102,8 +102,9 @@ it, and check that the changes are still there. Then check each state in `FR-042
     - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit
       ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)) and trainer nutrition planning.
       It also has a pantry with use-by dates, reminders and "use it up" suggestions (`007-FR-034` to `007-FR-040`), and
-      household coverage (`FR-041j`). It includes a monthly AI allowance of 30 uses (`005-FR-015a`). Those uses also pay
-      for auto-generated meal plans (`006-FR-026`).
+      household coverage (`FR-041j`). It includes a monthly AI allowance of 30 uses (`005-FR-015a`). Those uses pay for
+      every AI feature except AI food waste optimization, including auto-generated meal plans (`006-FR-026`). _(Clarified
+      2026-10-27: one call to the model is one use on every plan.)_
     - **Pro with AI**, **$19.99/month** or **$199.99/year**: everything in Pro, plus a larger monthly **AI allowance**
       of 300 uses (`005-FR-015a`) for AI recipe generation, AI meal suggestions, auto-generated meal plans and AI
       instruction optimization. It also has AI food waste optimization (`006-FR-027`), which only this plan has.

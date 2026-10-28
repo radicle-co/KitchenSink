@@ -318,19 +318,13 @@ The sitemap lists every page. Preview hosts answer `noindex`.
   page is built from the register's source (FR-030).
 - **Reading: one age for the waitlist.** The digital-consent age differs by country, from 13 to 16. The waitlist uses
   16 everywhere, which is the highest. It is simpler than asking for a country, and it asks for less data.
-- **Q1. Where the site lives.** [NEEDS CLARIFICATION: Which host serves the marketing site? Options: (A) a separate
-  host on the app's domain, `www.commise.app`, now. (B) `commise.com`, later. (C) paths such as `/pricing` on
-  `commise.app`, beside the app. In every option the `commise.app` root stays sign-in (`001-FR-045a`). Recommended: A.
-  It can launch now, on a domain we hold. It shares a domain with 021's recipe pages, so search authority is not split.
-  It deploys on its own, with no Clerk and no app middleware, so a copy change never waits on an app release. Its
-  cookies stay host-only, so they never ride a request to the app. B needs a domain we are not known to hold, and
-  splits search authority. Option A can add it later with permanent redirects. C puts marketing pages inside the app's
-  deploy, its Clerk middleware and its locale redirect, and ties every copy change to an app release.]
-- **Q2. Prices during a price experiment.** [NEEDS CLARIFICATION: The business plan proposes testing two yearly Pro
-  prices in the app. The pricing page shows one price to everyone. What does it show while a test runs? Options: (A)
-  run no price test while the page is public. (B) the page shows the standard price, and the test offers some new
-  customers a lower one in the app. (C) the page shows "from" the lowest price. Recommended: B, with `clo` sign-off.
-  Under B nobody is offered more than the page says. Under C the page states a price most visitors cannot get.]
+- **Q1. Where the site lives. RESOLVED 2026-10-27.** The owner chose option A, `www.commise.app` now. It deploys on
+  its own, with no Clerk and no app middleware, and its cookies stay host-only. The `commise.app` root stays sign-in
+  (`001-FR-045a`). `commise.com` can point to it later with permanent redirects.
+- **Q2. Prices during a price experiment. RESOLVED 2026-10-27.** No in-app price test is planned. The owner set Pro
+  at $99.99 a year from a feature comparison against the $59.99 plans, not from a test. The pricing page shows the one
+  standard price. If a test is ever proposed, option B (standard price on the page, a lower offer to some new customers
+  in the app, with `clo` sign-off) is the rule.
 
 ## Requirements _(mandatory)_
 

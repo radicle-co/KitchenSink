@@ -52,7 +52,7 @@ None identified specific to this spec.
 - **FR-036**: System MUST allow users to create nutrition plans with daily caloric and macronutrient targets (protein, carbs, fat).
 - **FR-037**: System MUST allow linking meal plans to nutrition plans and display compliance analysis.
 - **FR-038**: System MUST allow users with appropriate permissions to create nutrition plans for other users (trainer-client model). _(Pro)_
-- **FR-039**: System MUST suggest recipe swaps to better align meal plans with nutrition targets. _(Pro with AI)_
+- **FR-039**: System MUST suggest recipe swaps to better align meal plans with nutrition targets. _(Pro and Pro with AI, from the cook's AI allowance, per 010's plan register. Clarified 2026-10-27.)_
 
 ### Non-Functional Requirements _(constitution-derived)_
 

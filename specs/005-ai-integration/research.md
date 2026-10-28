@@ -120,7 +120,8 @@ async function getApiClient(userId: string, provider: 'openai' | 'anthropic') {
 - **Enterprise**: Managed keys, dedicated support, compliance features
 
 > This is the 2026-05 research view. Owner ruling, 2026-10-27: Free has no own keys. Own keys are for Pro and Pro
-> with AI only. Free gets 3 platform uses a month. See `spec.md` `FR-015` to `FR-015f`.
+> with AI only. Free gets 3 platform uses a month, Pro gets 30 and Pro with AI gets 300. After the allowance runs
+> out, a Pro or Pro with AI cook's own keys take over. See `spec.md` `FR-015` to `FR-015f`.
 
 ### 2.3 BYOK Key Storage: Security Requirements
 

@@ -67,11 +67,12 @@ money path.
   point, so a new entry point cannot forget it.
 - **States.** Every state in `FR-042g` is a vitest component test on both platforms, with a Playwright test and a
   Maestro flow for each happy path.
-- **Mobile.** Today mobile opens web checkout in the system browser. Whether that stays, or store in-app purchase is
-  added, is owner input O-9 (`FR-042i`). If store purchase is added, the entitlement source gains the store as a
-  second writer, and that needs its own design.
+- **Mobile.** Owner input O-9 is resolved (2026-10-27, `FR-042i`, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md)).
+  Mobile sells through the stores and web sells through Stripe. RevenueCat joins them, so the entitlement source gains
+  RevenueCat as a second writer beside the Stripe webhook. That needs its own design, which is owed to
+  `staff-architect`. The Stripe design in this plan stays valid for web.
 - **Design first.** The page goes through `staff-ux-engineer` (DESIGN, SPECIFY, EVALUATE) before it is built. The
-  design boards on the design branch draw Pro and Pro with AI. They still need Free's small AI allowance (spec
+  design boards on the design branch draw Pro and Pro with AI. They still need Free's small AI allowance and Pro's 30 uses (spec
   `FR-041a`), and every "Premium" string becomes "Pro" (`FR-041a1`).
 
 ---
@@ -158,14 +159,14 @@ webhook by `@kitchensink/identity-webhooks`**, per
 [ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md).
 **No new deployable service is created for 010.**
 
-| Role                                  | Binding for 010                                                                              |
-| ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/billing/*.schema.ts`       |
-| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`, **extended, never forked**     |
-| Stripe webhook handler                | `@kitchensink/identity-webhooks` — **not** the ECS API; see below                            |
-| Consuming client                      | the identity consumer named by **002's own OPEN item** — see the note below the table        |
-| Consuming apps                        | `@commise/web` (the primary billing surface), `@commise/mobile` (deep-links to web checkout) |
-| NestJS module (internal boundary)     | `BillingModule`, inside the identity service                                                 |
+| Role                                  | Binding for 010                                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/billing/*.schema.ts`      |
+| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`, **extended, never forked**    |
+| Stripe webhook handler                | `@kitchensink/identity-webhooks` — **not** the ECS API; see below                           |
+| Consuming client                      | the identity consumer named by **002's own OPEN item** — see the note below the table       |
+| Consuming apps                        | `@commise/web` (the primary billing surface), `@commise/mobile` (store purchase, `FR-042i`) |
+| NestJS module (internal boundary)     | `BillingModule`, inside the identity service                                                |
 
 ⚠️ **The consuming client is still 002's question, and 010 does not pre-empt it.** 002's plan carries its own
 🟠 **OPEN**: either **(a)** introduce `packages/clients/identity` and have `@commise/features-account` wrap it,
@@ -610,14 +611,14 @@ body handling for **every** identity endpoint to no purpose.
 
 ## 6. Open Questions (OQ from Research)
 
-| #    | Question                              | Decision                                                                                                                                                                       |
-| ---- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                                                                                                                        |
-| OQ-2 | Family/household plan?                | Future consideration; not in v1 scope                                                                                                                                          |
-| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                                                                                                                     |
-| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                                                                                                                       |
-| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                                                                                                                               |
-| OQ-6 | Plans, credits, names, mobile billing | Decided 2026-10-27: plans, names, credits (3 / 300 / 100), reset, change timing, trial. Mobile billing (O-9) is open: spec [owner inputs](./spec.md#owner-inputs-still-needed) |
+| #    | Question                              | Decision                                                                                                                                                                                |
+| ---- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                                                                                                                                 |
+| OQ-2 | Family/household plan?                | Future consideration; not in v1 scope                                                                                                                                                   |
+| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                                                                                                                              |
+| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                                                                                                                                |
+| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                                                                                                                                        |
+| OQ-6 | Plans, credits, names, mobile billing | Decided 2026-10-27: plans, names, credits (3 / 30 / 300 / 100), reset, change timing, trial. Mobile billing (O-9) is resolved: spec [owner inputs](./spec.md#owner-inputs-still-needed) |
 
 ---
 

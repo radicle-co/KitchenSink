@@ -232,7 +232,7 @@ export const formatMergeSummary = (
 // ─── The parts both leaves draw ─────────────────────────────────────────────────────────────────────
 
 /**
- * One option card (X2: Keep mine, Use theirs, Compare): a title, a description, and the choice it fires. `disabled` is the stale-base confirm
+ * One option card (X2, T5: Compare, Keep mine, Use theirs): a title, a description, and the choice it fires. `disabled` is the stale-base confirm
  * gate on Keep mine (W7 Task 5 / X6); Use theirs and Compare are never gated that way.
  */
 export interface ConflictOptionCardProps {

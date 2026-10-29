@@ -1,7 +1,7 @@
 appId: ${APP_ID}
 ---
 # Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — two side cards + changed-only diff + three
-# option cards (Keep mine, Use theirs, Compare) + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
+# option cards (Compare, Keep mine, Use theirs) + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
 # "Merge field by field" flow this file used to drive). Mobile mirror of the web Playwright
 # `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same side-card copy, same
 # changed-only diff/legend, same gating, asserted here against `RecipeConflictView.native.tsx`. Also asserts
@@ -123,7 +123,7 @@ appId: ${APP_ID}
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
 # If a concurrent save landed first, the conflict view offers the two side cards, the changed-only diff, and
-# all three W7 FR-007c resolutions (Keep mine, Use theirs, Compare). UN-DRIVABLE without a conflict-seeding harness — see module note.
+# all three W7 FR-007c resolutions (Compare, Keep mine, Use theirs). UN-DRIVABLE without a conflict-seeding harness — see module note.
 - runFlow:
       when:
           visible: 'This recipe changed while you were editing'

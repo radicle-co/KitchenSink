@@ -4,7 +4,7 @@
  *
  * The React Native leaf of `RecipeConflictView` — same FULLY
  * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
- * view (Task 3): two per-side cards (theirs ALWAYS first — X7), three option cards (X2: Keep mine, Use theirs, Compare), and the
+ * view (Task 3): two per-side cards (theirs ALWAYS first — X7), three option cards (X2, T5: Compare, Keep mine, Use theirs), and the
  * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
  * per changed-or-conflicting field/element, each with a word badge ("Changed" / "Both changed": text, never colour or a glyph alone)
  * and Theirs-then-Yours values (X7).
@@ -323,6 +323,12 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 — combined with, not replacing, Overwrite's existing stale-base gate — while a resolve is in
                 flight, so a rapid double-tap cannot fire a second resolve before the first settles. */}
             <OptionCard
+                title={conflict.optionCompareTitle}
+                description={conflict.optionCompareDescription}
+                onChoose={view.startMerge}
+                disabled={isResolving}
+            />
+            <OptionCard
                 title={conflict.optionKeepMineTitle}
                 description={conflict.optionKeepMineDescription}
                 onChoose={onOverwrite}
@@ -332,12 +338,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                 title={conflict.optionUseTheirsTitle}
                 description={conflict.optionUseTheirsDescription}
                 onChoose={onKeepServer}
-                disabled={isResolving}
-            />
-            <OptionCard
-                title={conflict.optionCompareTitle}
-                description={conflict.optionCompareDescription}
-                onChoose={view.startMerge}
                 disabled={isResolving}
             />
 

@@ -10,7 +10,7 @@
  *
  * FULLY controlled, presentational conflict resolver for FR-007c. This is the W7 rebuild of the DEFAULT
  * (options) view (Task 3): two per-side cards (theirs ALWAYS first — X7), three option cards (X2)
- * — Keep mine, Use theirs, Compare (field by field) — and the changed-only diff panel
+ * — Compare (field by field), Keep mine, Use theirs — and the changed-only diff panel
  * (W7 Task 4 / X1) below the cards, driven by the precomputed `ConflictDiff` (W7 Task 1): one row PER
  * changed-or-conflicting field/element, each with a word badge ("Changed" / "Both changed" —
  * text, never colour or a glyph alone) and Theirs-then-Yours values (X7).
@@ -288,11 +288,17 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             {/* Stale-base warning (W7 Task 5 / X6) — gates Keep mine below. */}
             {staleWarning}
 
-            {/* Three option cards (X2): Keep mine, Use theirs, Compare. `isResolving` (concurrency/double-submit fix) busies ALL three —
+            {/* Three option cards (X2, T5): Compare, Keep mine, Use theirs. `isResolving` (concurrency/double-submit fix) busies ALL three —
                 combined with, not replacing, Keep mine's existing stale-base gate — while a resolve is in flight,
                 so a rapid double-click cannot fire a second resolve before the first settles. Busy refuses the
                 press without natively disabling the card the cook just pressed. */}
             <div className="flex flex-col gap-4 sm:flex-row">
+                <OptionCard
+                    title={conflict.optionCompareTitle}
+                    description={conflict.optionCompareDescription}
+                    onChoose={view.startMerge}
+                    busy={isResolving}
+                />
                 <OptionCard
                     title={conflict.optionKeepMineTitle}
                     description={conflict.optionKeepMineDescription}
@@ -304,12 +310,6 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                     title={conflict.optionUseTheirsTitle}
                     description={conflict.optionUseTheirsDescription}
                     onChoose={onKeepServer}
-                    busy={isResolving}
-                />
-                <OptionCard
-                    title={conflict.optionCompareTitle}
-                    description={conflict.optionCompareDescription}
-                    onChoose={view.startMerge}
                     busy={isResolving}
                 />
             </div>

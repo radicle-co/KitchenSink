@@ -336,7 +336,7 @@ and how long a reply takes.
 - **Q2. How are regional prices set? RESOLVED 2026-10-29.** The owner chose "Round launch markets". Each launch
   storefront gets a rounded local price, set by a person: the UK, Canada and Australia, then Mexico and Spain. The
   stores convert every other country from the US price. 010's plan register records the rule and the method, with
-  each local number left to the owner ([Prices by storefront](../010-subscriptions/spec.md#prices-by-storefront)). The method (owner ruling, 2026-10-29, "Convert and round"): convert the US price at the
+  each local number computed by that method ([Prices by storefront](../010-subscriptions/spec.md#prices-by-storefront)). The method (owner ruling, 2026-10-29, "Convert and round"): convert the US price at the
   day's exchange rate, add local tax where prices show tax, and round to the nearest store price point ending in .99
   (`010` Prices by storefront).
 - **Q3. Which languages does support answer in? RESOLVED 2026-10-29.** The owner chose "English only". Support

@@ -178,7 +178,8 @@ No constitution violations. The Principle VIII waiver is gone: the owner chose a
 
 ## Open Question
 
-**OQ-1 (major): how the app opens offline** (spec OQ-1, research R1). Options: Clerk's experimental cache on mobile
+**OQ-1 (major): how the app opens offline. RESOLVED 2026-10-29: our held state on both web and mobile** (owner, "Our
+held state on both"; spec OQ-1, research R1). The options were: Clerk's experimental cache on mobile
 with the held state on web only, the held state on both, or an answer from Clerk first. The owner does not want to
 build sign-in behavior ourselves. On 2026-10-25 Clerk had published no plan to make its cache stable or to support
 offline on web. The choice changes build step 3 and how SC-003 reads. Build steps 1, 2 and 4 to 6 do not depend on it.

@@ -523,9 +523,9 @@ ADR-0074. Six rules that are easy to get wrong:
 
 Turns offline mode on in full, and ADR-0069's three conditions are its exit gate. Three rules that are easy to get wrong:
 
-- **How the app opens offline is the spec's one OPEN question (OQ-1).** Clerk's experimental cache (mobile-only) or our
-  own `held` state. The owner does not want to build sign-in behavior ourselves, and Clerk has no published plan for a
-  stable cache or web offline. Do not build the gate until the owner decides. Whichever wins, only `authenticated` sends.
+- **The app opens offline through our own `held` state, on web AND mobile (OQ-1, owner ruling 2026-10-29: "Our held
+  state on both").** It shows stored data while Clerk loads and hands back to Clerk; it is not sign-in logic. Clerk's
+  experimental offline cache is not used. Only `authenticated` sends.
 - **Drain at the moment the session becomes verified.** A record parked with a `401` before Clerk could mint a token
   had no further trigger, which is the likely cause of ADR-0069's stuck reconnect.
 - **Web gets the full offline start too (owner, 2026-10-25).** A service-worker shell that caches no signed-in HTML,

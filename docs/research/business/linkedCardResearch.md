@@ -163,7 +163,7 @@ their own browser, the site's claim against Commise is weak.
   direct competition with a product or service offered by the pla[intiff]" and a threat to the product's existence.
 - A recipe is not time-sensitive. This claim fails at element (ii). _Barclays v. Theflyonthewall_ (2d Cir. 2011-06-20)
   narrowed it further and held the claim there "preempted by federal copyright law".
-- Massachusetts consumer-protection law (Chapter 93A) and the Lanham Act are the other routes. They matter only for a
+- State consumer-protection law in the company's home state and the Lanham Act are the other routes. They matter only for a
   card that misleads, for example one that implies the site made or endorses it. Show "Saved from [site]", never "by
   [site]" without a link. I did not open Chapter 93A. **[Unconfirmed]**
 - **Risk: Low.**
@@ -255,7 +255,7 @@ add-to-list action no special wording is needed, because the ingredients are vis
 
 **Confidence: Medium.** High that the US allows the facts on the card. Medium on the EU database right at scale, and on
 implied licence from markup, because no case decides them for recipe apps. Low on UK database-right eligibility and on
-Massachusetts unfair-competition law, which I did not open.
+the home state's unfair-competition law, which I did not open.
 
 **Note:** This is guidance only, not binding legal advice. Confirm with external counsel before acting.
 
@@ -304,5 +304,5 @@ from the EU Publications Office.
 28. Also relied on, from the main report: Circular 33, 37 CFR 202.1, _Publications International v. Meredith_, _Barbour v. Head_, 17 U.S.C. 107. See `recipeOwnershipResearch.md` Sources.
 29. Repo specs read: 021 FR-014, 016 FR-010 and FR-027 to FR-029, 004 FR-008 and FR-010.
 
-**Not opened:** Massachusetts Chapter 93A, UK database regulations reg 18, any Yummly recipe page, Samsung Food's
+**Not opened:** the home state's consumer-protection statute, UK database regulations reg 18, any Yummly recipe page, Samsung Food's
 public recipe pages, and any case on headnote snippets.

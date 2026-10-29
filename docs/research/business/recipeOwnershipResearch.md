@@ -479,7 +479,7 @@ Commise is not settled.
   refused it: "The Court declines defendants' invitation to apply Perfect 10's Server Test for two reasons. First, this
   Court is skeptical that Perfect 10 correctly interprets the display right of the Copyright Act." It held that
   embedding "violated plaintiff's exclusive display right".
-- Massachusetts is in the First Circuit. I found no First Circuit ruling on embedding. **[Unconfirmed]**
+- The company's home circuit has no ruling on embedding that I found. **[Unconfirmed]**
 - So 016's "by reference" rule lowers the risk (no stored copy, a strong answer in the Ninth Circuit), but it does not
   remove it. The safest version of recommendation (a) shows other cooks no third-party photo at all, only a link.
   The saving cook still sees the photo in their own private copy.

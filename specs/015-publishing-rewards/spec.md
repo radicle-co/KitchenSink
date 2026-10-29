@@ -8,13 +8,14 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                                                             |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — owns recipe visibility (`FR-003`), the public read (`FR-004`) and clone (`FR-005`) paths, and the C-004 policy            |
-| [004-recipe-importing](../004-recipe-importing/spec.md)     | **Required** — owns the `sourceType` provenance vocabulary (`FR-011`), attribution (`FR-010`), attestation (`FR-014a`), quota (`FR-022`) |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — every surface here is authenticated; account erasure cascades to this feature's records                                   |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — reward benefits are expressed as entitlements; this feature grants them without owning the tier model                   |
-| [012-creator-profiles](../012-creator-profiles/spec.md)     | **Referenced** — creator-profile eligibility is one benefit this feature may grant; 012 owns the profile itself                          |
+| Spec                                                        | Relationship                                                                                                                                                                                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — owns recipe visibility (`FR-003`), the public read (`FR-004`) and clone (`FR-005`) paths, and the C-004 policy                                                                                                               |
+| [004-recipe-importing](../004-recipe-importing/spec.md)     | **Required** — owns the `sourceType` provenance vocabulary (`FR-011`), attribution (`FR-010`), attestation (`FR-014a`), quota (`FR-022`)                                                                                                    |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — every surface here is authenticated; account erasure cascades to this feature's records                                                                                                                                      |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — reward benefits are expressed as entitlements; this feature grants them without owning the tier model                                                                                                                      |
+| [012-creator-profiles](../012-creator-profiles/spec.md)     | **Referenced** — creator-profile eligibility is one benefit this feature may grant; 012 owns the profile itself                                                                                                                             |
+| [026-chef-spaces](../026-chef-spaces/spec.md)               | **Constrained by this feature (proposed 2026-10-29).** 026's Pro pool pays chefs money for cooks of their own authored recipes. Its `FR-041` keeps this feature's eligibility rules (`FR-001`) binding, and 015's rewards stay non-monetary |
 
 > **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
 > name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's

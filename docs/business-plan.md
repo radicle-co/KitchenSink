@@ -2,12 +2,98 @@
 
 ## AI-Powered Cooking Platform — From Fridge to Table
 
-**Date**: June 6, 2026
-**Status**: Draft — Pre-Implementation
+**Date**: June 6, 2026 (last updated 2026-10-29)
+**Status**: June 2026 draft, partly superseded. The decisions in force are in [Current decisions (2026-10-29)](#current-decisions-2026-10-29). Sections marked "Superseded" are kept as history.
 **App Name**: Commise
 **Company Name**: TBD (in progress)
 **Monorepo**: KitchenSink (internal codename)
-**Related**: [Competitive Analysis v2](./competitive-analysis-v2.md), [V1 Launch Plan](../specs/v1-launch-plan.md), [AI Enhancement Plan](./ai-enhancement-plan.md)
+**Related**: [Business research, 2026-10](./research/business/README.md), [Competitive analysis](./competitive/README.md), [V1 Launch Plan](../specs/v1-launch-plan.md), [AI Enhancement Plan](./ai-enhancement-plan.md). `competitive-analysis-v2.md` is corrupted. See the [competitive README](./competitive/README.md).
+
+---
+
+## Current decisions (2026-10-29)
+
+These are the owner's business and product decisions of 2026-10-27 to 2026-10-29. They replace the June 2026 text
+where the two differ. Each item links to the spec, ADR or research file that records it.
+
+### Plans and prices
+
+| Plan                  | Price                            | AI uses a month                       |
+| --------------------- | -------------------------------- | ------------------------------------- |
+| Free                  | None                             | 3                                     |
+| Pro                   | $9.99 a month or $99.99 a year   | 30                                    |
+| Pro with AI           | $19.99 a month or $199.99 a year | 300 (100 during the trial)            |
+| Pro Household         | $14.99 a month or $149.99 a year | 30 for each member                    |
+| Pro with AI Household | $29.99 a month or $299.99 a year | 300, one pool for the whole household |
+
+- Every paid plan has a 14-day trial. A household holds up to 6 accounts.
+- One call to the model is one AI use. A weekly meal plan made in one call is one use.
+- Free keeps up to 50 private recipes. Paid plans have no limit.
+- Sources: the [010 plan register](../specs/010-subscriptions/spec.md#plan-register),
+  [005 FR-015a](../specs/005-ai-integration/spec.md) (one call is one use), the household rules in
+  [017](../specs/017-recime-parity/spec.md) (FR-034l and FR-034n), and
+  [ADR-0073](./architecture/decisions/0073-free-tier-private-slots.md) (50 private recipes).
+- Price evidence: [priceEvaluation.md](./research/business/priceEvaluation.md) and
+  [mv2/priceEvidence.md](./research/business/mv2/priceEvidence.md).
+
+### Payments
+
+Cooks pay through the App Store on iPhone, Google Play on Android, and Stripe on the web. RevenueCat joins the three
+into one record of who has paid. Recorded in
+[ADR-0075](./architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md). The evidence is in
+[paymentDecisionBrief.md](./research/business/paymentDecisionBrief.md).
+
+### Launch scope
+
+Every feature spec ships at launch except [015 publishing rewards](../specs/015-publishing-rewards/spec.md) and
+[018 chef program marketplace](../specs/018-chef-program-marketplace/spec.md). Those two follow after their blockers
+clear. Beta can lack some features. This is an owner ruling of 2026-10-27. No spec records it yet.
+
+### Positioning
+
+- Pro is the like-for-like match to competitor subscriptions. It matches the features of Samsung Food+: a pantry with
+  use-by dates, AI meal plans on Pro's 30 uses, and household sharing. AI waste optimization stays in Pro with AI only.
+  See the [010 plan register](../specs/010-subscriptions/spec.md#plan-register).
+- Pro with AI is an extra tier that competitors do not sell.
+- Commise has no in-app ads on any plan.
+- The competitor evidence is in [mv2/compSubs.md](./research/business/mv2/compSubs.md),
+  [mv2/compIndie.md](./research/business/mv2/compIndie.md) and
+  [marketAnalysisV2.md](./research/business/marketAnalysisV2.md).
+
+### Growth
+
+- The growth specs are 021 to 025:
+    - [021 public discovery and sharing](../specs/021-public-discovery-and-sharing/spec.md)
+    - [022 marketing site and waitlist](../specs/022-marketing-site-and-waitlist/spec.md)
+    - [023 referrals and growth measurement](../specs/023-referrals-and-growth-measurement/spec.md)
+    - 024 Cook with me. It is drafted on a separate branch, so it is not linked here yet.
+    - [025 international launch](../specs/025-international-launch/spec.md)
+- Visibility is aggressive from launch (owner, 2026-10-28). Paid acquisition, creators, PR and launch moments start at
+  launch. They do not wait for conversion to pass a gate. A spend limit and payback rules control the cost.
+- Ideas and their evidence: [acquisitionIdeas.md](./research/business/acquisitionIdeas.md) and
+  [conversionIdeas.md](./research/business/conversionIdeas.md).
+
+### Content review
+
+At launch the founder reviews flagged content. A paid part-time backup covers for the founder. A half-time reviewer
+is hired after review volume reaches a set trigger. Recorded in
+[ADR-0076](./architecture/decisions/0076-founder-reviews-at-launch-with-a-paid-backup.md) and
+[016](../specs/016-legal-compliance-framework/spec.md) (FR-053h and FR-053i).
+
+### Recipe rights
+
+- Cooks keep the copyright in what they write.
+- A recipe imported from someone else's web page stays private, or shows to other cooks as a linked card that points
+  to the source.
+- The research is [recipeOwnershipResearch.md](./research/business/recipeOwnershipResearch.md) and
+  [linkedCardResearch.md](./research/business/linkedCardResearch.md). Both are research, not legal advice. The spec
+  changes for these rulings (2026-10-29) are being written into specs 016, 020 and 021.
+
+### Evidence rule
+
+Market, conversion and growth figures come only from cited market data. Where no data exists, the figure is marked GAP
+and gets a test, not a guess. See [conversionStudy.md](./research/business/conversionStudy.md) and the
+[business research README](./research/business/README.md).
 
 ---
 
@@ -75,6 +161,8 @@
 
 ## 1. EXECUTIVE SUMMARY
 
+> **Superseded 2026-10-29** for plans, AI cost and revenue. See [Current decisions](#current-decisions-2026-10-29).
+
 **What**: Commise — a full-stack AI cooking platform that knows what's in your fridge, generates validated recipes, plans your meals, builds smart grocery lists, and orders ingredients for delivery — all powered by the user's own AI key (zero inference cost).
 
 **Why now**: $1.6B market growing 13.4% CAGR. No winner-take-all. ChatGPT + Instacart integration just launched (Dec 2025) creating a massive distribution channel. 30+ fragmented competitors but none combine pantry tracking + AI recipe generation + grocery ordering + cooking education in one app.
@@ -92,6 +180,8 @@
 ---
 
 ## 2. MARKET OPPORTUNITY
+
+> **Superseded 2026-10-29.** See [marketAnalysisV2.md](./research/business/marketAnalysisV2.md).
 
 ### Market Size
 
@@ -128,6 +218,8 @@
 
 ### 3.1 The 14-Feature Roadmap
 
+> **Superseded 2026-10-29.** Launch scope is in [Current decisions](#current-decisions-2026-10-29). Each feature is a spec under [`specs/`](../specs/).
+
 Already specced in detail. Summary:
 
 | Phase            | Milestone | Features                                         | What Ships                                        |
@@ -163,6 +255,8 @@ Already specced in detail. Summary:
 ---
 
 ## 4. GO-TO-MARKET STRATEGY
+
+> **Superseded 2026-10-29.** See the growth items in [Current decisions](#current-decisions-2026-10-29) and [acquisitionIdeas.md](./research/business/acquisitionIdeas.md).
 
 ### 4.1 Phase 1: Beta Launch (Months 1-4)
 
@@ -234,6 +328,8 @@ Already specced in detail. Summary:
 
 ## 5. REVENUE MODEL
 
+> **Superseded 2026-10-29.** Plans, prices and AI uses are in [Current decisions](#current-decisions-2026-10-29) and the [010 plan register](../specs/010-subscriptions/spec.md#plan-register).
+
 ### 5.1 Three Revenue Streams
 
 | Stream                   | Model                                                                                             | Month 6      | Month 12     | Month 18     |
@@ -278,6 +374,8 @@ Traditional app wisdom says "subscriptions = revenue." In cooking apps, that's w
 ---
 
 ## 6. COMPETITIVE DEFENSE
+
+> **Superseded 2026-10-29.** See [mv2/compSubs.md](./research/business/mv2/compSubs.md), [mv2/compIndie.md](./research/business/mv2/compIndie.md) and the [competitive README](./competitive/README.md).
 
 ### 6.1 Competitive Positioning Map
 
@@ -339,6 +437,8 @@ Traditional app wisdom says "subscriptions = revenue." In cooking apps, that's w
 
 ## 8. 18-MONTH ROADMAP
 
+> **Superseded 2026-10-29.** See the launch scope in [Current decisions](#current-decisions-2026-10-29).
+
 ### Months 1-4: Ship Beta
 
 | Month | Milestone             | What Ships                                                 |
@@ -378,6 +478,8 @@ Traditional app wisdom says "subscriptions = revenue." In cooking apps, that's w
 
 ## 9. FUNDING STRATEGY
 
+> **Superseded 2026-10-29.** Not maintained in this repository.
+
 ### Option A: Bootstrap (Recommended for Months 1-6)
 
 - **Cost to beta**: ~$2,000-5,000 (AWS infra + App Store fees + domains)
@@ -407,6 +509,8 @@ If Instacart commission + subscriptions cover costs and generate profit, there's
 ---
 
 ## 10. KEY METRICS & TARGETS
+
+> **Superseded 2026-10-29** for conversion figures. See [conversionStudy.md](./research/business/conversionStudy.md).
 
 ### North Star Metric
 
@@ -446,6 +550,8 @@ If Instacart commission + subscriptions cover costs and generate profit, there's
 ---
 
 ## 12. APPENDIX: COMPETITIVE FEATURE MATRIX
+
+> **Superseded 2026-10-29.** See [mv2/compSubs.md](./research/business/mv2/compSubs.md) and [mv2/compIndie.md](./research/business/mv2/compIndie.md).
 
 _Full 30+ competitor matrix available in [competitive-analysis-v2.md](./competitive-analysis-v2.md) Section 12.12_
 

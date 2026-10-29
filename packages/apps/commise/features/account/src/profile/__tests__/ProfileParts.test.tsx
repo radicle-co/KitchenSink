@@ -58,6 +58,20 @@ describe('ProfileHeader (web)', () => {
         expect(screen.queryByText('eliza@example.com')).toBeNull();
     });
 
+    // T8 (owner, 2026-10-29): with no display name, the header shows the @username next to the avatar.
+    it('shows the @username when the cook has no display name', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: 'braise' }}
+                initials=""
+                onRetry={noop}
+            />,
+        );
+
+        expect(screen.getByText('@braise')).toBeTruthy();
+        expect(screen.queryByText('a@b.co')).toBeNull();
+    });
+
     it('shows no text at all for a cook with no name yet — the page never invents one', () => {
         render(
             <ProfileHeader

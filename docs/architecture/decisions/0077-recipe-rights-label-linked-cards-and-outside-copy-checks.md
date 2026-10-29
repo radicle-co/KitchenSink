@@ -3,7 +3,10 @@
 - **Status:** Accepted
 - **Date:** 2026-10-29
 - **Amends:** [ADR-0072](0072-bulk-recipe-import.md) §9, its list of source statements. Two statements are added, and
-  a family or friend recipe is no longer labelled like a paid source. Every other part of §9 stands.
+  a family or friend recipe is no longer labelled like a paid source. §6 below also removes §9's rule that a web
+  import goes private only with Pro and a substantive edit. Every other part of §9 stands.
+  [ADR-0073](0073-free-tier-private-slots.md) §1, §6 and §10, the same rule: a web import now uses a slot like any
+  private recipe, and the PRO badge marks nothing. Every other part of ADR-0073 stands.
   [ADR-0074](0074-content-source-check.md), its rule that the check compares a recipe with nothing outside our own
   database. For a recipe headed public, the check can now compare it with the page it was imported from and search
   the web for its method sentences. Everything else in ADR-0074 stands: only the rules block, a model never clears a
@@ -88,9 +91,8 @@ ADR-0072 §9's statement list becomes six statements. The table replaces §9's t
 | From a paid site, with a citation                                          | `imported_paid`     | From a cookbook, magazine or paid site |
 | From a family member or friend, with their permission (credit is optional) | decided at PLANNING | From a family member or friend         |
 
-- **§9's visibility column still stands** for each source type. That includes its rule that `imported_public` goes
-  private only with Pro and a substantive edit. Whether any cook can keep a web import private is an open question in
-  spec 001 (Session 2026-10-29).
+- **§9's visibility column still stands** for each source type, except who can keep an `imported_public` recipe
+  private. §6 below answers that: any cook, using a slot.
 - **Why no fifth `sourceType` value.** It is a persisted column and a wire enum that installed clients switch over.
   Adding a value is a one-way door, and the visibility policy already has the right answer for this recipe in an
   existing class. So the statement kind is stored as its own fact, beside the label, and the rights label reads it.
@@ -168,6 +170,31 @@ This is the change to ADR-0074 and to `020-FR-012`. It applies only to a recipe 
 A staff reviewer decides one question: is this someone else's work, shared without the right to share it? A reviewer
 never judges quality, taste, style, accuracy or fit, never edits a recipe, and never features or promotes one. This
 keeps review on the screening side of _Mavrix_, which that court called "accessibility-enhancing".
+
+### 6. Any cook can keep a web import private, using a slot
+
+Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": "Any cook, using a slot."
+
+- **The rule.** An `imported_public` recipe can be made private, in full, by any cook. For a free cook it uses one of
+  the 50 private slots like every other private recipe (ADR-0073 §2). Pro has no limit. No Pro plan and no
+  substantive edit is needed.
+- **What this removes.** ADR-0073 §1 and §6 kept "Pro and a substantive edit" for `imported_public`, with slots never
+  applying. ADR-0072 §9 and its two notes repeated it. All of that is removed. In ADR-0073's §6 table, the row for
+  `imported_public` and private now reads "Pro, or a free slot", the same as `user_created`.
+- **Why.** `016-FR-029a`'s fourth guardrail says the slot limit applies to every private recipe alike, whatever its
+  source. A full private copy of someone else's page that only Pro could keep would be pricing on imported content,
+  which `016-FR-029a` forbids. Under the old rule a free cook who imported a page another cook had already carded
+  would have no full copy at all.
+- **The PRO badge marks nothing.** ADR-0073 §10 narrowed the badge to private `imported_public` recipes, the one kind
+  of privacy that needed Pro. That kind is gone, so no recipe uses a Pro-only capability. The single derivation
+  (`usesPremiumCapability`) and its wire field stay and answer false for every recipe, because installed clients read
+  the field. Removing the field, or giving the badge a new meaning, is a separate decision. Spec 010's plan register
+  lists the capability under every plan.
+- **What does not change.** Public stays a linked card (§3). The substantive edit still gates publication of a clone
+  (`001-FR-005b`). ADR-0023's downgrade-only rule is untouched.
+- **Code is owed.** `recipes/domain/visibilityPolicy.ts` still enforces the old rule in `evaluateVisibility`, and
+  `usesPremiumCapability` still marks a private `imported_public`. Both change in one commit, with failing tests
+  first. The spec records this as a separate code task.
 
 ## Consequences
 

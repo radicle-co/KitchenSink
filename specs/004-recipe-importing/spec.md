@@ -234,8 +234,8 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > import, the server checks the copyright or licence of the source page and decides one of three outcomes:
     > import as public, import as private, or block. Each outcome sets the label. An allowed-public link is stored
     > as `imported_public`. A link the check allows only as private is stored as `imported_paid`, which is
-    > private-only on every plan and never public. It is NOT stored as `imported_public`, because that label stays
-    > private only with Pro and a substantive edit. A blocked link is not imported. The design session drew
+    > private-only on every plan and never public. It is NOT stored as `imported_public`, because that label is for
+    > pages the check allowed to go public. A blocked link is not imported. The design session drew
     > these three outcomes on features canvas v21 (ImportReviewDraft, ImportLinkPrivateOnly, ImportPaidSiteBlocked).
     > The check itself is not designed yet. It belongs to this URL flow only. Bulk import is a separate flow, where the cook's per-recipe statement sets the label
     > ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9).

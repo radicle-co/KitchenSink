@@ -2,6 +2,8 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-04-14
+**Amended**: 2026-10-28 (`FR-053` added: the "Save to Commise" button for food blogs, gated on the WP Recipe Maker
+team, owner ruling)
 **Last revised**: 2026-08-19 (`FR-024`/`FR-025` amended for curator-declared provenance — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md); findings recorded against `FR-020`, `FR-023` and the V-Model module design)
 **Status**: Ready for implementation — all revalidation gates resolved. One requirement (FR-009, Instagram) is
 specified in full but **gated on an external Meta credential**; see `D-002` and the Gating section.
@@ -28,6 +30,15 @@ renumbered so existing links and the index entry keep resolving.
 | [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all import actions require authentication                                                                                                                                                                                                                           |
 | [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — imported ingredient lines resolve against the food catalog via `@kitchensink/food-service-client`                                                                                                                                                                   |
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — Pro entitlement gates clone-to-private (`004-FR-011`) and lifts the free-tier limit of 50 private recipes (`004-FR-028` as amended 2026-10-26, ADR-0073). Until 010 ships, Pro is derived from the signed token's `permissions` (the shipped `PREMIUM_PERMISSION`). |
+
+> **External dependency (added 2026-10-28, owner ruling).** The "Save to Commise" button (`FR-053`) needs one
+> partner. The WP Recipe Maker plugin team must agree to add Commise as a save target. The plugin reports "50,000+"
+> active
+> installations ([WordPress.org](https://wordpress.org/plugins/wp-recipe-maker/)). Partner terms are unknown. Until
+> the team agrees, `FR-053` stays behind a capability flag that is off (`D-019`). Nothing else in 004 depends on it.
+> The plan also needs [017-recime-parity](../017-recime-parity/spec.md) (one capture pipeline, `017-FR-015`),
+> [020-content-source-check](../020-content-source-check/spec.md) and
+> [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md) (`021-FR-035` app links).
 
 > **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
 > name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
@@ -113,6 +124,40 @@ attribution, then clone it and verify the clone retains attribution.
    existing public recipe is surfaced instead of a second import, with a clone option offered.
 8. **Given** a user pastes recipe content manually, **When** they attest that it came from a non-public source
    (cookbook, subscription site), **Then** the recipe is created as `imported_paid` and can never be made public.
+
+---
+
+### User Story 2 - Save a recipe from a food blog with one tap (Priority: P3)
+
+_(Added 2026-10-28, owner ruling. Gated on the WP Recipe Maker team, `D-019`.)_
+
+Ana reads a recipe on a food blog that runs WP Recipe Maker. Under the recipe card she sees a "Save to Commise"
+button. She taps it. Her phone has the Commise app, and she is signed in, so the app opens. It names the blog and asks
+"Save this recipe?". She taps Save. A moment later the import draft is waiting for her to check, with the blog named
+as the source. On a
+computer with no app, the same tap opens Commise on the web. If she is signed out, she signs in first and comes back
+to the same save.
+
+**Why this priority**: One partner can put the button on every site that runs the plugin. But it needs the plugin
+team to agree, so it cannot be the first thing built.
+
+**Independent Test**: Turn the capability flag on, and use a test page that carries the button's link. Tap it signed
+in, signed out, with the app installed and without. Each path ends at one import draft for that page, with the source
+shown, through the same pipeline as a pasted link.
+
+**Acceptance Scenarios**:
+
+1. **Given** a signed-in cook, **When** they tap the button, **Then** Commise shows a save screen that names the source
+   site. **When** they tap Save there, **Then** one import of that one page starts, and the cook sees the draft to
+   confirm (`FR-053`, C-006).
+2. **Given** a save link that opens with no tap on Commise's save screen, **When** a frame, an image request, a
+   prefetch or a link preview loads it, **Then** nothing is fetched or imported, and no quota is used (`FR-053`).
+3. **Given** a signed-out reader, **When** they tap the button, **Then** they reach sign-in or sign-up, and after it
+   they return to the same save, which they confirm once. Nothing is imported before they sign in.
+4. **Given** a page whose rights check allows it only as private, or blocks it, **When** the save runs, **Then** the
+   outcome is the same as for a pasted link to that page (`FR-008` ruling).
+5. **Given** the capability flag is off, **When** anyone opens a save link, **Then** they see that saving from that
+   site is not available yet, and they can paste the link into the import chooser instead.
 
 ---
 
@@ -224,6 +269,46 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > **attestation** for pasted content but attached it to ordinary recipe creation, so the promise the UI
     > makes had no channel behind it. It is also what the photo transfer makes load-bearing: with OCR owned by
     > 011, paste is how a user gets a physical-copy recipe in **today**.
+- **FR-053** _(GATED, added 2026-10-28, owner ruling, see `D-019`)_: System MUST accept a **"Save to Commise"**
+  link from a recipe page that shows the button, and turn one tap into one user-directed capture of that one page.
+  Owner ruling, 2026-10-28: "Do 3 as well." The rules:
+    - **The button is a plain link.** It carries the page's address and a fixed source tag for the partner, and
+      nothing else. Commise puts no script, cookie, pixel or tracking call on the publisher's page. The link's
+      exact form is a public contract with a third party. So `staff-architect` fixes it at PLANNING, and it is
+      versioned like any wire contract.
+    - **Opening the link does nothing by itself.** Any site can build the link, with any page address. So a request
+      that reaches Commise from another site proves no person acted. Opening the link MUST only show Commise's own
+      save screen, which names the source site. The fetch starts with the cook's tap on Save on that screen, and with
+      nothing else. That
+      tap is the one explicit user action of `017-FR-001a`. A frame, an image request, a prefetch or a link preview
+      MUST NOT start a fetch, use quota or create anything. Nothing crawls the publisher's site or saves in bulk.
+    - **The second tap is a known cost.** The owner asked for one tap. This rule adds a second tap, on Commise's
+      screen, because one tap on another site cannot be told apart from a page that forges it. Whether the owner
+      accepts it is an open question for plan time.
+    - **One pipeline.** The save goes through the same capture pipeline as every other channel (`017-FR-015`). So
+      these all apply unchanged: the paywall blocklist (`FR-014`), the rights check in the `FR-008` ruling and the
+      `robots.txt` rule (`FR-023`). The daily quota (`FR-022`), deduplication (C-001) and the draft-and-confirm model
+      (C-006) apply too.
+      The channel is recorded under `016-FR-028` like any link import.
+    - **Sign-in comes first.** A signed-out reader goes to sign-in or sign-up and returns through the app's parsed
+      return path (`safeReturnPath`) to confirm the save once. Nothing is fetched or stored for a person who is not
+      signed in (`001-FR-045`). No AI work runs for a signed-out reader.
+    - **The label comes from the rights check, never from the button.** A save is never `user_created`. The check
+      gives one of three outcomes: `imported_public`, `imported_paid` for a page allowed only as private, or blocked. So
+      it is
+      never open to the web (`021-FR-003`), and a book or paid-site recipe is never public (C-004).
+    - **020 still checks it.** A cook can make the recipe public. Then 020's source check runs before anyone else
+      can see it (`020-FR-004`).
+    - **Attribution.** The draft and the recipe show the source site and author, as for any link import
+      (`FR-010`).
+    - **On phones.** With the app installed, the save link opens the app through a universal link or app link. That
+      needs `021-FR-035` to associate the save route, which 021 records as an amendment. With no app, the link opens
+      the web app, which offers the store only by `021-FR-037`'s rule.
+    - **Measurement.** A sign-up that starts from a save link counts under the `save_button` source in
+      `023-FR-004`, with the partner as its detail. No reader identity is passed to the publisher or back from it.
+    - **Every state is a deliverable.** The saving, saved, not available yet, blocked, private-only, quota reached,
+      offline and error states each need a design, copy and a localisation key, on web and mobile.
+      `staff-ux-engineer` DESIGN and SPECIFY run at plan time.
 - **FR-019**: System MUST allow users to import recipes from structured files (JSON, YAML, or Markdown with
   YAML frontmatter), producing a draft. File type MUST be determined by content inspection (magic bytes), not
   by the client-supplied filename or MIME type.
@@ -778,6 +863,13 @@ The section above decides **who authors** the contract; this one is where it **r
   Review. Instagram import therefore ships behind a capability flag, defaulting off, and its adapter is
   developed and tested against a contract fake. **No other requirement in 004 depends on it.** The Meta
   application is an external workstream that does not gate release.
+- **D-019 (Save to Commise, added 2026-10-28, owner ruling)**: `FR-053` is fully specified but gated, in the same
+  way as `D-002`. Owner ruling, 2026-10-28: "Do 3 as well." The button needs the WP Recipe Maker team to add Commise as
+  a save target. The founder emails the team in pre-launch block 1. If there is no reply within 30 days, outreach
+  stops (acquisition brainstorm, idea B4). Writing our own WordPress plugin is not planned. It needs evidence of
+  creator demand first. The capability flag stays off until a signed agreement exists. The publisher chooses to show
+  the button, which is the publisher's own act. Whether that act grants any licence is a counsel question under
+  `016-FR-050`. It does not change any label. No other requirement in 004 depends on `FR-053`.
 - **D-003 (FR-014a)**: Attestation **and** citation **and** heuristics, as specified in `FR-014a`: the user
   declares the source and must cite it; a non-public cited source forces `imported_paid` (never public);
   heuristics flag for review only. Enforcement reuses 001's shipped `imported_paid` handling, so only
@@ -912,7 +1004,8 @@ The section above decides **who authors** the contract; this one is where it **r
 
 ## Gating
 
-`FR-009` is the only gated requirement. Release is **not** blocked on it: the URL, file, and OCR channels
+`FR-009` and `FR-053` are the gated requirements (`FR-053` added 2026-10-28, `D-019`). Release is **not** blocked on
+either: the URL, file, and OCR channels
 constitute a complete, shippable feature. If the Meta credential is unavailable at release, the Instagram
 channel is hidden by its capability flag and its tests run against the contract fake in CI.
 
@@ -943,6 +1036,10 @@ channel is hidden by its capability flag and its tests run against the contract 
   credential and caption-text parsing. Only posts with recipe content in the caption are supported. See D-002.
 - **C-006 (Draft-and-confirm)**: Every import channel produces a draft; confirmation creates the recipe. See
   _The draft-and-confirm model_ above for why this is forced by the shipped schema rather than chosen.
+- **C-008 (Save to Commise, 2026-10-28)**: Owner ruling, verbatim: "Do 3 as well." Item 3 of the owner's list was a
+  "Save to Commise" button for food bloggers through the WP Recipe Maker plugin. This spec reads it as one more link
+  import channel, gated on the plugin team (`FR-053`, `D-019`). It keeps 016's rules, 017's user-directed posture and
+  020's check, and it adds no new label and no new pipeline.
 - **C-007 (Extraction strategy set)**: The extractor chain is JSON-LD → microdata → heuristic HTML. **RDFa is
   deliberately excluded**: it is vanishingly rare for recipe content relative to JSON-LD and microdata, and no
   maintained Node RDFa parser exists. The chain is a Strategy set behind one interface, so adding RDFa later is

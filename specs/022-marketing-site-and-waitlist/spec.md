@@ -3,10 +3,11 @@
 **Feature Branch**: `docs/spec021-022` (single-branch directive. The spec directory is
 `specs/022-marketing-site-and-waitlist`.)
 **Created**: 2026-10-27
-**Status**: Draft (two open owner questions, Q1 and Q2 below)
+**Status**: Draft. Q1 and Q2 are resolved (2026-10-27). Amended 2026-10-28 for answer engines (section M) and store
+pre-orders (FR-082)
 **Input**: Owner, 2026-10-27: "Include the other recommendations in either new features or expanding existing
 features." The recommendations included a marketing site with a pricing page and a waitlist. Mindset, same day:
-"assume that we can do this and figure out how."
+"assume that we can do this and figure out how." Owner, 2026-10-28: "Let's also do the pages for AI recommendation."
 
 ## Dependencies
 
@@ -21,6 +22,8 @@ features." The recommendations included a marketing site with a pricing page and
 | [beta-exit-criteria.md](../beta-exit-criteria.md) §2.3, §2.4 and §4.4                                   | **Satisfies.** A marketing site, a pricing page consistent with 010, the waitlist mechanism, and a published privacy policy                                                     |
 | [v1-launch-plan.md](../v1-launch-plan.md) §8                                                            | **Feeds.** Its open item, the beta invite mechanism, draws its invitees from this waitlist                                                                                      |
 | [userNeeds synthesis](../../docs/research/userNeeds/synthesis.md)                                       | **Feeds.** Its "questions only real research can answer", question 6 above all, set the interview aims (section E)                                                              |
+| [023-referrals-and-growth-measurement](../023-referrals-and-growth-measurement/spec.md)                 | **Sibling, added 2026-10-28.** Owns the closed source list (`023-FR-004`), which gains `answer_engine`, and the store launch program (section J there)                          |
+| [025-international-launch](../025-international-launch/spec.md)                                         | **Sibling, added 2026-10-28.** Opens markets and locales. Pages in a second language wait on it                                                                                 |
 | `GR-003` FR Identifier Namespace                                                                        | **Governs.** Every cross-feature reference here is written `{feature}-FR-{NNN}`                                                                                                 |
 
 **Plan-time dependencies.** These run before any of this feature is built. None of them has run for this spec.
@@ -35,6 +38,9 @@ features." The recommendations included a marketing site with a pricing page and
   email and list service it uses.
 - **`cmo-1`**, for copy and the claims register (FR-070). **`clo`**, for the items in FR-095. **`ts-1`**, for the
   tracking plan. **`cfo-1`**, for interview incentives.
+- _Added 2026-10-28._ **`staff-ux-engineer` DESIGN, then SPECIFY**, for the comparison pages, the switching pages and
+  the FAQ's new form (section M), at phone, tablet and desktop widths. **`clo`** reviews every comparison before it is
+  published. **`ts-1`** owns the referrer classes and the crawler counts (FR-128).
 
 ## Overview
 
@@ -280,6 +286,40 @@ The sitemap lists every page. Preview hosts answer `noindex`.
 
 ---
 
+### User Story 9 - An answer engine cites the site (Priority: P2)
+
+This story was added on 2026-10-28, by owner ruling.
+
+Sam asks an AI assistant which recipe app can take his Paprika recipes. The assistant's search crawler has
+read Commise's "Switch from Paprika" page and its FAQ. Each page states its facts in short, plain sentences, with
+the date they were last checked. The assistant names Commise, quotes the current price correctly, and links to the
+page. Sam follows the link. The site counts the visit as coming from an answer engine, and stores nothing on Sam's
+device.
+
+**Why this priority**: More people now ask an assistant before they search. A page that an assistant can read and
+quote correctly is cheap to make. A wrong or stale fact in an answer is worse than no answer, so freshness and the
+claims register matter as much as reach.
+
+**Independent Test**: Fetch each comparison, switching and FAQ page with no script running. Every fact is in the
+first HTML response, has a claims register entry and a check date, and matches the plan register. The structured
+data matches the visible text. The robots rules admit each search and answer crawler on the list and refuse each
+training-only crawler.
+
+**Acceptance Scenarios**:
+
+1. **Given** a comparison page, **When** it is built, **Then** every claim about Commise and about the other app has a
+   claims register entry with a source and a check date. A claim with no entry fails the build (FR-120, FR-125).
+2. **Given** any page in this section, **When** it is fetched with no script, **Then** the whole text and its
+   structured data are in the first response (FR-121).
+3. **Given** a price or limit on any page, **When** the plan register changes, **Then** the page shows the new value
+   and a new check date at its next build (FR-125).
+4. **Given** a crawler on the training-only list, **When** it reads `robots.txt`, **Then** it is asked not to crawl.
+   **Given** a search or answer crawler on the list, **Then** it is allowed (FR-126).
+5. **Given** a visit referred by an AI assistant, **When** it is counted, **Then** it is counted under its answer
+   engine class, apart from crawler fetches, with nothing stored on the device (FR-128).
+
+---
+
 ### Edge Cases
 
 - **Someone signs up a stranger's address.** The stranger gets one confirmation email, never a second within the send
@@ -302,6 +342,12 @@ The sitemap lists every page. Preview hosts answer `noindex`.
   sign-in to the site (FR-090).
 - **A waitlist member already made an account another way.** At the next invite batch the operator matches the
   entry to the account. The entry is then deleted within 30 days of the account being created.
+- **An assistant quotes an old price.** We cannot change another company's answer. The page always carries the
+  current price and its check date, and the next crawl picks it up. The FAQ says where the current price lives.
+- **The other app in a comparison changes its price or features.** Its facts are checked on the same cycle as ours
+  (FR-125). A fact that cannot be re-checked is removed, not left standing.
+- **An assistant says something false about Commise.** The team records it in the monthly answer check (FR-128) and
+  fixes any page that misled it. It never answers by adding claims the register does not hold.
 - **A visitor under 16.** They cannot join. A teen of 13 to 15 can still use the app where 016's age floor allows,
   through the app's own sign-up (`016-FR-008`).
 
@@ -326,6 +372,18 @@ The sitemap lists every page. Preview hosts answer `noindex`.
   standard price. If a test is ever proposed, option B (standard price on the page, a lower offer to some new customers
   in the app, with `clo` sign-off) is the rule.
 
+### Session 2026-10-28
+
+- **The ruling.** Owner, verbatim: "Let's also do the pages for AI recommendation." The aim is that AI answer engines
+  can read and cite the site and the public recipe pages (021). This spec adds comparison and switching pages, held to
+  the claims register. It adds a FAQ in plain sentences, structured data and stable addresses. It adds fresh, dated
+  facts and measurement of answer-engine visits. The robots rules follow 021's ruling: block training-only crawlers,
+  and allow search and answer crawlers.
+- **Reading: the same rules, more pages.** These are product pages, not a blog. FR-011's rule (show only what ships)
+  and FR-070's claims register govern every word. "The only app with AI meal plans" stays banned (FR-071).
+- **Reading: pre-orders.** Kept from the ranked brainstorm. The pre-order step sits with the waitlist (FR-082). The
+  rest of the store launch program is 023's section J.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -348,7 +406,8 @@ The sitemap lists every page. Preview hosts answer `noindex`.
 #### B. Pages and their states
 
 - **FR-010**: The site MUST have a home page, product pages for the main jobs the app does, a pricing page, a FAQ, the
-  legal pages, the waitlist, and a contact and support page.
+  legal pages, the waitlist, and a contact and support page. _Amended 2026-10-28:_ it also has the comparison and
+  switching pages of section M.
 - **FR-011**: Product pages MUST show only features that are in the current release. A feature that is coming MUST be
   labelled as coming, with no date unless engineering has set one.
 - **FR-012**: Screenshots MUST come from the current app, in the new UI only, on phone and on a larger screen.
@@ -363,6 +422,8 @@ The sitemap lists every page. Preview hosts answer `noindex`.
     - the pricing page: billing live, and billing not yet live
     - store badges: both live, one live, none live
     - each email: confirmation, welcome, beta invite, interview invite and goodbye after unsubscribe
+    - _added 2026-10-28:_ each comparison and switching page, with a fact recently checked, and a fact removed because
+      nobody can check it again. The FAQ with an answer open and closed, reached from a direct link to one answer
 
 #### C. Legal pages
 
@@ -475,11 +536,31 @@ The sitemap lists every page. Preview hosts answer `noindex`.
 - **FR-081**: An invite MUST carry a single-use link to the app's sign-up. Sign-up runs through 016's terms acceptance,
   like any sign-up. How the app gates beta sign-up is the v1 launch plan's open item (§8), and this site only feeds it.
 
+- **FR-082** _(added 2026-10-28, owner ruling)_: Once D2 sets a launch date, the app MUST be listed for **pre-order on
+  the App Store** and **pre-registration on Google Play**, and confirmed waitlist entries with the beta and launch
+  news purpose MUST be sent the store link. Rules:
+    - On iOS the app installs itself on release day for each person who pre-ordered. A new app can stay on pre-order
+      for "2 to 180 days" ([Apple pre-orders](https://developer.apple.com/app-store/pre-orders/)).
+    - On Android, Play can install the app on launch day for people who opted in. Pre-registration "can only last 90
+      days" ([Google Play](https://support.google.com/googleplay/android-developer/answer/9859047?hl=en)).
+    - A pre-order releases on the first store release. That is soft-launch month 1, not the public launch.
+    - Beta testers already on TestFlight or a Play test track are left out of the email.
+    - The email uses only the beta and launch news purpose (FR-040).
+    - Before a date is published, the plan reads Apple's rules on moving a pre-order date.
+    - No subscription time is offered as a Play pre-registration reward. Play's rules for such a reward are not
+      confirmed.
+    - Installs from pre-orders are read from the stores' own reports, beside account data (`023-FR-054`).
+    - **Test and kill rule.** Plan target: 30% of the emailed, confirmed members pre-order within 14 days. Under 10%
+      after 14 days means the message or the product page is wrong, and both are fixed before launch day. These are
+      targets we chose, not forecasts.
+
 #### J. Search basics
 
 - **FR-110**: Each page MUST have a unique title, a description, one canonical address on the site's host, and Open
   Graph tags.
-- **FR-111**: The site MUST have a sitemap and a `robots.txt` that lists it.
+- **FR-111**: The site MUST have a sitemap and a `robots.txt` that lists it. _Amended 2026-10-28:_ its rules for AI
+  crawlers follow 021's ruling (`021` Q1): block crawlers that only collect training data, and allow search and
+  answer crawlers. Both hosts build their rules from the one crawler list of `021-FR-028a`.
 - **FR-112**: The home page MUST carry schema.org `Organization` and `WebSite` data. It MUST NOT carry app rating data
   unless the ratings are real and Google's rules allow them.
 - **FR-113**: Every preview host MUST answer `noindex`.
@@ -519,6 +600,89 @@ The sitemap lists every page. Preview hosts answer `noindex`.
     - the interview consent form and the thank-you gift (FR-062, FR-066)
     - the accessibility statement (FR-020)
     - Q2, if the owner picks B
+    - _added 2026-10-28:_ every comparison page before it is published, and the rule for naming other apps (FR-120)
+
+#### M. Pages for AI answer engines _(added 2026-10-28, owner ruling)_
+
+The owner ruled on 2026-10-28: "Let's also do the pages for AI recommendation". The answer engines in view are
+ChatGPT search, Perplexity, Microsoft Copilot, and Google's AI Overviews and AI Mode. [Google's
+guide](https://developers.google.com/search/docs/appearance/ai-features)
+says its AI features need nothing beyond normal Search.
+So this section asks for pages that are clear, true, current and readable without script. It adds no special trick.
+
+- **FR-120**: The site MUST have **comparison pages** ("Commise and Paprika", "Commise and ReciMe") and **switching
+  pages** ("Switch from Mealime", "Switch from Paprika"). Rules:
+    - Every claim about Commise and about the other app MUST have a claims register entry (FR-070) with its source
+      and check date. A fact about the other app cites that app's own page, with the date it was read.
+    - A page MUST NOT say the other app is worse at something unless the claim is proven, reproducible and passed by
+      `clo`. Where the other app does something better, the page says so.
+    - "The only app with AI meal plans" stays banned (FR-071). Samsung Food+ and ReciMe Plus both include AI in their
+      paid plans, so the claim is false.
+    - Other apps are named as plain facts only. No logo, no look-alike design and no wording that suggests a tie with
+      the other company. The names are never bought as ad keywords that imply one.
+    - A switching page shows only the paths that ship: the export steps for that app and Commise's own import path
+      (`017-FR-016a`, `017-FR-016b`). A closed app's page gives the date it closed, from its own notice. Mealime
+      "will be discontinued as of October 21, 2026" ([mealime.com/closing](https://www.mealime.com/closing)).
+    - `clo` reviews every comparison page before it is published (FR-095).
+- **FR-121**: Every page in this section MUST put its whole text, and its structured data, in the first HTML
+  response, with no script needed. A study from December 2024 found this: "none of the major AI crawlers currently
+  render JavaScript". The source is [Vercel](https://vercel.com/blog/the-rise-of-the-ai-crawler). Each page answers its
+  question in its
+  first sentence, then gives the detail. Each fact is a short, plain sentence that stands on its own, so a quote of one
+  sentence is still true.
+- **FR-122**: The **FAQ** MUST give each question its own heading and a stable anchor, so one answer can be linked.
+  Each answer starts with a direct one-sentence answer. Prices, limits and trial rules come from the plan register
+  (FR-030), never restated by hand.
+- **FR-123**: Structured data MUST match the visible text, value for value:
+    - The home page and each product page carry schema.org `SoftwareApplication` with its name, platforms, category
+      and `offers` built from the plan register. Google's rich result for it needs `offers.price`. It also needs
+      `aggregateRating` or `review`
+      ([Google, software app](https://developers.google.com/search/docs/appearance/structured-data/software-app)). We
+      have no real ratings at launch, and FR-112 bans invented ones. So this markup is for machine reading only, and it
+      is not expected to earn a rich result.
+    - The FAQ carries schema.org `FAQPage`. Google limited FAQ rich results to "well-known, authoritative government
+      and health websites" in August 2023
+      ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)), and its FAQPage page now says
+      the feature no longer appears in Search. So this markup is also for machine reading only.
+    - `Organization` and `WebSite` stay as FR-112 says. Recipe data lives on 021's pages, never here.
+- **FR-124**: Every page in this section, the pricing page and the FAQ MUST each have one permanent address. A
+  renamed page MUST redirect permanently to its new address. An old address MUST never be given to a different
+  page. FAQ anchors MUST not change once published.
+- **FR-125**: Facts MUST be fresh and dated:
+    - Each page shows "Facts checked on" and a date. The structured data's `dateModified` is the date of the last
+      change to a fact on the page.
+    - A price or limit shows the plan register's current value at each build.
+    - A fact whose check date is older than 90 days MUST be left off the page, and the build MUST warn. The build does
+      not fail. The fact is re-checked or removed. This applies to facts about other apps too.
+- **FR-126**: The site's `robots.txt` MUST follow FR-111: block crawlers that only collect training data, and allow
+  search and answer crawlers, from the one shared list of `021-FR-028a`. Robots rules are a request that a polite
+  crawler honours, not a control.
+- **FR-127**: The site can publish a `/llms.txt` file, under these rules. llms.txt is a proposal, not a standard.
+  Jeremy Howard published it on 3 September 2024 ([llmstxt.org](https://llmstxt.org/)). Its own site calls it "A
+  proposal to standardise on using an /llms.txt file". No answer engine named above documents reading it for answers.
+  Google says that no new machine-readable files or AI text files are needed for its AI features (Google, AI features,
+  above). Trade press reports Google staff saying it does not support the file. So:
+    - The file is generated at build time from the same sources as the pages: the claims register and the plan
+      register. It is never written by hand, so it cannot drift from the pages.
+    - It lists only the site's own pages. Its expected value is zero. No report claims that an engine reads it.
+    - If it ever needs hand upkeep, it is removed. `commise.app` gets no llms.txt, because a list of recipes is a
+      second list beside 021's sitemap (`021-FR-060`).
+- **FR-128**: Measurement MUST count, apart and never added together:
+    - **Visits referred by an answer engine**, by the referrer class of `021-FR-080a`, under FR-100's rule: nothing
+      stored on the device, no identifier, and only the class kept, never the referring address. A visit from Google's
+      AI Overviews arrives from Google's search host and counts as search. Google reports AI Overviews and AI Mode
+      "within the "Web" search type" of Search Console (Google, AI features, above). Bing Webmaster Tools has an AI
+      Performance report in public preview for Copilot
+      ([Bing, February 2026](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)).
+      The operator reads both consoles. No in-product search tracking is built.
+    - **Fetches by answer crawlers** that pass 021's crawler check (`021-FR-064`), per crawler class, per page, per
+      day. They are counted from edge logs and totalled before the logs expire (`021-FR-076`).
+    - **A monthly answer check**, from block 2: 10 fixed questions, asked of 5 assistants, recording the date, the
+      assistant, whether Commise is named, whether the facts are right, and which page is cited. Answers vary from run
+      to run, so the check reads trends, not single answers. **Kill rule**: no mention after 4 months folds this
+      effort into the roundup outreach of 023's launch tasks.
+- **FR-129**: Every visitor-facing string in this section goes through the localisation path (FR-072), and every page
+  meets WCAG 2.2 AA (FR-013) at phone, tablet and desktop widths. A page in a second language waits for 025.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -547,7 +711,11 @@ The sitemap lists every page. Preview hosts answer `noindex`.
 - **Interview record**: screener answers, consent, session notes and recording, stored apart from the waitlist.
 - **Invite**: a single-use sign-up link sent to one entry in one batch.
 - **Plan register source**: the one machine-readable form of 010's register (FR-092).
-- **Claims register entry**: one claim, its source and its owner.
+- **Claims register entry**: one claim, its source and its owner. _Amended 2026-10-28:_ also its check date, and,
+  for a fact about another app, that app's page it came from.
+- **Crawler rule list** _(added 2026-10-28)_: the one shared list of AI crawlers, each with its purpose and source
+  (`021-FR-028a`).
+- **Referrer class** _(added 2026-10-28)_: one value from the closed list of where a visit came from (`021-FR-080a`).
 
 ## Success Criteria _(mandatory)_
 
@@ -571,6 +739,12 @@ The sitemap lists every page. Preview hosts answer `noindex`.
 - **SC-010**: At least 12 interviews are done before the beta exit review, with at least two people from each group in
   FR-064 where recruitment reaches them. Twelve is where Guest, Bunce and Johnson (2006) saw themes stop growing.
 - **SC-011**: The funnel counts in FR-103 are reported weekly from the day the site opens. No target is set.
+- **SC-012** _(added 2026-10-28)_: 100% of facts on the comparison, switching and FAQ pages have a claims register
+  entry, and zero facts shown have a check date older than 90 days, checked on every build.
+- **SC-013** _(added 2026-10-28)_: Zero structured-data values that are not visible on the page, checked by a parity
+  test on every build.
+- **SC-014** _(added 2026-10-28)_: Answer-engine visits and crawler fetches are reported weekly, apart, from the day
+  the site opens. The monthly answer check runs every month from block 2. No target is set.
 
 ## Assumptions
 
@@ -590,4 +764,4 @@ The sitemap lists every page. Preview hosts answer `noindex`.
 - Waitlist referral rewards, positions or "move up the list" games.
 - Paid-ad pixels and retargeting.
 - Recipe pages, creator pages and their search rules (021).
-- Pages in a second language.
+- Pages in a second language, until 025 ships a second locale (amended 2026-10-28).

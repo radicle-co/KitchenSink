@@ -78,8 +78,9 @@ their own routes, and a person reaches them only through a link or a search resu
   wrote.
 - **It opens no imported recipe.** A recipe from a website stays readable only by signed-in users, as C-004 says
   today. A recipe from a book or a paid site stays private. None of them is ever indexed.
-- **It adds no signed-out search, browse or feed.** A signed-out visitor reads one page at a time. The sitemap is the
-  only list, and it lists addresses only.
+- **It adds one signed-out search: the chef directory** (amended 2026-10-29, Q2). A signed-out visitor otherwise
+  reads one page at a time, and there is no signed-out feed or recipe search. The directory lists chefs and their
+  public work only, never paid content and never linked cards. The sitemap lists addresses only.
 - **It does not change the front door.** Opening the app, or the web root, with no link still lands on sign-in.
 - **It does not promise that a search engine forgets at once.** We stop serving the page, tell the engines that listen,
   and drop it from our sitemap. We cannot force any engine's index or any chat app's preview cache (FR-074).
@@ -443,12 +444,13 @@ creator page.
 - **Q1. AI crawlers. RESOLVED 2026-10-27.** The owner chose option B, "Block training only": the robots rules block
   crawlers that only collect AI training data, and allow search and answer crawlers that link back. Robots rules are a
   request that a polite crawler honours, not a control.
-- **Q2. What else is outside the ruling.** [NEEDS CLARIFICATION: The ruling keeps "everything else" behind sign-in. Two
-  existing specs open more than that. `018-FR-017` makes the chef directory and its search readable signed out.
-  `012-FR-008` puts public collections on the signed-out creator page, each with its own address. Is either one
-  open? Options: (A) neither, for now. (B) the chef directory only. (C) both. Recommended: A. A chef's own page is a
-  creator page and is open already. A signed-out directory with search is a list surface, which section G avoids on
-  purpose.]
+- **Q2. What else is outside the ruling. RESOLVED 2026-10-29.** The owner chose "both, but only for public content and
+  nothing that's behind a paywall (like a chef selling a collection)". So `018-FR-017`'s chef directory and its search,
+  and `012-FR-008`'s public collections on the creator page, are readable signed out, each on its own address, under
+  the same rules as public recipes (FR-002 eligibility, rate limits, the content source check). Nothing a chef sells
+  is readable signed out: a paid collection, recipe, cookbook or course shows at most its title, cover, price and the
+  chef's own description, so a reader can find and buy it, and never its recipes. The directory lists chefs, not
+  sites, so it is not the browse-by-site feature `016-FR-030a` forbids.
 
 ### Session 2026-10-28
 

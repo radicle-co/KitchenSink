@@ -793,6 +793,43 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 | Billing grace period                                       | `FR-043b`                    | Pro, Pro with AI and Pro Household. 16 days on the App Store, 7 days on Google Play, Stripe's retry window on the web (added 2026-10-28)                  |
 | Referral reward time                                       | `023-FR-020`, `023-FR-022`   | Any plan earns it. A cook who does not pay gets 30 days of Pro features with no extra AI uses. A payer gets 30 more days of their own plan (`023-FR-024`) |
 
+### Prices by storefront
+
+> **Round launch markets (owner ruling, 2026-10-29, `025` Q2).** The owner chose "Round launch markets". Each launch
+> storefront gets a rounded local price, set by a person. The stores convert every other country.
+
+**The rule.**
+
+- The US price in the table above is the base. It is the only price stated in US dollars.
+- Each launch storefront gets its own rounded local price for every paid plan, both billing periods, and the one-time
+  first-year offer (`FR-041l`). The launch storefronts are the UK, Canada and Australia, then Mexico and Spain (`025`).
+- **The method**, for each price:
+    1. Convert the US price at an exchange rate recorded with its source and its date.
+    2. Add the local tax where the store shows prices with tax included, as in the UK, Spain and Australia. A US price
+       is shown before sales tax, so a straight conversion would undercharge there.
+    3. Round to the nearest local price that ends the way local prices do, and that is one of the store's own price
+       points.
+    4. The owner approves the result. The numbers are an owner decision, not a formula output.
+- Every other storefront takes the store's own conversion from the US base. Apple's automatic adjustments exclude
+  auto-renewing subscriptions (`025-FR-062`), so a person sets and checks each launch storefront in App Store Connect
+  and the Play Console.
+- This table is the one authority for local prices. A test holds it equal to the store consoles (`025-FR-060`). The app
+  shows each store's own price string and never works one out (`025-FR-061`).
+
+| Plan and period                     | US (USD) | UK (GBP) | Canada (CAD) | Australia (AUD) | Mexico (MXN) | Spain (EUR) |
+| ----------------------------------- | -------- | -------- | ------------ | --------------- | ------------ | ----------- |
+| Pro, monthly                        | $9.99    | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro, yearly                         | $99.99   | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro, yearly, first year (`FR-041l`) | $59.99   | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro with AI, monthly                | $19.99   | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro with AI, yearly                 | $199.99  | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro Household, monthly              | $14.99   | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro Household, yearly               | $149.99  | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro with AI Household, monthly      | $29.99   | TBD      | TBD          | TBD             | TBD          | TBD         |
+| Pro with AI Household, yearly       | $299.99  | TBD      | TBD          | TBD             | TBD          | TBD         |
+
+A storefront's column is filled before that market opens (`025` section K). See [O-15](#o-15).
+
 ## Owner inputs still needed
 
 Other specs link to this section and its anchors. Most items are now answered. The answers are the rulings of
@@ -832,6 +869,9 @@ Other specs link to this section and its anchors. Most items are now answered. T
 - <a id="o-14"></a>**O-14. The one-time discount's amount. RESOLVED 2026-10-29.** The owner chose "$59.99 first
   year": the first year of Pro yearly at $59.99, then $99.99 a year (`FR-041l`). $59.99 is Samsung Food+'s yearly
   price. Yearly plans keep 28% of payers at 12 months against 8% for monthly (RevenueCat 2026).
+- <a id="o-15"></a>**O-15. The local prices. Open, added 2026-10-29.** The rule is decided ("Round launch markets",
+  [Prices by storefront](#prices-by-storefront)). The numbers for each launch storefront are the owner's to set, by
+  that method, before the market opens.
 
 ## Success Criteria _(mandatory)_
 

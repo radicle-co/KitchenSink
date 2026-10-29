@@ -330,19 +330,16 @@ and how long a reply takes.
   Australia opens with admitted sources, labelled honestly, while a licence is sought (FR-043). The parse engine reads
   English only, so Spanish gets its own parse gate (section D). Web tax outside the US is not ours to carry, so web
   checkout stays US only and the stores collect tax (section H).
-- **Q1. Which Spanish-speaking market comes after US Spanish speakers?** [NEEDS CLARIFICATION: Options: (A) Mexico.
-  (B) Spain. (C) both at once. (D) none yet, Spanish in the US only until the English-speaking wave is read.
-  Recommended: D, then A. Spain is in the EU and Mexico has its own privacy law. Neither has an admitted food source.
-  US Spanish speakers need no new market.]
+- **Q1. Which Spanish-speaking market comes after US Spanish speakers? RESOLVED 2026-10-29.** The owner chose "Both
+  at once": Mexico and Spain open together, after US Spanish. Each still has its own launch gate: a food source,
+  privacy law work (Spain under GDPR, Mexico under its own law), and a localized store listing.
 - **Q2. How are regional prices set?** [NEEDS CLARIFICATION: Options: (A) let each store derive local prices from the
   US price. (B) set a rounded local price per launch storefront, such as pounds, Canadian dollars and Australian
   dollars, and let the stores derive the rest. (C) set every storefront by hand, adjusted for local buying power.
   Recommended: B. Apple's automatic adjustments exclude auto-renewing subscriptions, so a subscription price needs a
   person to set it in each storefront anyway. 010 records the result.]
-- **Q3. Which languages does support answer in?** [NEEDS CLARIFICATION: Options: (A) English only, said plainly in each
-  locale's help screen and store listing. (B) every shipped language, with each reply checked by a native speaker.
-  (C) every shipped language, with AI-drafted replies that a person reviews before sending. Recommended: C for
-  Spanish once it ships, A before then. A drafted reply draws on ADR-0024's pool, which `cfo-1` costs.]
+- **Q3. Which languages does support answer in? RESOLVED 2026-10-29.** The owner chose "English only". Support
+  answers in English in every market, and each locale's help screen and store listing says so plainly.
 
 ## Requirements _(mandatory)_
 

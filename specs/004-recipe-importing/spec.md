@@ -283,8 +283,8 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
       tap is the one explicit user action of `017-FR-001a`. A frame, an image request, a prefetch or a link preview
       MUST NOT start a fetch, use quota or create anything. Nothing crawls the publisher's site or saves in bulk.
     - **The second tap is a known cost.** The owner asked for one tap. This rule adds a second tap, on Commise's
-      screen, because one tap on another site cannot be told apart from a page that forges it. Whether the owner
-      accepts it is an open question for plan time.
+      screen, because one tap on another site cannot be told apart from a page that forges it. The owner accepted it
+      on 2026-10-29 ("Keep the confirm tap").
     - **One pipeline.** The save goes through the same capture pipeline as every other channel (`017-FR-015`). So
       these all apply unchanged: the paywall blocklist (`FR-014`), the rights check in the `FR-008` ruling and the
       `robots.txt` rule (`FR-023`). The daily quota (`FR-022`), deduplication (C-001) and the draft-and-confirm model

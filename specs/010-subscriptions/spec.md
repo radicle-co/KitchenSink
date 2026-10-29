@@ -134,7 +134,7 @@ it, and check that the changes are still there. Then check each state in `FR-042
 
     | Rail        | Grace period, with Pro access kept                                                                                        | After the grace period                                                                                                     | Source                                                                                                                                                                                           |
     | ----------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-    | App Store   | Billing Grace Period of **16 days**, for paid-to-paid renewals only                                                       | Apple keeps retrying billing for up to 60 days, with no access. A success restores Pro                                     | [Apple grace period](https://developer.apple.com/help/app-store-connect/manage-subscriptions/enable-billing-grace-period-for-auto-renewable-subscriptions)                                       |
+    | App Store   | Billing Grace Period of **16 days**, set to "Only Paid to Paid Renewals", so a free period gets none                      | Apple keeps retrying billing for up to 60 days, with no access. A success restores Pro                                     | [Apple grace period](https://developer.apple.com/help/app-store-connect/manage-subscriptions/enable-billing-grace-period-for-auto-renewable-subscriptions)                                       |
     | Google Play | Grace period of **7 days**                                                                                                | Account hold for the rest of 60 days, which is 53 days, with no access. Grace and hold together must total 30 days or more | [Android lifecycle](https://developer.android.com/google/play/billing/lifecycle/subscriptions)                                                                                                   |
     | Web, Stripe | Smart Retries at Stripe's default, "8 tries within 2 weeks". The subscription stays past due, and RevenueCat keeps access | The subscription is cancelled when the retries run out, and RevenueCat revokes access. Automatic card updates are on       | [Stripe Smart Retries](https://docs.stripe.com/billing/revenue-recovery/smart-retries), [RevenueCat grace periods](https://www.revenuecat.com/docs/subscription-guidance/how-grace-periods-work) |
     - _Why these lengths._ Apple's choices are 3, 16 or 28 days. 3 days is shorter than a cook takes to notice an
@@ -274,7 +274,7 @@ the paid plans are called "Pro" everywhere.)_
           cancel link ([Stripe](https://docs.stripe.com/billing/subscriptions/trials/manage-trial-compliance)).
           It stays on, because Stripe ties it to card network rules for trials. So a web cook gets both.
         - California's own trial notice applies only to a trial "lasting for more than 31 days", sent "at least 3
-          days before and at most 21 days before" it ends (Bus. & Prof. Code §17602, as amended by AB 2863). A 14-day
+          days before and at most 21 days before" it ends ([Bus. & Prof. Code §17602](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17602), as amended by AB 2863). A 14-day
           trial is not in it. The 3-day lead time matches that law's floor, so a longer trial (a 30-day creator code
           is still under 31 days) would not need a second rule.
         - The lead time is one constant. The paywall timeline and the scheduler read the same value.
@@ -391,7 +391,8 @@ the page's UX and legal requirements)_
       _Why_: Blinkist's trial timeline "led to a 23% lift in trial signups" and "reduced customer complaints by 55%"
       ([Growth.Design](https://growth.design/case-studies/trial-paywall-challenge)). That is one company's result,
       not a Commise uplift. **Plan target**: trial starts at or above 8.9% of installs, RevenueCat's median for
-      above-average prices (via the 2026-10-28 brainstorm). Read at day 30 of the soft launch.
+      above-average prices (via the 2026-10-28 brainstorm). Read at day 30 of the soft launch. The timeline goes
+      through `staff-ux-engineer` DESIGN and SPECIFY at plan time, on web and mobile.
 
     This is `016-FR-040`. The cook passes through it on the way to payment. It is not a link they have to find.
 
@@ -483,6 +484,9 @@ the page's UX and legal requirements)_
     - The Home `SubscriptionNudge`, web and native.
     - account settings (tier 3 of `FR-042`).
     - the AI paid-plan gate and the out-of-credits screen (`005-FR-015a`).
+    - _(Added 2026-10-28.)_ The monthly-to-yearly card (`FR-041k`), the one-time discount (`FR-041l`), the trial
+      timeline (`FR-042b`), the grace-period banner (`FR-043b`), the trial checklist where a step leads to the page
+      (`FR-042l`), and the Pro Household card and coverage notices (`017-FR-034l`).
 
     A new entry point MUST read the same switch. A guard that finds every caller is part of the build (T-035).
     Copy that only states a fact, such as "needs Premium" in the editor, is not a link. Whether that fact names a plan
@@ -534,7 +538,7 @@ the page's UX and legal requirements)_
       `014-FR-052`).
     - **Why it is lawful.** It comes after the cancel, so nothing stands between the cook and Cancel (`FR-042e`).
       California allows a save offer in an online cancel only beside a "click to cancel" button
-      (Bus. & Prof. Code §17602, as amended by AB 2863), and this screen makes no offer at all. ROSCA requires
+      ([Bus. & Prof. Code §17602](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17602), as amended by AB 2863), and this screen makes no offer at all. ROSCA requires
       "simple mechanisms for a consumer to stop recurring charges"
       ([15 U.S.C. 8403](https://www.law.cornell.edu/uscode/text/15/8403)). EU DSA Article 25 names "making the
       procedure for terminating a service more difficult than subscribing to it". Counsel confirms (`016-FR-050`).

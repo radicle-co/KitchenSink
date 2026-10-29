@@ -748,10 +748,12 @@ they do not create a second mechanism.
           **What breaks:** an app rejected or removed from a store.
         - _Plan change._ What the page must say about the amount and the timing of an upgrade or a downgrade,
           before the cook confirms (`010-FR-042h`).
-        - _Lifecycle notices and offers (added 2026-10-28)._ Counsel confirms five things.
+        - _Lifecycle notices and offers (added 2026-10-28)._ Counsel confirms six things.
             - The trial notice's lead time of 3 days and its wording (`010-FR-041h`).
-            - The yearly renewal notice, 30 days before renewal, against California's 15 to 45 day window and its
-              annual reminder (`014-FR-052`).
+            - The yearly renewal notice, 30 days before renewal, against California's 15 to 45 day window
+              (`014-FR-052`).
+            - Whether California's annual reminder of the terms covers monthly subscriptions too. Until counsel
+              answers, every paid subscriber gets one a year, by email and in-app (`014-FR-052`).
             - That the "what you keep" screen after a cancel meets the online-cancel rules (`010-FR-042m`).
             - The wording of the one-time discount and the monthly-to-yearly offer (`010-FR-041k`, `FR-041l`).
             - That billing notices stay transactional under CAN-SPAM, and the consent for marketing email and push

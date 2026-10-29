@@ -677,6 +677,8 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     - A member's personal AI follows that member's own plan, so a Free member has 3 uses a month.
     - When two members pay, the covering payer is the one with the higher plan. A tie goes to the longer tenure, with
       FR-032a's stable key.
+    - With no paying member, a household action that every plan allows, such as AI meal suggestions on a household
+      plan (`006-FR-025`), uses the acting member's own uses under their own plan.
     - Each member sees what is left for household actions, and their own use. No member sees another member's
       prompts, or what the payer spent on personal actions.
     - When the payer's uses run out, household AI actions stop with `010-FR-041e`'s message and the payer's reset

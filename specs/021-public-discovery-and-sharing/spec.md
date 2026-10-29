@@ -4,7 +4,8 @@
 `specs/021-public-discovery-and-sharing`.)
 **Created**: 2026-10-27
 **Status**: Draft. Q1 is resolved. Q2 is open. Amended 2026-10-28 for AI answer engines (FR-011a, FR-028a, FR-080a,
-FR-085a) and the save route (FR-035)
+FR-085a) and the save route (FR-035). Amended 2026-10-29 for recipe rights: the linked card (FR-014a to FR-014h), who
+can be open to the web (FR-002), and the licence panel's ownership line (FR-040)
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
 other recommendations in either new features or expanding existing features." Mindset, same day: "assume that we can do
 this and figure out how." Owner, 2026-10-28: "Let's also do the pages for AI recommendation."
@@ -467,6 +468,24 @@ creator page.
 - **The save route.** `004-FR-053` adds a "Save to Commise" route that the app must open. FR-035 is amended to
   associate it, and nothing else new.
 
+### Session 2026-10-29
+
+- **The rulings.** The owner ruled on recipe rights on 2026-10-29 ([ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md)).
+  On ownership, verbatim: "we'll need to make sure that we're very, very clear about what chefs own for public recipes
+  and don't and who owns the recipes they don't to cover the cases where they copy a public recipe on another site
+  without changes." The rest of that ruling is quoted in `016` C-016-005. A recipe imported from someone else's web page
+  has exactly two states: private, the full recipe for the cook and their household, or public as a linked card. The
+  research behind it is not legal advice, and the card is subject to counsel review.
+- **Reading: this closes the gap the 2026-10-27 reading left open.** That reading kept C-004's signed-in rule for an
+  `imported_public` recipe "unchanged", so a full copy of a web page stayed readable by every signed-in cook. Now
+  other signed-in cooks get the linked card (FR-003, FR-014a). The signed-out source card (FR-014) is unchanged.
+- **Reading: the card's list is the owner's list.** The research also suggested short step titles. The owner's list
+  does not include them, so the card shows the step count only.
+- **Reading: open to the web reads the rights label.** A family or friend recipe can go public, but the giver agreed
+  to sharing with cooks, not to search engines, so it is never open (FR-002). Public domain text stays off the web, as
+  FR-006 already says.
+- **Reading: the ownership line follows the label** (FR-040). This fixes the research's gap G2.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -485,17 +504,22 @@ creator page.
     3. It is not deleted.
     4. The read rule lets an anonymous viewer see it now. A recipe that is checking, in review or not approved under
        020 fails this.
-    5. Its source type is `user_created` (ADR-0023).
+    5. Its source type is `user_created` (ADR-0023), and its rights label (`016-FR-015c`) is "Written by you" or
+       "Adapted by you", or it is a clone of a recipe with one of those two labels. A family or friend recipe and a
+       public domain recipe are never open (amended 2026-10-29, owner ruling, ADR-0077).
     6. Its owner accepted the licence version that covers showing it on the web (FR-040, FR-041).
     7. Its owner's account is active: not suspended, not terminated (`016-FR-020`), not closed and not erased.
     8. No decision under 016 removed or restricted it.
-- **FR-003**: A recipe whose source type is `imported_public` MUST NOT be open to the web and MUST NOT be indexed. It
-  stays readable by any signed-in user under C-004, unchanged. A signed-out visitor gets the source card (FR-014).
+- **FR-003**: A recipe whose source type is `imported_public` MUST NOT be open to the web and MUST NOT be indexed. A
+  signed-out visitor gets the source card (FR-014). _(Amended 2026-10-29, owner ruling, ADR-0077.)_ A signed-in cook
+  other than its owner, and other than the owner's household, gets the **linked card** (FR-014a), never the full
+  recipe. This replaces C-004's "Always public with source attribution", which let a full copy of a web page go public.
 - **FR-004**: A recipe whose source type is `imported_physical` or `imported_paid` is private-only (C-004) and MUST NOT
   appear on any public surface in any form, the source card included.
 - **FR-005**: A clone (`cloned_from_id` set) MUST be judged by FR-002 like any recipe. A clone that is open MUST be
   `noindex` and MUST be left out of sitemaps. While the recipe it came from is open, the clone MUST show an "adapted
-  from" link to it. A clone of an `imported_public` recipe carries that source type and is never open.
+  from" link to it. A clone of an `imported_public` recipe carries that source type and is never open. A clone of a
+  linked card copies only what the card shows (FR-014c).
 - **FR-006**: Recipes imported under the curator grant (ADR-0023 §1) are `imported_public` and MUST NOT be open. A
   public-domain cookbook collection on the open web is a separate feature, not this one.
 - **FR-007**: These are the **exit events**. Each MUST take effect on every public surface within the purge bound
@@ -547,6 +571,49 @@ creator page.
   NOT show ingredients, steps, the description or any photo. It MUST answer `noindex` and MUST NOT appear in any
   sitemap. The server's response is the source card for every viewer. After the page loads, a signed-in viewer's
   browser MUST offer a link to the full recipe on its in-app route (FR-012).
+- **FR-014a** _(added 2026-10-29, owner ruling, ADR-0077)_: The **linked card** MUST be what every signed-in cook
+  other than the owner and the owner's household sees for a public recipe imported from someone else's web page. It
+  shows exactly these, and nothing else:
+    - the title
+    - servings, prep time, cook time, total time and yield
+    - the step count, for example "8 steps on [site]"
+    - our own computed nutrition, labelled "Estimated by Commise"
+    - the ingredients in our normalized form: quantity, unit and our food name
+    - the owner's own notes, labelled as theirs, and the owner's own photos
+    - "Saved from [site]" and a prominent "Open the full recipe on [site]" link
+    - every add-to action: add to a meal plan, add to a grocery list, add to a cart, and AI features that run on
+      ingredient data.
+
+    Research by the CLO agent of 2026-10-29 backs this list. It is research, not legal advice, and the card is subject
+    to counsel review (`016-FR-050`).
+
+- **FR-014b**: The linked card MUST NOT show the source's method text, its headnote or description, its photo, its
+  ratings, or any of its lines word for word. An ingredient line with no food match (ADR-0045) shows only the
+  quantity, unit and ingredient name the parse read, never the raw line, its prep words or its notes. A line the parse
+  could not read is left out, and the card says how many lines are on the site only. With no photo of the owner's own,
+  the card shows a neutral placeholder, never the source's photo (`016-FR-027a`).
+- **FR-014c**: The owner, and the owner's household where the recipe is shared, MUST see the full private copy, whether
+  or not the card is public. A clone or "save my own copy" of a linked card MUST copy only what the card shows, plus the
+  link, and never the owner's full copy. A cook who wants the full recipe captures it from the site themselves, through
+  their own import, as their own private copy.
+- **FR-014d**: There MUST be at most one public linked card per canonical page address (`004` C-001). A later cook's
+  import of the same page is their own private copy. When that cook chooses Public, the existing card is offered to
+  them instead of a second card.
+- **FR-014e**: For a site on the opt-out list (`016-FR-024a`), or past the per-site cap (`016-FR-030a`), the card MUST
+  show only the title, the site's name and the link. The add-to actions stay for the owner only.
+- **FR-014f**: Where the source page states a licence that allows it (`016-FR-012b`), the recipe MAY be shown to other
+  signed-in cooks in full, on that licence's terms and with its attribution. Public domain text under the curator grant
+  (ADR-0023 §1) is shown in full to signed-in cooks. Neither is open to the web (FR-002, FR-006).
+- **FR-014g**: The linked card MUST answer `noindex`, carry no recipe structured data, and be reachable only signed in. A
+  signed-out visitor gets the source card (FR-014). A surface MUST NOT list, browse, filter or search linked cards by source
+  site (`016-FR-030a`). The owner's fallback applies only if counsel says so: the card hides its ingredient list,
+  keeps every add-to action, and says plainly that the ingredients are on the site and still go to the cook's list.
+  The research found that hiding them makes no legal difference, so the default shows them.
+- **FR-014h**: An AI feature MUST NOT rewrite the source's method for anyone other than the owner (`016-FR-015i`). The
+  owner's notes are text other cooks read, so 020 checks them, and compares them with the import page (`020-FR-012b`).
+  Every state of the card is a deliverable, with its words and localisation keys, on web and mobile in the same
+  release: the card, the opted-out card, the cook's own view of their public card, and the add-to actions. Its design
+  goes through `staff-ux-engineer` SPECIFY. Draft words for it are in `016-FR-015g`.
 - **FR-015**: An active creator page (`012-FR-006`) MUST be readable signed out. It shows the profile fields the cook
   set (avatar, display name, bio), the follower count, and the cook's open recipes, newest first, at most 24 per page.
   It MUST NOT list any recipe that is not open, and MUST NOT show who follows the cook (`012-FR-009`).
@@ -706,7 +773,12 @@ creator page.
     - It can appear in search results.
     - Link previews and search engines can show its title, a short excerpt and its photo.
     - Other cooks can save their own copy, and copies survive deletion (`016-FR-015a`).
-    - The cook keeps ownership.
+    - The ownership line for the recipe's own rights label (`016-FR-015g`). _(Amended 2026-10-29, owner ruling,
+      ADR-0077.)_ "You keep ownership of what you wrote" appears only for a recipe the cook wrote or adapted
+      (`016-FR-015h`). A clone says "Adapted from [cook]. Their words stay theirs." It never says the cook keeps
+      ownership of another cook's words.
+    - For a recipe that is never open to the web (a linked card, a family or friend recipe, public domain text), the
+      first three points do not apply. The panel says instead who will see what, from `016-FR-015g`.
 
     Acceptance MUST be recorded through 016's acceptance record (`016-FR-002`), once per licence version, never per
     recipe. Declining publishes nothing as Public.
@@ -880,10 +952,13 @@ creator page.
     - whether a site notice on signed-out pages adds any protection against scraping
     - that measurement with no device storage needs no consent in each launch market (FR-080)
     - the 30-day log period (FR-076)
+    - the linked card (FR-014a to FR-014g) and the licence panel's ownership lines (FR-040), with 016's recipe rights
+      items (`016-FR-050`)
 - **FR-096**: GR-014 MUST be amended: "`public`: readable by any authenticated user (`001-FR-004`)" gains "and, for a
   recipe open to the web under 021, by anyone". This is a governance change and is applied by the owner, not here.
 - **FR-097**: `018-FR-017` MUST be amended once Q2 is answered.
-- **FR-098**: 020 needs no change. This feature reads its stamp and its read rule. 020's words "publicly visible" now
+- **FR-098**: 020 needs no change for this feature. This feature reads its stamp and its read rule. (020 did change on
+  2026-10-29 for ADR-0077's outside-copy checks, and this feature reads that result the same way.) 020's words "publicly visible" now
   include signed-out readers, which only widens who is protected by its hold.
 
 ### Non-Functional Requirements _(constitution-derived)_

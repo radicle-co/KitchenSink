@@ -4,7 +4,9 @@
 - **Date:** 2026-10-26
 - **Amended by:** [ADR-0076](0076-founder-reviews-at-launch-with-a-paid-backup.md): who reviews at launch. The
   founder reviews, a paid backup covers, and a half-time reviewer is hired on a volume trigger. Every decision in
-  this ADR stands.
+  this ADR stands. [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): for a recipe headed
+  public, the check can compare it with its own import page and search the web for its method sentences. What those
+  find goes to a person and never blocks. Staff review is a rights check only. Every other decision here stands.
 - **Relates to:** spec [020](../../../specs/020-content-source-check/spec.md) and its
   [plan](../../../specs/020-content-source-check/plan.md), which carry the full requirements.
   [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one spend pool, its single grantee, and the paths

@@ -2,6 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
+- **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): §9's statement list gains
+  "Adapted in my own words" and "From a family member or friend, with their permission". A family or friend recipe is
+  no longer labelled like a paid source. The rest of §9 stands.
 - **Relates to:** [ADR-0071](0071-paste-matches-are-proposals.md): matching runs as the cook, and a paste match is a
   proposal. [ADR-0070](0070-catalog-ranking-head-noun-and-defaults.md): defaults serve imports and are never selected
   for the cook. [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one spend pool, and the exception this

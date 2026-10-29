@@ -4,7 +4,9 @@
 **Created**: 2026-10-26
 **Status**: Draft (clarifications answered by the owner, 2026-10-26; revised after the staff-architect REVIEW and the
 owner's rulings on it, the same day. The decision is recorded in
-[ADR-0074](../../docs/architecture/decisions/0074-content-source-check.md).)
+[ADR-0074](../../docs/architecture/decisions/0074-content-source-check.md). Amended 2026-10-29 for outside-copy checks,
+two new statements and a rights-only review scope, recorded in
+[ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md).)
 **Input**: User description, owner, 2026-10-26: "We will need an automated review process checking all new content -
 that needs to be a new feature and spec ... that uses an AI agent to check to see if the content of a recipe is from a
 paid site, copyrighted content, a book, etc." Context ruling, same day: "If we can tell then we can prevent them from
@@ -34,7 +36,8 @@ going public; otherwise we have to rely on the user telling us that it's ok to m
 
 When a cook makes a recipe public, Commise shows it to everyone. If the recipe came from a cookbook or a paid site, that
 is a copy of someone else's work, shown to the public by us. Today the only thing that stops this is what the cook
-tells us. For each imported recipe, the cook says "I wrote this" or "From a source", with a citation. That statement
+tells us. For each imported recipe, the cook says "I wrote this" or "From a source", with a citation (six statements
+since 2026-10-29, `004-FR-014a`). That statement
 sets the recipe's label (`004-FR-014a`, ADR-0072 §9). A book or paid-site recipe can never be public.
 
 This works only if the cook knows the source and tells the truth. This feature adds an automated **source check**. It
@@ -92,15 +95,19 @@ The owner's rulings set what happens next:
   separate fact that a person can reverse.
 - **It never publishes an unsure recipe without a person.** No timer, budget state or backlog lets an unsure recipe go
   public on its own.
-- **It does not fetch anything.** It does not visit cited links, search the web or compare the recipe with any source.
-  Retrieval stays user-directed only.
+- **It does not fetch anything.** It never visits a cited link and never crawls a site. Retrieval stays user-directed
+  only. _(Amended 2026-10-29, owner ruling, ADR-0077.)_ For a recipe headed public, it does two outside comparisons:
+  with the page the recipe was imported from, which the cook's own import already held, and a web search for a few of
+  its method sentences (FR-012). What they find goes to a person and never blocks.
 - **It does not check private recipes made in the editor.** Privacy does the heavy lifting (016, finding 1). To check
   a recipe nobody else can see costs money and sends the cook's content out for no gain. Two exceptions: every
   bulk-imported recipe, public or private, is checked (owner ruling, 2026-10-26, FR-003b), and a private recipe a cook
   elects to donate when they erase their account is checked, because donation makes it public (FR-018a).
 - **It does not take content down after a notice.** That stays with 016's human notice process.
 - **It cannot catch a copy with no markers.** A cookbook recipe typed out by hand, with no ISBN, publisher or page
-  number, usually looks like any other recipe. We say so, measure it (SC-003) and do not claim otherwise.
+  number, usually looks like any other recipe. We say so, measure it (SC-003) and do not claim otherwise. The web
+  search finds such a copy only when the same method text is on a page a search engine has indexed. A copy of a
+  private source, such as a family card or a book that is not online, cannot be found at all (FR-012h).
 
 ### Words used in this spec
 
@@ -648,6 +655,28 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
   not a decision time target, and FR-030 is unchanged.
 - **What does not change.** Every rule of this spec, and every legal requirement. Only who does the work, and when.
 
+### Session 2026-10-29: outside copies, two statements, and the review's scope
+
+The rulings rest on research by the CLO agent of the same day. It is research, not legal advice, and every rule it
+supports is subject to counsel review (`016-FR-050`). [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md)
+records the decision.
+
+- **Copy detection.** Owner, verbatim, on ownership: "The automated review process needs to check for this as well."
+  The rest of that ruling is quoted in `016` C-016-005. On detection, the owner chose "Allow, public recipes only". So
+  FR-012 now lets the check compare a recipe headed public with its own import page, for free, and search the web for
+  its method sentences, at about $0.015 a recipe (FR-012a to FR-012h). A recipe that stays private is never compared
+  with anything outside our database. What either finds goes to a person.
+- **Two new statements.** "Adapted in my own words, from [credited source]" and "From a family member or friend, with
+  their permission (optional credit)" (`004-FR-014a`). A family or friend recipe was labelled like a paid source and
+  could never be public. It can now go public under this same check (FR-013a). It is never open to the web
+  (`021-FR-002`).
+- **A linked card is still checked.** A public web import shows other cooks a linked card (`021-FR-014a`). Its text and
+  the cook's photos and notes are checked as today. The import-page comparison scores the cook's notes, and the web
+  search does not run, because the card shows no method.
+- **Staff review is a rights check only** (FR-027b, `016-FR-053j`).
+- **What is not decided here.** Reverse image search of the cook's own photos, which the research also suggested, is
+  not part of these rulings.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -738,6 +767,9 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
     The rule-based detectors run in recipe-service, in the save's own transaction, so a `detected` outcome is known
     when the save returns.
 
+    _(Amended 2026-10-29, owner ruling, ADR-0077.)_ For a recipe headed public there is also an **outside-copy check**
+    (FR-012a). It is neither a rule detector nor the model. Everything it finds is "for a person" (FR-010).
+
 - **FR-008**: The model MUST see the checked content and nothing else. It MUST NOT see the cook's statement, the
   label, the citation, the rule-based results, or anything about the cook. The statement is the claim under test. If
   the model sees it, the model leans towards agreeing with it. ADR-0026 states this rule for parse engines, and it
@@ -764,14 +796,72 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
     | Any text item the model returned, with a quote code found                  | model    | for a person       | for a person                                      |
     | Model judgement on the text with no proven quote ("reads like a cookbook") | model    | for a person       | for a person                                      |
     | Any photo signal (FR-006a)                                                 | model    | for a person       | for a person                                      |
+    | Method, headnote or notes contained in its own import page (FR-012b)       | outside  | for a person       | for a person                                      |
+    | An exact web match for a method sentence (FR-012d)                         | outside  | for a person       | not used                                          |
 
 - **FR-011**: The lists of publishers, imprints, paid-site hosts and paid-site template strings MUST be data. Each
   has an admin-managed lifecycle and an audit trail: who added an entry, when and why. This is the governance of
   `004-FR-014`'s blocklist (004 D-004). Paid-site hosts MUST reuse that blocklist, not a second one. An entry is
   retired, never deleted: the service role MAY insert an entry and MAY set its retire fields once, and MUST NOT delete
   it or change anything else (ADR-0039's table policy, FR-019).
-- **FR-012**: The check MUST NOT fetch any link, search the web, or compare the recipe or its photos with any outside
-  source.
+- **FR-012** _(amended 2026-10-29, owner ruling: "Allow, public recipes only", ADR-0077)_: The check MUST NOT visit a
+  cited link, crawl a site or fetch any page of its own. For a recipe headed public, and only then, it MUST compare the
+  recipe with outside sources as FR-012a to FR-012h say. It MUST NOT compare a recipe that stays private with anything
+  outside our database. The research behind this is not legal advice, and every rule here is subject to counsel review
+  (`016-FR-050`).
+- **FR-012a**: The **outside-copy check** MUST run in cost order, cheapest first, on a recipe headed public:
+    1. its own import page, which costs nothing (FR-012b)
+    2. a web search for its method sentences, about $0.015 a recipe (FR-012d).
+
+    What it finds is evidence "for a person", never blocking (FR-010). Only the rule-based detectors block. It never
+    changes the label.
+
+- **FR-012b**: **Its own import page.** When a recipe arrives from a page (a link, the share sheet, the browser
+  extension, or a paste with a link), the import already holds that page for a moment. At that moment the import MUST
+  keep a **fingerprint** of the page's method and headnote: word-shingle hashes of 5 to 8 words, with a `v1:` version.
+  It MUST NOT keep the page or any of its text (`016-FR-027f`). When the recipe heads public, the check MUST score the
+  recipe's method, headnote and the cook's own notes for **containment** in that fingerprint. Containment, not
+  resemblance, because a page holds the recipe plus ads, comments and a story. A score over the threshold is evidence
+  for a person. Counsel confirms that a stored fingerprint is not a copy (`016-FR-050`).
+- **FR-012c**: Where the comparison runs on FR-012b's fingerprint:
+    - "Adapted in my own words" (`004-FR-014a`): the method should be rewritten, so a high score is evidence for a
+      person.
+    - A linked card (`021-FR-014a`): the card shows no method, so only the cook's own notes are scored. A high score
+      means the notes carry the page's words, and is evidence for a person.
+    - "I wrote this" or a family or friend recipe that came in from a page: a high score is evidence for a person.
+    - A recipe with no import page, such as one typed in the editor, has no fingerprint. This part is then green, and
+      FR-012d does the work.
+- **FR-012d**: **A web search for its method sentences.** The check MUST pick two or three distinctive method sentences
+  and search each as an exact phrase, through the Brave Search API. It skips stock phrases such as "Preheat the oven to
+  350". A hit on a page the recipe was not imported from is evidence for a person.
+    - It runs only where other cooks will read the method: a recipe whose label (`016-FR-015c`) is written, adapted, or
+      from a family member or friend, or a clone of one of those, headed public. It does not run for a linked card,
+      which shows no method, or for public domain text.
+    - It MUST send the chosen method sentences and nothing else. It MUST NOT send the title, a name, an account id, a
+      photo or anything else about the cook. The privacy notice says so (`016-FR-039a`).
+    - This is not a model call, so `FR-033`'s region rule does not govern it. This FR does.
+- **FR-012e**: **Its own budget.** The web search MUST have its own monthly budget, outside ADR-0024's pool, because it
+  is not an LLM call and does not touch Bedrock. It has its own counter and its own off switch, and it reserves a
+  search before it sends it. The number is set in the plan from the shadow-mode forecast (FR-039a), as FR-030b's cap
+  is. When the budget is spent, or the switch is off, the search is not read. So the recipe is not all green
+  (FR-013a), and a person decides. That part's reason is `searchNotRun`. A new reason value is a contract change, so
+  `staff-architect` adds it before any client switches over the set (ADR-0074 one-way doors).
+- **FR-012f**: **False positives.** The check MUST apply these rules:
+    - Ingredient lists match by nature. Ingredient lines are left out of both comparisons.
+    - Short methods are generic. A method below a minimum length does not count as a match. Stock phrases are skipped.
+    - A classic recipe, such as the cookie recipe on the back of a bag, is on many unrelated pages. A hit on many
+      unrelated pages means "common", not "copied", and is not evidence.
+    - The source can itself be a copy, since blogs copy cookbooks. A person decides which source came first.
+    - Scanned text is noisy. Case, punctuation and numbers are normalised before shingling.
+    - Thresholds are measured, not guessed. FR-038's labelled set gains real web copies, rewrites, classics and
+      bloggers' own posts, and the plan sets each threshold from it.
+- **FR-012g**: **A blogger importing their own posts** looks exactly like a copier. A cook MUST be able to say "This is
+  my own page" with the "I wrote this" statement. A hit on that page then goes to a person with that claim shown, and
+  never counts against the cook on its own. A way to prove a site is yours, such as a token on the page or a verified
+  creator profile, is owed by 012. Until it exists, a person decides.
+- **FR-012h**: **A copy of a private source cannot be detected.** A family card, a friend's email or a book that is not
+  online has no page to find. For those, the controls are the cook's statement, the rights label and takedown
+  (`016-FR-015j`). A surface or record MUST NOT say a recipe was "checked and cleared". The words are "no copy found".
 
 #### C. Outcomes and the publication hold
 
@@ -795,9 +885,16 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
     | **The text**             | The rule-based detectors found no item of any kind in it. The model read the whole text: it was not over the cap, not denied by the budget, and did not fail. The model returned no evidence item at all, including a quote code could not find                                                                                          |
     | **Each photo**           | It has its fixed-size check copy. The model read that copy: not denied by the budget, and did not fail. The model returned no signal                                                                                                                                                                                                     |
     | **The source reference** | Either the cook gave none, because the statement is "I wrote this". Or the recipe is stated to be from a public web page and: its citation is a valid web link; the link's registrable host is not on the rightsholder list; and, if the link came through the URL import, the server's rights check allowed it as public (`004-FR-008`) |
+    | **Outside copies**       | _(Added 2026-10-29, ADR-0077.)_ The import-page comparison scored under its threshold, or the recipe has no import page. And the web search ran and found no match, or it does not run for this recipe (FR-012d)                                                                                                                         |
 
     Section J can also make a part green, or not green, from what a person decided about the same recipe or source in
     our own database (FR-047).
+
+    _(Added 2026-10-29, owner ruling, ADR-0077.)_ Two new statements (`004-FR-014a`) read like "I wrote this" for the
+    source reference part. "Adapted in my own words, from [credited source]" names a credit, not a source of copied
+    words, so the credit is shown and is not tested as a citation. "From a family member or friend, with their
+    permission" has an optional credit and no link. Both are green for the source reference when the rules find nothing
+    in the credit. Their text and photos are checked like any recipe, and the web search runs on them (FR-012d).
 
     Any part that is not green makes the recipe not `clear`. A proven blocking item makes it `detected`. Otherwise it is
     `possible` when any part raised an item, and `unchecked` when a part was not read, and a person decides. The model
@@ -1048,6 +1145,11 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
     - For `detected` (no person), the statement names the rule evidence in the cook's own text, as before.
 - **FR-027a**: The reviewer MUST see the recipe's text and photos, each part's green or not-green result, each signal
   and where it is, and the cook's statement and citation. Only the model is kept from the statement (FR-008). A person is not.
+- **FR-027b** _(added 2026-10-29, owner ruling, ADR-0077)_: A review MUST be a **rights check only** (`016-FR-053j`). The
+  reviewer decides whether the recipe is someone else's work, shared without the right to share it. The reviewer MUST
+  NOT judge quality, taste, style, accuracy or fit, MUST NOT edit the recipe, and MUST NOT feature or promote it. FR-027's
+  reasons are all rights reasons, and no reason for quality is ever added. This keeps review on the screening side of
+  _Mavrix Photographs v. LiveJournal_ (9th Cir. 2017), and so keeps the §512(c) safe harbour.
 - **FR-028**: Every "not approved" decision (a `detected` hold, a person's non-approval, an upheld appeal) MUST give the
   cook a **statement of reasons** through 016's mechanism (`016-FR-018`, `016-FR-018a`). It MUST name:
     - the action: publication withheld, and the recipe kept private
@@ -1083,7 +1185,8 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
 #### G. Privacy and records
 
 - **FR-033**: The checked content MUST be sent only to the model provider in the deploy region, unless the owner records
-  an approval of another region for this call site. An approval given for a model at another call site MUST NOT cover
+  an approval of another region for this call site. _(2026-10-29: the web search of FR-012d sends a few method
+  sentences to the search provider. FR-012d governs that, not this rule.)_ An approval given for a model at another call site MUST NOT cover
   this one. The provider MUST NOT use the content for training. A guard MUST pin this call site's model to a model
   registry entry that runs in the deploy region, so a configuration change cannot route it elsewhere.
 - **FR-034**: The check's output is a decision about content, not content shown to users. It MUST NOT be shown to the
@@ -1127,7 +1230,8 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
 - **FR-039a**: Shadow mode MUST produce a **referral forecast**, as information: referrals per day by origin and by the
   part that was not green, and the staff time they need at a measured minutes-per-referral. It MUST show three cases
   apart: ordinary publishing, a month in which the AI budget runs out (every publish becomes a referral, FR-020), and
-  the one-time backlog of a curated book import (FR-003a). It gates nothing. Its minutes-per-referral is the first
+  the one-time backlog of a curated book import (FR-003a). _(2026-10-29.)_ It MUST also show a fourth: a month in which
+  the web search budget runs out (FR-012e), and the outside-copy check's own referral rate. It gates nothing. Its minutes-per-referral is the first
   estimate of `016-FR-053i`'s review load, before real load replaces it (added 2026-10-27).
 - **FR-039b**: _Removed (owner, 2026-10-26)._ Staffing no longer gates the blocking switch.
 
@@ -1195,8 +1299,8 @@ of about $555 a month, and the half-time reviewer is hired when a volume trigger
 #### J. Same recipe and same source in our own database
 
 - **FR-045**: The check MUST look in **our own** recipe database for the same or nearly the same recipe, and for
-  recipes from the same source, and MUST read what a person decided about them. It MUST NOT crawl, fetch or search
-  anything outside our database (FR-012).
+  recipes from the same source, and MUST read what a person decided about them. This section searches only our own
+  database. The outside comparisons are FR-012a to FR-012h (amended 2026-10-29).
 - **FR-046**: **Same-recipe lookup.** The check MUST find recipes whose text is the same (an exact fingerprint of the
   normalised text, versioned `v1:`) or nearly the same (a near-copy measure). The measure MUST come from a maintained
   library or extension, not a hand-rolled one.

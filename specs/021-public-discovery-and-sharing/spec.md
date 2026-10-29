@@ -3,10 +3,11 @@
 **Feature Branch**: `docs/spec021-022` (single-branch directive. The spec directory is
 `specs/021-public-discovery-and-sharing`.)
 **Created**: 2026-10-27
-**Status**: Draft (two open owner questions, Q1 and Q2 below)
+**Status**: Draft. Q1 is resolved. Q2 is open. Amended 2026-10-28 for AI answer engines (FR-011a, FR-028a, FR-080a,
+FR-085a) and the save route (FR-035)
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
 other recommendations in either new features or expanding existing features." Mindset, same day: "assume that we can do
-this and figure out how."
+this and figure out how." Owner, 2026-10-28: "Let's also do the pages for AI recommendation."
 
 The ruling answers a recommendation, and the owner accepted all of it. Allow signed-out reading of public recipes that
 cooks wrote themselves, and of creator pages. Add recipe structured data, so the pages can appear in Google's recipe
@@ -41,7 +42,7 @@ virality loop.
 - **`staff-architect` PLANNING**, to choose how signed-out reads reach the data (section J), then BLUEPRINT and
   REVIEW.
 - **Counsel**, for the items in FR-095.
-- **`ts-1`**, for the tracking plan behind section I.
+- **`ts-1`**, for the tracking plan behind section I, and the referrer classes and crawler counts added 2026-10-28.
 
 ## Overview
 
@@ -448,6 +449,24 @@ creator page.
   creator page and is open already. A signed-out directory with search is a list surface, which section G avoids on
   purpose.]
 
+### Session 2026-10-28
+
+- **The ruling.** Owner, verbatim: "Let's also do the pages for AI recommendation." The aim is that AI answer engines
+  can read and cite the public recipe pages. The engines are ChatGPT search, Perplexity, Google's AI Overviews and
+  Copilot. This follows Q1: block training-only crawlers, and allow search and answer crawlers.
+- **Reading: most of it is already here.** Recipe structured data (FR-023), stable addresses (FR-010), canonical
+  tags (FR-026) and sitemaps (FR-027) serve answer engines as they serve search.
+  [Google's guide](https://developers.google.com/search/docs/appearance/ai-features) says its AI features need
+  nothing beyond normal Search. The amendment adds four things:
+    - the whole page without script (FR-011a)
+    - a dated crawler list (FR-028a)
+    - a fresh `dateModified` (FR-023)
+    - measurement that keeps human visits and crawler fetches apart (FR-080a, FR-085a)
+- **Reading: no llms.txt here.** A file that lists recipes is a second list beside the sitemap, which FR-060
+  forbids. The marketing site's rule is `022-FR-127`.
+- **The save route.** `004-FR-053` adds a "Save to Commise" route that the app must open. FR-035 is amended to
+  associate it, and nothing else new.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -503,6 +522,14 @@ creator page.
   ingredient line with its amount, every step, the tags and the cuisine. With at least one rating, it shows the rating
   total and count. With none, it shows no average (`001-FR-013a`). Partial nutrition is shown with its honest partial
   flag (`001-FR-007a`). No part of the recipe is hidden, cut short or blurred for a signed-out visitor.
+- **FR-011a** _(added 2026-10-28, owner ruling)_: The whole recipe, its structured data and its preview tags MUST be
+  in the first HTML response, with no script needed to see them. A study from December 2024 found this: "none of the
+  major AI crawlers currently render JavaScript". The source is
+  [Vercel](https://vercel.com/blog/the-rise-of-the-ai-crawler).
+  Public pages MUST NOT carry `noarchive` or `nocache`. Bing states this: "Content tagged NOARCHIVE will not be
+  included in Bing Chat answers". It also says `nocache` limits an answer to the address, snippet and title. The
+  source is
+  [Bing, September 2023](https://blogs.bing.com/webmaster/september-2023/Announcing-new-options-for-webmasters-to-control-usage-of-their-content-in-Bing-Chat).
 - **FR-012**: The server's response at a public address MUST always be the signed-out version, the same for every
   viewer, and MUST NOT set a cookie. This holds for an open recipe, a source card, a creator page and the
   not-available answer alike. Anything more for a signed-in viewer MUST appear only after the page loads in the
@@ -575,6 +602,7 @@ creator page.
     - `prepTime`, `cookTime` and `totalTime`, as ISO 8601 durations
     - `recipeYield`, `recipeIngredient` as written, and `recipeInstructions` as steps
     - `recipeCuisine`, and `keywords` from tags
+    - `dateModified`, equal to the last change to what the page shows (added 2026-10-28)
 
     With a rating count of at least one, it MUST include `aggregateRating`, and with none it MUST NOT. If any ingredient
     is unresolved or user-entered, it MUST NOT include `nutrition`.
@@ -593,7 +621,36 @@ creator page.
   leave within one hour.
 - **FR-028**: `robots.txt` MUST list the sitemap index, MUST allow the public routes and the link association files, and
   MUST disallow API paths. App routes that are not public MUST answer `noindex` rather than be blocked, so a crawler can
-  see the `noindex`. The rules for AI crawlers follow Q1.
+  see the `noindex`. The rules for AI crawlers follow Q1, through FR-028a.
+- **FR-028a** _(added 2026-10-28, owner ruling)_: The rules for AI crawlers MUST come from **one crawler list**, kept
+  as data in the repository and shared by this host and the marketing site (`022-FR-126`). Each entry holds six
+  things: the crawler's name, its operator, its purpose from the operator, the rule, the operator's page, and the date
+  that page was read. The rule follows Q1: a crawler that only collects training data is blocked, and a search or
+  answer crawler is allowed. The list MUST be re-read against each operator's page every 90 days, and an entry older
+  than that fails the build. The first list, read on 2026-10-28:
+
+    | Crawler            | Operator     | Purpose, from the operator                                                                                        | Rule            | Source                                                                                                                                       |
+    | ------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+    | GPTBot             | OpenAI       | "used to make our generative AI foundation models more useful and safe"                                           | Block           | [OpenAI bots](https://developers.openai.com/api/docs/bots)                                                                                   |
+    | OAI-SearchBot      | OpenAI       | "for search"                                                                                                      | Allow           | OpenAI bots, above                                                                                                                           |
+    | ChatGPT-User       | OpenAI       | Fetches for a person's request. "not used for crawling the web in an automatic fashion"                           | Allow           | OpenAI bots, above                                                                                                                           |
+    | ClaudeBot          | Anthropic    | Training Anthropic's generative AI models                                                                         | Block           | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
+    | Claude-SearchBot   | Anthropic    | Crawls the web "to improve search result quality for users"                                                       | Allow           | Anthropic, above                                                                                                                             |
+    | Claude-User        | Anthropic    | "supports Claude AI users"                                                                                        | Allow           | Anthropic, above                                                                                                                             |
+    | PerplexityBot      | Perplexity   | "designed to surface and link websites in search results", "not used to crawl content for AI foundation models"   | Allow           | [Perplexity bots](https://docs.perplexity.ai/guides/bots)                                                                                    |
+    | Perplexity-User    | Perplexity   | "supports user actions within Perplexity"                                                                         | Allow           | Perplexity bots, above                                                                                                                       |
+    | Googlebot          | Google       | Google Search, which includes AI Overviews and AI Mode                                                            | Allow           | Google AI features, above                                                                                                                    |
+    | Google-Extended    | Google       | Training of Gemini models, and grounding in Gemini Apps. It "does not impact a site's inclusion in Google Search" | Block           | [Google crawlers](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)                                        |
+    | Bingbot            | Microsoft    | Bing search. Which crawler feeds Copilot was not confirmed from a Microsoft page                                  | Allow           | Plan-time check                                                                                                                              |
+    | Applebot-Extended  | Apple        | Lets a site "opt out of their website content being used to train Apple's general purpose foundation models"      | Block           | [Apple](https://support.apple.com/en-us/119829)                                                                                              |
+    | CCBot              | Common Crawl | A free "copy of the Internet" for researchers and companies, widely used to train models                          | Block           | [Common Crawl FAQ](https://commoncrawl.org/faq)                                                                                              |
+    | Meta-ExternalAgent | Meta         | "training foundation AI models or improving products by indexing content directly"                                | Block           | [Meta crawlers](https://developers.facebook.com/docs/sharing/webmasters/web-crawlers/)                                                       |
+    | Bytespider         | ByteDance    | No operator page was found                                                                                        | Plan-time check | None yet                                                                                                                                     |
+
+    A crawler with a mixed purpose that names training, such as Meta-ExternalAgent, is blocked. A crawler with no
+    operator page stays a plan-time check until one is found. A crawler not on the list gets the default public rules.
+    Robots rules are a request, not a control. FR-063 and FR-064 are the controls.
+
 - **FR-029**: Every non-production host (sandbox, every `pr-{N}` preview, every bare deployment host) MUST answer
   `noindex` on every response and disallow everything in `robots.txt`. No non-production host MUST be associated with
   the app.
@@ -625,7 +682,8 @@ creator page.
   The locale redirect MUST NOT touch them. They MUST associate the public recipe and creator routes and nothing else.
   Sign-in, sign-up, the OAuth return path and every other route MUST stay unassociated. If the app captured a sign-in
   return, web sign-in breaks on any phone with the app installed. Android MUST confirm the association automatically,
-  with the fingerprints of every release signing key.
+  with the fingerprints of every release signing key. _Amended 2026-10-28:_ the "Save to Commise" route of
+  `004-FR-053` is associated too. Nothing else is added, and the sign-in routes stay unassociated.
 - **FR-036**: On mobile web, a public page MUST offer "Open in the app" for visitors whose browser did not open the
   app, such as an in-app browser.
 - **FR-037**: On mobile web, a public page MUST show a store's install prompt only while the app is live in that
@@ -703,7 +761,10 @@ creator page.
   header a client can set. A person reading and sharing MUST never reach the limit. A client past it gets `429` with
   `Retry-After`. The per-user throttler cannot do this, because a signed-out caller has no user.
 - **FR-064**: Search engine and link-preview crawlers MUST be verified by each engine's published method, never by the
-  user-agent string alone. A verified crawler MUST NOT be limited off the site at its normal rate.
+  user-agent string alone. A verified crawler MUST NOT be limited off the site at its normal rate. _Amended
+  2026-10-28:_ this covers the allowed answer crawlers of FR-028a. OpenAI and Perplexity publish their crawlers'
+  address lists (OpenAI and Perplexity bots pages, FR-028a). A crawler whose operator publishes no method is not
+  verified, and is limited like any client.
 - **FR-065**: If the origin fails, the CDN can serve the last good copy of a page for at most one hour. A purge MUST
   remove that copy too, so an exited page is never served stale.
 - **FR-066**: The plan MUST price the CDN, the edge rules and the rendering with `cfo-1`. This spec states no cost
@@ -744,6 +805,12 @@ creator page.
 - **FR-080**: Measurement on public pages MUST store nothing on the visitor's device and MUST make no identifier that
   works across sites. It counts page views by page kind (recipe, creator, source card, not available), platform, and
   whether a share mark was present.
+- **FR-080a** _(added 2026-10-28, owner ruling)_: A page view MUST also record its **referrer class**: one value from a
+  closed list kept in one place and shared with the marketing site and with attribution (`022-FR-128`,
+  `023-FR-002a`). The classes are search, each named answer engine (ChatGPT, Perplexity, Copilot, Gemini, Claude),
+  social, chat app, other site and none. Only the class is kept, never the referring address or its query string.
+  FR-083's rule is unchanged. A visit from Google's AI Overviews arrives from Google's search host and counts as
+  search.
 - **FR-081**: The app MUST count share actions by platform, and completed shares where the operating system reports
   completion.
 - **FR-082**: An account created after sign-up began on a public page MUST record that fact once, and whether a share
@@ -753,6 +820,9 @@ creator page.
 - **FR-084**: Creators see their page views in aggregate only (`012-FR-023`, `FR-024`).
 - **FR-085**: Search traffic comes from the search engines' own consoles, read by the operator. No in-product search
   tracking is built.
+- **FR-085a** _(added 2026-10-28, owner ruling)_: Fetches by verified answer crawlers (FR-028a, FR-064) MUST be
+  counted per crawler, per page kind, per day, from edge logs, and totalled before the logs expire (FR-076). The total
+  keeps no client address. Crawler fetches and human page views MUST be reported apart and never added together.
 - **FR-086**: No business target is set for views, shares or sign-ups. They are reported weekly from launch. Targets
   come later, from measured data.
 
@@ -877,6 +947,10 @@ creator page.
 - **SC-012**: At least 90% of public page requests are served from the CDN over each week.
 - **SC-013**: Page views, shares, share links opened and sign-ups from public pages are reported weekly from launch. No
   target is set.
+- **SC-014** _(added 2026-10-28)_: Every crawler on the FR-028a list gets the rule the list gives it, checked by a test
+  that reads the built `robots.txt` of both hosts. Zero entries are older than 90 days.
+- **SC-015** _(added 2026-10-28)_: 100% of indexable recipe pages show every ingredient and step, and their structured
+  data, in a fetch that runs no script.
 
 ## Assumptions
 

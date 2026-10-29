@@ -4,12 +4,15 @@
 `specs/023-referrals-and-growth-measurement`. `.specify/feature.json` is not pointed here, because another session
 uses it.)
 **Created**: 2026-10-27
-**Status**: Draft. Two owner questions are open (marked below). Every user-facing surface needs `staff-ux-engineer`
+**Status**: Draft. One owner question is open (FR-012). The waitlist host question (FR-037) was settled by 022 Q1
+and is closed here on 2026-10-28. Every user-facing surface needs `staff-ux-engineer`
 DESIGN and SPECIFY before it is built.
 **Input**: Owner rulings, 2026-10-27: "Include the other recommendations in either new features or expanding existing
 features." And: "assume that we can do this and figure out how." The recommendations come from the business plan
 draft of 2026-10-27. Its go-to-market section covers referral in 8.4.7 and the launch plan in 8.5. That draft is not
-yet in the repository. So this spec cites it by section and repeats each figure it uses.
+yet in the repository. So this spec cites it by section and repeats each figure it uses. Owner rulings, 2026-10-28,
+add the store launch program (section J), the export credit line owed to 017 (section K) and the launch task list.
+See Clarifications.
 
 ## Dependencies
 
@@ -29,8 +32,10 @@ yet in the repository. So this spec cites it by section and repeats each figure 
 
 ## Overview
 
-The business plan grows Commise on organic channels first, because paid ads return about $0.72 for every $1 at median
-conversion (business plan section 8.4.2). No channel's volume is known. So three things must exist before launch:
+The business plan grows Commise on organic channels first. Within 24 months, a paid install returns $0.85 for every $1
+at median conversion (2.1%). At the 3.0% plan target it returns $1.32 (business plan, final model run, section 7 and
+Appendix A6). _Corrected 2026-10-28: this line quoted $0.72, from a superseded model run._ No channel's volume is
+known. So three things must exist before launch:
 
 1. **Measurement.** Installs and sign-ups are counted by source, and each source's funnel is read against set
    thresholds, during a soft launch with a fixed start and end date.
@@ -57,8 +62,8 @@ The owner asked us to solve the constraints, not list them. Each constraint belo
 
 - It does not buy installs. The paid-ads budget is the owner's decision. This spec measures whatever is spent.
 - It does not add an advertising SDK, a mobile measurement partner that fingerprints devices, or any ad network pixel.
-- It does not make recipe pages public or build the marketing site. Both wait on owner rulings that the business plan
-  lists (section 8.11.1, items 1 and 2).
+- It does not make recipe pages public or build the marketing site. Those are specs 021 and 022, which the owner
+  ruled on 2026-10-27. _(Updated 2026-10-28: this line said both waited on owner rulings.)_
 - It does not run the interviews. The interview guide, scheduling and synthesis are a research process. This spec
   builds the product hooks only.
 
@@ -292,6 +297,31 @@ from the staff research list.
 - **The soft launch has very low volume.** Every channel stays at "not enough data". That is a valid result. The plan's
   own fallback applies: every cohort pays $99.99 and the price test does not start (business plan section 8.5.3).
 
+## Clarifications
+
+### Session 2026-10-28
+
+- **The rulings.** The owner adopted these from the ranked acquisition brainstorm and did not want any dropped. Owner,
+  2026-10-28, verbatim on the AI pages: "Let's also do the pages for AI recommendation." On the save button and the
+  international spec: "Do 3 as well." These are kept from the ranked list:
+    - App Store pre-orders and Google Play pre-registration, tied to the waitlist.
+    - App Store in-app events and Google Play promotional content.
+    - Featuring nominations with the right lead times.
+    - A food-moment launch calendar.
+    - A "Made with Commise" credit line on PDF and printed exports.
+    - A listing and outreach task list.
+- **Reading: where each one lives.** Pre-orders sit with the waitlist in 022 (`022-FR-082`). Events, promotional
+  content, featuring and the calendar are measured launch work, so they sit here (section J), each with its own
+  campaign token and kill rule. The AI pages are 022's and 021's. The save button is 004's (`004-FR-053`).
+- **Reading: the credit line belongs to export, and export is 017's.** Export is `017-FR-018` to `017-FR-020`, which
+  merge into 001. Another writer is editing 017 today, so section K writes the full requirement here as an amendment
+  owed to `017-FR-019`. It sits here because its link follows this spec's source and no-user-id rules (FR-004,
+  FR-031). When 017 takes it in, section K is replaced by a pointer.
+- **Reading: the listing and outreach list is tasks, not requirements.** The owner asked for launch tasks. They are in
+  "Launch tasks" below, with a test and a kill rule each, and they bind no build.
+- **Correction.** The paid-ads return in the Overview was stale. The final model gives $0.85 per $1 within 24 months at
+  2.1% conversion and $1.32 at 3.0% (business plan, final model run). The earlier $0.72 is withdrawn.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -311,13 +341,23 @@ from the staff research list.
       downloads. Source: [Apple, manage campaigns](https://developer.apple.com/help/app-store-connect/view-app-analytics/manage-campaigns).
       They never reach the app, so they are reported beside our data, not joined to accounts.
     - Google Play links carry a `referrer` string holding the UTM parameters and any invite code.
+- **FR-002a** _(added 2026-10-28, owner ruling)_: The web app MUST also read the host of the page that referred the
+  first landing, and keep only its **referrer class**, one value from the closed list that 021 and 022 share
+  (`021-FR-080a`). It MUST NOT keep the referring address or its query string. A known AI answer engine maps to the
+  `answer_engine` source below, with the engine as its detail.
 - **FR-004**: The source MUST be one value from a closed list, kept in one place. Adding a value is a change to this
   spec. The values are:
     - stores and ads: `app_store_search`, `apple_ads`, `play_store_search`, `google_ads`,
     - people and posts: `organic_social` (with a platform), `creator` (with a creator code), `referral`, `press`,
       `product_hunt`,
-    - web and lists: `web_search`, `web_direct`, `waitlist`,
+    - web and lists: `web_search`, `web_direct`, `waitlist`, `answer_engine` (with the engine), `save_button` (with
+      the partner, `004-FR-053`), `export_credit` (FR-055),
     - fallbacks: `self_reported` (with the answer) and `unknown`.
+
+    _Amended 2026-10-28, owner ruling._ The last three web values are new. A visit from Google's AI Overviews arrives
+    from Google's own search host, so it counts as `web_search`. It cannot be told apart, and this spec does not
+    guess.
+
 - **FR-005** (mobile signals): On the first open after install, the app MUST read each signal its platform offers,
   once:
     - **Android**: the Play Install Referrer: the referrer string, the click time and the install-begin time
@@ -333,7 +373,8 @@ from the staff research list.
       ad campaign.
     - **Both**: a universal link or app link opened after install, carrying a campaign or invite code.
 - **FR-006**: When signals disagree, the source MUST follow one fixed order: invite code, then Apple Ads token, then
-  install referrer, then web UTM, then universal link campaign, then the cook's own answer, then `unknown`. The order
+  install referrer, then web UTM, then the referrer class (FR-002a, added 2026-10-28), then universal link campaign,
+  then the cook's own answer, then `unknown`. The order
   lives in one pure function.
 - **FR-007**: A sign-up with no signal can show one optional question, "How did you hear about Commise?", with closed
   choices that map to the source list and a "Skip" with equal weight. It is shown once, never blocks sign-up, and its
@@ -510,9 +551,9 @@ from the staff research list.
 #### G. Waitlist and interview recruitment
 
 - **FR-037**: Before beta, the system MUST offer a waitlist. On the web it is a form that takes an email, captures the
-  source by FR-002, and sends a verification email. The form lives on [NEEDS CLARIFICATION: the marketing site's host is
-  an open owner decision (business plan section 8.11.1, item 2). The signed-out root of commise.app is sign-in
-  (`001-FR-045a`), so the form cannot sit there]. On the stores, interest is captured by App Store pre-orders and
+  source by FR-002, and sends a verification email. The form lives on the marketing site, `www.commise.app`.
+  _Resolved 2026-10-28._ The owner chose "option A, `www.commise.app` now" on 2026-10-27 (022 Q1). The signed-out
+  root of commise.app stays sign-in (`001-FR-045a`). On the stores, interest is captured by App Store pre-orders and
   Google Play pre-registration, which notify people without giving us their data.
 - **FR-038**: A waitlist entry MUST be stored as consent only after the email is verified. An unverified entry is
   deleted after 7 days. A verified entry is deleted at the first of three events: unsubscribe, 30 days after an unused
@@ -589,6 +630,118 @@ This change does not edit 001, 016 or the cross-feature FR index. These items ar
 - **010**: `010-FR-044`'s claim publishes the effective plan of FR-027e, which now includes promotional entitlements
   and household coverage. The design is owed in 010's plan, and the 2026-10-27 household amendment there records it.
 - **Cross-feature FR index**: entries for this spec are owed under `GR-003`.
+- **017-FR-019** _(added 2026-10-28)_: the export credit line of section K is owed to 017's export requirement. 017
+  is being edited by another writer, so it is not applied here. Its owner moves FR-055 to FR-057 into `017-FR-019` and
+  leaves a pointer in section K.
+- **016-FR-050 gains one counsel item** _(added 2026-10-28)_: whether a food-moment event for a religious or cultural
+  festival needs any wording care beyond review by cooks from that culture (FR-049).
+
+#### J. The store launch program _(added 2026-10-28, owner ruling)_
+
+These turn store surfaces and dates into measured launch work. Each one has its own campaign token, so its effect
+can be read on the dashboard, and its own kill rule. The dates come from the pre-launch blocks in the business plan.
+Block 1 runs 28 Oct to 26 Nov 2026. Block 2 runs 27 Nov to 26 Dec. Block 3 runs 27 Dec 2026 to 25 Jan 2027.
+Launch has no date yet (`v1-launch-plan.md`, D2), so later steps are dated "launch + N days".
+
+- **FR-049**: A **food-moment calendar** MUST exist, as data in the repository, with one entry per moment. Each entry
+  holds these:
+    - the moment's date and the source for it, and the markets it applies to (025)
+    - the in-app collection it opens, and the store event and promotional content it drives (FR-050, FR-051)
+    - its campaign token and its result
+
+    The first moments are these:
+    - Thanksgiving, 26 Nov 2026 ([OPM](https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/))
+    - New Year planning, in January
+    - Lunar New Year, 6 Feb 2027
+    - Ramadan, about 8 Feb to 8 Mar 2027, set by moon sighting
+    - Diwali, 29 Oct 2027
+
+    The last three dates come from secondary tables. Each is checked against a primary calendar before use.
+    Meal-planning apps peak in January: in 2023, Yummly's weekly US revenue peaked in late January
+    ([Sensor Tower](https://sensortower.com/blog/2023-q1-unified-top-5-food%20and%20drink-revenue-us-602e0a75241bc16eb808976d)).
+    That is revenue, not installs. Rules:
+    - A cultural or religious moment's content MUST be reviewed by cooks from that culture before it is used.
+    - A moment is tested first with Thanksgiving 2026 on the waitlist, in block 1.
+    - **Kill rule**: a moment that shows no lift over the two weeks before it drops off next year's calendar.
+    - The public launch week is picked from this calendar by the owner under D2. It never lands in a dead week.
+
+- **FR-050**: For each moment, the team MUST be able to publish an **App Store in-app event** that opens a real,
+  timely collection inside the app. Apple's rules come from
+  [Apple in-app events](https://developer.apple.com/app-store/in-app-events/). An app can have "up to 10 events
+  published" at once. Each lasts up to 31 days, and each can be promoted up to 14 days ahead. People without the app
+  "can download it directly from your In-App Event card". Rules:
+    - Apple reviews each event. It MUST be a real thing in the app, with no fake urgency (`022-FR-036`).
+    - The event's deep link opens the collection on both platforms. A collection used by an event holds only recipes
+      that are open to the web (`021-FR-002`) or that Commise wrote. A person who is signed out reaches sign-in or
+      sign-up first, then the collection, through the parsed return path.
+    - The collection and its states need `staff-ux-engineer` DESIGN and SPECIFY.
+    - **Kill rule**: three events in a row with no installs on their tokens stops the program.
+- **FR-051**: For the same moments, the team MUST be able to publish **Google Play promotional content**. Google
+  places it on the store listing, the Play homepage and search, as its
+  [program page](https://google.play/business/programs/promotionalcontent/) says. Google's own analysis of about 6,000
+  events found a median 106% uplift, but only over the half of events with a significant uplift. It is Google's
+  figure about other apps and is not a forecast for Commise. Access needs "eligibility criteria for premium growth
+  tools" that the page does not list, so eligibility is checked at launch. The kill rule is FR-050's.
+- **FR-052**: **Featuring nominations** MUST be filed on both stores, on dates worked back from the launch date:
+    - **Apple**: at least 2 weeks ahead, and up to 3 months ahead, as Apple suggests
+      ([Apple, getting featured](https://developer.apple.com/app-store/getting-featured/)). The plan files at 3 months
+      where D2 allows. Another Apple page cites 3 weeks, so 2 weeks is a hard floor, never a target.
+    - **Google Play**: for a new app, 8 weeks ahead
+      ([Google Play featuring form](https://support.google.com/googleplay/contact/featuring_review?hl=en)).
+    - Each nomination names only features in the release (`022-FR-011`), and every claim comes from the claims
+      register (`022-FR-070`).
+    - Each nomination also names the moment it fits from FR-049, where one fits.
+    - **Kill rule**: none. Two nominations without a feature means the program keeps running for its retention value,
+      and the team stops reshaping releases around featuring.
+- **FR-053**: Installs from events, promotional content and featuring MUST be read from each store's own report, in
+  aggregate, beside our account data. They are never joined to accounts, as FR-003 already says of campaign tokens.
+  Where a deep link opens the app with a campaign value, FR-005's universal link signal records it. The dashboard
+  MUST show each moment's installs against the two weeks before it, which is the baseline FR-049's kill rule reads.
+- **FR-054**: Pre-order and pre-registration installs MUST be read the same way, from the stores' reports, beside
+  account data. The pre-order step itself is `022-FR-082`.
+
+#### K. The export credit line _(added 2026-10-28, owner ruling. Owed to `017-FR-019`)_
+
+- **FR-055**: PDF exports and printed recipes (`017-FR-019`) MUST end with one short credit line: "Made with
+  Commise", and the site address. Rules:
+    - It is on by default. The cook MUST be able to turn it off in one step, from the export screen and from
+      settings. The setting is a nullable typed column with its default in code (ADR-0059).
+    - It MUST NOT appear in the JSON export, or in any other lossless or machine-readable export format
+      (`017-FR-018`, `017-FR-018a`). Those must stay a faithful copy of the cook's data.
+    - The address carries the `export_credit` source (FR-004) only. It MUST NOT carry a user id, a recipe id or any
+      value that points to a person (FR-031).
+    - It is small and plain. It never covers recipe content, and it is never a call to sign up.
+    - Its copy goes through the localisation path, and its look is `staff-ux-engineer`'s, on web and mobile.
+- **FR-056**: Commise MUST NOT sell, or offer to sell, any printed product, such as a printed cookbook, a card or a
+  poster. This is a standing rule set with the 2026-10-28 rulings, called the "Vistaprint IP-risk rule". The
+  founder's record includes Vistaprint (business plan, section 10), whose business is printed products. So Commise
+  stays out of that business, to avoid any IP question. A cook prints their own recipes on their own printer, and
+  nothing more.
+- **FR-057**: **Test and kill rule** for FR-055, from launch + 60 days: if fewer than 1 visit comes per 100 exports,
+  drop the address and keep a plain credit. The figure is a plan target, not a forecast. Hotmail's footer is the
+  classic case of a credit line. It is a mid-1990s case, so it gives direction only
+  ([TechCrunch, Oct 2009](https://techcrunch.com/2009/10/18/ps-i-love-you-get-your-free-email-at-hotmail/)).
+
+### Launch tasks _(not requirements, added 2026-10-28)_
+
+The owner asked for these as launch tasks. They bind no build. Each has a test and a kill rule from the acquisition
+brainstorm. None of them claims anything that is not in the claims register (`022-FR-070`).
+
+| Task                                                                                                                                                                                                                                                                                                      | When                                          | Test                                       | Kill rule                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------- |
+| List Commise on AlternativeTo and similar sites as an alternative to Mealime, Paprika, Yummly and ReciMe. AlternativeTo lists 82 Mealime alternatives and 149 for Paprika ([Mealime](https://alternativeto.net/software/mealime/), [Paprika](https://alternativeto.net/software/paprika-recipe-manager/)) | Block 1, pointing at the waitlist             | Visits from these sites, by referrer class | Under 20 visits a month by launch + 60 days: stop updating them |
+| Pitch the writers of "best recipe app" roundups at review sites and tech outlets, with a review account and the export proof                                                                                                                                                                              | Launch + 30 days                              | Plan target: 2 inclusions from 15 pitches  | Zero inclusions by launch + 90 days: stop pitching roundups     |
+| A technical Show HN post, on how two engines read every ingredient amount, with the 1919 cookbook data                                                                                                                                                                                                    | Launch + 30 days, once people can try the app | Visits and sign-ups on its campaign token  | One-off by design                                               |
+| Email the WP Recipe Maker team about the save button (`004-FR-053`)                                                                                                                                                                                                                                       | Block 1                                       | A reply                                    | No reply in 30 days: stop                                       |
+
+Rules for every task:
+
+- Never post fake likes or reviews.
+- Never pay for a placement that is not shown as an ad.
+- Never ask for votes on Hacker News.
+- Always say "I make this".
+
+The audience on Hacker News is engineers, not cooks, so its result is read on its own.
 
 ### User-facing states _(every one is designed by `staff-ux-engineer` before build)_
 
@@ -607,6 +760,8 @@ dashboard and the research list are staff tooling and web only.
 | Waitlist              | Empty. Email not valid. Sent, check your email. Verified. Already on the list. Unsubscribed. Error                                                                     |
 | Talk to the team      | Card. Opt-in form. Agreed. Dismissed. Withdrawn. Not shown (under 18)                                                                                                  |
 | Soft-launch dashboard | Loading. Not mature. Not enough data. Hidden cell. Scale. Keep. Stop. Error                                                                                            |
+| Event collection      | Added 2026-10-28. Open, signed in. Signed out, sent to sign-in first. Event over. Collection empty. Offline. Error                                                     |
+| Export credit line    | Added 2026-10-28. Shown on a PDF. Shown on a print. Turned off. Never in JSON                                                                                          |
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -645,6 +800,9 @@ dashboard and the research list are staff tooling and web only.
 - **Waitlist Entry**: an email with its verification state, source, research consent and screener answers. Not an
   account.
 - **Research Consent**: a consent record for "research contact" under `016-FR-007`, with screener answers.
+- **Food Moment** _(added 2026-10-28)_: one calendar entry: date and source, markets, collection, events, token and
+  result (FR-049).
+- **Export Credit Setting** _(added 2026-10-28)_: one nullable typed column, on by default in code (FR-055).
 
 ## Success Criteria _(mandatory)_
 
@@ -666,6 +824,10 @@ dashboard and the research list are staff tooling and web only.
   public launch, spread across at least three household sizes and both mobile platforms.
 - **SC-008**: Account erasure leaves no attribution record, invite code, research consent or reward link to the
   person, checked by the erasure coverage test.
+- **SC-009** _(added 2026-10-28)_: Both featuring nominations are filed on or before their dates (FR-052), and every
+  event and promotional item has its own token and a recorded result against its baseline.
+- **SC-010** _(added 2026-10-28)_: Zero JSON exports carry the credit line, and zero credit-line addresses carry a
+  user or recipe id, checked by a test over every export format.
 
 ## Assumptions
 
@@ -692,6 +854,8 @@ dashboard and the research list are staff tooling and web only.
 - **`clo`**: the counsel items in section I.
 - **`cfo-1`**: the reward cost and the thank-you cost.
 - **`dpo-1`**: the retention periods in FR-047, FR-038 and FR-041.
+- **`gmm-1` and `cmo-1`** _(added 2026-10-28)_: the food-moment calendar, the events and the nominations (section J).
+  `staff-ux-engineer` designs the event collection and the credit line, at phone, tablet and desktop widths.
 
 ## Out of Scope
 

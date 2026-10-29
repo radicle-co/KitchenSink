@@ -983,7 +983,7 @@ has the notice form but no standing "do not show my recipes publicly" list. **Fi
 6. Whether a registered-agent address satisfies 512(c)(2) and 37 CFR 201.38 (G9).
 7. Whether the 016 licence covers export of clones (G12).
 8. Whether Article 17 of the DSM Directive can reach public recipes at any foreseeable scale (3.6).
-9. Whether showing a source's photo by reference on a public recipe is a "display" by Commise in the First Circuit
+9. Whether showing a source's photo by reference on a public recipe is a "display" by Commise in the company's home circuit
    (3.4a). **What breaks:** 016 FR-027a's photo rule becomes a display of every imported blog photo.
 
 ### Regulatory change

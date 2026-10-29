@@ -2,7 +2,7 @@
 
 /**
  * @module @commise/ui/snackbar — the height of one DOM element, read from its box and kept current. The web
- * {@link SnackbarHost} uses it to tell the floating create button how far to rise (`SnackbarClearanceContext`).
+ * `SnackbarHost` uses it to tell the floating create button how far to rise (`SnackbarClearanceContext`).
  *
  * The element is held by a callback ref in state — the shape `FabFace` uses — and read in an effect, never in render.
  * A change of `remeasureKey` measures again, for a box whose content changed in a way no observer is told about.

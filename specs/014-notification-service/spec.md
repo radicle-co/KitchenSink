@@ -14,6 +14,8 @@
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Downstream** — recipe lifecycle notifications owned by 001 contract updates will be published through this service.                                                                                                                                                                                                                                                                                                                                                         |
 | [005-ai-integration](../005-ai-integration/spec.md)         | **Downstream** — AI-generated content disclosure events owned by 005 contract updates will use this service.                                                                                                                                                                                                                                                                                                                                                                  |
 | [008-cooking-mode](../008-cooking-mode/spec.md)             | **Downstream** — timer alert events owned by 008 contract updates will use this service.                                                                                                                                                                                                                                                                                                                                                                                      |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Downstream, added 2026-10-28.** The trial notice, renewal notices, billing recovery and the written cancel confirmation go out through this service by email, push and in-app (FR-046 to FR-056).                                                                                                                                                                                                                                                                           |
+| [007-grocery-lists](../007-grocery-lists/spec.md)           | **Downstream, added 2026-10-28.** The pantry use-by reminder may use push and email (FR-052).                                                                                                                                                                                                                                                                                                                                                                                 |
 | [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Downstream** — compliance-gap events owned by 009 contract updates will use this service.                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Resolves `specs/cross-feature-consistency-report.md` §5.3 / **WA-004** (no owner for notification delivery).
@@ -24,7 +26,7 @@ Resolves `specs/cross-feature-consistency-report.md` §5.3 / **WA-004** (no owne
 
 - Q: Should there be a central registry of allowed `messageType` keywords? → A: **Yes** — central, version-controlled registry. Unknown keywords still tolerated client-side, but flagged by operational counters and eligible for publish rejection once the registry is enforced.
 - Q: What ordering guarantee should the service commit to? → A: **Per-recipient FIFO** for `user` and `group` recipients; **best-effort** for `global` broadcasts. Backed by industry practice (Ably, AWS SNS FIFO, Knock, Kafka partition-per-key patterns).
-- Q: Are launch transports limited to in-app? → A: **Yes** — email and mobile push are explicitly out of scope for this release.
+- Q: Are launch transports limited to in-app? → A: **Yes** — email and mobile push are explicitly out of scope for this release. _(Reversed 2026-10-28. The owner adopted the retention ideas that need email and push, such as the notice before a trial's first charge. See the [2026-10-28 amendment](#amendment-2026-10-28-email-and-mobile-push-channels).)_
 - Q: Does this service own the meaning of any specific `messageType`? → A: **No** — producers own their own keyword namespaces and document them in their own feature specs. This service only owns transport, routing, and the registry mechanics.
 
 ### Session 2026-08-12 — retention, deduplication and producer identity (owner rulings)
@@ -806,7 +808,7 @@ reason the two adapters must share one schema.
   security-relevant, not cosmetic: FR-027 makes the validated `source` a **trust decision**, so the code that
   reads `source` must first prove the wrapper is the shape it claims to be.
 - **A-005's future email / mobile-push transports** (SES, APNs, FCM, Expo push) are out of scope for this
-  release. When they arrive they are **third-party**: their clients **validate the raw upstream shape at the
+  release. _(In scope since 2026-10-28, FR-055.)_ When they arrive they are **third-party**: their clients **validate the raw upstream shape at the
   boundary with zod**, **may declare their own types**, and **get no OpenAPI document**. Their response shapes
   do not enter `@kitchensink/schema-notifications`.
 - **Clerk** remains third-party for subscriber authentication (see 002).
@@ -1135,7 +1137,7 @@ to declare a value with no dimension, and the registry contract could not type i
 
 - **A-003**: Producer authentication mechanism is aligned with feature 002 service-to-service auth. Concrete mechanism (signed JWT, IAM, or per-feature key) is decided in `plan.md`.
 - **A-004**: At launch the registry of `messageType` keywords is **non-enforcing**; enforcement is enabled per-environment after the first ~quarter of production data exposes any unintended unregistered traffic.
-- **A-005**: Email and mobile-push transports are out of scope for this release. A future feature may extend the service to fan out to those transports without changing the publish contract.
+- **A-005**: Email and mobile-push transports are out of scope for this release. A future feature may extend the service to fan out to those transports without changing the publish contract. _(Reversed 2026-10-28. Email and mobile push are in scope, by FR-046 to FR-056. The publish contract gains one optional part, FR-048's localization key and parameters.)_
 - **A-006**: Read/delivery receipts back to producers are out of scope. Producers observe success/failure of _publish_, not of _delivery_.
 - **A-007**: A long-term inbox UI (notification history beyond the catch-up window) is out of scope for this release.
 - **A-008**: All API paths owned by this feature live under `/api/v1/notifications/*`.
@@ -1247,3 +1249,134 @@ for this pending set.
 in FR-026 and the `PublishEnvelope` entry's `supersedes` field are withdrawn with it. Scenario 92's
 T1-before-T2 ordering guarantee is now satisfied by C-1's ordered re-query rather than by a producer
 sequence. Every behaviour in C-1…C-10 becomes a test scenario when 014 is implemented.
+
+---
+
+## Amendment (2026-10-28): email and mobile push channels
+
+The owner adopted the 2026-10-28 retention brainstorm and kept every ranked idea except the free win-back month.
+Several of them need a channel outside the app: the notice before a trial's first charge (`010-FR-041h`), the
+weekly planning reminder, the pantry's use-by reminders (`007-FR-034` to `007-FR-040`) and billing recovery
+(`010-FR-043b`). So this amendment brings email and mobile push into scope, and it reverses A-005 and the
+2026-05-10 answer that launch is in-app only. The publish contract keeps its shape. A producer still publishes one
+envelope, and this service decides the channels (FR-047).
+
+Every email and every push text is a user-facing surface. Each one goes through `staff-ux-engineer` DESIGN and
+SPECIFY at plan time, with its copy and localization key.
+
+### Channels and routing
+
+- **FR-046** _(added 2026-10-28)_: The system MUST deliver a notification on up to three channels: **in-app** (the
+  existing path), **mobile push** (iOS and Android) and **email**. Push and email are a fan-out from an accepted
+  notification. Each is sent **at most once per notification id per channel**. A redelivery under FR-039 or a
+  dedup collision under FR-038 MUST NOT send a second push or email. In-app keeps its ack and retention rules
+  (FR-012, FR-034). Push and email have no ack.
+- **FR-047** _(added 2026-10-28)_: The channels for a `messageType` MUST be declared in its registry entry (FR-041),
+  never chosen by the producer at publish time. The entry declares:
+    - its **category**: `requiredNotice` (a notice the law, a store rule or our own promise needs, such as a trial
+      or billing notice), `reminder` (a service the cook turns on or off) or `marketing` (anything that promotes a
+      purchase).
+    - the channels it may use, and each channel's default.
+    - for a `requiredNotice`, its **deadline**: the latest moment it may arrive, stated against a date in the
+      producer's own state (for example, 3 days before the first charge).
+- **FR-048** _(added 2026-10-28)_: Push and email text MUST come from a localization key and named parameters that the
+  producer supplies with the envelope. The service fills them in through the localization path (`016-FR-049`). It
+  never reads meaning out of `payload` (FR-023). This is the one addition to the envelope, and it is optional, so
+  an in-app-only producer is unchanged. `staff-architect` fixes its shape at plan time.
+
+### Consent and opt-out
+
+- **FR-049** _(added 2026-10-28)_: Each cook MUST be able to turn each category on or off **per channel**.
+    - A `requiredNotice` always goes by email and in-app, and the cook cannot turn those off. Push for it follows the
+      device permission and the cook's push setting. It carries no promotion, so its primary purpose stays
+      transactional. CAN-SPAM treats such messages as "otherwise exempt from most provisions of the CAN-SPAM Act"
+      ([FTC](https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business)).
+    - A `reminder` is on or off per channel as its catalog row states (FR-052). Every reminder email has a one-tap
+      link to that category's setting.
+    - A `marketing` message is **off on every channel until the cook explicitly opts in**, and every such message
+      has an opt-out. App Review Guideline 4.5.4 forbids push for promotions "unless customers have explicitly opted
+      in" and the app gives a way to opt out. Every marketing email carries an unsubscribe link (CAN-SPAM). At launch
+      no message in FR-052 is marketing. The in-app offers of `010-FR-041k` and `010-FR-041l` are cards in the app,
+      not messages.
+    - The settings are typed, nullable columns in identity's settings table, where NULL means the default (ADR-0059).
+      They are personal data and are erased with the account.
+- **FR-050** _(added 2026-10-28)_: The push permission MUST be asked in context, never on first launch with no
+  reason. The first ask is right after a trial starts, framed as "Remind me before my trial ends?". One screen of ours
+  explains it, then the system dialog asks. That screen goes through `staff-ux-engineer` DESIGN and SPECIFY at
+  plan time. A later ask happens only at a new real need: the first use-by date set
+  in the pantry, or turning on the weekly planning reminder. Each need asks at most once. A declined ask is never
+  repeated for the same need. With push off, the trial notice still goes by email, and the paywall timeline says so
+  (`010-FR-042b`).
+    - _Why_: Headspace saw "+118.35% uplift in push opt-ins" with a trial reminder framing
+      ([Phiture](https://phiture.com/success-stories/headspace-inapps/)), and Blinkist saw opt-in go from 6% to 74%
+      ([Growth.Design](https://growth.design/case-studies/trial-paywall-challenge)). Both are single-company results.
+      The Food and Drink baseline is 40% on iOS and 32.8% on Android
+      ([OneSignal](https://onesignal.com/mobile-app-benchmarks-2024)). All via the 2026-10-28 brainstorm.
+      **Plan target**: iOS opt-in among trial starters at or above 40%, read after 200 prompts. Under 30% after 200,
+      the copy and the moment change.
+    - On Android 13 and later, notifications are "off by default" until the app asks
+      ([Android](https://developer.android.com/develop/ui/views/notifications/notification-permission)). The same
+      in-context rule applies.
+    - **Web: push is deferred.** The web app has no service worker yet (019 plans one). On the web the trial notice
+      and reminders go by email and in-app, and every web surface says "we email you". This is a stated disposition
+      under CODING_STANDARDS §14, not an omission. Web push is reconsidered when 019's service worker ships.
+
+### Quiet hours and caps
+
+- **FR-051** _(added 2026-10-28)_: The system MUST respect quiet hours and frequency caps, and neither may push a
+  `requiredNotice` past its deadline.
+    - **Quiet hours** default to 21:00 to 08:00 in the cook's time zone. The cook can change or turn them off. No push
+      is sent in quiet hours. A held push goes out when they end. The cook's time zone is known as `007-FR-036`'s plan
+      states.
+    - **Caps**, per cook: at most one `reminder` push a day, and at most one `reminder` email a day. A capped message
+      still lands in-app. When two reminders fall on one day, the one that was scheduled first goes out by push. This
+      service does not merge them (FR-031).
+    - A `requiredNotice` is exempt from caps. It is scheduled to land outside quiet hours and before its deadline. If
+      holding it for quiet hours would miss the deadline, it is sent.
+    - Caps live in the same shared store as the quota bucket (FR-044), never in one task's memory.
+
+### The message catalog
+
+- **FR-052** _(added 2026-10-28)_: The launch message catalog MUST be:
+
+    | `messageType` group               | Producer and owning FR                     | Category         | In-app | Push                 | Email                          | When                                                                                                                                                                                                                                                  |
+    | --------------------------------- | ------------------------------------------ | ---------------- | ------ | -------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Trial ends soon                   | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | Yes, with permission | Yes, always                    | 3 days before the first charge. Deadline: 2 days before it                                                                                                                                                                                            |
+    | Yearly renewal coming             | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | No                   | Yes, always                    | 30 days before a yearly renewal, inside California's 15 to 45 day window (`016-FR-050`)                                                                                                                                                               |
+    | Yearly reminder of the terms      | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | No                   | Yes, always                    | Once a year from the first paid date, for every paid subscription, monthly included. It names the plan, how often it charges, the amount and how to cancel. Counsel confirms whether California's annual reminder covers monthly terms (`016-FR-050`) |
+    | Payment failed                    | identity billing, `010-FR-043b`            | `requiredNotice` | Yes    | Yes, with permission | Yes, always                    | At the failure, half way through the grace period, and one day before it ends                                                                                                                                                                         |
+    | Cancellation and plan change done | identity billing, `010-FR-042e`, `FR-042h` | `requiredNotice` | Yes    | No                   | Yes, always                    | At once. This is the written confirmation of `016-FR-041`                                                                                                                                                                                             |
+    | Household coverage ending         | recipe-service household, `017-FR-034d`    | `requiredNotice` | Yes    | Yes, with permission | Yes, always                    | 7 days before a known end, and at once for a sudden one                                                                                                                                                                                               |
+    | Pantry use-by reminder            | recipe-workers, `007-FR-036`               | `reminder`       | On     | On, with permission  | Off until the cook turns it on | Once a day in the morning, as `007-FR-036` states                                                                                                                                                                                                     |
+    | Weekly planning reminder          | meal planning, 006                         | `reminder`       | On     | On, with permission  | Off until the cook turns it on | Off until the cook turns it on and picks a day and time. Offered after their first plan                                                                                                                                                               |
+
+    A row is a group, because each producer registers its own `messageType` names (FR-041). The weekly planning
+    reminder needs an FR in 006 at its plan. It is listed here so its channels and consent are fixed now. Apple's
+    and Google's own messages are not relied on, because no page we opened says either store warns a cook before a
+    trial converts (`010-FR-041h`).
+
+### Devices, addresses and providers
+
+- **FR-053** _(added 2026-10-28)_: A device MUST register its push token after the cook allows push, and unregister
+  it on sign-out. A token the provider rejects is removed. Tokens are personal data: erasure removes them, and
+  erasure coverage checks the table that holds them.
+- **FR-054** _(added 2026-10-28)_: Email goes to the cook's verified primary address from Clerk. A cook who used Sign
+  in with Apple may have a private relay address, which delivers only mail from senders registered with Apple. The
+  plan registers the sending domain and checks delivery to a relay address before launch. A bounce or a complaint
+  stops email to that address, and the in-app path carries on. A `requiredNotice` that reaches no channel at all
+  raises an alarm (ADR-0062).
+- **FR-055** _(added 2026-10-28)_: The email and push providers are chosen at plan time with `staff-architect`. They
+  are third-party APIs: their raw shapes are validated at the boundary with zod, they may declare their own types,
+  and they get no OpenAPI document (see _Third-party APIs_ above). If the sender runs in a VPC-attached Lambda, it
+  joins ADR-0004's NAT consumer table, which `natEgressConsumers.test.ts` checks.
+- **FR-056** _(added 2026-10-28)_: The system MUST count, per channel and per `messageType`: sent, failed, held by quiet
+  hours, dropped by a cap, and suppressed by a setting. A `requiredNotice` that misses its deadline is counted and
+  alarmed.
+
+### Success criteria added 2026-10-28
+
+- **SC-017**: 100% of trial notices are sent by email before their deadline, across the quiet-hours and cap cases
+  of FR-051, in a test that schedules a trial into each case.
+- **SC-018**: A redelivered notification under FR-039 sends no second push or email (FR-046).
+- **SC-019**: A cook who turns a category off on one channel gets nothing in that category on that channel, and
+  still gets it on the others (FR-049).

@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     changedFieldRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    marker: { ...nativeTokens.type.meta, fontWeight: '600' },
+    marker: { ...nativeTokens.type.meta, fontFamily: nativeTokens.fontFace.body.semibold },
     changedFieldValue: { ...nativeTokens.type.meta },
     // `flex-start`: the dot sits on the first line when the value wraps or a dotted line follows it.
     option: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },

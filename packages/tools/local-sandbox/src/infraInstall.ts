@@ -7,8 +7,8 @@
  * failed at synth with "Cannot find module 'aws-cdk-lib'" for every app not yet installed by hand, and the
  * last full run got past it by symlinking three packages from the main checkout.
  *
- * ⚠️ Resolution is Node's own (this directory, then each ancestor), so a copy hoisted to a parent counts and a
- * sibling app's copy does not. Installing is `npm install --prefix <dir>`, the form CI uses
+ * ⚠️ Resolution is Node's own (this directory, then each ancestor) BUT BOUNDED at the repo root, so a copy hoisted
+ * within this checkout counts, and neither a sibling app's copy nor another checkout's does. Installing is `npm install --prefix <dir>`, the form CI uses
  * (`.github/actions/infra-package`); the infra directories carry no lockfile, so `npm ci` would refuse.
  */
 import path from 'node:path';
@@ -19,16 +19,19 @@ import type { CdkApp } from './discoverApps.js';
  * Whether Node would resolve `aws-cdk-lib` from a directory.
  *
  * @param dir - Absolute directory the synth runs in.
+ * @param boundary - Absolute repo root; the walk stops there. ⛔ A worktree lives UNDER the main checkout, so without
+ *   a bound Node's upward walk finds the MAIN checkout's `aws-cdk-lib` and this reports "resolves" - the very leak
+ *   the by-hand symlinks made, and two copies of `aws-cdk-lib` break constructs that peer on it.
  * @param exists - Whether a file exists. Injected so this stays pure.
- * @returns `true` when this directory or any ancestor holds `node_modules/aws-cdk-lib`. Pure.
+ * @returns `true` when this directory or any ancestor up to `boundary` holds `node_modules/aws-cdk-lib`. Pure.
  */
-export function cdkLibResolvesFrom(dir: string, exists: (file: string) => boolean): boolean {
+export function cdkLibResolvesFrom(dir: string, boundary: string, exists: (file: string) => boolean): boolean {
     for (let current = dir; ; current = path.dirname(current)) {
         if (exists(path.join(current, 'node_modules', 'aws-cdk-lib', 'package.json'))) {
             return true;
         }
 
-        if (path.dirname(current) === current) {
+        if (current === boundary || path.dirname(current) === current) {
             return false;
         }
     }
@@ -47,5 +50,5 @@ export function appsMissingCdkLib(
     repoRoot: string,
     exists: (file: string) => boolean,
 ): readonly CdkApp[] {
-    return apps.filter((app) => !cdkLibResolvesFrom(path.join(repoRoot, app.packageDir), exists));
+    return apps.filter((app) => !cdkLibResolvesFrom(path.join(repoRoot, app.packageDir), repoRoot, exists));
 }

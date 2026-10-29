@@ -27,23 +27,33 @@ describe('cdkLibResolvesFrom', () => {
     it('is true when the app directory holds its own aws-cdk-lib', () => {
         const present = new Set(['/repo/packages/services/a/infra/node_modules/aws-cdk-lib/package.json']);
 
-        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', (file) => present.has(file))).toBe(true);
+        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', '/repo', (file) => present.has(file))).toBe(true);
     });
 
     it('resolves upward like Node, so a hoisted copy at the root counts', () => {
         const present = new Set(['/repo/node_modules/aws-cdk-lib/package.json']);
 
-        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', (file) => present.has(file))).toBe(true);
+        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', '/repo', (file) => present.has(file))).toBe(true);
     });
 
     it('is false when no ancestor holds it', () => {
-        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', () => false)).toBe(false);
+        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', '/repo', () => false)).toBe(false);
+    });
+
+    it("⛔ stops at the repo root: a copy in a PARENT of the checkout is another checkout's, not this one's", () => {
+        // A worktree lives under the main checkout, so Node would happily resolve the MAIN checkout's aws-cdk-lib - the
+        // leak the symlink workaround made by hand, and two copies of aws-cdk-lib break constructs that peer on it.
+        const present = new Set(['/main/node_modules/aws-cdk-lib/package.json']);
+
+        expect(
+            cdkLibResolvesFrom('/main/.worktrees/w/packages/a/infra', '/main/.worktrees/w', (f) => present.has(f)),
+        ).toBe(false);
     });
 
     it('does not count a sibling app: a copy next to the app is not on its resolution path', () => {
         const present = new Set(['/repo/packages/services/b/infra/node_modules/aws-cdk-lib/package.json']);
 
-        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', (file) => present.has(file))).toBe(false);
+        expect(cdkLibResolvesFrom('/repo/packages/services/a/infra', '/repo', (file) => present.has(file))).toBe(false);
     });
 });
 

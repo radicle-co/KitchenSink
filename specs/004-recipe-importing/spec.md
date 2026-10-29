@@ -132,8 +132,9 @@ attribution, then clone it and verify the clone retains attribution.
 _(Added 2026-10-28, owner ruling. Gated on the WP Recipe Maker team, `D-019`.)_
 
 Ana reads a recipe on a food blog that runs WP Recipe Maker. Under the recipe card she sees a "Save to Commise"
-button. She taps it. Her phone has the Commise app, and she is signed in, so the app opens and shows "Saving this
-recipe". A moment later the import draft is waiting for her to check, with the blog named as the source. On a
+button. She taps it. Her phone has the Commise app, and she is signed in, so the app opens. It names the blog and asks
+"Save this recipe?". She taps Save. A moment later the import draft is waiting for her to check, with the blog named
+as the source. On a
 computer with no app, the same tap opens Commise on the web. If she is signed out, she signs in first and comes back
 to the same save.
 
@@ -146,13 +147,16 @@ shown, through the same pipeline as a pasted link.
 
 **Acceptance Scenarios**:
 
-1. **Given** a signed-in cook, **When** they tap the button, **Then** one import of that one page starts, and the cook
-   sees the draft to confirm (`FR-053`, C-006).
-2. **Given** a signed-out reader, **When** they tap the button, **Then** they reach sign-in or sign-up, and after it
+1. **Given** a signed-in cook, **When** they tap the button, **Then** Commise shows a save screen that names the source
+   site. **When** they tap Save there, **Then** one import of that one page starts, and the cook sees the draft to
+   confirm (`FR-053`, C-006).
+2. **Given** a save link that opens with no tap on Commise's save screen, **When** a frame, an image request, a
+   prefetch or a link preview loads it, **Then** nothing is fetched or imported, and no quota is used (`FR-053`).
+3. **Given** a signed-out reader, **When** they tap the button, **Then** they reach sign-in or sign-up, and after it
    they return to the same save, which they confirm once. Nothing is imported before they sign in.
-3. **Given** a page whose rights check allows it only as private, or blocks it, **When** the save runs, **Then** the
+4. **Given** a page whose rights check allows it only as private, or blocks it, **When** the save runs, **Then** the
    outcome is the same as for a pasted link to that page (`FR-008` ruling).
-4. **Given** the capability flag is off, **When** anyone opens a save link, **Then** they see that saving from that
+5. **Given** the capability flag is off, **When** anyone opens a save link, **Then** they see that saving from that
    site is not available yet, and they can paste the link into the import chooser instead.
 
 ---
@@ -272,8 +276,15 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
       nothing else. Commise puts no script, cookie, pixel or tracking call on the publisher's page. The link's
       exact form is a public contract with a third party. So `staff-architect` fixes it at PLANNING, and it is
       versioned like any wire contract.
-    - **The fetch happens on the reader's tap, for one page.** It is the user-directed retrieval of
-      `017-FR-001a`. Nothing crawls the publisher's site, prefetches, or saves in bulk.
+    - **Opening the link does nothing by itself.** Any site can build the link, with any page address. So a request
+      that reaches Commise from another site proves no person acted. Opening the link MUST only show Commise's own
+      save screen, which names the source site. The fetch starts with the cook's tap on Save on that screen, and with
+      nothing else. That
+      tap is the one explicit user action of `017-FR-001a`. A frame, an image request, a prefetch or a link preview
+      MUST NOT start a fetch, use quota or create anything. Nothing crawls the publisher's site or saves in bulk.
+    - **The second tap is a known cost.** The owner asked for one tap. This rule adds a second tap, on Commise's
+      screen, because one tap on another site cannot be told apart from a page that forges it. Whether the owner
+      accepts it is an open question for plan time.
     - **One pipeline.** The save goes through the same capture pipeline as every other channel (`017-FR-015`). So
       these all apply unchanged: the paywall blocklist (`FR-014`), the rights check in the `FR-008` ruling and the
       `robots.txt` rule (`FR-023`). The daily quota (`FR-022`), deduplication (C-001) and the draft-and-confirm model

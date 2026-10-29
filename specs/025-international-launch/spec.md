@@ -379,7 +379,7 @@ and how long a reply takes.
   kitchen words (grill and broil, shopping list and grocery list). A shared glossary per locale holds these choices.
 - **FR-012**: Spanish MUST be built as an `es` dictionary, with regional overrides only where needed. Every string
   MUST be reviewed by a native culinary reviewer before it ships. A machine or AI draft is allowed as a first pass,
-  never as the shipped text. The plan names Free, Pro and Pro with AI follow 010's naming rule in every language.
+  never as the shipped text. Every plan name in 010's plan register follows 010's naming rule in every language.
 - **FR-013**: Before any locale ships, every screen MUST pass the pseudo-locale `en-XA` check, which grows text by
   35%. Controls size to the longest real string. Text wraps, and is never cut short or forced onto one line.
 - **FR-014**: Plurals, counts and gendered words MUST use the locale's plural rules from CLDR, through a maintained

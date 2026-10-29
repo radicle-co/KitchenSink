@@ -652,8 +652,8 @@ So this section asks for pages that are clear, true, current and readable withou
     - Each page shows "Facts checked on" and a date. The structured data's `dateModified` is the date of the last
       change to a fact on the page.
     - A price or limit shows the plan register's current value at each build.
-    - A fact whose check date is older than 90 days MUST fail the build. It is re-checked or removed. This applies to
-      facts about other apps too.
+    - A fact whose check date is older than 90 days MUST be left off the page, and the build MUST warn. The build does
+      not fail. The fact is re-checked or removed. This applies to facts about other apps too.
 - **FR-126**: The site's `robots.txt` MUST follow FR-111: block crawlers that only collect training data, and allow
   search and answer crawlers, from the one shared list of `021-FR-028a`. Robots rules are a request that a polite
   crawler honours, not a control.
@@ -740,7 +740,7 @@ So this section asks for pages that are clear, true, current and readable withou
   FR-064 where recruitment reaches them. Twelve is where Guest, Bunce and Johnson (2006) saw themes stop growing.
 - **SC-011**: The funnel counts in FR-103 are reported weekly from the day the site opens. No target is set.
 - **SC-012** _(added 2026-10-28)_: 100% of facts on the comparison, switching and FAQ pages have a claims register
-  entry and a check date no older than 90 days, checked on every build.
+  entry, and zero facts shown have a check date older than 90 days, checked on every build.
 - **SC-013** _(added 2026-10-28)_: Zero structured-data values that are not visible on the page, checked by a parity
   test on every build.
 - **SC-014** _(added 2026-10-28)_: Answer-engine visits and crawler fetches are reported weekly, apart, from the day

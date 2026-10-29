@@ -626,16 +626,18 @@ creator page.
   as data in the repository and shared by this host and the marketing site (`022-FR-126`). Each entry holds six
   things: the crawler's name, its operator, its purpose from the operator, the rule, the operator's page, and the date
   that page was read. The rule follows Q1: a crawler that only collects training data is blocked, and a search or
-  answer crawler is allowed. The list MUST be re-read against each operator's page every 90 days, and an entry older
-  than that fails the build. The first list, read on 2026-10-28:
+  answer crawler is allowed. The list MUST be re-read against each operator's page every 90 days. A stale entry keeps
+  its
+  last rule. The check fails only on a pull request that changes the list or the robots output. Every other build
+  only warns, so a stale list never blocks an unrelated release. The first list, read on 2026-10-28:
 
     | Crawler            | Operator     | Purpose, from the operator                                                                                        | Rule            | Source                                                                                                                                       |
     | ------------------ | ------------ | ----------------------------------------------------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
     | GPTBot             | OpenAI       | "used to make our generative AI foundation models more useful and safe"                                           | Block           | [OpenAI bots](https://developers.openai.com/api/docs/bots)                                                                                   |
     | OAI-SearchBot      | OpenAI       | "for search"                                                                                                      | Allow           | OpenAI bots, above                                                                                                                           |
     | ChatGPT-User       | OpenAI       | Fetches for a person's request. "not used for crawling the web in an automatic fashion"                           | Allow           | OpenAI bots, above                                                                                                                           |
-    | ClaudeBot          | Anthropic    | Training Anthropic's generative AI models                                                                         | Block           | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
-    | Claude-SearchBot   | Anthropic    | Crawls the web "to improve search result quality for users"                                                       | Allow           | Anthropic, above                                                                                                                             |
+    | ClaudeBot          | Anthropic    | Paraphrase: training Anthropic's generative AI models                                                             | Block           | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
+    | Claude-SearchBot   | Anthropic    | Paraphrase: crawls the web "to improve search result quality for users"                                           | Allow           | Anthropic, above                                                                                                                             |
     | Claude-User        | Anthropic    | "supports Claude AI users"                                                                                        | Allow           | Anthropic, above                                                                                                                             |
     | PerplexityBot      | Perplexity   | "designed to surface and link websites in search results", "not used to crawl content for AI foundation models"   | Allow           | [Perplexity bots](https://docs.perplexity.ai/guides/bots)                                                                                    |
     | Perplexity-User    | Perplexity   | "supports user actions within Perplexity"                                                                         | Allow           | Perplexity bots, above                                                                                                                       |
@@ -948,7 +950,7 @@ creator page.
 - **SC-013**: Page views, shares, share links opened and sign-ups from public pages are reported weekly from launch. No
   target is set.
 - **SC-014** _(added 2026-10-28)_: Every crawler on the FR-028a list gets the rule the list gives it, checked by a test
-  that reads the built `robots.txt` of both hosts. Zero entries are older than 90 days.
+  that reads the built `robots.txt` of both hosts. Every entry older than 90 days is reported in each build.
 - **SC-015** _(added 2026-10-28)_: 100% of indexable recipe pages show every ingredient and step, and their structured
   data, in a fetch that runs no script.
 

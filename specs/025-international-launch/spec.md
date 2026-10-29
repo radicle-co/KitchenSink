@@ -3,7 +3,7 @@
 **Feature Branch**: `docs/growth1028` (single-branch directive. The spec directory is `specs/025-international-launch`.
 `.specify/feature.json` is not pointed here, because another session uses it.)
 **Created**: 2026-10-28
-**Status**: Draft. Three owner questions are open (Q1 to Q3). Every user-facing surface needs `staff-ux-engineer`
+**Status**: Draft. The three owner questions (Q1 to Q3) are resolved. Every user-facing surface needs `staff-ux-engineer`
 DESIGN and SPECIFY at plan time. None has run.
 **Input**: Owner, 2026-10-28: "Do 3 as well." Item 3 named a new spec for international launch. The owner wants full
 international support, not just a Spanish listing, and noted that the app already holds food data from several
@@ -333,11 +333,10 @@ and how long a reply takes.
 - **Q1. Which Spanish-speaking market comes after US Spanish speakers? RESOLVED 2026-10-29.** The owner chose "Both
   at once": Mexico and Spain open together, after US Spanish. Each still has its own launch gate: a food source,
   privacy law work (Spain under GDPR, Mexico under its own law), and a localized store listing.
-- **Q2. How are regional prices set?** [NEEDS CLARIFICATION: Options: (A) let each store derive local prices from the
-  US price. (B) set a rounded local price per launch storefront, such as pounds, Canadian dollars and Australian
-  dollars, and let the stores derive the rest. (C) set every storefront by hand, adjusted for local buying power.
-  Recommended: B. Apple's automatic adjustments exclude auto-renewing subscriptions, so a subscription price needs a
-  person to set it in each storefront anyway. 010 records the result.]
+- **Q2. How are regional prices set? RESOLVED 2026-10-29.** The owner chose "Round launch markets". Each launch
+  storefront gets a rounded local price, set by a person: the UK, Canada and Australia, then Mexico and Spain. The
+  stores convert every other country from the US price. 010's plan register records the rule and the method, with
+  each local number left to the owner ([Prices by storefront](../010-subscriptions/spec.md#prices-by-storefront)).
 - **Q3. Which languages does support answer in? RESOLVED 2026-10-29.** The owner chose "English only". Support
   answers in English in every market, and each locale's help screen and store listing says so plainly.
 
@@ -513,7 +512,8 @@ and how long a reply takes.
   region". The source is
   [Apple, set a price](https://developer.apple.com/help/app-store-connect/manage-app-pricing/set-a-price/). Apple's
   developer news says auto-renewing subscriptions are excluded from automatic adjustments. So each launch storefront's
-  subscription price MUST be set and checked by a person, by the rule Q2 picks.
+  subscription price MUST be set and checked by a person, by the rule Q2 picked: a rounded local price for each
+  launch storefront, recorded in 010's plan register.
 - **FR-063**: A market can need a different offer. RevenueCat Targeting can then show a different offering by
   country. Its page says it can "target customers by country"
   ([RevenueCat Targeting](https://www.revenuecat.com/docs/tools/targeting)). It MUST use the store country, never

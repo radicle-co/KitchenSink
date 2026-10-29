@@ -1154,6 +1154,63 @@ maestro_reduce_motion_ios() {
     fi
 }
 
+# maestro_disable_password_autofill_ios
+#
+# Switch password AutoFill off in the booted Simulator `MAESTRO_IOS_UDID`, so iOS never raises "Save Password?" over the
+# sign-in's code step. The sheet belongs to another process: Maestro's hierarchy holds only the status bar while it is up,
+# so no flow can tap "Not Now". This is the LOCAL twin of `_ci-heavy.yml`'s 'Switch password AutoFill off on the iOS
+# Simulator' step (the three profile files below are held equal to it by `maestroPasswordAutofill.test.ts`).
+#
+# ⛔ THE DEVICE IS SHUT DOWN FOR THE WRITE and booted again after it: a running Simulator has already read the
+# restriction, so a write under it changes the file and not the device (CI run 38433716728).
+# ⚠️ Every device-side call goes through `xcrun`, which a lane on another machine overrides to run over SSH, and the data
+# directory is asked of the booted device (`simctl getenv HOME`), never built from this shell's `$HOME`, which is the
+# wrong machine's home there. A file that is missing WARNS by name, as in CI; the run fails only when NO file reads back NO.
+#
+# @sideEffect Shuts the Simulator down, edits its profile files, and boots it again.
+maestro_disable_password_autofill_ios() {
+    if [ -z "${MAESTRO_IOS_UDID:-}" ]; then
+        echo '::error::maestro_disable_password_autofill_ios needs MAESTRO_IOS_UDID — the Simulator to set is never guessed'
+
+        return 1
+    fi
+
+    local data file held holding=0
+    xcrun simctl bootstatus "$MAESTRO_IOS_UDID" -b || return 1
+    data=$(xcrun simctl getenv "$MAESTRO_IOS_UDID" HOME | tr -d '\r')
+
+    if [ -z "$data" ]; then
+        echo "::error::the Simulator ${MAESTRO_IOS_UDID} did not report its data directory"
+
+        return 1
+    fi
+
+    xcrun simctl shutdown "$MAESTRO_IOS_UDID" || return 1
+
+    for file in \
+        Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
+        Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
+        Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist; do
+        xcrun plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "${data}/${file}" ||
+            echo "::warning::could not switch password AutoFill off in ${file}"
+        held=$(xcrun plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" 2>/dev/null | tr -d '\r')
+        echo "${file}: allowPasswordAutoFill=${held:-unreadable}"
+
+        if [ "$held" = 'false' ]; then
+            holding=$((holding + 1))
+        fi
+    done
+
+    xcrun simctl boot "$MAESTRO_IOS_UDID" || return 1
+    xcrun simctl bootstatus "$MAESTRO_IOS_UDID" -b || return 1
+
+    if [ "$holding" -eq 0 ]; then
+        echo '::error::no profile file holds password AutoFill off, so iOS may cover the sign-in with Save Password'
+
+        return 1
+    fi
+}
+
 # maestro_prepare_device <platform>
 #
 # Install the app and settle the device's input and motion settings, once per run.

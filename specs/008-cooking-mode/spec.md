@@ -79,6 +79,23 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
       the moment, the moment moves.
     - The moment and the settings link go through `staff-ux-engineer` DESIGN and SPECIFY at plan time.
 
+**Cooking sessions, Resume and timer alerts** _(added 2026-10-29, owner ruling, rows T1 to T4 and S1 in
+`docs/design/uiRefreshWorkshop5/ownerFeedback.md`)_
+
+A cooking session is the open state of one cook: the recipe, the current step and any running timers.
+
+- **FR-037**: A cook MAY have one open cooking session per recipe, and several at once (a roast and a side). Home
+  shows a card for each open session.
+- **FR-038**: While a cooking session is open, the recipe page says "Resume cooking" in place of "Start cooking". The
+  button returns to the current step and its running timer.
+- **FR-039**: Resume asks "Carry on from earlier?" first when the session has been idle for 4 hours or more. A session
+  idle for less reopens straight at the current step.
+- **FR-040**: A session nobody touches ends by itself after 24 hours.
+- **FR-041**: A timer that ends while the app is closed MUST send a phone notification, always. It goes through the
+  notification service ([014](../014-notification-service/spec.md)). The cook can turn timer alerts off in settings.
+    - 008 does not build the delivery. It publishes the timer event and 014 delivers it.
+    - Cooking mode code does not exist yet. These are requirements for the build, not a description of it.
+
 ### Non-Functional Requirements _(constitution-derived)_
 
 - **NFR-001**: All TypeScript MUST compile with `strict: true`; no `any` used outside explicitly marked test doubles. (Constitution Principle I)

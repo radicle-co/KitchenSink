@@ -2,7 +2,7 @@
 
 **Feature Branch**: `007-grocery-lists`
 **Created**: 2026-04-14
-**Last Updated**: 2026-10-27 (Pro pantry, owner ruling)
+**Last Updated**: 2026-10-28 (household pantry and reminder channels, owner rulings)
 **Status**: Pre-handoff (open questions resolved — see revision log in review.md)
 **Input**: Split from `001-commise-recipe-app` — grocery list generation from meal plans with ingredient aggregation, deduplication, and online ordering integration.
 
@@ -16,8 +16,8 @@
 | [003-usda-food-data](../003-usda-food-data/spec.md)             | **Required** — ingredient identity and unit normalization                                                                                                                                                                                                                                |
 | [002-user-auth](../002-user-auth/spec.md)                       | **Required** — all grocery features require authentication                                                                                                                                                                                                                               |
 | [010-subscriptions](../010-subscriptions/spec.md)               | **Referenced** — online ordering is a Pro feature. So are the pantry's use-by dates, reminders and suggestions (FR-034 to FR-040, added 2026-10-27). The plan register names the plans                                                                                                   |
-| [014-notification-service](../014-notification-service/spec.md) | **Required for the Pro pantry (added 2026-10-27).** Use-by reminders are published through it (FR-036). Its launch transport is in-app only (014 A-005)                                                                                                                                  |
-| [017-recime-parity](../017-recime-parity/spec.md)               | **Referenced (added 2026-10-27).** A covered household member gets the Pro pantry through `017-FR-034a`. Whether a household shares one pantry is open (FR-040)                                                                                                                          |
+| [014-notification-service](../014-notification-service/spec.md) | **Required for the Pro pantry (added 2026-10-27).** Use-by reminders are published through it (FR-036). Since 2026-10-28 it can also send push and email (014 A-005, `014-FR-046` onward)                                                                                                |
+| [017-recime-parity](../017-recime-parity/spec.md)               | **Referenced (added 2026-10-27).** A covered household member gets the Pro pantry through `017-FR-034a`. Since 2026-10-28 the pantry is the household's on every plan (FR-040)                                                                                                           |
 
 > **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
 > name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
@@ -132,7 +132,11 @@ Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#pla
   dates. It is never built from a clock or a random value (`014-FR-030`). Reminders are on by default for a paid cook,
   and the cook can turn them off in settings. The setting is a typed, nullable column in identity's settings table, and
   NULL means the default (ADR-0059). At launch the reminder is in-app only, because 014 has no push or email transport
-  (014 A-005). When 014 gains one, this FR does not change. The plan states how the cook's time zone is known.
+  (014 A-005). When 014 gains one, this FR does not change. The plan states how the cook's time zone is known. _(Amended
+  2026-10-28: 014 gains push and email. This reminder's channels and defaults are in 014's message catalog
+  (`014-FR-052`): in-app and push on, email off until the cook turns it on. The publish here does not change. In a
+  household, the reminder goes to each active member who has reminders on, for the household's pantry
+  (`017-FR-034a`).)_
 - **FR-037**: An item past its use-by date MUST be shown as past its date. It MUST NOT be used to rank a suggestion,
   and the app MUST NOT say or imply that the food is still safe to eat. The date is the cook's own, and the app
   makes no food-safety judgement about it.
@@ -149,7 +153,8 @@ Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#pla
     - Each suggestion MUST say which items it uses, so the cook can see why it is there.
     - The ranking is one pure function, testable with no database.
 - **FR-039**: Use-by dates, reminders and suggestions MUST be on the plans that 010's plan register names: Pro and Pro
-  with AI, as recorded on 2026-10-27. A member of a covered household gets them through `017-FR-034a`. The server
+  with AI, as recorded on 2026-10-27. A member of a covered household gets them through `017-FR-034a`, on the
+  household's pantry only (amended 2026-10-28). The server
   enforces the gate and fails closed (`010-FR-044`). Free keeps the "already have" pantry with the 7-day rule
   (FR-029). On a lapse or a downgrade, every item and date is kept (`010-FR-043`). Reminders and suggestions stop,
   the cook cannot set a new date, and FR-035 still applies. A cook who subscribes again gets them back.
@@ -158,8 +163,12 @@ Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#pla
     - **One row per food, or one per pack.** `user_pantry_items` has the key `(owner_id, usda_fdc_id)`, so one food
       holds one row and one date. Two packs of milk with different dates cannot both be recorded. This spec requires
       only one thing: a cook can record a use-by date for each item.
-    - **A cook's pantry or a household's.** `017-FR-030` shares plans, lists and aisle categories in a household, not
-      the pantry. Until that is decided, the pantry belongs to the cook.
+    - **A cook's pantry or a household's.** _(Answered 2026-10-28, owner ruling: "Let's plan that for the household
+      then".)_ The pantry is the household's, on every plan (`017-FR-034a`). One member's Pro adds use-by dates,
+      reminders and suggestions for every member. `user_pantry_items` moves from `owner_id` to `household_id`,
+      EXPAND-FIRST, and `staff-architect` designs the move with the first question. _(Was: "`017-FR-030` shares
+      plans, lists and aisle categories in a household, not the pantry. Until that is decided, the pantry belongs to
+      the cook.")_
 
     Every new pantry surface ships on web and mobile in the same release (CODING_STANDARDS §14). Each one goes through
     `staff-ux-engineer` DESIGN and SPECIFY before it is built. The AI kind of waste optimization is a different feature,

@@ -3,7 +3,8 @@
 **Feature Branch**: `chore/code-quality-enforcement-phase-1-2` (no new branch — standing owner directive)
 **Created**: 2026-08-22
 **Status**: Draft — clarifications resolved; **one cross-feature conflict flagged for 016**. 2026-10-27: one open
-question, FR-034k (Free households).
+question, FR-034k (Free households). 2026-10-28: FR-034k is answered (yes), and the household model is rebalanced.
+Pro shares the household's content, not the payer's personal Pro (FR-034, FR-034a to FR-034m).
 **Input**: User description: "we want parity with the feature gaps against recime that
 911043cd-1ce2-4e5b-8608-50a8524b5b98 review and discovered. We also have the artifact
 https://claude.ai/code/artifact/18e8fcdc-0992-4861-8bd8-6d5a3b7baf41"
@@ -40,24 +41,24 @@ Seventeen of the gap analysis's twenty-four deltas. Owner rulings 2026-08-22: _e
 five-tier_ import waterfall; _pull D18 in_; _promote the voice surface 008 already analysed_; _subscriptions
 only for now_.
 
-| Delta   | Change                                                                                    | Owner spec            | Requirements                                                             |
-| ------- | ----------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------ |
-| D1      | Video import — five-tier waterfall                                                        | `004`                 | FR-001…FR-008, FR-011. Added 2026-10-27: FR-001c to FR-001e              |
-| D8      | Reach Instagram without Meta Graph API approval                                           | `004`                 | FR-009                                                                   |
-| D20     | Unquantified ingredients ("salt to taste") representable                                  | `004` / `001`         | FR-010                                                                   |
-| D2      | Share-sheet capture, iOS + Android                                                        | `004`                 | FR-012…FR-013                                                            |
-| D3      | Browser extension                                                                         | `004`                 | FR-014…FR-015                                                            |
-| D15     | Migration importers (Paprika, AnyList, Copy Me That, ReciMe)                              | `004`                 | FR-016…FR-017. Added 2026-10-27: FR-016a to FR-016d                      |
-| D14     | Recipe export — JSON + PDF                                                                | `001`                 | FR-018…FR-020. Added 2026-10-27: FR-018a to FR-018c                      |
-| D13     | Cook mode beyond four FRs, incl. the voice surface                                        | `008`                 | FR-021…FR-024                                                            |
-| D22     | Offline read + cook                                                                       | `008`                 | FR-025                                                                   |
-| D11     | Unit conversion metric ⇄ imperial                                                         | `001`                 | FR-026                                                                   |
-| D21     | Dark mode                                                                                 | `001`                 | FR-027                                                                   |
-| D9      | Aisle grouping lifted from plan into an FR                                                | `007`                 | FR-028…FR-029                                                            |
-| **D18** | **Household as a first-class entity** _(owner ruling — pulled in from the Strategic set)_ | `006` / `007` / `010` | FR-030…FR-032, FR-034. Amended 2026-10-27: FR-034 and FR-034a to FR-034k |
-| D10     | Household grocery-list sharing                                                            | `007`                 | FR-033                                                                   |
-| D12     | Write FRs for shipped-but-unspecified behaviour                                           | `001` / `008`         | FR-035…FR-036                                                            |
-| D7      | Invert BYOK → platform-managed inference **(prerequisite of D1)**                         | `005`                 | FR-037…FR-039                                                            |
+| Delta   | Change                                                                                    | Owner spec            | Requirements                                                                                     |
+| ------- | ----------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
+| D1      | Video import — five-tier waterfall                                                        | `004`                 | FR-001…FR-008, FR-011. Added 2026-10-27: FR-001c to FR-001e                                      |
+| D8      | Reach Instagram without Meta Graph API approval                                           | `004`                 | FR-009                                                                                           |
+| D20     | Unquantified ingredients ("salt to taste") representable                                  | `004` / `001`         | FR-010                                                                                           |
+| D2      | Share-sheet capture, iOS + Android                                                        | `004`                 | FR-012…FR-013                                                                                    |
+| D3      | Browser extension                                                                         | `004`                 | FR-014…FR-015                                                                                    |
+| D15     | Migration importers (Paprika, AnyList, Copy Me That, ReciMe)                              | `004`                 | FR-016…FR-017. Added 2026-10-27: FR-016a to FR-016d                                              |
+| D14     | Recipe export — JSON + PDF                                                                | `001`                 | FR-018…FR-020. Added 2026-10-27: FR-018a to FR-018c                                              |
+| D13     | Cook mode beyond four FRs, incl. the voice surface                                        | `008`                 | FR-021…FR-024                                                                                    |
+| D22     | Offline read + cook                                                                       | `008`                 | FR-025                                                                                           |
+| D11     | Unit conversion metric ⇄ imperial                                                         | `001`                 | FR-026                                                                                           |
+| D21     | Dark mode                                                                                 | `001`                 | FR-027                                                                                           |
+| D9      | Aisle grouping lifted from plan into an FR                                                | `007`                 | FR-028…FR-029                                                                                    |
+| **D18** | **Household as a first-class entity** _(owner ruling — pulled in from the Strategic set)_ | `006` / `007` / `010` | FR-030…FR-032, FR-034. Amended 2026-10-27: FR-034 and FR-034a to FR-034k. 2026-10-28: to FR-034m |
+| D10     | Household grocery-list sharing                                                            | `007`                 | FR-033                                                                                           |
+| D12     | Write FRs for shipped-but-unspecified behaviour                                           | `001` / `008`         | FR-035…FR-036                                                                                    |
+| D7      | Invert BYOK → platform-managed inference **(prerequisite of D1)**                         | `005`                 | FR-037…FR-039                                                                                    |
 
 ### Deliberately NOT in scope
 
@@ -98,6 +99,22 @@ only for now_.
   either. FR-016 is corrected, and FR-016a gives each a per-recipe path.
 - Q: How does a household relate to paid seats? → A: There are no paid seats. One Pro or Pro with AI subscription
   covers its household (FR-034, amended).
+
+### Session 2026-10-28
+
+- Owner ruling, 2026-10-28: "Let's plan that for the household then". It accepts the household balance below, and it
+  replaces the 2026-10-27 rule that every active member gets the whole plan while any member holds Pro.
+    - One Pro or Pro with AI subscription shares the household's content with the whole household, up to 6 accounts:
+      the household's meal plans, grocery lists, pantry and shared collections.
+    - Each member's own library follows their own plan. A Free member keeps Free rules, with 50 private recipes,
+      unless that member has their own Pro.
+    - Personal Pro features stay with the payer: unlimited private recipes, trainer nutrition plans and personal AI
+      uses. The household shares the payer's AI uses only for household actions, such as a household meal plan.
+    - An optional household upgrade gives every member full Pro. It costs about 50% more than Pro, as AnyList prices
+      its household plan: $149.99 a year and $14.99 a month.
+- Q: Can two Free cooks form a household (FR-034k)? → A: Yes (owner, 2026-10-28).
+- Q: Does Pro with AI get a household version? → A: Open. It is one question for the owner, in 010's
+  [O-13](../010-subscriptions/spec.md#o-13), with a recommendation.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -233,6 +250,11 @@ with the recipe's units converted from metric to imperial.
 Two people in one home share a meal plan and the grocery list it generates. Either can add to the plan; either
 can check items off in the shop; the subscription covers both.
 
+_(Amended 2026-10-28, owner ruling.)_ Any cooks can form a household, Free cooks included. One member's Pro or Pro
+with AI adds the paid features of the household's shared content for everyone: its meal plans, grocery lists, pantry
+and shared collections. Each member's own library still follows that member's own plan. The household upgrade
+(FR-034l) gives every member full Pro.
+
 **Why this priority**: Sharing is where **nobody wins** — ReciMe's cookbook invite ships broken, delivering an
 empty cookbook, and there is no household account model anywhere in the category. Our own position is no
 better: `007`'s US-009 has no FRs at all and `006-FR-029` scopes every read and write to a single owner, with
@@ -248,7 +270,8 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 **Acceptance Scenarios**:
 
 1. **Given** a user with a subscription, **When** they invite a second person to their household, **Then**
-   that person on accepting can see and edit the household's meal plans and grocery lists.
+   that person on accepting can see and edit the household's meal plans and grocery lists. _(Amended 2026-10-28:
+   a Free user can invite too, FR-034k.)_
 2. **Given** a grocery list generated from a shared plan, **When** either member checks off an item, **Then**
    the other sees it.
 3. **Given** the default aisle categories do not match the household's store, **When** a member customises
@@ -259,11 +282,21 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
    plans and lists remain intact and the departing member retains their own personal recipes.
 6. **Given** a household member's subscription lapses, **When** they open a shared plan, **Then** behaviour
    follows `010-FR-043`'s retention rule rather than destroying shared content.
-7. **Given** an owner who pays for Pro and a member on Free, **When** the member opens a Pro feature, **Then** it
-   works, and any AI use draws on the household's one pool (FR-034a, FR-034c). _(Added 2026-10-27.)_
+7. **Given** an owner who pays for Pro and a member on Free, **When** the member makes an AI meal plan for the
+   household or sets a use-by date in the household pantry, **Then** it works, and the AI use draws on the payer's
+   uses (FR-034a, FR-034c). _(Added 2026-10-27. Amended 2026-10-28: the member gets the household's shared Pro
+   features, not every Pro feature.)_
 8. **Given** the only payer leaves the household, **When** the other members next open the app, **Then** each sees
-   that coverage ended, each is back on their own plan, and every private recipe stays private (FR-034d). _(Added
-   2026-10-27.)_
+   that the household's Pro features ended, and the household's content is still there (FR-034d). Their own
+   libraries do not change, because coverage never reached them. _(Added 2026-10-27. Amended 2026-10-28.)_
+9. **Given** an owner who pays for Pro and a Free member who holds 50 private recipes, **When** the member tries
+   to make a 51st recipe private, **Then** it is refused under Free rules, and the refusal does not suggest that
+   the payer's Pro covers it (FR-034a). _(Added 2026-10-28.)_
+10. **Given** two Free cooks, **When** one invites the other and the invite is accepted, **Then** both can plan,
+    shop and use the household's aisle categories and pantry, with Free features (FR-034k). _(Added 2026-10-28.)_
+11. **Given** a household on the household upgrade, **When** any member makes a recipe private past 50 or uses a
+    personal AI feature, **Then** it works under Pro, with that member's own Pro uses (FR-034l). _(Added
+    2026-10-28.)_
 
 ---
 
@@ -306,9 +339,12 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **The sole owner's subscription lapses but members remain.** Distinct from departure: the owner is still
   present, so no transfer fires. Content is retained per `010-FR-043`; what a lapsed household may still _do_
   is `010`'s to answer, not this feature's. _(Since 2026-10-27, an owner who was the only payer takes coverage away
-  from every member at the lapse. Each member returns to their own plan (FR-034d).)_
+  from every member at the lapse. Each member returns to their own plan (FR-034d). Since 2026-10-28, the lapse
+  removes the household's shared Pro features, and the household upgrade if it was on. Shared content is kept.)_
 - **A cook who already pays joins a covered household.** They then pay twice. The app tells them before they
-  accept that their own subscription keeps running, and where to cancel it (FR-034e). _(Added 2026-10-27.)_
+  accept that their own subscription keeps running, and where to cancel it (FR-034e). _(Added 2026-10-27. Since
+  2026-10-28, their own Pro still pays for their own library, so they pay twice only where the household has the
+  upgrade.)_
 - **A cook in a household of one accepts an invite.** Leaving a household of one removes it (FR-032a). Their plans
   and lists move into the household they join (FR-034g). _(Added 2026-10-27.)_
 - **Two members joined at the same instant and the sole owner is erased.** FR-032a must be deterministic —
@@ -580,37 +616,90 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   MUST retain their own personal recipes.
 - **FR-033** `→ 007 ADDED`: Every member of a household MUST be able to view and check off items on that
   household's grocery lists, and a check-off by one member MUST become visible to the others.
-- **FR-034** `→ 010 ADDED` _(amended 2026-10-27, owner ruling)_: One Pro or Pro with AI subscription MUST cover its
-  whole household. There are no paid seats. The owner ruled on 2026-10-27: "Include the other recommendations in
-  either new features or expanding existing features." That accepts the recommendation "Include household sharing
-  in Pro at no extra cost". A household holds at most the member limit in 010's
-  [plan register](../010-subscriptions/spec.md#plan-register), which is 6 accounts. An invite past the limit MUST be
-  refused with a clear explanation. Lapse follows `010-FR-043`: shared content is kept, not destroyed. _(Was: "A
-  subscription MUST carry a **seat count** bounding household membership.")_
-- **FR-034a** `→ 010 ADDED` _(added 2026-10-27)_: While any active member holds Pro or Pro with AI, every active member
-  MUST have that plan's features. These are private recipes with no limit, the paid bulk allowance, own AI keys, and
-  the Pro with AI features on that plan. When two members pay, the household gets the higher plan. Coverage changes
-  nothing about who owns a recipe.
-- **FR-034b** `→ 010 ADDED` _(added 2026-10-27)_: A cook's effective plan MUST be computed in one place. Its inputs are
-  the cook's own RevenueCat entitlement, any promotional entitlement (`023-FR-027`) and the household's coverage. It
-  feeds the tier claim of `010-FR-044` and fails closed to Free. It MUST refresh at each of these events: the payer
-  lapses, leaves or is removed, or a member joins or leaves. The household lives in recipe-service and identity
-  publishes the claim, so this crosses a service boundary. `staff-architect` designs it at plan time, with the most
-  staleness allowed.
-- **FR-034c** `→ 010 ADDED, → 005 ADDED` _(added 2026-10-27)_: AI uses MUST be one pool per household, equal to the
-  covering plan's monthly allowance (`005-FR-015a`): 30 uses for Pro, 300 for Pro with AI. Each member's use draws on
-  the pool. Each member sees what is left in the pool and their own use. No member sees another member's prompts.
-  With the pool empty, a member can fall back to their own keys (`010-FR-041c`). A member who pays for their own plan
-  uses their own allowance, not the pool. The pool resets on the payer's billing date. _Why one pool, not one per cook_: 300 uses cost at most about $10.35 a
-  month, at $0.0345 a use (business plan draft of 2026-10-27, section 7.8). Six members with 300 uses each can cost up
-  to about $62.10 a month, against a price of $19.99. A pool keeps a household's AI cost the same as one cook's.
-- **FR-034d** `→ 010 ADDED` _(added 2026-10-27)_: A Free account MUST be able to join a covered household and be covered
-  at once. Coverage can end: the member leaves, is removed, or the payer lapses. Then the member returns to their own
-  plan. Every private recipe stays private, and the over-limit rule of `010-FR-043a` applies. Each member gets a
-  notice 7 days before a known end, and at once for a sudden one.
-- **FR-034e** `→ 010 ADDED` _(added 2026-10-27)_: A cook who already pays MUST be told, before they accept an invite to a
-  covered household, that their own subscription keeps running, and where to cancel it (ADR-0075 §5). The server
-  never cancels a store subscription. The cook's effective plan is the higher of the two.
+- **FR-034** `→ 010 ADDED` _(amended 2026-10-27, owner ruling. Amended again 2026-10-28, owner ruling: "Let's plan
+  that for the household then")_: Every household MUST be able to hold more than one member, on every plan
+  (FR-034k). One Pro or Pro with AI subscription held by an active member MUST add the paid features of the
+  household's shared content for every active member: its meal plans, grocery lists, pantry and shared collections
+  (FR-034a). It does not share the payer's personal Pro (FR-034a). There are no paid seats. The optional household
+  upgrade is one price for the whole household, not a price per member (FR-034l). A household holds at most the
+  member limit in 010's [plan register](../010-subscriptions/spec.md#plan-register), which is 6 accounts. An invite
+  past the limit MUST be refused with a clear explanation. Lapse follows `010-FR-043`: shared content is kept, not
+  destroyed. _(Was, 2026-10-27: "One Pro or Pro with AI subscription MUST cover its whole household." The owner had
+  ruled on 2026-10-27: "Include the other recommendations in either new features or expanding existing features."
+  That accepted "Include household sharing in Pro at no extra cost". Was, before that: "A subscription MUST carry a
+  **seat count** bounding household membership.")_
+- **FR-034a** `→ 010 ADDED` _(added 2026-10-27, replaced 2026-10-28, owner ruling)_: A household's features MUST
+  split into shared and personal, as the table below states. While an active member holds Pro or Pro with AI,
+  every active member MUST get the right-hand column. When two members pay, the shared features follow the higher
+  plan. Coverage changes nothing about who owns a recipe.
+
+    | Shared content                     | Every household, Free included (FR-034k)                     | Added while a member pays                                                                                                                      |
+    | ---------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Meal plans                         | Create, edit and complete (FR-030a, FR-030c)                 | AI meal plans for the household (`006-FR-026`), using the payer's uses (FR-034c). On Pro with AI, AI waste optimization of them (`006-FR-027`) |
+    | Grocery lists and aisle categories | Create, edit, check off and order (FR-028, FR-029, FR-033)   | Nothing more today. Online ordering is on no plan until a store partner exists (010's plan register)                                           |
+    | Pantry                             | One "already have" pantry per household, with the 7-day rule | Use-by dates, reminders and "use it up" suggestions (`007-FR-034` to `007-FR-040`)                                                             |
+    | Shared collections                 | None                                                         | Household collections that any member adds to (FR-034j)                                                                                        |
+    - **Personal features never come from another member's plan.** They are private recipes past 50, the paid bulk
+      import allowance, own AI keys, trainer nutrition planning (`009-FR-038`) and AI uses for personal actions
+      (FR-034m). A member gets them only with their own Pro, a referral reward (`023-FR-027`) or the household
+      upgrade (FR-034l). A Free member's own library follows Free rules, with 50 private recipes (ADR-0073).
+    - **The pantry is the household's on every plan.** A pantry that merged on a payment and split on a lapse would
+      lose or duplicate items. So the data is always shared, and Pro adds its paid features to it. This answers the
+      second question of `007-FR-040`.
+    - **When the shared paid features end** (FR-034d): AI meal plans stop. Use-by dates are kept, and reminders and
+      suggestions stop (`007-FR-039`). Household collections stay readable to every member. Members can remove
+      recipes from them, and nobody can add one until a member pays again. Nothing is deleted.
+
+    _(Was, 2026-10-27: "While any active member holds Pro or Pro with AI, every active member MUST have that plan's
+    features. These are private recipes with no limit, the paid bulk allowance, own AI keys, and the Pro with AI
+    features on that plan.")_
+
+- **FR-034b** `→ 010 ADDED` _(added 2026-10-27, amended 2026-10-28)_: A cook's effective plan MUST be computed in one
+  place, and the computation MUST have two outputs.
+    - The cook's **own plan** comes from their own RevenueCat entitlement, any promotional entitlement
+      (`023-FR-027`) and the household upgrade (FR-034l). It gates personal features.
+    - The **household plan** is the highest paid plan held by any active member, or Pro under the household
+      upgrade. It gates the shared features of FR-034a.
+
+    Neither output may stand in for the other. A gate that read the household plan for a personal feature would
+    give away the payer's personal Pro. Both feed the tier claim of `010-FR-044`, and both fail closed to Free. They
+    MUST refresh at each of these events: the payer lapses, leaves or is removed, a member joins or leaves, and the
+    upgrade starts or ends. The household lives in recipe-service and identity publishes the claim, so this crosses a
+    service boundary. `staff-architect` designs it at plan time, with the most staleness allowed. _(Was: one output,
+    the cook's effective plan, with household coverage as one of its inputs.)_
+
+- **FR-034c** `→ 010 ADDED, → 005 ADDED` _(added 2026-10-27, replaced 2026-10-28)_: AI uses for a **household
+  action** (FR-034m) MUST draw on the covering payer's own monthly allowance (`005-FR-015a`): 30 uses for Pro, 300
+  for Pro with AI. It is not a second pool. The payer's personal uses and the household's actions share that one
+  allowance, and it resets on the payer's billing date.
+    - A member who has their own paid plan, by purchase or by the household upgrade, uses their own uses for a
+      household action.
+    - A member's personal AI follows that member's own plan, so a Free member has 3 uses a month.
+    - When two members pay, the covering payer is the one with the higher plan. A tie goes to the longer tenure, with
+      FR-032a's stable key.
+    - Each member sees what is left for household actions, and their own use. No member sees another member's
+      prompts, or what the payer spent on personal actions.
+    - When the payer's uses run out, household AI actions stop with `010-FR-041e`'s message and the payer's reset
+      date. The payer's own keys are never used for another member's action, because a key bills the payer's own
+      provider account.
+
+    _Why the payer's allowance, not one per member_: 300 uses cost at most about $10.35 a month, at $0.0345 a use
+    (business plan draft of 2026-10-27, section 7.8). Six members with 300 uses each can cost up to about $62.10 a
+    month, against a price of $19.99. Drawing on one allowance keeps a household's AI cost the same as one cook's.
+    _(Was, 2026-10-27: "AI uses MUST be one pool per household". Every member's AI drew on it, and a member with the
+    pool empty could fall back to their own keys.)_
+
+- **FR-034d** `→ 010 ADDED` _(added 2026-10-27, amended 2026-10-28)_: A Free account MUST be able to join any
+  household, and get its shared Pro features at once while a member pays. Coverage can end: the member leaves, is
+  removed, or the payer lapses. Then the shared paid features stop as FR-034a states, and shared content is kept.
+  The member's own library does not change, because the payer's personal Pro never reached it. Under the household
+  upgrade, the member returns to their own plan, every private recipe stays private, and the over-limit rule of
+  `010-FR-043a` applies. Each member gets a notice 7 days before a known end, and at once for a sudden one.
+- **FR-034e** `→ 010 ADDED` _(added 2026-10-27, amended 2026-10-28)_: A cook who already pays MUST be told, before
+  they accept an invite to a covered household, that their own subscription keeps running, what it still pays for,
+  and where to cancel it (ADR-0075 §5). Their own Pro still pays for their own library and their personal AI uses.
+  Where the household has the upgrade, the screen says that their own Pro repeats what the upgrade gives. The
+  server never cancels a store subscription. The cook's own plan is the higher of the two.
 - **FR-034f** `→ 010 ADDED` _(added 2026-10-27)_: The member limit MUST be 6 accounts, the payer included. That matches
   the two family systems mobile cooks already know. The number lives in 010's plan register and nowhere else. The
   norms behind it:
@@ -627,10 +716,14 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **FR-034g** `→ 006 ADDED, → 007 ADDED` _(added 2026-10-27)_: A cook in a household of one can accept an invite. Their
   meal plans and grocery lists MUST then move into the household they join. The joined household keeps its own aisle
   taxonomy. The accept screen shows what will move. Without this rule, leaving a household of one removes it, with
-  its content (FR-032a).
+  its content (FR-032a). _(Amended 2026-10-28: the pantry is the household's now (FR-034a), so its items
+  move too. Where both pantries hold the same food, the open question of `007-FR-040` about one row per food or one
+  per pack decides how they merge.)_
 - **FR-034h** `→ 010 ADDED` _(added 2026-10-27)_: One subscription must not be shared with strangers. So an account
   MUST join a different household at most twice in any 12 months, and a household MUST accept at most 10 joins in any
-  12 months. An invite expires after 7 days. Each limit gives a clear refusal with the date it lifts.
+  12 months. An invite expires after 7 days. Each limit gives a clear refusal with the date it lifts. _(Kept on
+  2026-10-28. The household upgrade gives every member full Pro, so these limits still stop sharing with
+  strangers.)_
 - **FR-034i** `→ 010 ADDED` _(added 2026-10-27)_: Family Sharing MUST stay off on every App Store subscription product.
   Apple's setting cannot be turned off once it is on
   ([Apple](https://developer.apple.com/help/app-store-connect/configure-in-app-purchase-settings/turn-on-family-sharing-for-in-app-purchases)).
@@ -639,14 +732,46 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **FR-034j** `→ 001 ADDED, → 006 ADDED` _(added 2026-10-27)_: A recipe on a household meal plan MUST be readable by
   every active member while it is on the plan, even where it is private to its author. Without this, a shared plan
   can point at a recipe a member cannot open. The same holds for a household collection, which the household owns
-  and to which any member adds recipes. This audience is not public. It runs no source check (020) and uses no extra
+  and to which any member adds recipes. A household collection is a shared Pro feature (FR-034a, amended
+  2026-10-28). This audience is not public. It runs no source check (020) and uses no extra
   private slot. A member can cook, plan and list from the recipe, but not edit or clone it. It is a new audience
   in the read rule (`GR-014`, `isRecipeViewableBy`), so `staff-architect` designs it at plan time. It adds no new
   visibility value. Its merge into 001 waits for 001's current writer.
-- **FR-034k** `→ 010 ADDED` _(added 2026-10-27)_: Free cooks forming a household of more than one is
-  [NEEDS CLARIFICATION: can two Free cooks share plans and lists as a household, with a paid plan adding coverage of
-  paid features? Recommended: yes. Plans, lists and aisle categories are on every plan (`010-FR-040`), Deglaze makes
-  sharing free, and each invite is a free growth loop].
+- **FR-034k** `→ 010 ADDED` _(added 2026-10-27, answered 2026-10-28, owner: yes)_: Free cooks MUST be able to form
+  a household of more than one, up to the member limit of FR-034f. They share meal plans, grocery lists, aisle
+  categories and the pantry, with Free features (FR-034a). A paying member adds the shared Pro features. The join
+  limits of FR-034h apply to every household. _(Was an open question. The recommendation was yes: plans, lists and
+  aisle categories are on every plan (`010-FR-040`), Deglaze makes sharing free, and each invite is a free growth
+  loop.)_
+- **FR-034l** `→ 010 ADDED` _(added 2026-10-28, owner ruling)_: The **household upgrade** MUST give every active
+  member full Pro, the payer included. Its name and price live in 010's
+  [plan register](../010-subscriptions/spec.md#plan-register): $14.99 a month or $149.99 a year. That is about 50%
+  above Pro, as AnyList prices its household plan against its one-person plan (FR-034f's table).
+    - Each member gets Pro's personal features too: private recipes with no limit, the paid bulk allowance, own AI
+      keys, trainer nutrition planning, and Pro's 30 AI uses a month each. Each member's uses reset on the payer's
+      billing date.
+    - Cost check: 6 members × 30 uses × $0.0345 a use is about $6.21 a month at most. The price is $14.99 a month,
+      or $12.50 a month on the yearly price. The use price is FR-034c's.
+    - It is one price for the household, so the member limit of FR-034f still bounds it.
+    - Being covered by the upgrade is not a member's trial. A member keeps their own one trial (`010-FR-041h`).
+    - It is its own subscription product on every rail. The payer buys, changes and cancels it on the platform where
+      they bought it (ADR-0075 §5). Moving between Pro and the upgrade follows `010-FR-041i`.
+    - Whether Pro with AI gets a household version is open, in 010's [O-13](../010-subscriptions/spec.md#o-13).
+
+    Every surface it adds goes through `staff-ux-engineer` DESIGN and SPECIFY at plan time: the plan card, the
+    invite screen and the coverage notices.
+
+- **FR-034m** `→ 010 ADDED, → 005 ADDED` _(added 2026-10-28)_: A **household action** is an AI call whose result is
+  written to the household's shared content. The list is closed, and a new action is added here by name.
+    - Making or changing an AI meal plan for the household (`006-FR-026`).
+    - AI meal suggestions placed on a household meal plan (`006-FR-025`).
+    - AI waste optimization of the household's meal plans or pantry, on Pro with AI (`006-FR-027`).
+
+    Every other AI call is personal. Examples are AI recipe generation (`005-FR-016`), instruction optimization
+    (`005-FR-019`) and recipe swap suggestions (`009-FR-039`). A personal call uses the member's own uses only. The
+    server classifies a call by what it writes, never by a flag the client sends, since a client flag would let any
+    member spend the payer's uses on personal work. Each use records the acting member and the account it was charged
+    to.
 
 #### F. Shipped behaviour with no requirement — D12
 
@@ -811,6 +936,12 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 
 _2026-10-27: the growth expansion adds one open question, FR-034k (can Free cooks form a household?). It blocks
 only the Free-household part of US5._
+
+_2026-10-28: FR-034k is answered yes, and the household model is rebalanced (FR-034 to FR-034m). One question is
+open in 010, not here: whether Pro with AI gets a household version ([010 O-13](../010-subscriptions/spec.md#o-13)).
+Plan-time owners: `staff-architect` redraws the two-output plan computation (FR-034b) and the household AI charge
+(FR-034c, FR-034m). `staff-ux-engineer` runs DESIGN and SPECIFY for every household surface. 023 cites FR-034a and
+FR-034b, and its writer checks those citations against this amendment._
 
 An earlier draft of this spec flagged a blocking conflict with `016` over frame sampling. Reading `016-FR-027`
 and `016-FR-027c` closely, that was **overstated**: `016` prohibits _persisting_ a copy and _rendering derived

@@ -34,8 +34,23 @@
    covers the household. `seats.allowance` becomes the member limit from 010's plan register (6 accounts), the same
    for every household. The response also needs the covering plan and the shared AI pool (FR-034a, FR-034c). The
    effective plan comes from one computation (FR-034b), and `staff-architect` redraws this shape at plan time.
+   ⚠️ **Amended 2026-10-28 (FR-034 to FR-034m, owner ruling: "Let's plan that for the household then").** Coverage
+   now reaches the household's shared content only, not each member's own plan. So the response needs these facts,
+   and `staff-architect` still owns the final shape:
+    - `memberLimit`: the 6 accounts from 010's plan register, the same for every household (FR-034f).
+    - `householdPlan`: `free`, `pro` or `proWithAi`. It gates the shared features of FR-034a. It is the plan of the
+      covering payer, or Pro under the household upgrade (FR-034b).
+    - `householdUpgrade`: whether the upgrade is on (FR-034l). Only then does every member also get Pro as their
+      own plan.
+    - `householdAi`: the uses left for household actions and the payer's reset date (FR-034c). It never carries the
+      payer's personal use or another member's prompts.
+    - The caller's own plan is not in this response. It comes from the claim of `010-FR-044` (FR-034b).
 4. Exceeding seats is a **`409` with a stated reason** (FR-034), never a silent no-op. Since 2026-10-27, "seats"
    here means the member limit.
+   4a. **Inviting needs no paid plan** (FR-034k, 2026-10-28). An owner on Free can invite, and the join limits of
+   FR-034h apply to every household.
+   4b. **A household AI action is classified by the server, from what it writes** (FR-034m). The client never sends a
+   flag that picks whose uses pay.
 5. Lapse follows `010-FR-043`: shared content is **retained**, not destroyed.
 6. Removing a member leaves household content intact; the member keeps their own recipes (FR-032).
 

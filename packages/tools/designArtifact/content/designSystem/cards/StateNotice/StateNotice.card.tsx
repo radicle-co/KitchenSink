@@ -47,7 +47,7 @@ export default defineCard({
                 {box(
                     <StateNotice
                         title="We could not load this recipe"
-                        body="Check your connection and try again."
+                        body="Check your connection."
                         primary={{ label: 'Try again', icon: 'refreshCw', onPress: noop }}
                         secondary={{ label: 'Back to Home', icon: 'house', onPress: noop, href: '#home' }}
                     />,

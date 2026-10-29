@@ -534,8 +534,11 @@ creator page.
     - for a creator page, the profile deactivated, suspended or its handle changed
     - any change to what the page shows, such as an edit to a field that 020 does not check, a new photo order or a
       new rating total. This one refreshes the page instead of removing it.
-- **FR-008**: The chef directory and its search (`018-FR-017`), and public collection pages (`012-FR-008`), MUST stay
-  behind sign-in until Q2 is answered. A chef's own page is a creator page and follows section B.
+- **FR-008** _(amended 2026-10-29, owner ruling, Q2)_: The chef directory and its search (`018-FR-017`), and public
+  collection pages (`012-FR-008`), MUST be readable signed out, each on its own address, under the same rules as
+  public recipes. Nothing a chef sells is readable signed out: a paid item shows at most its title, cover, price and
+  the chef's own description, never its recipes or lessons (`026-FR-015`). The directory never lists linked cards.
+  A chef's own page is a creator page and follows section B.
 
 #### B. Public pages, the app's public view, and their states
 

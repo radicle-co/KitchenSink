@@ -808,9 +808,11 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
     2. Add the local tax where the store shows prices with tax included. The UK, Spain and Australia are expected to,
        and each is confirmed per storefront in App Store Connect and the Play Console. A US price is shown before
        sales tax, so a straight conversion would undercharge there.
-    3. Round to the nearest local price that ends the way local prices do, and that is one of the store's own price
-       points.
-    4. The owner approves the result. The numbers are an owner decision, not a formula output.
+    3. Round to the nearest store price point ending in .99 in the local currency (for Mexico, the nearest store
+       price point ending in 9). _(Amended 2026-10-29, owner ruling: "Convert and round". The numbers are the
+       formula's output, not a per-market price choice.)_
+    4. A person applies the method at the exchange rate of the day the market's prices are set, records the rate and
+       its source, and enters the result in both store consoles. The owner does not approve each number.
 - Every other storefront takes the store's own conversion from the US base. Apple's automatic adjustments exclude
   auto-renewing subscriptions (`025-FR-062`), so a person sets and checks each launch storefront in App Store Connect
   and the Play Console.
@@ -870,9 +872,10 @@ Other specs link to this section and its anchors. Most items are now answered. T
 - <a id="o-14"></a>**O-14. The one-time discount's amount. RESOLVED 2026-10-29.** The owner chose "$59.99 first
   year": the first year of Pro yearly at $59.99, then $99.99 a year (`FR-041l`). $59.99 is Samsung Food+'s yearly
   price. Yearly plans keep 28% of payers at 12 months against 8% for monthly (RevenueCat 2026).
-- <a id="o-15"></a>**O-15. The local prices. Open, added 2026-10-29.** The rule is decided ("Round launch markets",
-  [Prices by storefront](#prices-by-storefront)). The numbers for each launch storefront are the owner's to set, by
-  that method, before the market opens.
+- <a id="o-15"></a>**O-15. The local prices. RESOLVED 2026-10-29.** The owner chose "Convert and round": convert
+  the US price, add local tax where prices show tax, and round to the nearest store price point ending in .99
+  ([Prices by storefront](#prices-by-storefront)). A person fills each storefront's column by that method before
+  the market opens.
 
 ## Success Criteria _(mandatory)_
 

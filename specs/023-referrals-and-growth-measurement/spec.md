@@ -273,9 +273,10 @@ from the staff research list.
   what the trial check already keeps.
 - **The inviter shares their own code with their own second account.** The one-person check refuses the second
   account's reward, and the inviter earns nothing from it.
-- **The friend joins the inviter's household.** A household member already gets Pro through a paying household
-  (`017-FR-034a`). At the moment the friend qualifies, they must not be in the inviter's household. Otherwise the
-  inviter earns no reward (FR-030).
+- **The friend joins the inviter's household.** A household member already gets the household's shared paid features
+  from a paying member (`017-FR-034a`), and full Pro under the household upgrade (`017-FR-034l`). At the moment the
+  friend qualifies, they must not be in the inviter's household. Otherwise the inviter earns no reward (FR-030).
+  _(Updated 2026-10-28 for 017's split of shared and personal features. The rule itself is unchanged.)_
 - **The inviter erases their account before the friend qualifies.** The friend keeps their own reward. The inviter's
   reward is never earned, and the friend is not told why.
 - **The friend erases their account after qualifying.** The inviter keeps the reward already earned. The ledger keeps
@@ -505,9 +506,15 @@ from the staff research list.
 - **FR-027d**: Two facts MUST be verified at plan time, because only forum answers support them. First, does a free
   Apple promotional offer, bought by an active subscriber, start at the next renewal? Second, can a free one-month offer
   attach to a yearly product? If either answer is no, the App Store row uses offer codes instead.
-- **FR-027e**: The effective plan a cook has MUST be computed in one place, from their own RevenueCat entitlement, any
-  promotional entitlement and any household coverage (`017-FR-034b`). It feeds the tier claim of `010-FR-044` and
-  fails closed to Free.
+- **FR-027e**: The effective plan a cook has MUST be computed in one place, with the two outputs of `017-FR-034b`. The
+  cook's **own plan** comes from their own RevenueCat entitlement, any promotional entitlement and the household
+  upgrade (`017-FR-034l`). The **household plan** is the highest paid plan any active member holds, or Pro under the
+  upgrade. Both feed the tier claim of `010-FR-044`, and both fail closed to Free. _Amended 2026-10-28, to follow
+  017's split of shared and personal features:_
+    - Reward time is a promotional entitlement. So it feeds the cook's own plan, and gives Pro's personal features.
+    - Reward time is not a paid plan. So it never feeds the household plan, and it never turns on the household's
+      shared paid features (`017-FR-034a`).
+    - _(Was: one effective plan, with household coverage as one of its inputs.)_
 
 #### E. Fraud and abuse limits
 
@@ -627,8 +634,9 @@ This change does not edit 001, 016 or the cross-feature FR index. These items ar
       without consent.
 - **001-FR-045a**: no wording change. Its sign-in front door must carry invite codes and UTMs to sign-up (FR-002).
   Its owner checks that the redirect keeps query parameters.
-- **010**: `010-FR-044`'s claim publishes the effective plan of FR-027e, which now includes promotional entitlements
-  and household coverage. The design is owed in 010's plan, and the 2026-10-27 household amendment there records it.
+- **010**: `010-FR-044`'s claim publishes the two outputs of FR-027e: the cook's own plan, which includes promotional
+  entitlements, and the household plan (`017-FR-034b`). The design is owed in 010's plan. _(Updated 2026-10-28: this
+  said one effective plan, including household coverage.)_
 - **Cross-feature FR index**: entries for this spec are owed under `GR-003`.
 - **017-FR-019** _(added 2026-10-28)_: the export credit line of section K is owed to 017's export requirement. 017
   is being edited by another writer, so it is not applied here. Its owner moves FR-055 to FR-057 into `017-FR-019` and

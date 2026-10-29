@@ -530,9 +530,8 @@ The rights label tells the cook who owns the writing.
     | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"           | Yes, inside the cook's own file |
     | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full. Never open to the web (`021-FR-006`)                                         | Yes                             |
     - "Keep it" means a private copy. A free cook keeps it within the 50 private slots (ADR-0073), like any private
-      recipe. Label 3 is the exception for now. Who can keep a web import private is open in 001's Session
-      2026-10-29. Until the owner answers, C-004's rule stands: a web import goes private only with Pro and a
-      substantive edit, and the cook always sees their own full copy while its public form is a card.
+      recipe. That includes label 3: the owner ruled on 2026-10-29 that any cook can keep a web import private, using a
+      slot (ADR-0077 §6, `001` C-004). The cook always sees their own full copy while its public form is a card.
     - "Share with the household" means the cook's household under 017. Counsel confirms that sharing labels 3 and 4
       with a household is still private use (`FR-050`).
     - "Export" means the cook's own data export (`FR-034`). It is for the cook's own use. Counsel confirms that the
@@ -1320,8 +1319,8 @@ records the decision.
   _Mavrix_.
 - **Owed by specs this session does not edit.** 012 owes a way for a cook to prove a site is their own, so a blogger who
   imports their own posts is not treated as a copier (`020-FR-012g`). 015 still lists D4b, making `imported_public`
-  private by default, as open. This ruling settles what a public web import shows to other cooks. Who can keep one
-  private is the open question in 001's Session 2026-10-29. 015 is aligned in its own next revision.
+  private by default, as open. This ruling settles what a public web import shows to other cooks. The owner then ruled on
+  2026-10-29 that any cook can keep one private, using a slot (ADR-0077 §6). 015 is aligned in its own next revision.
 
 ## Owner decisions required
 

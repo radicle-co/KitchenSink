@@ -2,6 +2,10 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
+- **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §6: an `imported_public`
+  recipe no longer needs Pro and a substantive edit to go private. Any cook can keep one private, using a slot. So
+  §1's last-but-one rule, the `imported_public` row of §6, and §10's badge rule no longer apply, and the PRO badge
+  marks nothing. Every other part stands.
 - **Relates to:** [ADR-0072](0072-bulk-recipe-import.md) §9: the per-recipe statement and the label it sets. This ADR
   adds the out-of-slots pause to that flow. [ADR-0023](0023-curator-declared-provenance.md): which labels a caller
   can declare on `POST /api/v1/recipes`. [ADR-0040](0040-test-principals-containment-and-purge.md): containment runs

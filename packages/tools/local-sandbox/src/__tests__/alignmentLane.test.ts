@@ -78,6 +78,7 @@ describe('a lane, through the alignment itself', () => {
                 return Promise.resolve([]);
             },
             rowsFor: () => Promise.reject(new Error('unreachable')),
+            syncUsername: () => Promise.reject(new Error('unreachable')),
             removeRow: () => Promise.reject(new Error('unreachable')),
             provision: () => Promise.reject(new Error('unreachable')),
         });
@@ -123,6 +124,7 @@ describe('a recycled pool user, whose address an older local row still holds', (
             findUsers: () => Promise.resolve([user as never]),
             rowsFor: () => Promise.resolve([]),
             removeRow: () => Promise.resolve(),
+            syncUsername: () => Promise.resolve(),
             ...(withPort
                 ? {
                       removeStaleRowsForEmail: (email: string, keep: string) => {

@@ -15,7 +15,7 @@ import { clerkLeasePort } from '@kitchensink/e2e-fixtures/lease';
 import { poolNamespaceFrom } from '@kitchensink/e2e-fixtures/testPool';
 import { accounts, isUserId, newProfileClock, profiles, users } from '@kitchensink/identity-db';
 import { provisionCompleteUser } from '@kitchensink/identity-utils';
-import { and, eq, ne, or } from 'drizzle-orm';
+import { and, eq, ne, or, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
@@ -94,6 +94,17 @@ async function main(): Promise<void> {
                   },
               }
             : {}),
+        // The webhook's effect for the one field it would have written. Conditional in SQL, so a re-run writes nothing.
+        syncUsername: async (userId, username) => {
+            if (!isUserId(userId)) {
+                throw new Error(`alignIdentities: ${userId} is not an app-user id, so it names no local profile`);
+            }
+
+            await db
+                .update(profiles)
+                .set({ username })
+                .where(and(eq(profiles.userId, userId), sql`${profiles.username} IS DISTINCT FROM ${username}`));
+        },
         // THE house provisioning routine, with the id fixed to the one Clerk already carries.
         provision: async ({ identityId, externalId, email }) => {
             const result = await provisionCompleteUser(

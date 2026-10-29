@@ -37,6 +37,8 @@ export interface PoolUserRecord {
     readonly id: string;
     readonly publicMetadata: Readonly<Record<string, unknown>>;
     readonly externalId: string | null;
+    /** The Clerk username, or `null` when the user has none. Read by the local identity alignment; no lease decides on it. */
+    readonly username?: string | null;
 }
 
 /** What a lease needs from Clerk's Backend API. */
@@ -238,6 +240,7 @@ export function clerkLeasePort(secretKey: string): LeasePort {
                 id: user.id,
                 publicMetadata: user.publicMetadata,
                 externalId: user.externalId,
+                username: user.username,
             }));
         },
         mintTicket: async (userId) => {

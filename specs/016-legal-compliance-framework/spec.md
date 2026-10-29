@@ -530,7 +530,9 @@ The rights label tells the cook who owns the writing.
     | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"           | Yes, inside the cook's own file |
     | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full. Never open to the web (`021-FR-006`)                                         | Yes                             |
     - "Keep it" means a private copy. A free cook keeps it within the 50 private slots (ADR-0073), like any private
-      recipe.
+      recipe. Label 3 is the exception for now. Who can keep a web import private is open in 001's Session
+      2026-10-29. Until the owner answers, C-004's rule stands: a web import goes private only with Pro and a
+      substantive edit, and the cook always sees their own full copy while its public form is a card.
     - "Share with the household" means the cook's household under 017. Counsel confirms that sharing labels 3 and 4
       with a household is still private use (`FR-050`).
     - "Export" means the cook's own data export (`FR-034`). It is for the cook's own use. Counsel confirms that the
@@ -900,7 +902,9 @@ they do not create a second mechanism.
           every imported photo shown to its saving cook becomes our display.
         - _Who fetches the page._ A server that returns again and again to a site whose terms it knows fits
           _Register.com v. Verio_ (2d Cir. 2004). The cook's own capture (paste, share sheet, browser extension) is
-          safer under site terms than repeated server fetches. Counsel weighs this against `004-FR-008`'s URL fetch and
+          safer under site terms than repeated server fetches. A URL shared from the share sheet that our server then
+          fetches is still a server fetch. Only pasted or shared text and the page the extension reads in the cook's own
+          browser are the cook's own capture. Counsel weighs this against `004-FR-008`'s URL fetch and
           against 017's tier 5 lookup of the source page (`017-FR-005`). This spec records the risk and does not change 017. **What breaks:** a contract claim by a site, which copyright preemption does not stop.
 - **FR-051**: Nutrition figures and allergen-relevant content MUST carry a reachable disclaimer, and the
   product MUST NOT state or imply a medical claim.

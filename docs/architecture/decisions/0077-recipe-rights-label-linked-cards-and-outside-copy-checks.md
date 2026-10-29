@@ -55,15 +55,15 @@ copyrighted or private source." On detection, the owner chose "Allow, public rec
 
 The label tells the cook who owns the writing and what Commise lets them do with it. There are seven:
 
-| Label                                                    | Who owns the writing and photos                   |
-| -------------------------------------------------------- | ------------------------------------------------- |
-| Written by you                                           | The cook                                          |
-| Adapted by you from a credited source, in your own words | The cook owns their words. The source owns its    |
-| Copied from a public web page                            | The page's author                                 |
-| From a cookbook, magazine or paid site                   | The publisher, or the author                      |
-| From a family member or friend, with their permission    | The person who wrote it                           |
-| Cloned from another Commise cook                         | That cook. The cloner owns only their changes     |
-| Public domain                                            | Nobody owns the old text. New photos and notes do |
+| Label                                                    | Who owns the writing and photos                          |
+| -------------------------------------------------------- | -------------------------------------------------------- |
+| Written by you                                           | The cook                                                 |
+| Adapted by you from a credited source, in your own words | The cook owns their words. The source owns its own words |
+| Copied from a public web page                            | The page's author                                        |
+| From a cookbook, magazine or paid site                   | The publisher, or the author                             |
+| From a family member or friend, with their permission    | The person who wrote it                                  |
+| Cloned from another Commise cook                         | That cook. The cloner owns only their changes            |
+| Public domain                                            | Nobody owns the old text. New photos and notes do        |
 
 - The label is **derived**, by one pure Policy, a sibling of `provenancePolicy.ts`. Its inputs are the source type,
   the statement kind (§2), `cloned_from_id`, a licence the source page states, and the curator grant (ADR-0023 §1).
@@ -88,6 +88,9 @@ ADR-0072 §9's statement list becomes six statements. The table replaces §9's t
 | From a paid site, with a citation                                          | `imported_paid`     | From a cookbook, magazine or paid site |
 | From a family member or friend, with their permission (credit is optional) | decided at PLANNING | From a family member or friend         |
 
+- **§9's visibility column still stands** for each source type. That includes its rule that `imported_public` goes
+  private only with Pro and a substantive edit. Whether any cook can keep a web import private is an open question in
+  spec 001 (Session 2026-10-29).
 - **Why no fifth `sourceType` value.** It is a persisted column and a wire enum that installed clients switch over.
   Adding a value is a one-way door, and the visibility policy already has the right answer for this recipe in an
   existing class. So the statement kind is stored as its own fact, beside the label, and the rights label reads it.
@@ -126,7 +129,7 @@ The rules that make the card safe:
 - **Noindexed and signed-in only.** A signed-out reader still gets 021's source card.
 - **A per-site opt-out.** A site on the opt-out list gets a card with only the title, the site's name and the link.
 - **The page's own licence wins.** A page that states a licence allowing it, such as some Creative Commons licences,
-  can be shown in full, on that licence's terms.
+  can be shown in full, on that licence's terms. Public domain text under the curator grant is shown in full too.
 - **The EU database right.** A cap on public cards per site, its number set with counsel, and no feature that lists,
   browses or filters public cards by site. The cap applies to every site, because we cannot reliably tell where a site
   was made.
@@ -139,7 +142,7 @@ The rules that make the card safe:
 This is the change to ADR-0074 and to `020-FR-012`. It applies only to a recipe headed public.
 
 1. **Its own import page, for free.** When a recipe comes in from a page, we hold the page for a moment. We keep a
-   fingerprint of it (word-shingle hashes over the method and headnote), never the page. When the recipe heads public,
+   fingerprint of it (word-shingle hashes over the method and headnote), never the page. A paste fetches nothing, so it has no import page. When the recipe heads public,
    its method, headnote and the cook's notes are scored for containment in that fingerprint.
 2. **A web search for its method sentences.** Two or three distinctive method sentences are searched as exact phrases,
    through the Brave Search API, about $0.015 a recipe. Only method text is sent, never a name, an account id or
@@ -150,7 +153,8 @@ This is the change to ADR-0074 and to `020-FR-012`. It applies only to a recipe 
 - What either check finds is **for a person**, never blocking. Only the rule-based detectors block (ADR-0074 §2).
 - **The search has its own monthly budget, outside ADR-0024's pool**, with its own counter and its own off switch. It
   is not an LLM call. When the budget is spent or the switch is off, the search part is not read. So the recipe is not
-  all green and a person decides, as ADR-0074 §3 already requires for a part that was not read. The shadow-mode
+  all green and a person decides, as ADR-0074 §3 already requires for a part that was not read. When the budget's next
+  period starts, or the switch is back on, those outcomes are searched again, as the model's are. The shadow-mode
   forecast counts this case.
 - **False positives.** Ingredient lists match by nature, so they are left out of the comparison. Short methods are
   generic, so a method below a minimum length does not count. A classic recipe found on many unrelated pages is
@@ -168,7 +172,8 @@ keeps review on the screening side of _Mavrix_, which that court called "accessi
 ## Consequences
 
 - A cook sees, on every recipe, who owns its writing, in words that claim nothing we cannot back.
-- No web page's method, headnote or photo is shown to anyone but the cook who saved it and their household.
+- No web page's method, headnote or photo is shown to anyone but the cook who saved it and their household, unless
+  the page's own licence allows it or the text is public domain.
 - Meal plans, grocery lists, carts and ingredient AI keep working for every cook on a public web recipe.
 - A family recipe shared with permission can be public. A recipe a cook adapted can say so.
 - Some copies of web pages are now found before they go public, and a person decides each one.
@@ -192,7 +197,9 @@ keeps review on the screening side of _Mavrix_, which that court called "accessi
   sets it well.
 - **Server-side fetching.** A server that returns again and again to a site whose terms it knows fits the pattern of
   _Register.com v. Verio_ (2d Cir. 2004). The cook's own capture (paste, share sheet, browser extension) is safer under
-  site terms than repeated server fetches. That is a risk for counsel against `004-FR-008`'s URL fetch and against 017's
+  site terms than repeated server fetches. A URL shared from the share sheet that our server then fetches is still a
+  server fetch. Only pasted or shared text, and the page the extension reads in the cook's own browser, are the cook's
+  own capture. That is a risk for counsel against `004-FR-008`'s URL fetch and against 017's
   tier 5 source-page lookup (`017-FR-005`). This ADR notes it and changes neither.
 - **A stored fingerprint could count as a copy.** Counsel confirms that word-shingle hashes are not a reproduction.
 - **Brave's API terms are unread.** Whether we can keep a search result as evidence is unconfirmed.

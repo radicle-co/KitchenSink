@@ -1072,8 +1072,10 @@ channel is hidden by its capability flag and its tests run against the contract 
 - **C-001 (Import deduplication)** _(amended 2026-10-29, owner ruling, ADR-0077)_: When multiple users import the
   same URL, the system holds at most one public **linked card** keyed by the **canonicalized** source URL (scheme and
   host lowercased, default port and fragment removed, tracking parameters stripped, trailing slash normalized). Each
-  cook's import of that URL is their own private copy, from their own capture. Later imports surface the existing card,
-  which the cook can save, and the cook can still keep their own private copy (`021-FR-014d`). Uniqueness of the public
+  cook's import of that URL is their own private copy, from their own capture, where 001's rule lets that cook keep
+  it private. Later imports surface the existing card, which the cook can save (`021-FR-014d`). Who can keep a web
+  import private is open (001, Session 2026-10-29). Until it is answered, a cook who cannot keep it private gets only
+  the existing card, as C-001 offered a clone before, and loses nothing they had. Uniqueness of the public
   card is enforced by a partial unique index that excludes soft-deleted rows, so a deleted import can be re-imported.
   Applies to both website and Instagram imports. One card per page also keeps the count of public cards per site low
   (`016-FR-030a`).
@@ -1092,7 +1094,9 @@ channel is hidden by its capability flag and its tests run against the contract 
   friend recipe that can be public (`FR-028`), and a fingerprint kept at capture for the source check
   (`020-FR-012b`). The research behind them is not legal advice, and each is subject to counsel review.
     - **A risk for counsel, recorded and not acted on here.** The research found that the cook's own capture (paste,
-      the share sheet, the browser extension) is safer under a site's terms than repeated server fetches. A server that
+      the share sheet, the browser extension) is safer under a site's terms than repeated server fetches. A URL shared
+      from the share sheet that our server then fetches is still a server fetch. Only pasted or shared text and the page
+      the extension reads in the cook's own browser are the cook's own capture. A server that
       returns again and again to a site whose terms it knows fits _Register.com v. Verio_ (2d Cir. 2004). That weighs
       against this spec's URL fetch (`FR-008`, and `FR-053` after the cook's tap) and against 017's tier 5 lookup of the
       source page (`017-FR-005`). It is on counsel's list (`016-FR-050`). This spec does not change 017.

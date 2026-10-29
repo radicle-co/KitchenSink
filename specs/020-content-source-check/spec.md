@@ -816,8 +816,10 @@ records the decision.
     What it finds is evidence "for a person", never blocking (FR-010). Only the rule-based detectors block. It never
     changes the label.
 
-- **FR-012b**: **Its own import page.** When a recipe arrives from a page (a link, the share sheet, the browser
-  extension, or a paste with a link), the import already holds that page for a moment. At that moment the import MUST
+- **FR-012b**: **Its own import page.** When a recipe arrives from a page, the import already holds that page for a
+  moment. That is a link import (`004-FR-008`, which includes a link shared from the share sheet and `004-FR-053`), or
+  the browser extension, which reads the page in the cook's own browser (`017-FR-014`). A paste fetches nothing, so it
+  has no import page, even when the cook pastes a link with it (`004-FR-052`). At that moment the import MUST
   keep a **fingerprint** of the page's method and headnote: word-shingle hashes of 5 to 8 words, with a `v1:` version.
   It MUST NOT keep the page or any of its text (`016-FR-027f`). When the recipe heads public, the check MUST score the
   recipe's method, headnote and the cook's own notes for **containment** in that fingerprint. Containment, not
@@ -844,8 +846,13 @@ records the decision.
   is not an LLM call and does not touch Bedrock. It has its own counter and its own off switch, and it reserves a
   search before it sends it. The number is set in the plan from the shadow-mode forecast (FR-039a), as FR-030b's cap
   is. When the budget is spent, or the switch is off, the search is not read. So the recipe is not all green
-  (FR-013a), and a person decides. That part's reason is `searchNotRun`. A new reason value is a contract change, so
-  `staff-architect` adds it before any client switches over the set (ADR-0074 one-way doors).
+  (FR-013a), and a person decides. The outcome is `unchecked` with the reason `searchNotRun` (FR-013). A new reason
+  value is a contract change, so `staff-architect` adds it before any client switches over the set (ADR-0074 one-way
+  doors).
+    - **Re-check.** When the search budget's next period starts, or the switch is turned back on, every outcome that is
+      `unchecked` (`searchNotRun`) and that no person has cleared MUST be checked again, oldest first, as FR-021 does
+      for the model. The re-check reads only the search part and keeps every other part's evidence, so it cannot
+      produce `detected`. It runs by the same compare-and-set as FR-021.
 - **FR-012f**: **False positives.** The check MUST apply these rules:
     - Ingredient lists match by nature. Ingredient lines are left out of both comparisons.
     - Short methods are generic. A method below a minimum length does not count as a match. Stock phrases are skipped.
@@ -872,7 +879,8 @@ records the decision.
     - **`possible`**: no blocking evidence, but at least one item for a person. Holds publication back until a person
       decides (FR-016).
     - **`unchecked`**: the model did not run on all of the content, and the rule-based detectors found no blocking
-      evidence. The reason is one of `budgetSpent`, `tooLong` or `checkFailed`. Holds publication back until a person
+      evidence. The reason is one of `budgetSpent`, `tooLong` or `checkFailed`. _(2026-10-29.)_ It is also `unchecked`
+      when the web search did not run (FR-012e), with the reason `searchNotRun`. Holds publication back until a person
       decides (FR-020).
 
     An outcome MUST be `clear` only when every part is green (FR-013a).

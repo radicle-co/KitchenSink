@@ -513,7 +513,7 @@ creator page.
 - **FR-003**: A recipe whose source type is `imported_public` MUST NOT be open to the web and MUST NOT be indexed. A
   signed-out visitor gets the source card (FR-014). _(Amended 2026-10-29, owner ruling, ADR-0077.)_ A signed-in cook
   other than its owner, and other than the owner's household, gets the **linked card** (FR-014a), never the full
-  recipe. This replaces C-004's "Always public with source attribution", which let a full copy of a web page go public.
+  recipe, except where FR-014f allows it. This replaces C-004's "Always public with source attribution", which let a full copy of a web page go public.
 - **FR-004**: A recipe whose source type is `imported_physical` or `imported_paid` is private-only (C-004) and MUST NOT
   appear on any public surface in any form, the source card included.
 - **FR-005**: A clone (`cloned_from_id` set) MUST be judged by FR-002 like any recipe. A clone that is open MUST be
@@ -597,8 +597,9 @@ creator page.
   link, and never the owner's full copy. A cook who wants the full recipe captures it from the site themselves, through
   their own import, as their own private copy.
 - **FR-014d**: There MUST be at most one public linked card per canonical page address (`004` C-001). A later cook's
-  import of the same page is their own private copy. When that cook chooses Public, the existing card is offered to
-  them instead of a second card.
+  import of the same page is their own private copy, where 001's rule lets that cook keep it private. When that cook
+  chooses Public, the existing card is offered to them instead of a second card. Who can keep a web import private is
+  open (001, Session 2026-10-29). Until it is answered, a cook who cannot keep it private gets only the existing card.
 - **FR-014e**: For a site on the opt-out list (`016-FR-024a`), or past the per-site cap (`016-FR-030a`), the card MUST
   show only the title, the site's name and the link. The add-to actions stay for the owner only.
 - **FR-014f**: Where the source page states a licence that allows it (`016-FR-012b`), the recipe MAY be shown to other

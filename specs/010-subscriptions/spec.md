@@ -805,8 +805,9 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
   first-year offer (`FR-041l`). The launch storefronts are the UK, Canada and Australia, then Mexico and Spain (`025`).
 - **The method**, for each price:
     1. Convert the US price at an exchange rate recorded with its source and its date.
-    2. Add the local tax where the store shows prices with tax included, as in the UK, Spain and Australia. A US price
-       is shown before sales tax, so a straight conversion would undercharge there.
+    2. Add the local tax where the store shows prices with tax included. The UK, Spain and Australia are expected to,
+       and each is confirmed per storefront in App Store Connect and the Play Console. A US price is shown before
+       sales tax, so a straight conversion would undercharge there.
     3. Round to the nearest local price that ends the way local prices do, and that is one of the store's own price
        points.
     4. The owner approves the result. The numbers are an owner decision, not a formula output.

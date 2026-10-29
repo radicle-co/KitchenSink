@@ -879,7 +879,12 @@ Other specs link to this section and its anchors. Most items are now answered. T
 ### Measurable Outcomes
 
 - **SC-005**: 80% of free-tier users engage with at least 3 core features (recipe creation, search, sharing) within their first week.
-- **SC-006**: Pro conversion rate of at least 5% of active free-tier users within the first 3 months.
+- **SC-006** _(amended 2026-10-29, owner ruling: "3.0% by day 35, floor 2.0%")_: Of each monthly sign-up group,
+  at least **3.0%** pay for Pro or Pro with AI by day 35 after sign-up, net of refunds. This is the plan target the
+  business plan is built on. **2.0%**, the RevenueCat 2026 median for freemium apps, is the floor: a group below it
+  triggers a review of the free plan, the paywall and the trial. **4.5%**, the top-quartile benchmark, is the
+  stretch. _(Was: "at least 5% of active free-tier users within the first 3 months". No market source measures
+  conversion against active users, and 5% sits above the top quartile.)_
 - **SC-007** _(added 2026-10-28)_: 100% of trials get the pre-charge notice by email at least 3 days before the
   first charge (`FR-041h`). A miss is a compliance defect, not an experiment.
 - **SC-008** _(added 2026-10-28)_: Half or more of payments that enter billing retry are recovered, read monthly

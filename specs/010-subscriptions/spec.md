@@ -13,7 +13,7 @@ ships** (`FR-042j`).
 household's content, not the payer's personal Pro, and an optional household upgrade gives every member full Pro
 (`FR-041j`). Retention and recovery work is added: grace periods per store (`FR-043`, `FR-043b`), the trial timeline,
 lifecycle messages through 014, a monthly-to-yearly offer, a one-time discount, the trial checklist and the "what you
-keep" screen. Two questions are open: [O-13](#o-13) and [O-14](#o-14).
+keep" screen. [O-13](#o-13) and [O-14](#o-14) were resolved on 2026-10-29.
 **Input**: Split from `001-commise-recipe-app` — free/Pro tier definitions, feature gating, upgrade prompts, and subscription lifecycle.
 
 ## Dependencies
@@ -126,8 +126,8 @@ it, and check that the changes are still there. Then check each state in `FR-042
       upgrade of Pro. Every active member of the payer's household, up to 6 accounts, gets full Pro, each with Pro's
       own 30 uses a month (`017-FR-034l`). The price is about 50% above Pro, as AnyList prices its household plan
       against its one-person plan ([AnyList Premium](https://www.anylist.com/premium)). New subscribers get the same
-      14-day trial, under the one-trial rule (`FR-041h`). Whether Pro with AI gets a household version is open:
-      [O-13](#o-13).
+      14-day trial, under the one-trial rule (`FR-041h`). Pro with AI has a household version too, with one shared
+      allowance ([O-13](#o-13), resolved 2026-10-29).
 - **FR-042**: System MUST gate Pro features with clear upgrade prompts that preview the feature value for free-tier users. Prompts follow a three-tier hierarchy: (1) contextual inline teaser at the feature entry point, (2) modal/bottom-sheet on active invocation, (3) pricing page accessible from any CTA and from account settings.
 - **FR-043**: System MUST retain all user data and non-Pro functionality if a Pro subscription lapses. Existing private recipes remain private after downgrade (`FR-043a`). A lapsed cook who holds fewer than 50 private recipes can make another private. _(Amended 2026-10-26, ADR-0073 §4. Was: "the lapsed user cannot create new private recipes until they renew.")_ After a failed renewal payment, Pro access stays for the grace period of the rail the cook bought on (`FR-043b`). _(Amended 2026-10-28. Was: "A **7-day grace period** applies after a failed payment before Pro access is removed." Apple offers only 3, 16 or 28 days, so one figure could not hold on every rail. 010's plan, tasks, V-Model and product-spec still say 7 days, in T-005, REQ-028, AC-034 and D-3. They change when the V-Model is regenerated.)_
 - **FR-043b** _(added 2026-10-28)_: Every rail MUST use its own payment recovery tools, with these settings:
@@ -347,7 +347,7 @@ the paid plans are called "Pro" everywhere.)_
       cooks that declining earns a discount. The value moments are: a finished library import (`017-FR-016`), the
       first household meal plan shared with another member (`017-FR-030`), and the refusal of a 51st private recipe
       (`FR-043a`). `staff-ux-engineer` may narrow the list at DESIGN.
-    - **What.** One offer, on one plan and one billing period. The amount is open: [O-14](#o-14).
+    - **What.** One offer, on one plan and one billing period. The first year of Pro yearly at $59.99, then $99.99 a year ([O-14](#o-14)).
     - **Honest.** It states the discounted price, the period it covers, the price after it, that it renews, and how
       to cancel (`FR-042b`). It has an equal "Not now". There is no countdown, no timer and no "today only"
       (`FR-042d`). Once shown, it stays open on the subscription page for 30 days, with that end date as a plain date.
@@ -760,12 +760,13 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 > - The optional household upgrade, Pro Household, gives every member full Pro (`017-FR-034l`).
 > - Two Free cooks can form a household (`017-FR-034k`).
 
-| Plan          | Status              | Price                                          | Private recipes                                   | AI credits                                                                              | Also                                                                                                                    |
-| ------------- | ------------------- | ---------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Free          | Recorded 2026-10-27 | None                                           | Up to 50 (ADR-0073). Earned slots add to it (015) | 3 single-call uses a month, the first credit level. Reviewed at 90 days (`005-FR-015d`) | Everything in `FR-040`                                                                                                  |
-| Pro           | Recorded 2026-10-26 | $9.99 a month or $99.99 a year. 14-day trial   | No limit                                          | 30 uses a month, the middle credit level. Resets on the billing date                    | The Pro rows below, AI meal plans included                                                                              |
-| Pro with AI   | Recorded 2026-10-26 | $19.99 a month or $199.99 a year. 14-day trial | No limit                                          | 300 uses a month, the second credit level. 100 in the trial. Resets on the billing date | Everything in Pro, and AI waste optimization                                                                            |
-| Pro Household | Recorded 2026-10-28 | $14.99 a month or $149.99 a year. 14-day trial | No limit, for every member                        | 30 uses a month for each member, Pro's level. Each resets on the payer's billing date   | Full Pro for every member, up to 6 accounts (`017-FR-034l`). A household version of Pro with AI is open ([O-13](#o-13)) |
+| Plan                  | Status              | Price                                          | Private recipes                                   | AI credits                                                                              | Also                                                                                                                 |
+| --------------------- | ------------------- | ---------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Free                  | Recorded 2026-10-27 | None                                           | Up to 50 (ADR-0073). Earned slots add to it (015) | 3 single-call uses a month, the first credit level. Reviewed at 90 days (`005-FR-015d`) | Everything in `FR-040`                                                                                               |
+| Pro                   | Recorded 2026-10-26 | $9.99 a month or $99.99 a year. 14-day trial   | No limit                                          | 30 uses a month, the middle credit level. Resets on the billing date                    | The Pro rows below, AI meal plans included                                                                           |
+| Pro with AI           | Recorded 2026-10-26 | $19.99 a month or $199.99 a year. 14-day trial | No limit                                          | 300 uses a month, the second credit level. 100 in the trial. Resets on the billing date | Everything in Pro, and AI waste optimization                                                                         |
+| Pro Household         | Recorded 2026-10-28 | $14.99 a month or $149.99 a year. 14-day trial | No limit, for every member                        | 30 uses a month for each member, Pro's level. Each resets on the payer's billing date   | Full Pro for every member, up to 6 accounts (`017-FR-034l`). Pro with AI Household is the AI version ([O-13](#o-13)) |
+| Pro with AI Household | Recorded 2026-10-29 | $29.99 a month or $299.99 a year. 14-day trial | No limit, for every member                        | 300 uses a month, one pool for the whole household. Resets on the payer's billing date  | Full Pro with AI for every member, up to 6 accounts (`017-FR-034n`)                                                  |
 
 | Feature                                                    | FR                           | Plan that includes it                                                                                                                                     |
 | ---------------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -795,7 +796,7 @@ are Free, Pro and Pro with AI (owner, 2026-10-27). "Premium" is the retired name
 ## Owner inputs still needed
 
 Other specs link to this section and its anchors. Most items are now answered. The answers are the rulings of
-2026-10-27 and 2026-10-28. The numbers are kept so existing links work. O-13 and O-14, added 2026-10-28, are open.
+2026-10-27 and 2026-10-28. The numbers are kept so existing links work. O-13 and O-14, added 2026-10-28, were resolved on 2026-10-29.
 
 - <a id="o-2"></a>**O-2. The two levels of AI credits. Answered 2026-10-27.** Free gets 3 single-call uses a month.
   Pro gets 30 uses a month (owner, 2026-10-27, see `005-FR-015a`). Pro with AI gets 300 uses a month. The Pro with AI trial gets 100 uses. The design boards' "50 uses" was a
@@ -822,18 +823,15 @@ Other specs link to this section and its anchors. Most items are now answered. T
   `FR-041h`.
 - <a id="o-12"></a>**O-12. Free households. Answered 2026-10-28: yes.** Two Free cooks can share plans, lists,
   aisle categories and the pantry as a household. A paying member adds the shared Pro features. See `017-FR-034k`.
-- <a id="o-13"></a>**O-13. A household version of Pro with AI. Open, added 2026-10-28.** [NEEDS CLARIFICATION: does
-  Pro with AI get a household upgrade, as Pro does? Recommended: not at launch. Today a Pro with AI payer already
-  shares Pro with AI's shared features and 300 uses for household actions (`017-FR-034a`, `017-FR-034c`). A household
-  upgrade that gave each of 6 members 300 uses could cost up to about $62.10 a month (6 × 300 × $0.0345), against
-  about $29.99 at Pro Household's 50% rule. One shared 300-use allowance costs at most about $10.35, but that is
-  today's model, not an upgrade. A household that wants personal AI for everyone can take Pro Household, and any
-  member can add their own Pro with AI. Revisit at the 90-day credit review (`005-FR-015d`), with real use data.]
-- <a id="o-14"></a>**O-14. The one-time discount's amount. Open, added 2026-10-28.** [NEEDS CLARIFICATION: what is
-  the one discount offered to a cook who declined the trial (`FR-041l`)? Recommended: the first year of Pro yearly at
-  $59.99, then $99.99 a year. $59.99 is Samsung Food+'s yearly price, the anchor the Pro match ruling already uses.
-  The yearly period fits because yearly plans keep 28% of payers at 12 months against 8% for monthly (RevenueCat
-  2026). Prices are owner rulings, so this needs one.]
+- <a id="o-13"></a>**O-13. A household version of Pro with AI. RESOLVED 2026-10-29.** The owner chose "Yes, with one
+  shared pool". Pro with AI Household gives every member full Pro with AI, up to 6 accounts, with one 300-use
+  allowance for the whole household (`017-FR-034n`). Its price follows Pro Household's 50% rule: $29.99 a month or
+  $299.99 a year. The owner chose the plan, and the price is that rule applied. Cost check: one 300-use pool costs
+  at most about $10.35 a month (300 × $0.0345). Revisit at the 90-day credit review (`005-FR-015d`), with real use
+  data.
+- <a id="o-14"></a>**O-14. The one-time discount's amount. RESOLVED 2026-10-29.** The owner chose "$59.99 first
+  year": the first year of Pro yearly at $59.99, then $99.99 a year (`FR-041l`). $59.99 is Samsung Food+'s yearly
+  price. Yearly plans keep 28% of payers at 12 months against 8% for monthly (RevenueCat 2026).
 
 ## Success Criteria _(mandatory)_
 

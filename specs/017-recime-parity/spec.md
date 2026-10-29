@@ -758,6 +758,15 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
     - Being covered by the upgrade is not a member's trial. A member keeps their own one trial (`010-FR-041h`).
     - It is its own subscription product on every rail. The payer buys, changes and cancels it on the platform where
       they bought it (ADR-0075 §5). Moving between Pro and the upgrade follows `010-FR-041i`.
+- **FR-034n** `→ 010 ADDED` _(added 2026-10-29, owner ruling: "Yes, with one shared pool")_: **Pro with AI
+  Household** MUST give every active member full Pro with AI, the payer included, up to FR-034f's member limit.
+  Its price lives in 010's [plan register](../010-subscriptions/spec.md#plan-register): $29.99 a month or $299.99 a
+  year, Pro Household's 50% rule applied to Pro with AI.
+    - The household has ONE allowance of 300 uses a month, not 300 per member. Every member draws on it, and it
+      resets on the payer's billing date. Each member's own keys take over after it runs out (`005-FR-015b`).
+    - Cost check: one 300-use pool costs at most about $10.35 a month (300 × $0.0345, FR-034c's use price).
+    - Every other rule of FR-034l applies: one price for the household, its own subscription product on every rail,
+      and no member's trial is used by being covered.
     - Whether Pro with AI gets a household version is open, in 010's [O-13](../010-subscriptions/spec.md#o-13).
 
     Every surface it adds goes through `staff-ux-engineer` DESIGN and SPECIFY at plan time: the plan card, the

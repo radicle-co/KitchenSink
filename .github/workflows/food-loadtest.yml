@@ -50,13 +50,13 @@ on:
             # deriving it AS max_vus satisfies that by construction and removes a real footgun (a dispatch
             # with pool_size < max_vus would have reused users across VUs and skewed the run).
             #
-            # ⛔ AT MOST 20, and the default is 20 (owner ruling 2026-09-13). The pool is the FIXED Clerk test pool,
-            # leased and never minted, and its roster declares 20 k6 VU slots; `provisionPool.ts` refuses more
+            # ⛔ AT MOST 10, and the default is 10 (owner ruling 2026-09-13; cut from 20 on 2026-10-29 to free Clerk dev seats). The pool is the FIXED Clerk test pool,
+            # leased and never minted, and its roster declares 10 k6 VU slots; `provisionPool.ts` refuses more
             # rather than creating users. A larger pool is a roster change plus a `poolAdmin --apply`.
             max_vus:
-                description: 'Max VUs (also the distinct-user pool size, at most 20) — must cover ramp_rate x max-iteration-duration'
+                description: 'Max VUs (also the distinct-user pool size, at most 10) — must cover ramp_rate x max-iteration-duration'
                 required: true
-                default: '20'
+                default: '10'
             poll_timeout_s:
                 description: 'Max seconds to poll an add to a terminal state'
                 required: true
@@ -157,7 +157,7 @@ jobs:
                   FOOD_BASE_URL: ${{ steps.origin.outputs.url }}
                   # One distinct user per VU — see the max_vus input note (pool_size was folded in to stay
                   # inside GitHub's 10-input workflow_dispatch limit). This is exactly the harness's own
-                  # default: run.mjs resolves `POOL_SIZE ?? MAX_VUS ?? 20`, bounded by the fixed pool.
+                  # default: run.mjs resolves `POOL_SIZE ?? MAX_VUS ?? 10`, bounded by the fixed pool.
                   POOL_SIZE: ${{ inputs.max_vus }}
                   MAX_VUS: ${{ inputs.max_vus }}
                   BASELINE_RATE: ${{ inputs.baseline_rate }}

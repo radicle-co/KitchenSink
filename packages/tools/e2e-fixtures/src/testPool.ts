@@ -175,7 +175,8 @@ const numbered = (prefix: string, count: number, overrides: Partial<Omit<PoolLan
     Array.from({ length: count }, (_, index) => lane(`${prefix}${pad(index + 1)}`, overrides));
 
 /**
- * The k6 VU lanes. Their ids are the addresses the sandbox pool users ALREADY hold
+ * The k6 VU lanes (TEN: kilo to tango were removed 2026-10-29, owner-approved, because they had never signed in and
+ * the Clerk development instance caps at 100 users; the deployed k6 job runs 10 VUs). Their ids are the addresses the sandbox pool users ALREADY hold
  * (`test-alfa+clerk_test@radcile.com`), so moving the roster here re-provisions nobody.
  */
 const K6_VU_IDS = [
@@ -189,16 +190,6 @@ const K6_VU_IDS = [
     'hotel',
     'india',
     'juliett',
-    'kilo',
-    'lima',
-    'mike',
-    'november',
-    'oscar',
-    'papa',
-    'quebec',
-    'romeo',
-    'sierra',
-    'tango',
 ] as const;
 
 /** {@link K6_VU_IDS} as a set: what makes a k6 lane a VU is its id, never the grants it happens to carry. */

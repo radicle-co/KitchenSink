@@ -29,8 +29,8 @@ export interface BoundaryMessages {
 export const boundaryMessages: LocalizedMessages<BoundaryMessages> = {
     en: {
         errorTitle: 'Something went wrong.',
-        errorBody: 'We couldn’t load this. Try again.',
-        errorBodyHome: 'We couldn’t load Home. Try again.',
+        errorBody: 'We couldn’t load this.',
+        errorBodyHome: 'We couldn’t load Home.',
         retry: 'Try again',
         backToHome: 'Back to Home',
     },

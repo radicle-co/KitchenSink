@@ -2,13 +2,13 @@
 
 /**
  * @module @commise/features-account/profile/ProfileHeader — the Profile page's identity block (web): a 72 px avatar
- * disc and the display name (`buildSpec.md` §9.1, §3.8). The read-only username and email are NOT here: they show once,
- * in the Account group (`ProfileAccountGroup`), because a fact the page does not let you edit is shown one time (owner
- * ruling S2, 2026-10-27, which replaces the 2026-10-16 ruling that read them in the header).
+ * disc and the display name. A cook with no display name sees their @username there instead (owner ruling T8,
+ * 2026-10-29); with neither, only the avatar. The email is NOT here: the read-only username and email show in the
+ * Account group (`ProfileAccountGroup`), and the header repeats the username only when there is no name to show (owner
+ * ruling S2, 2026-10-27).
  *
  * Three states, never a blocked page: loading is a skeleton (the groups under it still render), ready is the avatar and
- * the name, and failed shows the `user` glyph and says so with a Try again control. A cook with no name yet sees only the
- * avatar: the page never invents one.
+ * the name, and failed shows the `user` glyph and says so with a Try again control. The page never invents a name.
  *
  * @pattern Visitor — an exhaustive switch over the profile read's three states
  */
@@ -18,6 +18,7 @@ import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 
 import { profileMessages } from './messages.js';
+import { profileHeaderTitleOf } from './model.js';
 import type { ProfileHeaderProps } from './props.js';
 
 /** The 72 px disc. Initials sit on `action` (4.67:1 with the white label); the glyph on the quiet fill. */
@@ -51,7 +52,10 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry 
                     </div>
                 </div>
             );
-        case 'ready':
+
+        case 'ready': {
+            const title = profileHeaderTitleOf(read, t.usernameValue);
+
             return (
                 <div className="flex items-center gap-4">
                     <span
@@ -61,11 +65,12 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry 
                         {initials === '' ? <Icon name="user" size={24} /> : initials}
                     </span>
                     <div className="flex min-w-0 flex-col">
-                        {read.displayName === '' ? null : (
-                            <p className="text-section-title text-ink [overflow-wrap:anywhere]">{read.displayName}</p>
+                        {title === '' ? null : (
+                            <p className="text-section-title text-ink [overflow-wrap:anywhere]">{title}</p>
                         )}
                     </div>
                 </div>
             );
+        }
     }
 };

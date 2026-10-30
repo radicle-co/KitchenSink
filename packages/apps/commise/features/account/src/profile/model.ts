@@ -144,6 +144,27 @@ export type ProfileRead =
           readonly username: string | null;
       };
 
+/**
+ * The line beside the avatar: the display name, else the @username, else nothing (owner ruling T8, 2026-10-29). The
+ * username shows here only when there is no name to show, so a cook with a name sees each fact once (ruling S2).
+ *
+ * @param read - The ready profile read.
+ * @param usernameTemplate - The localized username line (`profileMessages.usernameValue`).
+ * @returns The text to draw, or an empty string when the cook has neither (the header is the avatar alone). Pure.
+ */
+export function profileHeaderTitleOf(
+    read: Extract<ProfileRead, { readonly status: 'ready' }>,
+    usernameTemplate: string,
+): string {
+    const username = nonBlank(read.username);
+
+    if (read.displayName !== '') {
+        return read.displayName;
+    }
+
+    return username === undefined ? '' : formatUsername(usernameTemplate, username);
+}
+
 /** The slice of a profile query this reads. */
 export interface ProfileQueryState {
     readonly isError: boolean;

@@ -13,6 +13,7 @@ import {
     canSaveDisplayName,
     displayNameDraftOf,
     formatNameCounter,
+    profileHeaderTitleOf,
     givenNameOf,
     nameCounterOf,
     profileReadOf,
@@ -192,5 +193,26 @@ describe('nameCounterOf (W-26)', () => {
 describe('formatNameCounter (W-26)', () => {
     it('fills the template’s {count} and {max}', () => {
         expect(formatNameCounter('{count}/{max}', { count: 85, max: 100, atLimit: false })).toBe('85/100');
+    });
+});
+
+describe('profileHeaderTitleOf (T8)', () => {
+    const ready = (displayName: string, username: string | null) =>
+        ({ status: 'ready', displayName, email: 'a@b.co', username }) as const;
+
+    it('is the display name when there is one, even if the cook has a username', () => {
+        expect(profileHeaderTitleOf(ready('Eliza Moreno', 'braise'), '@{username}')).toBe('Eliza Moreno');
+    });
+
+    it('falls back to the @username when the cook has no display name', () => {
+        expect(profileHeaderTitleOf(ready('', 'braise'), '@{username}')).toBe('@braise');
+    });
+
+    it('is empty when the cook has neither, so the header is the avatar alone', () => {
+        expect(profileHeaderTitleOf(ready('', null), '@{username}')).toBe('');
+    });
+
+    it('treats a blank username as none', () => {
+        expect(profileHeaderTitleOf(ready('', '  '), '@{username}')).toBe('');
     });
 });

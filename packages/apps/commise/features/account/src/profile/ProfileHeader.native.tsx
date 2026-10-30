@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar,
- * and the display name (`buildSpec.md` §9.1, §3.8). The read-only username and email show once, in the Account group,
- * not here (owner ruling S2, 2026-10-27). The cook's photo control (`AvatarField`) stays an
+ * and the display name, or the @username when the cook has no name (owner ruling T8, 2026-10-29). The email shows only in
+ * the Account group (owner ruling S2, 2026-10-27). The cook's photo control (`AvatarField`) stays an
  * app-level native control; the host passes it as `avatar` and it replaces the initials disc, so there is one avatar.
  *
  * Three states, never a blocked page: loading is a skeleton, ready is the avatar and the name, failed shows the `user`
@@ -18,6 +18,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { profileMessages } from './messages.js';
+import { profileHeaderTitleOf } from './model.js';
 import type { ProfileHeaderProps } from './props.js';
 
 /** The identity block. */
@@ -49,7 +50,10 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                     </View>
                 </View>
             );
-        case 'ready':
+
+        case 'ready': {
+            const title = profileHeaderTitleOf(read, t.usernameValue);
+
             return (
                 <View style={styles.row}>
                     {avatar ?? (
@@ -68,12 +72,11 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                         </View>
                     )}
                     <View style={styles.text}>
-                        {read.displayName === '' ? null : (
-                            <Text style={[styles.name, { color: colors.ink }]}>{read.displayName}</Text>
-                        )}
+                        {title === '' ? null : <Text style={[styles.name, { color: colors.ink }]}>{title}</Text>}
                     </View>
                 </View>
             );
+        }
     }
 };
 

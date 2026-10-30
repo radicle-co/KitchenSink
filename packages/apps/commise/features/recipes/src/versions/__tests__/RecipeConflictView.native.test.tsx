@@ -272,6 +272,20 @@ describe('RecipeConflictView (native) — two-column per-side summary cards (wir
 });
 
 describe('RecipeConflictView (native) — A/B/C option cards (X2)', () => {
+    it('leads with Compare, then Keep mine, then Use theirs (owner ruling T5, 2026-10-29)', () => {
+        freezeClock();
+        renderConflict();
+
+        const options = ['Compare', 'Keep mine', 'Use theirs'];
+        const order = screen
+            .getAllByRole('button')
+            .map((button) => button.textContent ?? '')
+            .map((text) => options.find((name) => text.includes(name)))
+            .filter((name): name is string => name !== undefined);
+
+        expect(order).toEqual(options);
+    });
+
     it('renders all three option cards with a title and description', () => {
         freezeClock();
         renderConflict();
@@ -1185,6 +1199,15 @@ describe('RecipeConflictView (native) — the design-system Button (UI overhaul 
 
 /** The native leaf's half of the web case above: same copy, same lifted gate. */
 describe('RecipeConflictView (native) — a never-published draft', () => {
+    it('uses the same side words as every conflict, never "theirs" for the other save (owner ruling T6)', () => {
+        freezeClock();
+        renderConflict({ base: undefined, versionsBehind: 6, neverPublished: true });
+
+        expect(screen.getByText('Saved elsewhere')).toBeTruthy();
+        expect(screen.getByText('Your changes')).toBeTruthy();
+        expect(screen.queryByText(/theirs/i, { selector: 'h1, h2, h3, p' })).toBeNull();
+    });
+
     it('speaks of a draft saved elsewhere, with no version numbers and no stale-base gate', () => {
         freezeClock();
         renderConflict({ base: undefined, versionsBehind: 6, neverPublished: true });

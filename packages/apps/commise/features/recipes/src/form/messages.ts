@@ -709,7 +709,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         pasteProgressQueued: 'Waiting to read line {line}',
         pasteProgressLookingUp: 'Looking up line {line}',
         pasteRetryAllLabel: { one: 'Try again for {count} line', other: 'Try again for {count} lines' },
-        pasteRetryFailed: 'Couldn’t try again. Check your connection and try again, or add the lines as written.',
+        pasteRetryFailed: 'Couldn’t try again. Check your connection, or add the lines as written.',
         pasteAddRestAsWritten: 'Add the rest as written',
         pasteAddRestAsWrittenLabel: {
             one: 'Add the rest as written: {count} line',
@@ -829,7 +829,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         nutritionUserStatedNote: 'These are the figures you entered for this line.',
         nutritionNoFiguresResolved: 'This food is matched, but no nutrition figures are published for it.',
         nutritionLoading: 'Loading nutrition…',
-        nutritionLoadFailed: 'We couldn’t load the nutrition just now. Try again.',
+        nutritionLoadFailed: 'We couldn’t load the nutrition just now.',
         statusActionRetry: 'Try again',
         statusActionRetryLookupLabel: 'Try again for {food}',
         statusLookupRetrying: 'Looking this up again…',
@@ -849,8 +849,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         statusExplainNeedsReview:
             'This is matched to a food, but what you wrote and what we matched don’t quite agree.',
         statusExplainNotFound: 'We searched the food database and there’s no match for this.',
-        statusExplainFailed:
-            'We couldn’t reach the food database. Nothing is wrong with your ingredient — try again in a moment.',
+        statusExplainFailed: 'We couldn’t reach the food database. Nothing is wrong with your ingredient.',
         statusExplainFoodRemoved: 'Whoever added this food has since removed it. Your amount and name are unchanged.',
         statusExplainFoodUnreachable:
             'We couldn’t load this ingredient’s name and nutrition just now. It’s still linked to its food, and saving keeps that link.',

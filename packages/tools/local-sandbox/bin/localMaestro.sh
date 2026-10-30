@@ -106,9 +106,16 @@ local_maestro_state_dir() {
 local_maestro_flows() {
     case "${1-}" in
         all)
-            local verdict
+            local verdict local_verdict
             verdict="$(maestro_select_flows "$FLOW_PLAN")" || return 1
-            printf '%s\n' "$verdict" | sed -n 's/^flow=//p'
+            # ⛔ Flows that need the DEPLOYED sandbox are left out and NAMED, never run to fail and never counted as passed
+            # (`MAESTRO_SANDBOX_ONLY_FLOWS`). Only this local selection reads that table; the deployed run does not.
+            # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
+            local_verdict="$(maestro_local_flows $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p'))" || return 1
+            # stderr: this runs in a command substitution whose stdout is the flow list.
+            # shellcheck disable=SC2046
+            maestro_local_summary $(printf '%s\n' "$local_verdict" | sed -n 's/^needs-sandbox=\([^|]*\)|.*/\1/p') >&2
+            printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p'
             ;;
         flows)
             shift
@@ -493,6 +500,11 @@ local_maestro_seed_env() {
     export E2E_SEED_WEB_ORIGIN="$LOCAL_MAESTRO_WEB_ORIGIN"
     export E2E_SEED_STATE_DIR="$state"
     export COMMISE_E2E_SHARD=1
+    # The five read-only role users are CI's own, signed into and never written (the Clerk development instance is full); only
+    # the downgraded owner is local. See `E2E_ROLE_USERS_NAMESPACE` in testPool.ts.
+    if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
+        export E2E_ROLE_USERS_NAMESPACE=shared
+    fi
     # The Android emulator, stated rather than left to the seed tools' default (iOS has pool lanes of its own).
     export MAESTRO_PLATFORM=android
     export MAESTRO_FIXTURE_ENV_FILE="${state}/e2e-seed/fixture.env"
@@ -502,8 +514,22 @@ local_maestro_seed_env() {
 # RECYCLED (deleted and made again) because the local stack runs no identity deletion worker, so an erased one would
 # otherwise still stand in Clerk. `external_id` is written here too, since the sandbox webhook that writes it for the
 # shared pool is down when the sandbox is. Only Clerk is touched, and only users named `test-local-*`.
+#
+# ⛔ `LOCAL_MAESTRO_REUSE_USERS=1` SKIPS the step. `--recycle` DELETES the erasure subject in Clerk and makes it again, and a
+# run that must neither create nor delete a Clerk user (the development instance is full) reuses the ones standing.
+# `LOCAL_MAESTRO_ROLE_USERS=1` serves the role users `recipes/paidFeaturesByRole` and `recipes/makePublicConfirm` sign in as:
+# the five read-only ones REUSE CI's shared users (nothing created), and only the downgraded owner is made locally, by
+# `poolAdmin --local-roles`, which refuses before its first write when the instance has no room. OFF by default.
 local_maestro_provision_lane_users() {
-    npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1
+    if [ "${LOCAL_MAESTRO_REUSE_USERS:-}" = '1' ]; then
+        echo 'local:maestro: LOCAL_MAESTRO_REUSE_USERS=1 - reusing the standing Clerk users, creating and deleting none' >&2
+    else
+        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 || return 1
+    fi
+
+    if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
+        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles || return 1
+    fi
 }
 
 local_maestro_reset_pool() {
@@ -570,6 +596,14 @@ local_maestro_main() {
         local_maestro_fail 'the local identity database could not be aligned with the Clerk external_ids'
         return 1
     }
+    if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
+        # The downgraded owner owns a private recipe and collection yet holds no entitled role; this builds that world
+        # against the LOCAL recipe service and leaves the owner settled.
+        npm run ensure-downgraded --workspace=packages/tools/e2e-seed >&2 || {
+            local_maestro_fail 'the downgraded owner world could not be built'
+            return 1
+        }
+    fi
     mkdir -p -- "${state}/e2e-seed"
     if ! npx tsx packages/tools/e2e-seed/src/provision.ts >"$MAESTRO_FIXTURE_ENV_FILE"; then
         local_maestro_fail 'e2e-seed provision failed — the local services did not accept the seeded world'
@@ -587,6 +621,11 @@ local_maestro_main() {
         echo "local:maestro: PASSED — $(printf '%s ' $flows)" >&2
     else
         echo "local:maestro: FAILED — see the FLOW FAILED lines above" >&2
+    fi
+    # Repeated in the summary: a green local run must not read as covering what it could not run.
+    if [ "$command" = 'all' ]; then
+        # shellcheck disable=SC2046
+        maestro_local_summary $(maestro_sandbox_only_flows | cut -d'|' -f1) >&2
     fi
     return "$rc"
 }

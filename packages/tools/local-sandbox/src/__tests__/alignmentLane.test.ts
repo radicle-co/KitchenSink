@@ -78,6 +78,7 @@ describe('a lane, through the alignment itself', () => {
                 return Promise.resolve([]);
             },
             rowsFor: () => Promise.reject(new Error('unreachable')),
+            syncUsername: () => Promise.reject(new Error('unreachable')),
             removeRow: () => Promise.reject(new Error('unreachable')),
             provision: () => Promise.reject(new Error('unreachable')),
         });
@@ -123,6 +124,7 @@ describe('a recycled pool user, whose address an older local row still holds', (
             findUsers: () => Promise.resolve([user as never]),
             rowsFor: () => Promise.resolve([]),
             removeRow: () => Promise.resolve(),
+            syncUsername: () => Promise.resolve(),
             ...(withPort
                 ? {
                       removeStaleRowsForEmail: (email: string, keep: string) => {
@@ -153,5 +155,32 @@ describe('a recycled pool user, whose address an older local row still holds', (
 
     it('does nothing of the kind when the port is not given (the shared pool)', async () => {
         expect(await run(false)).toEqual(['provision']);
+    });
+});
+
+describe('the local role users', () => {
+    /**
+     * `paidFeaturesByRole` and `makePublicConfirm` sign in as the `roles` tier, whose Clerk users exist locally only when
+     * the owner has room for them (`poolAdmin --local-roles`, opt-in). They are aligned only when the run asked for
+     * them, so a lane without them neither looks up six more users nor changes the slots it always aligned.
+     */
+    it('are not aligned unless the lane asks for them', () => {
+        expect(laneFromEnv({})).toEqual({ platform: 'android', shard: 1 });
+        expect(ids('android', 1)).not.toContain('roledefault');
+    });
+
+    it('are asked for by LOCAL_MAESTRO_ROLE_USERS=1, exactly', () => {
+        expect(laneFromEnv({ LOCAL_MAESTRO_ROLE_USERS: '1' })).toEqual({ platform: 'android', shard: 1, roles: true });
+        expect(laneFromEnv({ LOCAL_MAESTRO_ROLE_USERS: '0' }).roles).toBeUndefined();
+        expect(laneFromEnv({ LOCAL_MAESTRO_ROLE_USERS: '' }).roles).toBeUndefined();
+    });
+
+    it('add the whole roles tier after the lane slots', () => {
+        const slots = alignmentSlots({ platform: 'android', shard: 2, roles: true }).map((slot) => slot.id);
+
+        expect(slots.slice(0, 2)).toEqual(['signer02', 'coauthor02']);
+        expect(slots).toEqual(
+            expect.arrayContaining(['roledefault', 'roleadmin', 'rolepremium', 'rolesuperuser', 'rolevip']),
+        );
     });
 });

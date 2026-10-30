@@ -11,6 +11,7 @@ import {
     MAESTRO_PLATFORMS,
     maestroErasureSlots,
     maestroSlotForShard,
+    rosterSlots,
     type MaestroPlatform,
     type PoolSlot,
 } from '@kitchensink/e2e-fixtures/testPool';
@@ -19,6 +20,11 @@ import {
 export interface AlignmentLane {
     readonly platform: MaestroPlatform;
     readonly shard: number;
+    /**
+     * Also align the `roles` tier (`test-local-roledefault` and its siblings). Present only when the run asked, because
+     * those Clerk users exist only after the owner has room to make them (`poolAdmin --local-roles`).
+     */
+    readonly roles?: true;
 }
 
 /**
@@ -27,6 +33,8 @@ export interface AlignmentLane {
  * Absent (or empty) is Android shard 1, the lane `local:maestro` has always been.
  *
  * @param env - The process environment.
+ * `LOCAL_MAESTRO_ROLE_USERS=1` adds the roles tier.
+ *
  * @returns The lane.
  * @throws When the platform is not one the roster declares, or the shard is not a positive integer.
  */
@@ -48,7 +56,11 @@ export function laneFromEnv(env: Readonly<Record<string, string | undefined>>): 
         throw new Error(`alignIdentities: COMMISE_E2E_SHARD must be a positive integer, got '${String(rawShard)}'`);
     }
 
-    return { platform: platform as MaestroPlatform, shard };
+    return {
+        platform: platform as MaestroPlatform,
+        shard,
+        ...(env['LOCAL_MAESTRO_ROLE_USERS'] === '1' ? { roles: true as const } : {}),
+    };
 }
 
 /**
@@ -63,5 +75,6 @@ export function alignmentSlots(lane: AlignmentLane): readonly PoolSlot[] {
         maestroSlotForShard('signer', lane.platform, lane.shard),
         maestroSlotForShard('coauthor', lane.platform, lane.shard),
         ...maestroErasureSlots(lane.platform, lane.shard),
+        ...(lane.roles === true ? rosterSlots().filter((slot) => slot.tier === 'roles') : []),
     ];
 }

@@ -76,6 +76,7 @@ import {
     localPortFor,
     readManifests,
     countLiveFoods,
+    installMissingCdkDependencies,
     runCdkSynth,
     seedLocalCatalog,
     synthEnvFor,
@@ -157,6 +158,27 @@ async function main(): Promise<void> {
 
     for (const skip of partition.skipped) {
         process.stdout.write(`  · not synthesised: ${skip.packageName} — ${skip.reason}\n`);
+    }
+
+    // ⛔ CDK apps are not workspaces, so a fresh checkout or worktree has no `aws-cdk-lib` for them (see
+    // `src/infraInstall.ts`). Install what is missing BEFORE synthesising; a failed install is a refusal that
+    // names the directory, not a "Cannot find module" five lines into a synth.
+    const install = installMissingCdkDependencies(apps);
+
+    for (const dir of install.installed) {
+        process.stdout.write(`  · installed CDK dependencies: ${dir}\n`);
+    }
+
+    if (install.failed.length > 0) {
+        process.stderr.write('\nRefusing to start: CDK dependencies would not install.\n');
+
+        for (const failure of install.failed) {
+            process.stderr.write(`  ${failure.packageDir}\n${failure.stderr}\n`);
+        }
+
+        process.exitCode = 1;
+
+        return;
     }
 
     const outcomes = await synthesizeAll(apps, runCdkSynth, {

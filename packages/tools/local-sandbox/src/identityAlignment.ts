@@ -101,6 +101,14 @@ export interface AlignmentPorts {
      * address (unique among active rows) and the new user would be provisioned with a placeholder one.
      */
     readonly removeStaleRowsForEmail?: (email: string, keepIdentityId: string) => Promise<void>;
+    /**
+     * State the Clerk username on the local profile of `userId`; a no-op when it already holds it.
+     *
+     * ⛔ Locally NO webhook runs, and read-through creation never fills a username (identity learns it only from
+     * `user.created` / `user.updated`), so without this `profileUsername` finds no "@username" row. It is the effect of
+     * that webhook for the one field, stated from the Clerk user alignment already read.
+     */
+    readonly syncUsername: (userId: string, username: string) => Promise<void>;
     /** Provision the complete user under `externalId`; resolves to the id the row actually has. */
     readonly provision: (input: {
         readonly identityId: string;
@@ -123,7 +131,7 @@ export interface AlignmentOutcome {
  * @returns One outcome per slot.
  * @throws When a slot is not leasable for a reason other than absence, when the planner refuses, or when the
  *   provisioned row does not carry the `external_id`.
- * @sideEffect Reads Clerk; deletes and provisions local identity rows.
+ * @sideEffect Reads Clerk; deletes and provisions local identity rows, and states each user's Clerk username.
  */
 export async function alignPoolIdentities(
     slots: readonly PoolSlot[],
@@ -163,6 +171,12 @@ export async function alignPoolIdentities(
                         'and recipe-service would still disagree about who owns its recipes',
                 );
             }
+        }
+
+        // Every kind: an `aligned` row (never recycled) is the common case and provisioning alone would miss it. Absence
+        // in Clerk is not a clear - an unset username states nothing.
+        if (verdict.user.username !== undefined && verdict.user.username !== null && verdict.user.username !== '') {
+            await ports.syncUsername(target.externalId, verdict.user.username);
         }
 
         outcomes.push({ slot: slot.id, kind: plan.kind });

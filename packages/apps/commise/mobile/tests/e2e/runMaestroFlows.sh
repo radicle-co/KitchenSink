@@ -321,6 +321,74 @@ ios|shell/tabBar|coverage-gap|its Android Back leg presses Maestro's 'back' (And
 ios|recipes/privateFoodStandIn|coverage-gap|leaves the copy's untouched editor with Maestro's 'back' (Android only) to reach the copy's detail and its private-food banner; the stand-in and the copy banner are untested on iOS until the flow leaves the editor through a control both platforms render
 ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test"
 
+# ── THE FLOWS A LOCAL RUN CANNOT SERVE ─────────────────────────────────────────────────────────────────────
+#
+# `<flow>|<reason>`, one per line: flows that need the DEPLOYED sandbox. They depend on its shared food catalog and on the
+# ingredient-verification worker, neither of which `npm run local:up` can stand up, so against the local stack they cannot
+# pass. A skip is never a pass and a remote source is never faked in e2e, so the LOCAL selection (`maestro_local_flows`)
+# leaves them out and says so (`maestro_local_summary`), and ONLY the local selection does: the deployed composition
+# (`maestro_shard_selection`) never reads this table, which `maestroSandboxOnlyFlows.test.ts` asserts on both platforms.
+# ⛔ Never add a flow here to get a local run green. An entry is a statement that the local stack lacks something the flow
+# needs; the guard requires the reason to name what.
+MAESTRO_SANDBOX_ONLY_FLOWS="recipes/pasteList|needs the deployed sandbox's food catalog and the ingredient-verification worker; the local stack runs neither
+recipes/pasteListSettle|needs the deployed sandbox's food catalog and the ingredient-verification worker (the settled result); the local stack runs neither
+recipes/ingredientCandidates|needs the deployed sandbox's food catalog for its candidate lists; the local stack has no catalog to match against
+recipes/ambiguityReview|needs the deployed sandbox's food catalog and the ingredient-verification worker to raise a review; the local stack runs neither"
+
+# maestro_sandbox_only_flows
+#
+# The rows of MAESTRO_SANDBOX_ONLY_FLOWS as `<flow>|<reason>` lines. Pure.
+maestro_sandbox_only_flows() {
+    printf '%s\n' "$MAESTRO_SANDBOX_ONLY_FLOWS"
+}
+
+# maestro_local_flows <flow> …
+#
+# THE LOCAL FILTER, as a PURE function: one `flow=` line per flow a local run can serve and one `needs-sandbox=<flow>|<reason>`
+# line per flow it cannot, in the order given. Exit 2 with nothing on stdout for no flows, or when NOTHING is left to run:
+# answering "run nothing" is the green-over-no-work outcome this script refuses everywhere else.
+maestro_local_flows() {
+    if [ "$#" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: no flows to filter for a local run - refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    local flow row kept=0 out=''
+
+    for flow in "$@"; do
+        row=$(maestro_sandbox_only_flows | awk -F '|' -v f="$flow" '$1 == f { print; exit }')
+
+        if [ -n "$row" ]; then
+            out="${out}needs-sandbox=${row}"$'\n'
+        else
+            out="${out}flow=${flow}"$'\n'
+            kept=$((kept + 1))
+        fi
+    done
+
+    if [ "$kept" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: a local run can serve NONE of these flows - refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    printf '%s' "$out"
+}
+
+# maestro_local_summary <flow> …
+#
+# One `not run locally: needs sandbox - <flow> (<reason>)` line per flow named that needs the sandbox. Pure. A local run
+# prints these before it starts AND again in its summary, so a green local run cannot be read as covering them.
+maestro_local_summary() {
+    local flow row
+    for flow in "$@"; do
+        row=$(maestro_sandbox_only_flows | awk -F '|' -v f="$flow" '$1 == f { print; exit }')
+        [ -n "$row" ] || continue
+        printf 'not run locally: needs sandbox - %s (%s)\n' "${row%%|*}" "${row#*|}"
+    done
+}
+
 # Maestro's iOS XCUITest runner, as Maestro names it (`LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID`, read
 # at the pinned tag `cli-2.6.1`). Maestro reinstalls it at the start of every session unless it is told
 # `--no-reinstall-driver` (a `maestro test` option in 2.6.1: "on iOS, reinstalls xctestrunner driver"), and this
@@ -1154,6 +1222,63 @@ maestro_reduce_motion_ios() {
     fi
 }
 
+# maestro_disable_password_autofill_ios
+#
+# Switch password AutoFill off in the booted Simulator `MAESTRO_IOS_UDID`, so iOS never raises "Save Password?" over the
+# sign-in's code step. The sheet belongs to another process: Maestro's hierarchy holds only the status bar while it is up,
+# so no flow can tap "Not Now". This is the LOCAL twin of `_ci-heavy.yml`'s 'Switch password AutoFill off on the iOS
+# Simulator' step (the three profile files below are held equal to it by `maestroPasswordAutofill.test.ts`).
+#
+# ⛔ THE DEVICE IS SHUT DOWN FOR THE WRITE and booted again after it: a running Simulator has already read the
+# restriction, so a write under it changes the file and not the device (CI run 38433716728).
+# ⚠️ Every device-side call goes through `xcrun`, which a lane on another machine overrides to run over SSH, and the data
+# directory is asked of the booted device (`simctl getenv HOME`), never built from this shell's `$HOME`, which is the
+# wrong machine's home there. A file that is missing WARNS by name, as in CI; the run fails only when NO file reads back NO.
+#
+# @sideEffect Shuts the Simulator down, edits its profile files, and boots it again.
+maestro_disable_password_autofill_ios() {
+    if [ -z "${MAESTRO_IOS_UDID:-}" ]; then
+        echo '::error::maestro_disable_password_autofill_ios needs MAESTRO_IOS_UDID — the Simulator to set is never guessed'
+
+        return 1
+    fi
+
+    local data file held holding=0
+    xcrun simctl bootstatus "$MAESTRO_IOS_UDID" -b || return 1
+    data=$(xcrun simctl getenv "$MAESTRO_IOS_UDID" HOME | tr -d '\r')
+
+    if [ -z "$data" ]; then
+        echo "::error::the Simulator ${MAESTRO_IOS_UDID} did not report its data directory"
+
+        return 1
+    fi
+
+    xcrun simctl shutdown "$MAESTRO_IOS_UDID" || return 1
+
+    for file in \
+        Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles/Library/ConfigurationProfiles/UserSettings.plist \
+        Library/UserConfigurationProfiles/EffectiveUserSettings.plist \
+        Library/UserConfigurationProfiles/PublicInfo/PublicEffectiveUserSettings.plist; do
+        xcrun plutil -replace restrictedBool.allowPasswordAutoFill.value -bool NO "${data}/${file}" ||
+            echo "::warning::could not switch password AutoFill off in ${file}"
+        held=$(xcrun plutil -extract restrictedBool.allowPasswordAutoFill.value raw "${data}/${file}" 2>/dev/null | tr -d '\r')
+        echo "${file}: allowPasswordAutoFill=${held:-unreadable}"
+
+        if [ "$held" = 'false' ]; then
+            holding=$((holding + 1))
+        fi
+    done
+
+    xcrun simctl boot "$MAESTRO_IOS_UDID" || return 1
+    xcrun simctl bootstatus "$MAESTRO_IOS_UDID" -b || return 1
+
+    if [ "$holding" -eq 0 ]; then
+        echo '::error::no profile file holds password AutoFill off, so iOS may cover the sign-in with Save Password'
+
+        return 1
+    fi
+}
+
 # maestro_prepare_device <platform>
 #
 # Install the app and settle the device's input and motion settings, once per run.
@@ -1678,6 +1803,17 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             maestro_platform_flows "$@"
             ;;
+        sandbox-only)
+            maestro_sandbox_only_flows
+            ;;
+        local-flows)
+            shift
+            maestro_local_flows "$@"
+            ;;
+        local-summary)
+            shift
+            maestro_local_summary "$@"
+            ;;
         exclusions)
             shift
             maestro_platform_exclusions "$@"
@@ -1734,7 +1870,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

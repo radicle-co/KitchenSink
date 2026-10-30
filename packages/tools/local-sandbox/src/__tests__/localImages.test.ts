@@ -187,6 +187,18 @@ describe('localContainerEnv', () => {
         expect(env['AWS_REGION']).toBe('us-east-1');
     });
 
+    it('states the SQS endpoint the recipe service keys its fair-queue label on', () => {
+        // ⛔ Regression, found by the last full local Maestro run. recipe-service drops the SQS tenant label
+        // (`MessageGroupId`) only when its `SQS_ENDPOINT` is set (`fairQueuesSupported`, a CAPABILITY question
+        // asked of the one documented emulator knob). `local:up` stated only `AWS_ENDPOINT_URL`, which the SDK
+        // honours on its own, so the service sent the label to LocalStack, every batch was rejected, and every
+        // parse line failed ("Couldn't read this line"). The harness states the knob; the service is right.
+        const env = localContainerEnv([], base);
+
+        expect(env['SQS_ENDPOINT']).toBe('http://localstack:4566');
+        expect(env['SQS_ENDPOINT']).toBe(env['AWS_ENDPOINT_URL']);
+    });
+
     it('uses the service container port, so it matches what compose publishes', () => {
         expect(localContainerEnv([], base)['PORT']).toBe('3002');
     });

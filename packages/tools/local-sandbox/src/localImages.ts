@@ -183,6 +183,12 @@ const LOCAL_INFRA: Readonly<Record<string, string>> = Object.freeze({
     DB_PASSWORD: 'postgres',
     POSTGRES_HOST: 'postgres',
     AWS_ENDPOINT_URL: 'http://localstack:4566',
+    // ⛔ ALSO `SQS_ENDPOINT`, the one knob recipe-service asks "is this an emulator?" of (`fairQueuesSupported`):
+    // with it unset the service sends the SQS tenant label (`MessageGroupId`) in batch entries, LocalStack
+    // rejects every batch, and every parse line fails. `AWS_ENDPOINT_URL` alone does NOT answer it — the SDK
+    // honours that variable by itself, invisibly to the service. The harness states the service's own contract
+    // rather than the service learning to sniff ambient SDK variables. Same address as above, on purpose.
+    SQS_ENDPOINT: 'http://localstack:4566',
     AWS_REGION: 'us-east-1',
     AWS_DEFAULT_REGION: 'us-east-1',
     AWS_ACCESS_KEY_ID: 'test',

@@ -223,6 +223,10 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
         path: 'packages/tools/local-sandbox/bin/localMaestro.sh',
         command:
             'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1',
+        // AMENDED 2026-10-29: the second admitted spelling. `--local-roles` creates only the lanes a LOCAL run owns (the
+        // downgraded owner, once the five read-only role users are reused from the shared pool), refuses before its first
+        // write when the instance has no room, and `poolAdmin` itself refuses it outside the local namespace.
+        rolesCommand: 'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles',
         namespace: 'export E2E_POOL_NAMESPACE=local',
     } as const;
 
@@ -292,9 +296,10 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
                 const writerLines = source.split('\n').filter((line) => INVOKES_WRITER.test(line));
 
                 expect(
-                    writerLines.map((line) => line.trim()),
+                    // The `|| return 1` is the script's failure handling, not part of the spelling being admitted.
+                    writerLines.map((line) => line.trim().replace(/ \|\| return 1$/u, '')),
                     invocation.where,
-                ).toStrictEqual([LOCAL_LANE_SCRIPT.command]);
+                ).toStrictEqual([LOCAL_LANE_SCRIPT.command, LOCAL_LANE_SCRIPT.rolesCommand]);
                 expect(source, `${invocation.where} must select the local pool namespace`).toContain(
                     LOCAL_LANE_SCRIPT.namespace,
                 );

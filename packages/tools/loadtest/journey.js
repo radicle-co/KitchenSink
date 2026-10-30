@@ -61,8 +61,8 @@ const RAMP_RATE = Number(__ENV.RAMP_RATE || 3);
 const RAMP_DURATION = __ENV.RAMP_DURATION || '1m';
 // maxVUs must cover peakRate x maxIterationDuration or k6 drops iterations (invariant #4). Sized for
 // RAMP_RATE=3/s x ~(POLL_TIMEOUT_S + 2*THINK_MAX) ~= 24s ~= 72, rounded up. POOL_SIZE must be >= MAX_VUS.
-const PRE_ALLOCATED_VUS = Number(__ENV.PRE_ALLOCATED_VUS || 30);
-const MAX_VUS = Number(__ENV.MAX_VUS || 100);
+const PRE_ALLOCATED_VUS = Number(__ENV.PRE_ALLOCATED_VUS || 10);
+const MAX_VUS = Number(__ENV.MAX_VUS || 10);
 
 // k6's arrival-rate `rate`/`target` are int64 — a fractional req/s (e.g. 0.3, handy for a small pool)
 // is rejected. Pick the smallest timeUnit (seconds) that turns every configured rate into a whole count,

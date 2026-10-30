@@ -36,7 +36,7 @@ const read = (file: string): string => readFileSync(join(REPO_ROOT, file), 'utf8
 describe('the k6 pool roster', () => {
     it('⛔ is entirely test-pool members, or establishSession refuses to sign in', () => {
         // Fed to the shipped gate, not a copy of its rule.
-        for (const slot of [...k6VuSlots(20), slotFor('k6', 'admin')]) {
+        for (const slot of [...k6VuSlots(10), slotFor('k6', 'admin')]) {
             expect(() => assertPoolMember(slot.email)).not.toThrow();
         }
     });

@@ -154,16 +154,35 @@ describe('k6VuSlots', () => {
         const slots = k6VuSlots(3);
 
         expect(slots.map((slot) => slot.id)).toEqual(['alfa', 'bravo', 'charlie']);
-        expect(k6VuSlots(20).some((slot) => slot.id === 'admin')).toBe(false);
+        expect(k6VuSlots(10).some((slot) => slot.id === 'admin')).toBe(false);
     });
 
     it('selects through k6VuLanes, so every VU the roster declares is a slot and nothing else is', () => {
-        expect(k6VuSlots(20).map((slot) => slot.id)).toEqual(k6VuLanes(POOL_ROSTER.k6).map((declared) => declared.id));
-        expect(k6VuLanes(POOL_ROSTER.k6)).toHaveLength(20);
+        expect(k6VuSlots(10).map((slot) => slot.id)).toEqual(k6VuLanes(POOL_ROSTER.k6).map((declared) => declared.id));
+        expect(k6VuLanes(POOL_ROSTER.k6)).toHaveLength(10);
+    });
+
+    it('declares no lane past juliett: kilo to tango never signed in and were deleted to free Clerk dev seats (2026-10-29)', () => {
+        const ids = POOL_ROSTER.k6.map((declared) => declared.id);
+
+        for (const removed of [
+            'kilo',
+            'lima',
+            'mike',
+            'november',
+            'oscar',
+            'papa',
+            'quebec',
+            'romeo',
+            'sierra',
+            'tango',
+        ]) {
+            expect(ids).not.toContain(removed);
+        }
     });
 
     it('refuses more VUs than the pool declares, and a non-positive count', () => {
-        expect(() => k6VuSlots(21)).toThrow(/declares only 20/u);
+        expect(() => k6VuSlots(11)).toThrow(/declares only 10/u);
         expect(() => k6VuSlots(0)).toThrow(/at least one/u);
     });
 });

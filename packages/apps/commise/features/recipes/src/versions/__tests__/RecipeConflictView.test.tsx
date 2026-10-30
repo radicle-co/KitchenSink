@@ -821,8 +821,25 @@ describe('RecipeConflictView (web) — stale-base warning + confirm gate (W7 Tas
 
         const text = screen.getByRole('alert').textContent ?? '';
         expect(text).toContain('Some changes saved elsewhere can’t be shown here.');
-        expect(text).toContain('Keeping yours or comparing may undo changes you can’t see.');
+        expect(text).toContain('Keeping yours may undo changes you can’t see.');
+        expect(text).not.toMatch(/compar/i);
         expect(text).not.toContain('Many changes');
+    });
+
+    // Owner ruling T16 (2026-10-29): Compare changes nothing, so it never waits for the tick box.
+    it('lets Compare open the merge panel while the stale-base box is still unticked', async () => {
+        freezeClock();
+        const user = userEvent.setup({ delay: null });
+        renderControlledConflict({ versionsBehind: 11 });
+
+        const compare = screen.getByRole<HTMLButtonElement>('button', { name: 'Compare' });
+        expect(compare.disabled).toBe(false);
+        expect(
+            screen.getByRole<HTMLInputElement>('checkbox', { name: 'I understand. Let me choose anyway' }).checked,
+        ).toBe(false);
+
+        await user.click(compare);
+        expect(screen.getByRole('heading', { name: 'Compare and choose' })).toBeTruthy();
     });
 
     it('renders the warning when base is undefined, even with a LOW versionsBehind (unreliable alone)', () => {

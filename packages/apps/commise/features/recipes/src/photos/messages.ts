@@ -136,7 +136,7 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         chooseFromLibrary: 'Choose from library',
         cameraUnavailable: 'The camera did not open. Try again, or choose a photo from your library.',
         cameraDenied: 'Camera access is off. Turn it on in your phone’s settings, or choose a photo from your library.',
-        uploadError: 'We couldn’t upload that photo. Try again.',
+        uploadError: 'We couldn’t upload that photo.',
         removeError: 'We couldn’t remove this photo. Try again.',
         moveError: 'We couldn’t move that photo. Try again.',
         setCoverError: 'We couldn’t make that photo the cover. Try again.',

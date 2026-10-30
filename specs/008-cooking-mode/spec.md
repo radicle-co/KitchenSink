@@ -91,10 +91,16 @@ A cooking session is the open state of one cook: the recipe, the current step an
 - **FR-039**: Resume asks "Carry on from earlier?" first when the session has been idle for 4 hours or more. A session
   idle for less reopens straight at the current step.
 - **FR-040**: A session nobody touches ends by itself after 24 hours.
-- **FR-041**: A timer that ends while the app is closed MUST send a phone notification, always. It goes through the
-  notification service ([014](../014-notification-service/spec.md)). The cook can turn timer alerts off in settings.
-    - 008 does not build the delivery. It publishes the timer event and 014 delivers it.
+- **FR-041**: A timer that ends while the app is closed MUST alert the cook with a phone notification, always. The
+  cook can turn timer alerts off in settings.
+    - _Amended 2026-10-29 (owner ruling, row T17):_ the alert is a **local notification**. The phone schedules it when
+      the timer starts. There is no server push, and it does not go through the notification service
+      ([014](../014-notification-service/spec.md)). This is the one allowed exception to mobile push being out of
+      scope there. The earlier wording, that 008 publishes the timer event and 014 delivers it, no longer applies.
     - Cooking mode code does not exist yet. These are requirements for the build, not a description of it.
+- **FR-042** _(added 2026-10-29, owner ruling, row T22)_: With several sessions open, the timer dock also shows the
+  running timers of the other recipes. Each one is labelled with that recipe's name, and tapping one opens that recipe.
+    - The in-app alarm for another recipe's timer names the recipe, so the cook knows which dish it is for.
 
 ### Non-Functional Requirements _(constitution-derived)_
 

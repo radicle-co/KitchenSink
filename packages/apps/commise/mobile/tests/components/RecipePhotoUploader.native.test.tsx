@@ -923,7 +923,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         render(<RecipePhotoUploader recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Replace');
 
-        expect(await screen.findByText('We couldn’t upload that photo. Try again.')).toBeTruthy();
+        expect(await screen.findByText('We couldn’t upload that photo.')).toBeTruthy();
         expect(mutate).not.toHaveBeenCalled();
         expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
     });

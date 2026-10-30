@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { globSync } from 'glob';
 
 import { LOCAL_DB } from '../src/composePlan.js';
-import { appsMissingCdkLib } from '../src/infraInstall.js';
+import { appsMissingCdkLib, installFailureHint } from '../src/infraInstall.js';
 import type { CdkApp, PackageManifest } from '../src/discoverApps.js';
 import { pruneStepFor } from '../src/localImages.js';
 import { generateStandInKeys, type StandInKeys } from '../src/remoteSearchStandIn.js';
@@ -77,7 +77,10 @@ export function installMissingCdkDependencies(apps: readonly CdkApp[]): {
         if (result.status === 0) {
             installed.push(app.packageDir);
         } else {
-            failed.push({ packageDir: app.packageDir, stderr: result.stderr.trim().split('\n').slice(-4).join('\n') });
+            const tail = result.stderr.trim().split('\n').slice(-4).join('\n');
+            const hint = installFailureHint(result.stderr);
+
+            failed.push({ packageDir: app.packageDir, stderr: hint === undefined ? tail : `${tail}\n${hint}` });
         }
     }
 

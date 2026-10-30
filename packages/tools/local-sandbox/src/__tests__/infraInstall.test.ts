@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { CdkApp } from '../discoverApps.js';
-import { appsMissingCdkLib, cdkLibResolvesFrom } from '../infraInstall.js';
+import { appsMissingCdkLib, cdkLibResolvesFrom, installFailureHint } from '../infraInstall.js';
 
 const app = (packageDir: string): CdkApp => ({
     packageName: `@kitchensink/${packageDir}`,
@@ -74,5 +74,24 @@ describe('appsMissingCdkLib', () => {
 
     it('is empty when every app resolves it, so a ready checkout installs nothing', () => {
         expect(appsMissingCdkLib([app('packages/services/a/infra')], '/repo', () => true)).toEqual([]);
+    });
+});
+
+describe('installFailureHint', () => {
+    /**
+     * Measured 2026-10-29 in a fresh worktree: every `infra/` install failed `E401`/`403` on `@radicle-co/infra-shared`,
+     * which GitHub Packages serves only to an authenticated reader (even though it is public), and `infra/.npmrc` reads the
+     * token from `NODE_AUTH_TOKEN`. A token without `read:packages` is refused the same way. That, not a missing step, is
+     * why these directories are never installed by hand-copying; the message must say what to supply.
+     */
+    it.each(['npm error code E401', 'npm error 403 In most cases, you or one of your dependencies', 'E403'])(
+        'names NODE_AUTH_TOKEN and read:packages for %j',
+        (stderr) => {
+            expect(installFailureHint(stderr)).toMatch(/NODE_AUTH_TOKEN.*read:packages/u);
+        },
+    );
+
+    it('says nothing for a failure that is not an authentication one', () => {
+        expect(installFailureHint('npm error code ENOTFOUND')).toBeUndefined();
     });
 });

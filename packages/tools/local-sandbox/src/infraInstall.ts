@@ -52,3 +52,20 @@ export function appsMissingCdkLib(
 ): readonly CdkApp[] {
     return apps.filter((app) => !cdkLibResolvesFrom(path.join(repoRoot, app.packageDir), repoRoot, exists));
 }
+
+/**
+ * What to tell a developer whose `npm install --prefix <infra>` was refused for authentication.
+ *
+ * @param stderr - npm's stderr.
+ * @returns The remedy, or `undefined` when the failure is not an authentication one. Pure.
+ */
+export function installFailureHint(stderr: string): string | undefined {
+    if (!/\bE40[13]\b|\b40[13]\b/u.test(stderr)) {
+        return undefined;
+    }
+
+    return (
+        '@radicle-co/infra-shared is served by GitHub Packages, which authenticates even public reads. Export ' +
+        'NODE_AUTH_TOKEN as a personal access token with read:packages (infra/.npmrc reads it), then re-run.'
+    );
+}

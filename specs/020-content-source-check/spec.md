@@ -6,7 +6,8 @@
 owner's rulings on it, the same day. The decision is recorded in
 [ADR-0074](../../docs/architecture/decisions/0074-content-source-check.md). Amended 2026-10-29 for outside-copy checks,
 two new statements and a rights-only review scope, recorded in
-[ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md).)
+[ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) Amended 2026-10-29 for the owner's ruling on [026](../026-chef-spaces/spec.md) Q1: a live site claim
+clears a hit on the recipe's own page (`FR-012g`).)
 **Input**: User description, owner, 2026-10-26: "We will need an automated review process checking all new content -
 that needs to be a new feature and spec ... that uses an AI agent to check to see if the content of a recipe is from a
 paid site, copyrighted content, a book, etc." Context ruling, same day: "If we can tell then we can prevent them from
@@ -863,9 +864,20 @@ records the decision.
     - Thresholds are measured, not guessed. FR-038's labelled set gains real web copies, rewrites, classics and
       bloggers' own posts, and the plan sets each threshold from it.
 - **FR-012g**: **A blogger importing their own posts** looks exactly like a copier. A cook MUST be able to say "This is
-  my own page" with the "I wrote this" statement. A hit on that page then goes to a person with that claim shown, and
-  never counts against the cook on its own. A way to prove a site is yours, such as a token on the page or a verified
-  creator profile, is owed by 012. Until it exists, a person decides.
+  my own page" with the "I wrote this" statement. _(Amended 2026-10-29, owner ruling Q1 on
+  [026](../026-chef-spaces/spec.md): "Claim clears own-site hit".)_ The way to prove a site is yours is a live site
+  claim (`026-FR-001`):
+    - **With a live claim.** A hit on the recipe's own origin page, on a domain the cook holds a live claim to, MUST
+      NOT count as a copy. That one hit is not evidence. Every other part of the check runs as usual: a hit on any
+      other page, a model item, or a photo signal still sends the recipe to a person (ADR-0074 §2). The outcome
+      records that the claim cleared the hit, and which claim.
+    - **Without a live claim.** A hit on a page the cook says is their own goes to a person with that statement
+      shown, and never counts against the cook on its own. A person decides.
+    - **A claim that fails later** does not reopen a recipe the claim already cleared. A new check after an edit
+      (`FR-001`) reads the claim as it stands then.
+    - ⚠️ **Counsel reviews this rule before it is built.** A claim proves control of a site, not authorship, so a guest
+      post or a copied recipe on the chef's own blog can pass. The controls for that case are the per-recipe
+      statement, the rights label and takedown (`016-FR-015j`), as for any "I wrote this" recipe.
 - **FR-012h**: **A copy of a private source cannot be detected.** A family card, a friend's email or a book that is not
   online has no page to find. For those, the controls are the cook's statement, the rights label and takedown
   (`016-FR-015j`). A surface or record MUST NOT say a recipe was "checked and cleared". The words are "no copy found".

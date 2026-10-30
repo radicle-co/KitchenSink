@@ -321,6 +321,74 @@ ios|shell/tabBar|coverage-gap|its Android Back leg presses Maestro's 'back' (And
 ios|recipes/privateFoodStandIn|coverage-gap|leaves the copy's untouched editor with Maestro's 'back' (Android only) to reach the copy's detail and its private-food banner; the stand-in and the copy banner are untested on iOS until the flow leaves the editor through a control both platforms render
 ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test"
 
+# ── THE FLOWS A LOCAL RUN CANNOT SERVE ─────────────────────────────────────────────────────────────────────
+#
+# `<flow>|<reason>`, one per line: flows that need the DEPLOYED sandbox. They depend on its shared food catalog and on the
+# ingredient-verification worker, neither of which `npm run local:up` can stand up, so against the local stack they cannot
+# pass. A skip is never a pass and a remote source is never faked in e2e, so the LOCAL selection (`maestro_local_flows`)
+# leaves them out and says so (`maestro_local_summary`), and ONLY the local selection does: the deployed composition
+# (`maestro_shard_selection`) never reads this table, which `maestroSandboxOnlyFlows.test.ts` asserts on both platforms.
+# ⛔ Never add a flow here to get a local run green. An entry is a statement that the local stack lacks something the flow
+# needs; the guard requires the reason to name what.
+MAESTRO_SANDBOX_ONLY_FLOWS="recipes/pasteList|needs the deployed sandbox's food catalog and the ingredient-verification worker; the local stack runs neither
+recipes/pasteListSettle|needs the deployed sandbox's food catalog and the ingredient-verification worker (the settled result); the local stack runs neither
+recipes/ingredientCandidates|needs the deployed sandbox's food catalog for its candidate lists; the local stack has no catalog to match against
+recipes/ambiguityReview|needs the deployed sandbox's food catalog and the ingredient-verification worker to raise a review; the local stack runs neither"
+
+# maestro_sandbox_only_flows
+#
+# The rows of MAESTRO_SANDBOX_ONLY_FLOWS as `<flow>|<reason>` lines. Pure.
+maestro_sandbox_only_flows() {
+    printf '%s\n' "$MAESTRO_SANDBOX_ONLY_FLOWS"
+}
+
+# maestro_local_flows <flow> …
+#
+# THE LOCAL FILTER, as a PURE function: one `flow=` line per flow a local run can serve and one `needs-sandbox=<flow>|<reason>`
+# line per flow it cannot, in the order given. Exit 2 with nothing on stdout for no flows, or when NOTHING is left to run:
+# answering "run nothing" is the green-over-no-work outcome this script refuses everywhere else.
+maestro_local_flows() {
+    if [ "$#" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: no flows to filter for a local run - refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    local flow row kept=0 out=''
+
+    for flow in "$@"; do
+        row=$(maestro_sandbox_only_flows | awk -F '|' -v f="$flow" '$1 == f { print; exit }')
+
+        if [ -n "$row" ]; then
+            out="${out}needs-sandbox=${row}"$'\n'
+        else
+            out="${out}flow=${flow}"$'\n'
+            kept=$((kept + 1))
+        fi
+    done
+
+    if [ "$kept" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: a local run can serve NONE of these flows - refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    printf '%s' "$out"
+}
+
+# maestro_local_summary <flow> …
+#
+# One `not run locally: needs sandbox - <flow> (<reason>)` line per flow named that needs the sandbox. Pure. A local run
+# prints these before it starts AND again in its summary, so a green local run cannot be read as covering them.
+maestro_local_summary() {
+    local flow row
+    for flow in "$@"; do
+        row=$(maestro_sandbox_only_flows | awk -F '|' -v f="$flow" '$1 == f { print; exit }')
+        [ -n "$row" ] || continue
+        printf 'not run locally: needs sandbox - %s (%s)\n' "${row%%|*}" "${row#*|}"
+    done
+}
+
 # Maestro's iOS XCUITest runner, as Maestro names it (`LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID`, read
 # at the pinned tag `cli-2.6.1`). Maestro reinstalls it at the start of every session unless it is told
 # `--no-reinstall-driver` (a `maestro test` option in 2.6.1: "on iOS, reinstalls xctestrunner driver"), and this
@@ -1735,6 +1803,17 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             maestro_platform_flows "$@"
             ;;
+        sandbox-only)
+            maestro_sandbox_only_flows
+            ;;
+        local-flows)
+            shift
+            maestro_local_flows "$@"
+            ;;
+        local-summary)
+            shift
+            maestro_local_summary "$@"
+            ;;
         exclusions)
             shift
             maestro_platform_exclusions "$@"
@@ -1791,7 +1870,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

@@ -82,7 +82,13 @@ function run(sandbox: Sandbox, body: string, env: Readonly<Record<string, string
 }
 
 describe('local_maestro_flows — which flows a command runs', () => {
-    it('`all` runs CI’s own plan, in CI’s order, with nothing added or dropped', () => {
+    /**
+     * REWRITTEN 2026-10-29. It used to assert "nothing added or dropped"; four flows (`MAESTRO_SANDBOX_ONLY_FLOWS`) need
+     * the deployed sandbox's food catalog and verification worker, which the local stack cannot run. They are dropped from
+     * the LOCAL list ON PURPOSE and named on stderr, never run to fail and never counted as passed. The deployed plan is
+     * untouched (`maestroSandboxOnlyFlows.test.ts`), so this still asserts CI's order for everything else.
+     */
+    it('`all` runs CI’s own plan in CI’s order, minus the flows that need the sandbox, and NAMES those', () => {
         const sandbox = makeSandbox();
         const ours = run(sandbox, 'local_maestro_flows all');
         const ci = spawnSync('bash', [path.join(FLOWS_DIR, '../tests/e2e/runMaestroFlows.sh'), 'select'], {
@@ -92,10 +98,28 @@ describe('local_maestro_flows — which flows a command runs', () => {
             .split('\n')
             .filter((line) => line.startsWith('flow='))
             .map((line) => line.slice('flow='.length));
+        const sandboxOnly = [
+            'recipes/pasteList',
+            'recipes/pasteListSettle',
+            'recipes/ingredientCandidates',
+            'recipes/ambiguityReview',
+        ];
 
         expect(ours.status).toBe(0);
         expect(ciFlows.length).toBeGreaterThan(10);
-        expect(ours.stdout.trim().split('\n')).toEqual(ciFlows);
+        expect(ours.stdout.trim().split('\n')).toEqual(ciFlows.filter((flow) => !sandboxOnly.includes(flow)));
+
+        for (const flow of sandboxOnly) {
+            expect(ciFlows).toContain(flow);
+            expect(ours.stderr).toContain(`not run locally: needs sandbox - ${flow}`);
+        }
+    });
+
+    it('`flows` still runs a sandbox-only flow when it is NAMED - the developer asked for exactly that', () => {
+        const result = run(makeSandbox(), 'local_maestro_flows flows recipes/pasteList');
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('recipes/pasteList');
     });
 
     it('`flows` runs exactly the named flows, in the order given', () => {
@@ -457,5 +481,58 @@ describe('a recipe host port something else holds', () => {
         const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL"`);
 
         expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3000');
+    });
+});
+
+describe('local_maestro_provision_lane_users — what it may do to Clerk', () => {
+    /** `npx` is faked so the test sees the command a real run would issue, and nothing is created or deleted. */
+    function provision(env: Readonly<Record<string, string>>): string {
+        const sandbox = makeSandbox();
+
+        writeFileSync(path.join(sandbox.bin, 'npx'), `#!/usr/bin/env bash\necho "npx $*" >> "${sandbox.calls}"\n`);
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+
+        const result = run(sandbox, 'local_maestro_provision_lane_users', env);
+
+        expect(result.status).toBe(0);
+
+        return readFileSync(sandbox.calls, 'utf8');
+    }
+
+    it('by default recycles the lane users and creates NO role users', () => {
+        const calls = provision({});
+
+        expect(calls).toContain('--apply --recycle --maestro-lane --platform android --shard 1');
+        expect(calls).not.toContain('--local-roles');
+    });
+
+    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 issues no poolAdmin command at all - nothing is created or deleted in Clerk', () => {
+        expect(provision({ LOCAL_MAESTRO_REUSE_USERS: '1' })).not.toContain('poolAdmin');
+    });
+
+    it('LOCAL_MAESTRO_ROLE_USERS=1 adds the capacity-checked --local-roles step, never --recycle with it', () => {
+        const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: '1', LOCAL_MAESTRO_ROLE_USERS: '1' });
+        const roles = calls.split('\n').filter((line) => line.includes('--local-roles'));
+
+        expect(roles).toHaveLength(1);
+        expect(roles[0]).not.toContain('--recycle');
+    });
+
+    it('LOCAL_MAESTRO_ROLE_USERS=1 points the five read-only role lanes at the shared pool, and only then', () => {
+        const sandbox = makeSandbox();
+        const on = run(sandbox, 'local_maestro_seed_env /tmp/x; echo "ns=${E2E_ROLE_USERS_NAMESPACE:-unset}"', {
+            LOCAL_MAESTRO_ROLE_USERS: '1',
+        });
+        const off = run(sandbox, 'local_maestro_seed_env /tmp/x; echo "ns=${E2E_ROLE_USERS_NAMESPACE:-unset}"');
+
+        expect(on.stdout).toContain('ns=shared');
+        expect(off.stdout).toContain('ns=unset');
+    });
+
+    it('anything but exactly 1 leaves both opt-ins off', () => {
+        const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: 'true', LOCAL_MAESTRO_ROLE_USERS: 'yes' });
+
+        expect(calls).toContain('--recycle');
+        expect(calls).not.toContain('--local-roles');
     });
 });

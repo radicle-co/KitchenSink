@@ -56,10 +56,15 @@ appId: ${APP_ID}
 # "happens to show 2 after something scaled it". The stat strip (Total · Prep · Cook) sits at the top of the
 # page; the serving stepper sits beside the Ingredients heading, with "for 2" (build spec §6.1).
 - assertVisible: '20 min'
+# ⛔ `centerElement: true`, not a bare scroll. Without it the scroll stops as soon as the stepper clears the bottom edge, and
+# the note a tap adds is drawn BELOW it: under the tab bar's edge on a 1080x2400 emulator, where the run-scoped title wraps to
+# three lines and the heading row wraps its Edit link onto a second line (local Android run, 2026-10-29). The tab bar does not
+# overlap the page (the scroller ends at its top edge); the note was simply past the end of the visible window.
 - scrollUntilVisible:
       element: 'More servings'
       direction: DOWN
       timeout: 20000
+      centerElement: true
 - assertVisible: 'for 2'
 # ⛔ `.*` IS REQUIRED, not decoration. Maestro matches a text selector as a regex against the node's WHOLE
 # text, and the note reads "Amounts scaled from 2 servings." (`recipeMessages.detail.scaledFrom`).

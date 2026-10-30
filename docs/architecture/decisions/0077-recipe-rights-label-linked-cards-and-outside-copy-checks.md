@@ -2,6 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-29
+- **Amended by:** [ADR-0078](0078-a-live-site-claim-clears-the-own-site-hit.md): §4's rule for a blogger who imports
+  their own posts. A live site claim (026) now clears the hit on the recipe's own origin page. Any other hit, model
+  item or photo signal still goes to a person. Every other decision here stands.
 - **Amends:** [ADR-0072](0072-bulk-recipe-import.md) §9, its list of source statements. Two statements are added, and
   a family or friend recipe is no longer labelled like a paid source. §6 below also removes §9's rule that a web
   import goes private only with Pro and a substantive edit. Every other part of §9 stands.

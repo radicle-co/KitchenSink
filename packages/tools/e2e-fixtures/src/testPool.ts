@@ -538,6 +538,37 @@ function toSlot(tier: PoolTier, declared: PoolLane, namespace: PoolNamespace): P
 /** The namespace of THIS process: every public function below reads it, so a run cannot half-switch. */
 const activeNamespace = (): PoolNamespace => poolNamespaceFrom(process.env);
 
+/** Moves the read-only role lanes of a LOCAL run to the shared pool (see {@link namespaceFor}). */
+export const ROLE_USERS_NAMESPACE_ENV = 'E2E_ROLE_USERS_NAMESPACE';
+
+/**
+ * The namespace one lane's address is built in: the run's, except that `E2E_ROLE_USERS_NAMESPACE=shared` keeps the five
+ * read-only role lanes on the SHARED pool in a local run. Signed into and never written, they need no copies of their
+ * own, and the Clerk development instance (100 users) has no room for six. The downgraded owner is not among them:
+ * `ensure-downgraded` raises and settles its roles, which must never be done to a user CI shares. Pure but for env.
+ *
+ * @throws When the variable is set to anything but exactly `shared`.
+ */
+function namespaceFor(tier: PoolTier, declared: PoolLane): PoolNamespace {
+    const active = activeNamespace();
+    const raw = process.env[ROLE_USERS_NAMESPACE_ENV];
+
+    if (raw === undefined || raw === '') {
+        return active;
+    }
+
+    if (raw !== 'shared') {
+        throw new Error(`test pool: ${ROLE_USERS_NAMESPACE_ENV} must be 'shared' or unset, got '${raw}'`);
+    }
+
+    return tier === 'roles' && declared.id !== DOWNGRADED_OWNER_LANE_ID ? 'shared' : active;
+}
+
+/** Whether only a local run owns this slot's Clerk user (its address carries the local namespace). Pure. */
+export function isLocalNamespaceSlot(slot: PoolSlot): boolean {
+    return slot.email === ADDRESS.sandbox(addressId(slot.id, 'local'));
+}
+
 /**
  * Every address either namespace declares. Pure.
  *
@@ -554,7 +585,9 @@ export function knownPoolAddresses(): ReadonlySet<string> {
 
 /** Every slot, in declared order (tier order, then lane order). Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
 export function rosterSlots(): readonly PoolSlot[] {
-    return POOL_TIERS.flatMap((tier) => POOL_ROSTER[tier].map((declared) => toSlot(tier, declared, activeNamespace())));
+    return POOL_TIERS.flatMap((tier) =>
+        POOL_ROSTER[tier].map((declared) => toSlot(tier, declared, namespaceFor(tier, declared))),
+    );
 }
 
 /** The slot a tier declares under `id`; throws for a lane that tier does not declare. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}). */
@@ -565,7 +598,7 @@ export function slotFor(tier: PoolTier, id: string): PoolSlot {
         throw new Error(`test pool: tier '${tier}' declares no lane '${id}'`);
     }
 
-    return toSlot(tier, declared, activeNamespace());
+    return toSlot(tier, declared, namespaceFor(tier, declared));
 }
 
 /**

@@ -6,7 +6,7 @@
  * slots are created, which are re-marked, what counts as drift — and that a dry run writes nothing at all.
  */
 import { ClerkAPIResponseError } from '@clerk/backend/errors';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     clerkPoolAdminPort,
@@ -16,6 +16,7 @@ import {
     planPool,
     poolProfileReassert,
     poolScopeOptions,
+    refuseUnsafeScope,
     poolUserCreateInput,
     laneHoldsPhase,
     reconcilePool,
@@ -1185,5 +1186,165 @@ describe('recycling the consumable users of a local-namespace run', () => {
         ).toBe(true);
         expect(parsePoolAdminArgs(['--maestro-lane', '--platform', 'ios', '--shard', '1']).recycle).toBeUndefined();
         expect(() => parsePoolAdminArgs(['--recycle'])).toThrow(/poolAdmin/u);
+    });
+});
+
+describe('the local role users scope', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    /**
+     * Local Maestro's `paidFeaturesByRole` and `makePublicConfirm` sign in as the `roles` tier (`test-local-roledefault`
+     * and its five siblings), which no local scope created. The Clerk development instance holds 100 users and was at
+     * 99, so creation is opt-in, local-namespace-only, and REFUSES BEFORE ITS FIRST WRITE when the instance lacks room -
+     * a partial create would leave half a tier and a run that fails on whichever role came last.
+     */
+    it('parses --local-roles to its own scope', () => {
+        expect(parsePoolAdminArgs(['--apply', '--local-roles'])).toEqual({
+            apply: true,
+            phase: 'seeding',
+            scope: { kind: 'localRoles' },
+        });
+    });
+
+    it.each([
+        [['--local-roles', '--maestro-lane', '--platform', 'ios', '--shard', '1']],
+        [['--local-roles', '--maestro-erasure', '--platform', 'ios', '--shard', '1']],
+        [['--local-roles', '--shard', '1']],
+        [['--local-roles', '--platform', 'ios']],
+        [['--local-roles', '--recycle']],
+        [['--local-roles', '--settle-downgraded']],
+    ])('refuses %j', (argv) => {
+        expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
+    });
+
+    it('reconciles exactly the roles tier, with no drift audit and no profile rewrite', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        const options = poolScopeOptions({ kind: 'localRoles' });
+
+        expect(options.slots.map((slot) => slot.id)).toEqual(
+            rosterSlots()
+                .filter((slot) => slot.tier === 'roles')
+                .map((slot) => slot.id),
+        );
+        expect(options.slots.length).toBeGreaterThanOrEqual(6);
+        expect(options).toMatchObject({ drift: 'skip', profile: 'leave' });
+    });
+
+    describe('the capacity pre-check', () => {
+        const roleSlots = rosterSlots().filter((slot) => slot.tier === 'roles');
+
+        const stateful = (total: number) => {
+            const created: string[] = [];
+            const port: PoolAdminPort = {
+                findUsers: vi.fn(async () => []),
+                listUsers: vi.fn(async () => []),
+                createUser: vi.fn(async (input: PoolUserCreate) => {
+                    created.push(input.emailAddress[0] ?? '');
+
+                    return { id: 'x' };
+                }),
+                mergeMetadata: vi.fn(async () => undefined),
+                readExternalId: vi.fn(async () => 'ext'),
+                writeExternalId: vi.fn(async () => undefined),
+                reassertProfile: vi.fn(async () => undefined),
+                countUsers: vi.fn(async () => total),
+            };
+
+            return { port, created };
+        };
+
+        const base = { randomPassword: () => 'r', now: () => 0, sleep: async () => undefined, drift: 'skip' } as const;
+
+        it('⛔ creates NOTHING when the instance cannot hold every missing user', async () => {
+            const { port, created } = stateful(99);
+
+            await expect(
+                reconcilePool(port, { ...base, slots: roleSlots, apply: true, capacity: { limit: 100 } }),
+            ).rejects.toThrow(/100/u);
+            expect(created).toEqual([]);
+            expect(port.createUser).not.toHaveBeenCalled();
+        });
+
+        it('proceeds when there is exactly room for all of them (the bound is inclusive)', async () => {
+            const { port, created } = stateful(100 - roleSlots.length);
+
+            await reconcilePool(port, {
+                ...base,
+                slots: roleSlots,
+                apply: true,
+                capacity: { limit: 100 },
+                externalId: { mint: () => 'ext' },
+            });
+
+            expect(created).toHaveLength(roleSlots.length);
+        });
+
+        it('counts only the users it would CREATE, so a re-run over a complete tier needs no room at all', async () => {
+            const { port } = stateful(100);
+            const holding = (email: string): ObservedPoolUser => ({
+                id: `u_${email}`,
+                emails: [email],
+                publicMetadata: {
+                    ...poolSlotMetadata(roleSlots.find((slot) => slot.email === email) ?? roleSlots[0]!),
+                },
+                externalId: 'ext',
+            });
+
+            vi.mocked(port.findUsers).mockImplementation(async (email: string) => [holding(email)]);
+
+            await expect(
+                reconcilePool(port, { ...base, slots: roleSlots, apply: true, capacity: { limit: 100 } }),
+            ).resolves.toBeDefined();
+            expect(port.createUser).not.toHaveBeenCalled();
+        });
+
+        it('refuses a port that cannot count when a capacity is asked for - the check is never silently skipped', async () => {
+            const { port } = stateful(0);
+            const { countUsers: _omitted, ...withoutCount } = port;
+
+            await expect(
+                reconcilePool(withoutCount, { ...base, slots: roleSlots, apply: true, capacity: { limit: 100 } }),
+            ).rejects.toThrow(/countUsers/u);
+        });
+    });
+});
+
+describe('the local role users scope when the shared role users are reused', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('⛔ creates only what a local run owns: the downgraded owner, never a user CI shares', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+        vi.stubEnv('E2E_ROLE_USERS_NAMESPACE', 'shared');
+
+        expect(poolScopeOptions({ kind: 'localRoles' }).slots.map((slot) => slot.id)).toEqual([
+            DOWNGRADED_OWNER_LANE_ID,
+        ]);
+    });
+});
+
+describe('refuseUnsafeScope', () => {
+    /**
+     * ⛔ `poolAdmin --apply` (the whole roster) with `E2E_POOL_NAMESPACE=local` was NOT refused: it would try to create
+     * every roster lane under `test-local-*` - about 92 users on an instance that holds 100 in total. The whole roster is
+     * the owner's run against the SHARED pool; a local run's scopes are the narrow ones.
+     */
+    it('refuses the whole roster in the local namespace, applied or not', () => {
+        expect(() => refuseUnsafeScope({ kind: 'roster' }, true)).toThrow(/whole roster/u);
+    });
+
+    it('allows the whole roster in the shared namespace, and every narrow scope in the local one', () => {
+        expect(() => refuseUnsafeScope({ kind: 'roster' }, false)).not.toThrow();
+        expect(() => refuseUnsafeScope({ kind: 'localRoles' }, true)).not.toThrow();
+        expect(() => refuseUnsafeScope({ kind: 'maestroLane', platform: 'android', shard: 1 }, true)).not.toThrow();
+        expect(() => refuseUnsafeScope({ kind: 'maestroErasure', platform: 'android', shard: 1 }, true)).not.toThrow();
+    });
+
+    it('refuses --local-roles outside the local namespace', () => {
+        expect(() => refuseUnsafeScope({ kind: 'localRoles' }, false)).toThrow(/E2E_POOL_NAMESPACE=local/u);
     });
 });

@@ -104,6 +104,7 @@ import { judgePoolSlot } from './leaseSession.js';
 import {
     DEFAULT_POOL_PHASE,
     MAESTRO_PLATFORMS,
+    isLocalNamespaceSlot,
     knownPoolAddresses,
     maestroErasureSlots,
     maestroSlotForShard,
@@ -149,11 +150,30 @@ export interface PoolAdminPort {
      * shared pool (see {@link reconcilePool}); absent from a port that is not meant to.
      */
     readonly writeExternalId?: (userId: string, externalId: string) => Promise<void>;
+    /**
+     * How many users the whole instance holds. Read only by a run that asked for a {@link PoolCapacity} check; a port
+     * that cannot count is REFUSED for such a run rather than treated as having room.
+     */
+    readonly countUsers?: () => Promise<number>;
     /** Delete a user. Used only to recycle a local-namespace run's consumable subjects (see {@link reconcilePool}). */
     readonly deleteUser?: (userId: string) => Promise<void>;
     /** Re-state a user's username and names, which makes Clerk emit `user.updated`. Never touches metadata. */
     readonly reassertProfile: (userId: string, profile: PoolProfileReassert) => Promise<void>;
 }
+
+/**
+ * A ceiling on the instance's user count, checked before the first write.
+ *
+ * ⛔ The Clerk DEVELOPMENT instance holds {@link CLERK_DEVELOPMENT_USER_LIMIT} users in total, and the shared pool already
+ * sits near it. A create that runs out of room part-way leaves half a tier, so a run that must create several users
+ * states the ceiling and is refused whole, before any write, when they cannot all fit.
+ */
+export interface PoolCapacity {
+    readonly limit: number;
+}
+
+/** The development instance's hard cap on users (Clerk's published limit; the instance was at 99 on 2026-10-29). */
+export const CLERK_DEVELOPMENT_USER_LIMIT = 100;
 
 /** The profile fields a slot's Clerk user is re-asserted with — the same values the create body carries. */
 export interface PoolProfileReassert {
@@ -216,7 +236,14 @@ export type PoolScope =
      * FIRST erasure subject (see {@link poolScopeOptions}). Only for the local namespace (`main` refuses it otherwise): the shared pool's signers are the
      * owner's, provisioned by the owner's whole-roster run.
      */
-    | { readonly kind: 'maestroLane'; readonly platform: MaestroPlatform; readonly shard: number };
+    | { readonly kind: 'maestroLane'; readonly platform: MaestroPlatform; readonly shard: number }
+    /**
+     * The `roles` tier of the LOCAL namespace: `test-local-roledefault` and its siblings, which `paidFeaturesByRole` and
+     * `makePublicConfirm` sign in as and no other local scope makes. Opt-in, local-only, and capacity-checked (see
+     * {@link PoolCapacity}). The downgraded owner is created premium, as in the whole-roster run; its world is built by
+     * `e2e-seed`'s `ensure-downgraded`.
+     */
+    | { readonly kind: 'localRoles' };
 
 /** Whether a reconciliation lists the whole instance to report drift. */
 export type DriftAudit = 'audit' | 'skip';
@@ -234,6 +261,12 @@ export function poolScopeOptions(scope: PoolScope): {
             // The CI refill creates fresh users (whose `user.created` carries the profile) and must not spend the
             // instance-wide Backend API limit re-writing slots it did not create.
             return { slots: maestroErasureSlots(scope.platform, scope.shard), drift: 'skip', profile: 'leave' };
+        case 'localRoles':
+            return {
+                slots: rosterSlots().filter((slot) => slot.tier === 'roles' && isLocalNamespaceSlot(slot)),
+                drift: 'skip',
+                profile: 'leave',
+            };
         case 'maestroLane':
             return {
                 slots: [
@@ -247,6 +280,32 @@ export function poolScopeOptions(scope: PoolScope): {
                 drift: 'skip',
                 profile: 'leave',
             };
+    }
+}
+
+/**
+ * Refuse a scope the namespace makes unsafe, before any client call. Pure.
+ *
+ * ⛔ The WHOLE ROSTER in the local namespace would create every roster lane as `test-local-*` - about 92 users on a
+ * development instance that holds 100 in total - and is nobody's intent: the whole roster is the owner's run against the
+ * shared pool. `--local-roles` makes users only a local run may.
+ *
+ * @param scope - What the command line asked for.
+ * @param local - Whether the local namespace is active.
+ * @throws When the scope does not belong to the namespace.
+ */
+export function refuseUnsafeScope(scope: PoolScope, local: boolean): void {
+    if (scope.kind === 'roster' && local) {
+        throw new Error(
+            "poolAdmin: the whole roster is the shared pool's owner run - with E2E_POOL_NAMESPACE=local it would create " +
+                'every lane as a test-local user. Name a local scope (--maestro-lane, --local-roles) or unset the namespace.',
+        );
+    }
+
+    if (scope.kind === 'localRoles' && !local) {
+        throw new Error(
+            "poolAdmin: --local-roles makes the local namespace's role users - set E2E_POOL_NAMESPACE=local",
+        );
     }
 }
 
@@ -271,6 +330,7 @@ function readPoolAdminArgv(argv: readonly string[]) {
             apply: { type: 'boolean' },
             'maestro-erasure': { type: 'boolean' },
             'maestro-lane': { type: 'boolean' },
+            'local-roles': { type: 'boolean' },
             recycle: { type: 'boolean' },
             platform: { type: 'string' },
             shard: { type: 'string' },
@@ -318,6 +378,19 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
         throw new Error(
             'poolAdmin: --recycle applies to the consumable users of a --maestro-erasure or --maestro-lane run',
         );
+    }
+
+    const localRoles = parsed.values['local-roles'] === true;
+
+    if (localRoles) {
+        if (lane || erasure || recycle || phase === 'settled' || shard !== undefined || platform !== undefined) {
+            throw new Error(
+                'poolAdmin: --local-roles stands alone - it takes no --maestro-lane, --maestro-erasure, --recycle, ' +
+                    '--settle-downgraded, --platform or --shard',
+            );
+        }
+
+        return { apply, phase, scope: { kind: 'localRoles' } };
     }
 
     if (lane && erasure) {
@@ -536,6 +609,36 @@ function unsettledSlots(
 }
 
 /**
+ * Refuse a run whose creates would not all fit.
+ *
+ * @param port - Must be able to `countUsers`.
+ * @param creates - How many users the plan would create.
+ * @param capacity - The instance's ceiling.
+ * @throws When the port cannot count, or `total + creates` exceeds the ceiling. Nothing has been written yet.
+ * @sideEffect One Backend API read, and only when there is something to create.
+ */
+async function assertRoomToCreate(port: PoolAdminPort, creates: number, capacity: PoolCapacity): Promise<void> {
+    if (port.countUsers === undefined) {
+        throw new Error(
+            'poolAdmin: a capacity check was asked for but this port has no countUsers - refusing to guess',
+        );
+    }
+
+    if (creates === 0) {
+        return;
+    }
+
+    const total = await port.countUsers();
+
+    if (total + creates > capacity.limit) {
+        throw new Error(
+            `poolAdmin: creating ${creates} user(s) would take the instance from ${total} to ${total + creates}, past ` +
+                `its limit of ${capacity.limit}. Nothing was created. Free room first (a prune of the dev instance).`,
+        );
+    }
+}
+
+/**
  * Observe, plan, and — only with `apply` — write.
  *
  * Writes happen one at a time: the Backend API limit is instance-wide and shared with every suite running
@@ -569,6 +672,11 @@ export async function reconcilePool(
          * in are touched, and nothing is deleted on a dry run.
          */
         readonly recycle?: 'consumables';
+        /**
+         * Refuse, before the first write, when creating every missing user would take the instance past `limit`. Needs a
+         * port that can `countUsers`.
+         */
+        readonly capacity?: PoolCapacity;
         readonly randomPassword: () => string;
         readonly now: () => number;
         readonly sleep: (ms: number) => Promise<void>;
@@ -585,6 +693,14 @@ export async function reconcilePool(
     const plan = planPool(slots, holders, options.drift === 'audit' ? await port.listUsers() : [], phase);
     const broken = plan.drift.length > 0 || plan.actions.some((action) => action.kind === 'ambiguous');
     const pending = plan.actions.some((action) => action.kind === 'create' || action.kind === 'mark');
+
+    if (options.capacity !== undefined) {
+        await assertRoomToCreate(
+            port,
+            plan.actions.filter((action) => action.kind === 'create').length,
+            options.capacity,
+        );
+    }
 
     if (!options.apply) {
         const unleasable = unleasableSlots(slots, holders);
@@ -826,6 +942,7 @@ export function clerkPoolAdminPort(
         reassertProfile: async (userId, profile) => {
             await backend(() => clerk.users.updateUser(userId, { ...profile }));
         },
+        countUsers: () => backend(() => clerk.users.getCount()),
         readExternalId: async (userId) => (await backend(() => clerk.users.getUser(userId))).externalId,
         writeExternalId: async (userId, externalId) => {
             await backend(() => clerk.users.updateUser(userId, { externalId }));
@@ -888,6 +1005,8 @@ async function main(): Promise<void> {
         );
     }
 
+    refuseUnsafeScope(args.scope, local);
+
     if (args.scope.kind === 'maestroErasure' && scoped.slots.length === 0) {
         console.log(`maestro shard ${args.scope.shard} leases no erasure subject — nothing to refill`);
     }
@@ -899,6 +1018,7 @@ async function main(): Promise<void> {
         // The local namespace's users have no sandbox webhook to write their id (see `testPool.ts`'s `PoolNamespace`).
         ...(local ? { externalId: { mint: ulid } } : {}),
         ...(args.recycle ? { recycle: 'consumables' as const } : {}),
+        ...(args.scope.kind === 'localRoles' ? { capacity: { limit: CLERK_DEVELOPMENT_USER_LIMIT } } : {}),
         randomPassword: () => `Pp1!${randomBytes(24).toString('base64url')}`,
         now: Date.now,
         sleep: (ms) => delay(ms),

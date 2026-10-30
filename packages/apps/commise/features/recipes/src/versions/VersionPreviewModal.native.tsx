@@ -112,6 +112,14 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     </Text>
                 )}
 
+                {/* Above the scroller, not last inside it: a recipe with a real ingredient list and steps is taller than
+                    the screen, and the line is what the cook came to read (Android Maestro run, `recipes/versions`). */}
+                {showContent && diffFromCurrent !== undefined && (
+                    <Text style={[styles.changedNote, muted]}>
+                        {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
+                    </Text>
+                )}
+
                 {showContent && version !== undefined && (
                     <ScrollView
                         keyboardShouldPersistTaps="handled"
@@ -212,12 +220,6 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                 </View>
                             </>
                         )}
-
-                        {diffFromCurrent !== undefined && (
-                            <Text style={[styles.changedNote, muted]}>
-                                {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
-                            </Text>
-                        )}
                     </ScrollView>
                 )}
 
@@ -260,5 +262,8 @@ const styles = StyleSheet.create({
     ingredientLine: { flexShrink: 1, gap: 4 },
     calories: { ...nativeTokens.type.meta, flexShrink: 0 },
     changedNote: { ...nativeTokens.type.meta, fontStyle: 'italic' },
-    actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
+    // WRAPS: two icon-and-label buttons are wider than a 360 dp phone's content box, and a row that cannot wrap
+    // overflows on its START side when pushed to the end, slicing the first button at the left edge. Each button keeps
+    // its own width and full label; the second takes the next line before either is squeezed.
+    actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
 });

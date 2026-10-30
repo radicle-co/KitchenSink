@@ -427,6 +427,42 @@ describe('VersionPreviewModal (native) — a long ingredient line cannot push it
     });
 });
 
+/**
+ * Android local Maestro run, flow `recipes/versions`: on a 360 dp phone the two actions (each an icon plus a full
+ * label) are wider than the sheet's content box. A row that cannot wrap, pushed to the end, overflows on its START
+ * side, so "Keep current version" was sliced at the left edge. The row WRAPS (the buttons keep their own width and
+ * their full labels), and the "Changed from current" line, which sat last in a scroller taller than the screen, is
+ * drawn above that scroller where it is always on screen.
+ */
+describe('VersionPreviewModal (native) — a narrow phone', () => {
+    it('wraps the actions rather than slicing the first one at the sheet edge', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        const row = screen.getByRole('button', { name: 'Keep current version' }).parentElement as Element;
+
+        expect(row.contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(true);
+        expect(appliedStyle(row, 'flex-wrap')).toBe('wrap');
+    });
+
+    it('does not keep either action label to one line', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        for (const name of ['Keep current version', 'Restore this version']) {
+            expect(appliedStyle(screen.getByText(name), 'white-space')).not.toBe('nowrap');
+        }
+    });
+
+    it('draws the "changed from current" line above the scroller, not at the end of a long one', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const summary = screen.getByText('Changed from current: 3 ingredients, 1 step');
+        const firstField = screen.getByText('Title');
+
+        expect(summary.compareDocumentPosition(firstField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(summary.contains(firstField)).toBe(false);
+    });
+});
+
 describe('VersionPreviewModal (native) — dismissal', () => {
     it('Keep current version fires onCancel', async () => {
         const user = userEvent.setup();

@@ -1,5 +1,22 @@
 # Scoped AWS access instead of the root key (owner runbook)
 
+## Decisions (2026-10-29)
+
+The owner decided these on 2026-10-29. The steps below follow them.
+
+1. **Root key: kept active, unused day to day.** The owner said "Keep active, unused". Local profiles move to the
+   scoped Identity Center sign-in (step 6). The root user stays for emergencies, with MFA. Do not set the key
+   Inactive.
+2. **CloudTrail: not now.** The owner said "Don't worry about the cloud trail". The trail and the root-use alert are
+   declined for now (2026-10-29). Their steps are kept, unchanged, in [Appendix A](#appendix-a-optional-cloudtrail-and-root-use-alert-declined-2026-10-29).
+   No step in the main path depends on a trail.
+3. **Done: the unused `kitchensink-ci` IAM access key was deactivated on 2026-10-29**, at the owner's request. CI
+   signs in through the GitHub OIDC roles (ADR-0063) and needs no IAM user key.
+4. **Agent role: approved.** The owner said "The agent role sounds good", with this limit: Secrets Manager reads cover
+   **non-prod** KitchenSink secrets only (`kitchensink/sandbox/*`). Production secrets stay with the admin sign-in.
+   The rest stays as drafted: Bedrock limited to Nova Micro and Claude Haiku 4.5, reads of non-prod `/kitchensink`
+   SSM parameters, and sessions of 12 hours for sign-in, 4 hours for the agent and 1 hour for admin.
+
 Owner ruling, 2026-10-29: **"Scoped access, keep root key".** This runbook carries it out. Every step is run by the
 owner. No workflow runs any of it, and nothing here changes CI.
 
@@ -8,8 +25,8 @@ The result:
 - **You** sign in through IAM Identity Center as an admin user, with MFA.
 - **Local tools and agents** sign in through IAM Identity Center as a second user that holds ONE permission set,
   `KitchenSinkAgent`. It reaches KitchenSink resources only.
-- **The root user** is for account-level emergencies only. It keeps MFA. Its access key stays, but no tool picks it up
-  by default.
+- **The root user** is for account-level emergencies only. It keeps MFA. Its access key stays active, but no tool
+  picks it up by default.
 
 ⛔ This AWS account also hosts another, unrelated production application. Nothing in this runbook acts on the
 whole account. Every grant below is scoped by a `kitchensink` name prefix or by a KitchenSink tag. The few grants AWS
@@ -30,13 +47,12 @@ not paste their output anywhere public.
 aws sso-admin list-instances --query 'Instances[].Status'            # ACTIVE: Identity Center is already on
 aws organizations describe-organization --query 'Organization.MasterAccountId' --output text
 aws sts get-caller-identity --query Account --output text            # same number: this is the management account
-aws cloudtrail describe-trails --query 'trailList[].Name'            # empty: step 9 must create a trail
 aws configure list-profiles                                          # every profile name, no keys
 aws --version                                                        # step 0 needs aws-cli/2.9 or later
 aws iam list-users --query 'Users[].UserName' --output text \
   | tr '\t' '\n' | while read -r u; do
       echo "$u $(aws iam list-access-keys --user-name "$u" --query 'AccessKeyMetadata[?Status==`Active`].AccessKeyId' --output text | wc -w)"
-    done                                                             # users with active keys; see decision 7
+    done                                                             # users with active keys; see decision 3
 ```
 
 What the answers mean:
@@ -45,7 +61,6 @@ What the answers mean:
   `AdministratorAccess` permission set, step 3 reuses it.
 - **This is the management account.** Service control policies do not apply to a management account, so all
   scoping must come from the policy in step 4.
-- **No trail.** An alert on root use needs one. Step 9 creates it.
 - **A profile whose identity is root.** For each profile name, `aws sts get-caller-identity --profile <name>` shows
   who it is. A profile that answers `:root` is a root key on disk. Step 6 moves it out of `[default]`. Note that `ksnonprod` is
   a CDK bootstrap qualifier (ADR-0065), not a profile.
@@ -322,7 +337,7 @@ split it into customer managed policies named `kitchensink-agent-*`.
             "Sid": "ReadKitchenSinkSecrets",
             "Effect": "Allow",
             "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-            "Resource": "arn:aws:secretsmanager:us-east-1:<ACCOUNT_ID>:secret:kitchensink/*"
+            "Resource": "arn:aws:secretsmanager:us-east-1:<ACCOUNT_ID>:secret:kitchensink/sandbox/*"
         },
         {
             "Sid": "ReadKitchenSinkLogs",
@@ -500,7 +515,7 @@ What each part is for:
 | `ScaleOrRestartNonprodServices`           | `ecs update-service` on a service tagged `kitchensink:tier=nonprod`.                                                                                                                                                     |
 | `UseNonprodFunctions`                     | Invoke and read sandbox and `pr-{N}` functions, by CloudFormation's stack-name tag. This is the same fail-closed rule the CI role uses: a function without the tag matches nothing.                                      |
 | `ReadRdsMetadata`                         | `describe-*` only. The deny below blocks every change, every login and every log download.                                                                                                                               |
-| `ReadKitchenSinkSecrets`                  | `kitchensink/*` secrets, as the ruling says. This includes `kitchensink/prod/*`.                                                                                                                                         |
+| `ReadKitchenSinkSecrets`                  | `kitchensink/sandbox/*` secrets only (owner, 2026-10-29). `kitchensink/prod/*` is not matched, so production secrets stay with `kitchensink-admin`.                                                                      |
 | `ReadKitchenSinkLogs`, `LogQueryPlumbing` | Read the four KitchenSink log-group name shapes: `/aws/lambda/kitchensink-*`, `/kitchensink/*`, `kitchensink-*` and `/aws/ecs/containerinsights/kitchensink-*`.                                                          |
 | `InvokeRosterModelsInRegion` and fan-out  | Nova Micro on demand, and Claude Haiku 4.5 through its `us.` inference profile only. The profile's fan-out to other Regions is allowed only through that profile (`bedrock:InferenceProfileArn`).                        |
 | `ReadCosts`, `ReadKitchenSinkBudgets`     | Cost Explorer reads, and the `kitchensink-*` budgets.                                                                                                                                                                    |
@@ -693,6 +708,7 @@ check allowed cloudformation:CreateChangeSet "$cfn/kitchensink-recipe-service-pr
 check allowed iam:PassRole "$EXEC" "$(tag iam:PassedToService cloudformation.amazonaws.com)"
 check allowed s3:PutObject "arn:aws:s3:::cdk-ksnonprod-assets-$ACC-$R/asset.zip"
 check allowed secretsmanager:GetSecretValue "arn:aws:secretsmanager:$R:$ACC:secret:kitchensink/sandbox/example-AbCdEf"
+check implicitDeny secretsmanager:GetSecretValue "arn:aws:secretsmanager:$R:$ACC:secret:kitchensink/prod/example-AbCdEf"
 check allowed lambda:InvokeFunction "arn:aws:lambda:$R:$ACC:function:kitchensink-example-sandbox-Fn" "$(tag aws:ResourceTag/aws:cloudformation:stack-name kitchensink-example-sandbox)"
 check allowed ecs:UpdateService "arn:aws:ecs:$R:$ACC:service/kitchensink-example-sandbox-Cluster/svc" "$(tag aws:ResourceTag/kitchensink:tier nonprod)"
 check allowed logs:FilterLogEvents "arn:aws:logs:$R:$ACC:log-group:/aws/lambda/kitchensink-example-sandbox-Fn:*"
@@ -733,7 +749,7 @@ check implicitDeny bedrock:InvokeModel "arn:aws:bedrock:us-west-2::foundation-mo
 [ $fail -eq 0 ] && echo "ALL CHECKS PASS" || { echo "SOME CHECKS FAILED"; exit 1; }
 ```
 
-On 2026-10-29 run 8a returned `ALL CHECKS PASS` (36 checks), and IAM Access Analyzer `validate-policy` returned no
+On 2026-10-29 run 8a returned `ALL CHECKS PASS` (36 checks, before the production-secret check was added; run it again), and IAM Access Analyzer `validate-policy` returned no
 findings for the document.
 
 ### 8c. Live checks as the agent (all read-only)
@@ -759,8 +775,7 @@ Then run one sandbox `cdk diff`, and one sandbox `cdk deploy` through the local 
       notices there.
 - [ ] **Root key kept, unused.** After step 6 it lives only in `[root-breakglass]`. Use it only as
       `AWS_PROFILE=root-breakglass` for an account-level emergency.
-    - Optional, still "kept": set it **Inactive** (IAM → Security credentials, as root), and set it Active again when
-      you need it.
+    - Decided 2026-10-29: it stays **Active**. Do not set it Inactive.
     - Optional: rotate it. The credential report shows its age (`access_key_1_last_rotated`).
 - [ ] **Prove it is unused.** Once a week, as `kitchensink-admin`:
 
@@ -774,17 +789,83 @@ Then run one sandbox `cdk diff`, and one sandbox `cdk deploy` through the local 
     names those four. The two dates must stop moving after the switch. A date after the switch
     that was not you is an incident.
 
-- [ ] **Alert on any root use.** First make sure a trail logs management events. Create one in step 1 below unless the check at the top found one. Then add a rule that emails you.
-    1. CloudTrail → **Create trail**. Name: `kitchensink-account-trail`. New S3 bucket
-       `kitchensink-account-trail-<ACCOUNT_ID>`. SSE-S3 encryption (a KMS key adds a monthly fee). Log file
-       validation on. It applies to all Regions. Management events: **Read and Write**. No data events, no Insights.
-       The first copy of management events is free. You pay only for a small amount of S3 storage.
-    2. SNS (`us-east-1`) → Create topic, Standard, name `kitchensink-root-use-alert`. Add an email subscription to
-       `<OWNER_EMAIL>` and accept it from the email.
-    3. Create the EventBridge rule with the CLI, as `kitchensink-admin`. A plain `ENABLED` rule does not receive
-       read-only management events (Get, List, Describe), so a root key used only to read sends no alert. The state
-       `ENABLED_WITH_ALL_CLOUDTRAIL_MANAGEMENT_EVENTS` receives them. It needs the trail to log **Read** events, which
-       step 1 sets.
+- [ ] **Alert on any root use.** Declined for now (2026-10-29): the owner does not want a trail yet. Skip this item.
+      The steps are in [Appendix A](#appendix-a-optional-cloudtrail-and-root-use-alert-declined-2026-10-29). Until then,
+      the weekly check above is the only sign of root use.
+
+## Rollback
+
+Each step can be undone on its own, and the root key is never removed, so the old way works again at once.
+
+1. Restore the local files and the old default:
+
+    ```bash
+    cp -p ~/.aws/backup-2026-10-29/config ~/.aws/backup-2026-10-29/credentials ~/.aws/
+    sed -i '/^export AWS_PROFILE=kitchensink-agent$/d' ~/.zshenv
+    aws sso logout
+    ```
+
+2. In Identity Center (as root or `kitchensink-admin`): AWS accounts → this account → remove the two assignments.
+   To remove them for good, then delete the `KitchenSinkAgent` permission set and the two users. Credentials already
+   issued stay valid until their session ends (4 hours for the agent, 1 hour for admin).
+3. If you made the optional trail in Appendix A, it can stay. Its removal steps are there.
+
+Nothing in this runbook touches the bootstrap stacks, the CI roles or any deployed stack, so there is nothing to roll
+back there.
+
+## What the agent role can see account-wide
+
+These actions take no resource that AWS lets a policy scope, so they are `"Resource": "*"`. None of them can change
+anything.
+
+| Grant                                                                                       | What it can see beyond KitchenSink                                                                                                                                |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cloudformation:ListStacks`, `ListExports`                                                  | Every stack name, and every stack export's value.                                                                                                                 |
+| `ec2:Describe…`, `route53:List…` (CDK lookups)                                              | VPC, subnet, route table, security group and hosted zone metadata.                                                                                                |
+| `ecs:List…`, `ecs:DescribeTaskDefinition`                                                   | Any task definition, with its environment variables. On 2026-10-29 every ECS cluster in the account was KitchenSink's. ADR-0063 records the same residual for CI. |
+| `rds:Describe*`                                                                             | Metadata of every database instance and snapshot.                                                                                                                 |
+| `logs:DescribeLogGroups`, `GetQueryResults`                                                 | Log group names. Query results only for queries it started, and it can start them only on KitchenSink log groups.                                                 |
+| `ce:*` reads                                                                                | Account-wide cost, the other application's included. The ruling asks for it.                                                                                      |
+| `bedrock:List…`, `Get…` catalog reads, `ecr:GetAuthorizationToken`, `sts:GetCallerIdentity` | Public catalog data, a registry login token, its own identity.                                                                                                    |
+
+Not granted at all, on purpose: `lambda:ListFunctions` (it returns every function's environment variables),
+`secretsmanager:ListSecrets`, `s3:ListAllMyBuckets`, any IAM read or write, any tagging call, EventBridge, Step
+Functions, SQS and SNS. When an agent really needs one, add a narrow grant then.
+
+## Open decisions for the owner
+
+Decided on 2026-10-29: the agent role (approved), the root key (kept active), the trail (declined for now), the
+`kitchensink-ci` key (deactivated), production secrets (agent role reads non-prod only) and session lengths (12 hours
+for sign-in, 4 hours for the agent, 1 hour for admin). See [Decisions (2026-10-29)](#decisions-2026-10-29). Still open:
+
+1. **Bedrock outside the spend ceiling.** The agent role is a second Bedrock grantee, approved with the role.
+   ADR-0024's $100 ceiling and `llmSpendGuards.test.ts` cover only roles that CDK creates, so they cannot see it.
+   This is the same path the 2026-08 bake-off took under root ($60.52). The difference now: the calls come from a
+   named role, and only two models are allowed.
+2. **SSM parameters.** The ruling did not list SSM, but CDK needs it. The policy reads only the bootstrap version and
+   the non-prod `/kitchensink` paths.
+3. **Agents and production deploys.** The default here is none (production goes through CI or `kitchensink-admin`).
+   Allowing it means `iam:PassRole` on `cdk-ksprod-cfn-exec-role`, which can reach the production RDS instance.
+4. **Other IAM users with keys.** The `kitchensink-ci` key is done. Check the user list at the top for any other
+   active but unused key.
+5. **Code, not clicks.** The permission set is a console step here. Moving it into CDK needs a deployer with
+   Identity Center rights in the management account, which no CI role has today.
+
+## Appendix A. Optional: CloudTrail and root-use alert (declined 2026-10-29)
+
+The owner declined this on 2026-10-29: "Don't worry about the cloud trail". Nothing in the main path needs it. The
+steps stay here so they are ready if the decision changes. The trail records the whole account, the other
+application included. It only records. It changes nothing. Before you start, check whether the account already has
+one: `aws cloudtrail describe-trails --query 'trailList[].Name'`.
+
+Make sure a trail logs management events. Create one in step 1 below unless the check above found one. Then add a rule that emails you. 1. CloudTrail → **Create trail**. Name: `kitchensink-account-trail`. New S3 bucket
+`kitchensink-account-trail-<ACCOUNT_ID>`. SSE-S3 encryption (a KMS key adds a monthly fee). Log file
+validation on. It applies to all Regions. Management events: **Read and Write**. No data events, no Insights.
+The first copy of management events is free. You pay only for a small amount of S3 storage. 2. SNS (`us-east-1`) → Create topic, Standard, name `kitchensink-root-use-alert`. Add an email subscription to
+`<OWNER_EMAIL>` and accept it from the email. 3. Create the EventBridge rule with the CLI, as `kitchensink-admin`. A plain `ENABLED` rule does not receive
+read-only management events (Get, List, Describe), so a root key used only to read sends no alert. The state
+`ENABLED_WITH_ALL_CLOUDTRAIL_MANAGEMENT_EVENTS` receives them. It needs the trail to log **Read** events, which
+step 1 sets.
 
         ```bash
         export AWS_PROFILE=kitchensink-admin AWS_REGION=us-east-1
@@ -814,63 +895,5 @@ Then run one sandbox `cdk diff`, and one sandbox `cdk deploy` through the local 
     this works, move the trail, topic, rule and topic policy into the account app (`packages/infra/global/bin/account.ts`) so they
     are code, not console clicks.
 
-## Rollback
-
-Each step can be undone on its own, and the root key is never removed, so the old way works again at once.
-
-1. Restore the local files and the old default:
-
-    ```bash
-    cp -p ~/.aws/backup-2026-10-29/config ~/.aws/backup-2026-10-29/credentials ~/.aws/
-    sed -i '/^export AWS_PROFILE=kitchensink-agent$/d' ~/.zshenv
-    aws sso logout
-    ```
-
-2. In Identity Center (as root or `kitchensink-admin`): AWS accounts → this account → remove the two assignments.
-   To remove them for good, then delete the `KitchenSinkAgent` permission set and the two users. Credentials already
-   issued stay valid until their session ends (4 hours for the agent, 1 hour for admin).
-3. The trail, topic and rule can stay. To remove them, delete the rule, then the topic, then the trail, then empty
-   and delete the `kitchensink-account-trail-<ACCOUNT_ID>` bucket.
-
-Nothing in this runbook touches the bootstrap stacks, the CI roles or any deployed stack, so there is nothing to roll
-back there.
-
-## What the agent role can see account-wide
-
-These actions take no resource that AWS lets a policy scope, so they are `"Resource": "*"`. None of them can change
-anything.
-
-| Grant                                                                                       | What it can see beyond KitchenSink                                                                                                                                |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cloudformation:ListStacks`, `ListExports`                                                  | Every stack name, and every stack export's value.                                                                                                                 |
-| `ec2:Describe…`, `route53:List…` (CDK lookups)                                              | VPC, subnet, route table, security group and hosted zone metadata.                                                                                                |
-| `ecs:List…`, `ecs:DescribeTaskDefinition`                                                   | Any task definition, with its environment variables. On 2026-10-29 every ECS cluster in the account was KitchenSink's. ADR-0063 records the same residual for CI. |
-| `rds:Describe*`                                                                             | Metadata of every database instance and snapshot.                                                                                                                 |
-| `logs:DescribeLogGroups`, `GetQueryResults`                                                 | Log group names. Query results only for queries it started, and it can start them only on KitchenSink log groups.                                                 |
-| `ce:*` reads                                                                                | Account-wide cost, the other application's included. The ruling asks for it.                                                                                      |
-| `bedrock:List…`, `Get…` catalog reads, `ecr:GetAuthorizationToken`, `sts:GetCallerIdentity` | Public catalog data, a registry login token, its own identity.                                                                                                    |
-
-Not granted at all, on purpose: `lambda:ListFunctions` (it returns every function's environment variables),
-`secretsmanager:ListSecrets`, `s3:ListAllMyBuckets`, any IAM read or write, any tagging call, EventBridge, Step
-Functions, SQS and SNS. When an agent really needs one, add a narrow grant then.
-
-## Open decisions for the owner
-
-1. **Bedrock outside the spend ceiling.** The agent role is a second Bedrock grantee. ADR-0024's $100 ceiling and
-   `llmSpendGuards.test.ts` cover only roles that CDK creates, so they cannot see this one. This is the same path the
-   2026-08 bake-off took under root ($60.52). The difference now: CloudTrail names the role, and only two models are
-   allowed. Keep the grant, narrow it, or drop it.
-2. **Production secrets.** `kitchensink/*` includes `kitchensink/prod/*`, as the ruling says. To keep agents out of
-   production secrets, narrow it to `kitchensink/sandbox/*` and `kitchensink/pr-*`.
-3. **SSM parameters.** The ruling did not list SSM, but CDK needs it. The policy reads only the bootstrap version and
-   the non-prod `/kitchensink` paths.
-4. **Agents and production deploys.** The default here is none (production goes through CI or `kitchensink-admin`).
-   Allowing it means `iam:PassRole` on `cdk-ksprod-cfn-exec-role`, which can reach the production RDS instance.
-5. **The root key.** Kept in `[root-breakglass]`. Also set it Inactive, or rotate it?
-6. **The trail.** It records the whole account. It is required for the root-use alert.
-7. **IAM users with keys.** CI no longer needs an IAM user key (ADR-0063). Deactivate any KitchenSink user key that
-   the user check above shows as active but unused?
-8. **Session lengths.** 12 hours for the portal (how often you sign in again), 4 hours for the agent role, 1 hour for
-   admin.
-9. **Code, not clicks.** The permission set and the alert are console steps here. Moving them into CDK needs a
-   deployer with Identity Center rights in the management account, which no CI role has today.
+To remove it: delete the rule, then the topic, then the trail, then empty and delete the
+`kitchensink-account-trail-<ACCOUNT_ID>` bucket.

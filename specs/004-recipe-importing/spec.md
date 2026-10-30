@@ -5,7 +5,8 @@
 **Amended**: 2026-10-28 (`FR-053` added: the "Save to Commise" button for food blogs, gated on the WP Recipe Maker
 team, owner ruling). 2026-10-29 (recipe rights, owner rulings,
 [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): a web
-import is private in full or public as a linked card, two new statements, and C-001 now keys the public card)
+import is private in full or public as a linked card, two new statements, and C-001 now keys the public card) 2026-10-29 (`FR-053a` added: a chef's bulk bring-in from their own claimed site, owner rulings on
+[026](../026-chef-spaces/spec.md))
 **Last revised**: 2026-08-19 (`FR-024`/`FR-025` amended for curator-declared provenance — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md); findings recorded against `FR-020`, `FR-023` and the V-Model module design)
 **Status**: Ready for implementation — all revalidation gates resolved. One requirement (FR-009, Instagram) is
 specified in full but **gated on an external Meta credential**; see `D-002` and the Gating section.
@@ -321,6 +322,25 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     - **Every state is a deliverable.** The saving, saved, not available yet, blocked, private-only, quota reached,
       offline and error states each need a design, copy and a localisation key, on web and mobile.
       `staff-ux-engineer` DESIGN and SPECIFY run at plan time.
+- **FR-053a** _(added 2026-10-29, owner rulings on [026](../026-chef-spaces/spec.md))_: A chef with a live site claim
+  (`026-FR-001`) MUST be able to bring in recipes from their own claimed site in bulk, through ADR-0072's import route
+  and its daily allowance. The rules:
+    - **The list comes from the site itself.** The recipes offered MUST come from the claimed site's own sitemap or its
+      recipe structured data. The chef picks which ones to bring in.
+    - **One fetch per page, at the chef's request.** Every page fetched MUST be on the claimed domain, fetched once
+      because the chef asked, with `robots.txt` honored (`FR-023`). Nothing fetches on a schedule, and nothing
+      re-fetches a page by itself (`026-FR-008`).
+    - **Each recipe carries its own statement.** A claim proves control of the site, not authorship. Each recipe the
+      chef brings in as their own MUST carry "I wrote this" and "This is my own page", made per recipe (`FR-014a`,
+      `026-FR-002`). Such a recipe is `user_created`, labelled "Written by you" (ADR-0077 §2), and its page address
+      is stored as its origin. A recipe the chef does not state as their own takes the statement the chef makes, as
+      in any bulk import.
+    - **Photos need their own statement.** A photo comes in only where the chef states they own it or have the right
+      to use it (`026-FR-004`).
+    - **This is not the "Save to Commise" button.** A save through `FR-053` is never `user_created`. This route is the
+      only one that turns a page into the chef's own recipe, and only under a live claim.
+    - **020 still checks it.** A public recipe goes through 020 as usual. A hit on its own origin page under a live
+      claim is handled by `020-FR-012g`.
 - **FR-019**: System MUST allow users to import recipes from structured files (JSON, YAML, or Markdown with
   YAML frontmatter), producing a draft. File type MUST be determined by content inspection (magic bytes), not
   by the client-supplied filename or MIME type.

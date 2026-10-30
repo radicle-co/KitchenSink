@@ -5,7 +5,8 @@
 **Created**: 2026-10-27
 **Status**: Draft. Q1 is resolved. Q2 is open. Amended 2026-10-28 for AI answer engines (FR-011a, FR-028a, FR-080a,
 FR-085a) and the save route (FR-035). Amended 2026-10-29 for recipe rights: the linked card (FR-014a to FR-014h), who
-can be open to the web (FR-002), and the licence panel's ownership line (FR-040)
+can be open to the web (FR-002), and the licence panel's ownership line (FR-040). Amended 2026-10-29 for a chef's Home (FR-010a), on
+the owner's ruling on [026](../026-chef-spaces/spec.md) Q2
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
 other recommendations in either new features or expanding existing features." Mindset, same day: "assume that we can do
 this and figure out how." Owner, 2026-10-28: "Let's also do the pages for AI recommendation."
@@ -546,6 +547,22 @@ creator page.
   never the app root. The address MUST be built from the recipe's id and a slug from its title. It MUST NOT contain the
   cook's handle, so a handle change never breaks it. A wrong or stale slug MUST redirect permanently to the canonical
   one. Whether the path carries a locale is a plan decision. Either way there is one canonical address per recipe.
+- **FR-010a** _(added 2026-10-29, owner ruling Q2 on [026](../026-chef-spaces/spec.md): "Their blog")_: A chef chooses a
+  **Home**, their blog or Commise (`026-FR-006`). Home starts as the blog. While Home is the blog, an open recipe that
+  has an origin on the chef's claimed site (`004-FR-053a`) MUST follow these rules:
+    - **The canonical address is the blog post.** The page MUST declare its origin address as its canonical address,
+      in place of FR-010's address on `commise.app`. Its own address on `commise.app` still exists and still serves the
+      page. FR-026's rule about query parameters still holds.
+    - **A "Read on [blog name]" link** MUST show near the top of the page, to the origin address.
+    - **Only under a live claim.** If the claim on that domain fails or is removed (`026-FR-001`, `026-FR-009`), the
+      canonical address MUST return to `commise.app` within the purge bound (FR-061). A site the chef no longer
+      controls MUST NOT receive our canonical address.
+    - **Sitemaps leave it out.** A page whose canonical address is the blog MUST NOT be listed in our sitemaps
+      (FR-027), because a sitemap lists canonical addresses only.
+    - **A change is an exit-or-change event.** A change of Home, or of the claim's state, MUST reach every public
+      surface within the purge bound, update the sitemaps within FR-027's hour, and send an IndexNow notice
+      (FR-029a).
+      A recipe with no origin on a claimed site, and every recipe of a chef whose Home is Commise, follows FR-010.
 - **FR-011**: The public page MUST show the whole recipe as the cook wrote it. That is the title, photos,
   description, servings, and the prep, cook and total times. It is also the difficulty, if set (`001-FR-001b`), every
   ingredient line with its amount, every step, the tags and the cuisine. With at least one rating, it shows the rating

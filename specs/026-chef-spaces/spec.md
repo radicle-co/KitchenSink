@@ -3,8 +3,8 @@
 **Feature Branch**: `docs/chefSpaces1029` (worktree `.worktrees/chefSpaces`, from `fix/ingredient-matching`. The spec
 directory is `specs/026-chef-spaces`. `.specify/feature.json` is not pointed here, because another session uses it.)
 **Created**: 2026-10-29
-**Status**: Draft. Nine owner questions are open (Q1 to Q9). Phase 1 can be built under either answer to Q1. The
-money half (section E) waits on 018. Every user-facing surface needs `staff-ux-engineer` DISCOVER and DESIGN
+**Status**: Draft. The owner answered Q1 to Q9 on 2026-10-29 (Clarifications). Q4 (the Pro pool) and Q6 (the
+commission) are deferred to the royalties and chef-payments work. The money half (section E) waits on 018. Every user-facing surface needs `staff-ux-engineer` DISCOVER and DESIGN
 before build. None has run.
 **Input**: Owner, 2026-10-29: "We have the creator/chef feature - let's enhance that to make the offering more
 powerful and enticing to layer on top of and then replace blogs. The question is how these chefs can earn income while
@@ -27,22 +27,25 @@ AC-014-b forbids a second profile entity, and this spec does not create one.
 
 Each requirement says which spec it changes:
 
-| Tag               | Meaning                                                                                           |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| **`→ 012`**       | A requirement to merge into 012 (creator page, collections, analytics, tips)                      |
-| **`→ 013`**       | A requirement to merge into 013 (courses)                                                         |
-| **`→ 015`**       | A requirement to merge into 015 (publishing rewards)                                              |
-| **`→ 018`**       | A requirement to merge into 018 (chef program, marketplace, money-out)                            |
-| **`→ requested`** | A change that 004, 016, 020 or 021 owns. It is listed in Requested amendments and not edited here |
-| **`026`**         | Owned here, because no other spec owns it (site claims and the email list)                        |
+| Tag                                   | Meaning                                                                      |
+| ------------------------------------- | ---------------------------------------------------------------------------- |
+| **`→ 012`**                           | A requirement to merge into 012 (creator page, collections, analytics, tips) |
+| **`→ 013`**                           | A requirement to merge into 013 (courses)                                    |
+| **`→ 015`**                           | A requirement to merge into 015 (publishing rewards)                         |
+| **`→ 018`**                           | A requirement to merge into 018 (chef program, marketplace, money-out)       |
+| **`→ 004`**, **`→ 020`**, **`→ 021`** | A change applied in that spec on 2026-10-29, after the owner's rulings       |
+| **`→ requested 016`**                 | A change 016 owns. It is listed in Amendments and not edited here            |
+| **`026`**                             | Owned here, because no other spec owns it (site claims and the email list)   |
 
 The work comes in three phases. The phases follow what is unblocked, not what matters most.
 
-| Phase                    | What it holds                                                                                                         | What it waits on                                    |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| **1. Layer on the blog** | Claim your site, bring your recipes in, the corner page, email sign-up with export, analytics, links back to the blog | The requested amendments to 004 and 021. Q1 for 020 |
-| **2. Earn on Commise**   | The Pro pool, digital cookbooks, tips, courses, affiliate links                                                       | 018's money-out apparatus and C-018-003, C-018-004  |
-| **3. Replace the blog**  | Home moves to Commise: the canonical address, a chef club, native email sending, redirect help                        | Phase 2 earning in practice. Q2, Q3 and Q5          |
+| Phase                    | What it holds                                                                                                         | What it waits on                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **1. Layer on the blog** | Claim your site, bring your recipes in, the corner page, email sign-up with export, analytics, links back to the blog | `staff-ux-engineer` DESIGN. Counsel review of FR-005                                      |
+| **2. Earn on Commise**   | Digital cookbooks, the chef club, tips, courses, affiliate links, the sponsor line                                    | 018's money-out apparatus. The commission, from the royalties and chef-payments work (Q6) |
+| **3. Replace the blog**  | Home moves to Commise: the canonical address and redirect help. A decision on native email sending                    | Phase 2 earning in practice (Q3)                                                          |
+
+The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties and chef-payments work (Q4).
 
 ## Dependencies
 
@@ -51,12 +54,12 @@ The work comes in three phases. The phases follow what is unblocked, not what ma
 | [012-creator-profiles](../012-creator-profiles/spec.md)                                                                                                       | **Required, amended.** The chef corner is the 012 page. Collections, follows, analytics, the embed widget and the tip jar live there                                                               |
 | [018-chef-program-marketplace](../018-chef-program-marketplace/spec.md)                                                                                       | **Required, amended.** Chef standing, what a chef can sell (licensed copy, C-018-001), the seller of record (C-018-002), the ledger, payouts, tax and the store rails                              |
 | [013-cooking-school](../013-cooking-school/spec.md)                                                                                                           | **Amended.** Courses are a chef income line. Its 20%/80% split is 018's open C-018-004                                                                                                             |
-| [015-publishing-rewards](../015-publishing-rewards/spec.md)                                                                                                   | **Constraining, amended.** Its rewards stay non-monetary (`015-FR-007`, `015-FR-030`). The Pro pool in section E must not become a paid route around it                                            |
+| [015-publishing-rewards](../015-publishing-rewards/spec.md)                                                                                                   | **Constraining, amended.** Its rewards stay non-monetary (`015-FR-007`, `015-FR-030`). Any future Pro pool (FR-040, deferred) must not become a paid route around it                               |
 | [004-recipe-importing](../004-recipe-importing/spec.md)                                                                                                       | **Required, amendment requested.** It owns source types (`004-FR-011`) and the per-item statement (`004-FR-014a`). It also owns bulk import (ADR-0072) and the "Save to Commise" button (`FR-053`) |
 | [020-content-source-check](../020-content-source-check/spec.md) and ADR-0074                                                                                  | **Required, amendment requested.** When the check finds the chef's own blog, a claimed site must count as evidence                                                                                 |
 | [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md)                                                                               | **Required, amendment requested.** What is open to the web, indexing and canonical addresses. Another session owns the linked card work there                                                      |
 | [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)                                                                                   | **Required, amendment requested.** The content licence, notice and takedown, the processor terms for the email list                                                                                |
-| [010-subscriptions](../010-subscriptions/spec.md) and [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Governs.** Plans, store billing through RevenueCat, Stripe on the web. The Pro pool is funded from 010 revenue                                                                                   |
+| [010-subscriptions](../010-subscriptions/spec.md) and [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md) | **Governs.** Plans, store billing through RevenueCat, Stripe on the web. A future Pro pool (FR-040, deferred) is funded from 010 revenue                                                           |
 | [014-notification-service](../014-notification-service/spec.md)                                                                                               | **Referenced.** If the owner chooses it (Q3), native email sending in phase 3 is a new 014 channel                                                                                                 |
 | [023-referrals-and-growth-measurement](../023-referrals-and-growth-measurement/spec.md)                                                                       | **Referenced.** Traffic a chef sends to Commise, and Commise sends back to the chef, is measured with its events                                                                                   |
 | [`docs/research/userNeeds/synthesis.md`](../../docs/research/userNeeds/synthesis.md)                                                                          | **Governs the reader side.** Need 1 is "Get to the recipe and the current step without the page fighting back" (FR-001, CK-005). Ads are part of that complaint                                    |
@@ -68,11 +71,11 @@ The work comes in three phases. The phases follow what is unblocked, not what ma
   desktop widths. Its §3.6 gate applies. It owns the chef-side research questions too: what a blogger needs to see
   before they trust us with their recipes.
 - **`staff-architect` PLANNING**, for the site claim record (section A), the canonical choice (FR-006), the email list
-  and its processor role (section C), and the Pro pool's attribution (section E). Each is persisted data, a contract
+  and its processor role (section C), and the chef club (FR-045). Each is persisted data, a contract
   or money, so each is expensive to reverse.
 - **`clo` and counsel**, for the processor terms (FR-023), CAN-SPAM's postal address (FR-026), the FTC disclosure
-  for affiliate links and sponsors (FR-047, FR-048), and whether a pool paid for engagement changes 016's hosting
-  posture (FR-041). **`cfo-1`**, for the pool's size and the commission against the store stack (Q4, Q6).
+  for affiliate links and sponsors (FR-047, FR-048), and the own-site rule in FR-005, which the owner approved subject
+  to counsel review. The Pro pool and the commission go to the royalties and chef-payments work (Q4, Q6).
 - **No printed products (owner rule).** This spec proposes no printed product of any kind. A digital cookbook is a PDF or EPUB file and the licensed copies in the app (FR-044). Nothing
   here is "print-ready" or print on demand.
 
@@ -96,8 +99,8 @@ The work comes in three phases. The phases follow what is unblocked, not what ma
 
 ## What this feature does NOT do
 
-- **No display ads at v1.** 018 refused in-app display ads (`018` H.4, C-018-003a). Q8 puts the question back to the
-  owner with the evidence on both sides. This spec does not reopen it.
+- **No display ads.** 018 refused in-app display ads (`018` H.4, C-018-003a), and the owner kept that refusal for
+  chef corners too (Q8, 2026-10-29).
 - **No paywalled recipe.** Visibility stays private or public (GR-014, `001-FR-003`). A sale delivers a licensed copy
   (`018-FR-029`). `012-FR-035` to `012-FR-039` stay retired.
 - **No printed product.** See the owner rule above.
@@ -138,8 +141,7 @@ link back and the source type. Change the claim to fail and make sure that a new
    **Then** the recipe is saved as `user_created`, labelled "Written by you", with the page address on the claimed
    site recorded as its origin (FR-003, FR-005).
 2. **Given** a recipe brought in from a claimed site, **When** the content source check finds the same recipe on the
-   claimed site, **Then** under Q1 option A it goes to a person with the claim shown, and under option B that one match does not
-   count as a copy (FR-005).
+   claimed site, **Then** that one match does not count as a copy, and every other part of the check runs as usual (FR-005).
 3. **Given** a chef whose Home is their blog, **When** a search engine reads the Commise page, **Then** the page's
    canonical address is the blog post, and the page shows a clear "Read on [blog name]" link (FR-006).
 4. **Given** a page on a site the chef has not claimed, **When** the chef tries to bring it in as their own, **Then**
@@ -183,26 +185,10 @@ Follow the chef with another account and make sure that no list changes.
 3. **Given** any time, **When** the chef asks, **Then** they can export every sign-up Commise holds for them, with
    consent records (FR-024).
 
-### User Story 4 - A chef earns when Pro members cook their recipes (Priority: P2)
+### User Story 4 - A chef earns when Pro members cook their recipes (DEFERRED)
 
-Dana's recipes are cooked by Pro members. Each month Dana's earnings page shows a share of the Pro pool, worked out
-from those cooks, with the rule written in plain words.
-
-**Why this priority**: It is the answer to "income like ads for visits", without ads. It pays the long tail of chefs,
-which direct sales do not (`018-FR-058a-i`). It waits on 018's money-out apparatus.
-
-**Independent Test**: Seed cook events for two chefs by distinct Pro members. Run the month's allocation. Make sure that the
-split matches the stated rule to the cent. Make sure that the rule, and nothing else, decides how events from free
-members, the chef's own account and repeated cooks count.
-
-**Acceptance Scenarios**:
-
-1. **Given** a month's pool, **When** it is allocated, **Then** each chef's share follows the published rule exactly
-   and the ledger balances (FR-040, `018-FR-037`).
-2. **Given** a recipe that is not the chef's own authored work, **When** it is cooked, **Then** it earns nothing
-   (FR-041).
-3. **Given** cook events that look automated or self-dealt, **When** the month closes, **Then** they are held for
-   review and not paid until cleared (FR-042).
+Deferred by the owner on 2026-10-29 (Q4) to the royalties and chef-payments work. That work writes this story, its
+priority, its test and its scenarios. The story number is kept so it is not reused.
 
 ### User Story 5 - A chef sells a digital cookbook (Priority: P2)
 
@@ -263,7 +249,23 @@ change together, and that switching back restores them.
 
 ### Session 2026-10-29
 
-No answers yet. The open questions are Q1 to Q9 in Owner questions.
+The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session. Each answer is quoted.
+
+- **Q1. When the copy check finds a chef's recipe on their own claimed page, does a person still look?** Owner: "Claim
+  clears own-site hit". Option B, with counsel review before build. Recorded in FR-005 and `020-FR-012g`.
+- **Q2. Does a chef's Home start as their blog or as Commise?** Owner: "Their blog". Recorded in FR-006 and
+  `021-FR-010a`.
+- **Q3. Does Commise send email for chefs, or connect only to their provider?** Owner: "Connect only, for now".
+  Connect to the chef's provider in phases 1 and 2. Decide on sending after phase 2. Recorded in FR-025.
+- **Q4. The Pro pool.** DEFERRED. Owner: "Let's mark this as something to resolve when we tackle the royalties and
+  paying chefs work - it's going to require a lot of thought". There is no share and no rule for which recipes earn
+  yet. Recorded in FR-040.
+- **Q5. A chef club?** Owner: "Yes, earlier". The club is in phase 2, beside digital cookbooks. Recorded in FR-045.
+- **Q6. The commission?** Owner: "Decide with royalties". Deferred to the same royalties and chef-payments work as
+  Q4. 013's 20% stays a draft. Recorded in FR-050.
+- **Q7. A sponsor line?** Owner: "Yes, as described". Recorded in FR-048.
+- **Q8. Display ads?** Owner: "Keep refused". No display ads, chef corners included. Recorded in FR-060.
+- **Q9. Which corner features need chef standing?** Owner: "Money features only". Recorded in FR-014.
 
 ## Requirements _(mandatory)_
 
@@ -278,25 +280,24 @@ No answers yet. The open questions are Q1 to Q9 in Owner questions.
 - **FR-002** `026`: A claim proves control of a site. It MUST NOT be read as proof that the chef wrote any recipe on
   it. Each recipe brought in as the chef's own MUST carry the chef's own statement, made per recipe at the moment of
   bring-in (`004-FR-014a`). A blanket statement for the whole site MUST NOT replace it (`016-FR-014`).
-- **FR-003** `→ requested 004`: A chef MUST be able to bring in recipes from their claimed site in bulk, through
+- **FR-003** `→ 004`: A chef MUST be able to bring in recipes from their claimed site in bulk, through
   ADR-0072's import route and its allowance. The list of recipes MUST come from the site's own sitemap or recipe
   structured data. Every page fetched MUST be on the claimed domain, fetched once at the chef's request, with
   robots rules honored. Nothing MUST fetch on a schedule.
 - **FR-004** `026`: A bring-in MUST keep the recipe's photos only where the chef states they own them or have the
   right to use them. A photo the chef does not state MUST be left behind, with the chef told which.
-- **FR-005** `→ requested 020`: A recipe brought in from a claimed site with "I wrote this" and "This is my own page"
+- **FR-005** `→ 020`: A recipe brought in from a claimed site with "I wrote this" and "This is my own page"
   is `user_created`, labelled "Written by you" (ADR-0077 §2, `020-FR-012g`). Its address on the claimed site MUST be
-  stored as its origin. [NEEDS OWNER DECISION: **Q1**.] What a hit on that claimed page does in the 020 check:
-    - **Option A, a person still looks.** The hit goes to a person with the live claim shown as evidence, as
-      `020-FR-012g` does today. Nothing in 020 changes. The cost is one staff review per recipe.
-    - **Option B, the claim clears that one hit.** A hit on the recipe's own origin page, under a live claim on that
-      domain, MUST NOT count as a copy. Every other part of the check runs as usual. A hit on any other page, a
-      model item, or a photo signal still sends the recipe to a person (ADR-0074 §2). Only this one hit changes.
-- **FR-006** `→ requested 021`: Each chef MUST choose a Home: their blog or Commise. When
+  stored as its origin. _(Owner ruling Q1, 2026-10-29: "Claim clears own-site hit".)_ A hit on the recipe's own
+  origin page, under a live claim on that domain, MUST NOT count as a copy. Every other part of the check runs as
+  usual. A hit on any other page, a model item, or a photo signal still sends the recipe to a person (ADR-0074 §2).
+  Only this one hit changes. ⚠️ Counsel reviews this rule before it is built (`020-FR-012g`).
+- **FR-006** `→ 021`: Each chef MUST choose a Home: their blog or Commise. When
   Home is the blog, each recipe page with a blog origin MUST name the blog post as its canonical address. It MUST
   also show a "Read on [blog name]" link near the top. When Home is Commise, the page is canonical on Commise under
-  `021-FR-010`. The default is Q2. A change of Home MUST reach every public surface within the purge bound
-  (`021-FR-061`) and MUST be recorded with its time.
+  `021-FR-010`. Home starts as the blog _(owner ruling Q2, 2026-10-29: "Their blog")_. A change of Home MUST reach every public surface within the purge bound
+  (`021-FR-061`) and MUST be recorded with its time. The blog is the canonical address only under a live claim, and such a page
+  leaves our sitemaps. The full rules are `021-FR-010a`.
 - **FR-007** `026`: When a chef's Home is Commise, the chef MUST be able to download a redirect list from each blog
   origin address to its Commise address, in a format a WordPress redirect plugin reads.
 - **FR-008** `026`: When a recipe on a claimed site changes, Commise MUST NOT change its copy by itself. The chef MUST
@@ -318,9 +319,8 @@ No answers yet. The open questions are Q1 to Q9 in Owner questions.
   (FR-001, CK-005), stated as a promise to the reader.
 - **FR-013** `→ 012`: The 012 embed widget MUST be offered as a "Cook this in Commise" card a chef can place on their
   own blog post. It links to the Commise page of that recipe. It carries no tracking script (`012-FR-026`).
-- **FR-014** `→ 012`: [NEEDS OWNER DECISION: **Q9**.] Which corner sections need 018 chef standing, and which any
-  creator gets. The recommendation is: phase 1 sections for any creator, money sections for chefs only.
-
+- **FR-014** `→ 012`: _(Owner ruling Q9, 2026-10-29: "Money features only".)_ Every phase 1 feature MUST be open to any
+  creator. Every money feature (section E) MUST need 018 chef standing.
 - **FR-015** `→ 012, 018`: An item a chef sells MUST NOT be readable signed out (021 Q2, owner ruling 2026-10-29). A
   paid collection, recipe, digital cookbook, course or club MUST show a signed-out reader at most its title, cover,
   price and the chef's own description. That is enough for a reader to find it and buy it. It MUST NOT show any of
@@ -343,9 +343,9 @@ No answers yet. The open questions are Q1 to Q9 in Owner questions.
   processor terms the chef accepts before connecting.
 - **FR-024** `026`: The chef MUST be able to export every sign-up Commise holds for them, with its consent record, at
   any time, as CSV.
-- **FR-025** `026`: [NEEDS OWNER DECISION: **Q3**.] Whether Commise sends email for chefs (phase 3, a new 014
-  channel), or only connects to the chef's provider. Sending makes Commise responsible for delivery, bounces and
-  complaints for every chef.
+- **FR-025** `026`: _(Owner ruling Q3, 2026-10-29: "Connect only, for now".)_ In phases 1 and 2 Commise MUST NOT send
+  email for chefs. It connects to the chef's provider only (FR-020). Whether Commise sends email (a new 014 channel)
+  is decided after phase 2. Sending makes Commise responsible for delivery, bounces and complaints for every chef.
 - **FR-026** `026`: Before a chef connects a list, they MUST be told that US law (CAN-SPAM) needs a valid postal
   address in each commercial email, and that a post office box registered with the US Postal Service is allowed
   (`research/creatorIncome.md` §5). Commise MUST NOT show a chef's address on
@@ -360,26 +360,23 @@ No answers yet. The open questions are Q1 to Q9 in Owner questions.
 - **FR-031** `→ 012`: When a count is below a stated floor, analytics MUST show "fewer than N" rather than the number,
   so a single reader cannot be picked out.
 
-#### E. Earning on Commise (phase 2, needs 018)
+#### E. Earning on Commise (phase 2, needs 018 chef standing and money-out)
 
-- **FR-040** `→ 018`: [NEEDS OWNER DECISION: **Q4**.] **The Pro pool.** A stated share of Pro revenue MUST be paid to
-  chefs each month, split by Pro members' cooks of each chef's recipes, counted per member first (user-centric: each
-  member's share goes only to the chefs that member cooked). The rule MUST be published to chefs in plain words
-  before it applies (`018-FR-058a`). This is 018's "chef pool" (`018` H.4, Next tier), brought forward.
-- **FR-041** `→ 018, 015`: Only a chef's recipe that is open to the web and whose rights label (`016-FR-015c`) is
-  "Written by you" MUST earn from the pool. Every other label MUST earn nothing: an adaptation, a web copy, a book or
-  paid-site recipe, a family recipe, a clone and public domain text. Whether an adaptation earns is part of Q4. The rule MUST read the one rights label
-  Policy (ADR-0077 §1), never the source type alone, because a family recipe can share `user_created`.
-  This keeps H3's guard: money is a stronger inducement than a reward, so every eligibility rule from 015 and 004
-  binds harder here (`018-FR-064`, `015-FR-001`).
-- **FR-042** `→ 018`: Cook events MUST count only from distinct paying members, at most once per member per recipe per
-  month, never from the chef's own account or household. Events that look automated MUST be held, not paid, until a
-  review clears them (`018` section L).
+- **FR-040** `→ 018`: **The Pro pool. DEFERRED** _(owner ruling Q4, 2026-10-29)_ to the royalties and chef-payments
+  work. Owner: "Let's mark this as something to resolve when we tackle the royalties and paying chefs work - it's
+  going to require a lot of thought". There is no share and no rule yet. The analysis in
+  [`incomeModel.md`](./incomeModel.md) §5 and 018's chef pool (`018` H.4, Next tier) are inputs to that work, not
+  requirements.
+- **FR-041**, **FR-042**: Reserved for the pool's rules, decided with FR-040: which recipes earn, and how cook events
+  count. The input that work starts from is in `incomeModel.md` §5 and §6 (Q4). Any rule it writes MUST read the one
+  rights label Policy (ADR-0077 §1), never the source type alone. It MUST also keep 018's hazard H3 in view
+  (`018-FR-064`, `015-FR-001`).
 - **FR-043** `→ 018`: **Digital cookbooks.** A chef MUST be able to sell a collection of their own recipes as one
   product (`018-FR-087`), with verified constraint claims (`018-FR-088`). This is the primary sellable unit.
 - **FR-044** `→ 018`: A cookbook purchase MUST deliver the licensed copies (`018-FR-089`) and a PDF or EPUB file of
   the same recipes, in one act. The file MUST name the buyer and the chef. Nothing MUST offer printing.
-- **FR-045** `→ 018`: [NEEDS OWNER DECISION: **Q5**.] **A chef club.** A monthly price paid to one chef. Each new club
+- **FR-045** `→ 018`: **A chef club** _(owner ruling Q5, 2026-10-29: "Yes, earlier", so it is in phase 2)_: a monthly price
+  paid to one chef. Each new club
   recipe arrives in each member's library as a licensed copy, and club courses or live sessions (013) are open to
   members. It creates no paywalled recipe and no third visibility state.
 - **FR-046** `→ 012, 018`: Tips (`012-FR-031` to `012-FR-034`) and courses (`013-FR-001` to `013-FR-010`) are chef
@@ -387,29 +384,33 @@ No answers yet. The open questions are Q1 to Q9 in Owner questions.
 - **FR-047** `→ 018`: A chef MUST be able to add their own affiliate links to equipment and ingredients on their own
   recipe. Each MUST be marked as an affiliate link where it shows, as the FTC requires. Grocery affiliate revenue
   shared with the chef (`018` H.4, Now tier) waits on a grocery partner, which Commise does not have.
-- **FR-048** `→ 018`: [NEEDS OWNER DECISION: **Q7**.] Whether a chef can sell a sponsor slot: one labelled "Sponsored
-  by" line per recipe or cookbook, text and a logo, with no tracking and no third-party script.
+- **FR-048** `→ 018`: _(Owner ruling Q7, 2026-10-29: "Yes, as described".)_ A chef MUST be able to sell one sponsor
+  line per recipe or cookbook. It MUST be labelled "Sponsored by", hold text and a logo only, and sit under the method,
+  never above the ingredients. The chef sells it. It MUST use no ad network, no tracking and no third-party script
+  (FR-011).
 - **FR-049** `→ 018`: Every price a chef sets MUST map to a store price point where the sale happens in a mobile app,
   because in-app products are set up ahead of time. [To check at plan time: whether Apple and Google let one app
   carry a catalogue priced by each creator, and how. Do not build on either answer until checked.]
-- **FR-050** `→ 018`: [NEEDS OWNER DECISION: **Q6**.] The commission, decided against the whole stack: the store fee,
-  then ours, then the chef's net (`018-FR-082`, C-018-004).
+- **FR-050** `→ 018`: **The commission. DEFERRED** _(owner ruling Q6, 2026-10-29: "Decide with royalties")_ to the same
+  royalties and chef-payments work as FR-040. When it is set, it MUST be set against the whole stack: the store fee,
+  then ours, then the chef's net (`018-FR-082`, C-018-004). `013-FR-010`'s 20% stays a draft until then.
 
 #### F. Display ads
 
-- **FR-060**: [NEEDS OWNER DECISION: **Q8**.] Display ads stay refused (`018` H.4) unless the owner reopens them.
+- **FR-060**: _(Owner ruling Q8, 2026-10-29: "Keep refused".)_ Display ads MUST NOT appear on any Commise surface,
+  chef corners and chef recipe pages included (`018` H.4).
 
-### Requested amendments (other specs own these)
+### Amendments to other specs
 
-| Spec | Change                                                                                                                                        | Needed by   |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 004  | A bulk bring-in from a claimed site, listed from its sitemap or structured data (FR-003)                                                      | Phase 1     |
-| 020  | Under Q1 option B, a hit on the recipe's own origin page under a live claim does not count as a copy (FR-005, `020-FR-012g`)                  | Phase 1     |
-| 021  | When Home is the blog, a canonical address that points to the chef's blog, and the "Read on" link (FR-006)                                    | Phase 1     |
-| 016  | Processor terms for the email list (FR-023). Creator terms that cover the pool and the site claim. Disclosure rules for affiliate and sponsor | Phase 1 / 2 |
+| Spec | Change                                                                                                                                                                | Status                                      |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| 004  | A bulk bring-in from a claimed site, listed from its sitemap or structured data (FR-003)                                                                              | Applied 2026-10-29: `004-FR-053a`           |
+| 020  | A hit on the recipe's own origin page under a live claim does not count as a copy, with counsel review before build (FR-005)                                          | Applied 2026-10-29: `020-FR-012g`           |
+| 021  | When Home is the blog, the canonical address is the chef's blog post, with a "Read on" link (FR-006)                                                                  | Applied 2026-10-29: `021-FR-010a`           |
+| 016  | Processor terms for the email list (FR-023). Creator terms that cover the site claim and the sponsor line. FTC disclosure rules for affiliate links and sponsor lines | Requested, not applied. 016's owner decides |
 
 The linked card (`021-FR-014a` to `FR-014h`) is for a recipe from someone else's page. It does not apply to a chef's
-own page under a live claim. This spec edits none of 004, 016, 020 or 021.
+own page under a live claim. This spec does not edit 016 or 010.
 
 ### Key Entities
 
@@ -422,8 +423,7 @@ own page under a live claim. This spec edits none of 004, 016, 020 or 021.
   The provider's API secret is stored as a secret, never in the database in plain text.
 - **List sign-up**: a reader address, the chef, the time, the page, the consent text, the market, whether it was
   confirmed and whether it reached the provider. Owned here. Personal data under 016.
-- **Pool allocation**: per month, the pool total and each chef's share, with the events it rests on. Booked in 018's
-  ledger.
+- **Pool allocation**: deferred with FR-040. No entity is specified until the royalties and chef-payments work.
 
 ## Success Criteria _(mandatory)_
 
@@ -443,18 +443,8 @@ Every number below is a target with a test. None is a forecast. The evidence beh
 
 ## Owner questions
 
-Each question is framed with its trade-offs in [`incomeModel.md`](./incomeModel.md) §6.
-
-- **Q1**: When the copy check finds a chef's recipe on their own claimed page, does a person still look (option A), or
-  does the claim clear that one hit (option B)?
-- **Q2**: Does a chef's Home start as their blog or as Commise?
-- **Q3**: Does Commise send email for chefs, or only connect to their provider?
-- **Q4**: What share of Pro revenue goes to the Pro pool, from when, and does an "Adapted by you" recipe earn?
-- **Q5**: A chef club (a monthly price to one chef that delivers new recipes as copies): yes or no?
-- **Q6**: The commission, against the store stack (C-018-004)?
-- **Q7**: Can a chef sell a labelled sponsor line on their own recipe?
-- **Q8**: Do display ads stay refused?
-- **Q9**: Which corner features need chef standing?
+All nine were answered on 2026-10-29. The answers are in Clarifications, and the trade-offs that were weighed are in
+[`incomeModel.md`](./incomeModel.md) §6.
 
 ## Assumptions
 

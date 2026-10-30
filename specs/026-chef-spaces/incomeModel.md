@@ -38,28 +38,29 @@ figures. It is not a forecast. GAP means no public number exists. Each GAP has a
 | A full export and the right to leave                                             | The answer to the Yummly fear                                                                               | 026-FR-009, 017 export |
 | A nutrition panel from USDA data, as an estimate                                 | Bloggers pay for this today. Nutrifox price is GAP (acquisition idea B3)                                    | 009, idea B3           |
 
-**Phase 2: "Earn on Commise without ads."** A share of Pro revenue for the recipes Pro members cook, digital
-cookbooks, tips, courses and affiliate links.
+**Phase 2: "Earn on Commise without ads."** Digital cookbooks, a chef club, tips, courses, affiliate links and a
+sponsor line. A share of Pro revenue for the recipes Pro members cook is deferred to the royalties and chef-payments
+work (owner ruling Q4, 2026-10-29).
 
 **Phase 3: "Move home when it pays."** The chef switches the canonical address to Commise and gets a redirect list.
-A chef club and email sent from Commise are open questions (Q3, Q5).
+Whether Commise sends email for chefs is decided after phase 2 (owner ruling Q3, 2026-10-29).
 
 The bet is the order. Phase 1 costs the blogger nothing and risks nothing they earn today. Phase 2 has to beat their
 blog's RPM for the same readers before phase 3 makes sense. SC-004 tests exactly that.
 
 ## 3. The income lines
 
-| Line                         | Benchmark from the research                                                                                                         | Proposed for Commise                                                               | Status                                  |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------- |
-| **Pro pool** (pay for cooks) | YouTube gives creators 55% of watch-page ad revenue and 45% of the Shorts pool [P]. Medium pays by member reading time, formula GAP | A stated share of Pro revenue, split by Pro members' cooks, per member first (Q4)  | Phase 2. Needs 018 money-out            |
-| **Digital cookbook**         | KDP ebook royalty 70% (after VAT and delivery) or 35% [P]. Gumroad keeps 10% + $0.50 [P]. Print royalty 10% to 15% [S]              | 018's sellable collection, licensed copies plus a PDF or EPUB (026-FR-043, FR-044) | Phase 2. C-018-004 sets the cut         |
-| **Single recipe**            | No benchmark found                                                                                                                  | Allowed by 018-FR-029. The weaker unit                                             | Phase 2                                 |
-| **Chef club** (monthly)      | Substack keeps 10% [P, via search summary], Patreon 10%, Beehiiv and Ghost 0% before card fees [P]                                  | New recipes arrive as copies each month, plus member courses (Q5)                  | Phase 3. Owner question                 |
-| **Courses**                  | Teachable 0% to 7.5% plus plan fee, Kajabi 0% plus plan fee and 2.7% to 2.9% processing [P]                                         | 013. Its 20%/80% split is open as C-018-004                                        | Phase 2                                 |
-| **Tips**                     | YouTube fan funding: creators keep 70% [P]                                                                                          | 012-FR-031                                                                         | Phase 2                                 |
-| **Affiliate links**          | Amazon pays Kitchen 4.5%, Home 3%, Grocery 1% [P]                                                                                   | The chef's own links, marked as affiliate (026-FR-047). Commise takes nothing      | Phase 2. Needs only the disclosure rule |
-| **Sponsor line**             | Food creators charge about $180 a sponsored social post, nano creators $100 to $500 a blog post [S, vendor]                         | One labelled line per recipe, no tracking (Q7)                                     | Owner question                          |
-| **Display ads**              | RPM $36.81 [S]. Networks pay 70% to 75% [P, S]                                                                                      | Refused by 018 (Q8)                                                                | Owner question                          |
+| Line                         | Benchmark from the research                                                                                                         | Proposed for Commise                                                               | Status                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
+| **Pro pool** (pay for cooks) | YouTube gives creators 55% of watch-page ad revenue and 45% of the Shorts pool [P]. Medium pays by member reading time, formula GAP | A stated share of Pro revenue, split by Pro members' cooks, per member first (Q4)  | Deferred to the royalties work (Q4)         |
+| **Digital cookbook**         | KDP ebook royalty 70% (after VAT and delivery) or 35% [P]. Gumroad keeps 10% + $0.50 [P]. Print royalty 10% to 15% [S]              | 018's sellable collection, licensed copies plus a PDF or EPUB (026-FR-043, FR-044) | Phase 2. The cut is set with royalties (Q6) |
+| **Single recipe**            | No benchmark found                                                                                                                  | Allowed by 018-FR-029. The weaker unit                                             | Phase 2                                     |
+| **Chef club** (monthly)      | Substack keeps 10% [P, via search summary], Patreon 10%, Beehiiv and Ghost 0% before card fees [P]                                  | New recipes arrive as copies each month, plus member courses (Q5)                  | Phase 2 (owner ruling Q5)                   |
+| **Courses**                  | Teachable 0% to 7.5% plus plan fee, Kajabi 0% plus plan fee and 2.7% to 2.9% processing [P]                                         | 013. Its 20%/80% split is open as C-018-004                                        | Phase 2                                     |
+| **Tips**                     | YouTube fan funding: creators keep 70% [P]                                                                                          | 012-FR-031                                                                         | Phase 2                                     |
+| **Affiliate links**          | Amazon pays Kitchen 4.5%, Home 3%, Grocery 1% [P]                                                                                   | The chef's own links, marked as affiliate (026-FR-047). Commise takes nothing      | Phase 2. Needs only the disclosure rule     |
+| **Sponsor line**             | Food creators charge about $180 a sponsored social post, nano creators $100 to $500 a blog post [S, vendor]                         | One labelled line per recipe, no tracking (Q7)                                     | Phase 2 (owner ruling Q7)                   |
+| **Display ads**              | RPM $36.81 [S]. Networks pay 70% to 75% [P, S]                                                                                      | Refused by 018 (Q8)                                                                | Refused (owner ruling Q8)                   |
 
 Two notes on the table:
 
@@ -112,6 +113,9 @@ by share of all cooks, which favors the biggest chefs. Our recommendation is per
 
 ## 6. Owner questions, with trade-offs
 
+The owner answered all nine on 2026-10-29. Each question keeps its trade-offs and the recommendation made before the
+answer, followed by the ruling.
+
 **Q1. The copy check finds a chef's recipe on their own claimed page. Does a person still look (A), or does the claim
 clear that one hit (B)?**
 
@@ -127,12 +131,14 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
   the rights label and takedown are the controls for that case, as for any "I wrote this" recipe.
 - **Recommendation: B.** A blogger will not wait weeks for staff to approve their own posts. Counsel reviews B
   before build, since it lets a claimed site lower our checking for one kind of hit.
+- **Owner ruling, 2026-10-29:** "Claim clears own-site hit". Option B, with counsel review before build.
 
 **Q2. Does Home start as the blog or as Commise?**
 
 - Blog first keeps the chef's search traffic and ad income safe. It is the "layer" promise.
 - Commise first grows our search presence faster, but it competes with the chef in search for their own recipes.
 - **Recommendation: the blog.** A chef who fears losing search traffic will not join.
+- **Owner ruling, 2026-10-29:** "Their blog".
 
 **Q3. Does Commise send email for chefs, or connect only to their provider?**
 
@@ -141,18 +147,22 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
 - Sending makes the list live inside Commise, which helps phase 3, but every chef's complaints land on our sending
   reputation. CAN-SPAM makes the advertiser and the sender both liable, at up to $53,088 per email [P, FTC].
 - **Recommendation: connect only in phases 1 and 2. Decide sending after phase 2 shows chefs staying.**
+- **Owner ruling, 2026-10-29:** "Connect only, for now". Decide on sending after phase 2.
 
 **Q4. What share of Pro revenue goes to the pool, and from when?**
 
 - The table in section 5 shows the sizes. The share is a cost against the plan's margin, which `cfo-1` has to price.
 - A small share from launch is a strong story ("Commise pays the cooks whose recipes you cook"). Waiting until Pro is
   large means the first chefs see nothing.
-- **Which recipes earn.** FR-041 pays only "Written by you". An "Adapted by you" recipe credits someone else's
+- **Which recipes earn.** The draft rule paid only "Written by you". An "Adapted by you" recipe credits someone else's
   recipe, so paying for it rewards light edits to other people's work, which is 018's hazard H3. Paying it too can
   bring in more chefs who adapt classics. The recommendation is "Written by you" only, and the owner can widen it.
 - **Recommendation: announce a fixed share and publish the rule. Once 018's ledger ships, start paying it. `cfo-1`
   sets the number.** The share itself is GAP until then. Test: offer it to the SC-001 cohort and record how many name it as a
   reason to join.
+- **Owner ruling, 2026-10-29: DEFERRED.** "Let's mark this as something to resolve when we tackle the royalties and
+  paying chefs work - it's going to require a lot of thought". There is no share and no rule for which recipes earn
+  yet. This section is input to that work.
 
 **Q5. A chef club: yes or no?**
 
@@ -161,12 +171,15 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
 - 012 retired paid follows. A club is not a paid follow, because it delivers copies and creates no paywalled recipe,
   but it sits close. A recipe in the club cannot also be public (`018-FR-029c`).
 - **Recommendation: yes, in phase 3, after cookbooks prove that people pay a chef here.**
+- **Owner ruling, 2026-10-29:** "Yes, earlier". The club is in phase 2, beside digital cookbooks.
 
 **Q6. The commission, against the store stack?**
 
 - Section 4 shows that 20% on top of a store fee leaves the chef 55% to 65%. Creator platforms take 0% to 10% [P].
 - **Recommendation: 10% on every product, and nothing on affiliate links.** It matches Substack [P, via search summary], Patreon and
   Gumroad. `cfo-1` checks the margin.
+- **Owner ruling, 2026-10-29: DEFERRED.** "Decide with royalties". The commission is set in the royalties and
+  chef-payments work. 013's 20% stays a draft.
 
 **Q7. Can a chef sell a labelled sponsor line?**
 
@@ -174,6 +187,7 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
   sponsorships [S].
 - Against: it is still an ad on the recipe page, and need 1 is about the page around the recipe.
 - **Recommendation: yes, as one text-and-logo line under the method, labelled, never above the ingredients.**
+- **Owner ruling, 2026-10-29:** "Yes, as described".
 
 **Q8. Do display ads stay refused?**
 
@@ -184,11 +198,13 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
   thing a blog cannot copy.
 - **Recommendation: keep them refused. The chef keeps their own ads on their own blog, and Home = blog sends readers
   there.**
+- **Owner ruling, 2026-10-29:** "Keep refused". No display ads, chef corners included.
 
 **Q9. Which corner features need chef standing?**
 
 - **Recommendation: phase 1 features for any creator, money features for chefs only.** Phase 1 is how we find the
   chefs, so it cannot wait on admission.
+- **Owner ruling, 2026-10-29:** "Money features only". Phase 1 is open to any creator.
 
 ## 7. Targets and tests
 

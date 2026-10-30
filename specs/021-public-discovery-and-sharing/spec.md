@@ -3,7 +3,7 @@
 **Feature Branch**: `docs/spec021-022` (single-branch directive. The spec directory is
 `specs/021-public-discovery-and-sharing`.)
 **Created**: 2026-10-27
-**Status**: Draft. Q1 is resolved. Q2 is open. Amended 2026-10-28 for AI answer engines (FR-011a, FR-028a, FR-080a,
+**Status**: Draft. Q1 and Q2 are resolved. Amended 2026-10-28 for AI answer engines (FR-011a, FR-028a, FR-080a,
 FR-085a) and the save route (FR-035). Amended 2026-10-29 for recipe rights: the linked card (FR-014a to FR-014h), who
 can be open to the web (FR-002), and the licence panel's ownership line (FR-040). Amended 2026-10-29 for a chef's Home (FR-010a), on
 the owner's ruling on [026](../026-chef-spaces/spec.md) Q2
@@ -29,7 +29,7 @@ virality loop.
 | [ADR-0047](../../docs/architecture/decisions/0047-shared-cors-policy.md)                                                                      | **Governs.** Every browser-facing service is bearer-only. A signed-out read must not add a cookie, a session read or a WebSocket to any adopter                                                                             |
 | [ADR-0020](../../docs/architecture/decisions/0020-cloudfront-edge-and-internal-alb-hostnames.md)                                              | **Governs, amendment listed.** The production edge answers a tokenless call with `401` except on its passthrough paths. A cached response must not depend on who asked                                                      |
 | [ADR-0064](../../docs/architecture/decisions/0064-media-delivery-base-stage-cloudfront-oac-plain-urls.md)                                     | **Governs, amendment listed.** Photos and avatars are plain, long-cached CDN URLs. Avatar keys carry the user id today                                                                                                      |
-| [018-chef-program-marketplace](../018-chef-program-marketplace/spec.md)                                                                       | **Conflict, open.** `018-FR-017` makes a chef directory readable signed out. The ruling did not cover it (Q2)                                                                                                               |
+| [018-chef-program-marketplace](../018-chef-program-marketplace/spec.md)                                                                       | **Amends, resolved 2026-10-29 (Q2).** `018-FR-017`'s chef directory is readable signed out, never with paid content (FR-008). 018 still owes the paid-content limit in its own words (FR-097)                               |
 | [GR-014](../governance-rules.md#gr-014-audience-and-sharing-model)                                                                            | **Governs, amendment listed.** Recipe visibility stays binary. "Open to the web" is a derived fact, not a third visibility value                                                                                            |
 | `specs/022-marketing-site-and-waitlist`                                                                                                       | **Sibling.** Shares the app store badge and smart banner rule (FR-037) and the no-consent measurement rule (FR-080)                                                                                                         |
 | `GR-003` FR Identifier Namespace                                                                                                              | **Governs.** Every cross-feature reference here is written `{feature}-FR-{NNN}`                                                                                                                                             |
@@ -638,8 +638,7 @@ creator page.
   release: the card, the opted-out card, the cook's own view of their public card, and the add-to actions. Its design
   goes through `staff-ux-engineer` SPECIFY. Draft words for it are in `016-FR-015g`.
 - **FR-015**: An active creator page (`012-FR-006`) MUST be readable signed out. It shows the profile fields the cook
-  set (avatar, display name, bio), the follower count, and the cook's open recipes, newest first, at most 24 per page.
-  It MUST NOT list any recipe that is not open, and MUST NOT show who follows the cook (`012-FR-009`).
+  set (avatar, display name, bio), the follower count, and the cook's open recipes, newest first, at most 24 per page. Public collections are readable signed out too, each on its own address (FR-008, Q2). It MUST NOT list any recipe that is not open, and MUST NOT show who follows the cook (`012-FR-009`).
 - **FR-016**: On a phone with the app installed, a link to a public page MUST open the app:
     - Signed in: the recipe or creator screen the app already has, with every action a signed-in reader has.
     - Signed out: the **public view**, a read-only screen with the same content and states as the web page, plus
@@ -979,7 +978,8 @@ creator page.
       items (`016-FR-050`)
 - **FR-096**: GR-014 MUST be amended: "`public`: readable by any authenticated user (`001-FR-004`)" gains "and, for a
   recipe open to the web under 021, by anyone". This is a governance change and is applied by the owner, not here.
-- **FR-097**: `018-FR-017` MUST be amended once Q2 is answered.
+- **FR-097**: Q2 is answered (2026-10-29). `018-FR-017` MUST be amended to say that a chef's paid items are never
+  readable signed out (`026-FR-015`, FR-008). The amendment is applied in 018, not here.
 - **FR-098**: 020 needs no change for this feature. This feature reads its stamp and its read rule. (020 did change on
   2026-10-29 for ADR-0077's outside-copy checks, and this feature reads that result the same way.) 020's words "publicly visible" now
   include signed-out readers, which only widens who is protected by its hold.
@@ -1070,8 +1070,8 @@ creator page.
 
 ## Out of Scope
 
-- Signed-out search, browse, feeds, lists and the chef directory (Q2).
-- Public collection pages (Q2).
+- Signed-out recipe search, browse, feeds and lists. The chef directory and its search are in scope (FR-008, Q2).
+- A chef's paid items on any signed-out page (`026-FR-015`). Public collections are in scope (FR-008, Q2).
 - Opening imported recipes, the curator corpus, or any recipe a cook did not write.
 - Per-sharer referral rewards, and any reward for sharing.
 - Carrying a link through an install on iOS.

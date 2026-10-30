@@ -905,6 +905,12 @@ they do not create a second mechanism.
           fetches is still a server fetch. Only pasted or shared text and the page the extension reads in the cook's own
           browser are the cook's own capture. Counsel weighs this against `004-FR-008`'s URL fetch and
           against 017's tier 5 lookup of the source page (`017-FR-005`). This spec records the risk and does not change 017. **What breaks:** a contract claim by a site, which copyright preemption does not stop.
+    - **Chef terms (added 2026-10-29, from [026](../026-chef-spaces/spec.md)).** Counsel confirms the processor terms
+      for a chef's email list (`FR-054`), the creator terms for the site claim and the sponsor line (`FR-055`,
+      `FR-056`), and the endorsement disclosure rules (`FR-057`). **What breaks.** Without processor terms, Commise
+      handles a chef's subscribers with no contract, and a regulator can treat Commise as a controller. A site claim
+      read as proof of authorship clears a copy. An unlabelled affiliate link or sponsor line is a deceptive
+      endorsement, and the FTC can act against the chef and against Commise.
 - **FR-051**: Nutrition figures and allergen-relevant content MUST carry a reachable disclaimer, and the
   product MUST NOT state or imply a medical claim.
 
@@ -1013,6 +1019,95 @@ they do not create a second mechanism.
   outage of the app MUST NOT be an outage of the ability to receive notices.
 - **NFR-007**: Legal documents MUST be readable at the accessibility standard the product already commits to,
   including at increased text size and with a screen reader, in every locale shipped.
+
+#### K. Chef terms: the email list, the site claim, the sponsor line and endorsement disclosure _(added 2026-10-29, [026](../026-chef-spaces/spec.md))_
+
+Every requirement in this section is **subject to counsel review** (`FR-050`). The CLO agent's research and the FTC
+pages cited under `FR-057` are the inputs. They are not legal advice.
+
+- **FR-054** _(processor terms for a chef's email list, `026-FR-020` to `FR-026`). Subject to counsel review_: Commise MUST NOT connect a chef's
+  email provider until the chef has accepted written processor terms, recorded as an acceptance under `FR-002`. The
+  terms MUST cover:
+    - **What Commise does.** It connects sign-ups to the chef's own provider (Kit, Mailchimp or Beehiiv at first).
+      Each sign-up goes from our server to that provider and nowhere else. No provider script or form loads on the
+      page (`026-FR-011`). Commise does not send email for chefs (`026-FR-025`).
+    - **The data roles.** The chef is the controller of their list and of every subscriber's address. Commise is the
+      chef's processor and acts only on the chef's documented instructions. Commise is the controller of the chef's own
+      account data and of the reader's Commise account, which are not part of the list. The terms MUST also say what the
+      chef's provider is: the chef's own processor. Counsel confirms whether it is also a sub-processor of Commise for
+      the hand-off, and the privacy notice names the provider categories (`FR-039`).
+    - **Consent capture.** Each sign-up MUST record the time, the page, the consent text shown and the reader's
+      market (`026-FR-022`). The consent text MUST name the chef and say what the chef will send. Signing up MUST be a
+      separate act from following (`026-FR-021`) and MUST NOT be a pre-ticked box. Where a market's law needs it, a
+      confirmation link in an email must confirm the sign-up before it counts (`026-FR-022`). Commise records the consent. The chef answers for
+      what they send afterwards, including the postal address CAN-SPAM needs (`026-FR-026`).
+    - **What Commise keeps.** Commise MUST keep only the sign-up record and its consent record, and only so the chef
+      can export them and so Commise can show the consent. It MUST NOT use the addresses for itself, share them, or
+      add them to any Commise list. The terms say how long Commise keeps them and what happens on disconnect.
+    - **The chef's export right.** The chef MUST be able to export every sign-up Commise holds for them, with its
+      consent record, as CSV, at any time (`026-FR-024`). On request, or when the chef closes their account, Commise
+      MUST delete or return the records, and say so. The terms also cover security, confidentiality, help with a
+      subscriber's own rights requests, notice of a breach, and the chef's right to audit by asking for the record of
+      processors (`FR-039`).
+    - **The reader's side.** The sign-up MUST link to the chef's privacy notice (`026-FR-021`). A reader's request to
+      delete their address goes to the chef, and Commise carries out the chef's instruction.
+      **What breaks:** no contract between controller and processor, which is a breach of GDPR Art. 28 where it applies, and
+      a Commise that is treated as a controller of subscribers it holds for chefs.
+- **FR-055** _(creator terms: the site claim, `026-FR-001`, `FR-002`, `FR-005`). Subject to counsel review_: The creator terms MUST say:
+    - **What a claim asserts.** The chef states that they control the website. It is not a statement that the chef
+      wrote any recipe on it. A recipe still needs the chef's own statement at the moment it is brought in
+      (`FR-014`, `026-FR-002`). A blanket statement for a whole site MUST NOT replace it.
+    - **How it is verified.** By one of three methods: a DNS TXT record, a meta tag in the home page, or a token from
+      a recipe plugin the chef runs. A site has at most one live claim. The chef MUST be told which methods exist and
+      what each one proves.
+    - **How it is rechecked and revoked.** The claim is checked again on a schedule. A claim that fails stops new
+      bring-ins, and the chef sees the reason and the fix. It does not remove recipes already brought in. The chef can
+      release a claim at any time. Commise can revoke a claim that fails its check, that another party disputes with
+      evidence, or that a takedown (`FR-016` to `FR-022`) shows was false.
+    - **What a live claim does.** It clears one hit: a match with the recipe's own origin page in the content check
+      (`020-FR-012g`, [ADR-0078](../../docs/architecture/decisions/0078-a-live-site-claim-clears-the-own-site-hit.md)).
+      It clears nothing else, and it does not change the recipe's rights label.
+      **What breaks:** a claim read as proof of authorship lets a copy of another site's recipe pass the check, and
+      a claim that cannot be revoked lets a sold domain keep its clearing power.
+- **FR-056** _(creator terms: the sponsor line, `026-FR-048`; owner ruling, 2026-10-29, Q7: "Yes, as described"). Subject to counsel review_: The
+  creator terms MUST say that a chef may sell one sponsor line per recipe or cookbook, and that:
+    - The line is **chef-sold**. Commise does not sell, place or pick sponsors.
+    - It is **one line**, labelled "Sponsored by", with text and a logo only. It sits under the method and **never
+      above the ingredients**.
+    - It uses **no ad network, no tracking and no third-party script** (`026-FR-011`). Commise reads no
+      sponsor-linked behaviour about readers.
+    - The chef MUST NOT make a claim the sponsor cannot support, and MUST NOT sponsor a nutrition, allergen or medical
+      claim (`FR-051`). The sponsor line is paid content under `FR-057`, and the label is the disclosure.
+    - Commise can remove a line that breaks these terms or the law, and tells the chef why.
+      **What breaks:** an undisclosed paid placement, and a page that quietly becomes an ad surface, which the owner has
+      refused.
+- **FR-057** _(FTC disclosure for affiliate links and sponsor lines, `026-FR-047`, `FR-048`). Subject to counsel review_: Every affiliate link
+  and every sponsor line a chef adds MUST carry a disclosure of the chef's financial connection. The disclosure MUST be:
+    - **Clear and conspicuous.** The 2023 revision of the FTC's Endorsement Guides added a definition of "clearly and
+      conspicuously" (16 CFR Part 255). The FTC's own FAQ says a disclosure "should be placed where it easily
+      catches consumers' attention and is difficult to miss". A disclosure behind a "more" link or in a footer MUST NOT
+      count.
+    - **Placed with the link or line itself**, not on an About page or a settings page. The FTC's FAQ says a
+      disclosure "is more likely to be seen if it's very close to, or – even better – part of, the endorsement to which
+      it relates", and, for affiliate links, to disclose "in the description near the links".
+    - **In plain words**, such as "Affiliate link: the chef earns a commission" or "Sponsored by". Commise chooses
+      wording that says the chef is paid, because the FTC's FAQ says a financial arrangement "may be apparent to some
+      people, but not to everyone". Vague or stand-alone terms such as "sp", "collab" or "thanks" MUST NOT be accepted
+      ("Disclosures 101" warns against them).
+    - **Shown the same way on web and mobile**, at every size and in dark mode (the cross-platform rule, `docs/CODING_STANDARDS.md` §14).
+      Commise MUST add the label itself, and the chef MUST NOT be able to remove or restyle it. The chef is responsible for
+      the claims they make. Commise is responsible for giving them a surface that cannot hide the label, because the FTC's FAQ says responsibility "rests with the influencer and the brand", and that its enforcement focus "usually will be on advertisers".
+      **Sources (FTC pages, opened 2026-10-29):**
+      [Disclosures 101 for Social Media Influencers](https://www.ftc.gov/business-guidance/resources/disclosures-101-social-media-influencers)
+      (material connection; "place it so it's hard to miss"; terms to avoid) and
+      [FTC's Endorsement Guides: What People Are Asking](https://www.ftc.gov/business-guidance/resources/ftcs-endorsement-guides-what-people-are-asking)
+      (the 2023 revision; placement; affiliate links; who is responsible). Every quotation above is from those two pages. The
+      rule text is 16 CFR Part 255, § 255.0 and § 255.5 ([eCFR](https://www.ecfr.gov/current/title-16/chapter-I/subchapter-B/part-255)).
+      The eCFR page would not load and the FTC's PDF of the Guides is a scan, so the rule text itself was not read. Counsel
+      reads it, including the definition of "clearly and conspicuously" and the weight of "affiliate link" alone. EU and UK
+      markets add their own rules, which counsel sets before those markets open (`FR-043`).
+      **What breaks:** an undisclosed material connection is a deceptive endorsement, and the FTC can pursue the chef and
+      Commise.
 
 ### Key Entities
 
@@ -1317,8 +1412,7 @@ records the decision.
   (`020-FR-012`). This spec adds the privacy notice line (`FR-039a`).
 - **C-016-008: staff review is a rights check only** (`FR-053j`). This keeps review on the screening side of
   _Mavrix_.
-- **Owed by specs this session does not edit.** 012 owes a way for a cook to prove a site is their own, so a blogger who
-  imports their own posts is not treated as a copier (`020-FR-012g`). 015 still lists D4b, making `imported_public`
+- **Owed by specs this session does not edit.** 012 owed a way for a cook to prove a site is their own, so a blogger who imports their own posts is not treated as a copier (`020-FR-012g`). 026's site claim now provides it (`FR-055`, [ADR-0078](../../docs/architecture/decisions/0078-a-live-site-claim-clears-the-own-site-hit.md)). 015 still lists D4b, making `imported_public`
   private by default, as open. This ruling settles what a public web import shows to other cooks. The owner then ruled on
   2026-10-29 that any cook can keep one private, using a slot (ADR-0077 §6). 015 is aligned in its own next revision.
 

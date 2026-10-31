@@ -1,6 +1,6 @@
 # 0021 — Recipe calories are fetched after the card, and a skeleton can never be permanent
 
-- **Status**: Accepted
+- **Status**: Superseded by 0079
 - **Date**: 2026-08-16
 - **Drivers**: Owner directive (2026-08-16), reversing half of plan U10. U10 deleted the denormalized
   `recipes.lead_calories_per_serving` column — correctly, it was a second copy of food's data that froze at

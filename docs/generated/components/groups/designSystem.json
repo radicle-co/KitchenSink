@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 137,
         "implementationsWithComponentDoc": 127,
         "documentedProps": 749,
-        "classifiedComponents": 70,
+        "classifiedComponents": 71,
         "componentsWithPatternTag": 78,
         "crossPlatformComponents": 59
     },
@@ -3772,7 +3772,7 @@
             "packageName": "@commise/ui",
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/dialogActions",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Responsive layout by container query — the row answers to its own box, not the viewport's, so one rule\n    serves a 448 px alert and a 672 px preview.",
                 "Strategy chosen by measurement — a row direction picked from the box's own measured width"
@@ -3790,7 +3790,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
                     "dir": "packages/apps/commise/ui/src/dialogActions",
-                    "moduleDoc": "@commise/ui/dialog-actions — the web design-system {@link DialogActions}: the action row of a dialog or sheet.\n\nTwo elements, because a container query styles a container's DESCENDANTS and never the container itself: an outer\n`@container/dialog` wrapper that is the thing measured, and the flex row inside it (`dialogActionsRow`). The\nwrapper has inline-size containment, so it takes no width from its content and must be STRETCHED by its parent:\nput it in a `flex-col` parent with the default stretch, as both `ConfirmDialog` and `VersionPreviewModal` do. Never\nput it inside a row or an `items-center` column, where it would collapse to nothing.\n\nThe buttons are direct children of the row, in source order (dismiss first, main action last), so the DOM and\nfocus order never change with the layout. A design-system `Button` passes `width=\"fill\"`; a Radix slot wears\n{@link dialogActionSlotClass} for the same threshold.",
+                    "moduleDoc": "@commise/ui/dialog-actions — the web design-system {@link DialogActions}: the action row of a dialog or sheet.\nA presentational component: props to JSX, no state and no side effect.\n\nTwo elements, because a container query styles a container's DESCENDANTS and never the container itself: an outer\n`@container/dialog` wrapper that is the thing measured, and the flex row inside it (`dialogActionsRow`). The\nwrapper has inline-size containment, so it takes no width from its content and must be STRETCHED by its parent:\nput it in a `flex-col` parent with the default stretch, as both `ConfirmDialog` and `VersionPreviewModal` do. Never\nput it inside a row or an `items-center` column, where it would collapse to nothing.\n\nThe buttons are direct children of the row, in source order (dismiss first, main action last), so the DOM and\nfocus order never change with the layout. A design-system `Button` passes `width=\"fill\"`; a Radix slot wears\n{@link dialogActionSlotClass} for the same threshold.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3832,7 +3832,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 },
@@ -3841,7 +3841,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.native.tsx",
                     "dir": "packages/apps/commise/ui/src/dialogActions",
-                    "moduleDoc": "@commise/ui/dialog-actions — the native design-system {@link DialogActions}: the action row of a dialog or\nsheet.\n\nIt measures its OWN width from layout, because the window's width is not the width of a dialog card or a sheet's\ncontent box. Before the first layout it stacks, the safe shape for the narrowest phone, so a first paint can never\nclip a button. The buttons stack full width with the main action on top (`column-reverse` over source order: dismiss\nfirst), then sit end-aligned in one row from `sideBySideFrom`. Give each button `width=\"fill\"`: in a row that keeps\nits content width.",
+                    "moduleDoc": "@commise/ui/dialog-actions — the native design-system {@link DialogActions}: the action row of a dialog or\nsheet. A presentational component: its one piece of state is the width it measured of itself.\n\nIt measures its OWN width from layout, because the window's width is not the width of a dialog card or a sheet's\ncontent box. Before the first layout it stacks, the safe shape for the narrowest phone, so a first paint can never\nclip a button. The buttons stack full width with the main action on top (`column-reverse` over source order: dismiss\nfirst), then sit end-aligned in one row from `sideBySideFrom`. Give each button `width=\"fill\"`: in a row that keeps\nits content width.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3883,7 +3883,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

@@ -1,5 +1,6 @@
 /**
  * @module @commise/ui/dialog-actions — the web design-system {@link DialogActions}: the action row of a dialog or sheet.
+ * A presentational component: props to JSX, no state and no side effect.
  *
  * Two elements, because a container query styles a container's DESCENDANTS and never the container itself: an outer
  * `@container/dialog` wrapper that is the thing measured, and the flex row inside it (`dialogActionsRow`). The

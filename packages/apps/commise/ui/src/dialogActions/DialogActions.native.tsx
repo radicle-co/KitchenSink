@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/dialog-actions — the native design-system {@link DialogActions}: the action row of a dialog or
- * sheet.
+ * sheet. A presentational component: its one piece of state is the width it measured of itself.
  *
  * It measures its OWN width from layout, because the window's width is not the width of a dialog card or a sheet's
  * content box. Before the first layout it stacks, the safe shape for the narrowest phone, so a first paint can never

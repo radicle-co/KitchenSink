@@ -19,7 +19,7 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 | [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                     | **Required** — recipes are the primary content surface on a creator profile                                                                                                                                                                                                                                    |
 | [010-subscriptions](../010-subscriptions/spec.md)                               | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001.                                                                                                                                 |
 | [011-recipe-digitization](../011-recipe-digitization/spec.md)                   | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                                                                                                                                                          |
-| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md) | **Required (2026-10-27).** Owns what a signed-out visitor sees, the open-to-web rule, indexing, previews and takedown reach. Resolves the conflict with `001-FR-045`                                                                                                                                           |
+| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md) | **Required (2026-10-27).** Owns what a signed-out visitor sees, the open-to-web rule, indexing, previews and takedown reach. Resolves the conflict with `001-FR-045`. Its Q2 (2026-10-29) opens public collections to signed-out readers                                                                       |
 | [026-chef-spaces](../026-chef-spaces/spec.md)                                   | **Amends (owner rulings 2026-10-29).** Adds site claims, corner sections, a recipe-first page rule, an email sign-up, more analytics and a "Cook this in Commise" card. Phase 1 features are open to any creator, and money features need chef standing (026 Q9). Requirements tagged `→ 012` there merge here |
 
 > **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
@@ -46,6 +46,13 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 > recipes the cook wrote, never imported ones. A signed-in visitor sees every public recipe the creator owns. Public
 > collection pages stay behind sign-in until the owner answers 021's Q2 (`021-FR-008`). 021 owns the page's search,
 > preview, privacy and takedown rules. The requirements below are amended to match.
+>
+> **Amended 2026-10-29 (owner ruling, 021 Q2).** The owner answered Q2: "both, but only for public content and
+> nothing that's behind a paywall (like a chef selling a collection)". Public collections are now readable signed out,
+> each on its own address, under the same rules as public recipes (`021-FR-008`, `021-FR-015`). Anything a chef sells
+> is not: a paid collection shows a signed-out reader at most its title, cover, price and the chef's own description,
+> never its recipes (`026-FR-015`). Was: "Public collection pages stay behind sign-in until the owner answers 021's
+> Q2."
 
 ## Source-of-Truth Note
 
@@ -105,7 +112,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-007** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Profile pages MUST be server-side rendered with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields. Indexing, `ProfilePage` structured data, canonical addresses and sitemaps follow `021-FR-020` to `021-FR-029a`. A page with no indexable recipe answers `noindex` (`021-FR-025`). The HTML response is the same for every viewer and sets no cookie (`021-FR-012`).
 
-- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`), at most 24 per page, and no public collections until 021's Q2 is answered (`021-FR-015`, `021-FR-008`). The avatar address carries no user id (`021-FR-071`).
+- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
 
 - **FR-009** Follower lists MUST NOT be publicly visible; only the aggregate `followerCount` is exposed.
 

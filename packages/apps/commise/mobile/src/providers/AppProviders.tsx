@@ -60,29 +60,31 @@ export function AppProviders({ children }: { readonly children: ReactNode }): JS
     const [queryClient] = useState(createAppQueryClient);
 
     return (
-        <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
-            <LocaleProvider>
-                <ClerkProvider
-                    publishableKey={env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY}
-                    tokenCache={tokenCache}
-                    telemetry={false}
-                >
-                    <QueryClientProvider client={queryClient}>
-                        {/* ⛔ MOUNTED IMMEDIATELY INSIDE THE QUERY CLIENT PROVIDER, structurally rather than
+        // SafeAreaProvider is outermost: Tamagui 3 reads the insets of a provider ABOVE TamaguiProvider (the v3 guide,
+        // and tests/providers/AppProviders.safeAreaOrder.native.test.tsx).
+        <SafeAreaProvider>
+            <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+                <LocaleProvider>
+                    <ClerkProvider
+                        publishableKey={env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY}
+                        tokenCache={tokenCache}
+                        telemetry={false}
+                    >
+                        <QueryClientProvider client={queryClient}>
+                            {/* ⛔ MOUNTED IMMEDIATELY INSIDE THE QUERY CLIENT PROVIDER, structurally rather than
                 conveniently. `OfflineReadNoticeProvider`'s default is the identity function, so a
                 `QueryBoundary` that escaped this provider degrades SILENTLY back to a skeleton and could
                 never report itself. Co-mounting makes "has a query client" imply "has offline copy", and a
                 boundary outside the client provider already fails loudly for the missing client. */}
-                        <OfflineReadNoticeProvider
-                            renderOffline={() => <OfflineReadSlot message={offline.readOffline} />}
-                        >
-                            <RecipeServiceGate>
-                                <SafeAreaProvider>{children}</SafeAreaProvider>
-                            </RecipeServiceGate>
-                        </OfflineReadNoticeProvider>
-                    </QueryClientProvider>
-                </ClerkProvider>
-            </LocaleProvider>
-        </TamaguiProvider>
+                            <OfflineReadNoticeProvider
+                                renderOffline={() => <OfflineReadSlot message={offline.readOffline} />}
+                            >
+                                <RecipeServiceGate>{children}</RecipeServiceGate>
+                            </OfflineReadNoticeProvider>
+                        </QueryClientProvider>
+                    </ClerkProvider>
+                </LocaleProvider>
+            </TamaguiProvider>
+        </SafeAreaProvider>
     );
 }

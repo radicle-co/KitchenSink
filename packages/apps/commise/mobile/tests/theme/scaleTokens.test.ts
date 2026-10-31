@@ -26,12 +26,15 @@ import {
 } from '../../src/theme/scaleTokens.js';
 
 describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)', () => {
-    it('createTokens.space equals the pre-U0 map (0…96 + true=16)', () => {
-        expect(spaceScale).toEqual({ 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64, 9: 96, true: 16 });
+    // REWRITTEN for Tamagui 3: the map lost its `true` key, an alias of step 4. v3 removed `$true` from configs ("The
+    // old `$true` token aliases have been removed from v3 configs", tamagui.dev/blog/version-three), and step 4 keeps
+    // the same 16 under its own key, so no value moved.
+    it('createTokens.space equals the pre-U0 map (0…96), with no `true` key', () => {
+        expect(spaceScale).toEqual({ 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64, 9: 96 });
     });
 
     it('createTokens.size equals the pre-U0 map', () => {
-        expect(sizeScale).toEqual({ 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64, 9: 96, true: 16 });
+        expect(sizeScale).toEqual({ 0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32, 7: 48, 8: 64, 9: 96 });
     });
 
     it('createTokens.radius equals the redesign map (0 + sm…full: 8, 12, 18, 24; REWRITTEN, it was 6, 12, 20, 28)', () => {
@@ -63,14 +66,14 @@ describe('mobile Tamagui token ramps — GOLDEN (unchanged synthesized values)',
 });
 
 describe('mobile Tamagui token ramps — SINGLE-SOURCE (derived from @commise/ui/scale)', () => {
-    it('space/size steps 1-9 and the base `true` step come from scale.spacing', () => {
-        for (const step of [1, 2, 3, 4, 5, 6, 7, 8, 9] as const) {
+    it('space/size steps 0-9 come from scale.spacing, and neither map carries the `true` key v3 removed', () => {
+        for (const step of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const) {
             expect(spaceScale[step]).toBe(spacing[step]);
             expect(sizeScale[step]).toBe(spacing[step]);
         }
 
-        expect(spaceScale.true).toBe(spacing[4]);
-        expect(sizeScale.true).toBe(spacing[4]);
+        expect(spaceScale).not.toHaveProperty('true');
+        expect(sizeScale).not.toHaveProperty('true');
     });
 
     it('radius keys 1-5 map sm→1 … full→5 from scale.radius (0 synthesized)', () => {

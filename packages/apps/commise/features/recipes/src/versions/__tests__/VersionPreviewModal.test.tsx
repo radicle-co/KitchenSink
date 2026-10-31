@@ -591,3 +591,88 @@ describe('VersionPreviewModal (web) — the design-system Button (UI overhaul sl
         expectDesignSystemButton(screen.getByRole('button', { name: 'Keep current version' }), 'secondary', 'x');
     });
 });
+
+/**
+ * The decision comes first (`versionPreviewParity.md`): a cook opens a preview to learn what a restore changes, so the
+ * "Changed from current" line follows the title and the errors, the recipe body is the ONLY part that scrolls, and the
+ * two actions are pinned under it. On a long recipe the dialog used to scroll as one block, which put the line and both
+ * actions below the fold. The actions stack at a narrow width instead of overflowing.
+ */
+describe('VersionPreviewModal — the decision comes first', () => {
+    const summaryText = 'Changed from current: 3 ingredients, 1 step';
+
+    const bodyScroller = (): HTMLElement => {
+        const scroller = screen.getByText('Title').closest('div.overflow-y-auto');
+
+        if (!(scroller instanceof HTMLElement)) {
+            throw new Error('the recipe body is not inside a scroller');
+        }
+
+        return scroller;
+    };
+
+    it('puts the summary before the recipe fields, outside the scroller', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const summary = screen.getByText(summaryText);
+
+        expect(
+            summary.compareDocumentPosition(screen.getByText('Title')) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(bodyScroller().contains(summary)).toBe(false);
+    });
+
+    it('puts the restore error above the summary', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    diffFromCurrent: populatedDiff,
+                    restoreError: { kind: 'generic', versionNumber: 10 },
+                })}
+            />,
+        );
+
+        expect(
+            screen.getByRole('alert').compareDocumentPosition(screen.getByText(summaryText)) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('scrolls the recipe body only: the dialog itself and the actions are outside the scroller', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const scroller = bodyScroller();
+
+        expect(screen.getByRole('dialog').className.split(/\s+/u)).not.toContain('overflow-y-auto');
+        expect(scroller.contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(false);
+        expect(scroller.contains(screen.getByRole('button', { name: 'Keep current version' }))).toBe(false);
+        expect(scroller.className.split(/\s+/u)).toEqual(expect.arrayContaining(['min-h-0', 'flex-1']));
+    });
+
+    it('stacks the actions at a narrow width, Restore on top, and sets them in a row from 600', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        const keep = screen.getByRole('button', { name: 'Keep current version' });
+        const row = keep.parentElement as HTMLElement;
+        const classes = row.className.split(/\s+/u);
+
+        expect(classes).toContain('flex-col-reverse');
+        expect(classes).toContain('@[37.5rem]/dialog:flex-row');
+        expect([...row.querySelectorAll('button')].map((button) => button.textContent)).toStrictEqual([
+            'Keep current version',
+            'Restore this version',
+        ]);
+    });
+
+    it('fills the stacked row with Keep as well as Restore, so the two are one width', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        const keep = screen.getByRole('button', { name: 'Keep current version' });
+
+        expect(keep.className.split(/\s+/u)).toEqual(expect.arrayContaining(['w-full', '@[37.5rem]/dialog:w-auto']));
+        expect(screen.getByRole('button', { name: 'Restore this version' }).parentElement?.className).toContain(
+            'self-stretch',
+        );
+    });
+});

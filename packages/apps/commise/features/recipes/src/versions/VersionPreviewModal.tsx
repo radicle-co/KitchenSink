@@ -18,6 +18,11 @@
  * `Dialog.Content` (and its autofocus-on-mount) ever commits — and `onCloseAutoFocus` restores it,
  * `preventDefault()`ing Radix's own no-op default.
  *
+ * The order, top to bottom: the title; the load state or load error, then the restore error (an error about the cook's
+ * last press comes first); the "Changed from current" line, pinned; the recipe body, the ONLY part that scrolls; the
+ * two actions, pinned under it through the design-system `DialogActions`, which stacks them full width on a narrow
+ * dialog. The native leaf has the same order.
+ *
  * A discriminated three-way state (mutually exclusive, matching {@link VersionPreviewModalProps}'s JSDoc):
  * (1) a `role="status"` progress affordance while `isLoading`; (2) a `role="alert"` for a failed lookup —
  * either an explicit `error` or, per B21, nothing pending and still no `version` — deliberately NOT a dead
@@ -32,6 +37,7 @@
  */
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useMessages } from '@commise/i18n/react';
+import { DialogActions, dialogActionSlotClass } from '@commise/ui/dialog-actions';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
@@ -50,6 +56,13 @@ import {
     toVersionPreviewIngredientLines,
     toVersionPreviewSteps,
 } from './preview.js';
+
+/**
+ * The width of the action row from which Keep and Restore sit side by side: the longest label pair in the product
+ * ("Keep current version", "Restore this version") at +35% for a translation, measured at about 578 px (see
+ * `DialogActionsSideBySideFrom`). Every phone stacks; the dialog at `md` (a 624 px content box) sits in a row.
+ */
+const SIDE_BY_SIDE_FROM = 600;
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -94,7 +107,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg md:max-w-2xl`}
+                    className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg md:max-w-2xl`}
                 >
                     <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
 
@@ -118,8 +131,18 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                         </p>
                     )}
 
+                    {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a preview
+                        with, what a restore changes. */}
+                    {showContent && diffFromCurrent !== undefined && (
+                        <p className="text-body-sm italic text-ink-muted">
+                            {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
+                        </p>
+                    )}
+
                     {showContent && version !== undefined && (
-                        <div className="flex flex-col gap-4">
+                        // The only part that scrolls: the dialog is capped at 85vh, so a long recipe scrolls here
+                        // while the title, the summary and the actions stay on screen.
+                        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
                             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body-md text-ink">
                                 <dt className="font-medium text-ink-muted">{conflict.titleLabel}</dt>
                                 <dd>{version.snapshot.title}</dd>
@@ -205,18 +228,14 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                     </ol>
                                 </div>
                             )}
-
-                            {diffFromCurrent !== undefined && (
-                                <p className="text-body-sm italic text-ink-muted">
-                                    {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
-                                </p>
-                            )}
                         </div>
                     )}
 
-                    <div className="flex items-center justify-end gap-3">
-                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. */}
-                        <Dialog.Close className={buttonSurfaceClass('secondary')}>
+                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's fill class. */}
+                        <Dialog.Close
+                            className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
+                        >
                             <Icon name="x" size={20} />
                             {preview.keepCurrent}
                         </Dialog.Close>
@@ -224,12 +243,13 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             <Button
                                 icon="rotateCcw"
                                 busy={isRestoring}
+                                width="fill"
                                 onPress={() => onRestore(version.versionNumber)}
                             >
                                 {isRestoring ? preview.restoringThis : preview.restoreThis}
                             </Button>
                         )}
-                    </div>
+                    </DialogActions>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

@@ -9,6 +9,10 @@
  * hardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the
  * explicit "Keep current version" control uses — one exit path, not two.
  *
+ * The order, top to bottom, is the web leaf's: the title; the load state or load error, then the restore error; the
+ * "Changed from current" line, pinned above the scroller; the recipe body, the ONLY part that scrolls; the two actions,
+ * pinned under it through the design-system `DialogActions`, which stacks them full width on a phone.
+ *
  * A discriminated three-way state (mutually exclusive, matching {@link VersionPreviewModalProps}'s JSDoc):
  * (1) a `progressbar` affordance while `isLoading`; (2) an `alert` for a failed lookup — either an explicit
  * `error` or, per B21, nothing pending and still no `version` — deliberately NOT a dead end, "Keep current
@@ -24,6 +28,7 @@ import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
@@ -40,6 +45,15 @@ import {
     toVersionPreviewIngredientLines,
     toVersionPreviewSteps,
 } from './preview.js';
+
+/**
+ * The width of the action row from which Keep and Restore sit side by side: the longest label pair in the product
+ * ("Keep current version", "Restore this version") at +35% for a translation, measured at about 578 px (see
+ * `DialogActionsSideBySideFrom`). Every phone stacks them; a tablet sheet sits in a row. Two icon-and-label buttons are
+ * wider than a 360 dp phone's content box, and a row that cannot wrap overflows on its START side, so stacking is the
+ * re-layout, not a wrap.
+ */
+const SIDE_BY_SIDE_FROM = 600;
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -223,15 +237,25 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     </ScrollView>
                 )}
 
+                {/* Pinned under the scroller (`marginTop: 'auto'` keeps them at the foot when there is none, in the
+                    loading and error states). `DialogActions` STACKS them full width on a phone, Restore on top, and
+                    sets them in one row from 600 dp. */}
                 <View style={styles.actions}>
-                    <Button variant="secondary" icon="x" onPress={onCancel}>
-                        {preview.keepCurrent}
-                    </Button>
-                    {showContent && version !== undefined && (
-                        <Button icon="rotateCcw" busy={isRestoring} onPress={() => onRestore(version.versionNumber)}>
-                            {isRestoring ? preview.restoringThis : preview.restoreThis}
+                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                        <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
+                            {preview.keepCurrent}
                         </Button>
-                    )}
+                        {showContent && version !== undefined && (
+                            <Button
+                                icon="rotateCcw"
+                                busy={isRestoring}
+                                width="fill"
+                                onPress={() => onRestore(version.versionNumber)}
+                            >
+                                {isRestoring ? preview.restoringThis : preview.restoreThis}
+                            </Button>
+                        )}
+                    </DialogActions>
                 </View>
             </>
         </FullScreenSheet>
@@ -262,8 +286,5 @@ const styles = StyleSheet.create({
     ingredientLine: { flexShrink: 1, gap: 4 },
     calories: { ...nativeTokens.type.meta, flexShrink: 0 },
     changedNote: { ...nativeTokens.type.meta, fontStyle: 'italic' },
-    // WRAPS: two icon-and-label buttons are wider than a 360 dp phone's content box, and a row that cannot wrap
-    // overflows on its START side when pushed to the end, slicing the first button at the left edge. Each button keeps
-    // its own width and full label; the second takes the next line before either is squeezed.
-    actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
+    actions: { marginTop: 'auto' },
 });

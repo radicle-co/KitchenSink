@@ -10,6 +10,15 @@
  * `compose.yml` (LocalStack 3, `SERVICES: s3`) and `infra/localstack/compose.yml`
  * (LocalStack 4.4.0, everything except s3). Both bind 5432 and 4566.
  *
+ * ## Before the first run in a FRESH checkout or worktree
+ *
+ * 1. `npx turbo build` — the image builds COPY compiled `packages/shared/…/dist` (see `src/localImages.ts`), and a
+ *    new worktree has none (hard-linking `node_modules` copies dependencies, not build output).
+ *    `@commise/web`'s own build needs deploy-only env and may fail; the services do not need it.
+ * 2. The infra installs read GitHub Packages (`@radicle-co/infra-shared`) with `NODE_AUTH_TOKEN` = the CLASSIC token in
+ *    `.envrc`, not `~/.zshenv`'s fine-grained one:
+ *    `direnv exec . sh -c 'NODE_AUTH_TOKEN="$GITHUB_TOKEN" npm run local:up'`.
+ *
  * @sideEffect Spawns CDK and docker, writes generated files under `.local-sandbox/`, and starts containers.
  */
 import { spawnSync } from 'node:child_process';

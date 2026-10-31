@@ -16,7 +16,7 @@ import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
 
 /** Props for the native calorie chip. */
 export interface RecipeCalorieChipProps {
-    /** The SETTLED reading. Structurally cannot be `pending` — that state is the Suspense fallback's. */
+    /** The SETTLED reading. Structurally cannot be `pending` — the slot renders that reading as the skeleton. */
     readonly nutrition: RecipeCalorieState;
 }
 

@@ -14,7 +14,8 @@
  * made through it (M2), a failed send with Try again (M6), and the 14 px status (U1).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, getDefaultNormalizer, render, screen } from '@testing-library/react';
+import { cleanup, getDefaultNormalizer, screen } from '@testing-library/react';
+import { render, renderedRoot } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { touchFloor } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
@@ -253,11 +254,12 @@ describe('MatchSettledRow (native)', () => {
         withPlatformOs(os, () => {
             renderRow(makeConfidentLine());
 
-            // The root of the rendered tree is the settled row itself: it carries no role to query by.
-            const row = document.body.firstElementChild?.firstElementChild;
+            // The root of the rendered tree is the settled row itself: it carries no role to query by. Tamagui's web
+            // build wraps it in elements that draw no box, which `renderedRoot` steps over.
+            const container = document.body.firstElementChild;
 
-            expect(row).toBeTruthy();
-            expect(getComputedStyle(row as Element).minHeight).toBe(`${String(touchFloor())}px`);
+            expect(container).not.toBeNull();
+            expect(getComputedStyle(renderedRoot(container as Element)).minHeight).toBe(`${String(touchFloor())}px`);
         });
     });
 });

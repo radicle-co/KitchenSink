@@ -12,7 +12,8 @@
  * and, offline, focus moves to the next line's first option and not again when the network returns (H1).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { Pressable, Text } from 'react-native';
 import { useState, type FC } from 'react';

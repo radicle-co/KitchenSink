@@ -11,7 +11,8 @@
  * with Try again (M6); the focus request is `focus`, and Keep is one string with "no nutrition" (U6).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render, renderedRoot } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { recipeMessages } from '../../messages.js';
@@ -127,12 +128,12 @@ describe('MatchOpenRow (native)', () => {
     // options' box carries the only border.
     it('U2: no card of its own and no fill; the options’ box is the one border', () => {
         const { container } = renderRow(makeDefaultLine());
-        const row = container.firstElementChild;
-        const style = row === null ? undefined : getComputedStyle(row);
+        // The row is the first element that draws a box; Tamagui's web build wraps the tree in ones that draw none.
+        const style = getComputedStyle(renderedRoot(container));
 
         // No fill: unset, or the transparent black react-native-web resolves an unset colour to.
-        expect(['', 'rgba(0, 0, 0, 0)']).toContain(style?.backgroundColor);
-        expect(['', '0px']).toContain(style?.borderTopWidth);
+        expect(['', 'rgba(0, 0, 0, 0)']).toContain(style.backgroundColor);
+        expect(['', '0px']).toContain(style.borderTopWidth);
         expect(getComputedStyle(screen.getByRole('list', { name: 'Food for 2 cups milk' })).borderTopWidth).toBe('1px');
     });
 

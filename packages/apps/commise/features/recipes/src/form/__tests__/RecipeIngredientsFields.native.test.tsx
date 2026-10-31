@@ -11,7 +11,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled, queryDialogTitled } from '@commise/test-utils';
-import { cleanup, render as renderBare, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
+import { render as renderBare } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';

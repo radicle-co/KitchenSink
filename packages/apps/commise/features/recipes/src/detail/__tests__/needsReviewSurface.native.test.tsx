@@ -12,9 +12,10 @@
  * enforces it is two suites asserting the same behaviour — a shared model does not render anything.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render as renderUnscoped, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render as renderUnscoped, resolvedColour } from '@commise/ui/testing/tamagui';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import { computedContrast } from '@commise/test-utils';
+import { computedContrast, contrastRatio } from '@commise/test-utils';
 
 import { makeIngredientView, makeNutrition, makeRecipeDetail, idleUnreachableRetry } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -162,12 +163,19 @@ describe('RecipeDetailView (native) — a line the verification gate contradicte
     it('⛔ clears the AA body-text floor — a warning TINT under a charcoal label, never warning as text', () => {
         // The native mirror of the web contrast case. `@commise/ui`'s palette JSDoc is explicit that #F5B041
         // is a light FILL taking a charcoal label; as a foreground on near-white it is far under 4.5:1.
-        // `computedContrast` reads the colour react-native-web actually compiled, not the style object.
+        // `computedContrast` reads the colour react-native-web actually compiled, not the style object. REWRITTEN for
+        // ADR-0080: the badge paints with Tamagui theme variables, which jsdom does not resolve, so its label and fill
+        // are read through `resolvedColour`, which follows them to the colour a device paints.
         render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={withheldRecipe()} />);
 
-        expect(computedContrast(screen.getByText(en.needsReviewBadge)), 'needs-review badge').toBeGreaterThanOrEqual(
-            4.5,
-        );
+        const badgeLabel = screen.getByText(en.needsReviewBadge);
+        const badge = badgeLabel.parentElement;
+
+        expect(badge).not.toBeNull();
+        expect(
+            contrastRatio(resolvedColour(badgeLabel, 'color'), resolvedColour(badge as Element, 'backgroundColor')),
+            'needs-review badge',
+        ).toBeGreaterThanOrEqual(4.5);
         expect(computedContrast(screen.getByRole('note')), 'needs-review notice').toBeGreaterThanOrEqual(4.5);
     });
 

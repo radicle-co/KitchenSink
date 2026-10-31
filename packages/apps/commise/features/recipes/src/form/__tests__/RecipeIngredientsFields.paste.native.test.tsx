@@ -7,7 +7,8 @@
  * own (`docs/design/nativeContainerNames.md` N1). Seen red first.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 import { AccessibilityInfo } from 'react-native';

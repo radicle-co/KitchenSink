@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 78,
-        "implementations": 137,
-        "props": 784,
-        "documentedComponents": 78,
-        "implementationsWithModuleDoc": 137,
-        "implementationsWithComponentDoc": 127,
-        "documentedProps": 749,
-        "classifiedComponents": 71,
-        "componentsWithPatternTag": 78,
+        "components": 80,
+        "implementations": 139,
+        "props": 858,
+        "documentedComponents": 80,
+        "implementationsWithModuleDoc": 139,
+        "implementationsWithComponentDoc": 128,
+        "documentedProps": 803,
+        "classifiedComponents": 73,
+        "componentsWithPatternTag": 80,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -12601,7 +12601,9 @@
             "dir": "packages/apps/commise/ui/src/statusBadge",
             "kind": "presentational",
             "patterns": [
-                "Registry consumer — the status picks its pair and glyph from closed `Record`s (`BADGE_GLYPH`, the tones)"
+                "Registry consumer — the status picks its pair and glyph from closed `Record`s (`BADGE_GLYPH`, the tones)",
+                "Registry consumer — the status picks its tone and glyph from closed `Record`s (`TONE_OF`, `BADGE_GLYPH`)",
+                "Variant — the tone is a Tamagui variant on the badge and on its label, the discriminated-union render map"
             ],
             "platforms": [
                 "web",
@@ -12671,7 +12673,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/statusBadge/StatusBadge.native.tsx",
                     "dir": "packages/apps/commise/ui/src/statusBadge",
-                    "moduleDoc": "@commise/ui/status-badge — the native badge that states a status (`Draft`, `Custom`, `Needs review`, …).\n\nReact Native's nested `Text` takes no reliable radius or padding, so the badge is a `View` holding the glyph and a\n`Text`, the same mechanism as `StandIn` (`docs/design/ingredientSpecialization.md` E2 I1). The same contract as the\nweb leaf: the words are the content, the badge is filled and never dashed, each status's label clears 4.5:1 on its\nfill, a neutral one wears a 1 pt `lineDivider` edge, the label wraps and is never cut off, and it is 24 pt tall with the `sm` radius.",
+                    "moduleDoc": "@commise/ui/status-badge — the native badge that states a status (`Draft`, `Custom`, `Needs review`, …).\n\nReact Native's nested `Text` takes no reliable radius or padding, so the badge is a row holding the glyph and a\n`Text`, the same mechanism as `StandIn` (`docs/design/ingredientSpecialization.md` E2 I1). The same contract as the\nweb leaf: the words are the content, the badge is filled and never dashed, each status's label clears 4.5:1 on its\nfill, a neutral one wears a 1 pt `lineDivider` edge, the label wraps and is never cut off, and it is 24 pt tall with\nthe `sm` radius.\n\nStyled with Tamagui (ADR-0080): every colour is a theme role, so the badge follows the scheme with no hook. PRO's\npair is `inkMuted` under `inverseInk`, which are the PRO tone's values in both themes.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12679,7 +12681,11 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Registry consumer — the status picks its pair and glyph from closed `Record`s (`BADGE_GLYPH`, the tones)"
+                            "text": "Registry consumer — the status picks its tone and glyph from closed `Record`s (`TONE_OF`, `BADGE_GLYPH`)"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the tone is a Tamagui variant on the badge and on its label, the discriminated-union render map"
                         }
                     ],
                     "description": "The status badge: filled, and as wide as its words allow.",
@@ -13688,6 +13694,63 @@
             ]
         },
         {
+            "id": "designSystem/tamagui/DesignSystemProvider",
+            "name": "DesignSystemProvider",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/tamagui",
+            "kind": "orchestration",
+            "patterns": [
+                "Facade over `TamaguiProvider` — the config and the scheme are bound here, so a caller mounts one component"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DesignSystemProvider",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemProvider.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/tamagui",
+                    "moduleDoc": "@commise/ui/tamagui-provider — the design system's Tamagui provider (ADR-0080). Native-only, like the config\nit mounts: web styles with Tailwind and never loads Tamagui.\n\nOrchestration, not a render leaf: it reads the device's scheme (`useColorSchemeName`, the one place native code\nreads it) and pairs it with the one Tamagui config, so the pairing is written once. The app's provider tree mounts\nit, and so do the test renders (`@commise/ui/testing/tamagui`, and `@commise/test-utils` in a native lane), so a\ncomponent test paints in the scheme the app would. A change of device scheme re-themes the tree (D17).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/tamagui-provider — the design system's Tamagui provider (ADR-0080). Native-only, like the config"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Facade over `TamaguiProvider` — the config and the scheme are bound here, so a caller mounts one component"
+                        }
+                    ],
+                    "description": "Mount the design system around `children`, in the device's scheme.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The subtree to theme."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "`children` inside Tamagui's provider."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/testing/LucideGlyphStub",
             "name": "LucideGlyphStub",
             "group": "designSystem",
@@ -13907,6 +13970,850 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/text/Text",
+            "name": "Text",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/text",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the type scale (`nativeTokens.type`)",
+                "Variant — a closed `typeRole` union rendered through Tamagui `variants`, which is the discriminated-union\n    render map, so no `switch` is written"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "Text",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/text",
+                    "moduleDoc": "@commise/ui/text — the design system's native text (ADR-0080, slice 1). Native-only: web sets type with\nTailwind's role utilities, so this export has no web sibling (the `./modal` export is the precedent).\n\nA presentational primitive: props in, text out, no state. A screen names a TYPE ROLE and nothing else: `typeRole`\npicks the registered face, the size and the leading together (`nativeTokens.type`, projected from `typography.ts`),\nso no caller sets a font size, a face, a weight or a leading by hand (guard G4). Each leading is a `px` string, because Tamagui 3 reads a bare number as a ratio of the font size.\nNo role sets `fontWeight`: the face IS the weight on native, and both together render a synthesised bold.\n\n`largeTitle` has one style per container class, and all three are equal today; a test pins that, so the day they\ndiffer this component reads the container class. `figureInline` sets only its face and figures, and takes the size\nand leading of the line it sits in.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/text — the design system's native text (ADR-0080, slice 1). Native-only: web sets type with"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — a closed `typeRole` union rendered through Tamagui `variants`, which is the discriminated-union\n    render map, so no `switch` is written"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the type scale (`nativeTokens.type`)"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityActions",
+                            "type": "readonly Readonly<{ name: string; label?: string; }>[]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Provides an array of custom actions available for accessibility.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityElementsHidden",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A value indicating whether the accessibility elements contained within\nthis accessibility element are hidden.\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilityElementsHidden",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityHint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "An accessibility hint helps users understand what will happen when they perform\nan action on the accessibility element when that result is not obvious from the\naccessibility label.\n\n\nSee https://reactnative.dev/docs/view#accessibilityHint",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityIgnoresInvertColors",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Prevents view from being inverted if set to true and color inversion is turned on.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Overrides the text that's read by the screen reader when the user interacts\nwith the element. By default, the label is constructed by traversing all\nthe children and accumulating all the `Text` nodes separated by space.\n\nSee https://reactnative.dev/docs/view#accessibilitylabel",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLabelledBy",
+                            "type": "string | string[]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Identifies the element that labels the element it is applied to. When the assistive technology focuses on the component with this props,\nthe text is read aloud. The value should should match the nativeID of the related element.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLanguage",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to the accessibility services that the UI component is in\na specific language. The provided string should be formatted following\nthe BCP 47 specification (https://www.rfc-editor.org/info/bcp47).\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLargeContentTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `accessibilityShowsLargeContentViewer` is set, this string will be used as title for the large content viewer.\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilitylargecontenttitle",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLiveRegion",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"polite\"",
+                                "\"assertive\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services whether the user should be notified\nwhen this view changes. Works for Android API >= 19 only.\n@platform android\n\nSee https://reactnative.dev/docs/view#accessibilityliveregion",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityRespondsToUserInteraction",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Blocks the user from interacting with the component through keyboard while still allowing\nscreen reader to interact with it if this View is still accessible.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityRole",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services to treat UI component like a specific role.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityShowsLargeContentViewer",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A Boolean value that indicates whether or not to show the item in the large content viewer.\nAvailable on iOS 13.0+\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilityshowslargecontentviewer",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityState",
+                            "type": "AccessibilityState",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services that UI Component is in a specific State.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityValue",
+                            "type": "Readonly<{ min?: number; max?: number; now?: number | undefined; text?: string | undefined; }> | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityViewIsModal",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A value indicating whether VoiceOver should ignore the elements\nwithin views that are siblings of the receiver.\nDefault is `false`.\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilityviewismodal",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessible",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `true`, indicates that the view is an accessibility element.\nBy default, all the touchable elements are accessible.\n\nSee https://reactnative.dev/docs/view#accessible",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "adjustsFontSizeToFit",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "allowFontScaling",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "`true`",
+                            "description": "Whether fonts should scale to respect Text Size accessibility settings.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "android_hyphenationFrequency",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"full\"",
+                                "\"normal\""
+                            ],
+                            "required": false,
+                            "defaultValue": "`'none'`",
+                            "description": "Sets automatic hyphenation frequency.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "animatedBy",
+                            "type": "\"default\" | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Select which animation driver to use for this component.\nPass a string key matching a driver registered in the `animations` config.\nExample: `<View animatedBy=\"spring\">` when config has `animations: { default: css, spring: moti }`",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "alias for accessibilityState\n\nsee https://reactnative.dev/docs/accessibility#accessibilitystate",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-checked",
+                            "type": "boolean | \"mixed\"",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-expanded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-hidden",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A value indicating whether the accessibility elements contained within\nthis accessibility element are hidden.\n\nSee https://reactnative.dev/docs/view#aria-hidden",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Alias for accessibilityLabel  https://reactnative.dev/docs/view#accessibilitylabel\nhttps://github.com/facebook/react-native/issues/34424",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-labelledby",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Identifies the element that labels the element it is applied to. When the assistive technology focuses on the component with this props,\nthe text is read aloud. The value should should match the nativeID of the related element.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-live",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"off\"",
+                                "\"polite\"",
+                                "\"assertive\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services whether the user should be notified\nwhen this view changes. Works for Android API >= 19 only.\n@platform android\n\nSee https://reactnative.dev/docs/view#accessibilityliveregion",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-modal",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The aria-modal attribute indicates content contained within a modal with aria-modal=\"true\"\nshould be accessible to the user.\nDefault is `false`.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-selected",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuemax",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "alias for accessibilityState\nIt represents textual description of a component's value, or for range-based components, such as sliders and progress bars.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuemin",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuenow",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuetext",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "asChild",
+                            "type": "boolean | \"web\" | \"except-style\" | \"except-style-web\"",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When truthy passes through all props to a single child element, and avoids rendering its own element.\nMust pass just one child React element that will receive all the props.\n\nThe option \"except-style\" will avoid passing any style related props.\n\nThe option \"web\" will map all React Native style props to web props (onPress becomes onClick).\n\nThe option \"except-style-web\" combines the except-style and web options.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web className property, useful for applying styles from CSS on web only",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "container",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as an inline-size query container. A string names the\ncontainer for matching `@sm/name:` clauses.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "dangerouslySetInnerHTML",
+                            "type": "{ __html: string; }",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "dataDetectorType",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"email\"",
+                                "\"none\"",
+                                "\"link\"",
+                                "\"phoneNumber\"",
+                                "\"all\""
+                            ],
+                            "required": false,
+                            "defaultValue": "`'none'`",
+                            "description": "Types of data converted to clickable URLs in the text element.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "debug",
+                            "type": "DebugProp",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableClassName",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disables className output of styles, instead using only inline styles",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableNativeStyle",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Opt this component out of the experimental native style fast path\n(setNativeStyleEngine); it re-renders through React on theme/media\nchanges like normal",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableOptimization",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disable all compiler optimization",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "dynamicTypeRamp",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"body\"",
+                                "\"largeTitle\"",
+                                "\"caption2\"",
+                                "\"caption1\"",
+                                "\"footnote\"",
+                                "\"subheadline\"",
+                                "\"callout\"",
+                                "\"headline\"",
+                                "\"title3\"",
+                                "\"title2\"",
+                                "\"title1\""
+                            ],
+                            "required": false,
+                            "defaultValue": "`'body'`",
+                            "description": "The [Dynamic Type](https://developer.apple.com/documentation/uikit/uifont/textstyle)\nramp to apply.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "ellipsizeMode",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"head\"",
+                                "\"clip\"",
+                                "\"middle\"",
+                                "\"tail\""
+                            ],
+                            "required": false,
+                            "defaultValue": "`'tail'`",
+                            "description": "How text is truncated when `numberOfLines` is set. On Android with\n`numberOfLines` greater than 1, only `'tail'` works correctly.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "forceStyle",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hover\"",
+                                "\"press\"",
+                                "\"focus\"",
+                                "\"focusVisible\"",
+                                "\"focusWithin\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Forces the pseudo style state to be on",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "group",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as a group for use in styling children based on parents named group\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "hitSlop",
+                            "type": "number | Insets | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Adds some area outside the typical bounds of the component for touch actions to register.\nTamagui uses Pressable internally so it supports `number | Insets` rather than just `Insets`",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "htmlFor",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "id",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web id property for setting a uid on an element",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "importantForAccessibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"auto\"",
+                                "\"yes\"",
+                                "\"no\"",
+                                "\"no-hide-descendants\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Controls how view is important for accessibility which is if it fires accessibility events\nand if it is reported to accessibility services that query the screen.\nWorks for Android only. See http://developer.android.com/reference/android/R.attr.html#importantForAccessibility for references.\n\nPossible values:\n     'auto' - The system determines whether the view is important for accessibility - default (recommended).\n     'yes' - The view is important for accessibility.\n     'no' - The view is not important for accessibility.\n     'no-hide-descendants' - The view is not important for accessibility, nor are any of its descendant views.\n@platform android\n\nSee https://reactnative.dev/docs/view#importantforaccessibility",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "lineBreakStrategyIOS",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"standard\"",
+                                "\"hangul-word\"",
+                                "\"push-out\""
+                            ],
+                            "required": false,
+                            "defaultValue": "`'none'`",
+                            "description": "Line break strategy on iOS.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "maxFontSizeMultiplier",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Largest possible font scale when `allowFontScaling` is enabled.\n`null`/`undefined` inherits from the parent node or the global default (0).\n`0` means no max (ignores parent/global default). `>= 1` sets the\n`maxFontSizeMultiplier` of this node to this value.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "minimumFontScale",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Smallest possible font scale when `adjustsFontSizeToFit` is enabled\n(values 0.01-1.0).\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "web: forwards to the HTML name attribute.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nativeID",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onAccessibilityAction",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => unknown) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerEnter",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerLeave",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "pressRetentionOffset",
+                            "type": "Readonly<{ top: number; left: number; bottom: number; right: number; }>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Defines how far your touch may move off of the button, before\ndeactivating the button.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "ref",
+                            "type": "Ref<TamaguiTextElement>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "render",
+                            "type": "ReactElement<unknown, string | JSXElementConstructor<any>> | keyof HTMLElementTagNameMap | (string & {}) | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Controls the rendered element on web.\n- String: renders as that HTML element (e.g., `render=\"button\"`)\n- JSX Element: clones element with merged props (e.g., `render={<a href=\"/\" />}`)\n- Function: full control with props and state (e.g., `render={(props) => <Custom {...props} />}`)\n@example render=\"button\"\n@example render={<a href=\"/\" />}\n@example render={(props, state) => <MyComponent {...props} isPressed={state.press} />}",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "role",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"status\"",
+                                "\"timer\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"button\"",
+                                "\"alert\"",
+                                "\"dialog\"",
+                                "\"none\"",
+                                "\"link\"",
+                                "\"summary\"",
+                                "\"checkbox\"",
+                                "\"combobox\"",
+                                "\"menubar\"",
+                                "\"menuitem\"",
+                                "\"progressbar\"",
+                                "\"radio\"",
+                                "\"radiogroup\"",
+                                "\"scrollbar\"",
+                                "\"spinbutton\"",
+                                "\"switch\"",
+                                "\"tab\"",
+                                "\"tablist\"",
+                                "\"toolbar\"",
+                                "\"alertdialog\"",
+                                "\"application\"",
+                                "\"article\"",
+                                "\"banner\"",
+                                "\"cell\"",
+                                "\"columnheader\"",
+                                "\"complementary\"",
+                                "\"contentinfo\"",
+                                "\"definition\"",
+                                "\"directory\"",
+                                "\"document\"",
+                                "\"feed\"",
+                                "\"figure\"",
+                                "\"form\"",
+                                "\"grid\"",
+                                "\"group\"",
+                                "\"heading\"",
+                                "\"img\"",
+                                "\"listitem\"",
+                                "\"log\"",
+                                "\"main\"",
+                                "\"marquee\"",
+                                "\"math\"",
+                                "\"meter\"",
+                                "\"navigation\"",
+                                "\"note\"",
+                                "\"option\"",
+                                "\"presentation\"",
+                                "\"region\"",
+                                "\"row\"",
+                                "\"rowgroup\"",
+                                "\"rowheader\"",
+                                "\"searchbox\"",
+                                "\"separator\"",
+                                "\"slider\"",
+                                "\"table\"",
+                                "\"tabpanel\"",
+                                "\"term\"",
+                                "\"tooltip\"",
+                                "\"tree\"",
+                                "\"treegrid\"",
+                                "\"treeitem\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Equivalent to role=\"\" attribute on web for accessibility",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "screenReaderFocusable",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Enables the view to be screen reader focusable, not keyboard focusable. This has lower priority\nthan focusable or accessible props.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "selectionColor",
+                            "type": "____ColorValue_Internal",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Highlight color of the text when selected.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "suppressHighlighting",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "`false`",
+                            "description": "When `true`, no visual change is made when text is pressed down. By\ndefault, a gray oval highlights the text on press down.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "tabIndex",
+                            "type": "string | number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Used for controlling the order of focus with keyboard or assistive device enavigation\nSee https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "target",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "testID",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "textBreakStrategy",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"balanced\"",
+                                "\"highQuality\"",
+                                "\"simple\""
+                            ],
+                            "required": false,
+                            "defaultValue": "`'highQuality'`",
+                            "description": "Text break strategy on Android.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "theme",
+                            "type": "ThemeName | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Applies a theme to this element",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "themeShallow",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "If given a theme it will only apply to this element, instead of passing down to children",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "untilMeasured",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hide\"",
+                                "\"show\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Works alongside container. On native, children using container sizing can\nbe hidden until the parent is measured.\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

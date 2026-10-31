@@ -8,7 +8,8 @@
  * cards. The iOS shadow-clipping invariants (shadow and clip never on one node) are kept, because the level-1 card
  * still elevates and still clips its cover.
  */
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

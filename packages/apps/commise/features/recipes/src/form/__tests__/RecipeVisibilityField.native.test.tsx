@@ -6,7 +6,8 @@
  * Moved here from `recipeFieldGroups.native.test.tsx`, whose visibility block pinned the wizard-era switch.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 

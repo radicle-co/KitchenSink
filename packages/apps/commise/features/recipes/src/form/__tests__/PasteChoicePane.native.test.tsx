@@ -9,7 +9,8 @@
  * `docs/design/nativeContainerNames.md` N1, staff-ux 2026-10-25).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 const focusMoved = vi.hoisted(() => vi.fn());

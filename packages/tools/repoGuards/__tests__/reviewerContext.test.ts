@@ -1,33 +1,9 @@
 /**
- * Repo-wide guard: the context files that AI review bots ingest must be TRUE.
- *
- * `AGENTS.md` and `.github/copilot-instructions.md` are not documentation for humans who can spot a
- * stale line — they are auto-ingested as authoritative repository context by GitHub Copilot code
- * review, CodeRabbit and Qodo. A false claim in them is not a typo; it is an instruction. A bot told
- * the repo uses Auth0 will "helpfully" propose Auth0 wiring for a Clerk codebase, and a bot told the
- * sandbox uses path routing will file a bug against a 404 that ADR-0001 makes deliberate — then a
- * human has to spend review budget rejecting confidently-wrong advice.
- *
- * That is exactly what was happening. `AGENTS.md` (auto-generated, stamped "Last updated 2026-04-29")
- * claimed THREE technologies the repo does not have — `@auth0/nextjs-auth0`, `react-native-auth0`
- * (this repo has used Clerk since feature 002) and `jwks-rsa` (left over from the API Gateway
- * authorizer model that PR #39 deleted in favour of in-service session-token verification) — and
- * asserted the exact INVERSE of ADR-0001's live ruling: "Sandbox front-ends use path routing …, NOT
- * per-PR subdomains." Since the 2026-07-13 cutover the subdomain form is the real one and the path
- * form 404s BY DESIGN.
- *
- * Why the tech check is generalized rather than an auth0 denylist: the defect class is not "Auth0 got
- * mentioned", it is "AGENTS.md's technology claims were never verified against the dependency graph".
- * Banning one vendor string would have missed `jwks-rsa` entirely — this guard found that third stale
- * claim on its own. Asserting that every package AGENTS.md claims actually resolves in some workspace
- * manifest catches vendor drift, removed dependencies and renamed packages with one rule, and it stays
- * true as the repo evolves instead of needing a new denylist entry per incident.
- *
- * Scope note: only the AUTO-GENERATED tech sections ("Active Technologies", "Recent Changes") are
- * scanned for package claims. The hand-written "MANUAL ADDITIONS" prose deliberately backticks things
- * that are not npm packages (`deploy-food`, `paths-filter`, `RECIPE_FOOD_SERVICE_URL`), and treating
- * those as dependency claims would fail the guard for the wrong reason — a guard that cries wolf gets
- * disabled, which is worse than no guard.
+ * Guard the accuracy of always-on context and its progressive-disclosure links.
+ * Package claims are checked against workspace manifests; the referenced guidance and ADRs must
+ * exist on disk. ADR decisions live in CLAUDE.md and their own files, not duplicated in AGENTS.md.
+ * Keep the package check scoped to technology sections: elsewhere, backticks often name commands
+ * and config identifiers rather than dependencies.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -40,7 +16,6 @@ import { describe, it, expect } from 'vitest';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 const agentsMd = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
-const copilotInstructionsPath = path.join(repoRoot, '.github/copilot-instructions.md');
 const instructionsDir = path.join(repoRoot, '.github/instructions');
 
 /**
@@ -162,6 +137,19 @@ describe('AI-reviewer context files are accurate', () => {
         expect(universe.size).toBeGreaterThan(50);
     });
 
+    it('links to each authoritative source for on-demand guidance', () => {
+        for (const target of [
+            'CLAUDE.md',
+            'docs/CODING_STANDARDS.md',
+            'docs/engineering/ENGINEERING_EXCELLENCE.md',
+            'docs/architecture/decisions/',
+            'specs/governance-rules.md',
+        ]) {
+            expect(agentsMd, `AGENTS.md must link to ${target}`).toContain(`](${target})`);
+            expect(existsSync(path.join(repoRoot, target)), `${target} must exist`).toBe(true);
+        }
+    });
+
     it('every technology AGENTS.md claims actually resolves in a workspace manifest', () => {
         const absent = claimed.filter((pkg) => !universe.has(pkg));
 
@@ -220,38 +208,12 @@ describe('AI-reviewer context files are accurate', () => {
         }
     });
 
-    it('every deliberate ADR is surfaced in a file review bots ingest', () => {
-        // Copilot cannot follow links out of an instructions file, so each ruling must be INLINED
-        // somewhere ingested — AGENTS.md or a path-scoped .github/instructions/*.instructions.md.
-        const ingested = [agentsMd];
+    it('every deliberate ADR referenced by CLAUDE.md exists for on-demand reading', () => {
+        const missing = adrs.filter(
+            (adr) => !existsSync(path.join(repoRoot, 'docs/architecture/decisions', `${adr}.md`)),
+        );
 
-        if (existsSync(copilotInstructionsPath)) {
-            ingested.push(readFileSync(copilotInstructionsPath, 'utf8'));
-        }
-
-        if (existsSync(instructionsDir)) {
-            for (const entry of readdirSync(instructionsDir)) {
-                if (entry.endsWith('.instructions.md')) {
-                    ingested.push(readFileSync(path.join(instructionsDir, entry), 'utf8'));
-                }
-            }
-        }
-
-        const corpus = ingested.join('\n');
-
-        const uncovered = adrs.filter((adr) => {
-            const number = adr.slice(0, 4);
-
-            // Either the filename or a conventional "ADR-0004" reference counts as surfacing it.
-            return !corpus.includes(adr) && !new RegExp(`ADR[-\\s]?${number}`, 'i').test(corpus);
-        });
-
-        expect(
-            uncovered,
-            `CLAUDE.md marks these ADRs as deliberate decisions, but no bot-ingested context file ` +
-                `mentions them: ${uncovered.join(', ')}. A reviewer that cannot see the ruling will ` +
-                `advise reverting it.`,
-        ).toEqual([]);
+        expect(missing, `CLAUDE.md points to missing ADRs: ${missing.join(', ')}`).toEqual([]);
     });
 
     it('each path-scoped instruction file declares an applyTo glob', () => {

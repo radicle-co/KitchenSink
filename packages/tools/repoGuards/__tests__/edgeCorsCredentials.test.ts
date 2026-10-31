@@ -29,6 +29,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import ts from 'typescript';
+
+import { lineOf } from './appSources.js';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -50,11 +52,6 @@ const EDGE_PACKAGE = 'packages/shared/edge-verifier';
 /** What one call to the policy asks for. */
 type CredentialsRequest =
     { readonly line: number; readonly credentials: boolean } | { readonly line: number; readonly undecidable: string };
-
-/** The line a node starts on, 1-based. */
-function lineOf(file: ts.SourceFile, node: ts.Node): number {
-    return file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
-}
 
 /** Whether a call's callee is the policy, bare or as a member. */
 function callsPolicy(call: ts.CallExpression): boolean {

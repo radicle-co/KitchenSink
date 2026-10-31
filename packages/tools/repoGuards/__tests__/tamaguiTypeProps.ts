@@ -6,7 +6,7 @@
  */
 import ts from 'typescript';
 
-import { parseModule } from './appSources.js';
+import { lineOf, parseModule } from './appSources.js';
 import {
     isTamaguiStyledCall,
     tamaguiElementNames,
@@ -14,7 +14,7 @@ import {
     tamaguiStyledNames,
     type StyledExportsOf,
 } from './tamaguiElements.js';
-import { styledStyleProperties } from './tamaguiStyleObjects.js';
+import { styledConfig } from './tamaguiStyleObjects.js';
 
 const TYPE_PARTS = new Set(['fontSize', 'lineHeight', 'fontFamily', 'fontWeight', 'letterSpacing']);
 
@@ -28,10 +28,6 @@ function isPxLineHeight(value: ts.Expression): boolean {
     }
 
     return ts.isTemplateExpression(value) && (value.templateSpans.at(-1)?.literal.text ?? '').endsWith('px');
-}
-
-function lineOf(file: ts.SourceFile, node: ts.Node): number {
-    return file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
 }
 
 /**
@@ -71,7 +67,12 @@ export function typePropFindings(
 
     const visit = (node: ts.Node): void => {
         if (isTamaguiStyledCall(node, styledNames)) {
-            for (const { key, value, node: property } of styledStyleProperties(node)) {
+            const { properties, unreadable } = styledConfig(node);
+
+            // Fail closed: a part the walk cannot read is reported, never passed.
+            unreadable.forEach(report);
+
+            for (const { key, value, node: property } of properties) {
                 if (key === 'lineHeight' && !isPxLineHeight(value)) {
                     report(property);
                 }

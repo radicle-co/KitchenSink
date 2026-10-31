@@ -45,6 +45,7 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { lineOf } from './appSources.js';
 import { isTestFile, parse, presentFiles, repoRoot, visit, type SourceFile } from './serviceSources.js';
 
 // ───────────────────────────── the vocabulary ─────────────────────────────
@@ -120,11 +121,6 @@ interface PreconditionFinding {
     readonly what: string;
     /** 1-based line. */
     readonly line: number;
-}
-
-/** The line a node starts on, 1-based. */
-function lineOf(file: ts.SourceFile, node: ts.Node): number {
-    return file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
 }
 
 /** A string-literal node's text, or `undefined` for any other node. */

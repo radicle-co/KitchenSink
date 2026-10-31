@@ -155,10 +155,23 @@ export function tamaguiOpeningElements(
     return elements;
 }
 
-const uiExports = (): Readonly<Record<string, unknown>> =>
-    (JSON.parse(readFileSync(path.join(UI_ROOT, 'package.json'), 'utf8')) as { exports: Record<string, unknown> })
-        .exports;
+function isExported(statement: ts.Statement): boolean {
+    return (
+        ts.canHaveModifiers(statement) &&
+        (ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false)
+    );
+}
 
+function leafOf(from: string, specifier: string): string | undefined {
+    const target = path.resolve(path.dirname(from), specifier).replace(/\.js$/u, '');
+
+    return [`${target}.native.tsx`, `${target}.native.ts`, `${target}.tsx`, `${target}.ts`].find(existsSync);
+}
+
+/**
+ * The names one module exports as Tamagui `styled(…)` components: declared and exported in place, listed in a local
+ * `export { … }`, or re-exported from a relative module, followed to any depth (a cycle stops). Reads files.
+ */
 function styledExportsOfFile(file: string, seen: ReadonlySet<string>): ReadonlySet<string> {
     if (seen.has(file) || !existsSync(file)) {
         return new Set();
@@ -166,78 +179,88 @@ function styledExportsOfFile(file: string, seen: ReadonlySet<string>): ReadonlyS
 
     const source = parseModule(file, readFileSync(file, 'utf8'));
     const styledNames = tamaguiStyledNames(source);
+    const styledLocals = new Set(styledBindings(source, styledNames));
     const names = new Set<string>();
 
     for (const statement of source.statements) {
-        const exported = ts
-            .getModifiers(statement as ts.HasModifiers)
-            ?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
-
-        if (exported === true && ts.isVariableStatement(statement)) {
+        if (isExported(statement) && ts.isVariableStatement(statement)) {
             for (const declaration of statement.declarationList.declarations) {
-                if (
-                    ts.isIdentifier(declaration.name) &&
-                    declaration.initializer !== undefined &&
-                    isTamaguiStyledCall(declaration.initializer, styledNames)
-                ) {
+                if (ts.isIdentifier(declaration.name) && styledLocals.has(declaration.name.text)) {
                     names.add(declaration.name.text);
                 }
             }
         }
 
-        if (
-            ts.isExportDeclaration(statement) &&
-            statement.moduleSpecifier !== undefined &&
-            ts.isStringLiteral(statement.moduleSpecifier) &&
-            statement.moduleSpecifier.text.startsWith('.')
-        ) {
-            const target = path.resolve(path.dirname(file), statement.moduleSpecifier.text).replace(/\.js$/u, '');
-            const leaf = [`${target}.native.tsx`, `${target}.native.ts`, `${target}.tsx`, `${target}.ts`].find(
-                existsSync,
-            );
-            const styledThere =
-                leaf === undefined ? new Set<string>() : styledExportsOfFile(leaf, new Set([...seen, file]));
-            const clause = statement.exportClause;
+        if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) {
+            continue;
+        }
 
+        const clause = statement.exportClause;
+        const specifier = statement.moduleSpecifier;
+
+        if (specifier === undefined) {
+            // `export { Pill }`: a list of this module's own names.
             if (clause !== undefined && ts.isNamedExports(clause)) {
-                for (const element of clause.elements) {
-                    if (styledThere.has((element.propertyName ?? element.name).text)) {
-                        names.add(element.name.text);
-                    }
-                }
-            } else if (clause === undefined) {
-                styledThere.forEach((name) => names.add(name));
+                clause.elements
+                    .filter((element) => styledLocals.has((element.propertyName ?? element.name).text))
+                    .forEach((element) => names.add(element.name.text));
             }
+
+            continue;
+        }
+
+        if (!ts.isStringLiteral(specifier) || !specifier.text.startsWith('.')) {
+            continue;
+        }
+
+        const leaf = leafOf(file, specifier.text);
+        const styledThere =
+            leaf === undefined ? new Set<string>() : styledExportsOfFile(leaf, new Set([...seen, file]));
+
+        if (clause !== undefined && ts.isNamedExports(clause)) {
+            clause.elements
+                .filter((element) => styledThere.has((element.propertyName ?? element.name).text))
+                .forEach((element) => names.add(element.name.text));
+        } else if (clause === undefined) {
+            styledThere.forEach((name) => names.add(name));
         }
     }
 
     return names;
 }
 
-const styledExportCache = new Map<string, ReadonlySet<string>>();
-
 /**
- * The names a design-system subpath (`@commise/ui/text`) exports as Tamagui `styled(…)` components, read through the
- * package's `exports` map and one level of re-export per hop.
+ * A reader of the names each subpath of a design-system package (`@commise/ui/text`) exports as Tamagui `styled(…)`
+ * components, through the package's `exports` map and every relative re-export behind it.
  *
- * @param subpath - The import specifier.
- * @returns The exported names.
- * @sideEffect Reads `ui/package.json` and the exported modules.
+ * @param packageRoot - The package's directory.
+ * @returns The reader, which caches by subpath.
+ * @sideEffect The reader reads the package manifest and the exported modules.
  */
-export const designSystemStyledExports: StyledExportsOf = (subpath) => {
-    const known = styledExportCache.get(subpath);
+export function styledExportsReader(packageRoot: string): StyledExportsOf {
+    const cache = new Map<string, ReadonlySet<string>>();
 
-    if (known !== undefined) {
-        return known;
-    }
+    return (subpath) => {
+        const known = cache.get(subpath);
 
-    const target = uiExports()[`./${subpath.slice(DESIGN_SYSTEM_PACKAGE.length)}`];
-    const names =
-        typeof target === 'string' && /\.tsx?$/u.test(target)
-            ? styledExportsOfFile(path.join(UI_ROOT, target), new Set())
-            : new Set<string>();
+        if (known !== undefined) {
+            return known;
+        }
 
-    styledExportCache.set(subpath, names);
+        const manifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8')) as {
+            readonly exports?: Readonly<Record<string, unknown>>;
+        };
+        const target = manifest.exports?.[`./${subpath.slice(DESIGN_SYSTEM_PACKAGE.length)}`];
+        const names =
+            typeof target === 'string' && /\.tsx?$/u.test(target)
+                ? styledExportsOfFile(path.join(packageRoot, target), new Set())
+                : new Set<string>();
 
-    return names;
-};
+        cache.set(subpath, names);
+
+        return names;
+    };
+}
+
+/** The design system's own reader (`@commise/ui`). */
+export const designSystemStyledExports: StyledExportsOf = styledExportsReader(UI_ROOT);

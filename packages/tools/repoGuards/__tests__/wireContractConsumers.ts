@@ -50,6 +50,8 @@ import path from 'node:path';
 
 import ts from 'typescript';
 
+import { lineOf } from './appSources.js';
+
 /** One source file's path (repo-relative, for messages) and its text. */
 export interface ConsumerSource {
     readonly path: string;
@@ -162,11 +164,6 @@ function parseSource(source: ConsumerSource): ts.SourceFile {
         true,
         source.path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
     );
-}
-
-/** 1-based line of `node` within `sourceFile`. */
-function lineOf(sourceFile: ts.SourceFile, node: ts.Node): number {
-    return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 }
 
 /**

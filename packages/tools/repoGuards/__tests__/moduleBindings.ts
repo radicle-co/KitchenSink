@@ -12,6 +12,8 @@ import ts from 'typescript';
 export interface ModuleBindings {
     /** Each imported export name, and the local names it is bound to. */
     readonly locals: ReadonlyMap<string, ReadonlySet<string>>;
+    /** Each imported export name, and the import specifiers that bind it, so a finding can name its line. */
+    readonly specifiers: ReadonlyMap<string, readonly ts.ImportSpecifier[]>;
     /** The local names of namespace imports (`import * as RN`). */
     readonly namespaces: ReadonlySet<string>;
     /** Whether the module has any value import of a matched module. */
@@ -38,6 +40,7 @@ export function importsValues(statement: ts.ImportDeclaration): boolean {
  */
 export function valueBindingsOf(file: ts.SourceFile, matches: (specifier: string) => boolean): ModuleBindings {
     const locals = new Map<string, Set<string>>();
+    const specifiers = new Map<string, ts.ImportSpecifier[]>();
     const namespaces = new Set<string>();
     let imported = false;
 
@@ -70,10 +73,11 @@ export function valueBindingsOf(file: ts.SourceFile, matches: (specifier: string
 
             bound.add(element.name.text);
             locals.set(name, bound);
+            specifiers.set(name, [...(specifiers.get(name) ?? []), element]);
         }
     }
 
-    return { locals, namespaces, imported };
+    return { locals, specifiers, namespaces, imported };
 }
 
 /**
@@ -84,6 +88,16 @@ export function valueBindingsOf(file: ts.SourceFile, matches: (specifier: string
  */
 export function localsOf(bindings: ModuleBindings, name: string): ReadonlySet<string> {
     return bindings.locals.get(name) ?? new Set();
+}
+
+/**
+ * The import specifiers that bind one export. Pure.
+ *
+ * @param bindings - A module's bindings.
+ * @param name - The export name.
+ */
+export function specifiersOf(bindings: ModuleBindings, name: string): readonly ts.ImportSpecifier[] {
+    return bindings.specifiers.get(name) ?? [];
 }
 
 /** Whether a specifier is `react-native`. */

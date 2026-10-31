@@ -107,7 +107,7 @@ interface Reference {
 
 /**
  * The reference baseline: `origin/main`'s, or until the baseline reaches main, the one first committed in this
- * history. `undefined` only when the baseline has never been committed (the change that introduces it).
+ * history. `undefined` only when no commit in this history adds the baseline, which the test refuses.
  *
  * @sideEffect Reads git history.
  * @throws Error when the clone is shallow or has no `origin/main`, which would make the rule pass on nothing.
@@ -177,6 +177,9 @@ describe('React Native styling only falls (ADR-0080)', () => {
 
     it('only lowers the baseline: no count above the reference, and no path added to it', () => {
         const reference = referenceBaseline();
+
+        // The baseline is committed, so a reference always exists; none means the history read failed.
+        expect(reference, 'no committed baseline found in history').toBeDefined();
 
         if (reference === undefined) {
             return;

@@ -6,8 +6,8 @@
  */
 import ts from 'typescript';
 
-import { parseModule } from './appSources.js';
-import { importsValues } from './moduleBindings.js';
+import { lineOf, parseModule } from './appSources.js';
+import { specifiersOf, valueBindingsOf } from './moduleBindings.js';
 import { TAMAGUI_MODULE } from './tamaguiElements.js';
 
 const CONFIG_EXPORT = '@commise/ui/tamagui-config';
@@ -15,10 +15,6 @@ const CONFIG_EXPORT = '@commise/ui/tamagui-config';
 const NATIVE_ONLY = /\.native\.tsx?$|^packages\/apps\/commise\/mobile\/(?:src\/|App\.tsx$)/u;
 
 const THEME_HOOKS = new Set(['useTheme', 'useThemeName', 'getTokens']);
-
-function lineOf(file: ts.SourceFile, node: ts.Node): number {
-    return file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
-}
 
 function isTamaguiSpecifier(text: string): boolean {
     return TAMAGUI_MODULE.test(text) || text === CONFIG_EXPORT;
@@ -71,33 +67,15 @@ export function tamaguiImportFindings(source: string, fileName: string): readonl
 export function tamaguiThemeHookFindings(source: string, fileName: string): readonly string[] {
     const file = parseModule(fileName, source);
     const findings: string[] = [];
-    const namespaces = new Set<string>();
+    const tamagui = valueBindingsOf(file, (specifier) => TAMAGUI_MODULE.test(specifier));
+    const { namespaces } = tamagui;
 
     const report = (node: ts.Node): void => {
         findings.push(`${fileName}:${lineOf(file, node)} ${node.getText(file)}`);
     };
 
-    for (const statement of file.statements) {
-        if (
-            !ts.isImportDeclaration(statement) ||
-            !ts.isStringLiteral(statement.moduleSpecifier) ||
-            !TAMAGUI_MODULE.test(statement.moduleSpecifier.text) ||
-            !importsValues(statement)
-        ) {
-            continue;
-        }
-
-        const bindings = statement.importClause?.namedBindings;
-
-        if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
-            namespaces.add(bindings.name.text);
-        } else if (bindings !== undefined) {
-            bindings.elements
-                .filter(
-                    (element) => !element.isTypeOnly && THEME_HOOKS.has((element.propertyName ?? element.name).text),
-                )
-                .forEach(report);
-        }
+    for (const hook of THEME_HOOKS) {
+        specifiersOf(tamagui, hook).forEach(report);
     }
 
     const visit = (node: ts.Node): void => {

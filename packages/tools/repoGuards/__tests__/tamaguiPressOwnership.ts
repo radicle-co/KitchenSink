@@ -8,7 +8,7 @@
 import { canonicalClauseModifier } from '@tamagui/style-grammar/runtime';
 import ts from 'typescript';
 
-import { parseModule } from './appSources.js';
+import { lineOf, parseModule } from './appSources.js';
 import {
     isTamaguiStyledCall,
     tamaguiElementNames,
@@ -16,7 +16,7 @@ import {
     tamaguiStyledNames,
     type StyledExportsOf,
 } from './tamaguiElements.js';
-import { styledStyleProperties } from './tamaguiStyleObjects.js';
+import { styledConfig } from './tamaguiStyleObjects.js';
 
 const PRESS_HANDLERS = new Set(['onPress', 'onPressIn', 'onPressOut', 'onLongPress']);
 
@@ -62,10 +62,6 @@ function valueHasPress(expression: ts.Expression): boolean {
     visit(expression);
 
     return found;
-}
-
-function lineOf(file: ts.SourceFile, node: ts.Node): number {
-    return file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
 }
 
 /**
@@ -114,9 +110,14 @@ export function pressOwnershipFindings(
 
     const visit = (node: ts.Node): void => {
         if (isTamaguiStyledCall(node, styledNames)) {
+            const { properties, unreadable } = styledConfig(node);
+
+            // Fail closed: a part the walk cannot read is reported, never passed.
+            unreadable.forEach(report);
+
             // A nested object's own properties are walked as entries of their own, so an object value is judged only
             // by its direct keys (the object form's `press`), and a string inside it is reported once, where it is.
-            for (const { key, value, node: property } of styledStyleProperties(node)) {
+            for (const { key, value, node: property } of properties) {
                 const owns = ts.isObjectLiteralExpression(value)
                     ? value.properties.some(
                           (inner) =>

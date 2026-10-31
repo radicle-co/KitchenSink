@@ -320,7 +320,7 @@ function tamaguiStyledNamesIn(source: ts.SourceFile): ReadonlySet<string> {
             !ts.isStringLiteral(statement.moduleSpecifier) ||
             !TAMAGUI_MODULE.test(statement.moduleSpecifier.text) ||
             clause === undefined ||
-            clause.isTypeOnly ||
+            clause.phaseModifier === ts.SyntaxKind.TypeKeyword ||
             bindings === undefined ||
             !ts.isNamedImports(bindings)
         ) {
@@ -337,12 +337,13 @@ function tamaguiStyledNamesIn(source: ts.SourceFile): ReadonlySet<string> {
     return names;
 }
 
-/** Whether a declaration is a call of Tamagui's `styled`, parentheses and type assertions looked through. Pure. */
+/** Whether a declaration is a call of Tamagui's `styled`, parentheses, `as`, `satisfies` and `!` looked through. Pure. */
 function isTamaguiStyledCall(declaration: ts.Node, styledNames: ReadonlySet<string>): boolean {
     if (
         ts.isParenthesizedExpression(declaration) ||
         ts.isAsExpression(declaration) ||
-        ts.isSatisfiesExpression(declaration)
+        ts.isSatisfiesExpression(declaration) ||
+        ts.isNonNullExpression(declaration)
     ) {
         return isTamaguiStyledCall(declaration.expression, styledNames);
     }

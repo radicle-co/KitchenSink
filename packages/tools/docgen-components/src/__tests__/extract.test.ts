@@ -67,7 +67,9 @@ describe('extractImplementations', () => {
         expect(extracted.map((item) => `${item.name}:${item.platform}`).sort()).toEqual([
             'Badge:native',
             'Badge:web',
+            'BangSurface:native',
             'BareSurface:native',
+            'CastSurface:native',
             'DataTable:web',
             'Diverged:native',
             'Diverged:web',
@@ -76,6 +78,7 @@ describe('extractImplementations', () => {
             'NoProps:web',
             'Orchestrator:web',
             'Orphan:native',
+            'SatisfiedSurface:native',
             'StyledSurface:native',
             'Undocumented:web',
         ]);

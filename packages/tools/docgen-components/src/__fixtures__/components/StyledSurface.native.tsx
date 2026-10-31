@@ -17,3 +17,8 @@ export const BareSurface = styled(View, {});
 
 /** A lowercase styled binding is not a component name. */
 export const surfaceStyle = styled(View, { backgroundColor: '$paper' });
+
+// No docblock, and wrapped in casts: the call is still what defines the component.
+export const CastSurface = styled(View, {}) as typeof View;
+export const SatisfiedSurface = styled(View, {}) satisfies typeof View;
+export const BangSurface = styled(View, {})!;

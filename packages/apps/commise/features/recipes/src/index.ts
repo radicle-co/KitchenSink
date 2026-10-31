@@ -45,14 +45,12 @@ export type { RecipeCardProps } from './card/recipeCardContext.js';
 export type { RatingCountLabels, RecipeCardModel } from './card/model.js';
 export { RecipeCalorieChip } from './nutrition/RecipeCalorieChip.js';
 export { RecipeCalorieSkeleton } from './nutrition/RecipeCalorieSkeleton.js';
-export { RecipeNutritionBoundary } from './nutrition/RecipeNutritionBoundary.js';
 export { RecipeNutritionSlot } from './nutrition/RecipeNutritionSlot.js';
 export { nutritionSlotRenderer } from './nutrition/nutritionSlotRenderer.js';
 export { recipeNutritionMessages } from './nutrition/messages.js';
 export { NUTRITION_FOOD_UNAVAILABLE, toCalorieChipModel, unaccountedReasonText } from './nutrition/model.js';
 export type { RecipeCalorieChipProps } from './nutrition/RecipeCalorieChip.js';
 export type { RecipeCalorieSkeletonProps } from './nutrition/RecipeCalorieSkeleton.js';
-export type { RecipeNutritionBoundaryProps } from './nutrition/RecipeNutritionBoundary.js';
 export type { RecipeNutritionSlotProps } from './nutrition/RecipeNutritionSlot.js';
 export type { RecipeNutritionMessages } from './nutrition/messages.js';
 export type {
@@ -62,6 +60,7 @@ export type {
     RecipeCalorieState,
     RecipeCalorieUnaccounted,
     RecipeCalorieUnaccountedReason,
+    RecipeNutritionBatchReading,
     RecipeNutritionViewState,
     RenderRecipeNutrition,
 } from './nutrition/model.js';

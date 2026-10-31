@@ -69,24 +69,20 @@ function setUrlQuery(query: string): void {
 }
 
 /**
- * A fake client whose calorie lookup answers at once with no figures, so every card's calorie slot settles to nothing.
- * Calories on these cards are the `.nutrition` suite's subject; this file only needs the lookup to settle quietly.
+ * A fake client whose calorie lookup never settles, so every card's calorie slot stays on its skeleton. Calories on
+ * these cards are the `.nutrition` suite's subject; this file only needs the lookup to stay out of the way.
  *
- * ⛔ Not a REJECTED lookup: the fixture ids are not UUIDs, so the real client's contract check refuses the batch, the
- * slot throws during a concurrent render, and React's "recovered by rendering synchronously" report reached vitest as
- * an unhandled error on a loaded CI runner (run 34856885723).
+ * ⛔ A lookup that NEVER settles, on purpose (ADR-0079). The calorie lookup must never hold anything up, so every test
+ * here passing with the lookup still in flight is the proof that it does not. Commit `9bb75ec0a` answered the lookup at
+ * once instead, because a suspending calorie slot kept a rail's "see all" from leaving the rails; that hid the coupling
+ * rather than removing it. The slot no longer suspends, so the never-settling lookup is back.
  *
- * ⛔ Not a lookup that NEVER settles either, which is what this was before. The rails' calorie slots commit as skeletons,
- * and React then schedules a RETRY-lane render of them that waits on the batch. A rail's "see all" is a deferred
- * transition that first suspends on its search and is pinged when the search lands — and React picks unsuspended retry
- * lanes ahead of a pinged one, so it never got a turn while the retry render waited on a promise that never settled.
- * Whether the retry render was already waiting depended on scheduling, so under load the rails stayed for good (the
- * "Back to browse" test, 18 of 20 isolated runs timing out). With a real lookup the wait ends when the batch answers.
+ * ⛔ Not a REJECTED lookup: the fixture ids are not UUIDs, so the real client's contract check would refuse the batch,
+ * and a failure is not what these tests are about.
  */
 function discoveryClient(): ReturnType<typeof createFakeRecipeServiceClient> {
     const client = createFakeRecipeServiceClient();
-    const noFigures: RecipeNutritionResponse = { nutrition: {} };
-    vi.spyOn(client, 'getRecipeNutrition').mockResolvedValue(noFigures);
+    vi.spyOn(client, 'getRecipeNutrition').mockReturnValue(new Promise<RecipeNutritionResponse>(() => undefined));
 
     return client;
 }
@@ -554,12 +550,10 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
 
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
         await user.click(await screen.findByRole('button', { name: 'See all Trending' }));
-        // The default wait. This once carried a 10 s window, sized as if the work were slow; it was not. Leaving the
-        // rails took about 0.1 s or never happened, because the calorie lookup never settled — see `discoveryClient`.
+        // The default wait: leaving the rails needs the search only, never the calorie lookup (ADR-0079).
         await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument());
 
-        // Awaited `act`: returning to the rails mounts cards whose calorie slots can suspend on their first read of the
-        // batch, and a suspension inside an un-awaited `act` leaves React's retry in a queue the test never flushes.
+        // Awaited `act`: returning to the rails remounts them behind their own read boundaries.
         await act(async () => {
             await user.click(screen.getByRole('button', { name: 'Back to browse' }));
         });
@@ -601,6 +595,48 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         await user.click(retry);
 
         await vi.waitFor(() => expect(searchSpy.mock.calls.length).toBeGreaterThan(before));
+    });
+});
+
+/**
+ * ADR-0079: the calorie lookup never holds anything up. Each test here answers the lookup with a promise that never
+ * settles, which is the worst a real lookup can do before its 12 s deadline. Under ADR-0021 every rail's calorie slot
+ * suspended on that promise, its committed skeleton's retry lane ran ahead of the pinged "see all" transition, and the
+ * rails stayed. The rail's skeleton is awaited BEFORE the tap so that retry lane is in place, which is the state the
+ * defect needed.
+ */
+describe('RecipeDiscoveryContainer — calories never hold back a rail’s "see all" (ADR-0079)', () => {
+    it('leaves the rails for the full list while every calorie lookup is still in flight', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeNutrition').mockReturnValue(new Promise<RecipeNutritionResponse>(() => undefined));
+        vi.spyOn(client, 'searchRecipes').mockImplementation((params) =>
+            Promise.resolve(
+                makeSearchResponse([
+                    makeSearchResult({
+                        recipe: makeRecipe({
+                            id: `rec_${params?.sortBy ?? 'main'}_${params?.pageSize ?? 'all'}`,
+                            title:
+                                params?.pageSize === undefined
+                                    ? `${params?.sortBy} full list dish`
+                                    : `${params.sortBy} rail dish`,
+                        }),
+                    }),
+                ]),
+            ),
+        );
+
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
+
+        // A rail card is on screen with its calorie skeleton up: the lookup is in flight.
+        expect(await screen.findByRole('link', { name: 'most-cloned rail dish' })).toBeInTheDocument();
+        expect((await screen.findAllByText('Loading calories')).length).toBeGreaterThan(0);
+
+        await user.click(screen.getByRole('button', { name: 'See all Trending' }));
+
+        // The default wait: leaving the rails needs the search only, never the calories.
+        expect(await screen.findByRole('link', { name: 'most-cloned full list dish' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument();
     });
 });
 

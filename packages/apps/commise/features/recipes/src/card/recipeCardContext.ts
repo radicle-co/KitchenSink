@@ -37,8 +37,8 @@ interface RecipeCardBaseProps {
      * The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta line.
      *
      * A SLOT rather than a field, because the figure is a DEFERRED lookup that lands after the card does:
-     * the list holds the promise and decides what belongs here (`RecipeNutritionBoundary`, a settled
-     * `RecipeCalorieChip`, or nothing at all), and the card stays pure and knows nothing about loading. An
+     * the list holds the lookup and decides what belongs here (a `RecipeNutritionSlot` over the page's batch
+     * reading, or nothing at all), and the card stays pure and knows nothing about loading. An
      * ABSENT slot renders no item at all — the same absent-value rule as difficulty, cuisine and tags, and
      * never a placeholder or a fabricated 0.
      *

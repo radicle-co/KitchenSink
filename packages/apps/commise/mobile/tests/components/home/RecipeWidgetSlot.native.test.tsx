@@ -16,7 +16,7 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import { RecipeWidgetSlot } from '../../../src/components/home/RecipeWidgetSlot.js';
 import { makeRecipe, makeRecipePage } from '../../__fixtures__/recipes.js';
 
-// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// The screens under test now START the deferred calorie batch (ADR-0079 §6) through this shared hook, which
 // reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
 // stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
 // assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.

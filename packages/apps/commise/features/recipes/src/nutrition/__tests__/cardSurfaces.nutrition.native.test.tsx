@@ -13,11 +13,11 @@
  * The rail row is `RecipeBrowseRailResults`, the cards one rail renders: the rails are the DEFAULT state of Discover,
  * so a rail with no figure would be the screen a viewer sees first. Web carries the same row.
  *
- * ⚠️ SUSPENSE TEST CONVENTION: resolve a Suspense with `await act(...)`, NEVER `findBy`/`waitFor` — the
- * latter wedges in a Vitest worker.
+ * REWRITTEN for ADR-0079: each surface is handed a batch READING (`pending`, `failed`, `settled`) where it used to be
+ * handed a promise, so every state renders synchronously with no Suspense to flush.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
@@ -32,18 +32,9 @@ import { RecipeBrowseRailResults } from '../../discovery/RecipeBrowseRailResults
 import { RecipeDiscoveryResults } from '../../discovery/RecipeDiscoveryResults.native.js';
 import { RecipeListResults } from '../../list/RecipeListResults.native.js';
 import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
-import type { RenderRecipeNutrition } from '../model.js';
+import type { RecipeNutritionBatchReading, RenderRecipeNutrition } from '../model.js';
 
 afterEach(cleanup);
-
-/** React logs a caught render error (the rejected-batch case); silence it so a passing run stays readable. */
-beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-});
-
-afterEach(() => {
-    vi.restoreAllMocks();
-});
 
 const RECIPE_ID = '00000000-0000-4000-8000-00000000000a';
 
@@ -145,36 +136,33 @@ const SURFACES: readonly (readonly [string, (render: RenderRecipeNutrition) => R
     ],
 ];
 
-/** The host closure every real container writes: ONE promise, one slot per card. */
+/** The host closure every real container writes: ONE batch reading, one slot per card. */
 const rendererFor =
-    (batch: Promise<RecipeNutritionResponse>): RenderRecipeNutrition =>
-    (recipeId: string): ReactNode => <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={recipeId} />;
+    (reading: RecipeNutritionBatchReading): RenderRecipeNutrition =>
+    (recipeId: string): ReactNode => <RecipeNutritionSlot reading={reading} recipeId={recipeId} />;
 
-const renderSurface = async (
+const renderSurface = (
     surface: (render: RenderRecipeNutrition) => ReactElement,
-    batch: Promise<RecipeNutritionResponse>,
-) =>
-    act(async () => {
-        render(surface(rendererFor(batch)));
-    });
+    reading: RecipeNutritionBatchReading,
+) => render(surface(rendererFor(reading)));
 
 describe.each(SURFACES)('%s — the deferred calorie figure', (_name, surface) => {
-    it('shows the calorie SKELETON while the batch is in flight', async () => {
-        await renderSurface(surface, new Promise<RecipeNutritionResponse>(() => undefined));
+    it('shows the calorie SKELETON while the batch is in flight', () => {
+        renderSurface(surface, { status: 'pending' });
 
         // React Native has no live region, so the skeleton's copy is its accessible NAME (see the leaf).
         expect(screen.getByLabelText('Loading calories')).toBeTruthy();
     });
 
-    it('shows the CHIP in the card once the batch resolves', async () => {
-        await renderSurface(surface, Promise.resolve(KNOWN_RESPONSE));
+    it('shows the CHIP in the card once the batch has settled', () => {
+        renderSurface(surface, { status: 'settled', response: KNOWN_RESPONSE });
 
         expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
     });
 
-    it('shows NOTHING when the batch OMITS this recipe — and no lingering skeleton', async () => {
-        await renderSurface(surface, Promise.resolve(OMITTING_RESPONSE));
+    it('shows NOTHING when the batch OMITS this recipe — and no lingering skeleton', () => {
+        renderSurface(surface, { status: 'settled', response: OMITTING_RESPONSE });
 
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
@@ -182,21 +170,16 @@ describe.each(SURFACES)('%s — the deferred calorie figure', (_name, surface) =
         expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
     });
 
-    it('shows NOTHING, and no spinner, when the batch REJECTS', async () => {
-        const failed = Promise.reject(new Error('food service unavailable'));
-        failed.catch(() => undefined);
-
-        await renderSurface(surface, failed as Promise<RecipeNutritionResponse>);
+    it('shows NOTHING, and no spinner, when the batch FAILED', () => {
+        renderSurface(surface, { status: 'failed' });
 
         expect(screen.queryByLabelText('Loading calories'), 'a failed batch must not leave a spinner').toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
         expect(screen.getAllByText('Weeknight Pasta').length).toBeGreaterThan(0);
     });
 
-    it('renders NO nutrition line at all when the host supplies no renderer (the absent-value rule)', async () => {
-        await act(async () => {
-            render(surface(() => null));
-        });
+    it('renders NO nutrition line at all when the host supplies no renderer (the absent-value rule)', () => {
+        render(surface(() => null));
 
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();

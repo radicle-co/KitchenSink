@@ -176,7 +176,7 @@ export const isDiscoveryBrowsing = (criteria: RecipeDiscoveryCriteria): boolean 
 /**
  * The recipe ids of a discovery search's FETCHED PAGES, one list per page. Pure.
  *
- * The shape the deferred calorie lookup batches on (ADR-0021 §6): one request per page, so "load more" asks only about
+ * The shape the deferred calorie lookup batches on (ADR-0079 §6): one request per page, so "load more" asks only about
  * the page it added and leaves every figure already on screen settled. Page boundaries, empty pages and an id a later
  * page repeats are all handed through untouched — skipping an empty page and letting the first page win a repeat are
  * the lookup's rules, not this projection's.

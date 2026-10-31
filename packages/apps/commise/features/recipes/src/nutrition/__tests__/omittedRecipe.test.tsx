@@ -21,23 +21,26 @@
  *
  *   1. hand `undefined` to the chip's exhaustive `switch` (falls off the end — renders nothing today, throws
  *      the moment the switch gains a `default` that reports),
- *   2. skip creating the promise and leave the boundary mounted with nothing to settle — **a skeleton that
- *      renders forever**, which is precisely the failure the three-state design exists to make
- *      unrepresentable, arriving through the one case nobody enumerated, or
+ *   2. keep the slot on its skeleton for want of an entry — **a skeleton that renders forever**, which is
+ *      precisely the failure the three-state design exists to make unrepresentable, arriving through the one
+ *      case nobody enumerated, or
  *   3. substitute `NUTRITION_FOOD_UNAVAILABLE`, which is the lie above.
  *
  * {@link selectRecipeCalorieState} exists to remove all three by making the absence a value the type system
- * forces a host to branch on: it returns `null`, which is NOT assignable to the boundary's promise, so a host
+ * forces a host to branch on: it returns `null`, which is NOT assignable to the chip's `nutrition`, so a host
  * that ignores it does not compile.
+ *
+ * REWRITTEN for ADR-0079: the host under test is the real one, `RecipeNutritionSlot` over a SETTLED batch reading,
+ * where it used to be a hand-written host over the deleted `RecipeNutritionBoundary`.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
-import { RecipeNutritionBoundary } from '../RecipeNutritionBoundary.js';
+import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
 import { NUTRITION_FOOD_UNAVAILABLE, selectRecipeCalorieState } from '../model.js';
 
 afterEach(cleanup);
@@ -62,26 +65,16 @@ const RESPONSE: RecipeNutritionResponse = {
 
 const withLocale = (ui: ReactElement) => <LocaleProvider locale="en">{ui}</LocaleProvider>;
 
-/**
- * The HOST decision, written exactly as a real surface must write it: select, then branch. The `null` arm is
- * what the type system forces, and this helper exists so both arms are exercised by the same code path — a
- * "renders nothing" assertion against a helper that only ever renders nothing would prove nothing.
- */
-const HostSlot = ({ recipeId }: { readonly recipeId: string }): ReactElement => {
-    const state = selectRecipeCalorieState(RESPONSE, recipeId);
-
-    return (
-        <div>
-            <span>sentinel</span>
-            {state === null ? null : <RecipeNutritionBoundary nutritionPromise={Promise.resolve(state)} />}
-        </div>
+/** The real host path: the page's batch has SETTLED with {@link RESPONSE}, and this card reads its own entry. */
+const renderSlot = (recipeId: string) =>
+    render(
+        withLocale(
+            <div>
+                <span>sentinel</span>
+                <RecipeNutritionSlot reading={{ status: 'settled', response: RESPONSE }} recipeId={recipeId} />
+            </div>,
+        ),
     );
-};
-
-const renderSlot = async (recipeId: string) =>
-    act(async () => {
-        render(withLocale(<HostSlot recipeId={recipeId} />));
-    });
 
 describe('selectRecipeCalorieState', () => {
     it('returns the settled state for a recipe the response CARRIES', () => {
@@ -114,20 +107,21 @@ describe('selectRecipeCalorieState', () => {
 });
 
 describe('a host rendering an omitted recipe', () => {
-    it('⛔ renders NOTHING — no chip, and above all NO skeleton left running', async () => {
+    it('⛔ renders NOTHING — no chip, and above all NO skeleton left running', () => {
         // The load-bearing assertion of this file. A skeleton here would outlive a request that was never
         // made and could never settle: a spinner forever, on a card, for a recipe the viewer cannot see.
-        await renderSlot(OMITTED);
+        renderSlot(OMITTED);
 
         expect(screen.getByText('sentinel')).toBeDefined();
+        expect(screen.queryByText('Loading calories')).toBeNull();
         expect(screen.queryByRole('status')).toBeNull();
         expect(screen.queryByRole('progressbar')).toBeNull();
         expect(screen.queryByRole('img')).toBeNull();
         expect(screen.queryByText(/cal/u)).toBeNull();
     });
 
-    it('renders the chip for a recipe the response DID carry, so the assertion above is not vacuous', async () => {
-        await renderSlot(PRESENT);
+    it('renders the chip for a recipe the response DID carry, so the assertion above is not vacuous', () => {
+        renderSlot(PRESENT);
 
         expect(screen.getByRole('img', { name: /420/u })).toBeDefined();
     });

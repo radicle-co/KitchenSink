@@ -133,7 +133,7 @@ function RecentRecipesWidget({
     const client = useRecipeServiceClient();
     const { data: page } = useSuspenseQuery(recentRecipesQuery(client));
     const recipes = page.data;
-    // The deferred calorie lookup (ADR-0021 §6), started during render so the cards paint over an in-flight request.
+    // The deferred calorie lookup (ADR-0079 §6): the cards paint now and each figure fills in when its batch answers.
     const renderNutrition = useRecentRecipesNutrition(recipes);
     const ways = firstRunOf(firstRun);
 

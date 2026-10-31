@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/nutrition — native calorie skeleton (the RN leaf).
  *
- * The native half of the Suspense fallback (see `RecipeCalorieSkeleton.tsx` for the contract). React Native
+ * The native half of the slot's `pending` reading (see `RecipeCalorieSkeleton.tsx` for the contract). React Native
  * has no live regions, so the localized copy is the placeholder's accessibility NAME rather than an
  * announcement; the bar itself stays out of the accessibility tree.
  *

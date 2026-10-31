@@ -213,6 +213,29 @@ describe('recipeQueries().nutritionBatch — the read seam', () => {
         expect(Number.isFinite(NUTRITION_BATCH_DEADLINE_MS)).toBe(true);
     });
 
+    it('⛔ never reads the query’s own signal, so a batch outlives an observer that leaves mid-flight (ADR-0079)', async () => {
+        // TanStack cancels an in-flight query whose last observer leaves IF the request read `context.signal`, and the
+        // next mount asks again. A calorie batch is one shared answer a remounting host must still receive, so the seam
+        // keeps its own deadline and leaves TanStack's signal unread.
+        const getRecipeNutrition = vi.fn().mockResolvedValue(BODY);
+        const options = recipeQueries(fakeClient(getRecipeNutrition)).nutritionBatch([RECIPE_A]);
+        let signalRead = false;
+        const context = {
+            queryKey: options.queryKey,
+            get signal(): AbortSignal {
+                signalRead = true;
+
+                return new AbortController().signal;
+            },
+        };
+
+        await options.queryFn?.(context as never);
+
+        expect(signalRead).toBe(false);
+        const passed = getRecipeNutrition.mock.calls[0]?.[1] as { signal?: AbortSignal } | undefined;
+        expect(passed?.signal, 'the deadline still bounds the call').toBeInstanceOf(AbortSignal);
+    });
+
     it('⛔ the composed signal ABORTS on its own deadline, even if the query never cancels', async () => {
         // The behaviour itself, at a millisecond scale. A composition that forwarded only the caller's
         // signal would never abort here, and the promise a skeleton waits on would never settle.

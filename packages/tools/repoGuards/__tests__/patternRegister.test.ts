@@ -418,7 +418,6 @@ const DECLARED_ORCHESTRATION: readonly string[] = [
     'featuresRecipes/collections/CollectionPickerToggleRow',
     'featuresRecipes/detail/RecipeHero',
     'featuresRecipes/form/RecipeIngredientsFields',
-    'featuresRecipes/nutrition/RecipeNutritionBoundary',
     'featuresRecipes/nutrition/RecipeNutritionSlot',
     'featuresRecipes/rating/RecipeRatingDisplay',
     'featuresRecipes/versions/RecipeVersionsView',

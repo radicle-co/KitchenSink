@@ -453,17 +453,24 @@ export function recipeQueries(client: RecipeServiceClient) {
          * expressed), and at the published id cap the equivalent query string would exceed the CDN's URL
          * limit. It has no side effect, so it belongs in the cache, not in `useMutation`.
          *
-         * ⛔ THE DEADLINE IS THE LOAD-BEARING PART. `signal` composes TanStack's own cancellation (unmount,
-         * key change) with a finite {@link NUTRITION_BATCH_DEADLINE_MS} timeout, so this promise ALWAYS
-         * settles — which is what makes the `pending` skeleton a card renders temporary. Without it the
-         * transport's per-attempt timeout still permits four attempts plus backoff, and the union's
-         * deliberate lack of a `pending` wire state would be undone on the client instead of by a server.
+         * ⛔ THE DEADLINE IS THE LOAD-BEARING PART. The request runs under a finite
+         * {@link NUTRITION_BATCH_DEADLINE_MS} timeout, so this read ALWAYS settles — which is what makes the
+         * `pending` skeleton a card renders temporary. Without it the transport's per-attempt timeout still
+         * permits four attempts plus backoff, and the union's deliberate lack of a `pending` wire state would be
+         * undone on the client instead of by a server.
+         *
+         * ⛔ TANSTACK'S OWN `signal` IS DELIBERATELY NOT READ (ADR-0079 §6). A query whose request read it is
+         * CANCELLED when its last observer leaves mid-fetch, and the next mount asks again with a fresh deadline.
+         * A host that remounts while its batch is in flight — Discover moves its results to a new parent when
+         * `<main>` is first measured — then pays a cancelled request and a second one for an answer it was about
+         * to receive. The batch is one shared, cheap-to-keep answer, so it outlives its observers; the deadline
+         * alone bounds it.
          */
         nutritionBatch: (recipeIds: readonly string[]) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeNutrition(recipeIds),
-                queryFn: ({ signal }) =>
-                    readWithinDeadline(signal, NUTRITION_BATCH_DEADLINE_MS, (deadline) =>
+                queryFn: () =>
+                    readWithinDeadline(undefined, NUTRITION_BATCH_DEADLINE_MS, (deadline) =>
                         client.getRecipeNutrition(recipeIds, { signal: deadline }),
                     ),
                 staleTime: NUTRITION_BATCH_STALE_TIME_MS,

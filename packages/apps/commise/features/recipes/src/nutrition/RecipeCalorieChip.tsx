@@ -8,7 +8,7 @@
  * state, no effects.
  *
  * ⛔ THERE IS NO `pending` CASE, and that is the point. The in-flight condition is rendered by a DIFFERENT
- * component (`RecipeCalorieSkeleton`) as a Suspense fallback, so this component cannot be asked to
+ * component (`RecipeCalorieSkeleton`) for the slot's `pending` reading, so this component cannot be asked to
  * render a spinner — which is what makes a permanent skeleton unrepresentable rather than merely unlikely.
  *
  * Two rules this file encodes, neither of which may be "simplified":
@@ -29,7 +29,7 @@ import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
 
 /** Props for {@link RecipeCalorieChip}. */
 export interface RecipeCalorieChipProps {
-    /** The SETTLED reading. Structurally cannot be `pending` — that state is the Suspense fallback's. */
+    /** The SETTLED reading. Structurally cannot be `pending` — the slot renders that reading as the skeleton. */
     readonly nutrition: RecipeCalorieState;
 }
 

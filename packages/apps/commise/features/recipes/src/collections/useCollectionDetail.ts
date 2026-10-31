@@ -182,9 +182,9 @@ export function useCollectionDetail({
         () => collection.recipes.filter((recipe) => !removal.hiddenIds.includes(recipe.id)),
         [collection.recipes, removal.hiddenIds],
     );
-    // The deferred calorie lookup (ADR-0021 §6), fed from EVERY member, not the revealed window: the window grows on tap,
+    // The deferred calorie lookup (ADR-0079 §6), fed from EVERY member, not the revealed window: the window grows on tap,
     // and batching it would re-batch on every "load more" and blink the figures already on screen back to skeletons. The
-    // library surface never draws the compact card (`cardVariantOf`), so every card here can read its promise.
+    // library surface never draws the compact card (`cardVariantOf`), so every card here reads its page's batch.
     const nutritionFor = useRecipeNutritionBatches([memberIds]);
 
     useLeaveWhenClosed(deleteCollection.isSuccess, deleteOpen, nav.onDeleted);

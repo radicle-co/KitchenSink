@@ -62,8 +62,11 @@ vi.mock('tamagui', async (importOriginal) => {
     };
 });
 
+// ⛔ Loaded at module scope, never inside a test: loading the provider graph inside a test counted its cost against the
+// test's timeout (see AppProviders.native.test.tsx).
+const { AppProviders } = await import('../../src/providers/AppProviders.js');
+
 beforeEach(() => {
-    vi.stubEnv('EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA');
     vi.mocked(useAuth).mockReturnValue({ getToken: vi.fn().mockResolvedValue('tok_abc') } as unknown as ReturnType<
         typeof useAuth
     >);
@@ -71,15 +74,11 @@ beforeEach(() => {
 
 afterEach(() => {
     cleanup();
-    vi.unstubAllEnvs();
     vi.restoreAllMocks();
-    vi.resetModules();
 });
 
 describe('AppProviders, safe area and Tamagui', () => {
     it('mounts SafeAreaProvider above TamaguiProvider, so Tamagui can read the insets', async () => {
-        const { AppProviders } = await import('../../src/providers/AppProviders.js');
-
         render(
             <AppProviders>
                 <Text>child</Text>

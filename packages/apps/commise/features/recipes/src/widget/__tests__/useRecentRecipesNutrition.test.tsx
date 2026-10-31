@@ -1,10 +1,10 @@
 /**
- * The Home recipe widget's deferred calorie lookup (ADR-0021 §6), once for both apps: it was written out in web's
+ * The Home recipe widget's deferred calorie lookup (ADR-0079 §6), once for both apps: it was written out in web's
  * `RecipeWidgetNutritionContainer` and in mobile's `RecentRecipesWidget`, and the two had drifted. Web asked about the
  * recipes the widget SHOWS (the first `MAX_RECENT_RECIPES`); mobile asked about every recipe the page returned.
  *
  * `useRecipeNutritionBatches` is replaced here by a recorder: this file pins WHICH ids the widget asks about and how a
- * card's slot is built from the answer. The real hook's request, caching and promise-identity behaviour has its own
+ * card's slot is built from the answer. The real hook's request, caching and reading behaviour has its own
  * suite, and the apps' Home suites run it end to end.
  */
 import { renderHook } from '@testing-library/react';
@@ -14,10 +14,11 @@ import type { Recipe } from '@kitchensink/recipe-core';
 
 import { MAX_RECENT_RECIPES } from '../../components/props.js';
 import { RecipeNutritionSlot } from '../../nutrition/RecipeNutritionSlot.js';
+import type { RecipeNutritionBatchReading } from '../../nutrition/model.js';
 import { RECENT_RECIPE_LIMIT } from '../recentRecipeLimit.js';
 
 const { lookupRef, pagesSeen } = vi.hoisted(() => ({
-    lookupRef: { current: (_id: string): Promise<unknown> | null => null },
+    lookupRef: { current: (_id: string): RecipeNutritionBatchReading | null => null },
     pagesSeen: [] as (readonly (readonly string[])[])[],
 }));
 
@@ -67,7 +68,7 @@ describe('useRecentRecipesNutrition', () => {
     });
 
     it('builds a card’s nutrition slot from the batch that covers it', () => {
-        const batch = Promise.resolve({ nutrition: {} });
+        const batch: RecipeNutritionBatchReading = { status: 'settled', response: { nutrition: {} } };
         lookupRef.current = () => batch;
 
         const { result } = renderHook(() => useRecentRecipesNutrition(recipesOf(2)));
@@ -75,13 +76,13 @@ describe('useRecentRecipesNutrition', () => {
 
         expect(slot).toMatchObject({
             type: RecipeNutritionSlot,
-            props: { recipeId: 'recipe-2', nutritionBatchPromise: batch },
+            props: { recipeId: 'recipe-2', reading: batch },
         });
     });
 
     // ⛔ THE PERMANENT-SKELETON GUARD. `null` from the lookup means "no batch covers this recipe" (we never asked); the
     // host must turn it into a decision to render NOTHING. A non-null assertion would crash the card, and a stand-in
-    // promise would mount a boundary with nothing to settle: a shimmer for the life of the page.
+    // `pending` reading would mount a skeleton with nothing to settle it: a shimmer for the life of the page.
     it('renders nothing at all for a recipe no batch covers', () => {
         const { result } = renderHook(() => useRecentRecipesNutrition(recipesOf(1)));
 

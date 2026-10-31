@@ -59,7 +59,7 @@ const { useRecipeViewSettingMock } = vi.hoisted(() => ({ useRecipeViewSettingMoc
 
 vi.mock('../../src/hooks/useRecipeViewSetting.js', () => ({ useRecipeViewSetting: useRecipeViewSettingMock }));
 
-// The screen starts the deferred calorie batch (ADR-0021 §6) through this shared hook. This file is not about nutrition,
+// The screen starts the deferred calorie batch (ADR-0079 §6) through this shared hook. This file is not about nutrition,
 // so the lookup is stubbed to "no batch covers this recipe". The wiring is covered by `screenNutrition.native.test.tsx`.
 vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),

@@ -302,7 +302,7 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup on the browse
 });
 
 /**
- * ⛔ ADR-0021 / §11.0 — calories never hold back a list. A typed search that settles must replace the rails with its
+ * ⛔ ADR-0079 / §11.0 — calories never hold back a list. A typed search that settles must replace the rails with its
  * results as soon as the SEARCH answers, whatever the calorie batch is doing. Suspense inside a transition is exactly
  * where that could quietly break: `useDeferredDiscoveryCriteria` renders the new results in the background, and a slot
  * whose `use()` suspended without a fallback React will commit would keep the rails on screen for as long as the batch

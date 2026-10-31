@@ -4,17 +4,16 @@
  * @module useHydratedNutrition — the deferred calorie lookup for a web surface whose rows render on the server.
  *
  * A server-prefetched route (`/recipes`, `/discover`) renders its cards during the Next server pass. The calorie
- * lookup is a render-as-you-fetch read (`useRecipeNutritionBatches`), so left alone it would START there — with a
- * token source that has no session — and suspend each card's boundary on a promise the server cannot settle. React
- * then client-renders every such boundary on hydration and reports each as a recoverable error: one phantom error per
- * card per page view, which buries the signal a real server crash sends.
+ * lookup (`useRecipeNutritionBatches`, ADR-0079) reads the client's query cache, and the server's pass and the first
+ * client pass need not see the same cache: a batch the client already holds from an earlier visit would render a chip
+ * where the server drew a skeleton, and React reports that mismatch as a recoverable error — one per card per page
+ * view, which buries the signal a real server crash sends. The server pass also has no session to ask with.
  *
- * So until the tree has hydrated this starts no read and renders the calorie skeleton — the exact box the slot's own
- * Suspense fallback draws, so there is no layout shift — and from then on it is the ordinary slot over one batch per
+ * So until the tree has hydrated this asks for no pages and renders the calorie skeleton — the exact box the slot's own
+ * `pending` reading draws, so there is no layout shift — and from then on it is the ordinary slot over one batch per
  * loaded page. The hydration pass renders the same skeleton the server did, so the two passes agree.
  *
- * @pattern Decorator over the render-as-you-fetch nutrition seam — a hydration gate that is a Null Object on the
- *     server.
+ * @pattern Decorator over the nutrition read seam — a hydration gate that is a Null Object on the server.
  */
 import {
     RecipeCalorieSkeleton,

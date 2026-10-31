@@ -164,7 +164,7 @@ function SettledRecipeList({
         <RecipeListResults
             {...(scrollBind === undefined ? {} : { scrollBind })}
             {...results}
-            // ONE promise, N slots: `null` means no batch covers this recipe — render nothing.
+            // ONE batch per chunk, N slots: `null` means no batch covers this recipe — render nothing.
             renderNutrition={nutritionSlotRenderer(nutritionFor)}
             // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the read.
             refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}

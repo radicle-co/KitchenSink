@@ -41,6 +41,11 @@ So the deferred update waits for the calorie lookup, up to the client's 12 s dea
 settles it. Whether the retry render was already waiting depends on scheduling, which is why it looked like a
 flake.
 
+Measured on 2026-10-31 with a calorie lookup that never settles: a new sort of My recipes did not re-order the
+cards, 3 of 3 runs on web (`RecipeListContainer`) and 3 of 3 on native (`RecipeListScreen`). The same tests with
+a settled lookup passed 3 of 3 on each. Discover's "See all" did not reproduce in jsdom on either platform, in over
+40 runs; commit `9bb75ec0a` records it timing out in 18 of 20 isolated runs under load.
+
 It had been met twice before, and each time the symptom was fixed rather than the cause:
 
 - `useRecipeNutritionBatches.ts` grew `failedBatch`: a failed batch handed `ensureQueryData` a new request on
@@ -181,6 +186,12 @@ The calorie lookup NEVER suspends. No component under `features/recipes/src/nutr
   `pending` → skeleton; `failed` → `unaccounted{food_unavailable}`; `settled` → the recipe's own state, or
   nothing when the response omitted it (§3).
 - **The deadline stays in the client** (`nutritionBatch`'s `readWithinDeadline`), so `pending` always ends.
+- **The batch is not cancelled when its observers leave.** The read seam does not read TanStack's own `signal`.
+  TanStack cancels an in-flight query whose last observer leaves IF its request read that signal, and the next
+  mount asks again. Discover's frame moves its results to a new parent when `<main>` is first measured, which
+  remounts every rail: with the signal read, the rails' batches were requested 6 times instead of 3 in
+  `RecipeDiscoveryContainer.nutrition.test.tsx`, each first request aborted. Under ADR-0021 nothing observed the
+  query, so nothing cancelled it; this keeps that behaviour. The deadline alone bounds the request.
 - **No RSC promise.** A server-created promise is not in the client `QueryClient`, so the client would batch a
   second time, and the server knows only page one of an infinite list. The client query is the one source on
   both platforms. Web keeps its hydration gate (`useHydratedNutrition`): the lookup starts after hydration, so

@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 183,
-        "implementations": 316,
-        "props": 1658,
-        "documentedComponents": 183,
-        "implementationsWithModuleDoc": 316,
-        "implementationsWithComponentDoc": 207,
-        "documentedProps": 1379,
-        "classifiedComponents": 163,
-        "componentsWithPatternTag": 84,
+        "components": 181,
+        "implementations": 314,
+        "props": 1655,
+        "documentedComponents": 181,
+        "implementationsWithModuleDoc": 314,
+        "implementationsWithComponentDoc": 205,
+        "documentedProps": 1376,
+        "classifiedComponents": 161,
+        "componentsWithPatternTag": 83,
         "crossPlatformComponents": 133
     },
     "components": [
@@ -484,7 +484,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta line.\n\nA SLOT rather than a field, because the figure is a DEFERRED lookup that lands after the card does:\nthe list holds the promise and decides what belongs here (`RecipeNutritionBoundary`, a settled\n`RecipeCalorieChip`, or nothing at all), and the card stays pure and knows nothing about loading. An\nABSENT slot renders no item at all — the same absent-value rule as difficulty, cuisine and tags, and\nnever a placeholder or a fabricated 0.\n\n⚠️ It is `RecipeCard.Meta` (and the row's meta line) that renders this. A custom arrangement (`children`) that\nomits `.Meta` DROPS the slot silently — unlike a misplaced part, which throws — because an unrendered optional\nnode is indistinguishable from an absent one. `RecipeDiscoveryCard` and `CollectionMemberRow` are exactly such\narrangements, so check for `<RecipeCard.Meta />` before concluding the figure never arrived.",
+                            "description": "The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta line.\n\nA SLOT rather than a field, because the figure is a DEFERRED lookup that lands after the card does:\nthe list holds the lookup and decides what belongs here (a `RecipeNutritionSlot` over the page's batch\nreading, or nothing at all), and the card stays pure and knows nothing about loading. An\nABSENT slot renders no item at all — the same absent-value rule as difficulty, cuisine and tags, and\nnever a placeholder or a fabricated 0.\n\n⚠️ It is `RecipeCard.Meta` (and the row's meta line) that renders this. A custom arrangement (`children`) that\nomits `.Meta` DROPS the slot silently — unlike a misplaced part, which throws — because an unrendered optional\nnode is indistinguishable from an absent one. `RecipeDiscoveryCard` and `CollectionMemberRow` are exactly such\narrangements, so check for `<RecipeCard.Meta />` before concluding the figure never arrived.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/card/recipeCardContext.ts"
                         },
                         {
@@ -614,7 +614,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta line.\n\nA SLOT rather than a field, because the figure is a DEFERRED lookup that lands after the card does:\nthe list holds the promise and decides what belongs here (`RecipeNutritionBoundary`, a settled\n`RecipeCalorieChip`, or nothing at all), and the card stays pure and knows nothing about loading. An\nABSENT slot renders no item at all — the same absent-value rule as difficulty, cuisine and tags, and\nnever a placeholder or a fabricated 0.\n\n⚠️ It is `RecipeCard.Meta` (and the row's meta line) that renders this. A custom arrangement (`children`) that\nomits `.Meta` DROPS the slot silently — unlike a misplaced part, which throws — because an unrendered optional\nnode is indistinguishable from an absent one. `RecipeDiscoveryCard` and `CollectionMemberRow` are exactly such\narrangements, so check for `<RecipeCard.Meta />` before concluding the figure never arrived.",
+                            "description": "The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta line.\n\nA SLOT rather than a field, because the figure is a DEFERRED lookup that lands after the card does:\nthe list holds the lookup and decides what belongs here (a `RecipeNutritionSlot` over the page's batch\nreading, or nothing at all), and the card stays pure and knows nothing about loading. An\nABSENT slot renders no item at all — the same absent-value rule as difficulty, cuisine and tags, and\nnever a placeholder or a fabricated 0.\n\n⚠️ It is `RecipeCard.Meta` (and the row's meta line) that renders this. A custom arrangement (`children`) that\nomits `.Meta` DROPS the slot silently — unlike a misplaced part, which throws — because an unrendered optional\nnode is indistinguishable from an absent one. `RecipeDiscoveryCard` and `CollectionMemberRow` are exactly such\narrangements, so check for `<RecipeCard.Meta />` before concluding the figure never arrived.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/card/recipeCardContext.ts"
                         },
                         {
@@ -24748,76 +24748,6 @@
             ]
         },
         {
-            "id": "featuresRecipes/nutrition/NutritionBoundaryShell",
-            "name": "NutritionBoundaryShell",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/nutrition",
-            "kind": "presentational",
-            "patterns": [],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "NutritionBoundaryShell",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/NutritionBoundaryShell.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/nutrition",
-                    "moduleDoc": "@commise/features-recipes/nutrition — the deferred figure's boundary NESTING, stated once (web).\n\n⚠️ It is PRESENTATIONAL, which its name and its imports argue against: `ErrorBoundary` + `Suspense` +\na `resetKeys` signal read as infrastructure that owns something. It owns nothing — no fetch, no mutation,\nno state. Every promise, every reset key and every piece of copy arrives as a prop, and the two public\ncomponents above it are where the deciding happens.\n\n**Pattern: Template Method / Layout component.** Two surfaces suspend on a deferred calorie lookup —\n`RecipeNutritionBoundary` (ONE recipe's promise) and `RecipeNutritionSlot` (one recipe's\nSELECTION out of a page-wide batch promise) — and they differ ONLY in what suspends inside. Everything\naround it is the same invariant, so it lives here rather than in both:\n\n - **ErrorBoundary → Suspense → content.** An error boundary catches a throw from any descendant, so an\n   inner one would also catch `use()`'s re-thrown rejection; the outer position additionally covers a throw\n   from the FALLBACK itself, and is the conventional reading order (catch, then wait).\n - **Neither branch is terminal.** Every way the subtree can stop waiting — a resolved reading, a resolved\n   `unaccounted`, a rejection, an upstream deadline enforced as a rejection — lands on a component that\n   renders an ANSWER. A skeleton that outlives its request is a spinner forever; an error state that\n   outlives its request is the same defect wearing the other mask, invisible because on a card it renders\n   as nothing.\n - **`resetKeys` is what closes the second half.** `react-error-boundary` resets only when a reset key\n   CHANGES, so without it the first failed lookup pins the figure off for the component's whole lifetime,\n   surviving every refetch and refresh. The promise's IDENTITY is therefore the retry signal, on both\n   surfaces — React caches a rejection on the promise object itself, so recovering requires a NEW promise.\n\nExtracting it is the point: before this, a fix to one surface's boundary (the `onError` reporting gap\nrecorded on `RecipeNutritionBoundary`, say) could silently miss the other. It is NOT exported from\nthe feature barrel — it is how the two public components are built, not a third thing to compose.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/nutrition — the deferred figure's boundary NESTING, stated once (web)."
-                        }
-                    ],
-                    "description": "The skeleton-then-answer boundary shared by every deferred calorie surface.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The promise identity to reset on, and the suspending content."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The error boundary wrapping the Suspense boundary wrapping the content."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "children",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The component that suspends (via `use`) and renders the settled answer.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/nutrition/NutritionBoundaryShell.tsx"
-                        },
-                        {
-                            "name": "resetKey",
-                            "type": "unknown",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The promise the content suspends on. Used ONLY as the error boundary's reset key — a new promise means\na new lookup, which is the one signal that may clear a failed one.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/nutrition/NutritionBoundaryShell.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "featuresRecipes/nutrition/RecipeCalorieChip",
             "name": "RecipeCalorieChip",
             "group": "featuresRecipes",
@@ -25028,73 +24958,6 @@
             ]
         },
         {
-            "id": "featuresRecipes/nutrition/RecipeNutritionBoundary",
-            "name": "RecipeNutritionBoundary",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/nutrition",
-            "kind": "orchestration",
-            "patterns": [
-                "Suspense boundary + error boundary as a state selector — the deferred lookup's three states become three\n    components by React's unwinding rather than a branch on flags, and the render components stay pure."
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeNutritionBoundary",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeNutritionBoundary.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/nutrition",
-                    "moduleDoc": "@commise/features-recipes/nutrition — web nutrition boundary (the orchestration layer).\n\n**Pattern: Suspense boundary + error boundary as a state SELECTOR.** This is the one place the deferred\nlookup's three states become three components, and it is the only component here that is not pure:\n`use(promise)` suspends, so the choice between skeleton / chip / terminal answer is made by React's\nunwinding rather than by a branch on flags. The render components stay pure `props → JSX`.\n\nThe nesting — **ErrorBoundary → Suspense → content**, and the `resetKeys` that make the error branch\nrecoverable — lives in {@link NutritionBoundaryShell}, shared with `RecipeNutritionSlot` (the\nbatch-reading twin) so the two cannot drift. Read that module for the invariant it holds: **neither branch\nis terminal.**\n\n⛔ THIS COMPONENT vs THE SLOT. This one renders ONE recipe's own promise, which is the right shape for a\nsurface that has one (a detail view). A card GRID holds one BATCH promise for the whole page, and selecting\na single recipe out of it has a fourth outcome — the recipe the response omitted — that this component's\n`Promise<RecipeCalorieState>` deliberately cannot express. That surface uses `RecipeNutritionSlot`.\n\n⚠️ NO `onError` REPORTING, and that is a gap rather than a decision. During a food-service outage every\ncard's figure silently becomes nothing, which on screen is indistinguishable from an honest\n`unaccounted{no_resolved_ingredients}` — so nothing here tells an operator the difference. This package has\nno reporting seam of its own (the host owns Sentry), so wiring it belongs with the host that mounts these\nboundaries. Recorded so the absence is a known hole, not an assumed non-issue.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/nutrition — web nutrition boundary (the orchestration layer)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Suspense boundary + error boundary as a state selector — the deferred lookup's three states become three\n    components by React's unwinding rather than a branch on flags, and the render components stay pure."
-                        }
-                    ],
-                    "description": "The deferred calorie figure for one recipe: its skeleton while the lookup is in flight, its chip once the\nlookup settles, and a terminal `unaccounted` answer if the lookup fails.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The pending reading for one recipe."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The boundary rendering exactly one of the three states."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "nutritionPromise",
-                            "type": "Promise<RecipeCalorieState>",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The viewer's per-serving reading for ONE recipe, as a promise the HOST starts and does not await —\nthe same contract the recipe Home widget uses for its recipes. Remote state stays in the data layer;\nthis component only renders whichever state the promise is in.\n\n⚠️ HOST CONTRACT: this promise's IDENTITY is the retry signal. It is the boundary's `resetKeys`, and\nReact caches a rejection on the promise object itself — so recovering from a failed lookup requires\nhanding this component a NEW promise (a refetch), not the same rejected one. A data layer that memoizes\nper recipe id and never re-creates the promise turns a transient food-service blip into a permanently\nblank figure for that card.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/nutrition/RecipeNutritionBoundary.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
             "id": "featuresRecipes/nutrition/RecipeNutritionSlot",
             "name": "RecipeNutritionSlot",
             "group": "featuresRecipes",
@@ -25103,7 +24966,7 @@
             "dir": "packages/apps/commise/features/recipes/src/nutrition",
             "kind": "orchestration",
             "patterns": [
-                "Suspense boundary + selector over ONE batch promise — N slots over one promise are one read, because\n    `use()` memoizes on promise identity, and the omitted recipe is a fourth outcome the per-recipe boundary cannot\n    express."
+                "Visitor — exhaustive switch over the batch reading's discriminated union, then a selector over the settled\n    response"
             ],
             "platforms": [
                 "web"
@@ -25117,38 +24980,38 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeNutritionSlot.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/nutrition",
-                    "moduleDoc": "@commise/features-recipes/nutrition — web per-card nutrition slot (the orchestration layer).\n\n**Pattern: Suspense boundary + selector.** What a card grid actually holds is ONE batch promise for the\nwhole page (`POST /api/v1/recipes/nutrition-batch`), not one promise per card. This component is the seam\nbetween the two: N of these over ONE promise are ONE read, because `use()` memoizes on promise identity —\nthey suspend together, settle together, and cost a single request. Handing each card its own promise would\npass every per-card test and issue N requests.\n\n⛔ WHY THIS IS NOT A PROP ON `RecipeNutritionBoundary`. Selecting one recipe out of the batch has a\nFOURTH outcome the per-recipe boundary deliberately cannot express: the recipe the response OMITTED.\n`selectRecipeCalorieState` returns `null` for it, `null` is not assignable to that component's promise, and\nthe owner ruling (2026-08-16) is that such a card renders the skeleton while the lookup is in flight and\nthen renders NOTHING — never `unaccounted{food_unavailable}`, because food was fine and the viewer simply\nmay not read that recipe. The decision needs the settled response, so it happens INSIDE the suspending\ncontent, here; a boolean/mode prop switching that behaviour on the other component is exactly the\norchestration-layer decision this codebase keeps out of render components.\n\nThe boundary NESTING (ErrorBoundary → Suspense, and why `resetKeys` is load-bearing) is stated once, in\n{@link NutritionBoundaryShell}, and shared with `RecipeNutritionBoundary` so the two cannot drift.",
+                    "moduleDoc": "@commise/features-recipes/nutrition — one card's calorie slot, read out of its page's batch (both platforms;\nthe orchestration layer).\n\nWhat a card grid holds is ONE batch reading per page (`POST /api/v1/recipes/nutrition-batch`), not one per card.\nThis component is the seam between the two: it takes the page's reading and this card's recipe id and SELECTS which\nrender component stands in the card, one of four outcomes — the skeleton while the batch is pending, this recipe's\nchip once it has settled, nothing at all when the settled response OMITTED this recipe (owner ruling 2026-08-16: \"not for you\", never\n`food_unavailable`), and the terminal `unaccounted{food_unavailable}` answer when the batch failed.\n\n⛔ IT NEVER SUSPENDS (ADR-0079). The reading is a VALUE, so the choice is an exhaustive switch rather than React's\nunwinding. A suspending slot held every deferred update on its screen — \"See all\", a sort, a collection switch —\nbehind the calorie lookup, because a committed fallback's retry lane runs ahead of a pinged transition.\n`repoGuards`' `nutritionNeverSuspends` refuses `use(`, `Suspense` and `useSuspense*` under this folder.\n\nPlatform-agnostic: the chip and the skeleton are the platform pair (`.native.tsx` leaves), so this one component\nserves both apps.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes/nutrition — web per-card nutrition slot (the orchestration layer)."
+                            "text": "@commise/features-recipes/nutrition — one card's calorie slot, read out of its page's batch (both platforms;"
                         },
                         {
                             "name": "pattern",
-                            "text": "Suspense boundary + selector over ONE batch promise — N slots over one promise are one read, because\n    `use()` memoizes on promise identity, and the omitted recipe is a fourth outcome the per-recipe boundary cannot\n    express."
+                            "text": "Visitor — exhaustive switch over the batch reading's discriminated union, then a selector over the settled\n    response"
                         }
                     ],
-                    "description": "One card's deferred calorie figure, read out of the page's shared nutrition batch: its skeleton while the\nbatch is in flight, its chip once the batch settles, and nothing at all when the batch failed or omitted\nthis recipe.",
+                    "description": "One card's deferred calorie figure, read out of the page's batch: its skeleton while the batch is pending, its chip\nonce the batch has settled, and nothing at all when the batch failed or omitted this recipe.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The shared batch promise and the recipe this slot speaks for."
+                            "text": "props - The page's batch reading and the recipe this slot speaks for."
                         },
                         {
                             "name": "returns",
-                            "text": "The boundary rendering exactly one of the four outcomes."
+                            "text": "Exactly one of the four outcomes."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "nutritionBatchPromise",
-                            "type": "Promise<{ nutrition: Record<string, { state: \"known\"; caloriesPerServing: number; proteinG: number; carbsG: number; fatG: number; isComplete: boolean; freshness: \"stale\" | \"fresh\"; rangeDerivedBound?: \"low\" | ... 1 more ... | undefined; } | { ...; }>; }>",
+                            "name": "reading",
+                            "type": "RecipeNutritionBatchReading",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The page's deferred nutrition batch, as a promise the HOST starts and does NOT await — created in the\nserver component (React streams a pending promise across the RSC boundary) or memoized in the client\ncontainer for a surface with no server pass.\n\n⚠️ HOST CONTRACT: this promise's IDENTITY is the retry signal (see {@link NutritionBoundaryShell}), and\nit MUST be stable across re-renders. A promise rebuilt every render re-suspends every card on every\nrender — a grid of skeletons that never settles.",
+                            "description": "Where the page's batch lookup stands — `useRecipeNutritionBatches`' answer for this recipe.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/nutrition/RecipeNutritionSlot.tsx"
                         },
                         {

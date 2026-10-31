@@ -13,7 +13,7 @@
  * heading row — kept on a failure, so the route to My recipes never fails with the content — the first run's three
  * ways in, and the routes each card leads to. A failed READ shows Try again, which starts a fresh read.
  *
- * Finally it owns the DEFERRED CALORIE LOOKUP (ADR-0021 §6) — see {@link RecipeWidgetNutritionContainer}.
+ * Finally it owns the DEFERRED CALORIE LOOKUP (ADR-0079 §6) — see {@link RecipeWidgetNutritionContainer}.
  */
 import {
     RecipeWidgetLoadError,

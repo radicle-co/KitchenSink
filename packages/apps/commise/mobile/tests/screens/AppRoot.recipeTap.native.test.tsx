@@ -43,7 +43,7 @@ vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }) })
 
 /** The recipe the Home widget lists and the detail then resolves — ONE id threaded through the whole chain. */
 
-// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// The screens under test now START the deferred calorie batch (ADR-0079 §6) through this shared hook, which
 // reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
 // stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
 // assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.

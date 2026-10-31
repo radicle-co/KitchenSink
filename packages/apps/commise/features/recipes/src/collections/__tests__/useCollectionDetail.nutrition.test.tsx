@@ -1,5 +1,5 @@
 /**
- * `useCollectionDetail` — the deferred calorie lookup's WHICH ids (ADR-0021 §6), moved here from mobile's
+ * `useCollectionDetail` — the deferred calorie lookup's WHICH ids (ADR-0079 §6), moved here from mobile's
  * `screenNutrition.native.test.tsx`, whose mock of the hooks barrel the shared session no longer reaches (web's
  * `CollectionDetailContainer.nutrition.test.tsx` keeps its end-to-end cases): the batch covers EVERY member, as ONE
  * page. The window of members shown grows on tap, and batching it would re-batch on every "load more" and blink the

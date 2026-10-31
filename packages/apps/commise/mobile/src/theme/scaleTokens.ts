@@ -1,7 +1,7 @@
 /**
  * @module theme/scaleTokens — the mobile Tamagui token/font ramps, DERIVED from the single numeric
  * source (`@commise/ui/scale`). Tamagui's `createTokens`/`createFont` want positional numeric keys
- * (space/size `0…9` + `true`, radius `0…5`, fonts `1…9`), which the shared scale does not itself encode;
+ * (space/size `0…9`, radius `0…5`, fonts `1…9`), which the shared scale does not itself encode;
  * this module is the ONE place that positional mapping lives, so the mobile config cannot drift from web.
  *
  * Pure data (no `tamagui` import) so it is safe to unit-test under Node — the drift guard lives in
@@ -11,8 +11,9 @@
 import { fontSize, fontWeight, lineHeightPx, radius, spacing } from '@commise/ui/scale';
 
 /**
- * Tamagui `space` scale. Steps `0…9` are the shared spacing ramp; `true` is Tamagui's default step (used
- * by `$true` and unsuffixed sizing) and equals the base scale value (step 4 = 16).
+ * Tamagui `space` scale. Steps `0…9` are the shared spacing ramp. There is no `true` step: Tamagui 3 removed the
+ * `$true` alias from configs, and controls take a named size (`md` by default) instead. Step 4 keeps the 16 the
+ * alias used to point at.
  */
 export const spaceScale = {
     0: spacing[0],
@@ -25,7 +26,6 @@ export const spaceScale = {
     7: spacing[7],
     8: spacing[8],
     9: spacing[9],
-    true: spacing[4],
 } as const;
 
 /** Tamagui `size` scale — identical to `space` (shared ramp). */
@@ -40,7 +40,6 @@ export const sizeScale = {
     7: spacing[7],
     8: spacing[8],
     9: spacing[9],
-    true: spacing[4],
 } as const;
 
 /** Tamagui `radius` scale — explicit name→numeric-key map (`sm→1 … full→5`) with the synthesized `0`. */

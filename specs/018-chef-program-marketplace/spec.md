@@ -3,7 +3,9 @@
 **Feature Branch**: `chore/code-quality-enforcement-phase-1-2` (PR 91 — no new branches, per standing directive)
 **Feature Directory**: `specs/018-chef-program-marketplace`
 **Created**: 2026-08-26
-**Status**: Draft — 3 owner clarifications open (see [Clarifications](#clarifications))
+**Status**: Draft — 4 owner decisions open, 1 of them deferred (see [Status](#status)). _(Amended 2026-10-31. The
+count now matches the Status section: `C-018-003a`, `C-018-003b`, `C-018-003c` and `C-018-004`, which is deferred.
+Was: "3 owner clarifications open".)_
 **Input**: User description: "a special kind of user named a 'chef' … sign up to become a chef as part of the chef program … discoverable in the chefs page or via the recipes they create … their own dedicated public page that features their recipes and other content … users can buy recipes from them or videos, etc. we get a commission on purchases … we'll have other user types that enable different things or give permissions, like admin, developer, superuser … can we generate revenue from users going to the chef page and any public recipes the chef has and share the money with the chef and us … this kind of touches the question of how to monetize free users too."
 
 ---
@@ -1007,13 +1009,17 @@ at exactly the scale where it pays least.**
   through a platform store's in-app purchase, the platform's commission (**30%**, or **15%** under a
   small-business programme) applies **before** ours. A 20% platform commission stacked on a 30% store
   commission leaves a chef roughly **half** of what the buyer paid. `FR-034a` MUST be decided against the
-  **stack**, per storefront, not against our rate in isolation.
+  **stack**, per storefront, not against our rate in isolation. _(Amended 2026-10-31, ADR-0075 §1: Commise
+  enrols in Apple's Small Business Program first, so the Apple rate to plan against is 15%. The rule stands. See
+  `C-018-004`.)_
 - **FR-083** — **the v1 rail is external web checkout, and it is available because v1 is US-only**: App Store
   Review Guideline **§3.1.1(a)** states that the entitlements _"are **not required** for developers to include
   buttons, external links, or other calls to action in their **United States storefront** apps,"_ while for
   every other storefront such calls to action are prohibited absent IAP or the External Purchase Link
   Entitlement. ✅ `016-FR-048` configures v1 to the **US market only**, so external web checkout is compliant
-  for v1 — and this is recorded so the first non-US storefront does not discover it at launch.
+  for v1 — and this is recorded so the first non-US storefront does not discover it at launch. _(Amended
+  2026-10-31, ADR-0075: the link is allowed, but Apple's US rate for it is not settled, and ADR-0075 §4 keeps the
+  plan link switched off until it is. A chef sale through that link carries the same unknown. See `C-018-004`.)_
 - **FR-084** — **any storefront beyond the US requires a rail decision before it is served** (`016-FR-048a`
   already requires an unserved market to fail closed). The options are IAP with its commission, the External
   Purchase Link Entitlement with its own commission, or not offering purchase in that storefront. This is
@@ -1306,6 +1312,9 @@ document** — each lands on its owner spec, and `GR-003` AC-003-b requires
 
 Three questions are open. Each is scope-level or one-way; none has a defensible default.
 
+> **Amended 2026-10-31.** `C-018-001` and `C-018-002` are resolved. Four decisions are open: `C-018-003a`, `C-018-003b`
+> and `C-018-003c`, and `C-018-004`, which is deferred. See [Status](#status).
+
 ### C-018-001 — What may a chef actually sell?
 
 **Status**: ✅ **RESOLVED by owner, 2026-08-26 — model (b), the licensed copy.** Implemented at `FR-029`…`FR-030`.
@@ -1514,6 +1523,11 @@ without measuring, and which the competitive evidence says would surrender the p
 **Status**: OPEN — blocks `FR-034a`. Ratified elsewhere as **20%** (`013-FR-010`), and the evidence says that
 number was set without the stack in view.
 
+> **Amended 2026-10-29, owner ruling ([026](../026-chef-spaces/spec.md) Q6: "Decide with royalties").** This decision
+> is **DEFERRED** to the royalties and chef-payments work, with 026's Pro pool (026 Q4). When it is set, it is set
+> against the whole stack: the store fee, then ours, then the chef's net (`026-FR-050`, `FR-082`). `013-FR-010`'s 20%
+> stays a draft until then. The analysis below is input to that work. Recorded here 2026-10-31.
+
 **Benchmarks for creator content — we are at the high end, not the middle:**
 
 | Platform                               | Take                                                                                                 |
@@ -1524,7 +1538,7 @@ number was set without the stack in view.
 | Patreon                                | **8–12%**                                                                                            |
 | Kajabi · Teachable · Thinkific · Podia | **0% of revenue** — flat **$69–$399/month** instead                                                  |
 | **`013-FR-010` / `FR-034` today**      | **20%**                                                                                              |
-| Apple / Google in-app purchase         | **30%**, or **15%** under a small-business programme                                                 |
+| Apple / Google in-app purchase         | **30%**, or **15%** under a small-business programme (see the 2026-10-31 amendment below)            |
 | Etsy _effective_                       | 25.7% — ⚠️ **not a content commission**: physical goods, payments **and** seller-funded ads combined |
 
 ⛔ **And it stacks.** On any storefront where in-app purchase is required, the store takes its cut **first**.
@@ -1533,6 +1547,20 @@ one that makes `FR-073`'s web-and-mobile parity requirement an economic problem 
 ✅ For **v1 this is survivable**: `016-FR-048` serves the **US only**, and App Store Guideline **§3.1.1(a)**
 expressly permits external links and calls to action in **United States storefront** apps. **The trap is the
 first non-US storefront** (`FR-084`).
+
+> **Amended 2026-10-31, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md).**
+> Two facts above are out of date.
+>
+> - **The store fee to plan against is 15%, not 30%.** ADR-0075 §1 enrols Commise in Apple's Small Business Program
+>   first, which charges 15% on up to $1M of proceeds a year. At 15%, our 20% on top leaves the chef about two thirds
+>   of what the buyer paid, not half. The stack still matters, and `FR-082` still holds.
+> - **The US web link is not a settled rail.** §3.1.1(a) does let a US-storefront app link to an outside purchase.
+>   But Apple's US rate for that link is not settled (ADR-0075, Context), so ADR-0075 §4 builds the link behind a
+>   switch and keeps it off. "Survivable for v1" therefore rests on a rate nobody knows yet.
+>
+> Was: the table row above said only "**30%**, or **15%** under a small-business programme", and this paragraph said
+> 20% on top of 30% leaves "about **half**", and that v1 is survivable because §3.1.1(a) "expressly permits external
+> links" in US storefront apps.
 
 **Three shapes to choose between:**
 
@@ -1576,7 +1604,8 @@ addition was forced by evidence, not by scope creep:
 - **`C-018-003c`** — ⚠️ **where does the free tier stop?** Carries a direct contradiction inside this repo —
   the tightening instinct against the competitive analysis's D5. The reconciliation is stated; the choice is
   not ours. ⛔ And under `FR-058i` it may not honestly be decided at all until `FR-096`–`FR-098` exist.
-- **`C-018-004`** — ⚠️ **what is the commission, measured against the whole stack?**
+- **`C-018-004`** — ⚠️ **what is the commission, measured against the whole stack?** _(Deferred 2026-10-29 to the
+  royalties and chef-payments work, [026](../026-chef-spaces/spec.md) Q6. Recorded 2026-10-31.)_
 
 **One recommendation awaiting confirmation rather than a decision**: `FR-092` scopes a purchase to the buyer's
 **household**, not their account. It is defensible on three grounds and is stated as the resolution — but it

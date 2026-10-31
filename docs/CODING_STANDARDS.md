@@ -1474,6 +1474,22 @@ PR reviewers MUST verify:
 4. No `.mobile.*` files introduced.
 5. `tasks.md` (if present) lists paired web + mobile tasks.
 
+### 14.6 Native Styling Is Tamagui (Hard Rule)
+
+Mobile UI is styled with Tamagui only (owner rulings 2026-10-31,
+[ADR-0080](architecture/decisions/0080-mobile-ui-is-styled-with-tamagui.md)).
+
+- A new native file uses no `StyleSheet` and no `style` or `…Style` attribute. It lays out with `styled()` from
+  `tamagui`, or with a design-system primitive, and takes its tokens from `@commise/ui/tamagui-config`.
+- An existing file's React Native styling only falls. `nativeStylingRatchet` holds the count per file, and
+  `themeColourReadsRatchet` holds the colour reads through `useTheme()` the same way.
+- A colour is a theme key (`$paper`), a radius is a radius token (`$md`), and text is set by type role. A raw value
+  is a type error under the config's strict style values.
+- Tamagui and `@commise/ui/tamagui-config` are imported only by `.native` leaves and the mobile app. The config export
+  is native-only and has no web sibling, an exception to §14.3 with `./modal` as the precedent.
+
+ADR-0080 lists every guard that holds this rule.
+
 ---
 
 ## 15. API Contracts — the service OWNS its wire types

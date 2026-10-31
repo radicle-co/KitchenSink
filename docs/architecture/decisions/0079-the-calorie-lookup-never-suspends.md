@@ -188,9 +188,12 @@ The calorie lookup NEVER suspends. No component under `features/recipes/src/nutr
 - **The deadline stays in the client** (`nutritionBatch`'s `readWithinDeadline`), so `pending` always ends.
 - **The batch is not cancelled when its observers leave.** The read seam does not read TanStack's own `signal`.
   TanStack cancels an in-flight query whose last observer leaves IF its request read that signal, and the next
-  mount asks again. Discover's frame moves its results to a new parent when `<main>` is first measured, which
-  remounts every rail: with the signal read, the rails' batches were requested 6 times instead of 3 in
-  `RecipeDiscoveryContainer.nutrition.test.tsx`, each first request aborted. Under ADR-0021 nothing observed the
+  mount asks again. The evidence was Discover's frame, which moved its results to a new parent when `<main>` was
+  first measured and so remounted every rail: with the signal read, the rails' batches were requested 6 times
+  instead of 3 in `RecipeDiscoveryContainer.nutrition.test.tsx`, each first request aborted. Commit `1a49ef72c`
+  removed that remount (the frame keeps one tree across the sheet and panel layouts). The rule still stands,
+  because any other remount (a route change, a tab switch, a re-keyed list) also drops the last observer, and
+  `nutritionBatch.test.ts` and `useRecipeNutritionBatches.test.tsx` guard it. Under ADR-0021 nothing observed the
   query, so nothing cancelled it; this keeps that behaviour. The deadline alone bounds the request.
 - **No RSC promise.** A server-created promise is not in the client `QueryClient`, so the client would batch a
   second time, and the server knows only page one of an infinite list. The client query is the one source on

@@ -79,7 +79,6 @@ function App() {
 }
 
 beforeEach(() => {
-    vi.stubEnv('EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA');
     vi.mocked(useAuth).mockReturnValue({ getToken: vi.fn().mockResolvedValue('tok_abc') } as unknown as ReturnType<
         typeof useAuth
     >);
@@ -89,7 +88,6 @@ afterEach(() => {
     cleanup();
     scheme.current = null;
     received.config = undefined;
-    vi.unstubAllEnvs();
 });
 
 describe('AppProviders, Tamagui config and scheme', () => {

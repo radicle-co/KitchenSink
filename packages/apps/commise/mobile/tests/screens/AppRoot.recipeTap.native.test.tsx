@@ -90,6 +90,16 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => {
     };
 });
 
+// ⛔ Loaded at module scope, never inside the test: loading `AppRoot` transforms and evaluates every screen, and inside
+// the test that cost counted against its timeout (6.4 s alone, past 20 s on a contended machine). `vi.mock` is hoisted
+// above this line, so the mocks above are in force.
+const { AppRoot } = await import('../../src/screens/AppRoot.js');
+const { CookMarksProvider, recipeHomeWidgetDescriptor } = await import('@commise/features-recipes');
+
+// The Home widget is a lazy chunk the descriptor loads on first render. Loading it once here puts its transform in the
+// module cache, so the lazy load inside the test resolves from cache instead of compiling the widget on the clock.
+await recipeHomeWidgetDescriptor.load();
+
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -100,8 +110,6 @@ describe('Home → recipe detail (mobile, end to end)', () => {
         listRecipesMock.mockResolvedValue(makeRecipePage([TAPPED, OTHER]));
         getRecipeByIdMock.mockImplementation(async (id: string) => makeRecipeDetail({ id, title: 'Weeknight Pasta' }));
 
-        const { AppRoot } = await import('../../src/screens/AppRoot.js');
-        const { CookMarksProvider } = await import('@commise/features-recipes');
         // The app's providers mount the cook-marks store above the root (`RecipeServiceGate`); so does this render.
         renderWithProviders(
             <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

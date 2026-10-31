@@ -1,0 +1,120 @@
+/**
+ * What Tamagui 3 does under this package's native test lane, pinned so a Tamagui upgrade that changes it fails here
+ * instead of silently changing what our component tests can prove.
+ *
+ * The lane runs Tamagui's WEB build. Its native build cannot load under react-native-web: it requires
+ * `react-native/Libraries/Renderer/shims/ReactFabric` and React Native's own `usePressability`, which only a device
+ * has (measured 2026-10-31 on 3.1.9 by resolving the `react-native` condition: the suite fails to import). So a
+ * native component test proves structure, accessibility and behaviour, and a device (Maestro) is the evidence for
+ * styling. Two consequences are pinned below:
+ *
+ * - Line height. A bare number is a ratio of the font size, in the JSX prop AND inside the `style` prop: both reach
+ *   the DOM unitless, which CSS reads as a multiplier. Tamagui's native build reads them the same way
+ *   (`nativeTextMetrics.ts`). Only a `px` string is pixels, which is why the design system writes every line height
+ *   as one, and why the guard refuses a number in either place.
+ * - Theme colours. A theme token reaches the DOM as a CSS variable, which jsdom does not resolve. A test cannot read
+ *   a theme colour off a rendered element in this lane; the theme VALUES are asserted on the built config instead.
+ *
+ * The config is a minimal stand-in, not the design system's: these probes test Tamagui, not our tokens.
+ */
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createFont, createTamagui, createTokens, styled, TamaguiProvider, Text, View, XStack } from 'tamagui';
+import type { ReactNode } from 'react';
+
+const font = createFont({ family: 'System', size: { 1: 16 }, lineHeight: { 1: 24 }, weight: { 1: '400' } });
+
+const config = createTamagui({
+    tokens: createTokens({ space: { 0: 0 }, size: { 0: 0 }, radius: { 0: 0 }, zIndex: { 0: 0 }, color: {} }),
+    themes: { light: { paper: 'rgb(255, 255, 255)' }, dark: { paper: 'rgb(0, 0, 0)' } },
+    fonts: { body: font, heading: font },
+    settings: { styleCompat: 'react-native' },
+});
+
+function Probe({ children }: { readonly children: ReactNode }) {
+    return (
+        <TamaguiProvider config={config} defaultTheme="light">
+            {children}
+        </TamaguiProvider>
+    );
+}
+
+function styleOf(label: string): CSSStyleDeclaration {
+    return getComputedStyle(screen.getByLabelText(label));
+}
+
+const PxLine = styled(Text, { fontSize: 16, lineHeight: '24px' });
+
+const Paper = styled(View, { backgroundColor: '$paper' });
+
+const Busy = styled(View, { variants: { busy: { true: { opacity: 0.4 } } } as const });
+
+afterEach(() => {
+    cleanup();
+});
+
+describe('Tamagui 3 under the native test lane (web build)', () => {
+    it('keeps a px-string line height as pixels', () => {
+        render(
+            <Probe>
+                <PxLine aria-label="px">x</PxLine>
+            </Probe>,
+        );
+
+        expect(styleOf('px').lineHeight).toBe('24px');
+    });
+
+    it('passes a bare-number line height through unitless, so it is a ratio of the font size', () => {
+        render(
+            <Probe>
+                <Text aria-label="ratio" fontSize={16} lineHeight={1.5}>
+                    x
+                </Text>
+            </Probe>,
+        );
+
+        expect(styleOf('ratio').lineHeight).toBe('1.5');
+    });
+
+    it('reads a number line height inside the style prop as a ratio too, not as pixels', () => {
+        render(
+            <Probe>
+                <Text aria-label="style" fontSize={16} style={{ lineHeight: 24 }}>
+                    x
+                </Text>
+            </Probe>,
+        );
+
+        expect(styleOf('style').lineHeight).toBe('24');
+    });
+
+    it('emits a theme token as a CSS variable, which this lane cannot resolve to a colour', () => {
+        render(
+            <Probe>
+                <Paper aria-label="paper" />
+            </Probe>,
+        );
+
+        expect(styleOf('paper').backgroundColor).toBe('var(--paper)');
+    });
+
+    it('applies a variant style', () => {
+        render(
+            <Probe>
+                <Busy aria-label="busy" busy />
+            </Probe>,
+        );
+
+        expect(styleOf('busy').opacity).toBe('0.4');
+    });
+
+    it('gives flex={1} a flexShrink of 0 under styleCompat react-native (Yoga, not CSS)', () => {
+        render(
+            <Probe>
+                <XStack aria-label="flex" flex={1} />
+            </Probe>,
+        );
+
+        expect(styleOf('flex').flexShrink).toBe('0');
+    });
+});

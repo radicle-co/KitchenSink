@@ -337,7 +337,7 @@ A **single shared internet-facing ALB per stage** (`kitchensink-alb-{stage}`, th
 
 Every user-facing feature ships to **both** web and mobile in the same release. Platform-specific implementations use `.native.ts(x)` suffix (never `.mobile.*`). Shared business logic, types, and API clients live in shared packages. See `docs/CODING_STANDARDS.md §14` for the full rules.
 
-⛔ **Mobile UI is styled ONLY with Tamagui** (owner rulings 2026-10-31: "Tamagui should have been used - including for the native shared ui components"; "Make sure all React Native styling is replaced by tamagui"). React Native `StyleSheet` and inline RN style objects are prohibited in new code, and every existing use is migrated. A repoGuards ratchet, whose `StyleSheet` count may only fall, arrives with the migration. See the constitution, Principle VII.
+⛔ **Mobile UI is styled ONLY with Tamagui** (owner rulings 2026-10-31: "Tamagui should have been used - including for the native shared ui components"; "Make sure all React Native styling is replaced by tamagui"). React Native `StyleSheet` and inline RN style objects are prohibited in new code, and every existing use is migrated. Two repoGuards ratchets hold the counts, which only fall: `nativeStylingRatchet` (React Native styling) and `themeColourReadsRatchet` (colours read through `useTheme()`). See the constitution, Principle VII, and **`docs/architecture/decisions/0080-mobile-ui-is-styled-with-tamagui.md`**, which lists every guard.
 
 ### Deliberate decisions — looks wrong, isn't (read the ADR before changing)
 

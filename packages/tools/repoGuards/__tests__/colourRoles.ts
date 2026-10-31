@@ -20,9 +20,13 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { splitColorOpacitySuffix } from '@tamagui/style-grammar/runtime';
 import ts from 'typescript';
 
 import { repoRoot } from './serviceSources.js';
+import type { StyledExportsOf } from './tamaguiElements.js';
+import { styleSiteFindings } from './tamaguiStyleSites.js';
+import { attributeValueOf, isTokenValue, type TokenRule } from './tamaguiTokenValues.js';
 
 /** One finding: its kind and the text that produced it. */
 export interface ColourFinding {
@@ -245,4 +249,56 @@ export function colourFindings(source: string, fileName: string, names: Readonly
     visit(file);
 
     return findings;
+}
+
+/** The one colour value that is no theme token and is allowed: it paints nothing. */
+const TRANSPARENT = 'transparent';
+
+/**
+ * Whether one token of a Tamagui colour value (its state modifiers already removed) is a theme token: `$` and a theme
+ * key, with an optional opacity suffix (`$ink/50`), or `transparent`. Pure.
+ */
+function isThemeToken(token: string, themeKeys: ReadonlySet<string>): boolean {
+    const suffix = splitColorOpacitySuffix(token);
+
+    if (suffix.kind === 'invalid') {
+        return false;
+    }
+
+    const name = suffix.kind === 'valid' ? suffix.name : token;
+
+    return name === TRANSPARENT || (name.startsWith('$') && themeKeys.has(name.slice(1)));
+}
+
+/**
+ * Every colour on a Tamagui element, or in a Tamagui `styled(…)` object, that is not a theme token, plus every
+ * `styled(…)` part the walk cannot read (ADR-0080). A colour key is one of {@link COLOUR_KEY}. ⚠️ Only the long prop
+ * names are read, as the other Tamagui style guards do: a shorthand (`bg`) is not seen. Pure, given `styledExportsOf`.
+ *
+ * @param source - The module's text.
+ * @param fileName - Its path.
+ * @param styledExportsOf - Which names a design-system subpath exports as Tamagui `styled(…)` components.
+ * @param themeKeys - The keys of the themes (`tamaguiScaleKeys.ts`), which a `$` token must name.
+ * @returns One `file:line text` entry per finding.
+ */
+export function tamaguiColourFindings(
+    source: string,
+    fileName: string,
+    styledExportsOf: StyledExportsOf,
+    themeKeys: ReadonlySet<string>,
+): readonly string[] {
+    const isThemeColour: TokenRule = (token) => isThemeToken(token, themeKeys);
+
+    return styleSiteFindings(source, fileName, styledExportsOf, {
+        attribute: (attribute, file) => {
+            if (!ts.isJsxAttribute(attribute) || !COLOUR_KEY.test(attribute.name.getText(file))) {
+                return false;
+            }
+
+            const value = attributeValueOf(attribute);
+
+            return value === undefined || !isTokenValue(value, isThemeColour);
+        },
+        property: ({ key, value }) => COLOUR_KEY.test(key) && !isTokenValue(value, isThemeColour),
+    });
 }

@@ -554,6 +554,30 @@ describe('the register findings — the pure verdict, fired at fakes the tree do
         ]);
     });
 
+    // ADR-0080: a design-system component defined as a Tamagui `styled(…)` export has no JSX, and the catalogue lists it
+    // through the generator's styled signal (`docgen-components` `extract.ts`, proven by its `StyledSurface` fixture).
+    // Once listed it is in the design-system group, so clause 1 binds it like any other: the layer is the group's, not
+    // the shape of the declaration.
+    it('reports a styled() design-system export that names no pattern, and accepts one that does', () => {
+        const styled = makeComponent({
+            id: 'designSystem/surface/StyledSurface',
+            packageName: '@commise/ui',
+            layer: 'design-system',
+            kind: 'unclassified',
+            sourcePaths: ['packages/apps/commise/ui/src/surface/StyledSurface.native.tsx'],
+        });
+
+        expect(registerFindings([styled])).toEqual([
+            {
+                id: 'designSystem/surface/StyledSurface',
+                sourcePath: 'packages/apps/commise/ui/src/surface/StyledSurface.native.tsx',
+                reason: 'no-pattern-named',
+                evidence: [],
+            },
+        ]);
+        expect(registerFindings([{ ...styled, patterns: ['Adapter over a Tamagui View'] }])).toEqual([]);
+    });
+
     // THE MUTATION THIS GATE EXISTS FOR. A version of it that only counted tags would report this tree clean,
     // and "every component says Presentational Component" is exactly the cargo-cult compliance the amendment
     // forbids by name.

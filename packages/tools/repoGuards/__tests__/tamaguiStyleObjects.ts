@@ -16,6 +16,8 @@ export interface StyleProperty {
     readonly key: string;
     readonly value: ts.Expression;
     readonly node: ts.PropertyAssignment;
+    /** Whether the property sits anywhere inside `variants`, so it applies only while that variant is chosen. */
+    readonly inVariants: boolean;
 }
 
 /** What a `styled(…)` call's configuration holds. */
@@ -59,7 +61,7 @@ export function styledConfig(call: ts.CallExpression): StyledConfig {
     const properties: StyleProperty[] = [];
     const unreadable: ts.Node[] = [];
 
-    const walk = (object: ts.ObjectLiteralExpression, depthBelowVariants: number): void => {
+    const walk = (object: ts.ObjectLiteralExpression, depthBelowVariants: number, inVariants: boolean): void => {
         for (const property of object.properties) {
             if (!ts.isPropertyAssignment(property)) {
                 unreadable.push(property);
@@ -77,11 +79,11 @@ export function styledConfig(call: ts.CallExpression): StyledConfig {
             }
 
             if (!isName && key !== undefined) {
-                properties.push({ key, value, node: property });
+                properties.push({ key, value, node: property, inVariants });
             }
 
             if (ts.isObjectLiteralExpression(value)) {
-                walk(value, depthAfter(depthBelowVariants, variantTable));
+                walk(value, depthAfter(depthBelowVariants, variantTable), inVariants || variantTable);
             }
         }
     };
@@ -89,7 +91,7 @@ export function styledConfig(call: ts.CallExpression): StyledConfig {
     // The first argument is the component being styled; every later one is configuration.
     for (const argument of call.arguments.slice(1)) {
         if (ts.isObjectLiteralExpression(argument)) {
-            walk(argument, 0);
+            walk(argument, 0, false);
         } else {
             unreadable.push(argument);
         }

@@ -12,6 +12,11 @@
  *    measure (`nativeTokens.type.body.fontSize`). This is the AST form of "a style that sets `fontSize` from a token
  *    without the role spread": the ramp is not reachable from app source at all, so there is nothing to except.
  *
+ * Tamagui elements and `styled(…)` objects (ADR-0080) are read by the shapes above too (a number literal is a number
+ * wherever it is written), and by G4 (`tamaguiTypeProps.ts`) as well: it refuses any `fontSize`, `lineHeight`,
+ * `fontFamily`, `fontWeight` or `letterSpacing` prop on a Tamagui element, a spread of the old type styles onto one,
+ * and a `styled(…)` line height that is not a `px` string.
+ *
  * ⛔ THERE IS NO BASELINE AND NO ALLOW-LIST FOR APP FILES. The scale drifted because 67 native styles each spelled a
  * number; a token test cannot see those, and an exemption list is how they would have stayed.
  *

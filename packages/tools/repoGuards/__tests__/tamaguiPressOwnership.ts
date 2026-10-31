@@ -10,7 +10,15 @@ import ts from 'typescript';
 
 import type { StyledExportsOf } from './tamaguiElements.js';
 import type { StyleProperty } from './tamaguiStyleObjects.js';
+import { attributeValueOf } from './tamaguiTokenValues.js';
+import { valueHasModifier } from './tamaguiStateStyles.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
+
+/**
+ * Attributes that hold words or identifiers, not styles: an accessibility name, a placeholder, a title, an id, the
+ * children. `accessibilityLabel="press: to open"` is a sentence, not a press state.
+ */
+const TEXT_ATTRIBUTE = /^(?:accessibility.*|aria-.*|placeholder|title|testID|nativeID|id|children)$/u;
 
 const PRESS_HANDLERS = new Set(['onPress', 'onPressIn', 'onPressOut', 'onLongPress']);
 
@@ -20,42 +28,8 @@ function isPressModifier(modifier: string): boolean {
     return canonical === 'press' || /^group-press(?:\/|$)/u.test(canonical);
 }
 
-/**
- * Whether a flat value names a press state. Tamagui splits a value on whitespace and reads the text before a token's
- * last `:` as its modifiers (`@tamagui/web` `mergeVariants.ts`). Pure.
- */
-function textHasPress(text: string): boolean {
-    return text
-        .split(/\s+/u)
-        .filter((token) => token.includes(':'))
-        .some((token) => token.slice(0, token.lastIndexOf(':')).split(':').some(isPressModifier));
-}
-
 function valueHasPress(expression: ts.Expression): boolean {
-    let found = false;
-
-    const visit = (node: ts.Node): void => {
-        if (
-            (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateLiteralToken(node)) &&
-            textHasPress(node.text)
-        ) {
-            found = true;
-        }
-
-        if (
-            ts.isPropertyAssignment(node) &&
-            (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) &&
-            isPressModifier(node.name.text)
-        ) {
-            found = true;
-        }
-
-        ts.forEachChild(node, visit);
-    };
-
-    visit(expression);
-
-    return found;
+    return valueHasModifier(expression, isPressModifier);
 }
 
 function attributeOwnsPress(attribute: ts.JsxAttributeLike, file: ts.SourceFile): boolean {
@@ -63,10 +37,14 @@ function attributeOwnsPress(attribute: ts.JsxAttributeLike, file: ts.SourceFile)
         return false;
     }
 
-    const { initializer } = attribute;
-    const value = initializer !== undefined && ts.isJsxExpression(initializer) ? initializer.expression : initializer;
+    const name = attribute.name.getText(file);
+    const value = attributeValueOf(attribute);
 
-    return PRESS_HANDLERS.has(attribute.name.getText(file)) || (value !== undefined && valueHasPress(value));
+    if (PRESS_HANDLERS.has(name)) {
+        return true;
+    }
+
+    return !TEXT_ATTRIBUTE.test(name) && value !== undefined && valueHasPress(value);
 }
 
 /**

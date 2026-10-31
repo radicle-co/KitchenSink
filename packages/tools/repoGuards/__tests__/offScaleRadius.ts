@@ -15,6 +15,10 @@
  *   (`radius.md`, `nativeTokens.radius.lg`), `0`, or half of the box's own dimension (`HEIGHT / 2`: the same fixed-corner
  *   rule as the web calc). A bare number and `999` are off the scale: the pill is `radius.full`.
  *
+ * - Tamagui (ADR-0080): a radius on a Tamagui element or in a Tamagui `styled(…)` object is a `$` token whose name is a key
+ *   of `tamaguiTokens.radius` ({@link tamaguiRadiusFindings}); a number, a percentage, a cast and a variable are off
+ *   the scale. The native reader above leaves a `styled(…)` object to that rule.
+ *
  * - A fixed-size glyph (the 18 px checkbox) owns a corner no step fits, as a named `GLYPH_` constant. Only a module whose
  *   leading JSDoc carries a `@pattern Glyph` tag may read one; the radius scale gets no `xs` step.
  *
@@ -27,6 +31,9 @@ import ts from 'typescript';
 
 import { appSourceModules, classTokensOf, parseModule, stringLikeTexts } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
+import { isTamaguiStyledCall, tamaguiStyledNames, type StyledExportsOf } from './tamaguiElements.js';
+import { styleSiteFindings } from './tamaguiStyleSites.js';
+import { attributeValueOf, isTokenValue } from './tamaguiTokenValues.js';
 
 /** The radius steps a class suffix or token name may be. */
 const STEPS = ['sm', 'md', 'lg', 'xl', 'full'] as const;
@@ -122,6 +129,7 @@ export function offScaleRadiusIn(file: string, text: string): readonly Offender[
     const source = parseModule(file, text);
     const glyph = GLYPH_PATTERN.test(text);
     const found: Offender[] = [];
+    const styledNames = tamaguiStyledNames(source);
 
     const report = (node: ts.Node, offending: string): void => {
         const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
@@ -139,6 +147,11 @@ export function offScaleRadiusIn(file: string, text: string): readonly Offender[
     }
 
     const visit = (node: ts.Node): void => {
+        if (isTamaguiStyledCall(node, styledNames)) {
+            // Judged by `tamaguiRadiusFindings`, where a radius is a `$` token and not a `radius.md` reference.
+            return;
+        }
+
         if (ts.isPropertyAssignment(node) && RADIUS_PROPERTY.test(node.name.getText(source))) {
             if (!isOnScaleValue(node.initializer, glyph)) {
                 report(node, node.getText(source).replace(/\s+/gu, ' '));
@@ -177,4 +190,37 @@ export function offScaleRadiusUnder(): readonly string[] {
             (hit) => `${hit.file}:${String(hit.line)}  ${hit.text}`,
         ),
     );
+}
+
+/**
+ * Every radius on a Tamagui element, or in a Tamagui `styled(…)` object, that is not a `$` token naming a radius step,
+ * plus every `styled(…)` part the walk cannot read. ⚠️ Only the long prop names are read, as the other Tamagui style
+ * guards do: a shorthand is not seen. Pure, given `styledExportsOf`.
+ *
+ * @param source - The module's text.
+ * @param fileName - Its path.
+ * @param styledExportsOf - Which names a design-system subpath exports as Tamagui `styled(…)` components.
+ * @param radiusKeys - The keys of `tamaguiTokens.radius` (`tamaguiScaleKeys.ts`), which a `$` token must name.
+ * @returns One `file:line text` entry per finding.
+ */
+export function tamaguiRadiusFindings(
+    source: string,
+    fileName: string,
+    styledExportsOf: StyledExportsOf,
+    radiusKeys: ReadonlySet<string>,
+): readonly string[] {
+    const isRadiusToken = (token: string): boolean => token.startsWith('$') && radiusKeys.has(token.slice(1));
+
+    return styleSiteFindings(source, fileName, styledExportsOf, {
+        attribute: (attribute, file) => {
+            if (!ts.isJsxAttribute(attribute) || !RADIUS_PROPERTY.test(attribute.name.getText(file))) {
+                return false;
+            }
+
+            const value = attributeValueOf(attribute);
+
+            return value === undefined || !isTokenValue(value, isRadiusToken);
+        },
+        property: ({ key, value }) => RADIUS_PROPERTY.test(key) && !isTokenValue(value, isRadiusToken),
+    });
 }

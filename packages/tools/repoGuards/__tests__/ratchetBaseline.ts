@@ -4,10 +4,16 @@
  *
  * - {@link over}: no file above its recorded count, and no unrecorded file with any.
  * - {@link stale}: no file recorded above its true count, so a drop is written down in the same change.
- * - {@link referenceBaseline} and {@link raisedAgainst}: the baseline itself only falls, measured against a REFERENCE: the baseline on
- *   `origin/main`, the merge target, or until it reaches main, the baseline as first committed in this history. Neither
- *   depends on one commit staying reachable, so a squash, a rebase or a deleted branch does not break the rule. A
- *   shallow clone, or one without `origin/main`, throws with the command to fetch, never a silent pass.
+ * - {@link baselineHistory} and {@link raisedAgainst}: the baseline itself only falls. No file's count is ever above
+ *   the LOWEST count any version of the baseline in this history recorded for it, the copy on `origin/main` included.
+ *   A file absent from a version counts 0 there, so a file the first version did not list can never appear, and a file
+ *   that fell to zero can never come back. Comparing with one version only (the first, or main's) let a count that fell
+ *   be raised back on a long-lived branch. Nothing depends on one commit staying reachable, so a squash, a rebase or a
+ *   deleted branch does not break the rule. A shallow clone, or one without `origin/main`, throws with the command to
+ *   fetch, never a silent pass.
+ * - One rise is allowed: a RECOUNT. When the current detector finds the higher count in the file as it stood at the
+ *   version that holds the lowest count, the detector learned a shape, and no styling was added. That is how a detector
+ *   change re-records the code it now sees, with no override to write, review or expire.
  */
 import { execFileSync } from 'node:child_process';
 
@@ -17,6 +23,18 @@ import { repoRoot } from './serviceSources.js';
 export type FileCounts = Readonly<Record<string, number>>;
 
 /**
+ * Every file whose count is above its recorded one, with both counts (an unrecorded file counts as recorded 0). Pure.
+ *
+ * @param actual - The counts now.
+ * @param recorded - The counts recorded.
+ */
+function risesOf(actual: FileCounts, recorded: FileCounts): readonly (readonly [string, number, number])[] {
+    return Object.entries(actual)
+        .filter(([file, count]) => count > (recorded[file] ?? 0))
+        .map(([file, count]) => [file, count, recorded[file] ?? 0] as const);
+}
+
+/**
  * Every file whose count is above its recorded one (an unrecorded file counts as recorded 0). Pure.
  *
  * @param actual - The counts now.
@@ -24,9 +42,7 @@ export type FileCounts = Readonly<Record<string, number>>;
  * @returns One line per file over.
  */
 export function over(actual: FileCounts, recorded: FileCounts): string[] {
-    return Object.entries(actual)
-        .filter(([file, count]) => count > (recorded[file] ?? 0))
-        .map(([file, count]) => `${file}: ${count} > ${recorded[file] ?? 0}`);
+    return risesOf(actual, recorded).map(([file, count, before]) => `${file}: ${count} > ${before}`);
 }
 
 /**
@@ -55,22 +71,22 @@ function git(args: readonly string[]): string | undefined {
     }
 }
 
-/** The baseline a committed one may only fall from, and where it was read. */
-export interface Reference<T> {
-    readonly source: string;
+/** One committed version of a baseline: the revision it was read at, and what it recorded. */
+export interface BaselineVersion<T> {
+    readonly revision: string;
     readonly baseline: T;
 }
 
 /**
- * The reference for a committed baseline. `undefined` only when no commit in this history adds the baseline, which a
- * ratchet refuses.
+ * Every committed version of a baseline reachable from HEAD, newest first, plus the copy on `origin/main` when it has
+ * one. Empty only when no commit in this history holds the baseline, which a ratchet refuses.
  *
  * @param baselinePath - The baseline's repo-relative path.
- * @returns The reference and where it came from.
+ * @returns The versions.
  * @sideEffect Reads git history.
  * @throws Error when the clone is shallow or has no `origin/main`, which would make the rule pass on nothing.
  */
-export function referenceBaseline<T>(baselinePath: string): Reference<T> | undefined {
+export function baselineHistory<T>(baselinePath: string): readonly BaselineVersion<T>[] {
     if (git(['rev-parse', '--is-shallow-repository'])?.trim() === 'true') {
         throw new Error('This clone is shallow, so the baseline history cannot be read: run git fetch --unshallow.');
     }
@@ -81,34 +97,91 @@ export function referenceBaseline<T>(baselinePath: string): Reference<T> | undef
         );
     }
 
-    const onMain = git(['show', `origin/main:${baselinePath}`]);
-
-    if (onMain !== undefined) {
-        return { source: 'origin/main', baseline: JSON.parse(onMain) as T };
-    }
-
-    const [introduced] = (git(['log', '--diff-filter=A', '--reverse', '--format=%H', '--', baselinePath]) ?? '')
+    // No `--follow`: git's similarity detection reads one baseline JSON as a copy of the other, which would mix two
+    // ratchets' counts. So a MOVED baseline starts a new history at its new path; moving one is a reviewed change.
+    const revisions = (git(['log', '--format=%H', '--', baselinePath]) ?? '')
         .split('\n')
         .filter((line) => line.length > 0);
-    const first = introduced === undefined ? undefined : git(['show', `${introduced}:${baselinePath}`]);
 
-    return first === undefined || introduced === undefined
-        ? undefined
-        : { source: introduced, baseline: JSON.parse(first) as T };
+    return [...revisions, 'origin/main'].flatMap((revision) => {
+        const text = git(['show', `${revision}:${baselinePath}`]);
+
+        return text === undefined ? [] : [{ revision, baseline: JSON.parse(text) as T }];
+    });
+}
+
+/** The current detector's count for one file, given that file's source. */
+export type Recount = (file: string, source: string) => number;
+
+/** One file's source at a git revision, or `undefined` when it did not exist there. */
+export type SourceAt = (revision: string, file: string) => string | undefined;
+
+/** {@link SourceAt} over this repository's history. */
+export const gitSourceAt: SourceAt = (revision, file) => git(['show', `${revision}:${file}`]);
+
+/** A file's lowest recorded count, and the newest version that recorded it. */
+interface Lowest {
+    readonly count: number;
+    readonly revision: string;
 }
 
 /**
- * Every count a committed baseline raised against its reference, each tagged with where the reference was read. Pure.
+ * Each file's lowest count across the versions (a file absent from a version counts 0 there), and the newest version
+ * that holds it. Pure.
+ */
+function lowestCounts<T>(
+    history: readonly BaselineVersion<T>[],
+    pick: (baseline: T) => FileCounts,
+    files: readonly string[],
+): ReadonlyMap<string, Lowest> {
+    return new Map(
+        files.map((file) => {
+            const lowest = history.reduce<Lowest | undefined>((found, { revision, baseline }) => {
+                const count = pick(baseline)[file] ?? 0;
+
+                return found === undefined || count < found.count ? { count, revision } : found;
+            }, undefined);
+
+            return [file, lowest ?? { count: 0, revision: 'no committed baseline' }];
+        }),
+    );
+}
+
+/**
+ * Every count a committed baseline raised above the lowest count its history recorded, except a recount. Pure, given
+ * `sourceAt`.
  *
- * @param reference - The reference baseline and its source.
- * @param pairs - Each committed map with the reference's matching map.
- * @returns One line per raised count or added path.
+ * @param history - The baseline's committed versions, newest first ({@link baselineHistory}).
+ * @param pairs - Each committed map, the matching map of a version, and optionally the detector that recounts it.
+ * @param sourceAt - Reads a file at a revision. Defaults to git.
+ * @returns One line per refused count.
  */
 export function raisedAgainst<T>(
-    reference: Reference<T>,
-    pairs: readonly (readonly [committed: FileCounts, pick: (baseline: T) => FileCounts])[],
+    history: readonly BaselineVersion<T>[],
+    pairs: readonly (readonly [committed: FileCounts, pick: (baseline: T) => FileCounts, recount?: Recount])[],
+    sourceAt: SourceAt = gitSourceAt,
 ): string[] {
-    return pairs
-        .flatMap(([committed, pick]) => over(committed, pick(reference.baseline)))
-        .map((line) => `${line} (the reference is ${reference.source})`);
+    return pairs.flatMap(([committed, pick, recount]) => {
+        const lowest = lowestCounts(history, pick, Object.keys(committed));
+        const recorded = Object.fromEntries([...lowest].map(([file, { count }]) => [file, count]));
+
+        return risesOf(committed, recorded).flatMap(([file, count, before]) => {
+            const { revision } = lowest.get(file) ?? { revision: 'no committed baseline' };
+            const head = `${file}: ${count} > ${before} (lowest at ${revision}`;
+
+            if (recount === undefined) {
+                return [`${head})`];
+            }
+
+            const source = sourceAt(revision, file);
+
+            if (source === undefined) {
+                return [`${head}, where the file did not exist)`];
+            }
+
+            const then = recount(file, source);
+
+            return count > then ? [`${head}, where the current detector counts ${then})`] : [];
+        });
+    });
 }

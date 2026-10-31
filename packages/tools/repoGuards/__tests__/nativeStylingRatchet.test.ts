@@ -12,8 +12,8 @@
  *   native file is therefore styled with Tamagui from its first line.
  * - A file that drops below its count fails until the count is lowered in the same change, so the number recorded is
  *   always true. A file that reaches zero leaves the baseline.
- * - The baseline itself only falls, against its reference baseline (`ratchetBaseline.ts`): no count above it and no
- *   path added to it, so a count cannot be raised by re-recording. A rename makes a new path, which cannot carry a
+ * - The baseline itself only falls (`ratchetBaseline.ts`): no count above the lowest any version of the baseline in this
+ *   history recorded, and no path added to it, so a count cannot be raised by re-recording. A rename makes a new path, which cannot carry a
  *   count, so an unmigrated file is migrated before it moves.
  * - The first recording was proven once, by hand: every listed file existed at `5979abcd5` with at least its listed
  *   count (the GATE on the commit that added the baseline, and ADR-0080). That proof is a record, not a live check.
@@ -33,7 +33,7 @@ import { parseModule } from './appSources.js';
 import { valueBindingsOf } from './moduleBindings.js';
 import { nativeSources } from './nativeSources.js';
 import { nativeStylingUses, type NativeStylingUses } from './nativeStyling.js';
-import { over, raisedAgainst, referenceBaseline, stale } from './ratchetBaseline.js';
+import { over, raisedAgainst, baselineHistory, stale } from './ratchetBaseline.js';
 import { repoRoot } from './serviceSources.js';
 import { TAMAGUI_MODULE } from './tamaguiElements.js';
 
@@ -108,19 +108,23 @@ describe('React Native styling only falls (ADR-0080)', () => {
         expect(mixed).toEqual([]);
     });
 
-    it('only lowers the baseline: no count above the reference, and no path added to it', () => {
-        const reference = referenceBaseline<Baseline>(BASELINE_PATH);
+    it('only lowers the baseline: no count above the lowest its history recorded, and no path added to it', () => {
+        const history = baselineHistory<Baseline>(BASELINE_PATH);
 
-        // The baseline is committed, so a reference always exists; none means the history read failed.
-        expect(reference, 'no committed baseline found in history').toBeDefined();
+        // The baseline is committed, so its history is never empty; an empty one means the history read failed.
+        expect(history.length, 'no committed baseline found in history').toBeGreaterThan(0);
 
-        if (reference === undefined) {
-            return;
-        }
-
-        const raised = raisedAgainst(reference, [
-            [baseline.files, (reference) => reference.files],
-            [baseline.adapterExemptions, (reference) => reference.adapterExemptions],
+        const raised = raisedAgainst(history, [
+            [
+                baseline.files,
+                (version) => version.files,
+                (file, source) => nativeStylingUses(source, file).counted.length,
+            ],
+            [
+                baseline.adapterExemptions,
+                (version) => version.adapterExemptions,
+                (file, source) => nativeStylingUses(source, file).exempt.length,
+            ],
         ]);
 
         expect(raised).toEqual([]);

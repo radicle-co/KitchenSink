@@ -16,6 +16,8 @@ export interface ModuleBindings {
     readonly specifiers: ReadonlyMap<string, readonly ts.ImportSpecifier[]>;
     /** The local names of namespace imports (`import * as RN`). */
     readonly namespaces: ReadonlySet<string>;
+    /** Each default import's local name and its node (`import T from …`). */
+    readonly defaults: ReadonlyMap<string, ts.Identifier>;
     /** Whether the module has any value import of a matched module. */
     readonly imported: boolean;
 }
@@ -42,6 +44,7 @@ export function valueBindingsOf(file: ts.SourceFile, matches: (specifier: string
     const locals = new Map<string, Set<string>>();
     const specifiers = new Map<string, ts.ImportSpecifier[]>();
     const namespaces = new Set<string>();
+    const defaults = new Map<string, ts.Identifier>();
     let imported = false;
 
     for (const statement of file.statements) {
@@ -55,6 +58,10 @@ export function valueBindingsOf(file: ts.SourceFile, matches: (specifier: string
         }
 
         imported = true;
+
+        if (statement.importClause?.name !== undefined) {
+            defaults.set(statement.importClause.name.text, statement.importClause.name);
+        }
 
         const bindings = statement.importClause?.namedBindings;
 
@@ -77,7 +84,7 @@ export function valueBindingsOf(file: ts.SourceFile, matches: (specifier: string
         }
     }
 
-    return { locals, specifiers, namespaces, imported };
+    return { locals, specifiers, namespaces, defaults, imported };
 }
 
 /**
@@ -98,6 +105,46 @@ export function localsOf(bindings: ModuleBindings, name: string): ReadonlySet<st
  */
 export function specifiersOf(bindings: ModuleBindings, name: string): readonly ts.ImportSpecifier[] {
     return bindings.specifiers.get(name) ?? [];
+}
+
+/** What a module re-exports, as values, from the matched modules. */
+export interface ReExports {
+    /** Each name re-exported (`export { View, Text as T } from …`). */
+    readonly named: readonly ts.ExportSpecifier[];
+    /** Each `export * from …` and `export * as NS from …`. */
+    readonly everything: readonly ts.ExportDeclaration[];
+}
+
+/**
+ * Every value re-export of the matched modules in one file. A type-only re-export, or a type-only name inside one,
+ * re-exports nothing a program can run. Pure.
+ *
+ * @param file - The parsed module.
+ * @param matches - Which module specifiers to read.
+ * @returns The re-exports.
+ */
+export function reExportsOf(file: ts.SourceFile, matches: (specifier: string) => boolean): ReExports {
+    const declarations = file.statements.filter(
+        (statement): statement is ts.ExportDeclaration =>
+            ts.isExportDeclaration(statement) &&
+            !statement.isTypeOnly &&
+            statement.moduleSpecifier !== undefined &&
+            ts.isStringLiteral(statement.moduleSpecifier) &&
+            matches(statement.moduleSpecifier.text),
+    );
+
+    return {
+        named: declarations.flatMap((declaration) => {
+            const clause = declaration.exportClause;
+
+            return clause !== undefined && ts.isNamedExports(clause)
+                ? clause.elements.filter((element) => !element.isTypeOnly)
+                : [];
+        }),
+        everything: declarations.filter(
+            (declaration) => declaration.exportClause === undefined || ts.isNamespaceExport(declaration.exportClause),
+        ),
+    };
 }
 
 /** Whether a specifier is `react-native`. */

@@ -22,8 +22,16 @@ import path from 'node:path';
 import { globSync } from 'glob';
 import { describe, expect, it } from 'vitest';
 
-import { colourFindings, realUnthemedColourNames, unthemedColourNames, type ColourFinding } from './colourRoles.js';
+import {
+    colourFindings,
+    realUnthemedColourNames,
+    tamaguiColourFindings,
+    unthemedColourNames,
+    type ColourFinding,
+} from './colourRoles.js';
 import { repoRoot } from './serviceSources.js';
+import { designSystemStyledExports } from './tamaguiElements.js';
+import { themeColourKeys } from './tamaguiScaleKeys.js';
 
 const FIXTURE_COLOURS = `
 export const palette = { seafoam: '#31807A', 'ocean-dark': '#2A6B65', white: '#FFFFFF' } as const;
@@ -88,6 +96,93 @@ describe('the colour reader', () => {
             expect(kinds(source)).toEqual(expected);
         });
     }
+});
+
+/**
+ * Tamagui colours (ADR-0080): a colour on a Tamagui element, or in a Tamagui `styled(…)` object, is a theme token, `$`
+ * and a key of the themes. Anything else (a hex, a palette read, a variable, a cast) bakes one theme in, or hides what
+ * it is from this reader, so it is refused.
+ */
+describe('the Tamagui colour reader', () => {
+    const keys = new Set(['paper', 'ink', 'inkMuted']);
+    const head = `import { styled, View, Text } from 'tamagui';\n`;
+    const none = (): ReadonlySet<string> => new Set();
+
+    const cases: readonly (readonly [string, string, number])[] = [
+        ['a theme token', `<View backgroundColor="$paper" />`, 0],
+        ['a token that is not a theme key', `<View backgroundColor="$nope" />`, 1],
+        ['a name with no $', `<View backgroundColor="paper" />`, 1],
+        ['a hex', `<View backgroundColor="#fff" />`, 1],
+        ['an rgba', `<Text color="rgba(0,0,0,1)" />`, 1],
+        ['transparent', `<View backgroundColor="transparent" />`, 0],
+        ['a state modifier over tokens', `<View backgroundColor="$paper press:$ink" />`, 0],
+        ['a state modifier over a hex', `<View backgroundColor="$paper press:#000" />`, 1],
+        ['a state modifier over an unknown token', `<View backgroundColor="$paper hover:$nope" />`, 1],
+        ['a token with an opacity suffix', `<Text color="$ink/50" />`, 0],
+        ['a token with an out-of-range opacity suffix', `<Text color="$ink/500" />`, 1],
+        ['a choice between tokens', `<View backgroundColor={on ? '$paper' : '$ink'} />`, 0],
+        ['a choice with a hex in one branch', `<View backgroundColor={on ? '$paper' : '#000'} />`, 1],
+        ['the object form of tokens', `<View backgroundColor={{ base: '$paper', disabled: '$ink' }} />`, 0],
+        ['the object form with a hex', `<View backgroundColor={{ base: '$paper', disabled: '#ccc' }} />`, 1],
+        ['a cast hex', `<View backgroundColor={'#fff' as ColorTokens} />`, 1],
+        ['a cast token', `<View backgroundColor={'$paper' as ColorTokens} />`, 1],
+        ['a satisfies-wrapped token', `<View backgroundColor={'$paper' satisfies string} />`, 1],
+        ['a palette read', `<View backgroundColor={palette.seafoam} />`, 1],
+        ['a variable', `<View backgroundColor={fill} />`, 1],
+        ['a template with a substitution', '<View backgroundColor={`$${tone}`} />', 1],
+        ['every border colour', `<View borderTopColor="#000" borderColor="#111" />`, 2],
+        ['a placeholder colour', `<Text placeholderTextColor="#999" />`, 1],
+        ['a shadow colour', `<View shadowColor="#000" />`, 1],
+        ['a prop that is not a colour', `<View padding="$2" accessibilityLabel="#fff" />`, 0],
+        ['a styled() hex', `const P = styled(View, { backgroundColor: '#fff' });`, 1],
+        ['a styled() token', `const P = styled(View, { backgroundColor: '$paper', borderColor: '$ink' });`, 0],
+        [
+            'a styled() variant hex',
+            `const P = styled(View, { variants: { on: { true: { backgroundColor: '#fff' } } } });`,
+            1,
+        ],
+        ['a styled() variant token', `const P = styled(View, { variants: { on: { true: { color: '$ink' } } } });`, 0],
+        ['a styled() object form with a hex', `const P = styled(View, { color: { base: '$ink', press: '#000' } });`, 1],
+        ['a styled() cast', `const P = styled(View, { color: '$ink' as ColorTokens });`, 1],
+        ['a styled() palette read', `const P = styled(View, { color: palette.ink });`, 1],
+        ['a styled() config the walk cannot read', `const P = styled(View, shared);`, 1],
+        ['a styled() spread', `const P = styled(View, { ...shared, color: '$ink' });`, 1],
+        [
+            'a colour on a React Native element is not this rule',
+            `import { View as RNV } from 'react-native';\n<RNV backgroundColor="#fff" />`,
+            0,
+        ],
+    ];
+
+    it.each(cases)('%s', (_shape, body, expected) => {
+        expect(tamaguiColourFindings(head + body, 'fixture.tsx', none, keys)).toHaveLength(expected);
+    });
+
+    it('reads a design-system styled export as a Tamagui element', () => {
+        const source = `import { Text } from '@commise/ui/text';\n<Text color="#fff" />`;
+        const styled = (subpath: string): ReadonlySet<string> =>
+            subpath === '@commise/ui/text' ? new Set(['Text']) : new Set();
+
+        expect(tamaguiColourFindings(source, 'fixture.tsx', styled, keys)).toHaveLength(1);
+    });
+
+    it('takes the theme keys from the registered light theme: roles and surface tones', () => {
+        expect(themeColourKeys.has('paper')).toBe(true);
+        expect(themeColourKeys.has('nope')).toBe(false);
+    });
+
+    it('finds no Tamagui colour outside the theme tokens in any component', () => {
+        const findings = componentSources().flatMap((file) =>
+            tamaguiColourFindings(
+                readFileSync(path.join(repoRoot, file), 'utf8'),
+                file,
+                designSystemStyledExports,
+                themeColourKeys,
+            ),
+        );
+
+        expect(findings).toEqual([]);
+    });
 });
 
 /** The files a component lives in: every app source module but tokens, test support and tests. */

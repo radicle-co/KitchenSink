@@ -9,7 +9,13 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { parseModule } from './appSources.js';
-import { styledExportsReader, tamaguiElementNames } from './tamaguiElements.js';
+import {
+    styledExportsReader,
+    styledKindsReader,
+    tamaguiElementKinds,
+    tamaguiElementNames,
+    type TamaguiKind,
+} from './tamaguiElements.js';
 
 const designSystemStyled = (subpath: string): ReadonlySet<string> =>
     subpath === '@commise/ui/text' ? new Set(['Text']) : new Set();
@@ -39,6 +45,50 @@ describe('tamaguiElementNames', () => {
         ],
     ] as const)('%s', (_shape, source, expected) => {
         expect(namesIn(source)).toEqual(expected);
+    });
+});
+
+const designSystemKinds = (subpath: string): ReadonlyMap<string, TamaguiKind> =>
+    subpath === '@commise/ui/text' ? new Map<string, TamaguiKind>([['Text', 'text']]) : new Map<string, TamaguiKind>();
+
+function kindsIn(source: string): Readonly<Record<string, TamaguiKind>> {
+    return Object.fromEntries([...tamaguiElementKinds(parseModule('fixture.tsx', source), designSystemKinds)].sort());
+}
+
+describe('tamaguiElementKinds', () => {
+    it.each([
+        [
+            'each View-like export',
+            `import { View, Stack, XStack, YStack, ZStack, ScrollView } from 'tamagui';`,
+            { ScrollView: 'view', Stack: 'view', View: 'view', XStack: 'view', YStack: 'view', ZStack: 'view' },
+        ],
+        ['Text', `import { Text } from 'tamagui';`, { Text: 'text' }],
+        ['a Tamagui element no guard classifies', `import { Button } from 'tamagui';`, { Button: 'other' }],
+        ['a renamed View', `import { View as Box } from 'tamagui';`, { Box: 'view' }],
+        [
+            'a namespace member',
+            `import * as T from 'tamagui';\nconst a = <T.View />; const b = <T.Text />;`,
+            { 'T.Text': 'text', 'T.View': 'view' },
+        ],
+        [
+            'a styled() by its base',
+            `import { styled, View, Text } from 'tamagui';\nconst A = styled(View, {}); const B = styled(Text, {});`,
+            { A: 'view', B: 'text', Text: 'text', View: 'view' },
+        ],
+        [
+            'a styled() chain, declared out of order',
+            `import { styled, XStack } from 'tamagui';\nconst C = styled(B, {}); const B = styled(A, {}); const A = styled(XStack, {});`,
+            { A: 'view', B: 'view', C: 'view', XStack: 'view' },
+        ],
+        [
+            'a styled() over something that is not Tamagui',
+            `import { styled } from 'tamagui';\nconst A = styled(Other, {});`,
+            { A: 'other' },
+        ],
+        ['a design-system export, by its own kind', `import { Text } from '@commise/ui/text';`, { Text: 'text' }],
+        ['a type-only import', `import type { View } from 'tamagui';`, {}],
+    ] as const)('%s', (_shape, source, expected) => {
+        expect(kindsIn(source)).toEqual(expected);
     });
 });
 
@@ -86,6 +136,7 @@ describe('styledExportsReader', () => {
     write('src/theme/index.ts', `export const useTheme = () => null;\n`);
 
     const read = styledExportsReader(root);
+    const readKinds = styledKindsReader(root);
 
     afterAll(() => {
         rmSync(root, { recursive: true, force: true });
@@ -100,5 +151,11 @@ describe('styledExportsReader', () => {
         ['an unknown subpath', '@commise/ui/missing', []],
     ] as const)('%s', (_shape, subpath, expected) => {
         expect([...read(subpath)].sort()).toEqual(expected);
+    });
+
+    it('reads each export by its base: a styled(Text) is a text, a styled(View) a view, through re-exports', () => {
+        expect(Object.fromEntries(readKinds('@commise/ui/text'))).toEqual({ Text: 'text' });
+        expect(Object.fromEntries(readKinds('@commise/ui/pill'))).toEqual({ Pill: 'view' });
+        expect(Object.fromEntries(readKinds('@commise/ui/chain'))).toEqual({ Renamed: 'view' });
     });
 });

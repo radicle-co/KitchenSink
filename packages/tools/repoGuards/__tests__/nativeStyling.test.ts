@@ -58,6 +58,21 @@ const rows: readonly Row[] = [
         source: `const StyleSheet = { create: (x: object) => x };\nconst s = StyleSheet.create({ a: {} });`,
         counted: 0,
     },
+    {
+        shape: 'StyleSheet rebound to another name counts once',
+        source: `import { StyleSheet } from 'react-native';\nconst SS = StyleSheet;\nconst s = SS.create({ a: {} });`,
+        counted: 1,
+    },
+    {
+        shape: 'a member destructured off StyleSheet counts once',
+        source: `import { StyleSheet } from 'react-native';\nconst { create } = StyleSheet;`,
+        counted: 1,
+    },
+    {
+        shape: 'a namespace StyleSheet rebound counts once',
+        source: `import * as RN from 'react-native';\nconst SS = RN.StyleSheet;`,
+        counted: 1,
+    },
     { shape: 'an inline style object', source: `const v = <View style={{ padding: 4 }} />;`, counted: 1 },
     { shape: 'a style array', source: `const v = <View style={[a, b]} />;`, counted: 1 },
     { shape: 'a style reference', source: `const v = <View style={styles.x} />;`, counted: 1 },

@@ -12,9 +12,15 @@
  *   native file is therefore styled with Tamagui from its first line.
  * - A file that drops below its count fails until the count is lowered in the same change, so the number recorded is
  *   always true. A file that reaches zero leaves the baseline.
- * - Every listed file existed at {@link RECORDED_AT}, with at least its listed count. A count cannot be raised by
- *   re-recording, and a new file cannot be added to the list. A rename makes a new path, which cannot carry a count, so
- *   an unmigrated file is migrated before it moves.
+ * - The baseline itself only falls. Each count is at most the one in the REFERENCE baseline, and no path is added to
+ *   it, so a count cannot be raised by re-recording. A rename makes a new path, which cannot carry a count, so an
+ *   unmigrated file is migrated before it moves. The reference is the baseline on `origin/main`, the merge target.
+ *   Until the baseline reaches main, it is the baseline as first committed, found from history (`git log
+ *   --diff-filter=A`), so a long-lived branch is held too. Neither depends on one commit staying reachable, so a squash,
+ *   a rebase or a deleted branch does not break the rule. A shallow clone, or a clone without `origin/main`, fails with
+ *   the command to fetch, never a silent pass.
+ * - The first recording was proven once, by hand: every listed file existed at `5979abcd5` with at least its listed
+ *   count (the GATE on the commit that added the baseline, and ADR-0080). That proof is a record, not a live check.
  * - A file that imports Tamagui is migrated whole: its count is zero. No file mixes the two.
  * - `// NATIVE-STYLE-ADAPTER: <reason>` is honoured only in `ui/src`, for an Adapter over a style surface with no
  *   Tamagui path yet. Those uses are held in their own count, which also only falls.
@@ -26,21 +32,18 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 import { parseModule } from './appSources.js';
+import { valueBindingsOf } from './moduleBindings.js';
 import { nativeSources } from './nativeSources.js';
 import { nativeStylingUses, type NativeStylingUses } from './nativeStyling.js';
 import { repoRoot } from './serviceSources.js';
+import { TAMAGUI_MODULE } from './tamaguiElements.js';
 
-/**
- * The commit the baseline was measured at. Changing it is a re-record, which the provenance rule makes unable to raise a
- * count; changing it at all is a decision a reviewer sees here.
- */
-const RECORDED_AT = '5979abcd5efc8557f51d7fcd2c06c4add5d0442d';
+const BASELINE_PATH = 'packages/tools/repoGuards/__tests__/nativeStylingBaseline.json';
 
-const BASELINE_FILE = path.join(import.meta.dirname, 'nativeStylingBaseline.json');
+const BASELINE_FILE = path.join(repoRoot, BASELINE_PATH);
 
 interface Baseline {
     readonly files: Readonly<Record<string, number>>;
@@ -78,19 +81,14 @@ function stale(actual: Readonly<Record<string, number>>, recorded: Readonly<Reco
 }
 
 function importsTamagui(file: string): boolean {
-    return parseModule(file, readFileSync(path.join(repoRoot, file), 'utf8')).statements.some(
-        (statement) =>
-            ts.isImportDeclaration(statement) &&
-            ts.isStringLiteral(statement.moduleSpecifier) &&
-            /^(?:tamagui|@tamagui\/[^/]+)$/u.test(statement.moduleSpecifier.text) &&
-            statement.importClause !== undefined &&
-            !statement.importClause.isTypeOnly,
-    );
+    return valueBindingsOf(parseModule(file, readFileSync(path.join(repoRoot, file), 'utf8')), (specifier) =>
+        TAMAGUI_MODULE.test(specifier),
+    ).imported;
 }
 
-function sourceAt(commit: string, file: string): string | undefined {
+function git(args: readonly string[]): string | undefined {
     try {
-        return execFileSync('git', ['show', `${commit}:${file}`], {
+        return execFileSync('git', args, {
             cwd: repoRoot,
             encoding: 'utf8',
             maxBuffer: 1 << 26,
@@ -99,6 +97,44 @@ function sourceAt(commit: string, file: string): string | undefined {
     } catch {
         return undefined;
     }
+}
+
+/** The baseline the committed one may only fall from, and where it was read. */
+interface Reference {
+    readonly source: string;
+    readonly baseline: Baseline;
+}
+
+/**
+ * The reference baseline: `origin/main`'s, or until the baseline reaches main, the one first committed in this
+ * history. `undefined` only when no commit in this history adds the baseline, which the test refuses.
+ *
+ * @sideEffect Reads git history.
+ * @throws Error when the clone is shallow or has no `origin/main`, which would make the rule pass on nothing.
+ */
+function referenceBaseline(): Reference | undefined {
+    if (git(['rev-parse', '--is-shallow-repository'])?.trim() === 'true') {
+        throw new Error('This clone is shallow, so the baseline history cannot be read: run git fetch --unshallow.');
+    }
+
+    if (git(['rev-parse', '--verify', '--quiet', 'origin/main']) === undefined) {
+        throw new Error(
+            'origin/main is not in this clone, so the baseline has no reference: run git fetch origin main.',
+        );
+    }
+
+    const onMain = git(['show', `origin/main:${BASELINE_PATH}`]);
+
+    if (onMain !== undefined) {
+        return { source: 'origin/main', baseline: JSON.parse(onMain) as Baseline };
+    }
+
+    const [introduced] = (git(['log', '--diff-filter=A', '--reverse', '--format=%H', '--', BASELINE_PATH]) ?? '')
+        .split('\n')
+        .filter((line) => line.length > 0);
+    const first = introduced === undefined ? undefined : git(['show', `${introduced}:${BASELINE_PATH}`]);
+
+    return first === undefined ? undefined : { source: introduced ?? '', baseline: JSON.parse(first) as Baseline };
 }
 
 describe('React Native styling only falls (ADR-0080)', () => {
@@ -139,25 +175,21 @@ describe('React Native styling only falls (ADR-0080)', () => {
         expect(mixed).toEqual([]);
     });
 
-    it(`lists only files that existed at ${RECORDED_AT.slice(0, 9)}, at no more than their count there`, () => {
-        const unproven = Object.entries({ ...baseline.files, ...baseline.adapterExemptions }).flatMap(
-            ([file, count]) => {
-                const before = sourceAt(RECORDED_AT, file);
+    it('only lowers the baseline: no count above the reference, and no path added to it', () => {
+        const reference = referenceBaseline();
 
-                if (before === undefined) {
-                    return [
-                        `${file}: not readable at ${RECORDED_AT}. A new or renamed file cannot carry a count; if the ` +
-                            `commit is missing, fetch full history (git fetch --unshallow).`,
-                    ];
-                }
+        // The baseline is committed, so a reference always exists; none means the history read failed.
+        expect(reference, 'no committed baseline found in history').toBeDefined();
 
-                const uses = nativeStylingUses(before, file);
-                const then = uses.counted.length + uses.exempt.length;
+        if (reference === undefined) {
+            return;
+        }
 
-                return count > then ? [`${file}: recorded ${count}, but ${then} at ${RECORDED_AT}`] : [];
-            },
-        );
+        const raised = [
+            ...over(baseline.files, reference.baseline.files),
+            ...over(baseline.adapterExemptions, reference.baseline.adapterExemptions),
+        ].map((line) => `${line} (the reference is ${reference.source})`);
 
-        expect(unproven).toEqual([]);
+        expect(raised).toEqual([]);
     });
 });

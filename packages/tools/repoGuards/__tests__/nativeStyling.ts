@@ -23,6 +23,7 @@
 import ts from 'typescript';
 
 import { parseModule } from './appSources.js';
+import { isReactNative, localsOf, valueBindingsOf } from './moduleBindings.js';
 
 /** One use: the line it is on (1-based) and its text. */
 export interface NativeStylingUse {
@@ -52,39 +53,9 @@ interface StyleSheetBindings {
 }
 
 function styleSheetBindingsOf(file: ts.SourceFile): StyleSheetBindings {
-    const names = new Set<string>();
-    const namespaces = new Set<string>();
+    const bindings = valueBindingsOf(file, isReactNative);
 
-    for (const statement of file.statements) {
-        if (
-            !ts.isImportDeclaration(statement) ||
-            !ts.isStringLiteral(statement.moduleSpecifier) ||
-            statement.moduleSpecifier.text !== 'react-native' ||
-            statement.importClause === undefined ||
-            statement.importClause.isTypeOnly
-        ) {
-            continue;
-        }
-
-        const bindings = statement.importClause.namedBindings;
-
-        if (bindings === undefined) {
-            continue;
-        }
-
-        if (ts.isNamespaceImport(bindings)) {
-            namespaces.add(bindings.name.text);
-            continue;
-        }
-
-        for (const element of bindings.elements) {
-            if (!element.isTypeOnly && (element.propertyName ?? element.name).text === 'StyleSheet') {
-                names.add(element.name.text);
-            }
-        }
-    }
-
-    return { names, namespaces };
+    return { names: localsOf(bindings, 'StyleSheet'), namespaces: bindings.namespaces };
 }
 
 function isStyleSheet(expression: ts.Expression, { names, namespaces }: StyleSheetBindings): boolean {
@@ -98,6 +69,25 @@ function isStyleSheet(expression: ts.Expression, { names, namespaces }: StyleShe
         ts.isIdentifier(expression.expression) &&
         namespaces.has(expression.expression.text)
     );
+}
+
+/**
+ * Whether a node is `StyleSheet` itself, used as a value other than through a member (`const SS = StyleSheet`,
+ * `const { create } = StyleSheet`). Its later member accesses go through another name the detector cannot follow, so
+ * the rebinding counts once instead. Pure.
+ */
+function isBareStyleSheet(node: ts.Expression, bindings: StyleSheetBindings): boolean {
+    const { parent } = node;
+
+    if (!isStyleSheet(node, bindings) || ts.isTypeQueryNode(parent)) {
+        return false;
+    }
+
+    if (ts.isPropertyAccessExpression(parent) && (parent.expression === node || parent.name === node)) {
+        return false;
+    }
+
+    return !ts.isImportSpecifier(parent);
 }
 
 /**
@@ -149,6 +139,10 @@ export function nativeStylingUses(source: string, fileName: string): NativeStyli
             } else {
                 record(node);
             }
+        }
+
+        if (ts.isExpression(node) && isBareStyleSheet(node, bindings)) {
+            record(node);
         }
 
         if (ts.isJsxAttribute(node) && STYLE_ATTRIBUTE.test(node.name.getText(file))) {

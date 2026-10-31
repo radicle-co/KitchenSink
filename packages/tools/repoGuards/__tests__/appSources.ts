@@ -68,6 +68,16 @@ export function parseModule(fileName: string, source: string): ts.SourceFile {
 }
 
 /**
+ * The 1-based line a node starts on, so a guard's finding names the line to change. Pure.
+ *
+ * @param file - The parsed module.
+ * @param node - A node in it.
+ */
+export function lineOf(file: ts.SourceFile, node: ts.Node): number {
+    return file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
+}
+
+/**
  * Every string-like node of a module, in source order: string literals, template fragments (head, middle, tail and the
  * no-substitution form) and JSX text. A comment is none of these.
  *

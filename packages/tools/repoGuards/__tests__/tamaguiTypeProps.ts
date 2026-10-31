@@ -1,0 +1,47 @@
+/**
+ * G4 (ADR-0080): native text is set by type role, and a `styled(…)` line height is a `px` string. See
+ * `tamaguiTypeProps.test.ts` for why.
+ *
+ * @pattern Specification — one predicate over a parsed module
+ */
+import ts from 'typescript';
+
+import type { StyledExportsOf } from './tamaguiElements.js';
+import { styleSiteFindings } from './tamaguiStyleSites.js';
+
+const TYPE_PARTS = new Set(['fontSize', 'lineHeight', 'fontFamily', 'fontWeight', 'letterSpacing']);
+
+const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
+
+const PX = /^\d+(?:\.\d+)?px$/u;
+
+function isPxLineHeight(value: ts.Expression): boolean {
+    if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) {
+        return PX.test(value.text);
+    }
+
+    return ts.isTemplateExpression(value) && (value.templateSpans.at(-1)?.literal.text ?? '').endsWith('px');
+}
+
+/**
+ * Every type part set on a Tamagui element, every spread of the old type styles onto one, and every `styled(…)` line
+ * height that is not a `px` string, in one module. Pure, given `styledExportsOf`.
+ *
+ * @param source - The module's text.
+ * @param fileName - Its path.
+ * @param styledExportsOf - Which names a design-system subpath exports as Tamagui `styled(…)` components.
+ * @returns One `file:line text` entry per finding.
+ */
+export function typePropFindings(
+    source: string,
+    fileName: string,
+    styledExportsOf: StyledExportsOf,
+): readonly string[] {
+    return styleSiteFindings(source, fileName, styledExportsOf, {
+        attribute: (attribute, file) =>
+            ts.isJsxAttribute(attribute)
+                ? TYPE_PARTS.has(attribute.name.getText(file))
+                : OLD_TYPE_STYLES.test(attribute.expression.getText(file)),
+        property: ({ key, value }) => key === 'lineHeight' && !isPxLineHeight(value),
+    });
+}

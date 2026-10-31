@@ -23,6 +23,8 @@
  */
 import ts from 'typescript';
 
+import { isReactNative, localsOf, valueBindingsOf } from './moduleBindings.js';
+
 /** The props that give a View an accessible name or role. */
 const NAMING_PROPS = new Set(['accessibilityLabel', 'aria-label', 'aria-labelledby', 'accessibilityRole', 'role']);
 
@@ -45,47 +47,14 @@ export interface ViewBindings {
 
 /** The {@link ViewBindings} of one file. */
 export function viewBindingsOf(file: ts.SourceFile): ViewBindings {
-    const names = new Set<string>();
-    const animated = new Set<string>();
-    const texts = new Set<string>();
-    const namespaces = new Set<string>();
+    const bindings = valueBindingsOf(file, isReactNative);
 
-    for (const statement of file.statements) {
-        if (
-            !ts.isImportDeclaration(statement) ||
-            !ts.isStringLiteral(statement.moduleSpecifier) ||
-            statement.moduleSpecifier.text !== 'react-native' ||
-            statement.importClause === undefined ||
-            statement.importClause.isTypeOnly
-        ) {
-            continue;
-        }
-
-        const bindings = statement.importClause.namedBindings;
-
-        if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
-            namespaces.add(bindings.name.text);
-            continue;
-        }
-
-        for (const element of bindings?.elements ?? []) {
-            const imported = (element.propertyName ?? element.name).text;
-
-            if (!element.isTypeOnly && imported === 'View') {
-                names.add(element.name.text);
-            }
-
-            if (!element.isTypeOnly && imported === 'Animated') {
-                animated.add(element.name.text);
-            }
-
-            if (!element.isTypeOnly && imported === 'Text') {
-                texts.add(element.name.text);
-            }
-        }
-    }
-
-    return { names, animated, texts, namespaces };
+    return {
+        names: new Set(localsOf(bindings, 'View')),
+        animated: new Set(localsOf(bindings, 'Animated')),
+        texts: new Set(localsOf(bindings, 'Text')),
+        namespaces: new Set(bindings.namespaces),
+    };
 }
 
 /** Whether a JSX tag names React Native's `View` or `Animated.View`, directly or through a namespace import. */

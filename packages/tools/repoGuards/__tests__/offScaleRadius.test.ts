@@ -12,9 +12,21 @@
  * Mutation lens: write `rounded-2xl` in any app file, a `borderRadius: 16`, a `borderRadius: size / 2` or a `999`, and
  * the file and line are listed.
  */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { appSources, isOffScaleClass, offScaleRadiusIn, offScaleRadiusUnder } from './offScaleRadius.js';
+import {
+    appSources,
+    isOffScaleClass,
+    offScaleRadiusIn,
+    offScaleRadiusUnder,
+    tamaguiRadiusFindings,
+} from './offScaleRadius.js';
+import { repoRoot } from './serviceSources.js';
+import { designSystemStyledExports } from './tamaguiElements.js';
+import { radiusTokenKeys } from './tamaguiScaleKeys.js';
 
 const scan = (text: string, file = 'Sample.tsx'): readonly string[] =>
     offScaleRadiusIn(file, text).map((hit) => hit.text);
@@ -130,5 +142,86 @@ describe('radius scale, every app', () => {
                 'borderRadius: GLYPH_CORNER',
             ]);
         });
+    });
+});
+
+// Tamagui (ADR-0080): a radius is a `$` token whose name is a key of `tamaguiTokens.radius`, on an element or in a
+// `styled(…)` object. A number is off the scale here too (`strict` radius in the config makes it a type error; this
+// refuses the cast route), and the generic reader above leaves a `styled(…)` object to this rule, because `'$md'` is a
+// string, not the `radius.md` reference it reads.
+describe('Tamagui radius', () => {
+    const keys = new Set(['sm', 'md', 'full', '0']);
+    const head = `import { styled, View } from 'tamagui';\n`;
+    const none = (): ReadonlySet<string> => new Set();
+
+    it.each([
+        ['a radius token', `<View borderRadius="$md" />`, 0],
+        ['the zero token', `<View borderRadius="$0" />`, 0],
+        ['a token that is not a radius step', `<View borderRadius="$2xl" />`, 1],
+        ['a name with no $', `<View borderRadius="md" />`, 1],
+        ['a number', `<View borderRadius={16} />`, 1],
+        ['a pill written as a number', `<View borderRadius={999} />`, 1],
+        ['a percentage', `<View borderRadius="50%" />`, 1],
+        ['a state modifier over tokens', `<View borderRadius="$sm hover:$md" />`, 0],
+        ['a state modifier over a number', `<View borderRadius="$sm hover:16" />`, 1],
+        ['a choice between tokens', `<View borderRadius={wide ? '$md' : '$full'} />`, 0],
+        ['a choice with a number', `<View borderRadius={wide ? '$md' : 8} />`, 1],
+        ['half the height', `<View borderRadius={HEIGHT / 2} />`, 1],
+        ['a cast token', `<View borderRadius={'$md' as RadiusTokens} />`, 1],
+        ['a variable', `<View borderRadius={r} />`, 1],
+        [
+            'each corner',
+            `<View borderTopLeftRadius={4} borderEndStartRadius="$sm" borderBottomRightRadius="$nope" />`,
+            2,
+        ],
+        ['a prop that is not a radius', `<View borderWidth={4} />`, 0],
+        ['a styled() token', `const P = styled(View, { borderRadius: '$md' });`, 0],
+        ['a styled() number', `const P = styled(View, { borderRadius: 16 });`, 1],
+        ['a styled() cast', `const P = styled(View, { borderRadius: '$md' as RadiusTokens });`, 1],
+        [
+            'a styled() variant number',
+            `const P = styled(View, { variants: { round: { true: { borderRadius: 999 } } } });`,
+            1,
+        ],
+        [
+            'a styled() variant token',
+            `const P = styled(View, { variants: { round: { true: { borderRadius: '$full' } } } });`,
+            0,
+        ],
+        ['a styled() corner number', `const P = styled(View, { borderTopLeftRadius: 24 });`, 1],
+        ['a styled() config the walk cannot read', `const P = styled(View, shared);`, 1],
+        [
+            'a radius on a React Native element is not this rule',
+            `import { View as RNV } from 'react-native';\n<RNV borderRadius={16} />`,
+            0,
+        ],
+    ] as const)('%s', (_shape, body, expected) => {
+        expect(tamaguiRadiusFindings(head + body, 'fixture.tsx', none, keys)).toHaveLength(expected);
+    });
+
+    it('leaves a styled() radius token to this rule, so the generic reader does not call it off the scale', () => {
+        expect(
+            scan(`import { styled, View } from 'tamagui';\nconst P = styled(View, { borderRadius: '$md' });`),
+        ).toEqual([]);
+        expect(scan(`import { styled } from 'other';\nconst P = styled(View, { borderRadius: '$md' });`)).toEqual([
+            "borderRadius: '$md'",
+        ]);
+    });
+
+    it('takes the radius steps from the design system', () => {
+        expect([...radiusTokenKeys].sort()).toEqual(['0', 'full', 'lg', 'md', 'sm', 'xl']);
+    });
+
+    it('finds no off-scale Tamagui radius in the apps', () => {
+        const findings = appSources().flatMap((file) =>
+            tamaguiRadiusFindings(
+                readFileSync(path.join(repoRoot, file), 'utf8'),
+                file,
+                designSystemStyledExports,
+                radiusTokenKeys,
+            ),
+        );
+
+        expect(findings).toEqual([]);
     });
 });

@@ -52,8 +52,8 @@ export default defineConfig({
             // Resolve the shared numeric design scale to its source so the token drift guard runs without a
             // built `@commise/ui/dist` (mirrors the workspace-src aliasing used for the other packages above).
             '@commise/ui/scale': fileURLToPath(new URL('../ui/src/tokens/scale.ts', import.meta.url)),
-            // Same reason: `tamagui.config.ts` reads `palette` and `role` from `@commise/ui/tokens/colors`, whose export
-            // maps to `dist/`. `tests/theme/tamaguiConfig.test.ts` builds the real config, so it needs the source.
+            // Same reason: `@commise/ui/tokens/colors` maps to `dist/`, and the tests that read a role colour need the
+            // source.
             '@commise/ui/tokens/colors': fileURLToPath(new URL('../ui/src/tokens/colors.ts', import.meta.url)),
         },
     },

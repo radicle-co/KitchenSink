@@ -3,7 +3,7 @@
  *
  * Every platform token set is DERIVED from the values here — the web `rem`/px token strings
  * (`spacing.ts`, `radius.ts`, `shadows.ts`, `typography.ts`), the React Native `nativeTokens`
- * (`native.ts`), and the mobile Tamagui `createTokens`/`createFont` ramps (`tamagui.config.ts`). Web
+ * (`native.ts`), and the Tamagui tokens and fonts (`tamagui/tamaguiTokens.ts`, `tamagui/tamaguiFonts.ts`). Web
  * and native therefore cannot drift on a value: there is exactly one place a number lives.
  *
  * Values are deliberately unit-NEUTRAL. Lengths are raw pixels (each consumer applies its own
@@ -48,8 +48,8 @@ export const mediaHeight = {
 } as const;
 
 /**
- * Corner radii in pixels. `full` is a pill sentinel — web emits it as `px` (not `rem`); Tamagui maps
- * it to its highest numeric radius step.
+ * Corner radii in pixels. `full` is a pill sentinel — web emits it as `px` (not `rem`); Tamagui keeps the names, so
+ * it is the `$full` token.
  */
 export const radius = {
     sm: 8,

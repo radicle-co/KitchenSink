@@ -66,8 +66,16 @@ describe('theme colour reads only fall (ADR-0080)', () => {
         }
 
         const raised = raisedAgainst(reference, [
-            [baseline.colourReads, (reference) => reference.colourReads],
-            [baseline.pressReads, (reference) => reference.pressReads],
+            [
+                baseline.colourReads,
+                (reference) => reference.colourReads,
+                (file, source) => themeColourReads(source, file).colour.length,
+            ],
+            [
+                baseline.pressReads,
+                (reference) => reference.pressReads,
+                (file, source) => themeColourReads(source, file).press.length,
+            ],
         ]);
 
         expect(raised).toEqual([]);

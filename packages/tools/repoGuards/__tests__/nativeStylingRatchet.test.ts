@@ -119,8 +119,16 @@ describe('React Native styling only falls (ADR-0080)', () => {
         }
 
         const raised = raisedAgainst(reference, [
-            [baseline.files, (reference) => reference.files],
-            [baseline.adapterExemptions, (reference) => reference.adapterExemptions],
+            [
+                baseline.files,
+                (reference) => reference.files,
+                (file, source) => nativeStylingUses(source, file).counted.length,
+            ],
+            [
+                baseline.adapterExemptions,
+                (reference) => reference.adapterExemptions,
+                (file, source) => nativeStylingUses(source, file).exempt.length,
+            ],
         ]);
 
         expect(raised).toEqual([]);

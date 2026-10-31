@@ -133,7 +133,7 @@ describe('the pseudo-locale flag in the local Playwright lane', () => {
 
     /** Turbo's resolved plan for the web build, made with the flag set the way the lane sets it. */
     function webBuildPlan(): {
-        readonly environmentVariables: { readonly configured: readonly string[] };
+        readonly environmentVariables: { readonly configured: readonly string[]; readonly inferred: readonly string[] };
         readonly resolvedTaskDefinition: { readonly dependsOn: readonly string[]; readonly outputs: readonly string[] };
     } {
         const stdout = execFileSync(
@@ -142,7 +142,7 @@ describe('the pseudo-locale flag in the local Playwright lane', () => {
             {
                 cwd: repoRoot,
                 encoding: 'utf8',
-                env: { ...process.env, [FLAG]: '1' },
+                env: { ...process.env, [FLAG]: '1', NEXT_PUBLIC_RECIPE_API_URL: 'http://localhost:3010' },
                 maxBuffer: 64 * 1024 * 1024,
             },
         );
@@ -162,6 +162,15 @@ describe('the pseudo-locale flag in the local Playwright lane', () => {
         const plan = webBuildPlan();
 
         expect(plan.environmentVariables.configured.some((entry) => entry.startsWith(`${FLAG}=`))).toBe(true);
+    });
+
+    it('keeps turbo’s Next.js inference, which hashes the NEXT_PUBLIC_* API origins the lane bakes', () => {
+        // The lane bakes the run's own port into those origins, so this hash is what rebuilds the bundle when the
+        // free port changes; without it a run on one port would serve a bundle baked for another. Vercel builds through
+        // the same task (`vercel.json`), so this is the production build's hash too.
+        const { inferred } = webBuildPlan().environmentVariables;
+
+        expect(inferred.some((entry) => entry.startsWith('NEXT_PUBLIC_RECIPE_API_URL='))).toBe(true);
     });
 
     it('keeps the web build’s own dependency edge and outputs (a package task REPLACES the base task)', () => {

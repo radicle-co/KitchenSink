@@ -12,6 +12,7 @@ import path from 'node:path';
 import ts from 'typescript';
 
 import { parseModule } from './appSources.js';
+import { localsOf, valueBindingsOf } from './moduleBindings.js';
 import { repoRoot } from './serviceSources.js';
 
 /** `tamagui` itself or one of its `@tamagui/*` packages. */
@@ -25,20 +26,6 @@ const UI_ROOT = path.join(repoRoot, 'packages/apps/commise/ui');
 /** The names a design-system subpath exports as Tamagui `styled(…)` components. */
 export type StyledExportsOf = (subpath: string) => ReadonlySet<string>;
 
-function valueImports(file: ts.SourceFile): readonly ts.ImportDeclaration[] {
-    return file.statements.filter(
-        (statement): statement is ts.ImportDeclaration =>
-            ts.isImportDeclaration(statement) &&
-            ts.isStringLiteral(statement.moduleSpecifier) &&
-            statement.importClause !== undefined &&
-            !statement.importClause.isTypeOnly,
-    );
-}
-
-function moduleOf(declaration: ts.ImportDeclaration): string {
-    return (declaration.moduleSpecifier as ts.StringLiteral).text;
-}
-
 /**
  * The local name `styled` is bound to from a Tamagui module, if any. Pure.
  *
@@ -46,21 +33,10 @@ function moduleOf(declaration: ts.ImportDeclaration): string {
  * @returns The local names.
  */
 export function tamaguiStyledNames(file: ts.SourceFile): ReadonlySet<string> {
-    const names = new Set<string>();
-
-    for (const declaration of valueImports(file)) {
-        const bindings = declaration.importClause?.namedBindings;
-
-        if (TAMAGUI_MODULE.test(moduleOf(declaration)) && bindings !== undefined && ts.isNamedImports(bindings)) {
-            for (const element of bindings.elements) {
-                if (!element.isTypeOnly && (element.propertyName ?? element.name).text === 'styled') {
-                    names.add(element.name.text);
-                }
-            }
-        }
-    }
-
-    return names;
+    return localsOf(
+        valueBindingsOf(file, (specifier) => TAMAGUI_MODULE.test(specifier)),
+        'styled',
+    );
 }
 
 /**
@@ -103,37 +79,29 @@ function styledBindings(file: ts.SourceFile, styledNames: ReadonlySet<string>): 
  */
 export function tamaguiElementNames(file: ts.SourceFile, styledExportsOf: StyledExportsOf): ReadonlySet<string> {
     const names = new Set<string>();
-    const namespaces = new Set<string>();
+    const tamagui = valueBindingsOf(file, (specifier) => TAMAGUI_MODULE.test(specifier));
+    const { namespaces } = tamagui;
 
-    for (const declaration of valueImports(file)) {
-        const specifier = moduleOf(declaration);
-        const bindings = declaration.importClause?.namedBindings;
-        const tamagui = TAMAGUI_MODULE.test(specifier);
-
-        if (bindings === undefined) {
-            continue;
+    for (const [exported, locals] of tamagui.locals) {
+        if (/^[A-Z]/u.test(exported)) {
+            locals.forEach((local) => names.add(local));
         }
+    }
 
-        if (ts.isNamespaceImport(bindings)) {
-            if (tamagui) {
-                namespaces.add(bindings.name.text);
-            }
+    const designSystemSpecifiers = new Set(
+        file.statements
+            .filter(ts.isImportDeclaration)
+            .map((statement) => statement.moduleSpecifier)
+            .filter(ts.isStringLiteral)
+            .map((specifier) => specifier.text)
+            .filter((specifier) => specifier.startsWith(DESIGN_SYSTEM_PACKAGE)),
+    );
 
-            continue;
-        }
+    for (const specifier of designSystemSpecifiers) {
+        const bindings = valueBindingsOf(file, (candidate) => candidate === specifier);
 
-        const styledHere = specifier.startsWith(DESIGN_SYSTEM_PACKAGE) ? styledExportsOf(specifier) : new Set<string>();
-
-        for (const element of bindings.elements) {
-            const imported = (element.propertyName ?? element.name).text;
-
-            if (element.isTypeOnly) {
-                continue;
-            }
-
-            if ((tamagui && /^[A-Z]/u.test(imported)) || styledHere.has(imported)) {
-                names.add(element.name.text);
-            }
+        for (const exported of styledExportsOf(specifier)) {
+            localsOf(bindings, exported).forEach((local) => names.add(local));
         }
     }
 

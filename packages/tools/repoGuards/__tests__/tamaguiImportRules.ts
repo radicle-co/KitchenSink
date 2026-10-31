@@ -7,6 +7,7 @@
 import ts from 'typescript';
 
 import { parseModule } from './appSources.js';
+import { importsValues } from './moduleBindings.js';
 import { TAMAGUI_MODULE } from './tamaguiElements.js';
 
 const CONFIG_EXPORT = '@commise/ui/tamagui-config';
@@ -81,13 +82,12 @@ export function tamaguiThemeHookFindings(source: string, fileName: string): read
             !ts.isImportDeclaration(statement) ||
             !ts.isStringLiteral(statement.moduleSpecifier) ||
             !TAMAGUI_MODULE.test(statement.moduleSpecifier.text) ||
-            statement.importClause === undefined ||
-            statement.importClause.isTypeOnly
+            !importsValues(statement)
         ) {
             continue;
         }
 
-        const bindings = statement.importClause.namedBindings;
+        const bindings = statement.importClause?.namedBindings;
 
         if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
             namespaces.add(bindings.name.text);

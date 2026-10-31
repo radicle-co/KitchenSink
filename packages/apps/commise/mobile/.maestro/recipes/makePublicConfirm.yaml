@@ -88,8 +88,11 @@ onFlowComplete:
       when:
           platform: Android
       commands:
+          # ⚠️ The radio is named by ALL its texts, and since the private-slots work (ADR-0073) the cost note ends it
+          # with the count ("…, 49 of 50 private slots left"), which changes per run. Matched by the stable start, as
+          # the Public radio above is; a bare prefix without `.*` would not match the whole label.
           - assertVisible:
-                text: 'Private, Only you can see it'
+                text: 'Private, Only you can see it.*'
                 checked: true
 - runFlow:
       when:

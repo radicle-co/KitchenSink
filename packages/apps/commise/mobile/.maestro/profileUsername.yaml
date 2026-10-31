@@ -20,5 +20,16 @@ appId: ${APP_ID}
 - assertVisible: '^@.+'
 
 # Read-only: the row is plain text, and no control offers to change it.
-- assertVisible: 'Username'
+# ⚠️ The row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS publishes a single node named
+# "Username, @name", while Android publishes the label and the value as two nodes ("Username", "@name").
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible: 'Username, @.+'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible: 'Username'
 - assertNotVisible: 'Change username'

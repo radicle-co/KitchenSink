@@ -7,6 +7,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 
+import { DesignSystemFrame } from './DesignSystemFrame.js';
 import { makeTestQueryClient } from './testQueryClient.js';
 
 /** Options accepted by {@link renderWithRecipeClient}. */
@@ -21,7 +22,7 @@ export interface RenderWithRecipeClientOptions {
 /**
  * RTL custom-render helper for web container tests that exercise the REAL `@kitchensink/recipe-service-client`
  * hooks (rather than mocking the hooks module). Composes `LocaleProvider` + a `QueryClientProvider` +
- * `RecipeServiceProvider` around `ui`, so a test only needs to hand in a
+ * `RecipeServiceProvider` around `ui` (and, in a native lane, the design system's `DesignSystemFrame`), so a test only needs to hand in a
  * {@link RecipeServiceClient} — typically
  * `createFakeRecipeServiceClient()` from `@kitchensink/recipe-service-client/testing`, stubbed per test with
  * `vi.spyOn` — instead of hand-mocking the hooks module's `Record<string, unknown>` return shapes.
@@ -50,11 +51,13 @@ export function renderWithRecipeClient(
     // its `RecipeServiceProvider`/`QueryClientProvider` context on the second render.
     function Wrapper({ children }: { readonly children: ReactNode }) {
         return (
-            <LocaleProvider locale={locale}>
-                <QueryClientProvider client={queryClient}>
-                    <RecipeServiceProvider client={client}>{children}</RecipeServiceProvider>
-                </QueryClientProvider>
-            </LocaleProvider>
+            <DesignSystemFrame>
+                <LocaleProvider locale={locale}>
+                    <QueryClientProvider client={queryClient}>
+                        <RecipeServiceProvider client={client}>{children}</RecipeServiceProvider>
+                    </QueryClientProvider>
+                </LocaleProvider>
+            </DesignSystemFrame>
         );
     }
 

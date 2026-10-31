@@ -637,7 +637,7 @@ This change does not edit 001, 016 or the cross-feature FR index. These items ar
 - **010**: `010-FR-044`'s claim publishes the two outputs of FR-027e: the cook's own plan, which includes promotional
   entitlements, and the household plan (`017-FR-034b`). The design is owed in 010's plan. _(Updated 2026-10-28: this
   said one effective plan, including household coverage.)_
-- **Cross-feature FR index**: entries for this spec are owed under `GR-003`.
+- **Cross-feature FR index**: entries for this spec are owed under `GR-003`. _(Added to the index 2026-10-31.)_
 - **017-FR-019** _(added 2026-10-28)_: the export credit line of section K is owed to 017's export requirement. 017
   is being edited by another writer, so it is not applied here. Its owner moves FR-055 to FR-057 into `017-FR-019` and
   leaves a pointer in section K.

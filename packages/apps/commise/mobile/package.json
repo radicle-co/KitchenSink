@@ -76,7 +76,7 @@
         "react-error-boundary": "^6.1.2",
         "react-native": "0.86.3",
         "react-native-safe-area-context": "~5.7.0",
-        "react-native-screens": "~4.26.0",
+        "react-native-screens": "~4.28.0",
         "react-native-svg": "15.15.4",
         "react-native-web": "^0.21.2",
         "tamagui": "^2.3.0",
@@ -102,5 +102,12 @@
     },
     "engines": {
         "node": "24.x"
+    },
+    "expo": {
+        "install": {
+            "exclude": [
+                "react-native-screens"
+            ]
+        }
     }
 }

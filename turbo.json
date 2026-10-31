@@ -286,9 +286,13 @@
             "outputs": []
         },
         "test:e2e": {
+            // A LOCAL e2e suite proves the code against a real database or LocalStack, which turbo does not hash.
+            // A cache hit would report a PASS for a suite that never reached that dependency (constitution,
+            // Principle V).
             "dependsOn": ["^build"],
             "passThroughEnv": ["DATABASE_ADMIN_URL", "AWS_ENDPOINT_URL"],
-            "outputs": []
+            "outputs": [],
+            "cache": false
         },
         "lint": {
             "outputs": []

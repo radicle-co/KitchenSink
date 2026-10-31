@@ -18,9 +18,9 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sideInsetOf } from '@commise/test-utils';
-import { AccessibilityInfo, Text, type ScrollView as ScrollViewType } from 'react-native';
-import { createElement, type ComponentProps } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { AccessibilityInfo, Pressable, Text, TextInput, type ScrollView as ScrollViewType } from 'react-native';
+import { createElement, useState, type ComponentProps } from 'react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
@@ -161,6 +161,75 @@ describe('RecipeDiscoveryFrame (native) — filters', () => {
 });
 
 /** Slice 3: Discover is a tab of its own — no source switcher — and its heading is the large title with the avatar. */
+/**
+ * A stand-in for the boundary's body that holds state a person can see: a count kept in React state and a field typed
+ * into. The frame cannot keep either if it remounts its `children`, so they measure whether it does.
+ */
+function StatefulBody() {
+    const [presses, setPresses] = useState(0);
+
+    return (
+        <>
+            <Pressable accessibilityRole="button" onPress={() => setPresses((count) => count + 1)}>
+                <Text>{`Pressed ${String(presses)}`}</Text>
+            </Pressable>
+            <TextInput accessibilityLabel="Body field" defaultValue="" />
+        </>
+    );
+}
+
+/**
+ * `useFilterPresentation.native` picks the panel from the window's width, so turning a tablet switches the frame between
+ * the sheet and the panel. Each switch rerenders the frame with the other `filters`; a person's place must survive it.
+ */
+describe('RecipeDiscoveryFrame (native) — switching between the sheet and the panel', () => {
+    const SWITCHES = [
+        { from: SHEET_FILTERS, to: PANEL_FILTERS, name: 'sheet to panel' },
+        { from: PANEL_FILTERS, to: SHEET_FILTERS, name: 'panel to sheet' },
+    ] as const;
+
+    it.each(SWITCHES)('$name keeps the results body mounted, with its state', ({ from, to }) => {
+        const { rerender } = renderFrame({ filters: from, children: <StatefulBody /> });
+        const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Body field' });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Pressed 0' }));
+        fireEvent.change(field, { target: { value: 'half typed' } });
+        act(() => field.focus());
+        rerender(frame({ filters: to, children: <StatefulBody /> }));
+
+        expect(screen.getByRole('textbox', { name: 'Body field' })).toBe(field);
+        expect(field.value).toBe('half typed');
+        expect(document.activeElement).toBe(field);
+        expect(screen.getByRole('button', { name: 'Pressed 1' })).toBeTruthy();
+    });
+
+    it.each(SWITCHES)('$name keeps the search field, focused, with its recent searches open', ({ from, to }) => {
+        const recentSearches = { queries: ['risotto'], onSelect: noop, onClear: noop };
+        const { rerender } = renderFrame({ filters: from, recentSearches });
+        const search = screen.getByRole<HTMLInputElement>('textbox', { name: 'Search recipes' });
+
+        act(() => search.focus());
+        expect(screen.getByRole('heading', { name: 'Recent searches' })).toBeTruthy();
+        rerender(frame({ filters: to, recentSearches }));
+
+        expect(screen.getByRole('textbox', { name: 'Search recipes' })).toBe(search);
+        expect(document.activeElement).toBe(search);
+        expect(screen.getByRole('heading', { name: 'Recent searches' })).toBeTruthy();
+    });
+
+    it.each(SWITCHES)('$name keeps the count line, the live region, mounted', ({ from, to }) => {
+        const resultsSummary = { count: 12, query: 'lamb', kind: 'query' } as const;
+        const { container, rerender } = renderFrame({ filters: from, resultsSummary });
+        const line = container.querySelector('[aria-live="polite"]');
+
+        rerender(frame({ filters: to, resultsSummary }));
+
+        expect(line).not.toBeNull();
+        expect(container.querySelector('[aria-live="polite"]')).toBe(line);
+        expect(line?.textContent).toBe('12 recipes for “lamb”');
+    });
+});
+
 describe('RecipeDiscoveryFrame (native) — the large title', () => {
     it('draws no source switcher', () => {
         renderFrame();

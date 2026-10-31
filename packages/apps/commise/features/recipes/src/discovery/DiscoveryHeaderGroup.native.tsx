@@ -10,9 +10,12 @@
  *
  * `compact` selects the heading's presentation INSIDE this one group rather than choosing between two components in the
  * frame: two component types would remount the field on a rotation, and a remounted field loses its focus and keyboard.
+ * `drawsHeading` is false when the filter panel is shown: the frame then draws the title once above the panel row, and
+ * this group holds the field alone, still at the same index under the same parent, unpadded because that row pads.
  *
  * @pattern Strategy — compact height swaps the heading's presentation within one stable group, so the keyword field
- *     keeps its parent and index
+ *     keeps its parent and index; with the filter panel the heading is drawn above the panel row instead, and the field
+ *     keeps its place here
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
@@ -35,6 +38,8 @@ export interface DiscoveryHeaderGroupProps {
     readonly headerAction: RecipeDiscoveryFrameProps['headerAction'];
     /** The keyword field. */
     readonly search: ReactNode;
+    /** Whether the heading is drawn here; `false` while the filter panel is shown and the frame draws it above the row. */
+    readonly drawsHeading: boolean;
 }
 
 /** The native header group. */
@@ -43,23 +48,24 @@ export const DiscoveryHeaderGroup: FC<DiscoveryHeaderGroupProps> = ({
     headingFocusSignal,
     headerAction,
     search,
+    drawsHeading,
 }) => {
     const discovery = useMessages(discoveryMessages);
     const { colors } = useTheme();
     const headingRef = useScreenReaderFocusOnSignal<Text>(headingFocusSignal);
 
     return (
-        <View style={compact ? [styles.rowGroup, styles.inset] : styles.headerGroup}>
+        <View style={drawsHeading && compact ? [styles.rowGroup, styles.inset] : styles.headerGroup}>
             {/* The large title (slice 3, `buildSpec.md` §3.3) with the avatar; in compact height the plain heading
                 shares its row with the field. */}
-            {compact ? (
+            {!drawsHeading ? null : compact ? (
                 <Text ref={headingRef} accessibilityRole="header" style={[styles.heading, { color: colors.ink }]}>
                     {discovery.heading}
                 </Text>
             ) : (
                 <DiscoveryTitle focusSignal={headingFocusSignal} action={headerAction} />
             )}
-            <View style={compact ? styles.searchCompact : styles.inset}>{search}</View>
+            <View style={!drawsHeading ? undefined : compact ? styles.searchCompact : styles.inset}>{search}</View>
         </View>
     );
 };

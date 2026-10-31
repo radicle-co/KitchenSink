@@ -14,8 +14,9 @@
  * heading, recent-searches, back-to-browse and announcement assertions are kept.
  */
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -167,6 +168,75 @@ describe('RecipeDiscoveryFrame (web) — filters', () => {
         renderFrame({ filters: undefined });
 
         expect(screen.queryByText(/FILTER/u)).toBeNull();
+    });
+});
+
+/**
+ * A stand-in for the boundary's body that holds state a person can see: a count kept in React state and a field typed
+ * into. The frame cannot keep either if it remounts its `children`, so they measure whether it does.
+ */
+function StatefulBody() {
+    const [presses, setPresses] = useState(0);
+
+    return (
+        <div>
+            <button type="button" onClick={() => setPresses((count) => count + 1)}>
+                {`Pressed ${String(presses)}`}
+            </button>
+            <input aria-label="Body field" />
+        </div>
+    );
+}
+
+/**
+ * The container picks the presentation from `<main>`'s measured width, which is `narrow` until measured and changes
+ * whenever the window crosses the wide breakpoint (a resize, a tablet turned). Each switch rerenders the frame with the
+ * other `filters`; a person's place on the page must not depend on that.
+ */
+describe('RecipeDiscoveryFrame (web) — switching between the sheet and the panel', () => {
+    const SWITCHES = [
+        { from: SHEET_FILTERS, to: PANEL_FILTERS, name: 'sheet to panel' },
+        { from: PANEL_FILTERS, to: SHEET_FILTERS, name: 'panel to sheet' },
+    ] as const;
+
+    it.each(SWITCHES)('$name keeps the results body mounted, with its state', async ({ from, to }) => {
+        const user = userEvent.setup();
+        const { rerender } = renderFrame({ filters: from, children: <StatefulBody /> });
+        const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Body field' });
+
+        await user.click(screen.getByRole('button', { name: 'Pressed 0' }));
+        await user.type(field, 'half typed');
+        rerender(frame({ filters: to, children: <StatefulBody /> }));
+
+        expect(screen.getByRole('textbox', { name: 'Body field' })).toBe(field);
+        expect(field.value).toBe('half typed');
+        expect(document.activeElement).toBe(field);
+        expect(screen.getByRole('button', { name: 'Pressed 1' })).toBeTruthy();
+    });
+
+    it.each(SWITCHES)('$name keeps the search field, focused, with its recent searches open', ({ from, to }) => {
+        const recentSearches = { queries: ['risotto'], onSelect: noop, onClear: noop };
+        const { rerender } = renderFrame({ filters: from, searchValue: '', recentSearches });
+        const search = screen.getByRole<HTMLInputElement>('searchbox', { name: 'Search recipes' });
+
+        act(() => search.focus());
+        expect(screen.getByRole('region', { name: 'Recent searches' })).toBeTruthy();
+        rerender(frame({ filters: to, searchValue: '', recentSearches }));
+
+        expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toBe(search);
+        expect(document.activeElement).toBe(search);
+        expect(screen.getByRole('region', { name: 'Recent searches' })).toBeTruthy();
+    });
+
+    it.each(SWITCHES)('$name keeps the count line, the live region, mounted', ({ from, to }) => {
+        const resultsSummary = { count: 12, query: 'lamb', kind: 'query' } as const;
+        const { rerender } = renderFrame({ filters: from, resultsSummary });
+        const line = screen.getByRole('status');
+
+        rerender(frame({ filters: to, resultsSummary }));
+
+        expect(screen.getByRole('status')).toBe(line);
+        expect(line.textContent).toBe('12 recipes for “lamb”');
     });
 });
 

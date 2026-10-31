@@ -12,6 +12,14 @@
  * count and results then share the column to its right), or a Filters button with the sort, the applied-filter chips and
  * the sheet — so the facets exist exactly once.
  *
+ * The two presentations are ONE tree: the search field, the count line and `children` keep their parent and index in
+ * both, and only the slots around them fill or empty. The presentation follows `<main>`'s measured width, so it switches
+ * right after the first paint on a wide screen and on every resize across the breakpoint. Drawn as two trees, each switch
+ * remounted the field (focus and the recent-search panel gone), the live region (remounted with its text inside) and the
+ * whole results body (every rail back at its start). The sort moves between the Filters row and the count line, so it
+ * alone remounts; a sort menu held open through a resize closes. `RecipeDiscoveryContainer.layoutSwitch.test.tsx` and
+ * this frame's "switching between the sheet and the panel" tests hold it.
+ *
  * The count line is one element that is both the visible "12 recipes for “lamb”" and the polite live region that announces
  * it. It is mounted empty with the frame and outlives every body the boundary swaps in (loading, error, no-result,
  * results), because a live region that mounts with its text already inside is not reliably announced. Identical results
@@ -67,6 +75,8 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
     const showRecentSearches =
         recentSearches !== undefined && recentSearches.queries.length > 0 && searchFocused && !searching;
 
+    const sheet = filters?.presentation === 'sheet' ? filters : undefined;
+    const panel = filters?.presentation === 'panel' ? filters : undefined;
     const sortControl = sort === undefined ? null : <DiscoverySortMenu active={sort.active} onChange={sort.onChange} />;
 
     // The field + its recent-search panel form ONE focus scope: `focusout` bubbles here carrying the element focus is
@@ -153,38 +163,33 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                 focusSignal={headingFocusSignal}
                 {...(headerAction === undefined ? {} : { action: headerAction })}
             />
-            {filters?.presentation === 'panel' ? (
-                <div className="flex items-start gap-6">
-                    {filters.panel}
-                    <div className="flex min-w-0 flex-1 flex-col gap-4">
-                        {searchBlock}
-                        {backToBrowse}
-                        <div className="flex items-center justify-between gap-3">
-                            {count}
-                            {sortControl}
-                        </div>
-                        {children}
-                    </div>
-                </div>
-            ) : (
-                <>
+            {/* ONE tree for both presentations, with a fixed slot for each part: the presentation follows <main>'s
+                measured width, so it changes after the first paint and on every resize across the breakpoint. A part
+                that moved to another parent would be a new element each time (focus lost, a rail's scroll reset, the
+                live region remounted with its text inside), so only the slots' contents and the row's direction change. */}
+            <div className={panel === undefined ? 'flex flex-col gap-4' : 'flex items-start gap-6'}>
+                {panel?.panel}
+                <div className="flex min-w-0 flex-1 flex-col gap-4">
                     {searchBlock}
-                    {filters === undefined ? null : (
+                    {sheet === undefined ? null : (
                         <>
                             <div className="flex items-center justify-between gap-3">
-                                {filters.trigger}
+                                {sheet.trigger}
                                 {sortControl}
                             </div>
-                            {filters.applied}
-                            {filters.sheet}
+                            {sheet.applied}
+                            {sheet.sheet}
                         </>
                     )}
                     {filters === undefined ? sortControl : null}
                     {backToBrowse}
-                    {count}
+                    <div className="flex items-center justify-between gap-3">
+                        {count}
+                        {panel === undefined ? null : sortControl}
+                    </div>
                     {children}
-                </>
-            )}
+                </div>
+            </div>
         </section>
     );
 };

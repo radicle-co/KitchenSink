@@ -3,7 +3,7 @@
  * token (`$paper`, `$paperPress`) that follows the scheme with no hook, so each read `themeColourReads.ts` finds is a
  * colour still applied by hand. The counts are held per file in `themeColourReadsBaseline.json` by the same rules as
  * the StyleSheet ratchet (`ratchetBaseline.ts`): no file above its count, no new file with any, a drop recorded in the
- * same change, and the baseline itself only falling against its reference.
+ * same change, and no count above the lowest any version of the baseline recorded.
  *
  * ✅ THE FIX FOR A FAILURE: read the colour as a theme token on a Tamagui element or in `styled()`, then lower the
  * file's count, or remove its entry at zero.
@@ -14,7 +14,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { nativeSources } from './nativeSources.js';
-import { over, raisedAgainst, referenceBaseline, stale, type FileCounts } from './ratchetBaseline.js';
+import { over, raisedAgainst, baselineHistory, stale, type FileCounts } from './ratchetBaseline.js';
 import { repoRoot } from './serviceSources.js';
 import { themeColourReads, type ThemeReads } from './themeColourReads.js';
 
@@ -56,24 +56,21 @@ describe('theme colour reads only fall (ADR-0080)', () => {
         expect(stale(pressCounts, baseline.pressReads)).toEqual([]);
     });
 
-    it('only lowers the baseline: no count above the reference, and no path added to it', () => {
-        const reference = referenceBaseline<Baseline>(BASELINE_PATH);
+    it('only lowers the baseline: no count above the lowest its history recorded, and no path added to it', () => {
+        const history = baselineHistory<Baseline>(BASELINE_PATH);
 
-        expect(reference, 'no committed baseline found in history').toBeDefined();
+        // The baseline is committed, so its history is never empty; an empty one means the history read failed.
+        expect(history.length, 'no committed baseline found in history').toBeGreaterThan(0);
 
-        if (reference === undefined) {
-            return;
-        }
-
-        const raised = raisedAgainst(reference, [
+        const raised = raisedAgainst(history, [
             [
                 baseline.colourReads,
-                (reference) => reference.colourReads,
+                (version) => version.colourReads,
                 (file, source) => themeColourReads(source, file).colour.length,
             ],
             [
                 baseline.pressReads,
-                (reference) => reference.pressReads,
+                (version) => version.pressReads,
                 (file, source) => themeColourReads(source, file).press.length,
             ],
         ]);

@@ -4,13 +4,25 @@
  * the real config matters because Tamagui 3 throws inside `createTokens` on a key it reserves while every map test
  * stays green and `tsc` stays clean.
  */
+import { createTamagui, createTokens } from 'tamagui';
 import { describe, expect, it } from 'vitest';
 
 import { role, roleDark, type Role } from '../../tokens/colors.js';
 import { radius, spacing } from '../../tokens/scale.js';
-import { tamaguiConfig } from '../tamaguiConfig.native.js';
 import { tamaguiFonts } from '../tamaguiFonts.js';
 import { tamaguiThemes } from '../../theme/tamaguiThemes.js';
+
+// Tamagui's built-in shorthand table, read from a config built BEFORE ours: `createTamagui` keeps global state, so a
+// config built after ours would carry our shorthands too, and the comparison below would compare a table with itself.
+const builtInShorthands = Object.keys(
+    createTamagui({
+        tokens: createTokens({ space: {}, size: {}, radius: {}, zIndex: {}, color: {} }),
+        themes: {},
+        fonts: {},
+    }).shorthands,
+).sort();
+
+const { tamaguiConfig } = await import('../tamaguiConfig.native.js');
 
 const roleNames = Object.keys(role) as Role[];
 
@@ -68,6 +80,10 @@ describe('the built Tamagui config', () => {
     it('carries the two fonts under their registered faces', () => {
         expect(tamaguiConfig.fonts.body?.family).toBe(tamaguiFonts.body.family);
         expect(tamaguiConfig.fonts.heading?.family).toBe(tamaguiFonts.heading.family);
+    });
+
+    it('adds no shorthand of its own beyond Tamagui’s built-in table, which is the one table the G7 guard reads', () => {
+        expect(Object.keys(tamaguiConfig.shorthands).sort()).toEqual(builtInShorthands);
     });
 
     it('defines no media queries, because native layout reads its container class and not the window', () => {

@@ -17,10 +17,10 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { globSync } from 'glob';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { nativeSources } from './nativeSources.js';
 import { repoRoot } from './serviceSources.js';
 
 /** A spread that names a face: a type role (`nativeTokens.type.label`, `type.body`, `nativeType.caption`). */
@@ -110,29 +110,14 @@ describe('the face-with-weight reader', () => {
     }
 });
 
-/** Every native-rendered app module: `.native.*` anywhere in the apps, and all of the mobile app. */
-const nativeModules = (): readonly string[] =>
-    [
-        ...globSync('packages/apps/**/*.native.{ts,tsx}', {
-            cwd: repoRoot,
-            ignore: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/android/**', '**/ios/**'],
-        }),
-        ...globSync('packages/apps/commise/mobile/{src,app}/**/*.{ts,tsx}', {
-            cwd: repoRoot,
-            ignore: ['**/node_modules/**'],
-        }),
-    ]
-        .filter((file, index, all) => all.indexOf(file) === index)
-        .sort();
-
 describe('native faces carry their own weight', () => {
     it('discovers the native modules, including the Home greeting (a vacuous pass would hide the rule)', () => {
-        expect(nativeModules()).toContain('packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx');
-        expect(nativeModules()).toContain('packages/apps/commise/ui/src/button/Button.native.tsx');
+        expect(nativeSources()).toContain('packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx');
+        expect(nativeSources()).toContain('packages/apps/commise/ui/src/button/Button.native.tsx');
     });
 
     it('lets no native style name a face and also set fontWeight', () => {
-        const offenders = nativeModules().flatMap((file) =>
+        const offenders = nativeSources().flatMap((file) =>
             faceWithWeightLines(readFileSync(path.join(repoRoot, file), 'utf8'), file).map((line) => `${file}:${line}`),
         );
 

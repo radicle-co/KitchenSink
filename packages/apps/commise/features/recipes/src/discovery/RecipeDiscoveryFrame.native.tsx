@@ -25,7 +25,12 @@
  * layout, the field the header group's last child, so the field never changes parent or index: a remounted field would
  * lose focus and its keyboard. The recent-search rows scroll in every layout, and the first tap with the keyboard up lands
  * on a query. A compact window is never wide enough for the panel (`filterPresentationOf`), so the sheet presentation is
- * the only one it sees.
+ * the only one it sees. *
+ * ## Switching between the sheet and the panel
+ *
+ * The same rule holds across the panel: both presentations are ONE tree, so turning a tablet across the breakpoint keeps
+ * the field (focused, keyboard up), the count line and the whole results body mounted. Only the title moves, above the
+ * panel row. `RecipeDiscoveryFrame.native.test.tsx` ("switching between the sheet and the panel") holds it.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useCompactHeight, useFrameCollapsed } from '@commise/ui/layout';
@@ -117,50 +122,41 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                 sort={sortControl}
                 onExitToBrowse={onExitToBrowse}
             />
-            {panel === undefined ? (
-                count
-            ) : (
-                <View style={styles.countRow}>
-                    {count}
-                    {sortControl}
-                </View>
-            )}
+            <View style={styles.countRow}>
+                {count}
+                {panel === undefined ? null : sortControl}
+            </View>
             {children}
             {sheet?.sheet}
         </>
     );
 
-    const body = (
-        <View style={panel === undefined ? styles.fill : styles.resultsColumn}>
-            {panel === undefined ? (
-                <DiscoveryHeaderGroup
-                    compact={compact}
-                    headingFocusSignal={headingFocusSignal}
-                    headerAction={headerAction}
-                    search={search}
-                />
-            ) : (
-                search
-            )}
-            {/* Without the panel the large title is in the header group above and insets its own sides, so everything
-                under it pads itself here; with the panel the row that holds the panel and this column pads instead. */}
-            <View style={panel === undefined ? styles.rest : styles.restInPanel}>{rest}</View>
-        </View>
-    );
-
+    // ONE tree for both presentations, with a fixed slot for each part: the presentation follows the window's width, so
+    // turning a tablet switches it. A part that moved to another parent would be a new element each time (the field's
+    // focus and keyboard gone, the results remounted, the live region remounted with its text inside), so only the
+    // slots' contents and the styles change. With the panel the title sits above the panel row, and the header group
+    // keeps the field alone.
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>
-            {panel === undefined ? (
-                body
-            ) : (
-                <>
-                    {compact ? null : <DiscoveryTitle focusSignal={headingFocusSignal} action={headerAction} />}
-                    <View style={styles.panelRow}>
-                        {panel.panel}
-                        {body}
-                    </View>
-                </>
+            {panel === undefined || compact ? null : (
+                <DiscoveryTitle focusSignal={headingFocusSignal} action={headerAction} />
             )}
+            <View style={panel === undefined ? styles.fill : styles.panelRow}>
+                {panel?.panel}
+                <View style={panel === undefined ? styles.fill : styles.resultsColumn}>
+                    <DiscoveryHeaderGroup
+                        compact={compact}
+                        headingFocusSignal={headingFocusSignal}
+                        headerAction={headerAction}
+                        search={search}
+                        drawsHeading={panel === undefined}
+                    />
+                    {/* Without the panel the large title is in the header group above and insets its own sides, so
+                        everything under it pads itself here; with the panel the row that holds the panel and this column
+                        pads instead. */}
+                    <View style={panel === undefined ? styles.rest : styles.restInPanel}>{rest}</View>
+                </View>
+            </View>
         </View>
     );
 };
@@ -189,5 +185,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: nativeTokens.spacing[3],
     },
-    count: { ...nativeTokens.type.meta, fontVariant: ['tabular-nums', 'lining-nums'] },
+    // `flexShrink`: the line sits in a row, where a long query would otherwise run past the screen's edge, not wrap.
+    count: { ...nativeTokens.type.meta, flexShrink: 1, fontVariant: ['tabular-nums', 'lining-nums'] },
 });

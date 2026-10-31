@@ -69,15 +69,24 @@ function setUrlQuery(query: string): void {
 }
 
 /**
- * A fake client whose calorie lookup never settles. Calories on these cards are the `.nutrition` suite's subject; here a
- * lookup the fake REJECTED (the fixture ids are not UUIDs, so the client's own contract check refuses the batch) made
- * the card's slot throw during a concurrent render, and React's "recovered by rendering synchronously" report reached
- * vitest as an unhandled error on a loaded CI runner (run 34856885723) while passing locally. A pending lookup keeps
- * every slot on its skeleton, which no assertion in this file reads.
+ * A fake client whose calorie lookup answers at once with no figures, so every card's calorie slot settles to nothing.
+ * Calories on these cards are the `.nutrition` suite's subject; this file only needs the lookup to settle quietly.
+ *
+ * ⛔ Not a REJECTED lookup: the fixture ids are not UUIDs, so the real client's contract check refuses the batch, the
+ * slot throws during a concurrent render, and React's "recovered by rendering synchronously" report reached vitest as
+ * an unhandled error on a loaded CI runner (run 34856885723).
+ *
+ * ⛔ Not a lookup that NEVER settles either, which is what this was before. The rails' calorie slots commit as skeletons,
+ * and React then schedules a RETRY-lane render of them that waits on the batch. A rail's "see all" is a deferred
+ * transition that first suspends on its search and is pinged when the search lands — and React picks unsuspended retry
+ * lanes ahead of a pinged one, so it never got a turn while the retry render waited on a promise that never settled.
+ * Whether the retry render was already waiting depended on scheduling, so under load the rails stayed for good (the
+ * "Back to browse" test, 18 of 20 isolated runs timing out). With a real lookup the wait ends when the batch answers.
  */
 function discoveryClient(): ReturnType<typeof createFakeRecipeServiceClient> {
     const client = createFakeRecipeServiceClient();
-    vi.spyOn(client, 'getRecipeNutrition').mockReturnValue(new Promise<RecipeNutritionResponse>(() => undefined));
+    const noFigures: RecipeNutritionResponse = { nutrition: {} };
+    vi.spyOn(client, 'getRecipeNutrition').mockResolvedValue(noFigures);
 
     return client;
 }
@@ -545,16 +554,12 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
 
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
         await user.click(await screen.findByRole('button', { name: 'See all Trending' }));
-        // ⚠️ AN EXPLICIT WINDOW, because `waitFor`'s 1s default is not enough on a slow runner. Leaving the
-        // rails for a rail's full list is a `useDeferredValue` transition whose destination ALSO suspends
-        // (the calorie slots), so the wait spans two async boundaries rather than one. It passed locally and
-        // failed in CI, which is the signature of a wait sized against a fast machine rather than the work.
-        await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument(), {
-            timeout: 10_000,
-        });
+        // The default wait. This once carried a 10 s window, sized as if the work were slow; it was not. Leaving the
+        // rails took about 0.1 s or never happened, because the calorie lookup never settled — see `discoveryClient`.
+        await waitFor(() => expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument());
 
-        // Awaited `act`: returning to the rails mounts cards whose calorie slots suspend, and a suspension inside an
-        // un-awaited `act` leaves React's retry in a queue the test never flushes.
+        // Awaited `act`: returning to the rails mounts cards whose calorie slots can suspend on their first read of the
+        // batch, and a suspension inside an un-awaited `act` leaves React's retry in a queue the test never flushes.
         await act(async () => {
             await user.click(screen.getByRole('button', { name: 'Back to browse' }));
         });

@@ -12,13 +12,9 @@
  *   native file is therefore styled with Tamagui from its first line.
  * - A file that drops below its count fails until the count is lowered in the same change, so the number recorded is
  *   always true. A file that reaches zero leaves the baseline.
- * - The baseline itself only falls. Each count is at most the one in the REFERENCE baseline, and no path is added to
- *   it, so a count cannot be raised by re-recording. A rename makes a new path, which cannot carry a count, so an
- *   unmigrated file is migrated before it moves. The reference is the baseline on `origin/main`, the merge target.
- *   Until the baseline reaches main, it is the baseline as first committed, found from history (`git log
- *   --diff-filter=A`), so a long-lived branch is held too. Neither depends on one commit staying reachable, so a squash,
- *   a rebase or a deleted branch does not break the rule. A shallow clone, or a clone without `origin/main`, fails with
- *   the command to fetch, never a silent pass.
+ * - The baseline itself only falls, against its reference baseline (`ratchetBaseline.ts`): no count above it and no
+ *   path added to it, so a count cannot be raised by re-recording. A rename makes a new path, which cannot carry a
+ *   count, so an unmigrated file is migrated before it moves.
  * - The first recording was proven once, by hand: every listed file existed at `5979abcd5` with at least its listed
  *   count (the GATE on the commit that added the baseline, and ADR-0080). That proof is a record, not a live check.
  * - A file that imports Tamagui is migrated whole: its count is zero. No file mixes the two.
@@ -28,7 +24,6 @@
  * ✅ THE FIX FOR A FAILURE: style the element with Tamagui (`styled()` from `tamagui`, or a design-system primitive),
  * with tokens from `@commise/ui/tamagui-config`. Then lower the file's count, or remove its entry at zero.
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -38,6 +33,7 @@ import { parseModule } from './appSources.js';
 import { valueBindingsOf } from './moduleBindings.js';
 import { nativeSources } from './nativeSources.js';
 import { nativeStylingUses, type NativeStylingUses } from './nativeStyling.js';
+import { over, raisedAgainst, referenceBaseline, stale } from './ratchetBaseline.js';
 import { repoRoot } from './serviceSources.js';
 import { TAMAGUI_MODULE } from './tamaguiElements.js';
 
@@ -68,73 +64,10 @@ const counts = countsBy((uses) => uses.counted.length);
 
 const exemptCounts = countsBy((uses) => uses.exempt.length);
 
-function over(actual: Readonly<Record<string, number>>, recorded: Readonly<Record<string, number>>): string[] {
-    return Object.entries(actual)
-        .filter(([file, count]) => count > (recorded[file] ?? 0))
-        .map(([file, count]) => `${file}: ${count} > ${recorded[file] ?? 0}`);
-}
-
-function stale(actual: Readonly<Record<string, number>>, recorded: Readonly<Record<string, number>>): string[] {
-    return Object.entries(recorded)
-        .filter(([file, count]) => (actual[file] ?? 0) < count)
-        .map(([file, count]) => `${file}: recorded ${count}, now ${actual[file] ?? 0}`);
-}
-
 function importsTamagui(file: string): boolean {
     return valueBindingsOf(parseModule(file, readFileSync(path.join(repoRoot, file), 'utf8')), (specifier) =>
         TAMAGUI_MODULE.test(specifier),
     ).imported;
-}
-
-function git(args: readonly string[]): string | undefined {
-    try {
-        return execFileSync('git', args, {
-            cwd: repoRoot,
-            encoding: 'utf8',
-            maxBuffer: 1 << 26,
-            stdio: ['ignore', 'pipe', 'ignore'],
-        });
-    } catch {
-        return undefined;
-    }
-}
-
-/** The baseline the committed one may only fall from, and where it was read. */
-interface Reference {
-    readonly source: string;
-    readonly baseline: Baseline;
-}
-
-/**
- * The reference baseline: `origin/main`'s, or until the baseline reaches main, the one first committed in this
- * history. `undefined` only when no commit in this history adds the baseline, which the test refuses.
- *
- * @sideEffect Reads git history.
- * @throws Error when the clone is shallow or has no `origin/main`, which would make the rule pass on nothing.
- */
-function referenceBaseline(): Reference | undefined {
-    if (git(['rev-parse', '--is-shallow-repository'])?.trim() === 'true') {
-        throw new Error('This clone is shallow, so the baseline history cannot be read: run git fetch --unshallow.');
-    }
-
-    if (git(['rev-parse', '--verify', '--quiet', 'origin/main']) === undefined) {
-        throw new Error(
-            'origin/main is not in this clone, so the baseline has no reference: run git fetch origin main.',
-        );
-    }
-
-    const onMain = git(['show', `origin/main:${BASELINE_PATH}`]);
-
-    if (onMain !== undefined) {
-        return { source: 'origin/main', baseline: JSON.parse(onMain) as Baseline };
-    }
-
-    const [introduced] = (git(['log', '--diff-filter=A', '--reverse', '--format=%H', '--', BASELINE_PATH]) ?? '')
-        .split('\n')
-        .filter((line) => line.length > 0);
-    const first = introduced === undefined ? undefined : git(['show', `${introduced}:${BASELINE_PATH}`]);
-
-    return first === undefined ? undefined : { source: introduced ?? '', baseline: JSON.parse(first) as Baseline };
 }
 
 describe('React Native styling only falls (ADR-0080)', () => {
@@ -176,7 +109,7 @@ describe('React Native styling only falls (ADR-0080)', () => {
     });
 
     it('only lowers the baseline: no count above the reference, and no path added to it', () => {
-        const reference = referenceBaseline();
+        const reference = referenceBaseline<Baseline>(BASELINE_PATH);
 
         // The baseline is committed, so a reference always exists; none means the history read failed.
         expect(reference, 'no committed baseline found in history').toBeDefined();
@@ -185,10 +118,10 @@ describe('React Native styling only falls (ADR-0080)', () => {
             return;
         }
 
-        const raised = [
-            ...over(baseline.files, reference.baseline.files),
-            ...over(baseline.adapterExemptions, reference.baseline.adapterExemptions),
-        ].map((line) => `${line} (the reference is ${reference.source})`);
+        const raised = raisedAgainst(reference, [
+            [baseline.files, (reference) => reference.files],
+            [baseline.adapterExemptions, (reference) => reference.adapterExemptions],
+        ]);
 
         expect(raised).toEqual([]);
     });

@@ -15,6 +15,8 @@ import type { ReactNode } from 'react';
  * same type so the two cannot drift. Each value is a measured need, never a default:
  *
  * - `400` — short verb labels ("Keep recipe", "Delete"): `ConfirmDialog`.
+ * - `440` — "Cancel" + "Pull 1000 Recipes" (`PullUpdatesDialog`): about 407 px at +35% and about 436 px at +50%, on the same
+ *   button geometry as the 600 row. The web dialog's content box is 464 px.
  * - `600` — the longest label pair in the product, "Keep current version" + "Restore this version", at +35% for a
  *   longer translation. Measured with Inter SemiBold 16 (the button label role): 162.6 + 154.1 px of text, two icons of
  *   20 and gaps of 8, `md:px-5` padding, two 1 px borders and the 12 px gap give about 578 px at +35% and about 625 px at
@@ -23,7 +25,7 @@ import type { ReactNode } from 'react';
  *
  * Add a value only with the measurement that earns it, and the literal classes in `dialogActionsClass.ts`.
  */
-export type DialogActionsSideBySideFrom = 400 | 600;
+export type DialogActionsSideBySideFrom = 400 | 440 | 600;
 
 /** Props for `DialogActions`. */
 export interface DialogActionsProps {

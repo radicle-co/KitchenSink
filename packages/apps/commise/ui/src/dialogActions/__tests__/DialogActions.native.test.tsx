@@ -73,6 +73,17 @@ describe('DialogActions (native)', () => {
         expect(getComputedStyle(rowOf()).flexDirection).toBe('row');
     });
 
+    it('sits side by side at 440 and not at 439', () => {
+        render(<DialogActions sideBySideFrom={440}>{pair}</DialogActions>);
+        layOut(439);
+
+        expect(getComputedStyle(rowOf()).flexDirection).toBe('column-reverse');
+
+        layOut(440);
+
+        expect(getComputedStyle(rowOf()).flexDirection).toBe('row');
+    });
+
     it('keeps the buttons in source order, dismiss first', () => {
         render(<DialogActions sideBySideFrom={600}>{pair}</DialogActions>);
 

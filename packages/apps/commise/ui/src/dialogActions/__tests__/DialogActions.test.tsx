@@ -83,7 +83,24 @@ describe('DialogActions (web)', () => {
     });
 });
 
+describe('DialogActions (web) — 440', () => {
+    it('sets them side by side from 440, and from nowhere else', () => {
+        render(<DialogActions sideBySideFrom={440}>{pair}</DialogActions>);
+
+        const classes = tokensOf(screen.getByRole('button', { name: 'Keep' }).parentElement as HTMLElement);
+
+        expect(classes).toEqual(
+            expect.arrayContaining(['@[27.5rem]/dialog:flex-row', '@[27.5rem]/dialog:justify-end']),
+        );
+        expect(classes.some((token) => token.includes('25rem') || token.includes('37.5rem'))).toBe(false);
+    });
+});
+
 describe('dialogActionSlotClass', () => {
+    it('fills the stacked row at 440 too', () => {
+        expect(dialogActionSlotClass(440)).toBe('w-full @[27.5rem]/dialog:w-auto');
+    });
+
     it('fills the stacked row and returns to its own width at the same threshold the row uses', () => {
         expect(dialogActionSlotClass(400)).toBe('w-full @[25rem]/dialog:w-auto');
         expect(dialogActionSlotClass(600)).toBe('w-full @[37.5rem]/dialog:w-auto');

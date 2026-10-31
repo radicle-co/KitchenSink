@@ -3820,6 +3820,7 @@
                             "type": "enum",
                             "typeDetail": [
                                 "400",
+                                "440",
                                 "600"
                             ],
                             "required": true,
@@ -3870,6 +3871,7 @@
                             "type": "enum",
                             "typeDetail": [
                                 "400",
+                                "440",
                                 "600"
                             ],
                             "required": true,

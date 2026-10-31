@@ -14,7 +14,7 @@
         }
     },
     "peerDependencies": {
-        "vitest": "^4.0.0"
+        "vitest": "^4.1.12"
     },
     "lint-staged": {
         "*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,html,yaml,yml}": "prettier --write"

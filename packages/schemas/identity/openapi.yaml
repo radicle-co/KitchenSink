@@ -366,7 +366,7 @@ paths:
           schema:
             type: string
             format: ulid
-            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
+            pattern: ^[0-7][0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{25}$
   /api/v1/admin/users/{userId}/unsuspend:
     post:
       operationId: adminUnsuspendUser
@@ -413,7 +413,7 @@ paths:
           schema:
             type: string
             format: ulid
-            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
+            pattern: ^[0-7][0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{25}$
   /api/v1/admin/users/{userId}/reactivate:
     post:
       operationId: adminReactivateUser
@@ -463,7 +463,7 @@ paths:
           schema:
             type: string
             format: ulid
-            pattern: ^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$
+            pattern: ^[0-7][0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{25}$
   /health:
     get:
       operationId: getHealth

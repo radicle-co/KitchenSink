@@ -18,7 +18,7 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
-        "zod": "^4.4.3"
+        "zod": "^4.6.7"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
@@ -28,7 +28,7 @@
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "typescript": "^6.0.3",
-        "vitest": "^4.0.0"
+        "vitest": "^4.1.12"
     },
     "engines": {
         "node": "24.x"

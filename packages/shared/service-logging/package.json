@@ -33,7 +33,7 @@
         "prettier": "^3.0.0",
         "reflect-metadata": "^0.2.0",
         "typescript": "^6.0.3",
-        "vitest": "^4.0.0"
+        "vitest": "^4.1.12"
     },
     "engines": {
         "node": "24.x"

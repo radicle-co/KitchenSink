@@ -21,13 +21,9 @@
                                         "type": "string"
                                     },
                                     "lineageKey": {
-                                        "anyOf": [
-                                            {
-                                                "type": "string"
-                                            },
-                                            {
-                                                "type": "null"
-                                            }
+                                        "type": [
+                                            "string",
+                                            "null"
                                         ]
                                     },
                                     "name": {
@@ -192,13 +188,9 @@
                                 "type": "string"
                             },
                             "lineageKey": {
-                                "anyOf": [
-                                    {
-                                        "type": "string"
-                                    },
-                                    {
-                                        "type": "null"
-                                    }
+                                "type": [
+                                    "string",
+                                    "null"
                                 ]
                             },
                             "name": {
@@ -235,13 +227,9 @@
                     "type": "string"
                 },
                 "lineageKey": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
+                    "type": [
+                        "string",
+                        "null"
                     ]
                 },
                 "name": {

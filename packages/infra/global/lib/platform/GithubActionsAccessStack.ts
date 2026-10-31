@@ -11,8 +11,7 @@
  * through CDK's bootstrap roles (`sts:AssumeRole` on the KitchenSink-owned `cdk-ksnonprod-*`, `cdk-ksprod-*` and,
  * for the production role alone, `cdk-ksaccount-*`). Those qualifiers carry a scoped execution policy and a
  * permissions boundary (ADR-0065), so the deploy path is bounded by what that policy admits. The default qualifier's
- * roles are the other application's and administrator-backed; the access below to them exists only while stacks
- * migrate.
+ * roles are the other application's and administrator-backed, and every role here is explicitly denied them.
  *
  * ## Scoping is by NAME, never by the `Environment` tag alone
  *
@@ -234,26 +233,10 @@ const ownedBootstrapRoles = (scope: Scope, tier: CiTier): readonly string[] =>
     );
 
 /**
- * The last day the default-qualifier Allow below may still be in the tree (`YYYY-MM-DD`, UTC). It is the expand half
- * of ADR-0065's migration. ⚠️ It is already INERT once the `ksaccount` boundary is on these roles (the account app
- * applies it to every role, the CI roles included): that boundary denies `sts:AssumeRole` on `role/cdk-hnb659fds-*`,
- * and a Deny beats this Allow. So the administrator-backed path it names is closed from the first account deploy, not
- * from this date; the date only bounds how long the dead Allow may stay in the tree (the HIGH-1 finding). `GithubActionsAccessStack.test.ts` fails once this
- * date passes, so the window cannot become permanent by neglect: apply the contract commit (branch
- * `option1-d2-contract`) rather than moving the date, unless the owner has consciously extended it.
+ * Every role of the default qualifier. They belong to the other application in this account and their execution role is
+ * `AdministratorAccess`, so each CI role is explicitly denied them (the Deny wins over any Allow added later).
  */
-export const LEGACY_QUALIFIER_ALLOW_EXPIRES_ON = '2026-10-30';
-
-/**
- * The default-qualifier bootstrap roles, shared with the other application in this account and administrator-backed.
- * Kept ONLY for the expand half of the migration, so that nothing breaks while stacks move to the owned qualifiers;
- * the contract half removes this Allow and denies the roles instead.
- */
-const legacyBootstrapRoles = (scope: Scope, kinds: readonly AssumableRoleKind[]): readonly string[] =>
-    kinds.map(
-        (kind) =>
-            `arn:aws:iam::${scope.account}:role/cdk-${DEFAULT_QUALIFIER}-${kind}-role-${scope.account}-${scope.region}`,
-    );
+const defaultQualifierRoles = (scope: Scope): string => `arn:aws:iam::${scope.account}:role/cdk-${DEFAULT_QUALIFIER}-*`;
 
 const allow = (
     role: iam.Role,
@@ -269,6 +252,10 @@ const allow = (
             conditions,
         }),
     );
+};
+
+const denyDefaultQualifier = (role: iam.Role, scope: Scope): void => {
+    deny(role, ['sts:AssumeRole'], [defaultQualifierRoles(scope)]);
 };
 
 const deny = (
@@ -293,11 +280,8 @@ const permissionsNonprod = (role: iam.Role, scope: Scope): void => {
     const lambdaArn = (pattern: string): string => `arn:aws:lambda:${region}:${account}:function:${pattern}`;
     const previewZones = 'arn:aws:route53:::hostedzone/*';
 
-    allow(
-        role,
-        ['sts:AssumeRole'],
-        [...ownedBootstrapRoles(scope, 'nonprod'), ...legacyBootstrapRoles(scope, ASSUMED_KINDS)],
-    );
+    allow(role, ['sts:AssumeRole'], ownedBootstrapRoles(scope, 'nonprod'));
+    denyDefaultQualifier(role, scope);
     allow(role, STACK_READ_ACTIONS, [stack('kitchensink-*/*')]);
     allow(role, ACCOUNT_LIST_ACTIONS, ['*']);
 
@@ -412,7 +396,7 @@ const permissionsProdRead = (role: iam.Role, scope: Scope): void => {
     const grants: readonly Grant[] = [
         {
             actions: ['sts:AssumeRole'],
-            resources: [...ownedBootstrapRoles(scope, 'prod-read'), ...legacyBootstrapRoles(scope, ['lookup'])],
+            resources: ownedBootstrapRoles(scope, 'prod-read'),
         },
         {
             actions: [
@@ -433,6 +417,8 @@ const permissionsProdRead = (role: iam.Role, scope: Scope): void => {
         allow(role, grant.actions, grant.resources);
     }
 
+    denyDefaultQualifier(role, scope);
+
     // Everything this role is not granted is denied, so a policy attached to it later cannot make it a writer, and
     // it cannot read a SecureString: `kms:Decrypt` is not one of its reads.
     role.addToPolicy(
@@ -447,11 +433,8 @@ const permissionsProdRead = (role: iam.Role, scope: Scope): void => {
 const permissionsProd = (role: iam.Role, scope: Scope): void => {
     const { account, region } = scope;
 
-    allow(
-        role,
-        ['sts:AssumeRole'],
-        [...ownedBootstrapRoles(scope, 'prod'), ...legacyBootstrapRoles(scope, ASSUMED_KINDS)],
-    );
+    allow(role, ['sts:AssumeRole'], ownedBootstrapRoles(scope, 'prod'));
+    denyDefaultQualifier(role, scope);
     allow(role, STACK_READ_ACTIONS, [`arn:aws:cloudformation:${region}:${account}:stack/kitchensink-*/*`]);
     allow(role, ACCOUNT_LIST_ACTIONS, ['*']);
     allow(role, ['ecr:GetAuthorizationToken'], ['*']);

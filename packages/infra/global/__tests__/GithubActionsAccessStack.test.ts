@@ -11,10 +11,7 @@ import path from 'node:path';
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
 
-import {
-    GithubActionsAccessStack,
-    LEGACY_QUALIFIER_ALLOW_EXPIRES_ON,
-} from '../lib/platform/GithubActionsAccessStack.js';
+import { GithubActionsAccessStack } from '../lib/platform/GithubActionsAccessStack.js';
 import { SHARED_TIER_DELETE_ORDER } from '../lib/sandbox-scheduler/reclaim.js';
 import {
     OBSERVE_SERVICE,
@@ -223,7 +220,7 @@ describe('GithubActionsAccessStack: what no role may do', () => {
             );
         }
 
-        const assume = statements.filter((s) => asList(s.Action).includes('sts:AssumeRole'));
+        const assume = statements.filter((s) => s.Effect === 'Allow' && asList(s.Action).includes('sts:AssumeRole'));
         const resources = JSON.stringify(assume.map((s) => s.Resource));
 
         expect(assume).toHaveLength(1);
@@ -239,7 +236,7 @@ describe('GithubActionsAccessStack: what no role may do', () => {
     // needs) is denied because it is not one of the reads.
     it('prod-read: denies kms:Decrypt and every write, by denying everything but its own reads', () => {
         const statements = statementsOf(t, 'kitchensink-gha-prod-read');
-        const denies = statements.filter((s) => s.Effect === 'Deny');
+        const denies = statements.filter((s) => s.Effect === 'Deny' && s.NotAction !== undefined);
         const granted = new Set(actionsOf(statements, 'Allow'));
 
         expect(denies).toHaveLength(1);
@@ -775,8 +772,9 @@ describe('GithubActionsAccessStack: the observe grants are the enumerated CI com
  * is enumerated here and nothing else in any role may name an `sts:` action. The sets are spelled out, not derived
  * from the production code, so a change to the trust registry cannot rewrite its own expectation.
  *
- * Expand half: the KitchenSink-owned bootstrap roles are granted and the default-qualifier roles are still allowed,
- * so that nothing breaks while stacks migrate. The contract half (a later commit) removes the legacy Allow.
+ * Contract half: only the KitchenSink-owned bootstrap roles are granted, and the default qualifier's roles — the other
+ * application's, administrator-backed — are explicitly DENIED to every tier, so a broad Allow added later cannot
+ * reopen the old path.
  */
 describe('GithubActionsAccessStack: the roles a CI role may assume are an enumerated set', () => {
     const t = template();
@@ -785,7 +783,6 @@ describe('GithubActionsAccessStack: the roles a CI role may assume are an enumer
         `arn:aws:iam::${account}:role/cdk-${qualifier}-${kind}-role-${account}-${region}`;
     const USED_KINDS = ['deploy', 'file-publishing', 'lookup'] as const;
     const kindsOf = (qualifier: string): string[] => USED_KINDS.map((kind) => boot(qualifier, kind));
-    const LEGACY = kindsOf('hnb659fds');
     const NONPROD = kindsOf('ksnonprod');
     const PROD = kindsOf('ksprod');
     const ACCOUNT = kindsOf('ksaccount');
@@ -809,11 +806,11 @@ describe('GithubActionsAccessStack: the roles a CI role may assume are an enumer
     };
 
     const EXPECTED: ReadonlyArray<readonly [string, readonly string[]]> = [
-        ['kitchensink-gha-nonprod', [...LEGACY, ...NONPROD]],
+        ['kitchensink-gha-nonprod', NONPROD],
         // The account qualifier is reachable from this role ONLY because the role itself is issued only to a job
         // bound to the Production environment on main (the trust test above). Neither other tier may hold it.
-        ['kitchensink-gha-prod', [...LEGACY, ...PROD, ...ACCOUNT]],
-        ['kitchensink-gha-prod-read', [boot('hnb659fds', 'lookup'), boot('ksprod', 'lookup')]],
+        ['kitchensink-gha-prod', [...PROD, ...ACCOUNT]],
+        ['kitchensink-gha-prod-read', [boot('ksprod', 'lookup')]],
     ];
 
     it.each(EXPECTED)('%s may assume exactly the bootstrap roles %j', (name, targets) => {
@@ -831,6 +828,54 @@ describe('GithubActionsAccessStack: the roles a CI role may assume are an enumer
         expect(reach('kitchensink-gha-prod-read')).not.toContain('cdk-ksaccount-');
         expect(reach('kitchensink-gha-prod-read')).not.toContain('cdk-ksnonprod-');
         expect(reach('kitchensink-gha-prod')).not.toContain('cdk-ksnonprod-');
+    });
+
+    it.each(EXPECTED)('%s may assume no default-qualifier role', (name) => {
+        expect(JSON.stringify(stsGrants(statementsOf(t, name)))).not.toContain('hnb659fds');
+    });
+
+    // The Deny is judged by what it must be, not by a copy of its text: an explicit, unconditioned Deny of
+    // `sts:AssumeRole` on every role of the default qualifier. A narrower Resource, a condition, a different action
+    // or an Allow in its place each leave part of the old path reachable.
+    const DEFAULT_ROLES = `arn:aws:iam::${account}:role/cdk-hnb659fds-*`;
+    const closesDefaultQualifier = (statements: readonly Statement[]): boolean =>
+        statements.some(
+            (s) =>
+                s.Effect === 'Deny' &&
+                JSON.stringify(asList(s.Action)) === JSON.stringify(['sts:AssumeRole']) &&
+                JSON.stringify(asList(s.Resource)) === JSON.stringify([DEFAULT_ROLES]) &&
+                s.Condition === undefined &&
+                s.NotAction === undefined,
+        );
+
+    it.each(EXPECTED)('%s carries an explicit Deny of sts:AssumeRole on the default qualifier', (name) => {
+        expect(closesDefaultQualifier(statementsOf(t, name))).toBe(true);
+    });
+
+    const denyBase: Statement = { Effect: 'Deny', Action: 'sts:AssumeRole', Resource: DEFAULT_ROLES };
+
+    it.each<[string, readonly Statement[]]>([
+        ['the Deny missing', []],
+        ['an Allow in its place', [{ ...denyBase, Effect: 'Allow' }]],
+        ['a Resource narrowed to the deploy role', [{ ...denyBase, Resource: boot('hnb659fds', 'deploy') }]],
+        ['a Resource aimed at an owned qualifier', [{ ...denyBase, Resource: `arn:aws:iam::${account}:role/cdk-ks*` }]],
+        [
+            'a condition that could switch it off',
+            [{ ...denyBase, Condition: { StringEquals: { 'aws:RequestedRegion': region } } }],
+        ],
+        ['a different action', [{ ...denyBase, Action: 'sts:TagSession' }]],
+        ['sts:* in place of sts:AssumeRole', [{ ...denyBase, Action: 'sts:*' }]],
+    ])('the Deny judge rejects %s', (_label, statements) => {
+        expect(closesDefaultQualifier(statements)).toBe(false);
+        expect(closesDefaultQualifier([denyBase])).toBe(true);
+    });
+
+    it.each(EXPECTED)('%s: dropping the real Deny makes the judge fail', (name) => {
+        const real = statementsOf(t, name);
+        const without = real.filter((s) => !(s.Effect === 'Deny' && JSON.stringify(s).includes('hnb659fds')));
+
+        expect(closesDefaultQualifier(real)).toBe(true);
+        expect(closesDefaultQualifier(without)).toBe(false);
     });
 
     // The shapes the pin must tell apart, so it is not green by accident: each is a way the grant could widen.
@@ -1021,32 +1066,5 @@ describe('GithubActionsAccessStack: only the production role may change image ta
 
     it.each(rows)('%s: %s on %s -> admitted=%s', (name, action, resource, expected) => {
         expect(policyAdmits(statementsOf(t, name), action, resource)).toBe(expected);
-    });
-});
-
-/**
- * The expand state must not become permanent. Until the contract commit lands, every CI role can still assume the
- * default-qualifier bootstrap roles, which are administrator-backed and shared with the other application in this
- * account (ADR-0065's HIGH-1 window). This test is a TRIPWIRE: it fails once the recorded date passes, so the
- * window is closed or consciously renewed (by changing the date in the same commit that states why).
- */
-describe('the default-qualifier Allow is a time-boxed expand state (ADR-0065)', () => {
-    const FORMAT = /^\d{4}-\d{2}-\d{2}$/u;
-
-    it('records a well-formed ISO date', () => {
-        expect(LEGACY_QUALIFIER_ALLOW_EXPIRES_ON).toMatch(FORMAT);
-        expect(Number.isNaN(Date.parse(`${LEGACY_QUALIFIER_ALLOW_EXPIRES_ON}T00:00:00Z`))).toBe(false);
-    });
-
-    it('is still before the date the contract commit was due', () => {
-        const today = new Date().toISOString().slice(0, 10);
-
-        expect(
-            today <= LEGACY_QUALIFIER_ALLOW_EXPIRES_ON,
-            `The default-qualifier (hnb659fds) Allow on the CI roles expired on ${LEGACY_QUALIFIER_ALLOW_EXPIRES_ON}. ` +
-                'Apply the contract commit (branch `option1-d2-contract`, ADR-0065) that removes the Allow and denies ' +
-                'the default qualifier instead. Only if the owner has consciously extended the window, move the date in ' +
-                'GithubActionsAccessStack.ts and say why in the commit.',
-        ).toBe(true);
     });
 });

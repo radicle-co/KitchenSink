@@ -383,7 +383,7 @@ jobs:
             # be cached at all stays decided in `turbo.json` (`cache: false` on the three gates that read
             # files turbo does not hash), never here.
             - name: Restore turbo cache
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: .turbo/cache
                   key: ${{ runner.os }}-turbo-resolve-sandbox-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -636,7 +636,7 @@ jobs:
             # be cached at all stays decided in `turbo.json` (`cache: false` on the three gates that read
             # files turbo does not hash), never here.
             - name: Restore turbo cache
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: .turbo/cache
                   key: ${{ runner.os }}-turbo-lint-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -749,7 +749,7 @@ jobs:
             # be cached at all stays decided in `turbo.json` (`cache: false` on the three gates that read
             # files turbo does not hash), never here.
             - name: Restore turbo cache
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: .turbo/cache
                   key: ${{ runner.os }}-turbo-format-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -856,7 +856,7 @@ jobs:
             # be cached at all stays decided in `turbo.json` (`cache: false` on the three gates that read
             # files turbo does not hash), never here.
             - name: Restore turbo cache
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: .turbo/cache
                   key: ${{ runner.os }}-turbo-typecheck-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -1045,7 +1045,7 @@ jobs:
             # Keyed on the lockfile AND the commit so each run writes its own entry, with `restore-keys`
             # falling back to the newest prior cache for the same dependency set.
             - name: Restore turbo cache
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: .turbo/cache
                   key: ${{ runner.os }}-turbo-${{ matrix.group }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -1717,7 +1717,7 @@ jobs:
             # be cached at all stays decided in `turbo.json` (`cache: false` on the three gates that read
             # files turbo does not hash), never here.
             - name: Restore turbo cache
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: .turbo/cache
                   key: ${{ runner.os }}-turbo-integration-recipe-workers-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -2014,7 +2014,7 @@ jobs:
             # be cached at all stays decided in `turbo.json` (`cache: false` on the three gates that read
             # files turbo does not hash), never here.
             - name: Restore turbo cache
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: .turbo/cache
                   key: ${{ runner.os }}-turbo-integration-infra-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
@@ -2483,7 +2483,7 @@ jobs:
             - name: Cache Playwright browsers
               id: playwright-cache
               if: steps.secrets.outcome == 'success'
-              uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: ~/.cache/ms-playwright
                   key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}

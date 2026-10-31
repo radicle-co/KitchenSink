@@ -1,0 +1,33 @@
+appId: ${APP_ID}
+---
+# The status badge in the DARK scheme, on a device (ADR-0080 §7: each slice adds a dark-mode check once it renders a
+# theme key). Slice 1 moved the badge's fill, edge and label onto Tamagui theme roles. The component tests read the
+# colours Tamagui's web build emits; only a device shows what React Native draws.
+#
+# A capture flow, like `primitives.yaml`: not under `config.yaml`'s discovery, run by name, and its screenshots reviewed
+# by eye. Put the device in dark mode BEFORE the run, because Maestro has no appearance command:
+#
+#   Android: adb -s <serial> shell cmd uimode night yes
+#   iOS:     xcrun simctl ui <udid> appearance dark
+#
+# What to look for: on the recipe list, every card's status badge is a filled pill with dark paper and a lighter
+# `lineDivider` edge for Draft, Private and Public, the PRO badge is the grey pair, and no badge shows a light fill on
+# the dark page. Then the detail of a draft shows the same neutral badge beside its rating line.
+- runFlow: ../auth/signinHome.yaml
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+- takeScreenshot: statusBadgeDark_recipeList
+
+# The list in its row view carries the most badges per screen.
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_SALAD}'
+      direction: DOWN
+      timeout: 20000
+- takeScreenshot: statusBadgeDark_recipeListScrolled
+- tapOn: '${E2E_RECIPE_SALAD}'
+- extendedWaitUntil:
+      visible: '${E2E_RECIPE_SALAD}'
+      timeout: 20000
+- takeScreenshot: statusBadgeDark_detail

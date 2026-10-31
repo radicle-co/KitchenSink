@@ -168,6 +168,43 @@ function leafOf(from: string, specifier: string): string | undefined {
     return [`${target}.native.tsx`, `${target}.native.ts`, `${target}.tsx`, `${target}.ts`].find(existsSync);
 }
 
+/** Names declared and exported in place: `export const Text = styled(…)`. */
+function exportedDeclarations(statement: ts.Statement, styledLocals: ReadonlySet<string>): readonly string[] {
+    if (!isExported(statement) || !ts.isVariableStatement(statement)) {
+        return [];
+    }
+
+    return statement.declarationList.declarations
+        .map((declaration) => declaration.name)
+        .filter((name): name is ts.Identifier => ts.isIdentifier(name) && styledLocals.has(name.text))
+        .map((name) => name.text);
+}
+
+/** The exported names of an `export { … }` clause whose source name is in `styled`. */
+function listedNames(clause: ts.NamedExportBindings | undefined, styled: ReadonlySet<string>): readonly string[] {
+    if (clause === undefined || !ts.isNamedExports(clause)) {
+        return [];
+    }
+
+    return clause.elements
+        .filter((element) => styled.has((element.propertyName ?? element.name).text))
+        .map((element) => element.name.text);
+}
+
+/** Names re-exported from a relative module: `export { X } from './X.js'` or `export * from './x.js'`. */
+function reExportedNames(statement: ts.ExportDeclaration, file: string, seen: ReadonlySet<string>): readonly string[] {
+    const specifier = statement.moduleSpecifier;
+
+    if (specifier === undefined || !ts.isStringLiteral(specifier) || !specifier.text.startsWith('.')) {
+        return [];
+    }
+
+    const leaf = leafOf(file, specifier.text);
+    const styledThere = leaf === undefined ? new Set<string>() : styledExportsOfFile(leaf, new Set([...seen, file]));
+
+    return statement.exportClause === undefined ? [...styledThere] : listedNames(statement.exportClause, styledThere);
+}
+
 /**
  * The names one module exports as Tamagui `styled(…)` components: declared and exported in place, listed in a local
  * `export { … }`, or re-exported from a relative module, followed to any depth (a cycle stops). Reads files.
@@ -178,55 +215,23 @@ function styledExportsOfFile(file: string, seen: ReadonlySet<string>): ReadonlyS
     }
 
     const source = parseModule(file, readFileSync(file, 'utf8'));
-    const styledNames = tamaguiStyledNames(source);
-    const styledLocals = new Set(styledBindings(source, styledNames));
-    const names = new Set<string>();
+    const styledLocals = new Set(styledBindings(source, tamaguiStyledNames(source)));
 
-    for (const statement of source.statements) {
-        if (isExported(statement) && ts.isVariableStatement(statement)) {
-            for (const declaration of statement.declarationList.declarations) {
-                if (ts.isIdentifier(declaration.name) && styledLocals.has(declaration.name.text)) {
-                    names.add(declaration.name.text);
-                }
-            }
-        }
-
-        if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) {
-            continue;
-        }
-
-        const clause = statement.exportClause;
-        const specifier = statement.moduleSpecifier;
-
-        if (specifier === undefined) {
-            // `export { Pill }`: a list of this module's own names.
-            if (clause !== undefined && ts.isNamedExports(clause)) {
-                clause.elements
-                    .filter((element) => styledLocals.has((element.propertyName ?? element.name).text))
-                    .forEach((element) => names.add(element.name.text));
+    return new Set(
+        source.statements.flatMap((statement) => {
+            if (!ts.isExportDeclaration(statement)) {
+                return exportedDeclarations(statement, styledLocals);
             }
 
-            continue;
-        }
+            if (statement.isTypeOnly) {
+                return [];
+            }
 
-        if (!ts.isStringLiteral(specifier) || !specifier.text.startsWith('.')) {
-            continue;
-        }
-
-        const leaf = leafOf(file, specifier.text);
-        const styledThere =
-            leaf === undefined ? new Set<string>() : styledExportsOfFile(leaf, new Set([...seen, file]));
-
-        if (clause !== undefined && ts.isNamedExports(clause)) {
-            clause.elements
-                .filter((element) => styledThere.has((element.propertyName ?? element.name).text))
-                .forEach((element) => names.add(element.name.text));
-        } else if (clause === undefined) {
-            styledThere.forEach((name) => names.add(name));
-        }
-    }
-
-    return names;
+            return statement.moduleSpecifier === undefined
+                ? listedNames(statement.exportClause, styledLocals)
+                : reExportedNames(statement, file, seen);
+        }),
+    );
 }
 
 /**

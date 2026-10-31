@@ -31,6 +31,19 @@ function keyOf(property: ts.PropertyAssignment): string | undefined {
     return ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name) ? name.text : undefined;
 }
 
+/**
+ * How deep below `variants` the walk is after entering a property's object value: 1 inside the variant table (variant
+ * names), 2 inside one variant (value names), 3 inside one value (styles), and 0 again for anything deeper, which is
+ * an ordinary style object (`backgroundColor: { base, press }`).
+ */
+function depthAfter(depthBelowVariants: number, enteringVariantTable: boolean): number {
+    if (enteringVariantTable) {
+        return 1;
+    }
+
+    return depthBelowVariants > 0 && depthBelowVariants < 3 ? depthBelowVariants + 1 : 0;
+}
+
 function isFunction(node: ts.Expression): boolean {
     return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 }
@@ -68,9 +81,7 @@ export function styledConfig(call: ts.CallExpression): StyledConfig {
             }
 
             if (ts.isObjectLiteralExpression(value)) {
-                const next = variantTable ? 1 : depthBelowVariants > 0 ? depthBelowVariants + 1 : 0;
-
-                walk(value, next > 3 ? 0 : next);
+                walk(value, depthAfter(depthBelowVariants, variantTable));
             }
         }
     };

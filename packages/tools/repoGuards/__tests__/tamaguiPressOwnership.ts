@@ -8,15 +8,9 @@
 import { canonicalClauseModifier } from '@tamagui/style-grammar/runtime';
 import ts from 'typescript';
 
-import { lineOf, parseModule } from './appSources.js';
-import {
-    isTamaguiStyledCall,
-    tamaguiElementNames,
-    tamaguiOpeningElements,
-    tamaguiStyledNames,
-    type StyledExportsOf,
-} from './tamaguiElements.js';
-import { styledConfig } from './tamaguiStyleObjects.js';
+import type { StyledExportsOf } from './tamaguiElements.js';
+import type { StyleProperty } from './tamaguiStyleObjects.js';
+import { styleSiteFindings } from './tamaguiStyleSites.js';
 
 const PRESS_HANDLERS = new Set(['onPress', 'onPressIn', 'onPressOut', 'onLongPress']);
 
@@ -64,6 +58,34 @@ function valueHasPress(expression: ts.Expression): boolean {
     return found;
 }
 
+function attributeOwnsPress(attribute: ts.JsxAttributeLike, file: ts.SourceFile): boolean {
+    if (!ts.isJsxAttribute(attribute)) {
+        return false;
+    }
+
+    const { initializer } = attribute;
+    const value = initializer !== undefined && ts.isJsxExpression(initializer) ? initializer.expression : initializer;
+
+    return PRESS_HANDLERS.has(attribute.name.getText(file)) || (value !== undefined && valueHasPress(value));
+}
+
+/**
+ * A nested object's own properties are walked as entries of their own, so an object value is judged only by its direct
+ * keys (the object form's `press`), and a string inside it is reported once, where it is.
+ */
+function propertyOwnsPress({ key, value }: StyleProperty): boolean {
+    const owns = ts.isObjectLiteralExpression(value)
+        ? value.properties.some(
+              (inner) =>
+                  ts.isPropertyAssignment(inner) &&
+                  (ts.isIdentifier(inner.name) || ts.isStringLiteral(inner.name)) &&
+                  isPressModifier(inner.name.text),
+          )
+        : valueHasPress(value);
+
+    return PRESS_HANDLERS.has(key) || owns;
+}
+
 /**
  * Every press owner on a Tamagui element, or in a Tamagui `styled(…)` definition, in one module. Pure, given
  * `styledExportsOf`.
@@ -78,67 +100,8 @@ export function pressOwnershipFindings(
     fileName: string,
     styledExportsOf: StyledExportsOf,
 ): readonly string[] {
-    const file = parseModule(fileName, source);
-    const findings: string[] = [];
-
-    const report = (node: ts.Node): void => {
-        findings.push(`${fileName}:${lineOf(file, node)} ${node.getText(file)}`);
-    };
-
-    for (const element of tamaguiOpeningElements(file, tamaguiElementNames(file, styledExportsOf))) {
-        for (const attribute of element.attributes.properties) {
-            if (!ts.isJsxAttribute(attribute)) {
-                continue;
-            }
-
-            const name = attribute.name.getText(file);
-            const initializer = attribute.initializer;
-            const value =
-                initializer === undefined
-                    ? undefined
-                    : ts.isJsxExpression(initializer)
-                      ? initializer.expression
-                      : initializer;
-
-            if (PRESS_HANDLERS.has(name) || (value !== undefined && ts.isExpression(value) && valueHasPress(value))) {
-                report(attribute);
-            }
-        }
-    }
-
-    const styledNames = tamaguiStyledNames(file);
-
-    const visit = (node: ts.Node): void => {
-        if (isTamaguiStyledCall(node, styledNames)) {
-            const { properties, unreadable } = styledConfig(node);
-
-            // Fail closed: a part the walk cannot read is reported, never passed.
-            unreadable.forEach(report);
-
-            // A nested object's own properties are walked as entries of their own, so an object value is judged only
-            // by its direct keys (the object form's `press`), and a string inside it is reported once, where it is.
-            for (const { key, value, node: property } of properties) {
-                const owns = ts.isObjectLiteralExpression(value)
-                    ? value.properties.some(
-                          (inner) =>
-                              ts.isPropertyAssignment(inner) &&
-                              (ts.isIdentifier(inner.name) || ts.isStringLiteral(inner.name)) &&
-                              isPressModifier(inner.name.text),
-                      )
-                    : valueHasPress(value);
-
-                if (PRESS_HANDLERS.has(key) || owns) {
-                    report(property);
-                }
-            }
-
-            return;
-        }
-
-        ts.forEachChild(node, visit);
-    };
-
-    visit(file);
-
-    return findings;
+    return styleSiteFindings(source, fileName, styledExportsOf, {
+        attribute: attributeOwnsPress,
+        property: propertyOwnsPress,
+    });
 }

@@ -6,15 +6,8 @@
  */
 import ts from 'typescript';
 
-import { lineOf, parseModule } from './appSources.js';
-import {
-    isTamaguiStyledCall,
-    tamaguiElementNames,
-    tamaguiOpeningElements,
-    tamaguiStyledNames,
-    type StyledExportsOf,
-} from './tamaguiElements.js';
-import { styledConfig } from './tamaguiStyleObjects.js';
+import type { StyledExportsOf } from './tamaguiElements.js';
+import { styleSiteFindings } from './tamaguiStyleSites.js';
 
 const TYPE_PARTS = new Set(['fontSize', 'lineHeight', 'fontFamily', 'fontWeight', 'letterSpacing']);
 
@@ -44,47 +37,11 @@ export function typePropFindings(
     fileName: string,
     styledExportsOf: StyledExportsOf,
 ): readonly string[] {
-    const file = parseModule(fileName, source);
-    const findings: string[] = [];
-
-    const report = (node: ts.Node): void => {
-        findings.push(`${fileName}:${lineOf(file, node)} ${node.getText(file)}`);
-    };
-
-    for (const element of tamaguiOpeningElements(file, tamaguiElementNames(file, styledExportsOf))) {
-        for (const attribute of element.attributes.properties) {
-            if (ts.isJsxAttribute(attribute) && TYPE_PARTS.has(attribute.name.getText(file))) {
-                report(attribute);
-            }
-
-            if (ts.isJsxSpreadAttribute(attribute) && OLD_TYPE_STYLES.test(attribute.expression.getText(file))) {
-                report(attribute);
-            }
-        }
-    }
-
-    const styledNames = tamaguiStyledNames(file);
-
-    const visit = (node: ts.Node): void => {
-        if (isTamaguiStyledCall(node, styledNames)) {
-            const { properties, unreadable } = styledConfig(node);
-
-            // Fail closed: a part the walk cannot read is reported, never passed.
-            unreadable.forEach(report);
-
-            for (const { key, value, node: property } of properties) {
-                if (key === 'lineHeight' && !isPxLineHeight(value)) {
-                    report(property);
-                }
-            }
-
-            return;
-        }
-
-        ts.forEachChild(node, visit);
-    };
-
-    visit(file);
-
-    return findings;
+    return styleSiteFindings(source, fileName, styledExportsOf, {
+        attribute: (attribute, file) =>
+            ts.isJsxAttribute(attribute)
+                ? TYPE_PARTS.has(attribute.name.getText(file))
+                : OLD_TYPE_STYLES.test(attribute.expression.getText(file)),
+        property: ({ key, value }) => key === 'lineHeight' && !isPxLineHeight(value),
+    });
 }

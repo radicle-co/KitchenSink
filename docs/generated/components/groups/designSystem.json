@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 77,
-        "implementations": 135,
-        "props": 780,
-        "documentedComponents": 77,
-        "implementationsWithModuleDoc": 135,
+        "components": 78,
+        "implementations": 137,
+        "props": 784,
+        "documentedComponents": 78,
+        "implementationsWithModuleDoc": 137,
         "implementationsWithComponentDoc": 127,
-        "documentedProps": 745,
+        "documentedProps": 749,
         "classifiedComponents": 70,
-        "componentsWithPatternTag": 77,
-        "crossPlatformComponents": 58
+        "componentsWithPatternTag": 78,
+        "crossPlatformComponents": 59
     },
     "components": [
         {
@@ -2979,7 +2979,7 @@
             "dir": "packages/apps/commise/ui/src/confirmDialog",
             "kind": "unclassified",
             "patterns": [
-                "Adapter over `@radix-ui/react-alert-dialog`",
+                "Adapter over `@radix-ui/react-alert-dialog`, composing the design-system `DialogActions` row",
                 "Adapter over the design-system `DialogFrame` — the platform expression of the web leaf's Radix adapter, with\n    `onRequestClose` mapped to the same Keep path so the hardware back button cannot diverge from the control."
             ],
             "platforms": [
@@ -2995,7 +2995,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.tsx",
                     "dir": "packages/apps/commise/ui/src/confirmDialog",
-                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog}: a Radix `AlertDialog` that confirms\na destructive step with two verb buttons (spec §1.11, §6.5).\n\n- Focus opens on Keep: Radix's `AlertDialog.Cancel` takes the initial focus, so no effect is added for it. Keep is\n  that Radix slot wearing the DS secondary surface (`buttonSurfaceClass`), because a slot owns its own element and\n  the `Button` component forwards no ref. The confirm is the DS `Button` in its filled `confirm` tone, which brings\n  the in-place spinner and the busy guard (`aria-busy`, a refused press that keeps focus).\n- The buttons stack full width below a 400 px DIALOG — a container query on the dialog itself, not the viewport —\n  with the destructive one on top; side by side above it, Keep first.\n- Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores\n  focus only to an owned trigger, and every caller opens this from a sibling.",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog}: a Radix `AlertDialog` that confirms\na destructive step with two verb buttons (spec §1.11, §6.5).\n\n- Focus opens on Keep: Radix's `AlertDialog.Cancel` takes the initial focus, so no effect is added for it. Keep is\n  that Radix slot wearing the DS secondary surface (`buttonSurfaceClass`), because a slot owns its own element and\n  the `Button` component forwards no ref. The confirm is the DS `Button` in its filled `confirm` tone, which brings\n  the in-place spinner and the busy guard (`aria-busy`, a refused press that keeps focus).\n- The buttons stack full width below a 400 px DIALOG — `DialogActions`' container query on the dialog's own content\n  box, not the viewport — with the destructive one on top; side by side above it, Keep first.\n- Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores\n  focus only to an owned trigger, and every caller opens this from a sibling.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3003,7 +3003,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over `@radix-ui/react-alert-dialog`"
+                            "text": "Adapter over `@radix-ui/react-alert-dialog`, composing the design-system `DialogActions` row"
                         }
                     ],
                     "description": "",
@@ -3123,7 +3123,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.native.tsx",
                     "dir": "packages/apps/commise/ui/src/confirmDialog",
-                    "moduleDoc": "@commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6).\n\nThe React Native leaf of `ConfirmDialog`: the body and a Keep + confirm pair on the design system's centred\n`DialogFrame` (`docs/design/compactHeightLayout.md` §9), which owns the window, the scrim, the safe area, the keyboard,\nthe capped card that scrolls, and the title, named and first, as an interrupting `alert`. `onRequestClose` (the\nAndroid Back button) maps to `onKeep`, so there is one exit path, not two, as on web.\n\n- The screen-reader cursor opens on Keep, through the DS `Button`'s focus request, raised once per opening.\n- The confirm is the DS `Button` in its filled `confirm` tone, which brings the spinner and the busy guard.\n- The buttons stack full width with the destructive one on top until the dialog measures 400 pt or wider, then sit\n  side by side, Keep first (spec §6.5) — the frame's own width, read from layout, not the window's.\n\nRenders NOTHING while `open` is false (the frame returns early), so each opening mounts a fresh body.",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6).\n\nThe React Native leaf of `ConfirmDialog`: the body and a Keep + confirm pair on the design system's centred\n`DialogFrame` (`docs/design/compactHeightLayout.md` §9), which owns the window, the scrim, the safe area, the keyboard,\nthe capped card that scrolls, and the title, named and first, as an interrupting `alert`. `onRequestClose` (the\nAndroid Back button) maps to `onKeep`, so there is one exit path, not two, as on web.\n\n- The screen-reader cursor opens on Keep, through the DS `Button`'s focus request, raised once per opening.\n- The confirm is the DS `Button` in its filled `confirm` tone, which brings the spinner and the busy guard.\n- The buttons stack full width with the destructive one on top until the dialog measures 400 pt or wider, then sit\n  side by side, Keep first (spec §6.5) — `DialogActions` reads the frame's own width from layout, not the window's.\n\nRenders NOTHING while `open` is false (the frame returns early), so each opening mounts a fresh body.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3760,6 +3760,128 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/dialogActions/DialogActions",
+            "name": "DialogActions",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/dialogActions",
+            "kind": "unclassified",
+            "patterns": [
+                "Responsive layout by container query — the row answers to its own box, not the viewport's, so one rule\n    serves a 448 px alert and a 672 px preview.",
+                "Strategy chosen by measurement — a row direction picked from the box's own measured width"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DialogActions",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
+                    "dir": "packages/apps/commise/ui/src/dialogActions",
+                    "moduleDoc": "@commise/ui/dialog-actions — the web design-system {@link DialogActions}: the action row of a dialog or sheet.\n\nTwo elements, because a container query styles a container's DESCENDANTS and never the container itself: an outer\n`@container/dialog` wrapper that is the thing measured, and the flex row inside it (`dialogActionsRow`). The\nwrapper has inline-size containment, so it takes no width from its content and must be STRETCHED by its parent:\nput it in a `flex-col` parent with the default stretch, as both `ConfirmDialog` and `VersionPreviewModal` do. Never\nput it inside a row or an `items-center` column, where it would collapse to nothing.\n\nThe buttons are direct children of the row, in source order (dismiss first, main action last), so the DOM and\nfocus order never change with the layout. A design-system `Button` passes `width=\"fill\"`; a Radix slot wears\n{@link dialogActionSlotClass} for the same threshold.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/dialog-actions — the web design-system {@link DialogActions}: the action row of a dialog or sheet."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Responsive layout by container query — the row answers to its own box, not the viewport's, so one rule\n    serves a 448 px alert and a 672 px preview."
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The buttons, in source order: the dismiss action first, the main action last. Give each `width=\"fill\"`.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        },
+                        {
+                            "name": "sideBySideFrom",
+                            "type": "enum",
+                            "typeDetail": [
+                                "400",
+                                "600"
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's own width from which the actions sit side by side. Required: a default puts a number on labels nobody measured.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "DialogActions",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/dialogActions",
+                    "moduleDoc": "@commise/ui/dialog-actions — the native design-system {@link DialogActions}: the action row of a dialog or\nsheet.\n\nIt measures its OWN width from layout, because the window's width is not the width of a dialog card or a sheet's\ncontent box. Before the first layout it stacks, the safe shape for the narrowest phone, so a first paint can never\nclip a button. The buttons stack full width with the main action on top (`column-reverse` over source order: dismiss\nfirst), then sit end-aligned in one row from `sideBySideFrom`. Give each button `width=\"fill\"`: in a row that keeps\nits content width.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/dialog-actions — the native design-system {@link DialogActions}: the action row of a dialog or"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Strategy chosen by measurement — a row direction picked from the box's own measured width"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The buttons, in source order: the dismiss action first, the main action last. Give each `width=\"fill\"`.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        },
+                        {
+                            "name": "sideBySideFrom",
+                            "type": "enum",
+                            "typeDetail": [
+                                "400",
+                                "600"
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's own width from which the actions sit side by side. Required: a default puts a number on labels nobody measured.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }

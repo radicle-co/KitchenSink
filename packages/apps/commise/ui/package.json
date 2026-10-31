@@ -45,6 +45,7 @@
         "./check-box-glyph": "./src/checkBoxGlyph/index.ts",
         "./combobox": "./src/combobox/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",
+        "./dialog-actions": "./src/dialogActions/index.ts",
         "./compact-height": "./src/layout/compactHeight.ts",
         "./container-class": "./src/layout/containerClass.ts",
         "./main-element": "./src/layout/mainElement.ts",

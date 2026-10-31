@@ -605,6 +605,48 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
 });
 
 /**
+ * ADR-0079: the calorie lookup never holds anything up. Each test here answers the lookup with a promise that never
+ * settles, which is the worst a real lookup can do before its 12 s deadline. Under ADR-0021 every rail's calorie slot
+ * suspended on that promise, its committed skeleton's retry lane ran ahead of the pinged "see all" transition, and the
+ * rails stayed. The rail's skeleton is awaited BEFORE the tap so that retry lane is in place, which is the state the
+ * defect needed.
+ */
+describe('RecipeDiscoveryContainer — calories never hold back a rail’s "see all" (ADR-0079)', () => {
+    it('leaves the rails for the full list while every calorie lookup is still in flight', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeNutrition').mockReturnValue(new Promise<RecipeNutritionResponse>(() => undefined));
+        vi.spyOn(client, 'searchRecipes').mockImplementation((params) =>
+            Promise.resolve(
+                makeSearchResponse([
+                    makeSearchResult({
+                        recipe: makeRecipe({
+                            id: `rec_${params?.sortBy ?? 'main'}_${params?.pageSize ?? 'all'}`,
+                            title:
+                                params?.pageSize === undefined
+                                    ? `${params?.sortBy} full list dish`
+                                    : `${params.sortBy} rail dish`,
+                        }),
+                    }),
+                ]),
+            ),
+        );
+
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
+
+        // A rail card is on screen with its calorie skeleton up: the lookup is in flight.
+        expect(await screen.findByRole('link', { name: 'most-cloned rail dish' })).toBeInTheDocument();
+        expect((await screen.findAllByText('Loading calories')).length).toBeGreaterThan(0);
+
+        await user.click(screen.getByRole('button', { name: 'See all Trending' }));
+
+        // The default wait: leaving the rails needs the search only, never the calories.
+        expect(await screen.findByRole('link', { name: 'most-cloned full list dish' })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument();
+    });
+});
+
+/**
  * Recent searches, end-to-end through the REAL `localStorage` adapter (jsdom provides it) — the integration
  * these tests exist for is "does the container record the right thing, in the right place, and offer it
  * back", not the pure list rules (covered in `recentSearches.test.ts`) or the panel's visibility rules

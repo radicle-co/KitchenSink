@@ -20,7 +20,7 @@ const builtInShorthands = Object.keys(
         themes: {},
         fonts: {},
     }).shorthands,
-).sort();
+).sort((a, b) => a.localeCompare(b));
 
 const { tamaguiConfig } = await import('../tamaguiConfig.native.js');
 
@@ -83,7 +83,7 @@ describe('the built Tamagui config', () => {
     });
 
     it('adds no shorthand of its own beyond Tamagui’s built-in table, which is the one table the G7 guard reads', () => {
-        expect(Object.keys(tamaguiConfig.shorthands).sort()).toEqual(builtInShorthands);
+        expect(Object.keys(tamaguiConfig.shorthands).sort((a, b) => a.localeCompare(b))).toEqual(builtInShorthands);
     });
 
     it('defines no media queries, because native layout reads its container class and not the window', () => {

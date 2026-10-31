@@ -97,6 +97,8 @@ export function baselineHistory<T>(baselinePath: string): readonly BaselineVersi
         );
     }
 
+    // No `--follow`: git's similarity detection reads one baseline JSON as a copy of the other, which would mix two
+    // ratchets' counts. So a MOVED baseline starts a new history at its new path; moving one is a reviewed change.
     const revisions = (git(['log', '--format=%H', '--', baselinePath]) ?? '')
         .split('\n')
         .filter((line) => line.length > 0);

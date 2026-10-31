@@ -7,7 +7,7 @@
 import ts from 'typescript';
 
 import { lineOf, parseModule } from './appSources.js';
-import { specifiersOf, valueBindingsOf } from './moduleBindings.js';
+import { reExportsOf, specifiersOf, valueBindingsOf } from './moduleBindings.js';
 import { isClassifiedElementExport, TAMAGUI_MODULE } from './tamaguiElements.js';
 
 const CONFIG_EXPORT = '@commise/ui/tamagui-config';
@@ -120,80 +120,41 @@ function isAllowedExport(name: string): boolean {
  */
 export function tamaguiUnclassifiedImportFindings(source: string, fileName: string): readonly string[] {
     const file = parseModule(fileName, source);
-    const findings: string[] = [];
-    const namespaces = new Set<string>();
+    const isTamagui = (specifier: string): boolean => TAMAGUI_MODULE.test(specifier);
+    const bindings = valueBindingsOf(file, isTamagui);
+    const reExports = reExportsOf(file, isTamagui);
 
-    const report = (node: ts.Node): void => {
-        findings.push(
-            `${fileName}:${lineOf(file, node)} ${node.getText(file)} is not classified by the Tamagui guards`,
-        );
-    };
+    const report = (node: ts.Node): string =>
+        `${fileName}:${lineOf(file, node)} ${node.getText(file)} is not classified by the Tamagui guards`;
 
-    for (const statement of file.statements) {
-        if (
-            !(ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) ||
-            statement.moduleSpecifier === undefined ||
-            !ts.isStringLiteral(statement.moduleSpecifier) ||
-            !TAMAGUI_MODULE.test(statement.moduleSpecifier.text)
-        ) {
-            continue;
-        }
+    const unclassifiedImports = [...bindings.specifiers]
+        .filter(([name]) => !isAllowedExport(name))
+        .flatMap(([, specifiers]) => specifiers);
+    const unclassifiedReExports = reExports.named.filter(
+        (element) => !isAllowedExport((element.propertyName ?? element.name).text),
+    );
 
-        if (ts.isImportDeclaration(statement)) {
-            const clause = statement.importClause;
+    // A default import and an export of everything reach members by name at run time, which no guard can classify.
+    const defaults = [...bindings.defaults.values()];
 
-            if (clause === undefined || clause.phaseModifier === ts.SyntaxKind.TypeKeyword) {
-                continue;
-            }
-
-            if (clause.name !== undefined) {
-                report(clause.name);
-            }
-
-            const bindings = clause.namedBindings;
-
-            if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
-                namespaces.add(bindings.name.text);
-            } else if (bindings !== undefined) {
-                bindings.elements
-                    .filter(
-                        (element) =>
-                            !element.isTypeOnly && !isAllowedExport((element.propertyName ?? element.name).text),
-                    )
-                    .forEach(report);
-            }
-        } else if (!statement.isTypeOnly) {
-            const clause = statement.exportClause;
-
-            if (clause === undefined || !ts.isNamedExports(clause)) {
-                report(statement);
-            } else {
-                clause.elements
-                    .filter(
-                        (element) =>
-                            !element.isTypeOnly && !isAllowedExport((element.propertyName ?? element.name).text),
-                    )
-                    .forEach(report);
-            }
-        }
-    }
+    const members: ts.Node[] = [];
 
     const visit = (node: ts.Node): void => {
         if (
             ts.isPropertyAccessExpression(node) &&
             ts.isIdentifier(node.expression) &&
-            namespaces.has(node.expression.text) &&
+            bindings.namespaces.has(node.expression.text) &&
             !isAllowedExport(node.name.text)
         ) {
-            report(node);
+            members.push(node);
         }
 
         ts.forEachChild(node, visit);
     };
 
-    if (namespaces.size > 0) {
-        visit(file);
-    }
+    visit(file);
 
-    return findings;
+    return [...unclassifiedImports, ...unclassifiedReExports, ...reExports.everything, ...defaults, ...members].map(
+        report,
+    );
 }

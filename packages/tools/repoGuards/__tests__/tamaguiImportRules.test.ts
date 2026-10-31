@@ -76,6 +76,9 @@ describe('G1: the closed allow-list of Tamagui value imports', () => {
         ],
         ['a renamed allowed name', `import { View as Box } from 'tamagui';`, 0],
         ['a renamed unclassified name', `import { Sheet as Drawer } from 'tamagui';`, 1],
+        ['a default import, whose members no guard can classify', `import T from 'tamagui';`, 1],
+        ['an export of everything', `export * from 'tamagui';`, 1],
+        ['a type-only re-export', `export type { GetProps } from 'tamagui';`, 0],
     ] as const)('%s', (_shape, source, expected) => {
         expect(tamaguiUnclassifiedImportFindings(source, NATIVE_LEAF)).toHaveLength(expected);
     });

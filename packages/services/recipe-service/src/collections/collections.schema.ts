@@ -99,7 +99,12 @@ export const updateCollectionRequestSchema = z
         description: collectionDescriptionSchema.optional(),
         visibility: recipeVisibilitySchema.optional(),
     })
-    .refine((value) => Object.keys(value).length > 0, { message: 'At least one field must be provided.' });
+    .refine((value) => Object.keys(value).length > 0, {
+        message: 'At least one field must be provided.',
+        // Since zod 4.6 an unrecognized key no longer stops later checks, so without this guard `{ nmae: 'x' }`
+        // would answer both issues and the two rejections would overlap again.
+        when: (payload) => payload.issues.length === 0,
+    });
 
 /** Request body for updating a collection. */
 export type UpdateCollectionRequest = z.infer<typeof updateCollectionRequestSchema>;

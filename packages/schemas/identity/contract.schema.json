@@ -53,23 +53,15 @@
                                 "type": "string"
                             },
                             "name": {
-                                "anyOf": [
-                                    {
-                                        "type": "string"
-                                    },
-                                    {
-                                        "type": "null"
-                                    }
+                                "type": [
+                                    "string",
+                                    "null"
                                 ]
                             },
                             "picture": {
-                                "anyOf": [
-                                    {
-                                        "type": "string"
-                                    },
-                                    {
-                                        "type": "null"
-                                    }
+                                "type": [
+                                    "string",
+                                    "null"
                                 ]
                             },
                             "status": {
@@ -170,7 +162,7 @@
             "properties": {
                 "userId": {
                     "format": "ulid",
-                    "pattern": "^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$",
+                    "pattern": "^[0-7][0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{25}$",
                     "type": "string"
                 }
             },
@@ -187,23 +179,15 @@
                     "type": "string"
                 },
                 "name": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
+                    "type": [
+                        "string",
+                        "null"
                     ]
                 },
                 "picture": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
+                    "type": [
+                        "string",
+                        "null"
                     ]
                 },
                 "status": {
@@ -472,13 +456,9 @@
                     "additionalProperties": false,
                     "properties": {
                         "avatarUrl": {
-                            "anyOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "type": "null"
-                                }
+                            "type": [
+                                "string",
+                                "null"
                             ]
                         },
                         "createdAt": {
@@ -506,13 +486,9 @@
                             "type": "string"
                         },
                         "username": {
-                            "anyOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "type": "null"
-                                }
+                            "type": [
+                                "string",
+                                "null"
                             ]
                         }
                     },
@@ -540,13 +516,9 @@
             "additionalProperties": false,
             "properties": {
                 "avatarUrl": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
+                    "type": [
+                        "string",
+                        "null"
                     ]
                 },
                 "createdAt": {
@@ -574,13 +546,9 @@
                     "type": "string"
                 },
                 "username": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
+                    "type": [
+                        "string",
+                        "null"
                     ]
                 }
             },

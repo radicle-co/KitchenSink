@@ -95,6 +95,28 @@ const renderSurface = (props: Partial<Parameters<typeof HomeWidgetSurface>[0]> =
 
 const FakeRecipeWidget: FC = () => <Text>fake-recipe-widget</Text>;
 
+/**
+ * Every greeting band the heading can be in, as [label, a local time in it, the exact title]. The greeting reads
+ * the viewer's LOCAL clock (`useHomeGreeting`), so a test that finds the heading by its text must pin the clock and
+ * name the band it expects: an unpinned one passed by day and failed between 22:00 and 04:59 ("Still up").
+ * The bands' boundaries are covered by `greetingBucketForHour`'s own test (`@commise/features-core`).
+ */
+const GREETING_BANDS = [
+    ['morning', new Date(2026, 4, 31, 8, 0, 0), 'Good morning, Jane Doe'],
+    ['afternoon', new Date(2026, 4, 31, 14, 0, 0), 'Good afternoon, Jane Doe'],
+    ['evening', new Date(2026, 4, 31, 19, 0, 0), 'Good evening, Jane Doe'],
+    ['night', new Date(2026, 4, 31, 3, 45, 0), 'Still up, Jane Doe?'],
+] as const;
+
+/**
+ * Pins ONLY `Date` to the given instant. The async queries (`findBy*`, `waitFor`) poll on real timers, so faking
+ * `setTimeout` as well would stall them.
+ */
+const pinClockAt = (instant: Date): void => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(instant);
+};
+
 describe('HomeWidgetSurface (mobile) — host composition', () => {
     // Rewritten for slice 3: the top bar (with its dead search and bell) is deleted. Home's large title is the greeting,
     // the scroller's first child, with the avatar as its action; the tab bar is the navigator's
@@ -139,15 +161,20 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
 
     // Bug sweep B11: the large title insets its own sides 16, so the region does not pad around it, and the widgets
     // under it pad themselves 16. A region that also padded would move the title in twice (32).
-    it('insets the title once (its own 16) and the widgets under it by 16', async () => {
-        renderSurface({
-            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
-            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
-        });
+    it.each(GREETING_BANDS)(
+        'insets the title once (its own 16) and the widgets under it by 16, in the %s',
+        async (_band, instant, title) => {
+            pinClockAt(instant);
 
-        expect(sideInsetOf(screen.getByRole('heading', { name: /^Good (morning|afternoon|evening)/u }))).toBe(16);
-        expect(sideInsetOf(await screen.findByText('fake-recipe-widget'))).toBe(16);
-    });
+            renderSurface({
+                container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+                renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+            });
+
+            expect(sideInsetOf(screen.getByRole('heading', { name: title }))).toBe(16);
+            expect(sideInsetOf(await screen.findByText('fake-recipe-widget'))).toBe(16);
+        },
+    );
 
     it('renders the bespoke slot for a live widget whose id has a registered renderer', async () => {
         renderSurface({
@@ -158,21 +185,26 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
         expect(await screen.findByText('fake-recipe-widget')).toBeTruthy();
     });
 
-    it('keeps the rest of Home on screen while a LAZY bespoke widget is still loading (a Suspense boundary per widget)', async () => {
-        // A bespoke renderer may itself be `React.lazy` (the recipe slot is code-split). Home's widget-surface contract
-        // is a per-widget ErrorBoundary + Suspense, so one widget still resolving must leave the greeting and its
-        // siblings drawn: without the boundary the pending chunk suspends the whole surface.
-        const Pending = lazy<FC>(() => new Promise<{ default: FC }>(() => undefined));
-        const Sibling: FC = () => <Text>fake-sibling-widget</Text>;
+    it.each(GREETING_BANDS)(
+        'keeps the rest of Home on screen while a LAZY bespoke widget is still loading (a Suspense boundary per widget), in the %s',
+        async (_band, instant, title) => {
+            // A bespoke renderer may itself be `React.lazy` (the recipe slot is code-split). Home's widget-surface
+            // contract is a per-widget ErrorBoundary + Suspense, so one widget still resolving must leave the greeting
+            // and its siblings drawn: without the boundary the pending chunk suspends the whole surface.
+            const Pending = lazy<FC>(() => new Promise<{ default: FC }>(() => undefined));
+            const Sibling: FC = () => <Text>fake-sibling-widget</Text>;
 
-        renderSurface({
-            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID), makeLiveDescriptor('sibling')),
-            renderers: { [RECIPE_HOME_WIDGET_ID]: Pending, sibling: Sibling },
-        });
+            pinClockAt(instant);
 
-        expect(await screen.findByText('fake-sibling-widget')).toBeTruthy();
-        expect(screen.getByRole('heading', { name: /^Good (morning|afternoon|evening)|^Still up/u })).toBeTruthy();
-    });
+            renderSurface({
+                container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID), makeLiveDescriptor('sibling')),
+                renderers: { [RECIPE_HOME_WIDGET_ID]: Pending, sibling: Sibling },
+            });
+
+            expect(await screen.findByText('fake-sibling-widget')).toBeTruthy();
+            expect(screen.getByRole('heading', { name: title })).toBeTruthy();
+        },
+    );
 
     it('renders a placeholder through its loader seam (skeleton), not the bespoke renderer map', async () => {
         const Skeleton: FC = () => <Text>fake-skeleton</Text>;

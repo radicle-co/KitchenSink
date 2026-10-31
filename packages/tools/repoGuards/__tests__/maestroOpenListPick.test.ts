@@ -2,8 +2,8 @@
  * A PICK FROM AN OPEN FOOD LIST GOES THROUGH ONE STEP, `common/pickFromOpenList.yaml`, WHICH TAPS NEAR THE OPTION'S TOP.
  *
  * `common/scrollOpenList.yaml` scrolls an open list until its target is on screen, and on iOS with the soft keyboard up
- * until the target is `above` the keyboard. Maestro's `above` compares TOP edges only, so the option's centre, where a
- * plain `tapOn` lands, can still be under the keyboard. The helper used to end with a "lift" drag to clear it, and it was
+ * until the WHOLE target is above the keyboard: an element below it must also be above the keyboard, because Maestro's
+ * `above` compares TOP edges only and a top 1 pt clear let the tap land on the suggestion strip (rule 4). The helper used to end with a "lift" drag to clear it, and it was
  * wrong both ways it could be written: unconditional, it started on the page below a SHORT list and closed the list (CI
  * run 39400327458, iOS shard 1, `versions`); gated on "some option starts below the keyboard", it skipped exactly when
  * the target was the LAST option straddling the keyboard's edge, and the tap landed on the suggestion strip (Mac run,
@@ -15,6 +15,8 @@
  *      refused anywhere but the shared step's own file.
  *   2. The shared step taps near the top going down, and its every tap names the topmost match (`index: 0`).
  *   3. `scrollOpenList.yaml` swipes only inside its `repeat` loops, so it never moves a target it has already found.
+ *   4. On iOS with the keyboard up, the helper's loop and its final check both require an element below the target that
+ *      is itself above the keyboard and carries a letter, so the whole option is on screen.
  *
  * A flow that does not parse FAILS this suite. Prettier ignores `.maestro`, so this is the only syntax check a scripted
  * edit of the flows gets before Maestro loads them.
@@ -363,6 +365,46 @@ describe('the shared step taps near the top, and the helper never moves a found 
         expect(downTaps).toHaveLength(1);
         expect(y).toBeGreaterThan(0);
         expect(y).toBeLessThanOrEqual(MAX_TOP_TAP_PERCENT);
+    });
+
+    /**
+     * The tap near the top is safe only if the option clears the keyboard by more than the tap's offset. `above:
+     * inputView` alone promised the TOP edge only, and the top cleared it by 1 pt: the option spanned 538 to 594, the
+     * suggestion strip began at 539, and the tap at 540 hit the strip (Mac run 2026-10-31, iOS, `ingredientArrival`,
+     * "Use .*Maestro Row Two.* as written.*" still there 30 s later). So the target must sit above an element that is
+     * itself above the keyboard. Maestro keeps a match above ANY such element (`Filters.relativeTo`, comparing top edges
+     * strictly), and rows do not overlap, so that element is the next row or later page content and the whole option is
+     * on screen. It must carry a letter, so a scroll indicator ("48%") never counts.
+     */
+    it('on iOS with the keyboard up, stops only when an element below the target is also above the keyboard', () => {
+        const helper = parseFlow(HELPER, readFileSync(join(COMMON, HELPER), 'utf8')).at(-1);
+        const keyboardBranch = (Array.isArray(helper) ? (helper as unknown[]) : []).find((step) => {
+            const run = isRecord(step) ? step['runFlow'] : undefined;
+            const when = isRecord(run) ? run['when'] : undefined;
+
+            return isRecord(when) && when['platform'] === 'iOS' && isRecord(when['visible']);
+        });
+        const commands =
+            isRecord(keyboardBranch) && isRecord(keyboardBranch['runFlow']) ? keyboardBranch['runFlow'] : {};
+        const list = Array.isArray(commands['commands']) ? (commands['commands'] as unknown[]) : [];
+        const loop = list.find((command) => isRecord(command) && isRecord(command['repeat']));
+        const check = list.find((command) => isRecord(command) && isRecord(command['assertVisible']));
+        const whileSelector =
+            isRecord(loop) && isRecord(loop['repeat']) && isRecord(loop['repeat']['while'])
+                ? loop['repeat']['while']['notVisible']
+                : undefined;
+        const checkSelector = isRecord(check) ? check['assertVisible'] : undefined;
+
+        for (const selector of [whileSelector, checkSelector]) {
+            const clearance = isRecord(selector) ? selector['above'] : undefined;
+            const anchor = isRecord(clearance) ? clearance['above'] : undefined;
+            const letters = isRecord(clearance) && typeof clearance['text'] === 'string' ? clearance['text'] : '';
+
+            expect(isRecord(selector) && selector['text']).toBe('${TARGET}');
+            expect(isRecord(anchor) && anchor['id']).toBe('inputView');
+            expect(new RegExp(`^(?:${letters})$`, 'u').test('48%'), 'a scroll indicator must not count').toBe(false);
+            expect(new RegExp(`^(?:${letters})$`, 'u').test('From USDA'), 'a row with letters must count').toBe(true);
+        }
     });
 
     it('swipes only inside the helper’s repeat loops', () => {

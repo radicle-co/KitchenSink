@@ -19,9 +19,10 @@ appId: ${APP_ID}
 # maestro-orchestra): 2 pt into a 48 pt option row on iOS (`Combobox.native.tsx`: `minHeight` 48, and the row's
 # Pressable is the one accessible element, so the whole row is the match and every point in it is its hit area). Not
 # lower: bounds arrive rounded to whole units, and a tap ON the top edge can fall on the option ABOVE, which picks a
-# different food without failing. Not higher: the helper only promises the top is above the keyboard, so the tap still
-# lands on the keyboard when the top cleared it by less than the offset. That window is now 2 pt instead of half a row.
-# Positions are fixed per device and list, so a miss would repeat on every run, not flake.
+# different food without failing. The helper now promises the WHOLE option is above the keyboard, not only its top: a
+# top that cleared it by 1 pt put this tap on the suggestion strip (Mac run 2026-10-31, `ingredientArrival`, "Use
+# .*Maestro Row Two.* as written.*"). A miss there was a flake, not a repeat, because the page's scroll position after
+# the previous pick is not the same on every run.
 #
 # ⚠️ `index: 0` IS THE TOPMOST MATCH (`Filters.index` sorts by y, then x). The helper's guarantee is about the highest
 # match, so that is the one to tap. Without an index Maestro takes the first CLICKABLE match instead.

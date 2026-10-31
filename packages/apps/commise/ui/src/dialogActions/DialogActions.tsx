@@ -10,7 +10,7 @@
  *
  * The buttons are direct children of the row, in source order (dismiss first, main action last), so the DOM and
  * focus order never change with the layout. A design-system `Button` passes `width="fill"`; a Radix slot wears
- * {@link dialogActionSlotClass} for the same threshold.
+ * `dialogActionSlotClass` (from `dialogActionsClass.ts`) for the same threshold.
  *
  * @pattern Responsive layout by container query — the row answers to its own box, not the viewport's, so one rule
  *     serves a 448 px alert and a 672 px preview.

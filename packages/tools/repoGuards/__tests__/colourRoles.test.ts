@@ -144,6 +144,11 @@ describe('the Tamagui colour reader', () => {
         ['a styled() variant token', `const P = styled(View, { variants: { on: { true: { color: '$ink' } } } });`, 0],
         ['a styled() object form with a hex', `const P = styled(View, { color: { base: '$ink', press: '#000' } });`, 1],
         ['a styled() cast', `const P = styled(View, { color: '$ink' as ColorTokens });`, 1],
+        [
+            'a variant table cast `as const`, as Tamagui writes it',
+            `const P = styled(View, { variants: { on: { true: { color: '$ink' } } } as const });`,
+            0,
+        ],
         ['a styled() palette read', `const P = styled(View, { color: palette.ink });`, 1],
         ['a styled() config the walk cannot read', `const P = styled(View, shared);`, 1],
         ['a styled() spread', `const P = styled(View, { ...shared, color: '$ink' });`, 1],

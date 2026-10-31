@@ -419,6 +419,9 @@ large pans…`) and would come back if position REPLACED head-finality. ⛔ The 
   approved" makes it the cook's private recipe (ADR-0073 §11). A rejection gives one fixed reason and the reviewer's
   note; `notYours` is offered only for a public match. A draft uses no slot and can be used for nothing but editing
   (ADR-0073 §12).
+- **ADR-0079 — the calorie lookup never suspends (it supersedes ADR-0021).** The slot reads a pending, failed or
+  settled reading from `useQueries`. Do not restore `Suspense`, `use()` or `useSuspense*` there: a suspended slot
+  stalled library sorts and Discover's "See all" for up to the 12 s deadline. `nutritionNeverSuspends.test.ts` guards it.
 - **ADR-0032 — an END-TO-END TEST TARGETS A DEPLOYED ENVIRONMENT, and SKIPS when the PR's sandbox is not
   running (owner ruling 2026-09-05, superseding the 2026-09-04 two-tier answer).** Verbatim: _"all end to end
   tests (playwright, e2e, maestro, etc) - which should be hitting remote services - should be skipped if the

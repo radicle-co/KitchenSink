@@ -27,6 +27,21 @@
             "dependsOn": ["^build"],
             "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
         },
+        "@commise/web#build": {
+            // The web build reads one variable that is not `NEXT_PUBLIC_*` (which turbo's Next.js inference already
+            // declares): `COMMISE_PSEUDO_LOCALE`, which `next.config.ts` inlines so only a build MADE with it routes the
+            // `en-XA` pseudo-locale. Turbo runs in strict env mode, so an undeclared variable never reaches the task:
+            // `scripts/e2eLocal.sh` set it and still built a bundle with no `en-XA`.
+            //
+            // ⛔ `env`, NOT `passThroughEnv`. The flag changes the bundle, so it must be part of the cache key; passed
+            // through unhashed, a pseudo build and a plain build share one key and a cache hit restores the wrong one.
+            //
+            // ⚠️ This entry REPLACES the base `build` task (see `@kitchensink/schema-recipe#build` below), so `^build`
+            // and the outputs are restated, not inherited. `pseudoLocaleBuildGate.test.ts` holds all three.
+            "dependsOn": ["^build"],
+            "env": ["COMMISE_PSEUDO_LOCALE"],
+            "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+        },
         "@kitchensink/schema-recipe#build": {
             // DRIFT LAYER 1 (Rebuild). This package is GENERATED OUTPUT: its zod, its `z.infer` types and its
             // derived `openapi.yaml` are copied from the recipe service's authored `src/**/*.schema.ts`.

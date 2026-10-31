@@ -729,3 +729,68 @@ describe.each(['light', 'dark'] as const)('VersionPreviewModal (native) — the 
         expect(getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(colours.dangerText));
     });
 });
+
+/**
+ * The pinned-footer limit (`docs/design/compactHeightLayout.md` §3.1, `versionPreviewParity.md` §3). At large text on a
+ * short phone the pinned title, summary and stacked actions can take most of the sheet and leave the recipe a sliver.
+ * Past half the sheet the actions become the scroller's last item; below it they stay pinned. Each part states its height
+ * through the recorded layout observer.
+ */
+describe('VersionPreviewModal (native) — the pinned-footer limit', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        observer.observed.clear();
+    });
+
+    /** Report `heights` for the sheet's content (the frame), its pinned top and its actions. */
+    function layOut(heights: { readonly frame: number; readonly top: number; readonly footer: number }): void {
+        const keep = screen.getByRole('button', { name: 'Keep current version' }).closest('[class*="r-"]') as Element;
+        const footer = keep.parentElement?.parentElement as HTMLElement;
+        const top = screen.getByRole('heading', { name: /^Version 10 Preview/u }).parentElement as HTMLElement;
+        const frame = top.parentElement as HTMLElement;
+
+        for (const [node, height] of [
+            [frame, heights.frame],
+            [top, heights.top],
+            [footer, heights.footer],
+        ] as const) {
+            Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
+        }
+
+        act(() => {
+            observer.callback?.(
+                [frame, top, footer].map((target) => ({ target }) as unknown as ResizeObserverEntry),
+                {} as ResizeObserver,
+            );
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+    }
+
+    const scrollerOf = (): HTMLElement => screen.getByText('Title').closest('[class*="r-overflowY"]') as HTMLElement;
+
+    it('keeps the actions pinned under the scroller while the pinned parts are under half the sheet', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+        layOut({ frame: 600, top: 120, footer: 120 });
+
+        expect(scrollerOf().contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(false);
+    });
+
+    it('makes the actions the scroller’s last item once the pinned parts pass half the sheet', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+        layOut({ frame: 400, top: 120, footer: 120 });
+
+        const restore = screen.getByRole('button', { name: 'Restore this version' });
+
+        expect(scrollerOf().contains(restore)).toBe(true);
+        expect(scrollerOf().contains(screen.getByText(/^Changed from current:/))).toBe(false);
+        expect(
+            screen.getByText('Steps at v10').compareDocumentPosition(restore) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+});

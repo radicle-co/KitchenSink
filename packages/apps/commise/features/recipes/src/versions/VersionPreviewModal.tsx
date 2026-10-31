@@ -23,6 +23,9 @@
  * two actions, pinned under it through the design-system `DialogActions`, which stacks them full width on a narrow
  * dialog. The native leaf has the same order.
  *
+ * Past half the dialog (large text on a short phone) the pinned top and the actions would leave the body a sliver, so the
+ * actions become the last item of the scroller (`usePinnedFooter`); the title, errors and summary stay pinned.
+ *
  * A discriminated three-way state (mutually exclusive, matching {@link VersionPreviewModalProps}'s JSDoc):
  * (1) a `role="status"` progress affordance while `isLoading`; (2) a `role="alert"` for a failed lookup —
  * either an explicit `error` or, per B21, nothing pending and still no `version` — deliberately NOT a dead
@@ -40,6 +43,7 @@ import { useMessages } from '@commise/i18n/react';
 import { DialogActions, dialogActionSlotClass } from '@commise/ui/dialog-actions';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
+import { usePinnedFooter } from '@commise/ui/pinned-footer';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
@@ -83,6 +87,10 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     // and `@commise/ui/dialog-focus`; the false→true edge guard lives inside the hook.
     const onCloseAutoFocus = useReturnFocusOnClose(open);
 
+    // Past half the dialog, the pinned top and the actions leave the recipe a sliver (large text, a short phone), so the
+    // actions drop into the end of the scroller. The title, errors and summary stay pinned; Esc and Keep still close.
+    const { unpinned, frameRef, topRef, footerRef } = usePinnedFooter();
+
     // Loading always wins — a fetch that is genuinely in flight must not read as broken on first paint. Once
     // NOTHING is pending, though, having no version to show IS a failure (B21): this used to read "still
     // loading" whenever `version` was absent, so a caller that had settled with nothing — the shape a preview
@@ -101,43 +109,72 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
             ? fillTemplate(preview.title, { version: version.versionNumber, title: version.snapshot.title })
             : preview.titleLoading;
 
+    const actions = (
+        <div ref={footerRef}>
+            <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's fill class. */}
+                <Dialog.Close
+                    className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
+                >
+                    <Icon name="x" size={20} />
+                    {preview.keepCurrent}
+                </Dialog.Close>
+                {showContent && version !== undefined && (
+                    <Button
+                        icon="rotateCcw"
+                        busy={isRestoring}
+                        width="fill"
+                        onPress={() => onRestore(version.versionNumber)}
+                    >
+                        {isRestoring ? preview.restoringThis : preview.restoreThis}
+                    </Button>
+                )}
+            </DialogActions>
+        </div>
+    );
+    // Only a loaded body has a scroller to drop into.
+    const actionsInBody = unpinned && showContent;
+
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
+                    ref={frameRef}
                     onCloseAutoFocus={onCloseAutoFocus}
                     className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg md:max-w-2xl`}
                 >
-                    <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
+                    <div ref={topRef} className="flex flex-col gap-4">
+                        <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
 
-                    {showLoading && (
-                        <p role="status" aria-label={preview.loading} className="text-body-md text-ink-muted">
-                            {preview.loading}
-                        </p>
-                    )}
+                        {showLoading && (
+                            <p role="status" aria-label={preview.loading} className="text-body-md text-ink-muted">
+                                {preview.loading}
+                            </p>
+                        )}
 
-                    {showError && (
-                        <p role="alert" className="text-body-md text-danger-text">
-                            {preview.error}
-                        </p>
-                    )}
+                        {showError && (
+                            <p role="alert" className="text-body-md text-danger-text">
+                                {preview.error}
+                            </p>
+                        )}
 
-                    {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only in
-                        the list behind the dialog (`namelessLineCopy.md` §5). */}
-                    {restoreErrorText !== undefined && (
-                        <p role="alert" className="rounded-lg bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
-                            {restoreErrorText}
-                        </p>
-                    )}
+                        {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only in
+                            the list behind the dialog (`namelessLineCopy.md` §5). */}
+                        {restoreErrorText !== undefined && (
+                            <p role="alert" className="rounded-lg bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
+                                {restoreErrorText}
+                            </p>
+                        )}
 
-                    {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a preview
-                        with, what a restore changes. */}
-                    {showContent && diffFromCurrent !== undefined && (
-                        <p className="text-body-sm italic text-ink-muted">
-                            {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
-                        </p>
-                    )}
+                        {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a preview
+                            with, what a restore changes. */}
+                        {showContent && diffFromCurrent !== undefined && (
+                            <p className="text-body-sm italic text-ink-muted">
+                                {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
+                            </p>
+                        )}
+                    </div>
 
                     {showContent && version !== undefined && (
                         // The only part that scrolls: the dialog is capped at 85vh, so a long recipe scrolls here
@@ -228,28 +265,12 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                     </ol>
                                 </div>
                             )}
+
+                            {actionsInBody ? actions : null}
                         </div>
                     )}
 
-                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
-                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's fill class. */}
-                        <Dialog.Close
-                            className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
-                        >
-                            <Icon name="x" size={20} />
-                            {preview.keepCurrent}
-                        </Dialog.Close>
-                        {showContent && version !== undefined && (
-                            <Button
-                                icon="rotateCcw"
-                                busy={isRestoring}
-                                width="fill"
-                                onPress={() => onRestore(version.versionNumber)}
-                            >
-                                {isRestoring ? preview.restoringThis : preview.restoreThis}
-                            </Button>
-                        )}
-                    </DialogActions>
+                    {actionsInBody ? null : actions}
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

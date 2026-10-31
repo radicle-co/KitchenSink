@@ -8,7 +8,7 @@
  * dismissal (Cancel + Escape/focus-return).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
@@ -700,5 +700,90 @@ describe('VersionPreviewModal — the decision comes first', () => {
         expect(screen.getByRole('button', { name: 'Restore this version' }).parentElement?.className).toContain(
             'self-stretch',
         );
+    });
+});
+
+/**
+ * The pinned-footer limit (`docs/design/compactHeightLayout.md` §3.1, `versionPreviewParity.md` §3). At large text on a
+ * short phone the pinned title, errors and summary plus the stacked actions can take most of the dialog and leave the
+ * recipe a sliver. Past half the dialog the actions drop into the end of the body's scroller; below it they stay pinned.
+ * jsdom lays nothing out, so the test states each part's height through `getBoundingClientRect` and fires the observers.
+ */
+describe('VersionPreviewModal — the pinned-footer limit', () => {
+    const reports = new Set<() => void>();
+
+    class ResizeObserverStub {
+        private readonly report: () => void;
+
+        public constructor(callback: ResizeObserverCallback) {
+            this.report = () => callback([], this);
+        }
+
+        public observe(): void {
+            reports.add(this.report);
+        }
+
+        public unobserve(): void {
+            reports.delete(this.report);
+        }
+
+        public disconnect(): void {
+            reports.delete(this.report);
+        }
+    }
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+        reports.clear();
+    });
+
+    /** Render, then report `heights` for the dialog (the frame), its pinned top and its actions. */
+    function renderMeasured(heights: { readonly frame: number; readonly top: number; readonly footer: number }): void {
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const frame = screen.getByRole('dialog');
+        const top = screen.getByRole('heading', { level: 2 }).parentElement as HTMLElement;
+        const footer = screen.getByRole('button', { name: 'Keep current version' }).parentElement?.parentElement
+            ?.parentElement as HTMLElement;
+        const heightOf = new Map<Element, number>([
+            [frame, heights.frame],
+            [top, heights.top],
+            [footer, heights.footer],
+        ]);
+
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+            return { height: heightOf.get(this) ?? 0 } as DOMRect;
+        });
+        act(() => {
+            for (const report of reports) {
+                report();
+            }
+        });
+    }
+
+    const scrollerOf = (): HTMLElement => screen.getByText('Title').closest('div.overflow-y-auto') as HTMLElement;
+
+    it('keeps the actions pinned under the scroller while the pinned parts are under half the dialog', () => {
+        renderMeasured({ frame: 600, top: 120, footer: 120 });
+
+        expect(scrollerOf().contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(false);
+    });
+
+    it('drops the actions to the end of the scroller once the pinned parts pass half the dialog', () => {
+        renderMeasured({ frame: 400, top: 120, footer: 120 });
+
+        const scroller = scrollerOf();
+        const restore = screen.getByRole('button', { name: 'Restore this version' });
+
+        expect(scroller.contains(restore)).toBe(true);
+        expect(scroller.contains(screen.getByRole('button', { name: 'Keep current version' }))).toBe(true);
+        // Last in the scroller: the recipe is read first, then the choice.
+        expect(
+            screen.getByText('Steps at v10').compareDocumentPosition(restore) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        // The title and the summary stay pinned outside it.
+        expect(scroller.contains(screen.getByText(/^Changed from current:/))).toBe(false);
     });
 });

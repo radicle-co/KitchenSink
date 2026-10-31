@@ -13,6 +13,9 @@
  * "Changed from current" line, pinned above the scroller; the recipe body, the ONLY part that scrolls; the two actions,
  * pinned under it through the design-system `DialogActions`, which stacks them full width on a phone.
  *
+ * Past half the sheet (large text on a short phone) the pinned top and the actions would leave the body a sliver, so the
+ * actions become the last item of the scroller (`usePinnedFooter`); the title, errors and summary stay pinned.
+ *
  * A discriminated three-way state (mutually exclusive, matching {@link VersionPreviewModalProps}'s JSDoc):
  * (1) a `progressbar` affordance while `isLoading`; (2) an `alert` for a failed lookup — either an explicit
  * `error` or, per B21, nothing pending and still no `version` — deliberately NOT a dead end, "Keep current
@@ -30,6 +33,7 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Button } from '@commise/ui/button';
 import { DialogActions } from '@commise/ui/dialog-actions';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
+import { usePinnedFooter } from '@commise/ui/layout';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -73,6 +77,9 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     const ink = { color: colors.ink };
     const muted = { color: colors.inkMuted };
     const danger = { color: colors.dangerText };
+    // Past half the sheet, the pinned top and the actions leave the recipe a sliver (large text, a short phone), so the
+    // actions become the scroller's last item. The title, errors and summary stay pinned; Android Back still closes.
+    const pinning = usePinnedFooter();
 
     if (!open) {
         return null;
@@ -96,43 +103,67 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
             ? fillTemplate(preview.title, { version: version.versionNumber, title: version.snapshot.title })
             : preview.titleLoading;
 
+    const actions = (
+        <View style={styles.actions} onLayout={pinning.onFooterLayout}>
+            <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
+                    {preview.keepCurrent}
+                </Button>
+                {showContent && version !== undefined && (
+                    <Button
+                        icon="rotateCcw"
+                        busy={isRestoring}
+                        width="fill"
+                        onPress={() => onRestore(version.versionNumber)}
+                    >
+                        {isRestoring ? preview.restoringThis : preview.restoreThis}
+                    </Button>
+                )}
+            </DialogActions>
+        </View>
+    );
+    // Only a loaded body has a scroller to move into.
+    const actionsInBody = pinning.unpinned && showContent;
+
     return (
         <FullScreenSheet label={title} onRequestClose={onCancel}>
-            <>
-                <Text accessibilityRole="header" style={[styles.title, ink]}>
-                    {title}
-                </Text>
-
-                {showLoading && (
-                    <Text
-                        accessibilityRole="progressbar"
-                        accessibilityLabel={preview.loading}
-                        style={[styles.body, muted]}
-                    >
-                        {preview.loading}
+            <View style={styles.frame} onLayout={pinning.onFrameLayout}>
+                <View style={styles.top} onLayout={pinning.onTopLayout}>
+                    <Text accessibilityRole="header" style={[styles.title, ink]}>
+                        {title}
                     </Text>
-                )}
 
-                {showError && (
-                    <Text accessibilityRole="alert" style={[styles.error, danger]}>
-                        {preview.error}
-                    </Text>
-                )}
+                    {showLoading && (
+                        <Text
+                            accessibilityRole="progressbar"
+                            accessibilityLabel={preview.loading}
+                            style={[styles.body, muted]}
+                        >
+                            {preview.loading}
+                        </Text>
+                    )}
 
-                {/* A failed restore of THIS version, shown where the cook pressed Restore (the web leaf's §5 note). */}
-                {restoreErrorText !== undefined && (
-                    <Text accessibilityRole="alert" style={[styles.error, danger]}>
-                        {restoreErrorText}
-                    </Text>
-                )}
+                    {showError && (
+                        <Text accessibilityRole="alert" style={[styles.error, danger]}>
+                            {preview.error}
+                        </Text>
+                    )}
 
-                {/* Above the scroller, not last inside it: a recipe with a real ingredient list and steps is taller than
+                    {/* A failed restore of THIS version, shown where the cook pressed Restore (the web leaf's §5 note). */}
+                    {restoreErrorText !== undefined && (
+                        <Text accessibilityRole="alert" style={[styles.error, danger]}>
+                            {restoreErrorText}
+                        </Text>
+                    )}
+
+                    {/* Above the scroller, not last inside it: a recipe with a real ingredient list and steps is taller than
                     the screen, and the line is what the cook came to read (Android Maestro run, `recipes/versions`). */}
-                {showContent && diffFromCurrent !== undefined && (
-                    <Text style={[styles.changedNote, muted]}>
-                        {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
-                    </Text>
-                )}
+                    {showContent && diffFromCurrent !== undefined && (
+                        <Text style={[styles.changedNote, muted]}>
+                            {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
+                        </Text>
+                    )}
+                </View>
 
                 {showContent && version !== undefined && (
                     <ScrollView
@@ -234,35 +265,20 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                 </View>
                             </>
                         )}
+                        {actionsInBody ? actions : null}
                     </ScrollView>
                 )}
 
-                {/* Pinned under the scroller (`marginTop: 'auto'` keeps them at the foot when there is none, in the
-                    loading and error states). `DialogActions` STACKS them full width on a phone, Restore on top, and
-                    sets them in one row from 600 dp. */}
-                <View style={styles.actions}>
-                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
-                        <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
-                            {preview.keepCurrent}
-                        </Button>
-                        {showContent && version !== undefined && (
-                            <Button
-                                icon="rotateCcw"
-                                busy={isRestoring}
-                                width="fill"
-                                onPress={() => onRestore(version.versionNumber)}
-                            >
-                                {isRestoring ? preview.restoringThis : preview.restoreThis}
-                            </Button>
-                        )}
-                    </DialogActions>
-                </View>
-            </>
+                {actionsInBody ? null : actions}
+            </View>
         </FullScreenSheet>
     );
 };
 
 const styles = StyleSheet.create({
+    // The sheet's own surface is a 16 dp gap column; the frame and the pinned top keep that rhythm.
+    frame: { flex: 1, gap: 16 },
+    top: { gap: 16 },
     title: { ...nativeTokens.type.sectionTitle },
     body: { ...nativeTokens.type.body },
     error: { ...nativeTokens.type.body },

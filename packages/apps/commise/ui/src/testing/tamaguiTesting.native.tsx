@@ -8,15 +8,14 @@
  * the element's own class rules DECLARE, shorthands included, and follows the variables from the element's nearest
  * theme class the way a browser would, so a test can assert the colour a role really has, and its contrast.
  *
- * @pattern Test Double (Fake) — a minimal resolver of Tamagui's theme variables over jsdom's CSSOM
+ * @pattern Interpreter — evaluates Tamagui's class rules and theme variables over jsdom's CSSOM, as a browser would
  */
 import { render as renderBare, type RenderOptions, type RenderResult } from '@testing-library/react';
 import { formatRgb } from 'culori';
 import type { JSX, ReactElement, ReactNode } from 'react';
-import { TamaguiProvider } from 'tamagui';
 
 import { DesignSystemProvider } from '../tamagui/DesignSystemProvider.native.js';
-import { tamaguiConfig } from '../tamagui/tamaguiConfig.native.js';
+import { DesignSystemTheme } from '../tamagui/DesignSystemTheme.native.js';
 import type { ColorSchemeName } from '../theme/themeFor.js';
 
 /** The colour properties a test reads. */
@@ -118,13 +117,14 @@ export function renderedRoot(container: Element): Element {
 }
 
 /**
- * Whether a tree rendered no element, past what Tamagui's web build adds around it. Pure.
+ * Whether a tree rendered nothing, past what Tamagui's web build adds around it: no element that draws a box, and no
+ * text. Pure.
  *
  * @param container - The element the tree rendered into.
  * @returns `true` when nothing inside draws a box.
  */
 export function rendersNothing(container: Element): boolean {
-    return firstBox(container) === undefined;
+    return firstBox(container) === undefined && (container.textContent ?? '').trim() === '';
 }
 
 /**
@@ -137,11 +137,7 @@ export function rendersNothing(container: Element): boolean {
  * @sideEffect Mounts into the document.
  */
 export function renderWithTamagui(ui: ReactElement, scheme: ColorSchemeName): RenderResult {
-    return renderBare(
-        <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme}>
-            {ui}
-        </TamaguiProvider>,
-    );
+    return renderBare(<DesignSystemTheme scheme={scheme}>{ui}</DesignSystemTheme>);
 }
 
 function schemeOf(element: Element): ColorSchemeName {

@@ -163,6 +163,13 @@ describe('rendersNothing', () => {
         expect(rendersNothing(container)).toBe(true);
     });
 
+    it('is false when the tree drew only text', () => {
+        const Bare = (): string => 'loose words';
+        const { container } = render(<Bare />);
+
+        expect(rendersNothing(container)).toBe(false);
+    });
+
     it('is false when the tree drew an element', () => {
         const { container } = render(<View aria-label="something" />);
 

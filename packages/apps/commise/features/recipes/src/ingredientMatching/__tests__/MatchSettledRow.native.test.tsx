@@ -258,8 +258,11 @@ describe('MatchSettledRow (native)', () => {
             // build wraps it in elements that draw no box, which `renderedRoot` steps over.
             const container = document.body.firstElementChild;
 
-            expect(container).not.toBeNull();
-            expect(getComputedStyle(renderedRoot(container as Element)).minHeight).toBe(`${String(touchFloor())}px`);
+            if (container === null) {
+                throw new Error('the row did not render');
+            }
+
+            expect(getComputedStyle(renderedRoot(container)).minHeight).toBe(`${String(touchFloor())}px`);
         });
     });
 });

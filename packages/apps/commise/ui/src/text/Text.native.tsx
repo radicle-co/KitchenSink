@@ -18,6 +18,7 @@
 import { styled, Text as TamaguiText } from 'tamagui';
 
 import { nativeTokens } from '../tokens/native.js';
+import type { TypeRole } from '../tokens/typography.js';
 
 const { type } = nativeTokens;
 
@@ -94,7 +95,8 @@ export const Text = styled(TamaguiText, {
                 lineHeight: `${type.figureStat.lineHeight}px`,
                 fontVariant: ['tabular-nums', 'lining-nums'],
             },
-        },
+            // Every type role, and only those: a role added to the scale is a type error here until it is styled.
+        } as const satisfies Record<TypeRole, object>,
     } as const,
 
     defaultVariants: {

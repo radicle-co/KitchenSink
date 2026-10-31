@@ -8,7 +8,7 @@
  * for `attention`, and 4.5:1 on every pair.
  */
 import { cleanup, screen } from '@testing-library/react';
-import { formatRgb, wcagContrast } from 'culori';
+import { blend, formatRgb, wcagContrast } from 'culori';
 import { afterEach, describe, expect, it } from 'vitest';
 import { View } from 'tamagui';
 
@@ -23,6 +23,11 @@ afterEach(cleanup);
 
 /** WCAG 2.2 SC 1.4.3, normal-size text. */
 const AA_TEXT = 4.5;
+
+/** A colour as painted over the light page. Pure. */
+function paintedOverPaper(colour: string): string {
+    return formatRgb(blend([role.paper, colour], 'normal'));
+}
 
 /** The badge around a word. */
 function badgeOf(text: string): HTMLElement {
@@ -59,11 +64,12 @@ describe('StatusBadge (native)', () => {
         }
     });
 
-    it('labels every status at 4.5:1 or better on its own fill', () => {
+    it('labels every status at 4.5:1 or better on its own fill, as painted over paper', () => {
         for (const status of BADGE_STATUSES) {
             const { unmount } = renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
             const label = resolvedColour(screen.getByText('Word'), 'color');
-            const fill = resolvedColour(badgeOf('Word'), 'backgroundColor');
+            // A tint is translucent and contrast ignores alpha, so the fill is measured as painted over the page.
+            const fill = paintedOverPaper(resolvedColour(badgeOf('Word'), 'backgroundColor'));
 
             expect(wcagContrast(label, fill), status).toBeGreaterThanOrEqual(AA_TEXT);
             unmount();
@@ -111,6 +117,14 @@ describe('StatusBadge (native)', () => {
         renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
 
         expect(resolvedStyle(badgeOf('Word'), 'borderTopWidth')).not.toBe('1px');
+    });
+
+    it('measures a translucent tint as painted, not as its opaque colour', () => {
+        renderWithTamagui(<StatusBadge status="attention">Needs review</StatusBadge>, 'light');
+
+        const fill = resolvedColour(badgeOf('Needs review'), 'backgroundColor');
+
+        expect(paintedOverPaper(fill)).not.toBe(formatRgb(fill));
     });
 
     it('takes the ink-on-tint fallback for attention', () => {

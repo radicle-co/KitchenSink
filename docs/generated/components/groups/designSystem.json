@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 80,
-        "implementations": 139,
-        "props": 858,
-        "documentedComponents": 80,
-        "implementationsWithModuleDoc": 139,
-        "implementationsWithComponentDoc": 128,
+        "components": 81,
+        "implementations": 140,
+        "props": 859,
+        "documentedComponents": 81,
+        "implementationsWithModuleDoc": 140,
+        "implementationsWithComponentDoc": 129,
         "documentedProps": 803,
-        "classifiedComponents": 73,
-        "componentsWithPatternTag": 80,
+        "classifiedComponents": 74,
+        "componentsWithPatternTag": 81,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -13702,7 +13702,7 @@
             "dir": "packages/apps/commise/ui/src/tamagui",
             "kind": "orchestration",
             "patterns": [
-                "Facade over `TamaguiProvider` — the config and the scheme are bound here, so a caller mounts one component"
+                "Facade over `TamaguiProvider` — the device's scheme and the config are bound behind it, so a caller mounts\n    one component"
             ],
             "platforms": [
                 "native"
@@ -13716,7 +13716,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemProvider.native.tsx",
                     "dir": "packages/apps/commise/ui/src/tamagui",
-                    "moduleDoc": "@commise/ui/tamagui-provider — the design system's Tamagui provider (ADR-0080). Native-only, like the config\nit mounts: web styles with Tailwind and never loads Tamagui.\n\nOrchestration, not a render leaf: it reads the device's scheme (`useColorSchemeName`, the one place native code\nreads it) and pairs it with the one Tamagui config, so the pairing is written once. The app's provider tree mounts\nit, and so do the test renders (`@commise/ui/testing/tamagui`, and `@commise/test-utils` in a native lane), so a\ncomponent test paints in the scheme the app would. A change of device scheme re-themes the tree (D17).",
+                    "moduleDoc": "@commise/ui/tamagui-provider — the design system's Tamagui provider (ADR-0080). Native-only, like the config\nit mounts: web styles with Tailwind and never loads Tamagui.\n\nOrchestration, not a render leaf: it reads the device's scheme (`useColorSchemeName`, the one place native code\nreads it) and hands it to `DesignSystemTheme`, the one place the Tamagui config and a scheme are paired. The app's\nprovider tree mounts it, and so do the test renders (`@commise/ui/testing/tamagui`, and `@commise/test-utils` in a\nnative lane), so a component test paints in the scheme the app would. A change of device scheme re-themes the tree\n(D17).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -13724,7 +13724,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Facade over `TamaguiProvider` — the config and the scheme are bound here, so a caller mounts one component"
+                            "text": "Facade over `TamaguiProvider` — the device's scheme and the config are bound behind it, so a caller mounts\n    one component"
                         }
                     ],
                     "description": "Mount the design system around `children`, in the device's scheme.",
@@ -13746,6 +13746,72 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/tamagui/DesignSystemTheme",
+            "name": "DesignSystemTheme",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/tamagui",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over `TamaguiProvider` — a scheme name in, Tamagui's provider with the one config out"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DesignSystemTheme",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemTheme.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/tamagui",
+                    "moduleDoc": "The design system's Tamagui provider in a given scheme (ADR-0080): the one place the Tamagui config and a scheme are\npaired. Presentational: the scheme in, the themed tree out. The app reaches it only through `DesignSystemProvider`,\nwhich supplies the device's scheme. A test that asserts both schemes without faking the device mounts it directly\n(`renderWithTamagui`).",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `TamaguiProvider` — a scheme name in, Tamagui's provider with the one config out"
+                        }
+                    ],
+                    "description": "Mount the design system around `children` in a given scheme.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The scheme, and the subtree to theme."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "`children` inside Tamagui's provider."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "scheme",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"light\"",
+                                "\"dark\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]

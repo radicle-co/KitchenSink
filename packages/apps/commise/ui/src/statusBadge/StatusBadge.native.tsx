@@ -44,14 +44,13 @@ const Badge = styled(XStack, {
     borderRadius: '$sm',
     paddingHorizontal: '$2',
     paddingVertical: 2,
-    backgroundColor: '$paper',
 
     variants: {
         tone: {
             pro: { backgroundColor: '$inkMuted' },
             attention: { backgroundColor: '$attentionTint' },
             neutral: { backgroundColor: '$paper', borderWidth: 1, borderColor: '$lineDivider' },
-        },
+        } as const satisfies Record<BadgeTone, object>,
     } as const,
 });
 
@@ -65,7 +64,7 @@ const Label = styled(Text, {
             pro: { color: '$inverseInk' },
             attention: { color: '$ink' },
             neutral: { color: '$inkMuted' },
-        },
+        } as const satisfies Record<BadgeTone, object>,
     } as const,
 });
 

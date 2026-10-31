@@ -4,7 +4,7 @@
  * objects; `nativeTokens` is the RN-facing projection of the exact same scale, so the two platforms
  * cannot drift. This module is pure data (no `react-native` import) and safe under Node/Vitest.
  */
-import type { ContainerClass, PerContainerClass } from './layout.js';
+import type { PerContainerClass } from './layout.js';
 import {
     bodyFontFace,
     displayFontFace,
@@ -84,19 +84,28 @@ function toNativeTypeStyle(spec: TypeRoleSpec, size: number | 'inherit'): Native
     };
 }
 
-/** A role with one size per container class, projected once per class. Pure. */
-function perClass(spec: TypeRoleSpec, sizes: PerContainerClass<number>): PerContainerClass<NativeTypeStyle> {
-    const classes: readonly ContainerClass[] = ['narrow', 'regular', 'wide'];
-
-    return Object.fromEntries(
-        classes.map((name) => [name, toNativeTypeStyle(spec, sizes[name])]),
-    ) as PerContainerClass<NativeTypeStyle>;
-}
-
-/** A role with a size and a leading of its own: every role but the large title (per class) and inline figures. */
+/** A role with a size and a leading of its own: every role but inline figures. */
 export interface SizedNativeTypeStyle extends NativeTypeStyle {
     readonly fontSize: number;
     readonly lineHeight: number;
+}
+
+/** A role at one px size, with its own leading. Throws for a role whose leading is its line's. Pure. */
+function toSizedNativeTypeStyle(spec: TypeRoleSpec, size: number): SizedNativeTypeStyle {
+    if (spec.lineHeight === 'inherit') {
+        throw new Error('A sized type role needs a leading of its own.');
+    }
+
+    return { ...toNativeTypeStyle(spec, size), fontSize: size, lineHeight: spec.lineHeight };
+}
+
+/** A role with one size per container class, projected once per class. Pure. */
+function perClass(spec: TypeRoleSpec, sizes: PerContainerClass<number>): PerContainerClass<SizedNativeTypeStyle> {
+    return {
+        narrow: toSizedNativeTypeStyle(spec, sizes.narrow),
+        regular: toSizedNativeTypeStyle(spec, sizes.regular),
+        wide: toSizedNativeTypeStyle(spec, sizes.wide),
+    };
 }
 
 /** Every role with a single size of its own, projected once. */
@@ -104,7 +113,7 @@ type SizedTypeRole = Exclude<TypeRole, 'largeTitle' | 'figureInline'>;
 
 const sizedTypeRoles = Object.fromEntries(
     (Object.entries(typeRole) as [TypeRole, TypeRoleSpec][]).flatMap(([name, spec]) =>
-        typeof spec.size === 'number' ? [[name, toNativeTypeStyle(spec, spec.size)] as const] : [],
+        typeof spec.size === 'number' ? [[name, toSizedNativeTypeStyle(spec, spec.size)] as const] : [],
     ),
 ) as Readonly<Record<SizedTypeRole, SizedNativeTypeStyle>>;
 

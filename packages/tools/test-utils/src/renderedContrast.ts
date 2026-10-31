@@ -244,6 +244,23 @@ export function ringContrast(className: string, options: RingContrastOptions = {
 }
 
 /**
+ * Throws for a colour that is still a CSS variable. A Tamagui component paints through theme variables, which jsdom
+ * keeps as text, so measuring past one would compare against the default surface rather than the colour a device
+ * paints. Pure.
+ *
+ * @param colours - The computed colours about to be measured.
+ * @throws Error naming `resolvedColour`, which follows the variables.
+ */
+function refuseThemeVariables(...colours: readonly string[]): void {
+    if (colours.some((colour) => colour.trim().startsWith('var('))) {
+        throw new Error(
+            'The element paints with a theme variable, which jsdom does not resolve. Read its colours with ' +
+                '`resolvedColour` from `@commise/ui/testing/tamagui` and measure those.',
+        );
+    }
+}
+
+/**
  * The WCAG contrast ratio between a rendered NATIVE leaf's computed text colour and the surface behind it —
  * the react-native-web mirror of {@link utilityContrast}.
  *
@@ -256,11 +273,14 @@ export function ringContrast(className: string, options: RingContrastOptions = {
  * @param element - The rendered element whose text colour is being measured.
  * @param options - The opaque colour behind the element. Defaults to white.
  * @returns The ratio, 1..21.
- * @throws Error when the element has no computed colour (it was never rendered, or carries no colour style).
+ * @throws Error when the element has no computed colour (it was never rendered, or carries no colour style), or
+ *   when a colour is a theme variable (see `refuseThemeVariables`).
  */
 export function computedContrast(element: Element, options: ComputedContrastOptions = {}): number {
     const { surface = palette.cloud } = options;
     const style = window.getComputedStyle(element);
+
+    refuseThemeVariables(style.color, style.backgroundColor);
 
     // ⛔ THE CONDITION IS "NEVER RENDERED", AND IT IS NOW TESTED DIRECTLY.
     //

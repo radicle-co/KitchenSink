@@ -110,11 +110,20 @@ its recorded count.
 ### 6. Component tests prove structure, and a device proves styling
 
 Native component tests run Tamagui's web build under react-native-web. There a theme token is a CSS variable that
-jsdom cannot resolve. A test therefore asserts theme VALUES on the built config, not on a rendered element.
+jsdom does not resolve. A component test renders inside the design system's provider (`DesignSystemProvider`, which the
+app's provider tree also mounts) and reads a colour or a length through `@commise/ui/testing/tamagui`. Its
+`resolvedColour` and `resolvedStyle` follow the element's class rules and the theme variables to a value, as a browser
+would, so a test can assert the colour a role paints in each scheme and its contrast. The shared render helpers in
+`@commise/test-utils` mount the same provider in a native lane, through a `.native` leaf that the web lane never loads.
 
-A component test proves structure, accessibility and behaviour. Maestro on iOS and Android is the evidence for
-styling. `tamaguiRuntimeProbe.native.test.tsx` pins what the test lane does, so a Tamagui upgrade that changes it
-fails there.
+The resolver reads what Tamagui's web build emits: the theme rule's selector, the repeated class that a variant uses
+to win on specificity, and the shorthands it writes. Its own tests pin each of those, so a Tamagui upgrade that changes
+one fails there and not in a component test. jsdom drops some rules as it parses them, such as `font-variant`, so a
+style it cannot hold is asserted on the variant table.
+
+A component test proves structure, accessibility, behaviour and the values the web build paints. It does not prove
+what a device draws. Maestro on iOS and Android is the evidence for that. `tamaguiRuntimeProbe.native.test.tsx` pins
+what the test lane does, so a Tamagui upgrade that changes it fails there.
 
 ### 7. The migration moves in slices
 
@@ -151,8 +160,8 @@ Each slice adds a dark-mode Maestro check once it renders a theme key.
 
 ## Residual risk
 
-- No Tamagui element exists in app code yet. The tree-wide checks of G1, G2, G4, G6 and G7 pass on nothing until
-  slice 1, and their fixture tables are the only proof today. A slice that needs another Tamagui component, such as
+- The tree-wide checks of G1, G2, G4, G6 and G7 see two Tamagui components so far, the text primitive and the status
+  badge, so their fixture tables still carry most of the proof. A slice that needs another Tamagui component, such as
   `Paragraph`, classifies it in the guards first, because G1 refuses it until then.
 - G6 does not see a press modifier held in a variable and passed to a Tamagui element.
 - On a developer machine with a stale local `origin/main`, main's copy of a baseline can be out of date. CI fetches

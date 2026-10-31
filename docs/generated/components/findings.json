@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 161,
         "missing-module-doc": 21,
-        "platform-singleton": 70,
+        "platform-singleton": 71,
         "ref-api": 15,
         "unclassified-layer": 92,
-        "undocumented-prop": 178
+        "undocumented-prop": 179
     },
     "findings": [
         {
@@ -707,6 +707,26 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/tamagui/DesignSystemTheme",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemTheme.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/tamagui/DesignSystemTheme",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemTheme.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "scheme"
             ]
         },
         {

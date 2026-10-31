@@ -6,8 +6,8 @@
  * them), so it MUST sit below both `ClerkProvider` and `QueryClientProvider` — the same invariant the web
  * facade documents.
  *
- * Composes, top to bottom: `SafeAreaProvider` (device insets) → `TamaguiProvider` (the design system's config, at the
- * scheme the device is in) → `LocaleProvider` (device-locale i18n) → `ClerkProvider` (auth session, secure-store-backed
+ * Composes, top to bottom: `SafeAreaProvider` (device insets) → `DesignSystemProvider` (the design system's Tamagui
+ * config, at the scheme the device is in; the same provider component tests mount) → `LocaleProvider` (device-locale i18n) → `ClerkProvider` (auth session, secure-store-backed
  * token cache) → `QueryClientProvider` (TanStack cache) → `OfflineReadNoticeProvider` → `RecipeServiceGate` (the typed
  * recipe-service client) → `children`.
  *
@@ -32,12 +32,10 @@ import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { OfflineReadNoticeProvider } from '@commise/query/offline';
 
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
-import { tamaguiConfig } from '@commise/ui/tamagui-config';
-import { useColorSchemeName } from '@commise/ui/theme';
+import { DesignSystemProvider } from '@commise/ui/tamagui-provider';
 import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { TamaguiProvider } from 'tamagui';
 
 import { env } from '../config/env.js';
 import { LocaleProvider } from '../i18n/LocaleProvider.js';
@@ -52,8 +50,6 @@ import { RecipeServiceGate } from './RecipeServiceGate.js';
  */
 export function AppProviders({ children }: { readonly children: ReactNode }): JSX.Element {
     const offline = useMessages(offlineNoticeMessages);
-    // The device's scheme on every render: Tamagui re-themes the tree when `defaultTheme` changes (D17).
-    const scheme = useColorSchemeName();
     // ⛔ `createAppQueryClient`, never a bare `new QueryClient()`. A bare client takes TanStack's default
     // `retry: 3` with exponential backoff and applies it to EVERY failure, including a `404` — four requests
     // and ~7s of pure backoff for one miss. The factory carries the shared policy (a 4xx cannot succeed on
@@ -66,7 +62,7 @@ export function AppProviders({ children }: { readonly children: ReactNode }): JS
         // SafeAreaProvider is outermost: Tamagui 3 reads the insets of a provider ABOVE TamaguiProvider (the v3 guide,
         // and tests/providers/AppProviders.safeAreaOrder.native.test.tsx).
         <SafeAreaProvider>
-            <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme}>
+            <DesignSystemProvider>
                 <LocaleProvider>
                     <ClerkProvider
                         publishableKey={env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY}
@@ -87,7 +83,7 @@ export function AppProviders({ children }: { readonly children: ReactNode }): JS
                         </QueryClientProvider>
                     </ClerkProvider>
                 </LocaleProvider>
-            </TamaguiProvider>
+            </DesignSystemProvider>
         </SafeAreaProvider>
     );
 }

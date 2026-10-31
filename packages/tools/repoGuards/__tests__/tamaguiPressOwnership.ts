@@ -10,8 +10,15 @@ import ts from 'typescript';
 
 import type { StyledExportsOf } from './tamaguiElements.js';
 import type { StyleProperty } from './tamaguiStyleObjects.js';
+import { attributeValueOf } from './tamaguiTokenValues.js';
 import { valueHasModifier } from './tamaguiStateStyles.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
+
+/**
+ * Attributes that hold words or identifiers, not styles: an accessibility name, a placeholder, a title, an id, the
+ * children. `accessibilityLabel="press: to open"` is a sentence, not a press state.
+ */
+const TEXT_ATTRIBUTE = /^(?:accessibility.*|aria-.*|placeholder|title|testID|nativeID|id|children)$/u;
 
 const PRESS_HANDLERS = new Set(['onPress', 'onPressIn', 'onPressOut', 'onLongPress']);
 
@@ -30,10 +37,14 @@ function attributeOwnsPress(attribute: ts.JsxAttributeLike, file: ts.SourceFile)
         return false;
     }
 
-    const { initializer } = attribute;
-    const value = initializer !== undefined && ts.isJsxExpression(initializer) ? initializer.expression : initializer;
+    const name = attribute.name.getText(file);
+    const value = attributeValueOf(attribute);
 
-    return PRESS_HANDLERS.has(attribute.name.getText(file)) || (value !== undefined && valueHasPress(value));
+    if (PRESS_HANDLERS.has(name)) {
+        return true;
+    }
+
+    return !TEXT_ATTRIBUTE.test(name) && value !== undefined && valueHasPress(value);
 }
 
 /**

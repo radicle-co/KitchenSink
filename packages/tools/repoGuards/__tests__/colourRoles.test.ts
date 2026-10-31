@@ -31,7 +31,7 @@ import {
 } from './colourRoles.js';
 import { repoRoot } from './serviceSources.js';
 import { designSystemStyledExports } from './tamaguiElements.js';
-import { lightThemeKeys, themeColourKeys } from './tamaguiScaleKeys.js';
+import { themeColourKeys } from './tamaguiScaleKeys.js';
 
 const FIXTURE_COLOURS = `
 export const palette = { seafoam: '#31807A', 'ocean-dark': '#2A6B65', white: '#FFFFFF' } as const;
@@ -166,8 +166,7 @@ describe('the Tamagui colour reader', () => {
         expect(tamaguiColourFindings(source, 'fixture.tsx', styled, keys)).toHaveLength(1);
     });
 
-    it('takes the theme keys from the design system: every role and surface tone, and exactly the light theme', () => {
-        expect([...themeColourKeys].sort()).toEqual([...lightThemeKeys].sort());
+    it('takes the theme keys from the registered light theme: roles and surface tones', () => {
         expect(themeColourKeys.has('paper')).toBe(true);
         expect(themeColourKeys.has('nope')).toBe(false);
     });

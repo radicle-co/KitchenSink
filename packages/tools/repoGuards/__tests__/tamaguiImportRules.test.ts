@@ -16,7 +16,11 @@ import { describe, expect, it } from 'vitest';
 
 import { appSourceModules } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
-import { tamaguiImportFindings, tamaguiThemeHookFindings } from './tamaguiImportRules.js';
+import {
+    tamaguiImportFindings,
+    tamaguiThemeHookFindings,
+    tamaguiUnclassifiedImportFindings,
+} from './tamaguiImportRules.js';
 
 const WEB_LEAF = 'packages/apps/commise/ui/src/thing/Thing.tsx';
 const NATIVE_LEAF = 'packages/apps/commise/ui/src/thing/Thing.native.tsx';
@@ -45,6 +49,40 @@ describe('G1: tamaguiImportFindings', () => {
     it('finds none in the tree', () => {
         const findings = appSourceModules().flatMap((file) =>
             tamaguiImportFindings(readFileSync(path.join(repoRoot, file), 'utf8'), file),
+        );
+
+        expect(findings).toEqual([]);
+    });
+});
+
+describe('G1: the closed allow-list of Tamagui value imports', () => {
+    it.each([
+        ['a Sheet, which no guard classifies', `import { Sheet } from 'tamagui';`, 1],
+        ['a Paragraph from @tamagui/text', `import { Paragraph } from '@tamagui/text';`, 1],
+        ['a Button, an Input and an Image', `import { Button, Input, Image } from 'tamagui';`, 3],
+        ['a Dialog through a namespace member', `import * as T from 'tamagui';\nconst d = <T.Dialog />;`, 1],
+        ['a re-export of an unclassified element', `export { Dialog } from 'tamagui';`, 1],
+        ['a type-only import', `import type { GetProps } from 'tamagui';`, 0],
+        ['a type-only name inside a value import', `import { View, type GetProps } from 'tamagui';`, 0],
+        [
+            'the classified elements and styled',
+            `import { styled, View, Stack, XStack, YStack, ZStack, ScrollView, Text } from 'tamagui';`,
+            0,
+        ],
+        [
+            'the provider and the config builders',
+            `import { TamaguiProvider, createTamagui, createTokens, createFont } from 'tamagui';`,
+            0,
+        ],
+        ['a renamed allowed name', `import { View as Box } from 'tamagui';`, 0],
+        ['a renamed unclassified name', `import { Sheet as Drawer } from 'tamagui';`, 1],
+    ] as const)('%s', (_shape, source, expected) => {
+        expect(tamaguiUnclassifiedImportFindings(source, NATIVE_LEAF)).toHaveLength(expected);
+    });
+
+    it('finds none in the tree', () => {
+        const findings = appSourceModules().flatMap((file) =>
+            tamaguiUnclassifiedImportFindings(readFileSync(path.join(repoRoot, file), 'utf8'), file),
         );
 
         expect(findings).toEqual([]);

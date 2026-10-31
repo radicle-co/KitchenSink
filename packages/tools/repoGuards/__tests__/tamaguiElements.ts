@@ -68,13 +68,12 @@ export function styledDeclarations(
     const declarations: StyledDeclaration[] = [];
 
     const visit = (node: ts.Node): void => {
-        if (
-            ts.isVariableDeclaration(node) &&
-            ts.isIdentifier(node.name) &&
-            node.initializer !== undefined &&
-            isTamaguiStyledCall(node.initializer, styledNames)
-        ) {
-            declarations.push({ name: node.name.text, call: node.initializer });
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer !== undefined) {
+            const call = unwrapBase(node.initializer);
+
+            if (isTamaguiStyledCall(call, styledNames)) {
+                declarations.push({ name: node.name.text, call });
+            }
         }
 
         ts.forEachChild(node, visit);
@@ -83,10 +82,6 @@ export function styledDeclarations(
     visit(file);
 
     return declarations;
-}
-
-function styledBindings(file: ts.SourceFile, styledNames: ReadonlySet<string>): readonly string[] {
-    return styledDeclarations(file, styledNames).map(({ name }) => name);
 }
 
 /**
@@ -101,6 +96,16 @@ const VIEW_LIKE = new Set(['View', 'Stack', 'XStack', 'YStack', 'ZStack', 'Scrol
 /** The Tamagui exports that are Text-like. */
 const TEXT_LIKE = new Set(['Text']);
 
+/**
+ * Whether a Tamagui export is one the guards classify: a View-like or Text-like element. Any other Tamagui element
+ * (a `Sheet`, a `Paragraph`, a `Button`) is read as `other`, so no guard can see what it does. Pure.
+ *
+ * @param exported - The export name.
+ */
+export function isClassifiedElementExport(exported: string): boolean {
+    return VIEW_LIKE.has(exported) || TEXT_LIKE.has(exported);
+}
+
 function kindOfExport(exported: string): TamaguiKind {
     if (VIEW_LIKE.has(exported)) {
         return 'view';
@@ -109,7 +114,8 @@ function kindOfExport(exported: string): TamaguiKind {
     return TEXT_LIKE.has(exported) ? 'text' : 'other';
 }
 
-function unwrapBase(expression: ts.Expression): ts.Expression {
+/** An expression with parentheses, `as`, `satisfies` and `!` removed. Pure. */
+export function unwrapBase(expression: ts.Expression): ts.Expression {
     return ts.isParenthesizedExpression(expression) ||
         ts.isAsExpression(expression) ||
         ts.isSatisfiesExpression(expression) ||
@@ -168,63 +174,6 @@ function localStyledKinds(
     }
 
     return kinds;
-}
-
-/**
- * The local JSX tag names that render a Tamagui element. Pure, given `styledExportsOf`.
- *
- * @param file - The parsed module.
- * @param styledExportsOf - Which names a design-system subpath exports as Tamagui `styled(…)` components.
- * @returns Tag names as written: `View`, `Pill`, `T.View`.
- */
-export function tamaguiElementNames(file: ts.SourceFile, styledExportsOf: StyledExportsOf): ReadonlySet<string> {
-    const names = new Set<string>();
-    const tamagui = valueBindingsOf(file, (specifier) => TAMAGUI_MODULE.test(specifier));
-    const { namespaces } = tamagui;
-
-    for (const [exported, locals] of tamagui.locals) {
-        if (/^[A-Z]/u.test(exported)) {
-            locals.forEach((local) => names.add(local));
-        }
-    }
-
-    const designSystemSpecifiers = new Set(
-        file.statements
-            .filter(ts.isImportDeclaration)
-            .map((statement) => statement.moduleSpecifier)
-            .filter(ts.isStringLiteral)
-            .map((specifier) => specifier.text)
-            .filter((specifier) => specifier.startsWith(DESIGN_SYSTEM_PACKAGE)),
-    );
-
-    for (const specifier of designSystemSpecifiers) {
-        const bindings = valueBindingsOf(file, (candidate) => candidate === specifier);
-
-        for (const exported of styledExportsOf(specifier)) {
-            localsOf(bindings, exported).forEach((local) => names.add(local));
-        }
-    }
-
-    styledBindings(file, tamaguiStyledNames(file)).forEach((name) => names.add(name));
-
-    const visit = (node: ts.Node): void => {
-        if (
-            (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
-            ts.isPropertyAccessExpression(node.tagName) &&
-            ts.isIdentifier(node.tagName.expression) &&
-            namespaces.has(node.tagName.expression.text)
-        ) {
-            names.add(node.tagName.getText(file));
-        }
-
-        ts.forEachChild(node, visit);
-    };
-
-    if (namespaces.size > 0) {
-        visit(file);
-    }
-
-    return names;
 }
 
 /**
@@ -418,45 +367,28 @@ export const designSystemStyledKinds: StyledKindsOf = styledKindsReader(UI_ROOT)
 export const designSystemStyledExports: StyledExportsOf = styledExportsReader(UI_ROOT);
 
 /**
- * What each JSX tag that renders a Tamagui element is: `view`, `text` or `other`. A Tamagui `View`, stack or
- * `ScrollView` is a `view`, `Text` is a `text`; a `styled(Base, …)` is that of its base, followed through local
- * bindings; a design-system export is what its own `styled(…)` says. Pure, given `styledKindsOf`.
+ * What each JSX tag that renders a Tamagui element is: `view`, `text` or `other`. The one reading of which tags are
+ * Tamagui: a PascalCase value import from `tamagui` or an `@tamagui/*` package (renamed or not), a member of a
+ * namespace import of one (`T.View`), a local `styled(…)` binding, or a design-system export that is itself a styled
+ * component. A Tamagui `View`, stack or `ScrollView` is a `view`, `Text` is a `text`; a `styled(Base, …)` is that of its
+ * base, followed through local bindings; a design-system export is what its own `styled(…)` says. Pure, given
+ * `styledKindsOf`.
  *
  * @param file - The parsed module.
  * @param styledKindsOf - The kind of each name a design-system subpath exports as a styled component.
- * @returns Tag names as written (`View`, `Row`, `T.View`) and their kinds, for exactly the names
- *   {@link tamaguiElementNames} reads.
+ * @returns Tag names as written (`View`, `Row`, `T.View`) and their kinds.
  */
 export function tamaguiElementKinds(
     file: ts.SourceFile,
     styledKindsOf: StyledKindsOf,
 ): ReadonlyMap<string, TamaguiKind> {
-    const names = tamaguiElementNames(file, (subpath) => new Set(styledKindsOf(subpath).keys()));
     const tamagui = valueBindingsOf(file, (specifier) => TAMAGUI_MODULE.test(specifier));
     const kinds = new Map<string, TamaguiKind>();
 
-    for (const name of names) {
-        kinds.set(name, 'other');
-    }
-
     for (const [exported, locals] of tamagui.locals) {
-        locals.forEach((local) => {
-            if (names.has(local)) {
-                kinds.set(local, kindOfExport(exported));
-            }
-        });
-    }
-
-    for (const name of names) {
-        const member = /^([A-Za-z_$][\w$]*)\.(\w+)$/u.exec(name);
-
-        if (member !== null && tamagui.namespaces.has(member[1] ?? '')) {
-            kinds.set(name, kindOfExport(member[2] ?? ''));
+        if (/^[A-Z]/u.test(exported)) {
+            locals.forEach((local) => kinds.set(local, kindOfExport(exported)));
         }
-    }
-
-    for (const [local, kind] of localKindsOf(file)) {
-        kinds.set(local, kind);
     }
 
     const designSystemSpecifiers = file.statements
@@ -474,5 +406,43 @@ export function tamaguiElementKinds(
         }
     }
 
+    for (const [local, kind] of localKindsOf(file)) {
+        kinds.set(local, kind);
+    }
+
+    const visit = (node: ts.Node): void => {
+        if (
+            (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+            ts.isPropertyAccessExpression(node.tagName) &&
+            ts.isIdentifier(node.tagName.expression) &&
+            tamagui.namespaces.has(node.tagName.expression.text)
+        ) {
+            kinds.set(node.tagName.getText(file), kindOfExport(node.tagName.name.text));
+        }
+
+        ts.forEachChild(node, visit);
+    };
+
+    if (tamagui.namespaces.size > 0) {
+        visit(file);
+    }
+
     return kinds;
+}
+
+/**
+ * The local JSX tag names that render a Tamagui element: the names of {@link tamaguiElementKinds}. Pure, given
+ * `styledExportsOf`.
+ *
+ * @param file - The parsed module.
+ * @param styledExportsOf - Which names a design-system subpath exports as Tamagui `styled(…)` components.
+ * @returns Tag names as written: `View`, `Pill`, `T.View`.
+ */
+export function tamaguiElementNames(file: ts.SourceFile, styledExportsOf: StyledExportsOf): ReadonlySet<string> {
+    return new Set(
+        tamaguiElementKinds(
+            file,
+            (subpath) => new Map([...styledExportsOf(subpath)].map((name) => [name, 'other' as TamaguiKind])),
+        ).keys(),
+    );
 }

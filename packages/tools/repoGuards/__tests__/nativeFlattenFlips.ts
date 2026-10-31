@@ -31,9 +31,16 @@
 import ts from 'typescript';
 
 import { isSetFlag, isViewTag, keepsNode, offenderAt, viewBindingsOf } from './nativeLabelledViews.js';
-import { styledDeclarations, tamaguiStyledNames, type StyledKindsOf } from './tamaguiElements.js';
+import {
+    styledDeclarations,
+    tamaguiStyledNames,
+    unwrapBase,
+    type StyledDeclaration,
+    type StyledKindsOf,
+} from './tamaguiElements.js';
 import { isStateModifier, valueHasModifier } from './tamaguiStateStyles.js';
 import { styledConfig } from './tamaguiStyleObjects.js';
+import { attributeValueOf } from './tamaguiTokenValues.js';
 
 /** Whether a style forms a stacking context in every render, in none, or in some. */
 type Forms = 'always' | 'never' | 'sometimes';
@@ -240,21 +247,10 @@ function keepsNodeAlways(attribute: ts.JsxAttribute): boolean {
     return false;
 }
 
-/** The expression an attribute's value is: `{expr}`, or a string literal. */
-function attributeExpression(attribute: ts.JsxAttribute): ts.Expression | undefined {
-    const value = attribute.initializer;
-
-    if (value !== undefined && ts.isJsxExpression(value)) {
-        return value.expression;
-    }
-
-    return value !== undefined && ts.isStringLiteral(value) ? value : undefined;
-}
-
 /** Whether one attribute forms a stacking context: the style, or a `pointerEvents` prop. */
 function attributeForms(attribute: ts.JsxAttribute, sheets: Sheets): Forms {
     const name = attribute.name.getText();
-    const expression = attributeExpression(attribute);
+    const expression = attributeValueOf(attribute);
 
     if (expression === undefined) {
         return 'never';
@@ -278,7 +274,7 @@ function tamaguiValueForms(key: string, value: ts.Expression): Forms {
 /** Whether a Tamagui prop forms a stacking context. Only the stacking keys are read. */
 function tamaguiAttributeForms(attribute: ts.JsxAttribute): Forms {
     const name = attribute.name.getText();
-    const expression = attributeExpression(attribute);
+    const expression = attributeValueOf(attribute);
 
     return expression === undefined || !STACKING_KEYS.has(name) ? 'never' : tamaguiValueForms(name, expression);
 }
@@ -292,23 +288,19 @@ function configKeepsNode(call: ts.CallExpression): boolean {
 }
 
 /** The local `styled(…)` bindings that keep their node, a base followed through chains of local bindings. */
-function curedBindings(declarations: readonly ts.CallExpression[], names: readonly string[]): ReadonlySet<string> {
+function curedBindings(declarations: readonly StyledDeclaration[]): ReadonlySet<string> {
     const cured = new Set<string>();
 
     for (let pass = 0; pass <= declarations.length; pass += 1) {
         const before = cured.size;
 
-        declarations.forEach((call, at) => {
-            const base = call.arguments[0];
-            const name = names[at];
+        for (const { name, call } of declarations) {
+            const base = call.arguments[0] === undefined ? undefined : unwrapBase(call.arguments[0]);
 
-            if (
-                name !== undefined &&
-                (configKeepsNode(call) || (base !== undefined && ts.isIdentifier(base) && cured.has(base.text)))
-            ) {
+            if (configKeepsNode(call) || (base !== undefined && ts.isIdentifier(base) && cured.has(base.text))) {
                 cured.add(name);
             }
-        });
+        }
 
         if (cured.size === before) {
             break;
@@ -358,10 +350,7 @@ export function flattenFlippingViews(
     const bindings = viewBindingsOf(file, styledKindsOf);
     const sheets = sheetsOf(file);
     const declarations = styledDeclarations(file, tamaguiStyledNames(file));
-    const cured = curedBindings(
-        declarations.map(({ call }) => call),
-        declarations.map(({ name }) => name),
-    );
+    const cured = curedBindings(declarations);
     const offenders: string[] = [];
 
     for (const { name, call } of declarations) {

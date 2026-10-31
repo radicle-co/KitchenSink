@@ -30,6 +30,7 @@ import { describe, expect, it } from 'vitest';
 
 import { appSourceModules, parseModule } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
+import { attributeValueOf } from './tamaguiTokenValues.js';
 import {
     designSystemStyledExports,
     tamaguiElementNames,
@@ -51,17 +52,6 @@ const isNumber = (node: ts.Expression, value: number): boolean =>
     (ts.isNumericLiteral(node) && Number(node.text) === value) ||
     ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
         new RegExp(`^${String(value)}(?:px)?$`, 'u').test(node.text));
-
-/** The expression a JSX attribute holds: `{expr}` or a string literal. */
-function attributeValue(attribute: ts.JsxAttributeLike): ts.Expression | undefined {
-    if (!ts.isJsxAttribute(attribute)) {
-        return undefined;
-    }
-
-    const value = attribute.initializer;
-
-    return value !== undefined && ts.isJsxExpression(value) ? value.expression : (value as ts.Expression | undefined);
-}
 
 /** The property name of an assignment, if it is a plain name. */
 const nameOf = (node: ts.PropertyAssignment): string | undefined =>
@@ -124,7 +114,7 @@ export function literalTouchFloors(
         const props = element.attributes.properties.filter(ts.isJsxAttribute);
         const floored = (key: string): boolean =>
             props.some((prop) => {
-                const value = attributeValue(prop);
+                const value = attributeValueOf(prop);
 
                 return prop.name.getText(file) === key && value !== undefined && isNumber(value, IOS_FLOOR);
             });

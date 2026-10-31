@@ -33,6 +33,11 @@ describe('shorthandFindings', () => {
         ['a pointer-events shorthand', `<View pe="none" />`, 1],
         ['a shorthand in styled()', `const B = styled(View, { bblr: '$md' });`, 1],
         ['a shorthand in a styled() variant', `const B = styled(View, { variants: { on: { true: { o: 0.4 } } } });`, 1],
+        [
+            'a cast-wrapped styled() binding used with a shorthand',
+            `const R = styled(View, {}) as typeof View;\n<R o={1} />`,
+            1,
+        ],
         ['the long names', `<View opacity={0.4} pointerEvents="none" />`, 0],
         [
             'a variant named like a shorthand is not a style',

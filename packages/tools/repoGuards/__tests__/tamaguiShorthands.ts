@@ -13,6 +13,12 @@ import ts from 'typescript';
 import type { StyledExportsOf } from './tamaguiElements.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
 
+/**
+ * Tamagui's own shorthand names.
+ *
+ * @sideEffect `createTamagui` registers the config it builds as the process-wide Tamagui config, and this runs at
+ *   module load.
+ */
 function builtInShorthands(): ReadonlySet<string> {
     const config = createTamagui({
         tokens: createTokens({ space: {}, size: {}, radius: {}, zIndex: {}, color: {} }),

@@ -187,6 +187,17 @@ const SHAPES: readonly (readonly [string, string, boolean])[] = [
         false,
     ],
     [
+        'a cast-wrapped base keeps the base cure',
+        `${TG} const Base = styled(View, { collapsable: false });
+         const B = styled(Base as typeof Base, { variants: { busy: { true: { opacity: 0.4 } } } });`,
+        false,
+    ],
+    [
+        'a cast-wrapped styled() view that dims',
+        `${TG} const B = styled(View, { variants: { busy: { true: { opacity: 0.4 } } } }) as typeof View;`,
+        true,
+    ],
+    [
         'a styled() from another module',
         `import { styled } from 'other'; import { View } from 'react-native'; const B = styled(View, { variants: { busy: { true: { opacity: 0.4 } } } });`,
         false,

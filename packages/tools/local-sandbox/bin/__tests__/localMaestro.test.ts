@@ -536,3 +536,107 @@ describe('local_maestro_provision_lane_users — what it may do to Clerk', () =>
         expect(calls).not.toContain('--local-roles');
     });
 });
+
+describe('local_maestro_pin_cli — the Maestro on PATH is CI’s pin, not whichever one is installed', () => {
+    /** The pin CI installs: the one `MAESTRO_VERSION` in `_ci-heavy.yml`. */
+    const CI_PIN = /MAESTRO_VERSION:\s*'([0-9.]+)'/u.exec(
+        readFileSync(path.join(REPO_ROOT, '.github/workflows/_ci-heavy.yml'), 'utf8'),
+    )?.[1];
+
+    /**
+     * A fake Maestro distribution (`<dir>/bin/maestro`) that answers `--version` with `version`.
+     *
+     * @sideEffect Creates files under the OS temp directory.
+     */
+    function makeDist(root: string, name: string, version: string): string {
+        const dir = path.join(root, name);
+
+        mkdirSync(path.join(dir, 'bin'), { recursive: true });
+        writeFileSync(path.join(dir, 'bin', 'maestro'), `#!/usr/bin/env bash\necho "${version}"\n`);
+        chmodSync(path.join(dir, 'bin', 'maestro'), 0o755);
+
+        return dir;
+    }
+
+    it('reads the pin from CI’s workflow, so the version is stated once', () => {
+        expect(CI_PIN).toBeDefined();
+
+        const result = run(makeSandbox(), 'local_maestro_ci_pin');
+
+        expect(result.stdout.trim()).toBe(CI_PIN);
+    });
+
+    it('puts the pinned distribution first on PATH even when an older one is installed as ~/.maestro', () => {
+        const sandbox = makeSandbox();
+        const home = path.join(path.dirname(sandbox.bin), 'home');
+        const stale = makeDist(home, '.maestro', '2.6.1');
+        const pinned = makeDist(home, 'maestro2110', CI_PIN ?? '');
+        const result = run(sandbox, 'local_maestro_pin_cli && type -P maestro && maestro --version', {
+            HOME: home,
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.split('\n')[0]).toBe(path.join(pinned, 'bin', 'maestro'));
+        expect(result.stdout).not.toContain(stale);
+        expect(result.stdout).toContain(CI_PIN);
+    });
+
+    it('honours LOCAL_MAESTRO_DIST, and refuses it when it is the wrong version', () => {
+        const sandbox = makeSandbox();
+        const home = path.join(path.dirname(sandbox.bin), 'home');
+        const wrong = makeDist(home, 'elsewhere', '2.6.1');
+        const result = run(sandbox, 'local_maestro_pin_cli', { HOME: home, LOCAL_MAESTRO_DIST: wrong });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(String(CI_PIN));
+    });
+
+    it('fails, naming the pin, when no installed distribution is that version', () => {
+        const sandbox = makeSandbox();
+        const home = path.join(path.dirname(sandbox.bin), 'home');
+
+        makeDist(home, '.maestro', '2.6.1');
+
+        const result = run(sandbox, 'local_maestro_pin_cli', { HOME: home });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(String(CI_PIN));
+        expect(result.stderr).toContain('2.6.1');
+    });
+});
+
+describe('local_maestro_export_build_env — the APK build carries the public Clerk key CI’s build carries', () => {
+    it('exports EXPO_PUBLIC_IDP_PUBLISHABLE_KEY from the loaded key, and prints nothing', () => {
+        const result = run(
+            makeSandbox(),
+            'local_maestro_export_build_env && [ "$EXPO_PUBLIC_IDP_PUBLISHABLE_KEY" = "$CLERK_PUBLISHABLE_KEY" ] && echo same',
+            { CLERK_PUBLISHABLE_KEY: FAKE_PUBLISHABLE },
+        );
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('same');
+        expect(result.stderr).not.toContain(FAKE_PUBLISHABLE);
+    });
+
+    it('refuses to build with no key — the Google button would be missing', () => {
+        const result = run(makeSandbox(), 'local_maestro_export_build_env', { CLERK_PUBLISHABLE_KEY: '' });
+
+        expect(result.status).not.toBe(0);
+    });
+
+    it('refuses a key that is not a test publishable key, and never echoes it', () => {
+        const live = 'pk_live_SHOULDNEVERBEUSED';
+        const result = run(makeSandbox(), 'local_maestro_export_build_env', { CLERK_PUBLISHABLE_KEY: live });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stdout + result.stderr).not.toContain(live);
+    });
+
+    it('is called by the APK build, ahead of expo prebuild', () => {
+        const script = readFileSync(SCRIPT, 'utf8');
+        const build = script.slice(script.indexOf('local_maestro_install_app()'));
+
+        expect(build.indexOf('local_maestro_export_build_env')).toBeGreaterThan(-1);
+        expect(build.indexOf('local_maestro_export_build_env')).toBeLessThan(build.indexOf('npx expo prebuild'));
+    });
+});

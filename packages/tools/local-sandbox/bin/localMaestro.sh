@@ -237,13 +237,13 @@ local_maestro_toolchain() {
     export ANDROID_SDK_ROOT="$ANDROID_HOME"
     # ⚠️ Not `JAVA_HOME`: the default `java` here is 11, which neither Maestro 2 nor the Android build accepts.
     export JAVA_HOME="${LOCAL_MAESTRO_JAVA_HOME:-${HOME}/jdk17}"
-    export PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator:${HOME}/.maestro/bin:${PATH}"
+    export PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator:${PATH}"
     export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
     export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-300000}"
     export MAESTRO_CLI_NO_ANALYTICS=1
 
     local tool missing=0
-    for tool in node npx docker curl jq aws adb emulator maestro java setsid; do
+    for tool in node npx docker curl jq aws adb emulator java setsid; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             local_maestro_fail "missing tool: ${tool}"
             missing=1
@@ -256,11 +256,63 @@ local_maestro_toolchain() {
         *) local_maestro_fail "Node 24 is required (found $(node -v))" || return 1 ;;
     esac
 
-    local version
-    version="$(command maestro --version 2>/dev/null | tail -1)"
-    if [ "$version" != '2.11.0' ]; then
-        echo "local:maestro: ⚠️ Maestro ${version:-unknown} — CI pins 2.11.0" >&2
+    local_maestro_pin_cli || return 1
+}
+
+# The Maestro version CI installs: the one `MAESTRO_VERSION` in `_ci-heavy.yml`, read from there so the pin is stated
+# once. Prints it; fails when the workflow no longer states one.
+local_maestro_ci_pin() {
+    local pin
+    pin="$(sed -nE "s/^[[:space:]]*MAESTRO_VERSION:[[:space:]]*'([0-9.]+)'.*/\1/p" \
+        "${LOCAL_MAESTRO_REPO_ROOT}/.github/workflows/_ci-heavy.yml" | head -1)"
+    if [ -z "$pin" ]; then
+        local_maestro_fail 'could not read MAESTRO_VERSION from .github/workflows/_ci-heavy.yml'
+        return 1
     fi
+    printf '%s\n' "$pin"
+}
+
+# Put CI's pinned Maestro FIRST on PATH. ⛔ Not whichever `maestro` is installed: 2.6.1 ahead of the pin is what ran
+# the iOS flows into "Application … is not running" (its `getForegroundApp()` ignores app state; fixed upstream in
+# 2.7.0 and pinned by 0de2bb7d1). Candidates, in order: `LOCAL_MAESTRO_DIST` (a directory holding `bin/maestro`, used
+# alone when set), `~/maestro2110`, `~/.maestro` (the installer's own directory). A distribution of another version is
+# skipped, and none matching is a refusal that says how to install the pin the way CI does (checksum-verified).
+local_maestro_pin_cli() {
+    local pin dir version seen=''
+    pin="$(local_maestro_ci_pin)" || return 1
+
+    local candidates=("${HOME}/maestro2110" "${HOME}/.maestro")
+    if [ -n "${LOCAL_MAESTRO_DIST:-}" ]; then
+        candidates=("$LOCAL_MAESTRO_DIST")
+    fi
+
+    for dir in "${candidates[@]}"; do
+        [ -x "${dir}/bin/maestro" ] || continue
+        version="$("${dir}/bin/maestro" --version 2>/dev/null | tail -1)"
+        if [ "$version" = "$pin" ]; then
+            export PATH="${dir}/bin:${PATH}"
+            return 0
+        fi
+        seen="${seen} ${dir} (${version:-unknown})"
+    done
+
+    local_maestro_fail "no Maestro ${pin} (CI's pin) found;${seen:- none installed}. Install it as CI does: download cli-${pin}/maestro.zip from github.com/mobile-dev-inc/maestro releases, verify MAESTRO_SHA256 from _ci-heavy.yml, unzip to ~/maestro${pin//./}, or set LOCAL_MAESTRO_DIST"
+    return 1
+}
+
+# The environment the debug APK's BUILD needs. ⛔ `EXPO_PUBLIC_IDP_PUBLISHABLE_KEY` is what CI's build passes
+# (`_ci-heavy.yml`); without it the sign-in screen has no Google button (the 2026-10-30 full run, loginFlow). It is the
+# sandbox Clerk instance's PUBLISHABLE key — public by design, `pk_test_` — which `local_maestro_load_clerk_keys` already
+# holds. It is checked for that prefix and never printed, so a live key cannot reach a build by accident.
+local_maestro_export_build_env() {
+    case "${CLERK_PUBLISHABLE_KEY:-}" in
+        pk_test_*) ;;
+        *)
+            local_maestro_fail 'the APK build needs the Clerk test publishable key (pk_test_…) — load the keys first'
+            return 1
+            ;;
+    esac
+    export EXPO_PUBLIC_IDP_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY"
 }
 
 # Start a command in its own session (so the whole tree can be stopped), logging to a file. Sets
@@ -452,7 +504,8 @@ local_maestro_install_app() {
     if [ "${LOCAL_MAESTRO_BUILD_APK:-}" = '1' ]; then
         echo 'local:maestro: building the debug APK (expo prebuild + gradle assembleDebug)' >&2
         (
-            cd "$LOCAL_MAESTRO_MOBILE_DIR" &&
+            local_maestro_export_build_env &&
+                cd "$LOCAL_MAESTRO_MOBILE_DIR" &&
                 CI=1 npx expo prebuild --platform android --no-install &&
                 cd android && ./gradlew :app:assembleDebug
         ) || {

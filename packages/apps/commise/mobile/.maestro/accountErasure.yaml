@@ -82,16 +82,43 @@ appId: ${APP_ID}
 # header shows the signed-in email (`ProfileHeader.tsx`), so the flow stops here, before the danger zone, unless it is
 # this run's erasure subject. The email holds a `+`, which as a regex would not match itself; Maestro also accepts an
 # exact text match, as `signinHome.yaml` relies on for the same address.
-- extendedWaitUntil:
-      visible: '${E2E_ERASURE_EMAIL}'
-      timeout: 20000
+# ⚠️ The Email row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS names it "Email, <address>" as a
+# single node, and Android publishes the address as its own node.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - extendedWaitUntil:
+                visible: 'Email, ${E2E_ERASURE_EMAIL}'
+                timeout: 20000
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - extendedWaitUntil:
+                visible: '${E2E_ERASURE_EMAIL}'
+                timeout: 20000
 # Audit 2026-10-19, A1.1: the wait above proves the erasure subject's address is on screen, but a surviving signer session
 # could show its own address beside it. The signer's address must be ABSENT before anything is destroyed
 # (`accountDangerZone.yaml` shows the address is readable on iOS, so this can fail).
-- assertNotVisible: '${E2E_SIGNIN_EMAIL}'
+# On iOS the signer's address would be drawn as "Email, <address>", so the bare address could never match: the combined
+# name is what must be absent there, or this assertion would pass whatever session survived.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertNotVisible: 'Email, ${E2E_SIGNIN_EMAIL}'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertNotVisible: '${E2E_SIGNIN_EMAIL}'
+# ⛔ `centerElement: true`, not a bare scroll: the scroll stops as soon as the row is "visible", which is while it still
+# sits under the tab bar, and the tap below then lands on the Recipes tab (iOS run, 2026-10-31: the sheet never opened).
 - scrollUntilVisible:
       element: 'Erase my data'
       direction: DOWN
+      centerElement: true
 
 - assertVisible: 'Erase my data'
 - tapOn: 'Erase my data'

@@ -233,12 +233,14 @@ export interface RecipeVersionPreviewMessages {
     /** Per-line calorie chip template (contains `{calories}`); rendered ONLY when the snapshot ingredient
      *  carries a `userCalories` override — never fabricated for a catalog-resolved line. */
     readonly caloriesLabel: string;
-    /** "Changed from current" summary template (contains `{ingredients}` and `{steps}`), derived from
-     *  `SnapshotDiff` vs. the recipe's CURRENT version. Each token is a
-     *  PRE-PLURALIZED count string (e.g. "1 ingredient" / "2 ingredients") produced by
-     *  `formatChangedFromCurrent` via the shared `ingredientCount*`/`stepCount*`
-     *  templates — this template itself carries no noun, so it never hard-codes a plural. */
+    /** "Changed from current" summary template (contains `{changes}`), derived from `SnapshotDiff` vs. the recipe's
+     *  CURRENT version. `{changes}` is a comma-joined list built by `formatChangedFromCurrent`: the localized names of the
+     *  changed fields (the `conflict.*Label` copy), then the PRE-PLURALIZED ingredient and step counts (the shared
+     *  `ingredientCount*`/`stepCount*` templates), a zero count left out. This template carries no noun, so it never
+     *  hard-codes a plural. */
     readonly changedFromCurrent: string;
+    /** The summary when nothing differs from the current version: no changed field and no changed line. */
+    readonly sameAsCurrent: string;
     /** Accessible label + status text shown while the previewed version is being fetched. */
     readonly loading: string;
     /** Error shown when the previewed version failed to load. Not a dead end — Keep-current/Cancel still
@@ -397,7 +399,8 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             ingredientsHeading: 'Ingredients at v{version}',
             stepsHeading: 'Steps at v{version}',
             caloriesLabel: '{calories} cal',
-            changedFromCurrent: 'Changed from current: {ingredients}, {steps}',
+            changedFromCurrent: 'Changed from current: {changes}',
+            sameAsCurrent: 'Same as the current version.',
             loading: 'Loading version preview…',
             error: 'We couldn’t load that version. Try again.',
             keepCurrent: 'Keep current version',

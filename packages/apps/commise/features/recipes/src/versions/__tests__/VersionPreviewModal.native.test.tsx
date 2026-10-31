@@ -191,6 +191,32 @@ describe('VersionPreviewModal (native) — populated version', () => {
         expect(screen.getByText('Changed from current: 1 ingredient, 1 step')).toBeTruthy();
     });
 
+    // A title-only edit used to read "0 ingredients, 0 steps", which at the top of the sheet says nothing changed.
+    it('names a changed title rather than counting zero ingredients and steps', () => {
+        const titleOnly: SnapshotDiff = {
+            changedFields: ['title'],
+            steps: { added: 0, removed: 0, modified: 0 },
+            ingredients: { added: 0, removed: 0, modified: 0 },
+            summary: { added: 0, removed: 0, modified: 1 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: titleOnly })} />);
+
+        expect(screen.getByText('Changed from current: Title')).toBeTruthy();
+        expect(screen.queryByText(/0 ingredients/)).toBeNull();
+    });
+
+    it('says so when the version is the same as the current one', () => {
+        const same: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 0, removed: 0, modified: 0 },
+            ingredients: { added: 0, removed: 0, modified: 0 },
+            summary: { added: 0, removed: 0, modified: 0 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: same })} />);
+
+        expect(screen.getByText('Same as the current version.')).toBeTruthy();
+    });
+
     it('omits the "changed from current" line when no diff was supplied', () => {
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
 

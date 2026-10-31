@@ -209,13 +209,13 @@ appId: ${APP_ID}
 - assertVisible: 'Initial version'
 
 # PREVIEW — a past version's own content, plus its changed-from-current summary. v2 and v3 share the SAME
-# ingredients/steps (only the title differs, by design above), so the tally is honestly all-zero. Every past
+# ingredients/steps (only the title differs, by design above), so the line names the title and counts nothing. Every past
 # version's actions are in its row's ⋯ menu (§6.6).
 - tapOn: 'More actions for version 2'
 - tapOn: 'Preview'
 - assertVisible:
       text: 'Version 2 Preview: ${E2E_RECIPE_LAMB} .v2.*'
-- assertVisible: 'Changed from current: 0 ingredients, 0 steps'
+- assertVisible: 'Changed from current: Title'
 - tapOn: 'Keep current version'
 - assertNotVisible: 'Keep current version'
 

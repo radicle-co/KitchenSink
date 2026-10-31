@@ -511,9 +511,9 @@ describe('RecipeVersionsContainer', () => {
 
             expect(screen.getByRole('dialog')).toBeInTheDocument();
             expect(screen.getByText('Version 1 Preview: Weeknight Pasta')).toBeInTheDocument();
-            // v1 (previewed) vs v2 (current): 0 ingredient changes, 1 step (instruction) changed — "1 step"
+            // v1 (previewed) vs v2 (current): the title differs, 0 ingredient changes, 1 step (instruction) changed — "1 step"
             // singular, never the ungrammatical "1 steps".
-            expect(screen.getByText('Changed from current: 0 ingredients, 1 step')).toBeInTheDocument();
+            expect(screen.getByText('Changed from current: Title, 1 step')).toBeInTheDocument();
         });
 
         it('Keep current version closes the modal without restoring', async () => {

@@ -6,22 +6,27 @@
  *   that Radix slot wearing the DS secondary surface (`buttonSurfaceClass`), because a slot owns its own element and
  *   the `Button` component forwards no ref. The confirm is the DS `Button` in its filled `confirm` tone, which brings
  *   the in-place spinner and the busy guard (`aria-busy`, a refused press that keeps focus).
- * - The buttons stack full width below a 400 px DIALOG — a container query on the dialog itself, not the viewport —
- *   with the destructive one on top; side by side above it, Keep first.
+ * - The buttons stack full width below a 400 px DIALOG — `DialogActions`' container query on the dialog's own content
+ *   box, not the viewport — with the destructive one on top; side by side above it, Keep first.
  * - Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores
  *   focus only to an owned trigger, and every caller opens this from a sibling.
  *
- * @pattern Adapter over `@radix-ui/react-alert-dialog`
+ * @pattern Adapter over `@radix-ui/react-alert-dialog`, composing the design-system `DialogActions` row
  */
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import type { FC } from 'react';
 
 import { Button } from '../button/Button.js';
 import { buttonSurfaceClass } from '../button/surfaceClass.js';
+import { DialogActions } from '../dialogActions/DialogActions.js';
+import { dialogActionSlotClass } from '../dialogActions/dialogActionsClass.js';
 import { useReturnFocusOnClose } from '../dialogFocus/useReturnFocusOnClose.js';
 import { Icon } from '../icon/Icon.js';
 import type { ConfirmDialogProps } from './props.js';
 import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
+
+/** The dialog width from which the two buttons sit side by side: short verb labels, so the narrow threshold. */
+const SIDE_BY_SIDE_FROM = 400;
 
 export const ConfirmDialog: FC<ConfirmDialogProps> = ({
     open,
@@ -66,10 +71,10 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                             {unavailable}
                         </span>
                     ) : null}
-                    <div className="flex flex-col-reverse gap-3 @[25rem]/dialog:flex-row @[25rem]/dialog:justify-end">
+                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
                         <AlertDialog.Cancel
                             type="button"
-                            className={`${buttonSurfaceClass('secondary')} w-full @[25rem]/dialog:w-auto`}
+                            className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
                         >
                             <Icon name={keep.icon ?? 'x'} size={20} />
                             <span>{keep.label}</span>
@@ -85,7 +90,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                         >
                             {confirm.label}
                         </Button>
-                    </div>
+                    </DialogActions>
                 </AlertDialog.Content>
             </AlertDialog.Portal>
         </AlertDialog.Root>

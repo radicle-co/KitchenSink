@@ -4,7 +4,7 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 20,
-        "missing-component-doc": 158,
+        "missing-component-doc": 160,
         "missing-module-doc": 21,
         "platform-singleton": 70,
         "ref-api": 15,
@@ -247,6 +247,22 @@
                 "icon",
                 "label"
             ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/dialogActions/DialogActions",
+            "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/dialogActions/DialogActions",
+            "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
         },
         {
             "rule": "platform-singleton",

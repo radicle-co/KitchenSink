@@ -418,9 +418,9 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
         chooseRowAction(1, 'Preview');
 
         expect(screen.getByText('Version 1 Preview: Weeknight Pasta')).toBeTruthy();
-        // v1 (previewed) vs v2 (current): 0 ingredient changes, 1 step (instruction) changed — singular
+        // v1 (previewed) vs v2 (current): the title differs, 0 ingredient changes, 1 step (instruction) changed — singular
         // "1 step", never the ungrammatical "1 steps".
-        expect(screen.getByText('Changed from current: 0 ingredients, 1 step')).toBeTruthy();
+        expect(screen.getByText('Changed from current: Title, 1 step')).toBeTruthy();
     });
 
     it('Keep current version closes the preview without restoring', async () => {

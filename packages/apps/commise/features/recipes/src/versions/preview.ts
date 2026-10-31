@@ -14,6 +14,7 @@ import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { IngredientLineNameMessages } from '../messages.js';
 import { diffSnapshots, type SnapshotDiff } from './diff.js';
+import { snapshotFieldLabel } from './diffLabels.js';
 import type { RecipeVersionRestoreError } from './history.js';
 import type { RecipeConflictMessages, RecipeVersionPreviewMessages } from './messages.js';
 
@@ -151,7 +152,7 @@ export const toVersionPreviewSteps = (steps: RecipeSnapshot['steps']): readonly 
         .map((step) => ({ key: step.id, marker: `${step.stepNumber}.`, text: step.instruction }));
 
 /**
- * Compute the "Changed from current: {n} ingredients, {m} steps" counts from a {@link SnapshotDiff}: each
+ * Compute the ingredient and step counts of the "Changed from current" line from a {@link SnapshotDiff}: each
  * collection's TOTAL changed lines (added + removed + modified) — the same per-collection tallies the Diff
  * Summary rollup (Task 1) is built from, not a bespoke count. Pure.
  *
@@ -166,15 +167,22 @@ export const changedFromCurrentCounts = (
 });
 
 /**
- * Render the "Changed from current: {ingredients}, {steps}" summary line from a {@link SnapshotDiff}, with
- * each count correctly pluralized via the SAME `ingredientCount*`/`stepCount*` templates the compare panel's
- * own ingredient/step counts already use (`collectionFieldValue`, module-private in `compare.ts`) — a count of 1 reads "1
- * ingredient"/"1 step", never a hard-coded plural ("1 ingredients"/"1 steps"). The field label is one piece
- * of knowledge regardless of which version surface renders it; so is its pluralization. Pure.
+ * Render the "Changed from current: {changes}" summary line from a {@link SnapshotDiff}. `{changes}` names every changed
+ * field, then counts the ingredient and step lines, so a title-only edit reads "Changed from current: Title" and never
+ * "0 ingredients, 0 steps", which at the top of the sheet reads as "nothing changed" at the moment the cook decides.
+ *
+ * - The fields are `changedFields` WITHOUT the two collections, in the diff's own order, labelled by the same
+ *   `snapshotFieldLabel` the version list's "Changed: Title" uses: a label is one piece of knowledge.
+ * - The collections are counted, not named, through the SAME `ingredientCount*`/`stepCount*` templates the compare
+ *   panel uses (a count of 1 reads "1 ingredient", never "1 ingredients"), and a count of 0 is left out.
+ * - A diff with no field and no count reads {@link RecipeVersionPreviewMessages.sameAsCurrent}. It asks the counts, not
+ *   `changedFields`, because the counts are what the line prints.
+ *
+ * Pure.
  *
  * @param diff - This version's diff vs. the recipe's current version.
- * @param previewMessages - The localized preview copy (the summary line's own template).
- * @param conflictMessages - The shared singular/plural count templates (reused — see `collectionFieldValue` in `compare.ts`).
+ * @param previewMessages - The localized preview copy (the summary line's own templates).
+ * @param conflictMessages - The shared field labels and singular/plural count templates (reused).
  * @param locale - The active BCP-47 locale (for locale-correct count pluralization).
  * @returns The formatted "Changed from current" summary line.
  */
@@ -185,19 +193,33 @@ export const formatChangedFromCurrent = (
     locale: Locale,
 ): string => {
     const counts = changedFromCurrentCounts(diff);
+    const changes = [
+        ...diff.changedFields
+            .filter((field) => field !== 'ingredients' && field !== 'steps')
+            .map((field) => snapshotFieldLabel(field, conflictMessages)),
+        ...(counts.ingredients === 0
+            ? []
+            : [
+                  formatRecipeCount(
+                      counts.ingredients,
+                      { one: conflictMessages.ingredientCountOne, other: conflictMessages.ingredientCountOther },
+                      locale,
+                  ),
+              ]),
+        ...(counts.steps === 0
+            ? []
+            : [
+                  formatRecipeCount(
+                      counts.steps,
+                      { one: conflictMessages.stepCountOne, other: conflictMessages.stepCountOther },
+                      locale,
+                  ),
+              ]),
+    ];
 
-    return fillTemplate(previewMessages.changedFromCurrent, {
-        ingredients: formatRecipeCount(
-            counts.ingredients,
-            { one: conflictMessages.ingredientCountOne, other: conflictMessages.ingredientCountOther },
-            locale,
-        ),
-        steps: formatRecipeCount(
-            counts.steps,
-            { one: conflictMessages.stepCountOne, other: conflictMessages.stepCountOther },
-            locale,
-        ),
-    });
+    return changes.length === 0
+        ? previewMessages.sameAsCurrent
+        : fillTemplate(previewMessages.changedFromCurrent, { changes: changes.join(', ') });
 };
 
 // ─── Version preview state derivation (B21) ─────────────────────────────────────────────────────────

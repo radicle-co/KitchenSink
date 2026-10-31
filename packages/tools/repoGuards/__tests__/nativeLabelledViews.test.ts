@@ -28,6 +28,10 @@ import { describe, expect, it } from 'vitest';
 import { namedTwiceViews, unkeptNamedViews } from './nativeLabelledViews.js';
 import { appSourceFiles } from './reactNativeValueUses.js';
 import { repoRoot } from './serviceSources.js';
+import { designSystemStyledKinds, type StyledKindsOf, type TamaguiKind } from './tamaguiElements.js';
+
+/** No design-system package: the fixtures name every Tamagui element they use. */
+const noKinds: StyledKindsOf = () => new Map<string, TamaguiKind>();
 
 /** A row whose name a Maestro pass found missing on Android; the detector must read it. */
 const ROW_NAME = 'packages/apps/commise/features/recipes/src/form/RecipeIngredientsFields.native.tsx';
@@ -141,6 +145,65 @@ const SHAPES: readonly (readonly [string, string, boolean])[] = [
         `import { View } from 'react-native'; const A = (open) => <View aria-modal={open} aria-label="x" />;`,
         true,
     ],
+    // Tamagui elements (ADR-0080): the same defect, found under a Tamagui tag.
+    [
+        'a named Tamagui YStack',
+        `import { YStack } from 'tamagui'; const A = () => <YStack accessibilityLabel="x" />;`,
+        true,
+    ],
+    [
+        'a Tamagui View with aria-label',
+        `import { View } from 'tamagui'; const A = () => <View aria-label="x" />;`,
+        true,
+    ],
+    ['a roled Tamagui XStack', `import { XStack } from 'tamagui'; const A = () => <XStack role="list" />;`, true],
+    [
+        'a kept Tamagui YStack',
+        `import { YStack } from 'tamagui'; const A = () => <YStack accessibilityLabel="x" collapsable={false} />;`,
+        false,
+    ],
+    ['a Tamagui namespace member', `import * as T from 'tamagui'; const A = () => <T.ZStack aria-label="x" />;`, true],
+    [
+        'a local styled(XStack) binding',
+        `import { styled, XStack } from 'tamagui'; const Row = styled(XStack, {});
+         const A = () => <Row aria-label="x" />;`,
+        true,
+    ],
+    [
+        'a chain of local styled() bindings',
+        `import { styled, XStack } from 'tamagui'; const Row = styled(XStack, {}); const Tight = styled(Row, {});
+         const A = () => <Tight aria-label="x" />;`,
+        true,
+    ],
+    [
+        'a chain declared before its base is read',
+        `import { styled, XStack } from 'tamagui'; const Tight = styled(Row, {}); const Row = styled(XStack, {});
+         const A = () => <Tight aria-label="x" />;`,
+        true,
+    ],
+    [
+        'a kept local styled binding',
+        `import { styled, XStack } from 'tamagui'; const Row = styled(XStack, {});
+         const A = () => <Row aria-label="x" collapsable={false} />;`,
+        false,
+    ],
+    [
+        'a styled Text is not a View',
+        `import { styled, Text } from 'tamagui'; const Label = styled(Text, {});
+         const A = () => <Label aria-label="x" />;`,
+        false,
+    ],
+    [
+        'a styled() from another module',
+        `import { styled } from 'other'; import { XStack } from 'tamagui'; const Row = styled(XStack, {});
+         const A = () => <Row aria-label="x" />;`,
+        false,
+    ],
+    [
+        'a type-only Tamagui View',
+        `import type { View } from 'tamagui'; const A = () => <View aria-label="x" />;`,
+        false,
+    ],
 ];
 
 /** The same expression in a View's name and in a `Text` inside it, and whether each shape is an offender (N3). */
@@ -232,11 +295,35 @@ const NAMED_TWICE: readonly (readonly [string, string, boolean])[] = [
          const A = ({ t }) => <View aria-label={t}><Text>{t}</Text></View>;`,
         false,
     ],
+    [
+        'a Tamagui Text inside a named React Native View',
+        `import { View } from 'react-native'; import { Text } from 'tamagui';
+         const A = ({ t }) => <View aria-label={t}><Text>{t}</Text></View>;`,
+        true,
+    ],
+    [
+        'a Tamagui Text inside a named Tamagui YStack',
+        `import { Text, YStack } from 'tamagui';
+         const A = ({ t }) => <YStack collapsable={false} aria-label={t}><Text>{t}</Text></YStack>;`,
+        true,
+    ],
+    [
+        'a local styled(Text) inside a named View',
+        `import { View } from 'react-native'; import { styled, Text } from 'tamagui'; const Label = styled(Text, {});
+         const A = ({ t }) => <View aria-label={t}><Label>{t}</Label></View>;`,
+        true,
+    ],
+    [
+        'a Tamagui YStack that is one element',
+        `import { Text, YStack } from 'tamagui';
+         const A = ({ t }) => <YStack accessible aria-label={t}><Text>{t}</Text></YStack>;`,
+        false,
+    ],
 ];
 
 describe('the apps keep the native node of every View they name or role', () => {
     it.each(SHAPES)('reads %s', (_shape, source, offends) => {
-        expect(unkeptNamedViews(source, 'shape.tsx')).toHaveLength(offends ? 1 : 0);
+        expect(unkeptNamedViews(source, 'shape.tsx', noKinds)).toHaveLength(offends ? 1 : 0);
     });
 
     it('discovers the app sources, the row name included (a vacuous pass would hide the rule below)', () => {
@@ -246,24 +333,30 @@ describe('the apps keep the native node of every View they name or role', () => 
     it('reads the row name’s group as a named View, so the detector reads the real file', () => {
         const source = readFileSync(path.join(repoRoot, ROW_NAME), 'utf8');
 
-        expect(unkeptNamedViews(source.replaceAll('collapsable={false}', ''), ROW_NAME)).not.toHaveLength(0);
+        expect(
+            unkeptNamedViews(source.replaceAll('collapsable={false}', ''), ROW_NAME, designSystemStyledKinds),
+        ).not.toHaveLength(0);
     });
 
     it('finds no named or roled View that nothing keeps', () => {
         const offenders = appSourceFiles().flatMap((file) =>
-            unkeptNamedViews(readFileSync(path.join(repoRoot, file), 'utf8'), file).map((use) => `${file}:${use}`),
+            unkeptNamedViews(readFileSync(path.join(repoRoot, file), 'utf8'), file, designSystemStyledKinds).map(
+                (use) => `${file}:${use}`,
+            ),
         );
 
         expect(offenders).toEqual([]);
     });
 
     it.each(NAMED_TWICE)('reads %s', (_shape, source, offends) => {
-        expect(namedTwiceViews(source, 'shape.tsx')).toHaveLength(offends ? 1 : 0);
+        expect(namedTwiceViews(source, 'shape.tsx', noKinds)).toHaveLength(offends ? 1 : 0);
     });
 
     it('finds no View whose name a Text inside it says again (drop the name; nativeContainerNames.md N1)', () => {
         const offenders = appSourceFiles().flatMap((file) =>
-            namedTwiceViews(readFileSync(path.join(repoRoot, file), 'utf8'), file).map((use) => `${file}:${use}`),
+            namedTwiceViews(readFileSync(path.join(repoRoot, file), 'utf8'), file, designSystemStyledKinds).map(
+                (use) => `${file}:${use}`,
+            ),
         );
 
         expect(offenders).toEqual([]);

@@ -11,7 +11,9 @@
  * literally `true`, because an expression can be `false`. Whether a style happens to form a view is not read, because a
  * style can change without the label noticing.
  *
- * `Animated.View` is a View. A name or role passed through a spread counts when the spread is an object literal, read
+ * `Animated.View` is a View. So is a Tamagui `View`, stack or `ScrollView`, and a `styled(…)` over one (ADR-0080): a
+ * Tamagui view passes `collapsable` through to the host view, so the same cure keeps it. A Tamagui `Text` is a `Text`.
+ * A name or role passed through a spread counts when the spread is an object literal, read
  * through a conditional or a logical operator. ⚠️ An opaque spread (`{...props}`, `{...panHandlers}`) is read as naming
  * nothing, because its keys are not in the source, so a name forwarded through one is not seen. A spread never keeps a
  * node.
@@ -24,6 +26,7 @@
 import ts from 'typescript';
 
 import { isReactNative, localsOf, valueBindingsOf } from './moduleBindings.js';
+import { tamaguiElementKinds, type StyledKindsOf, type TamaguiKind } from './tamaguiElements.js';
 
 /** The props that give a View an accessible name or role. */
 const NAMING_PROPS = new Set(['accessibilityLabel', 'aria-label', 'aria-labelledby', 'accessibilityRole', 'role']);
@@ -35,18 +38,24 @@ const LABEL_PROPS = new Set(['accessibilityLabel', 'aria-label']);
 const KEEPING_PROPS = new Set(['id', 'nativeID']);
 
 /**
- * The local names a file gives React Native's `View`, `Animated` and `Text` values, and its namespace imports of
- * `react-native`.
+ * The local names a file gives React Native's `View`, `Animated` and `Text` values, its namespace imports of
+ * `react-native`, and the kind of each tag that renders a Tamagui element.
  */
 export interface ViewBindings {
     readonly names: Set<string>;
     readonly animated: Set<string>;
     readonly texts: Set<string>;
     readonly namespaces: Set<string>;
+    readonly tamagui: ReadonlyMap<string, TamaguiKind>;
 }
 
-/** The {@link ViewBindings} of one file. */
-export function viewBindingsOf(file: ts.SourceFile): ViewBindings {
+/**
+ * The {@link ViewBindings} of one file.
+ *
+ * @param file - The parsed module.
+ * @param styledKindsOf - The kind of each name a design-system subpath exports as a Tamagui styled component.
+ */
+export function viewBindingsOf(file: ts.SourceFile, styledKindsOf: StyledKindsOf): ViewBindings {
     const bindings = valueBindingsOf(file, isReactNative);
 
     return {
@@ -54,11 +63,19 @@ export function viewBindingsOf(file: ts.SourceFile): ViewBindings {
         animated: new Set(localsOf(bindings, 'Animated')),
         texts: new Set(localsOf(bindings, 'Text')),
         namespaces: new Set(bindings.namespaces),
+        tamagui: tamaguiElementKinds(file, styledKindsOf),
     };
 }
 
-/** Whether a JSX tag names React Native's `View` or `Animated.View`, directly or through a namespace import. */
-export function isViewTag(tag: ts.JsxTagNameExpression, { names, animated, namespaces }: ViewBindings): boolean {
+/**
+ * Whether a JSX tag names a View: React Native's `View` or `Animated.View` (directly or through a namespace import), or
+ * a View-like Tamagui element.
+ */
+export function isViewTag(tag: ts.JsxTagNameExpression, bindings: ViewBindings): boolean {
+    return bindings.tamagui.get(tag.getText()) === 'view' || isReactNativeViewTag(tag, bindings);
+}
+
+function isReactNativeViewTag(tag: ts.JsxTagNameExpression, { names, animated, namespaces }: ViewBindings): boolean {
     if (ts.isIdentifier(tag)) {
         return names.has(tag.text);
     }
@@ -81,8 +98,15 @@ export function isViewTag(tag: ts.JsxTagNameExpression, { names, animated, names
     );
 }
 
-/** Whether a JSX tag names React Native's `Text`, directly or through a namespace import. */
-function isTextTag(tag: ts.JsxTagNameExpression, { texts, namespaces }: ViewBindings): boolean {
+/**
+ * Whether a JSX tag names a `Text`: React Native's, directly or through a namespace import, or a Text-like Tamagui
+ * element.
+ */
+export function isTextTag(tag: ts.JsxTagNameExpression, bindings: ViewBindings): boolean {
+    return bindings.tamagui.get(tag.getText()) === 'text' || isReactNativeTextTag(tag, bindings);
+}
+
+function isReactNativeTextTag(tag: ts.JsxTagNameExpression, { texts, namespaces }: ViewBindings): boolean {
     if (ts.isIdentifier(tag)) {
         return texts.has(tag.text);
     }
@@ -274,11 +298,12 @@ function textsSaidBy(element: ts.JsxElement, file: ts.SourceFile): readonly stri
  *
  * @param source - The file's text.
  * @param fileName - Its name, which decides whether it is parsed as TSX.
+ * @param styledKindsOf - The kind of each name a design-system subpath exports as a Tamagui styled component.
  * @returns One entry per offending element.
  */
-export function namedTwiceViews(source: string, fileName: string): readonly string[] {
+export function namedTwiceViews(source: string, fileName: string, styledKindsOf: StyledKindsOf): readonly string[] {
     const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
-    const bindings = viewBindingsOf(file);
+    const bindings = viewBindingsOf(file, styledKindsOf);
     const offenders: string[] = [];
 
     const saidInside = (root: ts.Node): Set<string> => {
@@ -326,14 +351,20 @@ export function namedTwiceViews(source: string, fileName: string): readonly stri
  *
  * @param source - The file's text.
  * @param fileName - Its name, which decides whether it is parsed as TSX.
+ * @param styledKindsOf - The kind of each name a design-system subpath exports as a Tamagui styled component.
  * @returns One entry per offending element.
  */
-export function unkeptNamedViews(source: string, fileName: string): readonly string[] {
+export function unkeptNamedViews(source: string, fileName: string, styledKindsOf: StyledKindsOf): readonly string[] {
     const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
-    const bindings = viewBindingsOf(file);
+    const bindings = viewBindingsOf(file, styledKindsOf);
     const offenders: string[] = [];
 
-    if (bindings.names.size === 0 && bindings.animated.size === 0 && bindings.namespaces.size === 0) {
+    if (
+        bindings.names.size === 0 &&
+        bindings.animated.size === 0 &&
+        bindings.namespaces.size === 0 &&
+        bindings.tamagui.size === 0
+    ) {
         return offenders;
     }
 

@@ -101,6 +101,7 @@
         "./snackbar": "./src/snackbar/index.ts",
         "./icon-names": "./src/icon/props.ts",
         "./theme": "./src/theme/index.ts",
+        "./tamagui-config": "./src/tamagui/tamaguiConfig.native.ts",
         "./avatar": "./src/avatar/index.ts",
         "./avatar-props": "./src/avatar/props.ts",
         "./back-to-top": "./src/backToTop/index.ts",
@@ -138,7 +139,8 @@
         "react": "^19.0.0",
         "react-native": ">=0.79.0",
         "react-native-safe-area-context": ">=5.0.0",
-        "react-native-svg": ">=15.0.0"
+        "react-native-svg": ">=15.0.0",
+        "tamagui": "^3.1.9"
     },
     "peerDependenciesMeta": {
         "expo-glass-effect": {
@@ -160,6 +162,9 @@
             "optional": true
         },
         "react-native-svg": {
+            "optional": true
+        },
+        "tamagui": {
             "optional": true
         }
     },
@@ -186,6 +191,7 @@
         "react-native-safe-area-context": "~5.7.0",
         "react-native-svg": "15.15.4",
         "react-native-web": "^0.21.2",
+        "tamagui": "^3.1.9",
         "typescript": "^6.0.3",
         "vitest": "^4.0.0"
     },

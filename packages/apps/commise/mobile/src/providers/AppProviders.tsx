@@ -6,13 +6,13 @@
  * them), so it MUST sit below both `ClerkProvider` and `QueryClientProvider` — the same invariant the web
  * facade documents.
  *
- * Composes, top to bottom: `TamaguiProvider` (design tokens/theme) → `LocaleProvider` (device-locale i18n)
- * → `ClerkProvider` (auth session, secure-store-backed token cache) → `QueryClientProvider` (TanStack cache)
- * → `RecipeServiceGate` (the typed recipe-service client) → `SafeAreaProvider` (device insets) → `children`.
+ * Composes, top to bottom: `SafeAreaProvider` (device insets) → `TamaguiProvider` (the design system's config, at the
+ * scheme the device is in) → `LocaleProvider` (device-locale i18n) → `ClerkProvider` (auth session, secure-store-backed
+ * token cache) → `QueryClientProvider` (TanStack cache) → `OfflineReadNoticeProvider` → `RecipeServiceGate` (the typed
+ * recipe-service client) → `children`.
  *
- * This is a pure extraction (Facade pattern) — the tree and its order are UNCHANGED from what `App.tsx`
- * hand-stacked before; only the composition now lives in one reusable, testable place. `App.tsx` keeps
- * ownership of everything that is NOT a provider (font loading, the status bar, `AuthGate`, the navigator).
+ * The composition lives in one reusable, testable place. `App.tsx` keeps ownership of everything that is NOT a
+ * provider (font loading, the status bar, `AuthGate`, the navigator).
  *
  * ⚠️ Read as SHAPE this is props → JSX with one `useState`, which is the profile of a render leaf exactly.
  * It is ORCHESTRATION all the same, for the same reason the web facade is: the identity of what it mounts —
@@ -32,6 +32,8 @@ import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { OfflineReadNoticeProvider } from '@commise/query/offline';
 
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
+import { tamaguiConfig } from '@commise/ui/tamagui-config';
+import { useColorSchemeName } from '@commise/ui/theme';
 import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -40,7 +42,6 @@ import { TamaguiProvider } from 'tamagui';
 import { env } from '../config/env.js';
 import { LocaleProvider } from '../i18n/LocaleProvider.js';
 import { tokenCache } from '../storage/tokenCache.js';
-import tamaguiConfig from '../../tamagui.config.js';
 import { RecipeServiceGate } from './RecipeServiceGate.js';
 
 /**
@@ -51,6 +52,8 @@ import { RecipeServiceGate } from './RecipeServiceGate.js';
  */
 export function AppProviders({ children }: { readonly children: ReactNode }): JSX.Element {
     const offline = useMessages(offlineNoticeMessages);
+    // The device's scheme on every render: Tamagui re-themes the tree when `defaultTheme` changes (D17).
+    const scheme = useColorSchemeName();
     // ⛔ `createAppQueryClient`, never a bare `new QueryClient()`. A bare client takes TanStack's default
     // `retry: 3` with exponential backoff and applies it to EVERY failure, including a `404` — four requests
     // and ~7s of pure backoff for one miss. The factory carries the shared policy (a 4xx cannot succeed on
@@ -63,7 +66,7 @@ export function AppProviders({ children }: { readonly children: ReactNode }): JS
         // SafeAreaProvider is outermost: Tamagui 3 reads the insets of a provider ABOVE TamaguiProvider (the v3 guide,
         // and tests/providers/AppProviders.safeAreaOrder.native.test.tsx).
         <SafeAreaProvider>
-            <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+            <TamaguiProvider config={tamaguiConfig} defaultTheme={scheme}>
                 <LocaleProvider>
                     <ClerkProvider
                         publishableKey={env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY}

@@ -22,6 +22,7 @@ import { googleSignIn } from '@commise/ui/brands';
 import { BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { dimmedOpacity } from '@commise/ui/scale';
+import { FONT_SCALE_CAP } from '@commise/ui/font-scale-cap';
 import type { JSX } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { Path, Svg } from 'react-native-svg';
@@ -87,7 +88,10 @@ export function GoogleSignInButton({ label, onPress, disabled, busy }: GoogleSig
             ]}
         >
             {busy ? <ActivityIndicator color={googleSignIn.text} /> : <GoogleMark />}
-            <Text style={[styles.label, { color: googleSignIn.text }]}>{label}</Text>
+            {/* Google's own colours, which no design-system role holds, so this label stays React Native's, capped. */}
+            <Text maxFontSizeMultiplier={FONT_SCALE_CAP} style={[styles.label, { color: googleSignIn.text }]}>
+                {label}
+            </Text>
         </Pressable>
     );
 }

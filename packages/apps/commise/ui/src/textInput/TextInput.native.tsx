@@ -25,13 +25,18 @@ import { useCallback, type ComponentPropsWithRef, type FC } from 'react';
 import { TextInput as NativeTextInput } from 'react-native';
 
 import { registerLabelledField } from './labelFocus.native.js';
+import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
 
-/** React Native's `TextInput` props, `ref` included, less the full-screen editor this adapter owns. */
-export type TextInputProps = Omit<ComponentPropsWithRef<typeof NativeTextInput>, 'disableFullscreenUI'>;
+/** React Native's `TextInput` props, `ref` included, less the full-screen editor and the text-size cap this adapter owns. */
+export type TextInputProps = Omit<
+    ComponentPropsWithRef<typeof NativeTextInput>,
+    'disableFullscreenUI' | 'maxFontSizeMultiplier'
+>;
 
 /**
- * React Native's `TextInput`, never in Android's full-screen editor, and focusable by its label. A presentational
- * component: it renders its props and holds no state. Native only, because only Android has the editor.
+ * React Native's `TextInput`, never in Android's full-screen editor, focusable by its label, and capped at 2× the text
+ * size (ADR-0080 §8). It is the one place the app renders React Native's input, so the cap here reaches every field. A
+ * presentational component: it renders its props and holds no state. Native only, because only Android has the editor.
  */
 export const TextInput: FC<TextInputProps> = ({ ref, ...props }) => {
     const { nativeID } = props;
@@ -42,7 +47,7 @@ export const TextInput: FC<TextInputProps> = ({ ref, ...props }) => {
     );
     const composed = useComposedRefs(ref, labelTarget);
 
-    return <NativeTextInput {...props} ref={composed} disableFullscreenUI />;
+    return <NativeTextInput {...props} ref={composed} disableFullscreenUI maxFontSizeMultiplier={FONT_SCALE_CAP} />;
 };
 
 /**

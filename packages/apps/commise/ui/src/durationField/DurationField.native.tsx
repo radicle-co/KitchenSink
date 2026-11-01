@@ -18,6 +18,7 @@ import { FIELD_EDGE, fieldGeometry, fieldPaint } from '../input/fieldStyle.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { typeRole } from '../tokens/typography.js';
+import { cappedFontScale } from '../text/fontScaleCap.js';
 import { durationBoxWidth } from './boxWidth.js';
 import { durationBoxes, durationFromBoxes } from './duration.js';
 import type { DurationFieldProps } from './props.js';
@@ -35,8 +36,9 @@ export const DurationField: FC<DurationFieldProps> = ({
     const shown = durationBoxes(value);
     const theme = useTheme();
     const { colors } = theme;
-    // Two digits at the system text size (Android font scale, iOS Dynamic Type), which the box's own text follows.
-    const { fontScale } = useWindowDimensions();
+    // Two digits at the system text size (Android font scale, iOS Dynamic Type), which the box's own text follows up to
+    // the 2× cap (ADR-0080 §8), so the box stops growing where its digits do.
+    const fontScale = cappedFontScale(useWindowDimensions().fontScale);
     const width = {
         width: durationBoxWidth({
             fontSize: typeRole.body.size * fontScale,

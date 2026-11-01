@@ -807,7 +807,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/auth",
-                    "moduleDoc": "components/auth/AuthSwitchLink — the \"New to Commise? Create an account\" row at the foot of both signed-out\nscreens (`buildSpec.md` §8 Order): the prompt, then an inline LINK, wrapping to a second line rather than\noverflowing. Sign-in and sign-up differ only in the words and the handler, so the shape lives here once.\n\nThe link text never breaks across lines (`numberOfLines={1}`) and its target is 48 px tall, so the narrow-screen\nand large-font cases wrap the ROW, not the link.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "components/auth/AuthSwitchLink — the \"New to Commise? Create an account\" row at the foot of both signed-out\nscreens (`buildSpec.md` §8 Order): the prompt, then an inline LINK, wrapping to a second line rather than\noverflowing. Sign-in and sign-up differ only in the words and the handler, so the shape lives here once.\n\nThe row wraps first, so the link moves under its prompt on a narrow screen. When the link alone is wider than the\nscreen, at the system's largest text, its label wraps too: a control's label is never cut off (owner ruling; it read\n\"Create an accou..\" at Android font_scale 3.1). Its target is 48 px tall.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

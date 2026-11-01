@@ -91,6 +91,17 @@ describe('DurationField (native) — a 136 px cell (A-009)', () => {
         }
     });
 
+    // The box's digits are capped at 2× (ADR-0080 §8), so the box stops growing there too: a box sized from the raw
+    // scale would leave the capped digits floating in empty space at the largest text sizes.
+    it('stops growing at the 2× text cap, as its digits do', () => {
+        env.fontScale = 3.1;
+        renderField();
+
+        for (const box of [hours(), minutes()]) {
+            expect(getComputedStyle(box).width).toBe('63.6px');
+        }
+    });
+
     // At 200% text the two pairs no longer fit a 136 dp cell, so the minutes pair moves under the hours pair whole: a
     // unit never parts from its box, and nothing scrolls sideways.
     it('keeps each box with its unit, and wraps the minutes pair under the hours pair only when they do not fit', () => {

@@ -34,6 +34,7 @@ import { AccessibilityInfo, Platform, Text } from 'react-native';
 import { visuallyHidden as visuallyHiddenStyle } from '../accessibility/visuallyHidden.native.js';
 import type { LiveRegionProps } from './props.js';
 import { useOccurrenceSlot } from './useOccurrenceSlot.js';
+import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
 
 /** One mounted region: the platform channel for one message. */
 const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({ children, politeness, style, visuallyHidden = false }) => {
@@ -63,6 +64,7 @@ const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({ children, politeness,
 
     return (
         <Text
+            maxFontSizeMultiplier={FONT_SCALE_CAP}
             accessibilityRole={politeness === 'assertive' && children !== '' ? 'alert' : undefined}
             accessibilityLiveRegion={politeness}
             aria-live={politeness}

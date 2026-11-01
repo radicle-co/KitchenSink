@@ -4,7 +4,9 @@
  * half-width secondary pill. react-native-web under jsdom.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+// The text is the design system's Tamagui `Text`, so the tree renders in its provider.
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -50,12 +52,16 @@ describe('AuthSwitchLink', () => {
         expect(screen.getByRole('link', { name: 'Create an account' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('keeps the link text on ONE line, however narrow the row gets', () => {
+    // REWRITTEN (owner ruling, 2026-11-01): the link was held to ONE line so the row, not the link, wrapped. At the
+    // system's largest text the link alone was wider than the screen and read "Create an accou..". A control's label
+    // wraps and is never cut off, so it may now break onto a second line.
+    it('lets the link text wrap rather than cutting it off', () => {
         render(<AuthSwitchLink prompt="New to Commise?" label="Create an account" onPress={() => undefined} />);
 
-        const text = screen.getByText('Create an account');
+        const text = window.getComputedStyle(screen.getByText('Create an account'));
 
-        expect(window.getComputedStyle(text).whiteSpace).toBe('nowrap');
+        expect(text.whiteSpace).not.toBe('nowrap');
+        expect(text.textOverflow).not.toBe('ellipsis');
     });
 
     it('lets the prompt and link wrap onto separate lines instead of overflowing', () => {
@@ -81,7 +87,8 @@ describe('AuthSwitchLink', () => {
         systemScheme.current = name;
         render(<AuthSwitchLink prompt="New to Commise?" label="Create an account" onPress={() => undefined} />);
 
-        expect(window.getComputedStyle(screen.getByText('New to Commise?')).color).toBe(rgb(roles.inkMuted));
-        expect(window.getComputedStyle(screen.getByText('Create an account')).color).toBe(rgb(roles.actionText));
+        // REWRITTEN for ADR-0080: Tamagui theme colours, read through the resolver as a device paints them.
+        expect(resolvedColour(screen.getByText('New to Commise?'), 'color')).toBe(rgb(roles.inkMuted));
+        expect(resolvedColour(screen.getByText('Create an account'), 'color')).toBe(rgb(roles.actionText));
     });
 });

@@ -16,6 +16,7 @@ import { focusLabelledField } from '../textInput/labelFocus.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { fieldHintId, fieldLabelId, type FieldLabelProps } from './props.js';
+import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
 
 /** The native design-system field label. */
 export const FieldLabel: FC<FieldLabelProps> = ({ forId, label, hint }) => {
@@ -24,12 +25,20 @@ export const FieldLabel: FC<FieldLabelProps> = ({ forId, label, hint }) => {
     return (
         <View style={styles.stack}>
             <Pressable accessible={false} onPress={() => focusLabelledField(forId)}>
-                <Text nativeID={fieldLabelId(forId)} style={[styles.label, { color: colors.inkMuted }]}>
+                <Text
+                    maxFontSizeMultiplier={FONT_SCALE_CAP}
+                    nativeID={fieldLabelId(forId)}
+                    style={[styles.label, { color: colors.inkMuted }]}
+                >
                     {label}
                 </Text>
             </Pressable>
             {hint === undefined ? null : (
-                <Text nativeID={fieldHintId(forId)} style={[styles.hint, { color: colors.inkMuted }]}>
+                <Text
+                    maxFontSizeMultiplier={FONT_SCALE_CAP}
+                    nativeID={fieldHintId(forId)}
+                    style={[styles.hint, { color: colors.inkMuted }]}
+                >
                     {hint}
                 </Text>
             )}

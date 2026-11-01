@@ -11,10 +11,10 @@
  */
 import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { SignUpFieldName, SignUpFieldSpec } from '../../auth/signUpFields.js';
 import { mobileMessages } from '../../i18n/messages.js';
@@ -75,7 +75,6 @@ export function SignUpFields({
     end,
 }: SignUpFieldsProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
-    const { colors } = useTheme();
     const labels: Readonly<Record<SignUpFieldName, string>> = {
         first_name: t.firstNameLabel,
         last_name: t.lastNameLabel,
@@ -123,7 +122,9 @@ export function SignUpFields({
                             }}
                         />
                         {error === undefined ? null : (
-                            <Text style={[styles.error, { color: colors.dangerText }]}>{error}</Text>
+                            <Text typeRole="meta" color="$dangerText">
+                                {error}
+                            </Text>
                         )}
                     </View>
                 );
@@ -136,5 +137,4 @@ const styles = StyleSheet.create({
     // A label and its field are one group: closer to each other than to the next field (spec §1.6).
     field: { gap: nativeTokens.spacing[1] },
     fields: { gap: nativeTokens.spacing[3] },
-    error: { ...nativeTokens.type.meta },
 });

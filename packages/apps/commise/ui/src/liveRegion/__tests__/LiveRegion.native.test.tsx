@@ -306,16 +306,17 @@ describe('LiveRegion (native) — a region in a type role', () => {
 
         const node = container.querySelector('[aria-live="polite"]') as HTMLElement;
 
-        expect({
-            position: resolvedStyle(node, 'position'),
-            width: resolvedStyle(node, 'width'),
-            height: resolvedStyle(node, 'height'),
-            overflow: resolvedStyle(node, 'overflow'),
-        }).toEqual({
-            position: VISUALLY_HIDDEN_GEOMETRY.position,
-            width: `${String(VISUALLY_HIDDEN_GEOMETRY.width)}px`,
-            height: `${String(VISUALLY_HIDDEN_GEOMETRY.height)}px`,
-            overflow: VISUALLY_HIDDEN_GEOMETRY.overflow,
-        });
+        // Read from the constant's own keys, so a key added to it fails here until the variant carries it too.
+        // `Object.keys` widens to `string[]`; these are the constant's own keys, every one a style property.
+        const keys = Object.keys(VISUALLY_HIDDEN_GEOMETRY) as (keyof typeof VISUALLY_HIDDEN_GEOMETRY)[];
+        const expected = (key: (typeof keys)[number]): string => {
+            const value = VISUALLY_HIDDEN_GEOMETRY[key];
+
+            return typeof value === 'number' ? `${String(value)}px` : value;
+        };
+
+        expect(Object.fromEntries(keys.map((key) => [key, resolvedStyle(node, key)]))).toEqual(
+            Object.fromEntries(keys.map((key) => [key, expected(key)])),
+        );
     });
 });

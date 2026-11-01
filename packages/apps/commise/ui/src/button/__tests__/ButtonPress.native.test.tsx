@@ -10,7 +10,7 @@
  * paint) is the real code.
  */
 import { cleanup, screen } from '@testing-library/react';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { pressScaleOf, render } from '../../testing/tamaguiTesting.native.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const press = vi.hoisted(() => ({ pressed: false, reduceMotion: false }));
@@ -80,14 +80,14 @@ describe('Button (native) — the press paint', () => {
         const button = screen.getByRole('button', { name: 'Try again' });
 
         expect(getComputedStyle(pillOf(button)).backgroundColor).toBe(rgb(light.press.canvas));
-        expect(button.style.transform).toBe('scale(1)');
+        expect(pressScaleOf(button)).toBe('1');
     });
 
     it('scales on top of the paint when motion is allowed', () => {
         press.pressed = true;
         render(<Button variant="quiet">Try again</Button>);
 
-        expect(screen.getByRole('button', { name: 'Try again' }).style.transform).not.toBe('scale(1)');
+        expect(pressScaleOf(screen.getByRole('button', { name: 'Try again' }))).toBe('0.98');
     });
 
     it('presses to the muted surface’s press fill inside a muted surface, which the page’s press would not match', () => {

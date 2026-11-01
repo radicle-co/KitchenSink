@@ -14,7 +14,7 @@ import { dialogTitled, queryDialogTitled } from '@commise/test-utils';
 import { cleanup, screen, within } from '@testing-library/react';
 import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
-import { render as renderBare, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render as renderBare, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
@@ -483,7 +483,9 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         press('Edit 300 g Arborio rice');
         const sheet = dialogTitled('Arborio rice');
 
-        expect(within(sheet).getByRole('button', { name: en.rowDone }).style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(within(sheet).getByRole('button', { name: en.rowDone }))).alignSelf).toBe(
+            'stretch',
+        );
         expect(within(sheet).queryByRole('button', { name: /cancel/i })).toBeNull();
     });
 

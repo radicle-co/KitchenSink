@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PublishBlocked } from '../../hooks/useRecipeEditor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PublishBlockedSheet } from '../PublishBlockedSheet.native.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 /** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
 const entryPoints = vi.hoisted(() => ({ on: false }));
@@ -170,9 +170,10 @@ describe('PublishBlockedSheet (native)', () => {
 
         const keep = screen.getByRole('button', { name: 'Keep as draft' });
         const publish = screen.getByRole('button', { name: 'Publish as public' });
-        const row = keep.parentElement?.parentElement;
+        // Each pill sits in its press-scale frame, inside a box of its own, in the row.
+        const row = pressFrameOf(keep).parentElement?.parentElement;
 
-        expect(publish.parentElement?.parentElement).toBe(row);
+        expect(pressFrameOf(publish).parentElement?.parentElement).toBe(row);
         expect(row === null || row === undefined ? undefined : getComputedStyle(row).flexDirection).toBe('row');
         expect(getComputedStyle(keep).backgroundColor).toBe(getComputedStyle(publish).backgroundColor);
     });

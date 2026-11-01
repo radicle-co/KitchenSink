@@ -1,22 +1,66 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { createRef } from 'react';
-import { Text, type View } from 'react-native';
+import { createElement, createRef, type ComponentProps } from 'react';
+import { AccessibilityInfo, Text, type Pressable as PressableType, type View } from 'react-native';
 
+import { pressFrameOf, pressScaleOf, render } from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PressScale } from '../PressScale.native.js';
 
 /**
- * PressScale (native) — rendered via react-native-web under jsdom. The native leaf OWNS the interaction
- * (it renders the Pressable), so we assert the interaction contract here (name/role, press, disabled
- * guard) plus that the `pressedScale`-driven `transform` is wired onto the element. The pressed↔release and
- * reduce-motion SUPPRESSION branches are proven deterministically by the pure `pressedScale.test.ts`
- * (react-native-web's Pressable does not toggle its `pressed` state from synthetic jsdom events, so the
- * branch is unit-tested at its source rather than asserted flakily through the renderer).
+ * PressScale (native) — rendered via react-native-web under jsdom, inside the design system's provider. The leaf OWNS
+ * the interaction: it renders the `Pressable` and wraps it in `PressScaleFrame`, which carries the width and the press
+ * scale. So the tests read the scale and the stretch off the FRAME (the button's parent) and the accessibility contract
+ * off the button.
+ *
+ * react-native-web's `Pressable` fires no `onPressIn`/`onPressOut` from jsdom events (only a click reaches `onPress`),
+ * so the `Pressable` mock below records the props it is given and a test calls the press handlers itself. It renders the
+ * real `Pressable`, so the DOM and the ref are the real ones.
  */
+const recorded = vi.hoisted(() => ({ props: undefined as Record<string, unknown> | undefined }));
 
-afterEach(cleanup);
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        Pressable: (props: ComponentProps<typeof PressableType>) => {
+            recorded.props = props as Record<string, unknown>;
+
+            return createElement(actual.Pressable, props);
+        },
+    };
+});
+
+/** Calls the recorded `Pressable`'s handler, as a held finger would. */
+function press(handler: 'onPressIn' | 'onPressOut'): void {
+    const call = recorded.props?.[handler];
+
+    if (typeof call !== 'function') {
+        throw new Error(`The Pressable was given no ${handler}.`);
+    }
+
+    act(() => {
+        (call as () => void)();
+    });
+}
+
+/** The frame PressScale wraps the named button in. */
+function frameOf(name: string): HTMLElement {
+    return pressFrameOf(screen.getByRole('button', { name }));
+}
+
+/** The press scale PressScale draws the named button at. */
+function scaleOf(name: string): string {
+    return pressScaleOf(screen.getByRole('button', { name }));
+}
+
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    recorded.props = undefined;
+});
 
 describe('PressScale (native)', () => {
     it('exposes an accessible button (its default role) naming its content', () => {
@@ -53,16 +97,96 @@ describe('PressScale (native)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
-    it('wires the pressedScale-driven transform onto the pressable (resting = neutral scale)', () => {
+    it('draws the frame at rest at the neutral scale', () => {
         render(
             <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
                 <Text>Tap me</Text>
             </PressScale>,
         );
 
-        // The transform pipeline is present and, at rest, neutral — the pressed (0.98) and reduce-motion
-        // (suppressed) outputs of that same pipeline are proven in pressedScale.test.ts.
-        expect(screen.getByRole('button', { name: 'Tap me' }).style.transform).toBe('scale(1)');
+        expect(scaleOf('Tap me')).toBe('1');
+    });
+
+    it('shrinks the frame while held, and springs it back on release', () => {
+        render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
+                <Text>Tap me</Text>
+            </PressScale>,
+        );
+
+        press('onPressIn');
+        expect(scaleOf('Tap me')).toBe('0.98');
+
+        press('onPressOut');
+        expect(scaleOf('Tap me')).toBe('1');
+    });
+
+    it('holds the frame still while held when the control is disabled', () => {
+        render(
+            <PressScale onPress={vi.fn()} disabled accessibilityLabel="Tap me">
+                <Text>Tap me</Text>
+            </PressScale>,
+        );
+
+        press('onPressIn');
+        expect(scaleOf('Tap me')).toBe('1');
+    });
+
+    it('holds the frame still while held when the system asks for reduced motion', async () => {
+        vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+        const seen: boolean[] = [];
+
+        render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
+                {({ pressed }) => {
+                    seen.push(pressed);
+
+                    return <Text>Tap me</Text>;
+                }}
+            </PressScale>,
+        );
+        // Wait until the preference has been read, so the press below meets it.
+        await waitFor(() => {
+            expect(AccessibilityInfo.isReduceMotionEnabled).toHaveBeenCalled();
+        });
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        press('onPressIn');
+        expect(seen.at(-1)).toBe(true);
+        expect(scaleOf('Tap me')).toBe('1');
+    });
+
+    it('fires onPress once per press, through the one responder', () => {
+        const onPress = vi.fn();
+
+        render(
+            <PressScale onPress={onPress} accessibilityLabel="Tap me">
+                <Text>Tap me</Text>
+            </PressScale>,
+        );
+
+        fireEvent.click(frameOf('Tap me'));
+        expect(onPress).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Tap me' }));
+        expect(onPress).toHaveBeenCalledOnce();
+    });
+
+    it('leaves the frame out of the accessibility tree, so a screen reader finds one control', () => {
+        render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
+                <Text>Tap me</Text>
+            </PressScale>,
+        );
+
+        const frame = frameOf('Tap me');
+
+        expect(frame.getAttribute('role')).toBeNull();
+        expect(frame.getAttribute('aria-label')).toBeNull();
+        expect(frame.getAttribute('tabindex')).toBeNull();
+        expect(screen.getAllByRole('button')).toHaveLength(1);
     });
 });
 
@@ -88,6 +212,57 @@ describe('PressScale (native) — pressed state for children', () => {
         expect(seen.length).toBeGreaterThan(0);
         expect(seen.every((pressed) => !pressed)).toBe(true);
     });
+
+    it('hands a function child the same pressed flag that drives the scale', () => {
+        const seen: boolean[] = [];
+
+        render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
+                {({ pressed }) => {
+                    seen.push(pressed);
+
+                    return <Text>Tap me</Text>;
+                }}
+            </PressScale>,
+        );
+
+        press('onPressIn');
+        expect(seen.at(-1)).toBe(true);
+        expect(scaleOf('Tap me')).toBe('0.98');
+
+        press('onPressOut');
+        expect(seen.at(-1)).toBe(false);
+    });
+
+    // A control can turn disabled while a finger is down (a save starts). The scale settles at once, because the
+    // policy forces 1 while disabled, and the release still clears the flag, so the child is not left painted pressed.
+    it('settles when the control turns disabled mid-press, and clears the flag on release', () => {
+        const seen: boolean[] = [];
+
+        const child = ({ pressed }: { readonly pressed: boolean }) => {
+            seen.push(pressed);
+
+            return <Text>Tap me</Text>;
+        };
+
+        const { rerender } = render(
+            <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
+                {child}
+            </PressScale>,
+        );
+
+        press('onPressIn');
+        rerender(
+            <PressScale onPress={vi.fn()} disabled accessibilityLabel="Tap me">
+                {child}
+            </PressScale>,
+        );
+        expect(scaleOf('Tap me')).toBe('1');
+
+        press('onPressOut');
+        expect(seen.at(-1)).toBe(false);
+        expect(scaleOf('Tap me')).toBe('1');
+    });
 });
 
 /**
@@ -107,7 +282,7 @@ describe('PressScale (native) — as a switch', () => {
         const toggle = screen.getByRole('switch', { name: 'Screen on' });
 
         expect(toggle.getAttribute('aria-checked')).toBe(String(checked));
-        expect(toggle.style.transform).toBe('scale(1)');
+        expect(pressScaleOf(toggle)).toBe('1');
     });
 
     it('states no checked value when it is not a switch', () => {
@@ -135,40 +310,38 @@ describe('PressScale (native) — as a switch', () => {
 
 /**
  * `width` (R9, `docs/design/rowEditorOpenDecisions.md`). `auto` adds nothing, so the parent decides for every card and
- * the FAB; `fill` stretches the pressable across a parent that would otherwise centre it.
- * Read off the same inline style channel as the transform above.
+ * the FAB; `fill` stretches the frame across a parent that would otherwise centre it, and the Pressable fills the frame.
  */
 describe('PressScale (native) — width', () => {
-    it('leaves the pressable to its parent when no width is given', () => {
+    it('leaves the frame to its parent when no width is given', () => {
         render(
             <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
                 <Text>Tap me</Text>
             </PressScale>,
         );
 
-        expect(screen.getByRole('button', { name: 'Tap me' }).style.alignSelf).toBe('');
+        expect(getComputedStyle(frameOf('Tap me')).alignSelf).not.toBe('stretch');
     });
 
-    it('leaves the pressable to its parent under an explicit auto', () => {
+    it('leaves the frame to its parent under an explicit auto', () => {
         render(
             <PressScale onPress={vi.fn()} width="auto" accessibilityLabel="Tap me">
                 <Text>Tap me</Text>
             </PressScale>,
         );
 
-        expect(screen.getByRole('button', { name: 'Tap me' }).style.alignSelf).toBe('');
+        expect(getComputedStyle(frameOf('Tap me')).alignSelf).not.toBe('stretch');
     });
 
-    it('stretches the pressable across its parent under fill, and keeps the press-scale transform', () => {
+    it('stretches the frame across its parent under fill, and keeps the press scale', () => {
         render(
             <PressScale onPress={vi.fn()} width="fill" accessibilityLabel="Tap me">
                 <Text>Tap me</Text>
             </PressScale>,
         );
 
-        const pressable = screen.getByRole('button', { name: 'Tap me' });
-        expect(pressable.style.alignSelf).toBe('stretch');
-        expect(pressable.style.transform).toBe('scale(1)');
+        expect(getComputedStyle(frameOf('Tap me')).alignSelf).toBe('stretch');
+        expect(scaleOf('Tap me')).toBe('1');
     });
 });
 

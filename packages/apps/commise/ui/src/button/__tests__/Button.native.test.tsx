@@ -4,7 +4,13 @@ import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo } from 'react-native';
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
-import { render, renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import {
+    pressFrameOf,
+    pressScaleOf,
+    render,
+    renderWithTamagui,
+    resolvedColour,
+} from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
 import { BUTTON_VISUAL_HEIGHT, type ButtonProps, type ButtonSize } from '../props.js';
@@ -454,17 +460,19 @@ describe('Button (native)', () => {
         });
     });
 
-    it('adopts PressScale so the pill carries a press-scale transform (resting = neutral)', () => {
+    it('adopts PressScale, so the pill sits in a press-scale frame at the neutral scale', () => {
         render(<Button icon="check">Save changes</Button>);
 
-        expect(screen.getByRole('button', { name: 'Save changes' }).style.transform).toBe('scale(1)');
+        expect(pressScaleOf(screen.getByRole('button', { name: 'Save changes' }))).toBe('1');
     });
 
     /** `width` (R9, `docs/design/rowEditorOpenDecisions.md`): passed to the `PressScale` that owns the pressable. */
     it('leaves its size to the parent when no width is given', () => {
         render(<Button icon="check">Done</Button>);
 
-        expect(screen.getByRole('button', { name: 'Done' }).style.alignSelf).toBe('');
+        expect(getComputedStyle(pressFrameOf(screen.getByRole('button', { name: 'Done' }))).alignSelf).not.toBe(
+            'stretch',
+        );
     });
 
     it('stretches across its parent under fill', () => {
@@ -474,7 +482,7 @@ describe('Button (native)', () => {
             </Button>,
         );
 
-        expect(screen.getByRole('button', { name: 'Done' }).style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(screen.getByRole('button', { name: 'Done' }))).alignSelf).toBe('stretch');
     });
 });
 

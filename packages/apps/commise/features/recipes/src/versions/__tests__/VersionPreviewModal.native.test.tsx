@@ -22,7 +22,7 @@ import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { BRISKET_FLAT_HALF_PARTS, BRISKET_FLAT_HALF_SPOKEN } from '../../detail/__fixtures__/variantLines.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -474,10 +474,10 @@ describe('VersionPreviewModal (native) — a narrow phone', () => {
         observer.observed.clear();
     });
 
-    /** Lay the action row out at `width`: the row is the parent of the Keep button. */
+    /** Lay the action row out at `width`: the row is the parent of the Keep button's press-scale frame. */
     function layOutActions(width: number): HTMLElement {
-        const row = screen.getByRole('button', { name: 'Keep current version' }).closest('[class*="r-"]')
-            ?.parentElement as HTMLElement;
+        const row = pressFrameOf(screen.getByRole('button', { name: 'Keep current version' }))
+            .parentElement as HTMLElement;
 
         Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
         Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
@@ -505,7 +505,8 @@ describe('VersionPreviewModal (native) — a narrow phone', () => {
         for (const name of ['Keep current version', 'Restore this version']) {
             const button = screen.getByRole('button', { name });
 
-            expect(appliedStyle(button.closest('[class*="r-"]') as Element, 'align-self')).toBe('stretch');
+            // The press-scale frame is what the row lays out, and Tamagui, not react-native-web, writes its stretch.
+            expect(getComputedStyle(pressFrameOf(button)).alignSelf).toBe('stretch');
         }
     });
 
@@ -749,7 +750,8 @@ describe('VersionPreviewModal (native) — the pinned-footer limit', () => {
 
     /** Report `heights` for the sheet's content (the frame), its pinned top and its actions. */
     function layOut(heights: { readonly frame: number; readonly top: number; readonly footer: number }): void {
-        const keep = screen.getByRole('button', { name: 'Keep current version' }).closest('[class*="r-"]') as Element;
+        // The Keep button's press-scale frame sits in the action row, and the row in the footer.
+        const keep = pressFrameOf(screen.getByRole('button', { name: 'Keep current version' }));
         const footer = keep.parentElement?.parentElement as HTMLElement;
         const top = screen.getByRole('heading', { name: /^Version 10 Preview/u }).parentElement as HTMLElement;
         const frame = top.parentElement as HTMLElement;

@@ -71,7 +71,9 @@ const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({
     }, [children, politeness, supersedesOwn]);
 
     const channel = {
-        accessibilityRole: politeness === 'assertive' && children !== '' ? ('alert' as const) : undefined,
+        // `role`, not `accessibilityRole`: React Native's Text maps both, but Tamagui's Text (the typed form) maps only
+        // `role` in its web build, so an assertive typed region read as plain text there and never as an alert.
+        role: politeness === 'assertive' && children !== '' ? ('alert' as const) : undefined,
         accessibilityLiveRegion: politeness,
         'aria-live': politeness,
         // Only iOS: `aria-hidden` there is `accessibilityElementsHidden`, but on Android it would hide the very node

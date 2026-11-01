@@ -53,6 +53,13 @@ describe('pressOwnershipFindings', () => {
         ],
         ['a hover modifier is not a press owner', `<View backgroundColor="hover:$paperPress" />`, 0],
         ['a token that merely contains the word', `<View backgroundColor="$paperPress" />`, 0],
+        // PressScale's frame: a `span` variant, named clear of the press words, carries no press.
+        [
+            'a span variant on a press frame',
+            "const F = styled(View, { variants: { span: { auto: {}, fill: { alignSelf: 'stretch' } } } as const });",
+            0,
+        ],
+        ['a scale on a press frame', `<PressScaleFrame span={width} scale={0.98} />`, 0],
         ['the pressed variant PressScale hands down', `<View pressed={state.pressed} />`, 0],
         [
             'onPress on a React Native element is not this rule',

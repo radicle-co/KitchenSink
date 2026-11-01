@@ -16,7 +16,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeListResults } from '../RecipeListResults.native.js';
 import type { RecipeListResultsProps } from '../model.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 /** The frame's collapse (compact height AND a keyboard open), served by the test: jsdom has neither. */
 const layout = vi.hoisted(() => ({ collapsed: false }));
@@ -171,7 +171,8 @@ describe('RecipeListResults (native) — chips and the result bar', () => {
 
     it('lets the sort and the view switch wrap, so the largest font scale cannot push them off the edge (A-028 b)', () => {
         render(results({ sort: { value: 'updatedAt', onChange: vi.fn() } }));
-        const controls = screen.getByRole('button', { name: 'Sort: Recently edited' }).parentElement as HTMLElement;
+        const controls = pressFrameOf(screen.getByRole('button', { name: 'Sort: Recently edited' }))
+            .parentElement as HTMLElement;
 
         expect(getComputedStyle(controls).flexWrap).toBe('wrap');
         expect(within(controls).getByRole('radiogroup', { name: 'View' })).toBeTruthy();

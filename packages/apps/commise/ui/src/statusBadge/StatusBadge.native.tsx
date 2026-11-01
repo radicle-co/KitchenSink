@@ -76,14 +76,16 @@ const Label = styled(Text, {
 });
 
 /** The status badge: filled, and as wide as its words allow. */
-export const StatusBadge: FC<StatusBadgeProps> = ({ status, children }) => {
+export const StatusBadge: FC<StatusBadgeProps> = ({ status, children, onPicture = false }) => {
     const glyph = BADGE_GLYPH[status];
     const tone = TONE_OF[status];
 
     return (
         <Badge tone={tone}>
             {glyph === null ? null : <Icon name={glyph} size={16} tone="inkMuted" />}
-            <Label tone={tone}>{children}</Label>
+            <Label tone={tone} pictorial={onPicture}>
+                {children}
+            </Label>
         </Badge>
     );
 };

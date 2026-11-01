@@ -80,18 +80,21 @@ export function scaledTypeSize(
  * @param role - The type role.
  * @param systemScale - The system font scale (`useWindowDimensions().fontScale`).
  * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
+ * @param pictorial - A mark drawn on a picture (PRO on a card cover), which keeps the role's own size at every scale
+ *     (designer ruling 2026-11-01, M-1); the text around the picture states the same word at the scaled size.
  * @returns The scaled size and leading, or nothing for `figureInline`, which keeps its line's.
  */
 export function scaledTypeMetrics(
     role: TypeRole,
     systemScale: number,
     chromeCap?: ChromeCap,
+    pictorial = false,
 ): ScaledTypeMetrics | Record<string, never> {
     if (role === 'figureInline') {
         return {};
     }
 
-    const { fontSize, lineHeight } = scaledTypeSize(role, systemScale, chromeCap);
+    const { fontSize, lineHeight } = scaledTypeSize(role, pictorial ? 1 : systemScale, chromeCap);
 
     return { fontSize, lineHeight: `${lineHeight}px` };
 }

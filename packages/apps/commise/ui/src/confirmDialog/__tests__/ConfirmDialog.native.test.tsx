@@ -10,7 +10,7 @@ import type {
 
 import { ConfirmDialog } from '../ConfirmDialog.js';
 import type { ConfirmDialogProps } from '../props.js';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { pressFrameOf, render } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * ConfirmDialog (native) — the house B6 confirmation modal (RN `Modal`), mirroring
@@ -254,7 +254,8 @@ describe('ConfirmDialog (native) — the overhaul contract', () => {
     it('stacks its buttons, destructive on top, in a dialog narrower than 400pt', () => {
         render(<ConfirmDialog {...baseProps()} />);
 
-        const actions = screen.getByRole('button', { name: 'Keep editing' }).parentElement as HTMLElement;
+        // Each button sits in its press-scale frame, so the row of actions is the frame's parent.
+        const actions = pressFrameOf(screen.getByRole('button', { name: 'Keep editing' })).parentElement as HTMLElement;
 
         expect(getComputedStyle(actions).flexDirection).toBe('column-reverse');
     });

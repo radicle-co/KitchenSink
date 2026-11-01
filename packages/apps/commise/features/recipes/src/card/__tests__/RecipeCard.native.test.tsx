@@ -9,7 +9,7 @@
  * still elevates and still clips its cover.
  */
 import { act, cleanup, screen } from '@testing-library/react';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -377,7 +377,8 @@ describe('RecipeCard (native, row) — A-016: the member row keeps its text besi
             />,
         );
         const link = screen.getByRole('link', { name: 'Herb Risotto' });
-        const box = link.parentElement as HTMLElement;
+        // The box around the link's press-scale frame.
+        const box = pressFrameOf(link).parentElement as HTMLElement;
 
         expect(link.contains(screen.getByText('Herb Risotto'))).toBe(true);
         expect(link.contains(screen.getByText('Added by you'))).toBe(true);

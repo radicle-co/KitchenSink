@@ -183,7 +183,12 @@ less. Every other role grows to 2×. Navigation chrome, the tab bar and the segm
 its labels at 1.5×, and never below 1.3×. A label never breaks inside a word, and a fit test proves it per locale.
 Chrome says so with Text's closed `chromeCap` variant (`1.5`, `1.4` or `1.3`), which can only lower a role's ceiling, so
 nothing can freeze a label at 1×. A guard admits it only in the tab bar and the view-switch control, and never as a
-`styled()` default. The Google sign-in label is the one fixed-scale site: on iOS it sits beside Apple's system button,
+`styled()` default. A mark drawn on a picture, such as PRO on a card cover, is part of that picture. Text's `pictorial`
+variant keeps the mark at its role's own size at every scale, so it cannot grow over the cover's letter. The card must
+state the same word in its text, at the scaled size (designer ruling 2026-11-01, M-1). A screen reader then hears the
+word once. The status badge sets the variant through its `onPicture` prop. A guard admits `pictorial` only in the badge, and
+never as a `styled()` default.
+The Google sign-in label is the one fixed-scale site: on iOS it sits beside Apple's system button,
 which cannot scale, so it stays at 1×, and on Android it follows the 1.5× chrome cap. Its colours are no design-system
 role, so it is React Native's own text with `allowFontScaling={false}` and its size and leading from `scaledTypeSize`.
 The text-scale detector trusts that only in that file (`FIXED_SCALE_SITES`).

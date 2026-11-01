@@ -12,7 +12,8 @@ import { renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.
 import { role, roleDark } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
-import { FONT_SCALE_CAP, Text } from '../Text.native.js';
+import { FONT_SCALE_CAP } from '../fontScaleCap.js';
+import { Text } from '../Text.native.js';
 
 const SIZED_ROLES = [
     'barTitle',

@@ -17,6 +17,7 @@
 import type { FC } from 'react';
 import { styled, XStack } from 'tamagui';
 
+import { BADGE_BOX } from '../badgeBox/badgeBox.js';
 import { Icon } from '../icon/Icon.native.js';
 import { Text } from '../text/Text.native.js';
 import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
@@ -41,16 +42,16 @@ const Badge = styled(XStack, {
     alignSelf: 'flex-start',
     gap: '$1',
     maxWidth: '100%',
-    minHeight: '$5',
+    minHeight: BADGE_BOX.minHeight,
     borderRadius: '$sm',
     paddingHorizontal: '$2',
-    paddingVertical: 2,
+    paddingVertical: BADGE_BOX.paddingVertical,
 
     variants: {
         tone: {
             pro: { backgroundColor: '$proFill' },
             attention: { backgroundColor: '$attentionTint' },
-            neutral: { backgroundColor: '$paper', borderWidth: 1, borderColor: '$lineDivider' },
+            neutral: { backgroundColor: '$paper', borderWidth: BADGE_BOX.borderWidth, borderColor: '$lineDivider' },
         } as const satisfies Record<BadgeTone, object>,
     } as const,
 });

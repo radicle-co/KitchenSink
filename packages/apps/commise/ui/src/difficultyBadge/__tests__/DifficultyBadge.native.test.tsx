@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { role, roleDark } from '../../tokens/colors.js';
 import { difficultyTone, difficultyToneDark } from '../../tokens/tones.js';
+import { badgeHeightOf } from '../../badgeBox/badgeBox.js';
 import { DifficultyBadge } from '../DifficultyBadge.native.js';
 import type { DifficultyLevel } from '../props.js';
 
@@ -30,6 +31,23 @@ const AA_TEXT = 4.5;
 const LEVELS: readonly DifficultyLevel[] = ['easy', 'medium', 'hard'];
 
 describe('DifficultyBadge (native)', () => {
+    // It shares the status badge's box (`badgeBox.ts`), so a card row that holds both reads one height. Its 1 pt edges
+    // over a 2 pt padding drew 26 pt where a row let it grow (designer review M-1).
+    it('draws exactly the shared badge height', () => {
+        render(<DifficultyBadge level="easy">Word</DifficultyBadge>);
+        const badge = screen.getByText('Word').parentElement as HTMLElement;
+        const style = getComputedStyle(badge);
+        const px = (value: string): number => Number.parseFloat(value) || 0;
+        const contents =
+            px(style.paddingTop) +
+            px(style.paddingBottom) +
+            px(style.borderTopWidth) +
+            px(style.borderBottomWidth) +
+            px(getComputedStyle(screen.getByText('Word')).lineHeight);
+
+        expect(Math.max(px(style.minHeight), contents)).toBe(badgeHeightOf(1));
+    });
+
     it.each<[DifficultyLevel, number]>([
         ['easy', 1],
         ['medium', 2],

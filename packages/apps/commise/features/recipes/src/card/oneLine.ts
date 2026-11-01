@@ -9,11 +9,8 @@
  *
  * Pure.
  */
+import { badgeHeightOf } from '@commise/ui/badge-box';
 import { nativeTokens } from '@commise/ui/native';
-
-/** A badge's own floor, and the padding above and below its word (`DifficultyBadge`, `StatusBadge`). */
-const BADGE_MIN_HEIGHT = 24;
-const BADGE_VERTICAL_PADDING = 4;
 
 /**
  * A type role's leading, in points. The roles all state one; a role that did not would fall back to its size.
@@ -36,13 +33,14 @@ export function metaLineHeightOf(fontScale: number): number {
 }
 
 /**
- * The height of a row that holds a badge (difficulty, status) beside `meta` text (the rating, "No ratings yet").
+ * The height of a row that holds a badge (difficulty, status) beside `meta` text (the rating, "No ratings yet"). The
+ * badge's box is the design system's (`@commise/ui/badge-box`). The status badge's word stops growing at the 2× cap,
+ * but the difficulty badge's word is not on the capped `Text` yet and grows with the system scale, so it sets the row.
+ * When it ports, its term becomes `badgeHeightOf(cappedFontScale(fontScale))`.
  *
  * @param fontScale - The OS font scale.
- * @returns The height, in points: the larger of the badge floor, the badge's word with its padding, and the meta text.
+ * @returns The height, in points: the taller of the badge and the meta text.
  */
 export function badgeLineHeightOf(fontScale: number): number {
-    const word = Math.ceil(leadingOf(nativeTokens.type.caption) * fontScale) + BADGE_VERTICAL_PADDING;
-
-    return Math.max(BADGE_MIN_HEIGHT, word, metaLineHeightOf(fontScale));
+    return Math.max(badgeHeightOf(fontScale), metaLineHeightOf(fontScale));
 }

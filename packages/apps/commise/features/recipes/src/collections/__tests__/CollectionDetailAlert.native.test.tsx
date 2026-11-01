@@ -7,10 +7,9 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
-import { formatRgb } from 'culori';
 
-import { role, roleDark } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 
 import { CollectionDetailAlert } from '../CollectionDetailAlert.native.js';
@@ -44,12 +43,9 @@ describe('CollectionDetailAlert (native)', () => {
         expect(style.lineHeight).toBe(`${String(spec.lineHeight)}px`);
     });
 
-    it.each([
-        ['light', role.dangerText],
-        ['dark', roleDark.dangerText],
-    ] as const)('paints the text in dangerText in the %s scheme', (scheme, colour) => {
+    it.each(['light', 'dark'] as const)('paints the text in dangerText in the %s scheme', (scheme) => {
         renderWithTamagui(<CollectionDetailAlert text={TEXT} />, scheme);
 
-        expect(resolvedColour(screen.getByText(TEXT), 'color')).toBe(formatRgb(colour));
+        expect(resolvedColour(screen.getByText(TEXT), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
     });
 });

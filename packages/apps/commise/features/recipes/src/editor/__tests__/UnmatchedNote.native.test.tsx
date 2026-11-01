@@ -7,10 +7,9 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
-import { formatRgb } from 'culori';
 
-import { role, roleDark } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
 import { UnmatchedNote } from '../UnmatchedNote.native.js';
@@ -30,12 +29,9 @@ describe('UnmatchedNote (native)', () => {
         expect(style.lineHeight).toBe(`${String(spec.lineHeight)}px`);
     });
 
-    it.each([
-        ['light', role.attention],
-        ['dark', roleDark.attention],
-    ] as const)('paints the text in attention in the %s scheme', (scheme, colour) => {
+    it.each(['light', 'dark'] as const)('paints the text in attention in the %s scheme', (scheme) => {
         renderWithTamagui(<UnmatchedNote text={TEXT} />, scheme);
 
-        expect(resolvedColour(screen.getByText(TEXT), 'color')).toBe(formatRgb(colour));
+        expect(resolvedColour(screen.getByText(TEXT), 'color')).toBe(rgb(rolesFor(scheme).attention));
     });
 });

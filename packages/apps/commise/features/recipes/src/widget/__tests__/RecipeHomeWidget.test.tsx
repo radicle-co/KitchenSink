@@ -71,6 +71,22 @@ describe('RecipeHomeWidget (web) — recent recipes', () => {
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 
+    // Design review 2026-11-01 (`deviceShots2.md`, Low): at large text "Recent recipes" wrapped beside "See all". The
+    // heading row WRAPS rather than squeezing, so when the two do not fit on one line "See all" drops under the title,
+    // at the start, and the title keeps the width; when they fit, they share the line, the title first. ⚠️ jsdom lays
+    // nothing out, so this reads the row's wrap rule and the order; only a browser shows which line "See all" lands on.
+    it('wraps the heading row, title first, so "See all" drops under the title when the two do not fit', async () => {
+        await renderWidget({ seeAll: { href: '/en/recipes', onPress: vi.fn() } });
+
+        const heading = screen.getByRole('heading', { level: 2, name: 'Recent recipes' });
+        const seeAll = screen.getByRole('link', { name: 'See all recipes' });
+        const row = heading.parentElement!;
+
+        expect(row.contains(seeAll)).toBe(true);
+        expect(row.className.split(/\s+/u)).toEqual(expect.arrayContaining(['flex', 'flex-wrap']));
+        expect(heading.compareDocumentPosition(seeAll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('renders "See all" as a focusable button, never an href-less link, when the host gives no href', async () => {
         const onPress = vi.fn();
         await renderWidget({ seeAll: { onPress } });

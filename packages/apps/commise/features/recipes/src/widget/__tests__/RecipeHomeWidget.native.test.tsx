@@ -92,6 +92,24 @@ describe('RecipeHomeWidget (native) — recent recipes', () => {
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 
+    // Design review 2026-11-01 (`deviceShots2.md`, Low): at large text "Recent recipes" wrapped beside "See all". The
+    // heading row WRAPS rather than squeezing, so when the two do not fit on one line "See all" drops under the title,
+    // at the start, and the title keeps the width; when they fit, they share the line, the title first. ⚠️ jsdom lays
+    // nothing out, so this reads the row's wrap rule and the order; only a device shows which line "See all" lands on.
+    it('wraps the heading row, title first, so "See all" drops under the title when the two do not fit', () => {
+        widget({ seeAll: { onPress: vi.fn() } });
+
+        const heading = screen.getByRole('heading', { name: 'Recent recipes' });
+        const seeAll = screen.getByRole('link', { name: 'See all recipes' });
+        const row = heading.parentElement!;
+        const style = getComputedStyle(row);
+
+        expect(row.contains(seeAll)).toBe(true);
+        expect(style.flexDirection).toBe('row');
+        expect(style.flexWrap).toBe('wrap');
+        expect(heading.compareDocumentPosition(seeAll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('calls renderNutrition once per card with its own id', () => {
         const renderNutrition = vi.fn((id: string) => <span>{`kcal:${id}`}</span>);
         widget({ variant: 'grid', renderNutrition });

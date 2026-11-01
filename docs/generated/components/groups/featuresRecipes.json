@@ -4854,7 +4854,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/components/RecipeWidgetCard.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/components",
-                    "moduleDoc": "@commise/features-recipes — the web shell of Home's \"Recent recipes\" block: an H2 heading row with \"See all\"\nat its end (`docs/design/uiOverhaul/buildSpec.md` §4.2), then the block's content. It carries no surface of its own\n— the heading sits on the page canvas and the cards are the only boxes (§1.6 \"No box in a box\").",
+                    "moduleDoc": "@commise/features-recipes — the web shell of Home's \"Recent recipes\" block: an H2 heading row with \"See all\"\nat its end (`docs/design/uiOverhaul/buildSpec.md` §4.2), which wraps \"See all\" under the title when the two do not fit\non one line (`deviceShots2.md`), then the block's content. It carries no surface of its own\n— the heading sits on the page canvas and the cards are the only boxes (§1.6 \"No box in a box\").",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4897,7 +4897,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/components/RecipeWidgetCard.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/components",
-                    "moduleDoc": "@commise/features-recipes — the native shell of Home's \"Recent recipes\" block: a header row with \"See all\" at\nits end (`docs/design/uiOverhaul/buildSpec.md` §4.2), then the content, on the canvas with no surface of its own (§1.6\n\"No box in a box\"; the old white card around the block is gone). Colours come from the theme at render.",
+                    "moduleDoc": "@commise/features-recipes — the native shell of Home's \"Recent recipes\" block: a header row with \"See all\" at\nits end (`docs/design/uiOverhaul/buildSpec.md` §4.2) that wraps \"See all\" under the title when the two do not fit on\none line (`deviceShots2.md`), then the content, on the canvas with no surface of its own (§1.6\n\"No box in a box\"; the old white card around the block is gone). Colours come from the theme at render.",
                     "moduleTags": [
                         {
                             "name": "module",

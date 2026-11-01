@@ -1,6 +1,7 @@
 /**
  * @module @commise/features-recipes — the web shell of Home's "Recent recipes" block: an H2 heading row with "See all"
- * at its end (`docs/design/uiOverhaul/buildSpec.md` §4.2), then the block's content. It carries no surface of its own
+ * at its end (`docs/design/uiOverhaul/buildSpec.md` §4.2), which wraps "See all" under the title when the two do not fit
+ * on one line (`deviceShots2.md`), then the block's content. It carries no surface of its own
  * — the heading sits on the page canvas and the cards are the only boxes (§1.6 "No box in a box").
  */
 import { useMessages } from '@commise/i18n/react';
@@ -17,7 +18,7 @@ export const RecipeWidgetCard: FC<RecipeWidgetCardProps> = ({ title, seeAll, chi
 
     return (
         <section aria-label={title} className="flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-section-title text-ink">{title}</h2>
                 {seeAll === undefined ? null : (
                     <RouteAction

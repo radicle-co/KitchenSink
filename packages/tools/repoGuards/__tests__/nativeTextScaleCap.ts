@@ -5,8 +5,9 @@
  * A React Native `Text` (directly, through a namespace import, or as `Animated.Text`) or `TextInput`, or a Tamagui text
  * that is not the design system's (Tamagui's own `Text`, or a `styled()` over it), is capped only by
  * `maxFontSizeMultiplier={FONT_SCALE_CAP}`; a number, `allowFontScaling={false}` and a spread are not trusted. The
- * design system's `Text` (`@commise/ui/text`, or `text/Text.native` inside the design system), and a `styled()` over it,
- * carries the cap itself and is not counted.
+ * design system's `Text` (`@commise/ui/text`, or `text/Text.native` inside the design system), and a Tamagui `styled()`
+ * over it, carries the cap itself and is not counted, unless it sets its own `maxFontSizeMultiplier` or
+ * `allowFontScaling`, which overrides that cap; then it is held to the same rule as any other text.
  *
  * React Native passes text attributes down to nested text (`TextAttributes::apply`), so a text inside a capped text is
  * part of that run and is not counted on its own, unless it sets its own `maxFontSizeMultiplier` or `allowFontScaling`,
@@ -19,7 +20,7 @@ import ts from 'typescript';
 
 import { parseModule } from './appSources.js';
 import { isReactNative, localsOf, valueBindingsOf } from './moduleBindings.js';
-import { tamaguiElementKinds, type StyledKindsOf } from './tamaguiElements.js';
+import { isTamaguiStyledCall, tamaguiElementKinds, tamaguiStyledNames, type StyledKindsOf } from './tamaguiElements.js';
 
 /** Where the design system's cap is imported from: its package subpath, or its file inside the package. */
 function isCapModule(specifier: string): boolean {
@@ -31,9 +32,13 @@ function isDesignTextModule(specifier: string): boolean {
     return specifier === '@commise/ui/text' || /(?:^|\/)text\/Text\.native(?:\.js)?$/u.test(specifier);
 }
 
-/** The local names bound to the design system's `Text`, and every local `styled()` over one, to any depth. */
+/**
+ * The local names bound to the design system's `Text`, and every local Tamagui `styled()` over one, to any depth. A
+ * `styled` that is not Tamagui's does not carry the cap, so it is not followed.
+ */
 function designTextsOf(file: ts.SourceFile): ReadonlySet<string> {
     const names = new Set(localsOf(valueBindingsOf(file, isDesignTextModule), 'Text'));
+    const styledNames = tamaguiStyledNames(file);
     let grew = true;
 
     while (grew) {
@@ -50,9 +55,7 @@ function designTextsOf(file: ts.SourceFile): ReadonlySet<string> {
                     ts.isIdentifier(declaration.name) &&
                     !names.has(declaration.name.text) &&
                     init !== undefined &&
-                    ts.isCallExpression(init) &&
-                    ts.isIdentifier(init.expression) &&
-                    init.expression.text === 'styled' &&
+                    isTamaguiStyledCall(init, styledNames) &&
                     init.arguments[0] !== undefined &&
                     ts.isIdentifier(init.arguments[0]) &&
                     names.has(init.arguments[0].text)
@@ -179,9 +182,10 @@ export function uncappedTexts(source: string, fileName: string, styledKindsOf: S
         const tag = opening.tagName;
         let inner: Run = 'none';
 
-        if (isDesignText(tag, bindings)) {
+        // The design system's Text carries the cap unless it sets its own scaling, which overrides it like any text's.
+        if (isDesignText(tag, bindings) && !setsOwnScaling(opening.attributes)) {
             inner = 'capped';
-        } else if (isScalingText(tag, bindings)) {
+        } else if (isDesignText(tag, bindings) || isScalingText(tag, bindings)) {
             const ownCap = capped(opening.attributes, bindings.caps);
             const inheritsCap = run === 'capped' && !setsOwnScaling(opening.attributes);
             const counted = run === 'uncapped' && !ownCap;

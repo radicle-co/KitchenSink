@@ -110,6 +110,38 @@ describe('uncappedTexts', () => {
             `${RN}${CAP}const A = () => <Text maxFontSizeMultiplier={FONT_SCALE_CAP}>a <Text allowFontScaling={false}>b</Text></Text>;`,
             1,
         ],
+        // GATE 2026-11-01 (minors): a `styled()` keeps the design system's cap only when it is Tamagui's, and the design
+        // system's Text loses its cap like any text when it sets its own scaling.
+        [
+            "a Text inside a styled() that is not Tamagui's does not inherit a cap",
+            `${RN}${DS}const styled = (c, _s) => c;\nconst L = styled(DsText, {});\nconst A = () => <L><Text>b</Text></L>;`,
+            1,
+        ],
+        [
+            'a Text inside a Tamagui styled() over the design system Text inherits its cap',
+            `${RN}${DS}${TG}const L = styled(DsText, {});\nconst A = () => <L><Text>b</Text></L>;`,
+            0,
+        ],
+        [
+            'the design system Text that lifts its cap',
+            `${DS}const A = () => <DsText maxFontSizeMultiplier={0}>a</DsText>;`,
+            1,
+        ],
+        [
+            'the design system Text that turns scaling off',
+            `${DS}const A = () => <DsText allowFontScaling={false}>a</DsText>;`,
+            1,
+        ],
+        [
+            'the design system Text that restates the cap',
+            `${DS}${CAP}const A = () => <DsText maxFontSizeMultiplier={FONT_SCALE_CAP}>a</DsText>;`,
+            0,
+        ],
+        [
+            'a Text inside a design system Text that lifts its cap is one uncapped run',
+            `${RN}${DS}const A = () => <DsText maxFontSizeMultiplier={0}>a <Text>b</Text></DsText>;`,
+            1,
+        ],
     ] as const)('%s → %i', (_name, source, count) => {
         expect(uncappedTexts(source, FILE, kinds)).toHaveLength(count);
     });

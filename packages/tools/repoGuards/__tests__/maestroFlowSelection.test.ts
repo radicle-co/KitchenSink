@@ -686,19 +686,6 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(body.indexOf("inputText: '424242'")).toBeGreaterThan(guard);
     });
 
-    // GATE 2026-11-01: a flow recognises the sign-in screen by its TITLE, its first element. At the system's largest
-    // text the fields sit below the first screen, where Android reports nothing visible, so a wait or a guard on the
-    // email placeholder skipped a sign-in, timed out, or (as `assertNotVisible`) passed when it should not.
-    it('recognises the sign-in screen by its title, never by the email placeholder', () => {
-        const keyed = discoverFlowFiles().filter((flow) =>
-            /(?:visible|assertVisible|assertNotVisible):\s*['"]you@example/mu.test(
-                readFileSync(join(MAESTRO_DIR, `${flow}.yaml`), 'utf8'),
-            ),
-        );
-
-        expect(keyed).toEqual([]);
-    });
-
     it('never wipes the app between flows — only the Maestro driver is reset', () => {
         const script = readFileSync(SCRIPT, 'utf8');
 
@@ -710,6 +697,39 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(script).not.toMatch(/simctl\s+(?:erase|privacy)\b/u);
         expect(script).not.toMatch(/simctl\s+uninstall\s+\S+\s+["']?io\.commise/u);
         expect(script).toMatch(/simctl install "\$MAESTRO_IOS_UDID" "\$MAESTRO_IOS_APP"/u);
+    });
+});
+
+/**
+ * A flow recognises the sign-in screen by its TITLE, its first element (GATE 2026-11-01). At the system's largest text the
+ * fields sit below the first screen, where Android reports nothing visible, so a wait or a guard on the email placeholder
+ * skipped a sign-in, timed out, or (as `assertNotVisible`) passed when it should not. Scrolling to the placeholder and
+ * tapping it stay allowed: only a VISIBILITY condition keyed on it is refused, in either selector form (`visible: x`
+ * or a nested `text: x`), quoted or not. `notVisible` is named, since `visible` does not match its capital V.
+ */
+const PLACEHOLDER_VISIBILITY =
+    /(?:visible|notVisible|assertVisible|assertNotVisible):\s*(?:text:\s*)?['"]?you@example/mu;
+
+describe('the sign-in screen is recognised by its title, never by the email placeholder', () => {
+    it.each([
+        ['a quoted wait', "- extendedWaitUntil:\n      visible: 'you@example.com'", true],
+        ['a double-quoted assert', '- assertVisible: "you@example.com"', true],
+        ['an unquoted assert', '- assertVisible: you@example.com', true],
+        ['a nested text selector', "- assertVisible:\n      text: 'you@example.com'", true],
+        ['a nested guard', '- runFlow:\n      when:\n          notVisible:\n              text: you@example.com', true],
+        ['a scroll target', "      env:\n          TARGET: 'you@example.com'", false],
+        ['a tap', "- tapOn: 'you@example.com'", false],
+        ['the title', "- extendedWaitUntil:\n      visible: 'Sign in to Commise'", false],
+    ])('%s → refused: %s', (_case, body, refused) => {
+        expect(PLACEHOLDER_VISIBILITY.test(body)).toBe(refused);
+    });
+
+    it('holds for every committed flow', () => {
+        const keyed = discoverFlowFiles().filter((flow) =>
+            PLACEHOLDER_VISIBILITY.test(readFileSync(join(MAESTRO_DIR, `${flow}.yaml`), 'utf8')),
+        );
+
+        expect(keyed).toEqual([]);
     });
 });
 

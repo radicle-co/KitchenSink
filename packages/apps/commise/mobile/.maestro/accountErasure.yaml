@@ -156,8 +156,17 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Sign in to Commise'
       timeout: 40000
-- assertVisible: 'Password'
-- assertVisible: 'Sign in'
+# At the largest text sizes the form's controls sit below its title, so they are scrolled into view before the asserts.
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Password'
+          DIRECTION: DOWN
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Sign in'
+          DIRECTION: DOWN
 
 # Nothing authenticated survives: the danger zone the viewer was just standing in is gone, not merely covered.
 - assertNotVisible: 'Erase my data'

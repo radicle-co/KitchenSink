@@ -4,7 +4,8 @@ import { AccessibilityInfo } from 'react-native';
 
 import { formatRgb } from 'culori';
 
-import { renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import { VISUALLY_HIDDEN_GEOMETRY } from '../../accessibility/visuallyHidden.native.js';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { LiveRegion } from '../LiveRegion.native.js';
@@ -293,7 +294,9 @@ describe('LiveRegion (native) — a region in a type role', () => {
         expect(getComputedStyle(screen.getByText('Added Basil')).lineHeight).toBe(`${String(lineHeight * 2)}px`);
     });
 
-    it('stays mounted but out of the layout flow while empty', () => {
+    // The `offFlow` variant restates `VISUALLY_HIDDEN_GEOMETRY` as a literal for the style guards, so this holds the
+    // two equal: a change to either one alone fails here.
+    it('stays mounted but leaves the layout flow by the one visually-hidden geometry while empty', () => {
         const { container } = renderWithTamagui(
             <LiveRegion politeness="polite" typeRole="body">
                 {''}
@@ -303,6 +306,16 @@ describe('LiveRegion (native) — a region in a type role', () => {
 
         const node = container.querySelector('[aria-live="polite"]') as HTMLElement;
 
-        expect(getComputedStyle(node).position).toBe('absolute');
+        expect({
+            position: resolvedStyle(node, 'position'),
+            width: resolvedStyle(node, 'width'),
+            height: resolvedStyle(node, 'height'),
+            overflow: resolvedStyle(node, 'overflow'),
+        }).toEqual({
+            position: VISUALLY_HIDDEN_GEOMETRY.position,
+            width: `${String(VISUALLY_HIDDEN_GEOMETRY.width)}px`,
+            height: `${String(VISUALLY_HIDDEN_GEOMETRY.height)}px`,
+            overflow: VISUALLY_HIDDEN_GEOMETRY.overflow,
+        });
     });
 });

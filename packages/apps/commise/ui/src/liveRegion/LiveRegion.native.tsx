@@ -84,7 +84,7 @@ const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({
 
     if (typeRole !== undefined) {
         return (
-            <LiveRegionText typeRole={typeRole} tone={tone ?? 'ink'} offFlow={offFlow} {...channel}>
+            <LiveRegionText typeRole={typeRole} tone={tone} offFlow={offFlow} {...channel}>
                 {children}
             </LiveRegionText>
         );

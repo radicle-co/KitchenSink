@@ -12,7 +12,7 @@ import { DisplayNameSheet } from '../DisplayNameSheet.js';
 import { ProfileGroup } from '../ProfileGroup.js';
 import { ProfileHeader } from '../ProfileHeader.js';
 import { ProfileRow } from '../ProfileRow.js';
-import { DISPLAY_NAME_MAX_LENGTH } from '../model.js';
+import { DISPLAY_NAME_MAX_LENGTH, LABEL_VALUE_MIN_ROOM } from '../model.js';
 import type { DisplayNameSheetProps, ProfileRowProps } from '../props.js';
 
 afterEach(cleanup);
@@ -206,6 +206,40 @@ describe('ProfileRow (web)', () => {
     });
 });
 
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): ProfileRow ("Display name") stacks by the same room as a
+// fact row, its label never breaks inside a word, and its value wraps and never truncates. Its label and value draw
+// through `LabelValuePair`, whose suite pins the container-query classes.
+describe('ProfileRow (web) — label and value', () => {
+    const below = `@max-[${String(LABEL_VALUE_MIN_ROOM / 16)}rem]/rows:`;
+
+    it('wraps the value and never truncates it', () => {
+        render(<ProfileRow label="Display name" value="Eliza" tone="ink" chevron onPress={noop} />);
+        const classes = screen.getByText('Eliza').className.split(' ');
+
+        expect(classes).toContain('[overflow-wrap:anywhere]');
+        expect(classes.filter((name) => /^(truncate|line-clamp-|max-w-)/u.test(name))).toEqual([]);
+    });
+
+    it('stacks the value under its label below 17.5 rem of room, the chevron still at the row’s end', () => {
+        render(<ProfileRow label="Display name" value="Eliza" tone="ink" chevron onPress={noop} />);
+        const button = screen.getByRole('button', { name: 'Display name' });
+        const pair = screen.getByText('Eliza').parentElement as HTMLElement;
+
+        expect(pair.className.split(' ')).toContain(`${below}flex-col`);
+        expect(pair.parentElement).toBe(button);
+        expect(button.lastElementChild).not.toBe(pair);
+    });
+
+    it('lets the label block keep its longest word beside a value: it does not set a zero minimum width', () => {
+        render(<ProfileRow label="Display name" value="Eliza" tone="ink" chevron onPress={noop} />);
+        const pair = screen.getByText('Eliza').parentElement as HTMLElement;
+        const labelBlock = pair.firstElementChild as HTMLElement;
+
+        expect(labelBlock.textContent).toBe('Display name');
+        expect(labelBlock.className.split(' ')).not.toContain('min-w-0');
+    });
+});
+
 describe('ProfileGroup (web)', () => {
     it('names a group by its H2 heading', () => {
         render(
@@ -227,6 +261,23 @@ describe('ProfileGroup (web)', () => {
 
         expect(screen.getByRole('region', { name: 'Account' })).toBeTruthy();
         expect(screen.queryByRole('heading')).toBeNull();
+    });
+});
+
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): a label-and-value row stacks by the room its column
+// has, as a container query. The group's card is that column, so it is the `rows` container every row queries.
+describe('ProfileGroup (web) — the rows container', () => {
+    it('makes its card the rows container, so a row measures the column it sits in', () => {
+        render(
+            <ProfileGroup label="Account">
+                <ProfileRow label="Email" tone="ink" chevron={false} onPress={() => undefined} />
+            </ProfileGroup>,
+        );
+        const card = screen.getByRole('button', { name: 'Email' }).parentElement as HTMLElement;
+
+        // Assembled, not spelled: Tailwind scans this package's files as text too, and a literal here would generate the
+        // container whatever the card says, so `tailwindTheme.integration.test.ts` could no longer catch its absence.
+        expect(card.className.split(' ')).toContain('@container/'.concat('rows'));
     });
 });
 

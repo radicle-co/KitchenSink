@@ -5,7 +5,7 @@
  * lived in the ProfileHeader suite until the email moved into this row.
  *
  * The value sits at the END of the line, and at large text it stacks under its label (designer ruling 2026-11-01,
- * `nativeBoards/designAnswers.md`). The layout is read at the font scale the window reports, which is mocked.
+ * `nativeBoards/designAnswers.md`). The window's width and font scale are mocked, so each case names the room it is in.
  *
  * REWRITTEN for the row's move to a Tamagui `View` (ADR-0080). The "one accessibility element" case used to wrap React
  * Native's `View`; the row is no longer one, and Tamagui's web build, which this lane runs, drops `accessible`. So
@@ -29,14 +29,14 @@ import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 
-const env = vi.hoisted(() => ({ fontScale: 1 }));
+const env = vi.hoisted(() => ({ width: 390, fontScale: 1 }));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
-        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), fontScale: env.fontScale }),
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: env.width, fontScale: env.fontScale }),
     };
 });
 
@@ -56,6 +56,7 @@ vi.mock('tamagui', async (importOriginal) => {
 import { ProfileFactRow } from '../ProfileFactRow.native.js';
 
 beforeEach(() => {
+    env.width = 390;
     env.fontScale = 1;
 });
 
@@ -99,9 +100,9 @@ describe('ProfileFactRow (native)', () => {
         const email = `${'a'.repeat(60)}@example.com`;
         render(<ProfileFactRow label="Email" value={email} />);
 
-        // The value takes the room the label leaves; the label keeps its width.
+        // The value takes the room the label leaves; the label's wrapper keeps its width.
         expect(declaredFlexShrink(screen.getByText(email))).toBe('1');
-        expect(declaredFlexShrink(screen.getByText('Email'))).toBeUndefined();
+        expect(declaredFlexShrink(screen.getByText('Email').parentElement as Element)).toBe('0');
     });
 });
 
@@ -135,56 +136,52 @@ describe('ProfileFactRow (native) — type and colour', () => {
     );
 });
 
-// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, `reviews/androidShots1.md`): the value sits at the END of
-// the line beside its label, and at large text it stacks under its label at the start. The row stacks above a capped
-// font scale of 1.3 (`FACT_ROW_STACK_ABOVE`).
-describe('ProfileFactRow (native) — layout at each text size', () => {
-    /** The row: the element that holds both texts. */
-    function rowOf(): Element {
-        return screen.getByText('Email').parentElement as Element;
+// Designer rulings 2026-11-01 (`nativeBoards/designAnswers.md`, `reviews/androidShots1.md`): the value sits at the END
+// of the line beside its label, and stacks under it when the content width over the capped font scale is below 280.
+// The row draws its label and value through `LabelValuePair`, whose suite pins every window, scale, gap and alignment;
+// these cases MOVED there when ProfileRow came to share the pair. What stays is the row's own frame, and that it lays
+// out through the pair: beside on a 390 pt phone at 1x, stacked at 1.3x.
+describe('ProfileFactRow (native) — frame and layout', () => {
+    const px = (n: number): string => `${String(n)}px`;
+
+    /** The row's frame: the one accessibility element. */
+    function frameOf(container: Element): Element {
+        return container.querySelector('[data-accessible="true"]') as Element;
     }
 
-    it.each([1, 1.3])('sets the value beside its label, at the end of the line, at font scale %s', (fontScale) => {
+    it.each([
+        [390, 1],
+        [390, 2],
+    ])('keeps the 56 pt row and the space-4 and space-2 insets in a %s pt window at %sx', (width, fontScale) => {
+        env.width = width;
         env.fontScale = fontScale;
-        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+        const { container } = renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+        const frame = frameOf(container);
 
-        expect(rowOf().contains(screen.getByText('eliza@example.com'))).toBe(true);
-        expect(resolvedStyle(rowOf(), 'flexDirection')).toBe('row');
-        expect(resolvedStyle(rowOf(), 'justifyContent')).toBe('space-between');
-        expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('right');
+        expect(resolvedStyle(frame, 'minHeight')).toBe('56px');
+        expect(resolvedStyle(frame, 'paddingLeft')).toBe(px(nativeTokens.spacing[4]));
+        expect(resolvedStyle(frame, 'paddingRight')).toBe(px(nativeTokens.spacing[4]));
+        expect(resolvedStyle(frame, 'paddingTop')).toBe(px(nativeTokens.spacing[2]));
+        expect(resolvedStyle(frame, 'paddingBottom')).toBe(px(nativeTokens.spacing[2]));
     });
 
-    it.each([1.31, 2, 3.1])('stacks the value under its label, at the start, at font scale %s', (fontScale) => {
+    it.each([
+        [1, 'row'],
+        [1.3, 'column'],
+    ])('lays out through the pair: at %sx on a 390 pt phone its direction is %s', (fontScale, direction) => {
         env.fontScale = fontScale;
         renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+        const pair = screen.getByText('eliza@example.com').parentElement as Element;
 
-        expect(rowOf().contains(screen.getByText('eliza@example.com'))).toBe(true);
-        expect(resolvedStyle(rowOf(), 'flexDirection')).toBe('column');
-        expect(resolvedStyle(rowOf(), 'alignItems')).toBe('flex-start');
-        expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('left');
+        expect(pair.contains(screen.getByText('Email'))).toBe(true);
+        expect(resolvedStyle(pair, 'flexDirection')).toBe(direction);
     });
-
-    it.each([1, 2])(
-        'keeps the 56 pt row, space-3 between the parts and the space-4 and space-2 insets at %s',
-        (scale) => {
-            env.fontScale = scale;
-            renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
-            const px = (n: number): string => `${String(n)}px`;
-
-            expect(resolvedStyle(rowOf(), 'minHeight')).toBe('56px');
-            expect(resolvedStyle(rowOf(), 'gap')).toBe(px(nativeTokens.spacing[3]));
-            expect(resolvedStyle(rowOf(), 'paddingLeft')).toBe(px(nativeTokens.spacing[4]));
-            expect(resolvedStyle(rowOf(), 'paddingRight')).toBe(px(nativeTokens.spacing[4]));
-            expect(resolvedStyle(rowOf(), 'paddingTop')).toBe(px(nativeTokens.spacing[2]));
-            expect(resolvedStyle(rowOf(), 'paddingBottom')).toBe(px(nativeTokens.spacing[2]));
-        },
-    );
 
     it('stays one accessibility element, with no button, when it stacks', () => {
         env.fontScale = 2;
         const { container } = render(<ProfileFactRow label="Email" value="eliza@example.com" />);
 
-        expect(container.querySelector('[data-accessible="true"]')?.textContent).toBe('Emaileliza@example.com');
+        expect(frameOf(container).textContent).toBe('Emaileliza@example.com');
         expect(screen.queryByRole('button')).toBeNull();
     });
 });

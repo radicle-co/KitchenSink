@@ -6,16 +6,17 @@
  * never overwrites a saved name, and nothing is written until the cook presses Save.
  */
 import { describe, expect, it } from 'vitest';
+import { contentWidthOf } from '@commise/ui/container-class';
 import { patchUserMeRequestSchema } from '@kitchensink/schema-identity';
 
 import {
     DISPLAY_NAME_MAX_LENGTH,
     canSaveDisplayName,
     displayNameDraftOf,
-    factRowStacksAt,
     formatNameCounter,
     profileHeaderTitleOf,
     givenNameOf,
+    labelValueStacksAt,
     nameCounterOf,
     profileReadOf,
 } from '../model.js';
@@ -218,14 +219,30 @@ describe('profileHeaderTitleOf (T8)', () => {
     });
 });
 
-// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): at large text a label-and-value row stacks its value
-// under its label. The house has no font-scale threshold of its own, so the row stacks above a capped scale of 1.3.
-describe('factRowStacksAt', () => {
-    it.each([0.85, 1, 1.15, 1.3])('keeps the value beside its label at font scale %s', (fontScale) => {
-        expect(factRowStacksAt(fontScale)).toBe(false);
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): a label-and-value row stacks by ROOM, when its content
+// width over the capped font scale is below 280. A width is the house's content width (`contentWidthOf`, the window less
+// its gutters), so a 390 pt phone gives 358 and stacks a little above 1.25x, and a wide tablet never stacks at the cap.
+// REPLACES the first ruling's scale-only rule (stack above 1.3x), whose boundary cases these supersede.
+describe('labelValueStacksAt', () => {
+    const phone = contentWidthOf(390);
+    const tablet = contentWidthOf(1024);
+
+    it.each([1, 1.25])('keeps the value beside its label on a 390 pt phone at %sx', (scale) => {
+        expect(labelValueStacksAt(phone, scale)).toBe(false);
     });
 
-    it.each([1.31, 1.5, 2, 3.1])('stacks the value under its label at font scale %s', (fontScale) => {
-        expect(factRowStacksAt(fontScale)).toBe(true);
+    it.each([1.3, 1.5, 2])('stacks the value under its label on a 390 pt phone at %sx', (scale) => {
+        expect(labelValueStacksAt(phone, scale)).toBe(true);
+    });
+
+    it('never stacks on a wide tablet, even at the 2x cap', () => {
+        expect(labelValueStacksAt(tablet, 2)).toBe(false);
+    });
+
+    it('keeps exactly 280 pt of room beside, and stacks just below it', () => {
+        expect(labelValueStacksAt(280, 1)).toBe(false);
+        expect(labelValueStacksAt(560, 2)).toBe(false);
+        expect(labelValueStacksAt(279.9, 1)).toBe(true);
+        expect(labelValueStacksAt(559, 2)).toBe(true);
     });
 });

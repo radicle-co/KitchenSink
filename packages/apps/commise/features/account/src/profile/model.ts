@@ -6,7 +6,6 @@
  * it says: a Google given name only PREFILLS an empty field, never replaces a saved name, and nothing is written until
  * the cook presses Save.
  */
-import { cappedFontScale } from '@commise/ui/font-scale-cap';
 import { patchUserMeRequestSchema } from '@kitchensink/schema-identity';
 
 /**
@@ -193,19 +192,20 @@ export function profileReadOf(query: ProfileQueryState): ProfileRead {
 }
 
 /**
- * The capped font scale above which a read-only row stacks its value under its label (designer ruling 2026-11-01,
- * `nativeBoards/designAnswers.md`; `reviews/androidShots1.md`). The design system names no font-scale threshold, so this
- * is 1.3, the smallest scale the chrome ruling lets a label cap at. It is chosen here and waits for the designer's word.
+ * The room, in points of text at 1x, below which a label-and-value row stacks its value under its label (designer ruling
+ * 2026-11-01, `nativeBoards/designAnswers.md`). The web reads the same room as a 17.5 rem container query.
  */
-export const FACT_ROW_STACK_ABOVE = 1.3;
+export const LABEL_VALUE_MIN_ROOM = 280;
 
 /**
- * Whether a read-only row stacks its value under its label at a font scale. The scale is capped first, because the
- * text is drawn at the capped scale (ADR-0080 §8). Pure.
+ * Whether a label-and-value row stacks: by ROOM, as the recipe page's stat strip is judged (`detailNativeLayoutOf`), so a
+ * wide tablet that has room never stacks. The room is the content width in units of text: the width over the scale the
+ * text is drawn at. Pure.
  *
- * @param fontScale - The system font scale (`useWindowDimensions().fontScale`).
- * @returns `true` above {@link FACT_ROW_STACK_ABOVE}.
+ * @param contentWidth - The width the page's content gets, in points (native: `contentWidthOf` of the window).
+ * @param cappedScale - The font scale the text is drawn at (`cappedFontScale`).
+ * @returns `true` when the room is below {@link LABEL_VALUE_MIN_ROOM}; exactly 280 stays beside.
  */
-export function factRowStacksAt(fontScale: number): boolean {
-    return cappedFontScale(fontScale) > FACT_ROW_STACK_ABOVE;
+export function labelValueStacksAt(contentWidth: number, cappedScale: number): boolean {
+    return contentWidth / cappedScale < LABEL_VALUE_MIN_ROOM;
 }

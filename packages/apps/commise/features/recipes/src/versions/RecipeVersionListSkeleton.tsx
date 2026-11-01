@@ -42,7 +42,7 @@ export const RecipeVersionListSkeleton: FC<RecipeVersionListSkeletonWebProps> = 
     const back = versionBackOf(versionList.backToRecipe, versionList.recipeParent, onBack, backHref);
 
     return (
-        <section className="flex w-full max-w-list flex-col gap-4 pb-10">
+        <section className="flex w-full max-w-list flex-col gap-4 pb-12">
             <RecipeVersionListHeader headingId={VERSION_TITLE_ID} back={back} />
             <p role="status" aria-label={label} className="sr-only">
                 {label}

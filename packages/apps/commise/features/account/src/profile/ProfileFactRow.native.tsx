@@ -4,44 +4,29 @@
  * chevron, no press fill. It is ONE accessibility element, so a screen reader reads the label and the value together in a
  * single swipe. The value takes the room the label leaves and wraps, so a long email never runs off the screen.
  *
- * The value sits at the END of the line, as the web's `text-end` does (designer ruling 2026-11-01,
- * `nativeBoards/designAnswers.md`). React Native's `textAlign: 'right'` is that end: React Native 0.86 swaps 'right' and
- * 'left' when the text's layout direction is right to left (iOS `RCTAttributedTextUtils.mm`, Android
- * `TextLayoutManager.getTextAlignment`), and the row's own direction flips with the layout, so in a right-to-left
- * language the value sits on the left. At large text (`factRowStacksAt`) the value stacks under its label, at the start
- * of the line: 'left' is the start by the same swap.
+ * The label and the value are a `LabelValuePair`: the value at the END of the line, as the web's `text-end` does, or
+ * under the label when the row has too little room for the text size (designer rulings 2026-11-01,
+ * `nativeBoards/designAnswers.md`). The pair owns that rule and its right-to-left reading.
  *
- * Presentational: props → JSX. It reads the window's font scale, as the design system's `Text` does.
+ * Presentational: props → JSX.
  */
 import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { useWindowDimensions } from 'react-native';
 import { View } from 'tamagui';
 
-import { factRowStacksAt } from './model.js';
+import { LabelValuePair } from './LabelValuePair.native.js';
 import type { ProfileFactRowProps } from './props.js';
 
 /** The read-only row. */
-export const ProfileFactRow: FC<ProfileFactRowProps> = ({ label, value }) => {
-    const stacked = factRowStacksAt(useWindowDimensions().fontScale);
-
-    return (
-        <View
-            accessible
-            minHeight={56}
-            flexDirection={stacked ? 'column' : 'row'}
-            alignItems={stacked ? 'flex-start' : 'center'}
-            justifyContent={stacked ? 'center' : 'space-between'}
-            gap="$3"
-            paddingHorizontal="$4"
-            paddingVertical="$2"
-        >
-            <Text typeRole="body" color="$ink">
-                {label}
-            </Text>
-            <Text typeRole="body" color="$inkMuted" flexShrink={1} textAlign={stacked ? 'left' : 'right'}>
-                {value}
-            </Text>
-        </View>
-    );
-};
+export const ProfileFactRow: FC<ProfileFactRowProps> = ({ label, value }) => (
+    <View accessible minHeight={56} flexDirection="row" alignItems="center" paddingHorizontal="$4" paddingVertical="$2">
+        <LabelValuePair
+            label={
+                <Text typeRole="body" color="$ink">
+                    {label}
+                </Text>
+            }
+            value={value}
+        />
+    </View>
+);

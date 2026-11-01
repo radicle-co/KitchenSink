@@ -9,8 +9,11 @@ import { useId, type FC } from 'react';
 
 import type { ProfileGroupProps } from './props.js';
 
-/** The rows' card: hairlines between rows, clipped to the radius so a row's focus ring stays inside it. */
-const CARD = 'flex flex-col divide-y divide-line-divider overflow-hidden rounded-xl bg-paper';
+/**
+ * The rows' card: hairlines between rows, clipped to the radius so a row's focus ring stays inside it. It is the `rows`
+ * container, the column a label-and-value row measures to decide whether it stacks (`ProfileFactRow`).
+ */
+const CARD = '@container/rows flex flex-col divide-y divide-line-divider overflow-hidden rounded-xl bg-paper';
 
 /** A grouped list of rows. */
 export const ProfileGroup: FC<ProfileGroupProps> = ({ heading, label, children }) => {

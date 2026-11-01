@@ -44,6 +44,7 @@ import { nativeTokens } from '../../tokens/native.js';
 import { SnackbarHost } from '../../snackbar/SnackbarHost.native.js';
 import { useSnackbar } from '../../snackbar/useSnackbar.js';
 import { CreateFab } from '../CreateFab.native.js';
+import { FAB_BOTTOM_MARGIN_PX } from '../createFabPolicy.js';
 
 beforeEach(() => {
     env.glass = false;
@@ -244,10 +245,12 @@ describe('CreateFab (native) — clear of a showing snackbar', () => {
         act(() => region.__reactLayoutHandler?.({ nativeEvent: { layout: { y: 0, height } } }));
     };
 
-    it('sits 16 dp above the foot when no snackbar shows', () => {
+    // The margin the screens' reserved foot is computed from (`FAB_RESERVED_BOTTOM_PX`), so the two cannot disagree.
+    it('sits FAB_BOTTOM_MARGIN_PX (16) above the foot when no snackbar shows', () => {
         renderWithHost();
 
-        expect(fab().style.bottom).toBe('16px');
+        expect(fab().style.bottom).toBe(`${String(FAB_BOTTOM_MARGIN_PX)}px`);
+        expect(FAB_BOTTOM_MARGIN_PX).toBe(16);
     });
 
     it('rises above a showing snackbar by its height plus 8, and comes back down when it goes', () => {

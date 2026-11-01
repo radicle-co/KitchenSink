@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     // fill here occludes the whole canvas and restores the flat page the wireframes never had.
     screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
-    // The foot clears the floating create button (its height + 32, `buildSpec.md` §3.4), which floats over it.
+    // The foot clears the floating create button, which floats over it: its height, its margin and 16 (§3.4).
     regionContent: { paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
     widgets: { paddingHorizontal: 16, gap: 16 },
     comingSoon: { gap: nativeTokens.spacing[4] },

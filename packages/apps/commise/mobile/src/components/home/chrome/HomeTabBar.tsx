@@ -1,7 +1,7 @@
 /**
  * @module home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions
  * D6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a
- * 24 pt glyph over a `caption` label, on every phone and tablet, iPad included in both orientations.
+ * 24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both orientations.
  *
  * It is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere
  * (`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).

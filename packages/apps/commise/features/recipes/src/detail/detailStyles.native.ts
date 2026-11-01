@@ -22,7 +22,6 @@ export const detailStyles = StyleSheet.create({
     inline: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
     meta: { ...nativeTokens.type.meta },
     caption: { ...nativeTokens.type.caption },
-    readingBody: { ...nativeTokens.type.readingBody },
     figures: { fontVariant: ['tabular-nums', 'lining-nums'] },
     figureGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: nativeTokens.spacing[4] },
     statStrip: {
@@ -40,7 +39,6 @@ export const detailStyles = StyleSheet.create({
     },
     statValue: { ...nativeTokens.type.figureStat },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    description: { alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
     // One section (or the run of closing blocks) as a direct child of the scroll content: the page's one 16 gutter,
     // and the 8 that makes the 24 content gap between top blocks the 32 between sections.
     sectionBlock: { paddingHorizontal: nativeTokens.spacing[4], marginTop: nativeTokens.spacing[2] },

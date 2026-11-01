@@ -2,6 +2,19 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-01: the Google button label on iOS, corrected (asked by Thing 1)
+
+Thing 1 measured Apple's button at all twelve iOS text sizes. Its label does not grow, and its font comes from the
+button's height (about 21 pt SF Pro), so it is larger than any role on our scale.
+
+- Do not chase Apple's size. A 20 or 21 pt label breaks the type scale (14, 16, 18, 28), and it would make the
+  Google label larger than our own Sign in button below it.
+- The Google label uses the same type role as our own `Button` labels, so both of our sign-in buttons read alike. On
+  iOS it stays at that size and does not grow, like Apple's. On Android it follows the 1.5x chrome cap.
+- The pair matches in height, width, corner radius, outline and centred icon and label. A difference in letter size
+  between Apple's system font and ours is accepted.
+- This replaces M-1 in `reviews/deviceShots2.md`.
+
 ## 2026-11-01: Home error actions and the wrapped "See all" (asked by kitchensink-5f)
 
 - **A failed widget offers Try again.** Every error state needs a way forward. When a widget's code or render fails,

@@ -8,8 +8,11 @@
  * `@min-[60rem]/detail:`.
  */
 
-/** The page's frame: its own container, the detail width, no gutter (`<main>` owns it) and no centring (§1.3). */
-export const DETAIL_ARTICLE = '@container/detail flex w-full max-w-detail flex-col gap-6 pb-10';
+/**
+ * The page's frame: its own container, the detail width, no gutter (`<main>` owns it) and no centring (§1.3). The end gets
+ * 48 below it, more than the 32 between sections, so the page reads as finished (`nativeBoards/designAnswers.md`).
+ */
+export const DETAIL_ARTICLE = '@container/detail flex w-full max-w-detail flex-col gap-6 pb-12';
 
 /** The top block: the hero and the header, side by side from a 960 px body. */
 export const DETAIL_TOP_GRID =

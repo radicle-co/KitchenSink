@@ -36,7 +36,7 @@ export const ProfileFactRow: FC<ProfileFactRowProps> = ({ label, value }) => {
             flexDirection={stacked ? 'column' : 'row'}
             alignItems={stacked ? 'flex-start' : 'center'}
             justifyContent={stacked ? 'center' : 'space-between'}
-            gap="$3"
+            gap={stacked ? '$1' : '$3'}
             paddingHorizontal="$4"
             paddingVertical="$2"
         >

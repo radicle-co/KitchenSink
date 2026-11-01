@@ -141,6 +141,8 @@ describe('ProfileFactRow (native) — type and colour', () => {
 // 280. REWRITTEN from the first ruling's scale-only rule (stack above 1.3x), which stacked a wide tablet that had room.
 // A 390 pt phone's content is 358 pt wide (16 pt gutters), so it stacks a little above 1.25x; a 1024 pt tablet's is 960.
 describe('ProfileFactRow (native) — layout at each text size', () => {
+    const px = (n: number): string => `${String(n)}px`;
+
     /** The row: the element that holds both texts. */
     function rowOf(): Element {
         return screen.getByText('Email').parentElement as Element;
@@ -176,21 +178,35 @@ describe('ProfileFactRow (native) — layout at each text size', () => {
         expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('left');
     });
 
-    it.each([1, 2])(
-        'keeps the 56 pt row, space-3 between the parts and the space-4 and space-2 insets at %s',
-        (scale) => {
-            env.fontScale = scale;
-            renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
-            const px = (n: number): string => `${String(n)}px`;
+    it.each([
+        [390, 1],
+        [390, 2],
+    ])('keeps the 56 pt row and the space-4 and space-2 insets in a %s pt window at %sx', (width, fontScale) => {
+        env.width = width;
+        env.fontScale = fontScale;
+        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
 
-            expect(resolvedStyle(rowOf(), 'minHeight')).toBe('56px');
-            expect(resolvedStyle(rowOf(), 'gap')).toBe(px(nativeTokens.spacing[3]));
-            expect(resolvedStyle(rowOf(), 'paddingLeft')).toBe(px(nativeTokens.spacing[4]));
-            expect(resolvedStyle(rowOf(), 'paddingRight')).toBe(px(nativeTokens.spacing[4]));
-            expect(resolvedStyle(rowOf(), 'paddingTop')).toBe(px(nativeTokens.spacing[2]));
-            expect(resolvedStyle(rowOf(), 'paddingBottom')).toBe(px(nativeTokens.spacing[2]));
-        },
-    );
+        expect(resolvedStyle(rowOf(), 'minHeight')).toBe('56px');
+        expect(resolvedStyle(rowOf(), 'paddingLeft')).toBe(px(nativeTokens.spacing[4]));
+        expect(resolvedStyle(rowOf(), 'paddingRight')).toBe(px(nativeTokens.spacing[4]));
+        expect(resolvedStyle(rowOf(), 'paddingTop')).toBe(px(nativeTokens.spacing[2]));
+        expect(resolvedStyle(rowOf(), 'paddingBottom')).toBe(px(nativeTokens.spacing[2]));
+    });
+
+    it('puts space-3 between the label and the value beside each other', () => {
+        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+
+        expect(resolvedStyle(rowOf(), 'gap')).toBe(px(nativeTokens.spacing[3]));
+    });
+
+    // Designer ruling 2026-11-01: a label and its value are one group, so stacked they sit space-1 (4) apart, closer
+    // than the 12 between rows.
+    it('puts space-1 between the label and the value stacked', () => {
+        env.fontScale = 2;
+        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+
+        expect(resolvedStyle(rowOf(), 'gap')).toBe(px(nativeTokens.spacing[1]));
+    });
 
     it('stays one accessibility element, with no button, when it stacks', () => {
         env.fontScale = 2;

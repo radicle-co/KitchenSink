@@ -16,8 +16,11 @@ Each answer is the design ruling a port builds to. Newest first.
   The label never breaks inside a word, and the value wraps, never truncates.
 - **Page-end padding:** every page-end `pb-10` (40) becomes `pb-12` (48): `RecipeVersionList`, its error and
   skeleton, and `DataSourcesPage`. One end padding for every page.
-- **Native detail `paddingBottom: 120`:** this is room for the pinned bar, so it is not a spacing step. Compute it
-  from the pinned bar's height, the bottom safe area and 16 pt, so it stays right when the bar changes.
+- **Native detail `paddingBottom: 120` (corrected):** recipe detail has no pinned bottom bar, and the tab bar sits
+  below the scroll view and owns the bottom safe area. So the page end is the same 48 pt (`$7`) as the web, on recipe
+  detail and on `CollectionDetailScreen`. A screen whose content a floating control covers (for example the "New
+  recipe" button) instead ends with that control's height, its margin and 16 pt, computed, not a fixed number.
+- **Content width** in the stacking rule means the page column: the window less the page gutter.
 
 ## 2026-11-01: Home and Profile text, and two off-scale steps (asked by kitchensink-87)
 

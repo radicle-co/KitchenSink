@@ -43,9 +43,17 @@ describe('uncappedTexts', () => {
             1,
         ],
         ['the design system Text', `${DS}const A = () => <DsText typeRole="body">a</DsText>;`, 0],
+        // H-1 (ADR-0080 §8): the design-system Text turns system scaling off and draws its own size, so a React Native
+        // text inside it inherits `allowFontScaling: false` and stays at 1× while its line grows. It is a finding: it
+        // moves onto the design-system Text. REWRITTEN from "inherits its cap".
         [
-            'a React Native Text inside the design system Text inherits its cap',
+            'a React Native Text inside the design system Text stays at 1×',
             `${RN}${DS}const A = () => <DsText typeRole="body">a <Text>b</Text></DsText>;`,
+            1,
+        ],
+        [
+            'a design system Text inside the design system Text',
+            `${DS}const A = () => <DsText>a <DsText>b</DsText></DsText>;`,
             0,
         ],
         [
@@ -118,9 +126,9 @@ describe('uncappedTexts', () => {
             1,
         ],
         [
-            'a Text inside a Tamagui styled() over the design system Text inherits its cap',
+            'a Text inside a Tamagui styled() over the design system Text stays at 1×',
             `${RN}${DS}${TG}const L = styled(DsText, {});\nconst A = () => <L><Text>b</Text></L>;`,
-            0,
+            1,
         ],
         [
             'the design system Text that lifts its cap',
@@ -132,10 +140,17 @@ describe('uncappedTexts', () => {
             `${DS}const A = () => <DsText allowFontScaling={false}>a</DsText>;`,
             1,
         ],
+        // H-1: the design-system Text draws its own size, so any scaling prop on it is wrong: it re-enables system scaling
+        // on top of its own, or does nothing. REWRITTEN from "restates the cap" (0).
         [
             'the design system Text that restates the cap',
             `${DS}${CAP}const A = () => <DsText maxFontSizeMultiplier={FONT_SCALE_CAP}>a</DsText>;`,
-            0,
+            1,
+        ],
+        [
+            'the design system Text that turns system scaling back on',
+            `${DS}const A = () => <DsText allowFontScaling>a</DsText>;`,
+            1,
         ],
         [
             'a Text inside a design system Text that lifts its cap is one uncapped run',

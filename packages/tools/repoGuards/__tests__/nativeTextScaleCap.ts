@@ -6,8 +6,9 @@
  * that is not the design system's (Tamagui's own `Text`, or a `styled()` over it), is capped only by
  * `maxFontSizeMultiplier={FONT_SCALE_CAP}`; a number, `allowFontScaling={false}` and a spread are not trusted. The
  * design system's `Text` (`@commise/ui/text`, or `text/Text.native` inside the design system), and a Tamagui `styled()`
- * over it, carries the cap itself and is not counted, unless it sets its own `maxFontSizeMultiplier` or
- * `allowFontScaling`, which overrides that cap; then it is held to the same rule as any other text.
+ * over it, draws its own size from the system scale with system scaling off (ADR-0080 §8) and is not counted, unless it
+ * sets its own `maxFontSizeMultiplier` or `allowFontScaling`, which fights that. A React Native text inside it inherits
+ * `allowFontScaling: false` and stays at 1×, so it is counted: it moves onto the design-system Text.
  *
  * React Native passes text attributes down to nested text (`TextAttributes::apply`), so a text inside a capped text is
  * part of that run and is not counted on its own, unless it sets its own `maxFontSizeMultiplier` or `allowFontScaling`,
@@ -143,8 +144,11 @@ function openingOf(node: ts.Node): ts.JsxOpeningElement | ts.JsxSelfClosingEleme
     return ts.isJsxSelfClosingElement(node) ? node : undefined;
 }
 
-/** Where a text sits: in no text, in a capped run, or in an uncapped run already counted at its root. */
-type Run = 'none' | 'capped' | 'uncapped';
+/**
+ * Where a text sits: in no text, in a capped run, in an uncapped run already counted at its root, or inside the
+ * design-system Text, whose `allowFontScaling: false` a React Native text inherits, so it stays at 1×.
+ */
+type Run = 'none' | 'capped' | 'uncapped' | 'designText';
 
 /**
  * The 1-based lines of every uncapped React Native text that is not inside another text. Pure.
@@ -182,16 +186,29 @@ export function uncappedTexts(source: string, fileName: string, styledKindsOf: S
         const tag = opening.tagName;
         let inner: Run = 'none';
 
-        // The design system's Text carries the cap unless it sets its own scaling, which overrides it like any text's.
-        if (isDesignText(tag, bindings) && !setsOwnScaling(opening.attributes)) {
-            inner = 'capped';
-        } else if (isDesignText(tag, bindings) || isScalingText(tag, bindings)) {
+        const line = (): void => {
+            lines.push(file.getLineAndCharacterOfPosition(opening.getStart(file)).line + 1);
+        };
+
+        if (isDesignText(tag, bindings)) {
+            // The design-system Text draws its own size from the system scale (ADR-0080 §8); a scaling prop on it either
+            // turns React Native's scaling back on over its own or does nothing, so it is counted.
+            if (setsOwnScaling(opening.attributes) && run !== 'uncapped') {
+                line();
+            }
+
+            inner = setsOwnScaling(opening.attributes) ? 'uncapped' : 'designText';
+        } else if (isScalingText(tag, bindings) && run === 'designText') {
+            // It inherits the design-system Text's `allowFontScaling: false` and stays at 1× while its line grows.
+            line();
+            inner = 'uncapped';
+        } else if (isScalingText(tag, bindings)) {
             const ownCap = capped(opening.attributes, bindings.caps);
             const inheritsCap = run === 'capped' && !setsOwnScaling(opening.attributes);
             const counted = run === 'uncapped' && !ownCap;
 
             if (!ownCap && !inheritsCap && !counted) {
-                lines.push(file.getLineAndCharacterOfPosition(opening.getStart(file)).line + 1);
+                line();
             }
 
             inner = ownCap || inheritsCap ? 'capped' : 'uncapped';

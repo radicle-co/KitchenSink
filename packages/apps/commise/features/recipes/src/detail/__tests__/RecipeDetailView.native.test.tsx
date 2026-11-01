@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { render as renderUnscoped } from '@commise/ui/testing/tamagui';
+import { render as renderInDesignSystem } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { AccessibilityInfo } from 'react-native';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
@@ -43,7 +43,7 @@ import { heldKeepAwakeTags } from '@commise/ui/testing/expo-keep-awake';
 const render = (
     ui: ReactElement,
     wrapper: FC<{ readonly children: ReactNode }> = CookMarksTestProvider,
-): ReturnType<typeof renderUnscoped> => renderUnscoped(ui, { wrapper });
+): ReturnType<typeof renderInDesignSystem> => renderInDesignSystem(ui, { wrapper });
 
 /** The owner's view also mounts the ambiguity review, which reads the food client. */
 const ownerWrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (

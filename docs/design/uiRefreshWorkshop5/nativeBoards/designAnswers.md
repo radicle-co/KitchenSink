@@ -2,6 +2,15 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-01: active tab weight and icon-only segments (asked by Thing 1)
+
+- **Active tab:** no new role. An inactive tab label is `caption` (14 px, weight 500). The active label is `label`
+  (14 px, weight 600). Both roles already exist and share a size, so only the weight changes. The active tab also
+  keeps its colour and indicator, so weight is never the only signal.
+- **`labelVisibility: 'hidden'` on the segmented control:** it stays. The "no icon-only mode" rule forbids switching
+  to icons when the text size grows. A control that shows icons only by design keeps that, and each segment still
+  needs an accessible name.
+
 ## 2026-11-01: label and value rows at large text (asked by kitchensink-87)
 
 - **When a row stacks:** decide by room, not by scale alone, as the recipe detail page does. A label and value row

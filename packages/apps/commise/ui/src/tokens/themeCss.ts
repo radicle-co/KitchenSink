@@ -33,6 +33,7 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
+import { FAB_BOTTOM_MARGIN_PX, FAB_RESERVED_BOTTOM_PX } from '../createFab/createFabPolicy.js';
 import {
     chipFillRoleOf,
     chipFillVarOf,
@@ -137,6 +138,23 @@ function layoutDeclarations(): readonly string[] {
         `    --pinned-bar-height: ${pxToRemUnit(pinnedBarHeight)};`,
         // The bar AS RENDERED: its height plus the notch's inset where the viewport covers it. Declared once, here.
         '    --pinned-bar-block: calc(var(--pinned-bar-height) + env(safe-area-inset-top));',
+    ];
+}
+
+/**
+ * The floating create button's room (`createFab/createFabPolicy.ts`), as two plain custom properties, not a Tailwind
+ * namespace:
+ *
+ *  - `--fab-bottom-margin`: how far above the bottom chrome the button rests (`FAB_BOTTOM_MARGIN_PX`).
+ *  - `--fab-reserved-bottom`: the room a page the button covers leaves at its foot, the button's height, that margin and
+ *    16 (`FAB_RESERVED_BOTTOM_PX`, designer ruling 2026-11-01). `<main>`'s foot, the document's `scroll-padding-bottom`
+ *    and "Back to top" read it, so the web and native cannot disagree. No safe-area inset: every use adds it to
+ *    `--bottom-chrome`, the tab bar's height, which already holds the inset.
+ */
+function fabDeclarations(): readonly string[] {
+    return [
+        `    --fab-bottom-margin: ${pxToRemUnit(FAB_BOTTOM_MARGIN_PX)};`,
+        `    --fab-reserved-bottom: ${pxToRemUnit(FAB_RESERVED_BOTTOM_PX)};`,
     ];
 }
 
@@ -252,6 +270,8 @@ export function themeCss(): string {
         `    --color-bar: ${barMaterial.light};`,
         // The animation tokens (`tokens/motion.ts`), appended last for the same reason.
         ...motionThemeDeclarations(),
+        // The floating create button's room, appended last for the same reason.
+        ...fabDeclarations(),
         '}',
         '',
         ...motionKeyframes(),

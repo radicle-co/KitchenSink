@@ -119,7 +119,9 @@ describe('CreateFab (web)', () => {
 
         expect(fab().className).toContain('bg-action');
         expect(fab().className).toContain('end-4');
-        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + 1rem + 0px)');
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 0px)');
+        // The margin is the theme's `--fab-bottom-margin`, the same constant native rests at, never a raw rem.
+        expect(fab().style.bottom).not.toMatch(/\d(?:\.\d+)?rem/u);
         expect(fab().className).toContain('nav:hidden');
     });
 });
@@ -156,7 +158,7 @@ describe('CreateFab (web) — clear of a showing snackbar', () => {
         statusHeight = 56;
         renderWithHost();
 
-        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + 1rem + 0px)');
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 0px)');
     });
 
     it('rises above a showing snackbar by its height plus 8, and comes back down when it goes', () => {
@@ -164,9 +166,9 @@ describe('CreateFab (web) — clear of a showing snackbar', () => {
         renderWithHost();
 
         fireEvent.click(screen.getByRole('button', { name: 'open snackbar' }));
-        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + 1rem + 64px)');
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 64px)');
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + 1rem + 0px)');
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 0px)');
     });
 });

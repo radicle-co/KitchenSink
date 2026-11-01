@@ -2,6 +2,17 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-01: TextLink (asked by Thing 1)
+
+- **Leaving the app:** every link that opens outside the app draws a trailing ↗, as `DataSourceCard` does, hidden from
+  screen readers. Its accessible name says it opens in the browser. That includes the recipe source host. The detail
+  mockup's own source line is "Adapted from <recipe>", which stays inside the app and takes no ↗.
+- **RecipeVisibilityField's text action:** `label` (14 px, weight 600) in `$actionText`. That is the web's semibold
+  `meta` exactly, so web and native match.
+- **Press feedback:** a link that stands alone as a control press-scales like a button (0.98, or opacity 0.85 under
+  reduced motion). A link inside running text uses the opacity feedback only, because scaling it moves the words
+  around it. Use PressScale's closed feedback option for that.
+
 ## 2026-11-01: the Google button label on iOS, corrected (asked by Thing 1)
 
 Thing 1 measured Apple's button at all twelve iOS text sizes. Its label does not grow, and its font comes from the

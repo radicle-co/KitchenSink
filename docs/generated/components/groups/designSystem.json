@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 81,
-        "implementations": 140,
-        "props": 787,
-        "documentedComponents": 81,
-        "implementationsWithModuleDoc": 140,
-        "implementationsWithComponentDoc": 130,
+        "components": 82,
+        "implementations": 141,
+        "props": 788,
+        "documentedComponents": 82,
+        "implementationsWithModuleDoc": 141,
+        "implementationsWithComponentDoc": 131,
         "documentedProps": 750,
         "classifiedComponents": 74,
-        "componentsWithPatternTag": 81,
+        "componentsWithPatternTag": 82,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -1269,6 +1269,64 @@
                     "booleanPropsSelectingSubtree": [
                         "busy"
                     ],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/button/ButtonLabel",
+            "name": "ButtonLabel",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/button",
+            "kind": "unclassified",
+            "patterns": [
+                "Variant — a closed `surface` union rendered through Tamagui `variants`, which is the render map"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ButtonLabel",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/button/ButtonLabel.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/button",
+                    "moduleDoc": "button/ButtonLabel — the native Button's label: the design-system Text in the `cardTitle` role, coloured by its\nsurface (ADR-0080 §8). Each surface's colour is a literal theme token in a variant table, so the colour guard reads\nevery one (`colourRoles`). Native only; the web Button colours its label with classes.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "button/ButtonLabel — the native Button's label: the design-system Text in the `cardTitle` role, coloured by its"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — a closed `surface` union rendered through Tamagui `variants`, which is the render map"
+                        }
+                    ],
+                    "description": "The label, in the `cardTitle` role, coloured by its surface.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ref",
+                            "type": "Ref<TamaguiTextElement>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
@@ -3820,8 +3878,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "400",
-                                "440",
-                                "600"
+                                "600",
+                                "440"
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -3871,8 +3929,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "400",
-                                "440",
-                                "600"
+                                "600",
+                                "440"
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -4048,8 +4106,8 @@
                             "name": "level",
                             "type": "enum",
                             "typeDetail": [
-                                "\"easy\"",
                                 "\"medium\"",
+                                "\"easy\"",
                                 "\"hard\""
                             ],
                             "required": true,
@@ -4108,8 +4166,8 @@
                             "name": "level",
                             "type": "enum",
                             "typeDetail": [
-                                "\"easy\"",
                                 "\"medium\"",
+                                "\"easy\"",
                                 "\"hard\""
                             ],
                             "required": true,
@@ -5042,9 +5100,9 @@
                             "type": "enum",
                             "typeDetail": [
                                 "16",
-                                "20",
                                 "24",
-                                "48"
+                                "48",
+                                "20"
                             ],
                             "required": false,
                             "defaultValue": "24",
@@ -5202,9 +5260,9 @@
                             "type": "enum",
                             "typeDetail": [
                                 "16",
-                                "20",
                                 "24",
-                                "48"
+                                "48",
+                                "20"
                             ],
                             "required": false,
                             "defaultValue": "24",
@@ -5456,9 +5514,9 @@
                             "name": "autoComplete",
                             "type": "enum",
                             "typeDetail": [
+                                "\"name\"",
                                 "\"email\"",
                                 "\"off\"",
-                                "\"name\"",
                                 "\"given-name\"",
                                 "\"family-name\"",
                                 "\"username\"",
@@ -5699,9 +5757,9 @@
                             "name": "autoComplete",
                             "type": "enum",
                             "typeDetail": [
+                                "\"name\"",
                                 "\"email\"",
                                 "\"off\"",
-                                "\"name\"",
                                 "\"given-name\"",
                                 "\"family-name\"",
                                 "\"username\"",
@@ -9082,8 +9140,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"button\"",
-                                "\"none\"",
                                 "\"link\"",
+                                "\"none\"",
                                 "\"switch\""
                             ],
                             "required": false,
@@ -9218,8 +9276,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"button\"",
-                                "\"none\"",
                                 "\"link\"",
+                                "\"none\"",
                                 "\"switch\""
                             ],
                             "required": false,
@@ -11474,8 +11532,8 @@
                             "name": "size",
                             "type": "enum",
                             "typeDetail": [
-                                "\"content\"",
                                 "\"full\"",
+                                "\"content\"",
                                 "\"page\""
                             ],
                             "required": true,
@@ -11725,8 +11783,8 @@
                             "name": "size",
                             "type": "enum",
                             "typeDetail": [
-                                "\"content\"",
                                 "\"full\"",
+                                "\"content\"",
                                 "\"page\""
                             ],
                             "required": true,
@@ -11869,8 +11927,8 @@
                             "name": "size",
                             "type": "enum",
                             "typeDetail": [
-                                "\"content\"",
                                 "\"full\"",
+                                "\"content\"",
                                 "\"page\""
                             ],
                             "required": true,
@@ -13009,30 +13067,20 @@
                                 "\"menu\"",
                                 "\"list\"",
                                 "\"button\"",
+                                "\"link\"",
+                                "\"heading\"",
+                                "\"group\"",
                                 "\"alert\"",
                                 "\"dialog\"",
                                 "\"none\"",
-                                "\"link\"",
-                                "\"summary\"",
-                                "\"checkbox\"",
-                                "\"combobox\"",
-                                "\"menubar\"",
-                                "\"menuitem\"",
-                                "\"progressbar\"",
-                                "\"radio\"",
-                                "\"radiogroup\"",
-                                "\"scrollbar\"",
-                                "\"spinbutton\"",
-                                "\"switch\"",
-                                "\"tab\"",
-                                "\"tablist\"",
-                                "\"toolbar\"",
                                 "\"alertdialog\"",
                                 "\"application\"",
                                 "\"article\"",
                                 "\"banner\"",
                                 "\"cell\"",
+                                "\"checkbox\"",
                                 "\"columnheader\"",
+                                "\"combobox\"",
                                 "\"complementary\"",
                                 "\"contentinfo\"",
                                 "\"definition\"",
@@ -13042,29 +13090,39 @@
                                 "\"figure\"",
                                 "\"form\"",
                                 "\"grid\"",
-                                "\"group\"",
-                                "\"heading\"",
                                 "\"img\"",
                                 "\"listitem\"",
                                 "\"log\"",
                                 "\"main\"",
                                 "\"marquee\"",
                                 "\"math\"",
+                                "\"menubar\"",
+                                "\"menuitem\"",
                                 "\"meter\"",
                                 "\"navigation\"",
                                 "\"note\"",
                                 "\"option\"",
                                 "\"presentation\"",
+                                "\"progressbar\"",
+                                "\"radio\"",
+                                "\"radiogroup\"",
                                 "\"region\"",
                                 "\"row\"",
                                 "\"rowgroup\"",
                                 "\"rowheader\"",
+                                "\"scrollbar\"",
                                 "\"searchbox\"",
                                 "\"separator\"",
                                 "\"slider\"",
+                                "\"spinbutton\"",
+                                "\"summary\"",
+                                "\"switch\"",
+                                "\"tab\"",
                                 "\"table\"",
+                                "\"tablist\"",
                                 "\"tabpanel\"",
                                 "\"term\"",
+                                "\"toolbar\"",
                                 "\"tooltip\"",
                                 "\"tree\"",
                                 "\"treegrid\"",
@@ -13190,30 +13248,20 @@
                                 "\"menu\"",
                                 "\"list\"",
                                 "\"button\"",
+                                "\"link\"",
+                                "\"heading\"",
+                                "\"group\"",
                                 "\"alert\"",
                                 "\"dialog\"",
                                 "\"none\"",
-                                "\"link\"",
-                                "\"summary\"",
-                                "\"checkbox\"",
-                                "\"combobox\"",
-                                "\"menubar\"",
-                                "\"menuitem\"",
-                                "\"progressbar\"",
-                                "\"radio\"",
-                                "\"radiogroup\"",
-                                "\"scrollbar\"",
-                                "\"spinbutton\"",
-                                "\"switch\"",
-                                "\"tab\"",
-                                "\"tablist\"",
-                                "\"toolbar\"",
                                 "\"alertdialog\"",
                                 "\"application\"",
                                 "\"article\"",
                                 "\"banner\"",
                                 "\"cell\"",
+                                "\"checkbox\"",
                                 "\"columnheader\"",
+                                "\"combobox\"",
                                 "\"complementary\"",
                                 "\"contentinfo\"",
                                 "\"definition\"",
@@ -13223,29 +13271,39 @@
                                 "\"figure\"",
                                 "\"form\"",
                                 "\"grid\"",
-                                "\"group\"",
-                                "\"heading\"",
                                 "\"img\"",
                                 "\"listitem\"",
                                 "\"log\"",
                                 "\"main\"",
                                 "\"marquee\"",
                                 "\"math\"",
+                                "\"menubar\"",
+                                "\"menuitem\"",
                                 "\"meter\"",
                                 "\"navigation\"",
                                 "\"note\"",
                                 "\"option\"",
                                 "\"presentation\"",
+                                "\"progressbar\"",
+                                "\"radio\"",
+                                "\"radiogroup\"",
                                 "\"region\"",
                                 "\"row\"",
                                 "\"rowgroup\"",
                                 "\"rowheader\"",
+                                "\"scrollbar\"",
                                 "\"searchbox\"",
                                 "\"separator\"",
                                 "\"slider\"",
+                                "\"spinbutton\"",
+                                "\"summary\"",
+                                "\"switch\"",
+                                "\"tab\"",
                                 "\"table\"",
+                                "\"tablist\"",
                                 "\"tabpanel\"",
                                 "\"term\"",
+                                "\"toolbar\"",
                                 "\"tooltip\"",
                                 "\"tree\"",
                                 "\"treegrid\"",

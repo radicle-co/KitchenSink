@@ -43,26 +43,24 @@ import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocu
 import { dimmedOpacity } from '../tokens/scale.js';
 import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
 import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
-import { Text } from '../text/Text.native.js';
+import { ButtonLabel } from './ButtonLabel.native.js';
 
 /** A size's visual height on this platform: `md` IS the touch floor, so it grows with it on Android. Pure. */
 const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);
 
-/** Each surface's foreground role — the label AND the glyph AND the spinner, so the three always agree. */
-const FOREGROUND: Readonly<Record<ButtonSurface, Role>> = {
+/**
+ * Each surface's GLYPH and spinner role: its label's colour, except `quiet`, an `ink` label with an `actionText` glyph
+ * (`componentFixes.md` §1), the web leaf's `buttonGlyphClass`. The Button suite holds this table and `ButtonLabel`'s
+ * to that rule.
+ */
+const GLYPH: Readonly<Record<ButtonSurface, Role>> = {
     primary: 'onAction',
     secondary: 'ink',
     ghost: 'actionText',
-    quiet: 'ink',
+    quiet: 'actionText',
     destructiveInline: 'dangerText',
     destructiveConfirm: 'onAction',
 };
-
-/**
- * Each surface's GLYPH and spinner role. Every tier draws them in its label's colour except `quiet`: an `ink` label with
- * an `actionText` glyph (`componentFixes.md` §1), the web leaf's `buttonGlyphClass`.
- */
-const GLYPH: Readonly<Record<ButtonSurface, Role>> = { ...FOREGROUND, quiet: 'actionText' };
 
 /** Resolve the accessible name: an explicit override, else the string label, else undefined. */
 const resolveAccessibilityLabel = (
@@ -97,7 +95,6 @@ export const Button: FC<ButtonProps> = (props) => {
                 ? 'destructiveConfirm'
                 : 'destructiveInline'
             : variant;
-    const foreground = FOREGROUND[surface];
     const glyphRole = GLYPH[surface];
     const theme = useTheme();
     const node = useRef<View>(null);
@@ -122,9 +119,7 @@ export const Button: FC<ButtonProps> = (props) => {
     const content: ReactNode = (
         <>
             {iconPlacement === 'start' ? glyph : null}
-            <Text typeRole="cardTitle" color={`$${foreground}`}>
-                {children}
-            </Text>
+            <ButtonLabel surface={surface}>{children}</ButtonLabel>
             {iconPlacement === 'end' ? glyph : null}
         </>
     );

@@ -121,6 +121,18 @@ describe('typePropFindings', () => {
                 1,
             ],
             ['Promise.resolve is not a Tamagui resolver', 'export const p = Promise.resolve(1);', OTHER, 0],
+            [
+                'a resolver behind parentheses',
+                `${carrier}export const T = (F).resolve(() => ({ fontSize: 40 }));`,
+                OTHER,
+                1,
+            ],
+            [
+                'a resolver destructured out',
+                `${carrier}const { resolve } = F;\nexport const T = resolve(() => ({ fontSize: 40 }));`,
+                OTHER,
+                1,
+            ],
         ] as const)('%s', (_shape, body, file, expected) => {
             expect(typePropFindings(head + body, file, none)).toHaveLength(expected);
         });

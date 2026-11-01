@@ -13,6 +13,7 @@ import {
     tamaguiElementNames,
     tamaguiOpeningElements,
     tamaguiStyledNames,
+    unwrapBase,
     type StyledExportsOf,
 } from './tamaguiElements.js';
 import { styledConfig, type StyleProperty } from './tamaguiStyleObjects.js';
@@ -23,10 +24,20 @@ const SCALED_TEXT_MODULE = /(?:^|\/)packages\/apps\/commise\/ui\/src\/text\/Text
 /**
  * A reach for a Tamagui component's `resolve`: `X.resolve` or `X['resolve']`, where `X` is a name the module binds to a
  * Tamagui component. Its function can return any style, so no guard can read it. Matching the REFERENCE, not one call
- * shape, catches a named callback, `.call`, and a resolver taken out first (GATE SCQ-1).
+ * shape, catches a named callback, `.call`, a resolver taken out first, one behind parentheses and one destructured out
+ * (GATE SCQ-1). A component reached through a second local name (`const G = F`) is a recorded limit.
  */
 function resolverReference(node: ts.Node, components: ReadonlySet<string>): boolean {
-    const owner = ts.isPropertyAccessExpression(node)
+    if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name) && node.initializer !== undefined) {
+        const owner = unwrapBase(node.initializer);
+        const takesResolve = node.name.elements.some(
+            (element) => (element.propertyName ?? element.name).getText() === 'resolve',
+        );
+
+        return takesResolve && ts.isIdentifier(owner) && components.has(owner.text);
+    }
+
+    const accessed = ts.isPropertyAccessExpression(node)
         ? node.name.text === 'resolve'
             ? node.expression
             : undefined
@@ -36,7 +47,13 @@ function resolverReference(node: ts.Node, components: ReadonlySet<string>): bool
           ? node.expression
           : undefined;
 
-    return owner !== undefined && ts.isIdentifier(owner) && components.has(owner.text);
+    if (accessed === undefined) {
+        return false;
+    }
+
+    const owner = unwrapBase(accessed);
+
+    return ts.isIdentifier(owner) && components.has(owner.text);
 }
 
 /**

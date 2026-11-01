@@ -181,6 +181,12 @@ Each role grows to its own ceiling (designer ruling 2026-11-01). `largeTitle`, `
 1.5× (`DISPLAY_FONT_SCALE_CAP`), because a 2× title pushes content off a phone and both platforms grow large styles
 less. Every other role grows to 2×. Navigation chrome, the tab bar and the segmented control that switches views, caps
 its labels at 1.5×, and never below 1.3×. A label never breaks inside a word, and a fit test proves it per locale.
+Chrome says so with Text's closed `chromeCap` variant (`1.5`, `1.4` or `1.3`), which can only lower a role's ceiling, so
+nothing can freeze a label at 1×. A guard admits it only in the tab bar and the view-switch control, and never as a
+`styled()` default. The Google sign-in label is the one fixed-scale site: on iOS it sits beside Apple's system button,
+which cannot scale, so it stays at 1×, and on Android it follows the 1.5× chrome cap. Its colours are no design-system
+role, so it is React Native's own text with `allowFontScaling={false}` and its size and leading from `scaledTypeSize`.
+The text-scale detector trusts that only in that file (`FIXED_SCALE_SITES`).
 A test of `scaledTypeMetrics` covers every role at every scale; a device covers what is drawn.
 
 Until a shared control is ported, its React Native text carries the 2× cap as a prop: the button's label, the field

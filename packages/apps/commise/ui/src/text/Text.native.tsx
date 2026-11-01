@@ -20,7 +20,7 @@ import { styled, Text as TamaguiText } from 'tamagui';
 
 import { nativeTokens } from '../tokens/native.js';
 import type { TypeRole } from '../tokens/typography.js';
-import { scaledTypeMetrics } from './scaledType.js';
+import { scaledTypeMetrics, type ChromeCap } from './scaledType.js';
 import { TextScaleContext } from './textScaleContext.native.js';
 
 const { type } = nativeTokens;
@@ -85,6 +85,13 @@ const TextFrame = styled(TamaguiText, {
         },
         // The system text scale, from TextScaleContext; `.resolve` below turns it into the role's size and leading.
         textScale: styled.dynamic<number>(),
+        // Navigation chrome only (a guard admits it in the tab bar and the view-switch control): a step that can only
+        // LOWER the role's ceiling, to 1.5×, 1.4× or 1.3× (`CHROME_CAPS`, ADR-0080 §8).
+        chromeCap: {
+            '1.5': {},
+            '1.4': {},
+            '1.3': {},
+        } satisfies Record<ChromeCap, object>,
     } as const,
 
     defaultVariants: {
@@ -99,6 +106,7 @@ const TextFrame = styled(TamaguiText, {
 interface ScaledTextProps {
     readonly typeRole?: TypeRole;
     readonly textScale?: number;
+    readonly chromeCap?: ChromeCap;
 }
 
 /**
@@ -106,6 +114,6 @@ interface ScaledTextProps {
  * role's ceiling (`scaledTypeMetrics`, ADR-0080 §8). The scale comes from `TextScaleContext`, which `DesignSystemTheme`
  * provides. `figureInline` gets no size of its own and keeps its line's. A `styled(Text)` inherits the resolver.
  */
-export const Text = TextFrame.resolve(({ typeRole, textScale }: ScaledTextProps) =>
-    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1),
+export const Text = TextFrame.resolve(({ typeRole, textScale, chromeCap }: ScaledTextProps) =>
+    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap),
 );

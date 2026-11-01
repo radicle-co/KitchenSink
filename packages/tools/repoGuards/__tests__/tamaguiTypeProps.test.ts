@@ -138,6 +138,30 @@ describe('typePropFindings', () => {
         });
     });
 
+    // Designer ruling 2026-11-01 (ADR-0080 §8): only navigation chrome lowers a label's ceiling, so `chromeCap` is
+    // admitted in the tab bar and the view-switch control alone, and never as a styled() default.
+    describe('chromeCap', () => {
+        const label = '<Text typeRole="caption" chromeCap="1.5" />';
+
+        it.each([
+            ['the tab bar', 'packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx', 0],
+            ['the view-switch control', 'packages/apps/commise/ui/src/segmentedControl/SegmentedControl.native.tsx', 0],
+            ['any other screen', 'packages/apps/commise/features/recipes/src/x/X.native.tsx', 1],
+        ] as const)('on an element in %s → %i', (_where, file, expected) => {
+            expect(typePropFindings(head + label, file, none)).toHaveLength(expected);
+        });
+
+        it('is refused as a styled() default, even in the chrome', () => {
+            expect(
+                typePropFindings(
+                    `${head}const T = styled(Text, { chromeCap: '1.5' });`,
+                    'packages/apps/commise/ui/src/segmentedControl/SegmentedControl.native.tsx',
+                    none,
+                ),
+            ).toHaveLength(1);
+        });
+    });
+
     it('finds none in the tree', () => {
         const findings = nativeSources().flatMap((file) =>
             typePropFindings(readFileSync(path.join(repoRoot, file), 'utf8'), file, designSystemStyledExports),

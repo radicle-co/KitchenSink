@@ -5,9 +5,13 @@
  * ancestor inherits the cap (React Native passes text attributes down to nested text), so only the outermost text of a
  * run is counted.
  */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { uncappedTexts } from './nativeTextScaleCap.js';
+import { FIXED_SCALE_SITES, uncappedTexts } from './nativeTextScaleCap.js';
+import { repoRoot } from './serviceSources.js';
 import type { StyledKindsOf, TamaguiKind } from './tamaguiElements.js';
 
 const FILE = 'packages/apps/commise/features/recipes/src/thing/Thing.native.tsx';
@@ -165,6 +169,24 @@ describe('uncappedTexts', () => {
         ],
     ] as const)('%s → %i', (_name, source, count) => {
         expect(uncappedTexts(source, FILE, kinds)).toHaveLength(count);
+    });
+
+    // Designer ruling 2026-11-01 (ADR-0080 §8): the Google sign-in label sits beside Apple's system button, which cannot
+    // scale, so it sets its own size with system scaling off. That one file is a FIXED-SCALE site; anywhere else,
+    // turning scaling off is still a finding.
+    it.each([
+        ['the Google sign-in label', 'packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx', 0],
+        ['any other file', FILE, 1],
+    ] as const)('trusts scaling turned off in %s → %i', (_where, file, count) => {
+        expect(
+            uncappedTexts(`${RN}const A = () => <Text allowFontScaling={false}>a</Text>;`, file, kinds),
+        ).toHaveLength(count);
+    });
+
+    it('lists each fixed-scale site in the tree, still turning scaling off', () => {
+        for (const file of Object.keys(FIXED_SCALE_SITES)) {
+            expect(readFileSync(path.join(repoRoot, file), 'utf8'), file).toContain('allowFontScaling={false}');
+        }
     });
 
     it('reports the line of each uncapped text', () => {

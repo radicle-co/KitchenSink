@@ -213,7 +213,7 @@
         "packages/apps/commise/ui/src/searchField/SearchField.native.tsx": 8,
         "packages/apps/commise/ui/src/sectionIndex/SectionIndex.native.tsx": 41,
         "packages/apps/commise/ui/src/sectionSwitch/SectionSwitch.native.tsx": 13,
-        "packages/apps/commise/ui/src/segmentedControl/SegmentedControl.native.tsx": 9,
+        "packages/apps/commise/ui/src/segmentedControl/SegmentedControl.native.tsx": 7,
         "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx": 22,
         "packages/apps/commise/ui/src/sheet/FullScreenSheet.native.tsx": 3,
         "packages/apps/commise/ui/src/sheet/Sheet.native.tsx": 7,

@@ -23,6 +23,27 @@ import { parseModule } from './appSources.js';
 import { isReactNative, localsOf, valueBindingsOf } from './moduleBindings.js';
 import { isTamaguiStyledCall, tamaguiElementKinds, tamaguiStyledNames, type StyledKindsOf } from './tamaguiElements.js';
 
+/**
+ * The files where a React Native text may set its own size with system scaling off, each with the ruling that admits
+ * it. Anywhere else `allowFontScaling={false}` is not trusted. The detector's test asserts each site still does it.
+ */
+export const FIXED_SCALE_SITES: Readonly<Record<string, string>> = {
+    // Beside Apple's system button on iOS, which cannot scale; capped at 1.5× on Android (designer ruling 2026-11-01).
+    'packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx': 'ADR-0080 §8',
+};
+
+/** Whether a text turns system scaling off, in a file where that is a ruled fixed-scale site. */
+function fixedScaleSite(attributes: ts.JsxAttributes, fileName: string): boolean {
+    const off = attribute(attributes, 'allowFontScaling')?.initializer;
+
+    return (
+        Object.hasOwn(FIXED_SCALE_SITES, fileName) &&
+        off !== undefined &&
+        ts.isJsxExpression(off) &&
+        off.expression?.kind === ts.SyntaxKind.FalseKeyword
+    );
+}
+
 /** Where the design system's cap is imported from: its package subpath, or its file inside the package. */
 function isCapModule(specifier: string): boolean {
     return specifier === '@commise/ui/font-scale-cap' || /(?:^|\/)text\/fontScaleCap(?:\.js)?$/u.test(specifier);
@@ -207,7 +228,7 @@ export function uncappedTexts(source: string, fileName: string, styledKindsOf: S
             line();
             inner = 'uncapped';
         } else if (isScalingText(tag, bindings)) {
-            const ownCap = capped(opening.attributes, bindings.caps);
+            const ownCap = capped(opening.attributes, bindings.caps) || fixedScaleSite(opening.attributes, fileName);
             const inheritsCap = run === 'capped' && !setsOwnScaling(opening.attributes);
             const counted = run === 'uncapped' && !ownCap;
 

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
-import { scaledTypeMetrics } from '../scaledType.js';
+import { CHROME_CAPS, scaledTypeMetrics, scaledTypeSize } from '../scaledType.js';
 
 /** Each sized role's ceiling, written out (not read from the code under test). */
 const CEILING = {
@@ -71,6 +71,45 @@ describe('scaledTypeMetrics', () => {
         expect(scaledTypeMetrics('largeTitle', 3.1)).toEqual({
             fontSize: title.fontSize * 1.5,
             lineHeight: `${String(title.lineHeight * 1.5)}px`,
+        });
+    });
+});
+
+/**
+ * Navigation chrome (designer ruling 2026-11-01, ADR-0080 §8): a tab-bar or view-switch label grows to 1.5× at most,
+ * with 1.4× and 1.3× steps a fit test may choose, and never below 1.3×. A chrome cap only LOWERS a role's ceiling, so
+ * nothing can freeze a label or shrink it below the system scale up to 1.3×.
+ */
+describe('scaledTypeMetrics with a chrome cap', () => {
+    const CAPS = ['1.5', '1.4', '1.3'] as const;
+    const SCALES_C = [1, 1.3, 1.5, 3.1] as const;
+    const ROLES = Object.keys(CEILING) as (keyof typeof CEILING)[];
+
+    it('offers no step below 1.3', () => {
+        expect(Math.min(...CHROME_CAPS.map(Number))).toBe(1.3);
+        expect([...CHROME_CAPS]).toEqual([...CAPS]);
+    });
+
+    it.each(ROLES.flatMap((role) => CAPS.flatMap((cap) => SCALES_C.map((scale) => [role, cap, scale] as const))))(
+        '%s under chrome cap %s at system scale %s grows to min(scale, role ceiling, cap)',
+        (role, cap, scale) => {
+            const { fontSize, lineHeight } = baseOf(role);
+            const grown = Math.min(scale, CEILING[role], Number(cap));
+
+            expect(scaledTypeMetrics(role, scale, cap)).toEqual({
+                fontSize: fontSize * grown,
+                lineHeight: `${String(lineHeight * grown)}px`,
+            });
+            expect(grown).toBeGreaterThanOrEqual(Math.min(scale, 1.3));
+        },
+    );
+
+    it('draws a caption at 1.5× above the cap under the widest chrome step', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.caption;
+
+        expect(scaledTypeSize('caption', 3.1, '1.5')).toEqual({
+            fontSize: fontSize * 1.5,
+            lineHeight: lineHeight * 1.5,
         });
     });
 });

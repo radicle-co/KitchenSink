@@ -70,7 +70,6 @@ export const detailStyles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    steps: { gap: nativeTokens.spacing[6] },
     linkTouch: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
     link: { textDecorationLine: 'underline' },
     footer: { alignItems: 'flex-start', gap: nativeTokens.spacing[1] },

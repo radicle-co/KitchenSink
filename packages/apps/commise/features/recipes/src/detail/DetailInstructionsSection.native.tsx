@@ -9,12 +9,11 @@
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
-import { View } from 'react-native';
+import { YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
 import { DetailEmptySection } from './DetailEmptySection.native.js';
 import { DetailHeadingRow, DetailSection, DetailSectionHeading } from './detailFrames.native.js';
-import { detailStyles as styles } from './detailStyles.native.js';
 import type { RecipeDetailBodyNativeProps } from './model.js';
 import { StepRow } from './StepRow.native.js';
 
@@ -50,7 +49,7 @@ export const DetailInstructionsSection: FC<DetailInstructionsSectionProps> = ({ 
             {steps.length === 0 ? (
                 <DetailEmptySection text={detail.noSteps} actionLabel={detail.addSteps} onAction={onEdit} />
             ) : (
-                <View style={styles.steps}>
+                <YStack gap="$6">
                     {steps.map((step) => (
                         <StepRow
                             key={step.stepNumber}
@@ -59,7 +58,7 @@ export const DetailInstructionsSection: FC<DetailInstructionsSectionProps> = ({ 
                             onToggle={marks.toggleStep}
                         />
                     ))}
-                </View>
+                </YStack>
             )}
         </DetailSection>
     );

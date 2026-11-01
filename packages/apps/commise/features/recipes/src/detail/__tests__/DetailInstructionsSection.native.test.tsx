@@ -3,8 +3,8 @@
  * the section's own spacing.
  *
  * It draws through the design system's Tamagui frames (ADR-0080): the heading is the `sectionTitle` role in `ink` for
- * the scheme it is shown in, the heading row wraps rather than squeezing its Edit, and the section stacks its parts
- * 12 apart. Every expected value is read from the tokens, so a scale or palette change moves this test with it.
+ * the scheme it is shown in, the heading row wraps rather than squeezing its Edit, the section stacks its parts 12
+ * apart, and the steps sit 32 apart. Every expected value is read from the tokens, so a scale or palette change moves this test with it.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
@@ -34,6 +34,17 @@ const section = (onEdit: (() => void) | undefined) => (
 const owned = () => section(() => undefined);
 
 const heading = (): HTMLElement => screen.getByRole('heading', { name: detail.instructionsHeading });
+
+/** The nearest element that holds both nodes. */
+function commonHolder(first: HTMLElement, second: HTMLElement): HTMLElement {
+    let holder = first;
+
+    while (!holder.contains(second)) {
+        holder = holder.parentElement as HTMLElement;
+    }
+
+    return holder;
+}
 
 afterEach(cleanup);
 
@@ -77,6 +88,24 @@ describe('DetailInstructionsSection (native)', () => {
         const frame = (heading().parentElement as HTMLElement).parentElement as HTMLElement;
 
         expect(resolvedStyle(frame, 'gap')).toBe(px(3));
+    });
+
+    it('stacks the steps space-6 apart', () => {
+        renderWithTamagui(owned(), 'light');
+        const list = commonHolder(screen.getByText('Whisk the eggs.'), screen.getByText('Fold in the flour.'));
+
+        expect(resolvedStyle(list, 'gap')).toBe(px(6));
+    });
+
+    it('says the recipe has no steps yet, and offers the owner a way to add them', () => {
+        renderWithTamagui(
+            <DetailInstructionsSection steps={[]} marks={idleDetailBodyState.marks} onEdit={() => undefined} />,
+            'light',
+        );
+
+        expect(screen.getByText(detail.noSteps)).toBeTruthy();
+        expect(screen.getByRole('button', { name: detail.addSteps })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: detail.editStepsLabel })).toBeNull();
     });
 
     it('offers no Edit to a cook who does not own the recipe', () => {

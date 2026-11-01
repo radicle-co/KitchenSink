@@ -122,11 +122,12 @@ describe('Text (native)', () => {
         expect(Text.staticConfig.defaultProps?.maxFontSizeMultiplier).toBe(2);
     });
 
-    // React Native scales a set line height by the same capped multiplier as the size (ADR-0080 §8 cites the source),
-    // so a leading that holds its text at 1× holds it at the 2× cap. A bare number would be a RATIO in Tamagui, so a
-    // role whose leading stopped being px would render at that many times its size, at every scale.
-    it.each([...new Map(Object.entries(Text.staticConfig.variants?.['typeRole'] ?? {}))])(
-        '%s keeps a px leading that holds its text at 1× and at the 2× cap',
+    // React Native scales a set line height by the same capped multiplier as the size (ADR-0080 §8 cites its source),
+    // so a leading that holds its text at 1× holds it at the 2× cap; that claim rests on the citation, and this row
+    // holds the 1× half. A bare number would be a RATIO in Tamagui, so a role whose leading stopped being px would
+    // render at that many times its size.
+    it.each(Object.entries(Text.staticConfig.variants?.['typeRole'] ?? {}))(
+        '%s keeps a px leading that holds its text',
         (_role, style) => {
             const { fontSize, lineHeight } = style as { readonly fontSize?: number; readonly lineHeight?: string };
 
@@ -138,10 +139,7 @@ describe('Text (native)', () => {
             }
 
             expect(lineHeight).toMatch(/^\d+px$/u);
-
-            for (const scale of [1, 1.3, FONT_SCALE_CAP]) {
-                expect(Number.parseFloat(lineHeight ?? '') * scale).toBeGreaterThanOrEqual(fontSize * scale);
-            }
+            expect(Number.parseFloat(lineHeight ?? '')).toBeGreaterThanOrEqual(fontSize);
         },
     );
 });

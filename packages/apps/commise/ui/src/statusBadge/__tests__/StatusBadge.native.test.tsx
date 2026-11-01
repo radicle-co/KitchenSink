@@ -17,7 +17,7 @@ import { role } from '../../tokens/colors.js';
 import { radius, spacing } from '../../tokens/scale.js';
 import { proTone } from '../../tokens/tones.js';
 import { StatusBadge } from '../StatusBadge.native.js';
-import { BADGE_STATUSES } from '../props.js';
+import { BADGE_GLYPH, BADGE_STATUSES } from '../props.js';
 
 afterEach(cleanup);
 
@@ -55,15 +55,19 @@ describe('StatusBadge (native)', () => {
         expect(getComputedStyle(screen.getByText('PRO')).color).toBe('var(--proInk)');
     });
 
-    // On web the glyph takes the label's colour (`currentColor`); native names the same role.
-    it.each(['draft', 'private', 'public'] as const)('%s draws its glyph in the label’s colour', (status) => {
-        const { container } = renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
+    // On web the glyph takes the label's colour (`currentColor`); native names a role for it. Every status that has a
+    // glyph is checked, so a glyph given to another tone fails here until its colour matches that tone's label.
+    it.each(BADGE_STATUSES.filter((status) => BADGE_GLYPH[status] !== null))(
+        '%s draws its glyph in the label’s colour',
+        (status) => {
+            const { container } = renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
+            const glyphColour =
+                container.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconColor'];
 
-        expect(resolvedColour(screen.getByText('Word'), 'color')).toBe(formatRgb(role.inkMuted));
-        expect(container.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconColor']).toBe(
-            role.inkMuted,
-        );
-    });
+            expect(glyphColour).toBeDefined();
+            expect(formatRgb(glyphColour ?? '')).toBe(resolvedColour(screen.getByText('Word'), 'color'));
+        },
+    );
 
     it('renders its words as text a screen reader reads, with no hiding', () => {
         renderWithTamagui(<StatusBadge status="note">Custom</StatusBadge>, 'light');

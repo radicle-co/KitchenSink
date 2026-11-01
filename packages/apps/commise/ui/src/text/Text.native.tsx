@@ -9,7 +9,8 @@
  *
  * `largeTitle` has one style per container class, and all three are equal today; a test pins that, so the day they
  * differ this component reads the container class. `figureInline` sets only its face and figures, and takes the size
- * and leading of the line it sits in.
+ * and leading of the line it sits in. ⚠️ It also carries the base `$ink`, so inside an `inkMuted` line it would draw
+ * ink: no caller nests one yet, and the first that does adds a nested-colour test or names the line's colour.
  *
  * @pattern Variant — a closed `typeRole` union rendered through Tamagui `variants`, which is the discriminated-union
  *     render map, so no `switch` is written

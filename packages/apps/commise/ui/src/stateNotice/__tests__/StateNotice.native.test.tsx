@@ -2,11 +2,12 @@
  * Component tests for the native `StateNotice` (react-native-web under jsdom): the thumb-reach stack — an assertive
  * title, a body, then the actions at full width with the primary on top.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { role } from '../../tokens/colors.js';
 import { StateNotice } from '../StateNotice.native.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 
 afterEach(cleanup);
 
@@ -37,8 +38,8 @@ describe('StateNotice (native)', () => {
     it('titles the notice in ink and its body in inkMuted', () => {
         render(<StateNotice title="Something went wrong." body="Try again later." />);
 
-        expect(getComputedStyle(screen.getByText('Something went wrong.')).color).toBe(rgb(role.ink));
-        expect(getComputedStyle(screen.getByText('Try again later.')).color).toBe(rgb(role.inkMuted));
+        expect(resolvedColour(screen.getByText('Something went wrong.'), 'color')).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Try again later.'), 'color')).toBe(rgb(role.inkMuted));
     });
 
     it('presses the primary and the secondary action', () => {
@@ -90,8 +91,8 @@ describe('StateNotice (native)', () => {
         );
         const [first, second] = screen.getAllByRole('button');
 
-        expect(getComputedStyle(screen.getByText('Try again')).color).toBe(rgb(role.ink));
-        expect(getComputedStyle(screen.getByText('Back to Home')).color).toBe(rgb(role.actionText));
+        expect(resolvedColour(screen.getByText('Try again'), 'color')).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Back to Home'), 'color')).toBe(rgb(role.actionText));
 
         for (const button of [first, second]) {
             const pill = [button, ...Array.from(button?.querySelectorAll<HTMLElement>('*') ?? [])].find(

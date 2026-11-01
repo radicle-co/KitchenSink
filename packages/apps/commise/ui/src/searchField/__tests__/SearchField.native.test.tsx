@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo } from 'react-native';
 import { useState } from 'react';

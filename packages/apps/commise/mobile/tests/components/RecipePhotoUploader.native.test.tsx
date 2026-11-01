@@ -38,7 +38,7 @@ import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { RecipePhotoUploader } from '../../src/components/RecipePhotoUploader.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 // The device's scheme, for the D15 case below; every other case leaves it unset and reads the light roles.
 vi.mock('react-native', async (importOriginal) => {
@@ -183,7 +183,7 @@ describe.each(['light', 'dark'] as const)('RecipePhotoUploader — the %s scheme
         systemScheme.current = scheme;
         render(<RecipePhotoUploader recipeId="rec_1" />);
 
-        expect(getComputedStyle(screen.getByText('Add photos')).color).toBe(
+        expect(resolvedColour(screen.getByText('Add photos'), 'color')).toBe(
             rgb((scheme === 'dark' ? roleDark : role).ink),
         );
     });

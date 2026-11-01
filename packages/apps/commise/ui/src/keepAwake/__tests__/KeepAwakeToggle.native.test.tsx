@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, renderHook, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 const keepAwake = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { KeepAwakeToggle } from '../KeepAwakeToggle.native.js';
 import { useKeepAwake } from '../useKeepAwake.native.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * The native `KeepAwakeToggle` and `useKeepAwake` (blueprint A20). Native always has the capability, so the toggle

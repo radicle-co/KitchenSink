@@ -7,47 +7,30 @@
  * press area is not an accessibility element: the field is already named by the label and reached on its own, so the
  * label adds no stop and no role, the web label's behaviour too.
  *
+ * Both texts are the design-system Text, so they grow with the system scale, size and leading together (ADR-0080 §8).
+ *
  * @pattern Template — the label half of the field geometry, shared by every text field
  */
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from 'react-native';
+import { YStack } from 'tamagui';
 
+import { Text } from '../text/Text.native.js';
 import { focusLabelledField } from '../textInput/labelFocus.native.js';
-import { useTheme } from '../theme/useTheme.native.js';
-import { nativeTokens } from '../tokens/native.js';
 import { fieldHintId, fieldLabelId, type FieldLabelProps } from './props.js';
-import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
 
 /** The native design-system field label. */
-export const FieldLabel: FC<FieldLabelProps> = ({ forId, label, hint }) => {
-    const { colors } = useTheme();
-
-    return (
-        <View style={styles.stack}>
-            <Pressable accessible={false} onPress={() => focusLabelledField(forId)}>
-                <Text
-                    maxFontSizeMultiplier={FONT_SCALE_CAP}
-                    nativeID={fieldLabelId(forId)}
-                    style={[styles.label, { color: colors.inkMuted }]}
-                >
-                    {label}
-                </Text>
-            </Pressable>
-            {hint === undefined ? null : (
-                <Text
-                    maxFontSizeMultiplier={FONT_SCALE_CAP}
-                    nativeID={fieldHintId(forId)}
-                    style={[styles.hint, { color: colors.inkMuted }]}
-                >
-                    {hint}
-                </Text>
-            )}
-        </View>
-    );
-};
-
-const styles = StyleSheet.create({
-    stack: { gap: nativeTokens.spacing[1] },
-    label: nativeTokens.type.label,
-    hint: nativeTokens.type.caption,
-});
+export const FieldLabel: FC<FieldLabelProps> = ({ forId, label, hint }) => (
+    <YStack gap="$1">
+        <Pressable accessible={false} onPress={() => focusLabelledField(forId)}>
+            <Text typeRole="label" color="$inkMuted" id={fieldLabelId(forId)}>
+                {label}
+            </Text>
+        </Pressable>
+        {hint === undefined ? null : (
+            <Text typeRole="caption" color="$inkMuted" id={fieldHintId(forId)}>
+                {hint}
+            </Text>
+        )}
+    </YStack>
+);

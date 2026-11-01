@@ -6,7 +6,8 @@
  * suite passes while a device does nothing. This suite stands in for `Pressable` and reads the props the leaf hands it,
  * as `StepperAccessibility.native.test.tsx` does.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 

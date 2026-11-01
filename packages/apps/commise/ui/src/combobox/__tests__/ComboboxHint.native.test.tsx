@@ -6,7 +6,8 @@
  * which the sibling suite runs on, implements neither, so this suite stands in for the platform's text input and reads the
  * props the leaf hands it.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import type { ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

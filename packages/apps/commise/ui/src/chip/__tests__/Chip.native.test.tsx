@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState } from 'react';
 
@@ -13,6 +13,7 @@ import { chipLabel, chipPill } from '../chipStyle.js';
 import { role, roleDark } from '../../tokens/colors.js';
 import { themeFor } from '../../theme/themeFor.js';
 import { nativeTokens } from '../../tokens/native.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * Chip and ChipRow (native) — rendered via react-native-web under jsdom, glyphs through the `lucideNativeStub`.

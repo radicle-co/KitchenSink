@@ -4,7 +4,7 @@
  *
  * Stands in for `Pressable` to read the hint a device receives; react-native-web would project it to nothing.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const seen = vi.hoisted(() => ({ buttons: [] as Record<string, unknown>[] }));
@@ -33,6 +33,7 @@ vi.mock('react-native', async (importOriginal) => {
 import { role } from '../../tokens/colors.js';
 import { LoadMoreControl } from '../../loadMore/LoadMoreControl.native.js';
 import { RefreshNotice } from '../RefreshNotice.native.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 
 afterEach(() => {
     cleanup();
@@ -59,7 +60,7 @@ describe('RefreshNotice (native) — the quiet Try again', () => {
 
         expect(button?.['accessibilityLabel']).toBe('Try again');
         expect(button?.['accessibilityHint']).toBe('We couldn’t refresh.');
-        expect(getComputedStyle(screen.getByText('Try again')).color).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Try again'), 'color')).toBe(rgb(role.ink));
         // The retry glyph, in actionText: the cue that a text-only control is pressable (the hairline it replaces).
         const glyph = container.querySelector<HTMLElement>('[data-commise-stub="icon"]');
 
@@ -88,6 +89,6 @@ describe('LoadMoreControl (native) — the quiet Try again', () => {
         expect(seen.buttons.at(-1)?.['accessibilityHint']).toBeUndefined();
         // REWRITTEN for `componentFixes` issue 2: the idle Load more is an actionText label (it was ink), so it reads as
         // pressable; only Try again keeps the ink label.
-        expect(getComputedStyle(screen.getByText('Load more')).color).toBe(rgb(role.actionText));
+        expect(resolvedColour(screen.getByText('Load more'), 'color')).toBe(rgb(role.actionText));
     });
 });

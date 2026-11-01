@@ -30,21 +30,20 @@
  *     `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).
  */
 import { useRef, type FC, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { Role } from '../tokens/colors.js';
-import { nativeTokens } from '../tokens/native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
 import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
-import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
+import { Text } from '../text/Text.native.js';
 
 /** A size's visual height on this platform: `md` IS the touch floor, so it grows with it on Android. Pure. */
 const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);
@@ -123,7 +122,7 @@ export const Button: FC<ButtonProps> = (props) => {
     const content: ReactNode = (
         <>
             {iconPlacement === 'start' ? glyph : null}
-            <Text maxFontSizeMultiplier={FONT_SCALE_CAP} style={[styles.label, { color: theme.colors[foreground] }]}>
+            <Text typeRole="cardTitle" color={`$${foreground}`}>
                 {children}
             </Text>
             {iconPlacement === 'end' ? glyph : null}
@@ -175,6 +174,5 @@ const styles = StyleSheet.create({
     base: BUTTON_PILL_LAYOUT,
     hitFrame: { justifyContent: 'center' },
     glyph: { flexShrink: 0 },
-    label: nativeTokens.type.cardTitle,
     inactive: { opacity: dimmedOpacity },
 });

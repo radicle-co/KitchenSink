@@ -10,7 +10,6 @@ import { Button } from '@commise/ui/button';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +30,6 @@ export const EditorActionBar: FC<EditorActionBarProps> = ({
     notice,
     keyboardShown = false,
 }) => {
-    const { colors } = useTheme();
     const insets = useSafeAreaInsets();
 
     return (
@@ -48,10 +46,10 @@ export const EditorActionBar: FC<EditorActionBarProps> = ({
         >
             <ChromeSurface edge="top" />
             {notice}
-            <LiveRegion politeness="polite" style={[styles.fix, { color: colors.dangerText }]}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="dangerText">
                 {fixLine ?? ''}
             </LiveRegion>
-            <LiveRegion politeness="polite" style={[styles.fix, { color: colors.inkMuted }]}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {readyLine ?? ''}
             </LiveRegion>
             <View collapsable={false} role="group" aria-label={label} style={styles.controls}>
@@ -72,7 +70,6 @@ const styles = StyleSheet.create({
         paddingTop: nativeTokens.spacing[3],
         paddingHorizontal: nativeTokens.spacing[4],
     },
-    fix: { ...nativeTokens.type.meta },
     controls: {
         flexDirection: 'row',
         // Wrap, never shrink-and-overflow: at 200% text the two buttons can be wider than the bar, and an unwrapped

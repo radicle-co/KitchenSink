@@ -7742,11 +7742,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
                     "dir": "packages/apps/commise/ui/src/liveRegion",
-                    "moduleDoc": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with an\ncolour `tone` and an `offFlow` state for a region that is empty or only spoken. It stays MOUNTED (Android's live region must exist before\nits text changes) but leaves the layout flow, the native `visuallyHidden` geometry as a Tamagui variant.\nPresentational: props in, text out, no state.",
+                    "moduleDoc": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with a\ncolour `tone` and an `offFlow` state for a region that is empty or only spoken. It stays MOUNTED (Android's live\nregion must exist before its text changes) but leaves the layout flow, by the one visually-hidden geometry.\nPresentational: props in, text out, no state.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with an"
+                            "text": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with a"
                         },
                         {
                             "name": "pattern",

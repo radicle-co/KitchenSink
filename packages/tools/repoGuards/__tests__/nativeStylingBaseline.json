@@ -241,5 +241,7 @@
         "packages/apps/commise/ui/src/syncNotice/UnreadableWorkNotice.native.tsx": 8,
         "packages/apps/commise/ui/src/variantPartsLine/VariantPartsLine.native.tsx": 3
     },
-    "adapterExemptions": {}
+    "adapterExemptions": {
+        "packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts": 1
+    }
 }

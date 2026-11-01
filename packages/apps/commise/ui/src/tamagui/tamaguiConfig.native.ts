@@ -10,12 +10,17 @@
  * - `allowedStyleValues` accepts only tokens for colour, radius and stacking. A hex colour, a palette swatch or an
  *   off-scale radius is a type error, not a review comment.
  *
+ * One border width token, `$hairline`: the device's thinnest line, for section dividers and rules (designer ruling
+ * 2026-11-01). It is React Native's own value, read here once, because it depends on the screen's pixel density and so
+ * cannot live in the pure token map. A control outline stays a plain 1 pt.
+ *
  * No `media`: native layout reads its container class (`layout/containerClass.ts`), not the window. Tamagui 3 adds
  * its own shorthands whatever the config says; the style guards read the long names. No animation driver yet: motion
  * moves in its own slice.
  *
  * @pattern Registry — the single registration of tokens, themes and fonts with Tamagui
  */
+import { StyleSheet } from 'react-native';
 import { createFont, createTamagui, createTokens } from 'tamagui';
 
 import { tamaguiFonts } from './tamaguiFonts.js';
@@ -23,7 +28,11 @@ import { tamaguiThemes } from '../theme/tamaguiThemes.js';
 import { tamaguiTokens } from './tamaguiTokens.js';
 
 export const tamaguiConfig = createTamagui({
-    tokens: createTokens(tamaguiTokens),
+    tokens: createTokens({
+        ...tamaguiTokens,
+        // NATIVE-STYLE-ADAPTER: the hairline is a density-dependent React Native value with no Tamagui source of its own.
+        borderWidth: { hairline: StyleSheet.hairlineWidth },
+    }),
     themes: tamaguiThemes,
     fonts: {
         body: createFont(tamaguiFonts.body),

@@ -17,6 +17,38 @@ import {
 } from './tamaguiElements.js';
 import { styledConfig, type StyleProperty } from './tamaguiStyleObjects.js';
 
+/** The one module whose `.resolve` is readable: the design-system Text (ADR-0080 §8). */
+const SCALED_TEXT_MODULE = /(?:^|\/)packages\/apps\/commise\/ui\/src\/text\/Text\.native\.tsx$/u;
+
+/** A Tamagui 3 component resolver: `X.resolve(fn)`, whose function can return any style, so no guard can read it. */
+function isResolverCall(node: ts.Node): node is ts.CallExpression {
+    return (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'resolve' &&
+        node.arguments.length === 1 &&
+        node.arguments[0] !== undefined &&
+        (ts.isArrowFunction(node.arguments[0]) || ts.isFunctionExpression(node.arguments[0]))
+    );
+}
+
+/**
+ * The design-system Text's resolver: in that one module, an arrow whose whole body is a call to `scaledTypeMetrics`, the
+ * pure, tested function that owns the type-scaling arithmetic. Every other resolver is unreadable, so a finding.
+ */
+function isScaledTypeResolver(call: ts.CallExpression): boolean {
+    const [resolver] = call.arguments;
+
+    return (
+        resolver !== undefined &&
+        ts.isArrowFunction(resolver) &&
+        SCALED_TEXT_MODULE.test(call.getSourceFile().fileName) &&
+        ts.isCallExpression(resolver.body) &&
+        ts.isIdentifier(resolver.body.expression) &&
+        resolver.body.expression.text === 'scaledTypeMetrics'
+    );
+}
+
 /** A guard's rule: which element attributes and which `styled(…)` properties it refuses. */
 export interface StyleSiteRule {
     readonly attribute: (attribute: ts.JsxAttributeLike, file: ts.SourceFile) => boolean;
@@ -24,7 +56,8 @@ export interface StyleSiteRule {
 }
 
 /**
- * Every finding of one rule in one module, plus every unreadable `styled(…)` part. Pure, given `styledExportsOf`.
+ * Every finding of one rule in one module, plus every unreadable `styled(…)` part and every `.resolve(…)` resolver but the
+ * design-system Text's one (`isScaledTypeResolver`). Pure, given `styledExportsOf`.
  *
  * @param source - The module's text.
  * @param fileName - Its path.
@@ -52,6 +85,10 @@ export function styleSiteFindings(
     const styledNames = tamaguiStyledNames(file);
 
     const visit = (node: ts.Node): void => {
+        if (isResolverCall(node) && !isScaledTypeResolver(node)) {
+            report(node);
+        }
+
         if (isTamaguiStyledCall(node, styledNames)) {
             const { properties, unreadable } = styledConfig(node);
 

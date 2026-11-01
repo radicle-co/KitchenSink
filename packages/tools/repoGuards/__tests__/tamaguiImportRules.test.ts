@@ -74,6 +74,8 @@ describe('G1: the closed allow-list of Tamagui value imports', () => {
             `import { TamaguiProvider, createTamagui, createTokens, createFont } from 'tamagui';`,
             0,
         ],
+        // H-1: a styled context carries a value to variants and resolvers the guards already read; its Provider draws no box.
+        ['a styled context', `import { createStyledContext } from 'tamagui';`, 0],
         ['a renamed allowed name', `import { View as Box } from 'tamagui';`, 0],
         ['a renamed unclassified name', `import { Sheet as Drawer } from 'tamagui';`, 1],
         ['a default import, whose members no guard can classify', `import T from 'tamagui';`, 1],

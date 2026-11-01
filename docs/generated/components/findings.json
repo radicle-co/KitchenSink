@@ -4,7 +4,7 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 20,
-        "missing-component-doc": 161,
+        "missing-component-doc": 160,
         "missing-module-doc": 21,
         "platform-singleton": 71,
         "ref-api": 15,
@@ -783,14 +783,6 @@
             ]
         },
         {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "designSystem/text/Text",
-            "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "designSystem/text/Text",
@@ -807,26 +799,7 @@
             "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
             "message": "props carry no JSDoc description",
             "evidence": [
-                "accessibilityValue",
-                "adjustsFontSizeToFit",
-                "aria-checked",
-                "aria-disabled",
-                "aria-expanded",
-                "aria-selected",
-                "aria-valuemin",
-                "aria-valuenow",
-                "aria-valuetext",
-                "dangerouslySetInnerHTML",
-                "debug",
-                "disabled",
-                "htmlFor",
-                "nativeID",
-                "onAccessibilityAction",
-                "onPointerEnter",
-                "onPointerLeave",
-                "ref",
-                "target",
-                "testID"
+                "ref"
             ]
         },
         {

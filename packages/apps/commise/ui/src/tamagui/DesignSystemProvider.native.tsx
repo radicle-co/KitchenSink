@@ -12,6 +12,7 @@
  *     one component
  */
 import type { JSX, ReactNode } from 'react';
+import { useWindowDimensions } from 'react-native';
 
 import { useColorSchemeName } from '../theme/useColorSchemeName.native.js';
 import { DesignSystemTheme } from './DesignSystemTheme.native.js';
@@ -23,5 +24,9 @@ import { DesignSystemTheme } from './DesignSystemTheme.native.js';
  * @returns `children` inside Tamagui's provider.
  */
 export function DesignSystemProvider({ children }: { readonly children: ReactNode }): JSX.Element {
-    return <DesignSystemTheme scheme={useColorSchemeName()}>{children}</DesignSystemTheme>;
+    return (
+        <DesignSystemTheme scheme={useColorSchemeName()} textScale={useWindowDimensions().fontScale}>
+            {children}
+        </DesignSystemTheme>
+    );
 }

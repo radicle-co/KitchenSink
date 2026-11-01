@@ -100,9 +100,17 @@ export function tamaguiThemeHookFindings(source: string, fileName: string): read
 
 /**
  * The Tamagui value exports that are not elements, and that app code may import: `styled` (a definition the guards
- * read), the provider, and the builders of the one config.
+ * read), the provider, the builders of the one config, and `createStyledContext`, which carries a value to variants and
+ * resolvers the guards already read (its Provider draws no box).
  */
-const NON_ELEMENT_EXPORTS = new Set(['styled', 'TamaguiProvider', 'createTamagui', 'createTokens', 'createFont']);
+const NON_ELEMENT_EXPORTS = new Set([
+    'styled',
+    'TamaguiProvider',
+    'createTamagui',
+    'createTokens',
+    'createFont',
+    'createStyledContext',
+]);
 
 function isAllowedExport(name: string): boolean {
     return NON_ELEMENT_EXPORTS.has(name) || isClassifiedElementExport(name);

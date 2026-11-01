@@ -66,6 +66,36 @@ describe('typePropFindings', () => {
         expect(typePropFindings(head + body, 'fixture.tsx', none)).toHaveLength(expected);
     });
 
+    // H-1 (ADR-0080 §8): Tamagui 3's `styled.dynamic` and `.resolve`. A bare carrier only declares a prop, so it is
+    // readable anywhere. A `.resolve` callback can return any style, so it is a finding, except the design-system Text's
+    // one resolver, whose whole body is a call to the tested `scaledTypeMetrics`.
+    describe('styled.dynamic carriers and .resolve resolvers', () => {
+        const TEXT = 'packages/apps/commise/ui/src/text/Text.native.tsx';
+        const OTHER = 'packages/apps/commise/ui/src/thing/Thing.native.tsx';
+        const carrier = 'const F = styled(Text, { variants: { textScale: styled.dynamic<number>() } as const });\n';
+        const resolved = `${carrier}export const T = F.resolve(({ typeRole, textScale }) => scaledTypeMetrics(typeRole, textScale));`;
+
+        it.each([
+            ['a bare carrier', carrier, OTHER, 0],
+            [
+                'a function carrier',
+                'const F = styled(Text, { variants: { s: styled.dynamic((v) => ({ fontSize: v })) } });',
+                OTHER,
+                1,
+            ],
+            ['the scaled-type resolver in the design-system Text', resolved, TEXT, 0],
+            ['the same resolver anywhere else', resolved, OTHER, 1],
+            [
+                'any other resolver in the design-system Text',
+                `${carrier}export const T = F.resolve(() => ({ fontSize: 3 }));`,
+                TEXT,
+                1,
+            ],
+        ] as const)('%s', (_shape, body, file, expected) => {
+            expect(typePropFindings(head + body, file, none)).toHaveLength(expected);
+        });
+    });
+
     it('finds none in the tree', () => {
         const findings = nativeSources().flatMap((file) =>
             typePropFindings(readFileSync(path.join(repoRoot, file), 'utf8'), file, designSystemStyledExports),

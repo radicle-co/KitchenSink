@@ -161,15 +161,27 @@ results still look like our app. We should continue to use the @commise/ui packa
 
 ### 8. Text grows with the system's text size, up to 2×
 
-Owner ruling, 2026-10-31: the cap is 2×, which is WCAG 1.4.4's 200 %. It is `maxFontSizeMultiplier: 2`, set once on the
-text primitive (`FONT_SCALE_CAP`). React Native 0.86 scales a set `lineHeight` by the same capped multiplier as the
-font size: iOS multiplies it by `min(maxFontSizeMultiplier, scale)` (`RCTAttributedTextUtils.mm`), and Android converts
-it with `toPixelFromSP(lineHeight, effectiveMaxFontSizeMultiplier)` (`TextAttributes.kt`). So a `px` leading that
-holds its text at 1× holds it at the cap, and a test of the tokens at 1× covers every scale. Only a device shows the
-clamp itself, so a slice pass checks one dense screen at a system scale above 2×.
+Owner ruling, 2026-10-31: the cap is 2×, which is WCAG 1.4.4's 200 % (`FONT_SCALE_CAP`). React Native 0.86 caps a
+text's SIZE with `maxFontSizeMultiplier`, but on Android it does not cap a set `lineHeight`: Fabric's
+`TextAttributeProps.kt:42` converts it with `toPixelFromSP(value)` and no multiplier, while the size at `:168` does pass
+the cap. A device showed it: at font_scale 3.1 the glyphs stopped at 2× and body lines sat about 74 dp apart, not 48.
+Upstream fixed it (#58982), but no release has the fix. iOS caps both (`RCTAttributedTextUtils.mm:230`).
 
-Until a shared control is ported, its React Native text carries the same cap as a prop: the button's label, the field
-label and hint, the live region, and the input adapter, which is the one place the app renders React Native's input. A
+So the design-system `Text` turns system scaling off (`allowFontScaling: false`) and draws its size and leading itself,
+from the system scale, through one pure function (`scaledTypeMetrics`). `DesignSystemProvider` reads the scale once and
+passes it down through `TextScaleContext`. Text takes it through a `styled.dynamic` carrier and one `.resolve`, the
+only resolver the style guards admit. The growth is linear, the same on both platforms, so nothing double-corrects
+when React Native ships its fix.
+
+Each role grows to its own ceiling (designer ruling 2026-11-01). `largeTitle`, `barTitle` and `sectionTitle` stop at
+1.5× (`DISPLAY_FONT_SCALE_CAP`), because a 2× title pushes content off a phone and both platforms grow large styles
+less. Every other role grows to 2×. Navigation chrome, the tab bar and the segmented control that switches views, caps
+its labels at 1.5×, and never below 1.3×. A label never breaks inside a word, and a fit test proves it per locale.
+A test of `scaledTypeMetrics` covers every role at every scale; a device covers what is drawn.
+
+Until a shared control is ported, its React Native text carries the 2× cap as a prop: the button's label, the field
+label and hint, the live region, and the input adapter, which is the one place the app renders React Native's input.
+On Android that caps their size but not their leading, so each moves onto the design-system `Text`. A
 box sized around capped text reads `cappedFontScale`, so it stops growing where its text does. The text-scale ratchet
 (§4) holds the count of uncapped native text, so it only falls.
 

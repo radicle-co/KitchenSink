@@ -11,7 +11,7 @@ import { createElement, type ReactElement } from 'react';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
 import { nativeTokens } from '@commise/ui/native';
-import { render as renderUnscoped, resolvedStyle } from '@commise/ui/testing/tamagui';
+import { render as renderInDesignSystem, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { idleUnreachableRetry, makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
@@ -47,7 +47,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
-const render = (ui: ReactElement) => renderUnscoped(ui, { wrapper: CookMarksTestProvider });
+const render = (ui: ReactElement) => renderInDesignSystem(ui, { wrapper: CookMarksTestProvider });
 
 beforeEach(() => {
     device.width = 390;
@@ -190,7 +190,7 @@ describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () 
 
     /** The classes a reference frame renders with, so a page element can be compared with it. */
     const classesOf = (frame: ReactElement): string => {
-        const { container, unmount } = renderUnscoped(frame);
+        const { container, unmount } = renderInDesignSystem(frame);
         const classes = (container.querySelector('[name]') as HTMLElement).className;
         unmount();
 

@@ -10,9 +10,10 @@ appId: ${APP_ID}
 #   Android: adb -s <serial> shell cmd uimode night yes
 #   iOS:     xcrun simctl ui <udid> appearance dark
 #
-# What to look for: on the recipe list, every card's status badge is a filled pill with dark paper and a lighter
-# `lineDivider` edge for Draft, Private and Public, the PRO badge is the grey pair, and no badge shows a light fill on
-# the dark page. Then the detail of a draft shows the same neutral badge beside its rating line.
+# What to look for: the Draft badge on the new draft's card and on its detail is a filled pill, dark paper with a
+# lighter `lineDivider` edge, its pencil glyph in the same muted ink as its word, and no light fill on the dark page.
+# The seeded recipes carry no badge (the list shows their visibility as an icon), so the flow makes a draft, captures
+# it, and discards it through the editor, leaving nothing behind.
 - runFlow: ../auth/signinHome.yaml
 - tapOn: 'Recipes'
 - extendedWaitUntil:
@@ -20,14 +21,45 @@ appId: ${APP_ID}
       timeout: 20000
 - takeScreenshot: statusBadgeDark_recipeList
 
-# The list in its row view carries the most badges per screen.
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_SALAD}'
-      direction: DOWN
-      timeout: 20000
-- takeScreenshot: statusBadgeDark_recipeListScrolled
-- tapOn: '${E2E_RECIPE_SALAD}'
+# A draft: the editor saves on exit, so typing a title and closing keeps it.
+- tapOn: 'New recipe'
 - extendedWaitUntil:
-      visible: '${E2E_RECIPE_SALAD}'
+      visible: 'Close editor'
       timeout: 20000
-- takeScreenshot: statusBadgeDark_detail
+- runFlow:
+      file: ../recipes/common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Badge Draft'
+- extendedWaitUntil:
+      visible: 'Saved'
+      timeout: 30000
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+# The new draft can sit below the seeded cards, where iOS still reports it visible and a tap misses it. A search
+# narrows the list to the draft alone, at the top.
+- tapOn: 'Search your recipes'
+- inputText: 'Maestro Badge'
+- extendedWaitUntil:
+      visible:
+          text: '^1 recipe$'
+      timeout: 20000
+- takeScreenshot: statusBadgeDark_draftCard
+
+# The draft's detail, where the badge sits on the rating line.
+- tapOn: 'Maestro Badge Draft.*'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- takeScreenshot: statusBadgeDark_draftDetail
+
+# Clean up: discard the draft through the editor's own menu.
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 20000
+- runFlow: ../recipes/common/discardDraft.yaml

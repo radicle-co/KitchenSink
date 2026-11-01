@@ -20,6 +20,10 @@ Each answer is the design ruling a port builds to. Newest first.
   below the scroll view and owns the bottom safe area. So the page end is the same 48 pt (`$7`) as the web, on recipe
   detail and on `CollectionDetailScreen`. A screen whose content a floating control covers (for example the "New
   recipe" button) instead ends with that control's height, its margin and 16 pt, computed, not a fixed number.
+- **Room under the floating "new" button on the web:** 88 px, like native (button 56, its margin 16, then 16).
+  The web's 104 (`+6.5rem` in `HomeChrome` and the `globals.css` scroll padding) is a drift; their own comments say 88. Compute it once from the shared constants as a generated theme variable, and use it in all three places
+  (`HomeChrome`, the scroll padding and `BackToTop`). If the button sits above the bottom safe area, add
+  `env(safe-area-inset-bottom)` to the same variable, not a larger fixed number.
 - **Content width** in the stacking rule means the page column: the window less the page gutter.
 
 ## 2026-11-01: Home and Profile text, and two off-scale steps (asked by kitchensink-87)

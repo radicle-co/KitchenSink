@@ -146,6 +146,10 @@ results still look like our app. We should continue to use the @commise/ui packa
   Adapter, and neither Tamagui nor React Navigation answers Back first. `staff-architect` blueprints that Adapter
   before the first Sheet or Dialog port, and the port keeps ADR-0056's device check, because jsdom cannot see
   back-handler order.
+- Every sheet, dialog and popover is built from Tamagui's parts for everything the user sees (frame, handle, overlay,
+  content and the rest), and React Native's `Modal` stays its host (owner ruling, 2026-10-31). Tamagui renders these
+  in a Portal, which gives none of what the `Modal` gives today: Back reaching the overlay first, a screen reader kept
+  inside it, and the dismiss order. G1 is taught the parts each port uses, never the Portal hosting.
 
 ### 8. Text grows with the system's text size, up to 2×
 
@@ -208,6 +212,8 @@ Each slice adds a dark-mode Maestro capture flow once it renders a theme key, an
 - **Run Tamagui's native build in component tests.** It cannot load under react-native-web.
 - **Restyle our own sheet, dialog and popover instead of adopting Tamagui's.** It was the first plan, for ADR-0056's
   back-handler order. The owner ruled for Tamagui's components behind `@commise/ui` (§7), and an Adapter keeps the order.
+- **Host the overlays in Tamagui's Portal.** We would rebuild Back order, the screen-reader trap and the dismiss order,
+  and own them on both platforms. The owner kept React Native's `Modal` as the host (§7).
 - **A gated design gallery with pixel baselines.** The owner ruled for designer review instead (§6).
 - **Raise a test timeout when a test is slow under load.** Where the test loaded its code caused the cost. How long it
   ran did not.

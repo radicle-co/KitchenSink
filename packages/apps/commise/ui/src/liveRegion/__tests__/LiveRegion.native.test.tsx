@@ -257,6 +257,42 @@ describe('LiveRegion (native) — a region in a type role', () => {
         expect(node.getAttribute('aria-live')).toBe('polite');
     });
 
+    // Both forms must say "alert" the same way. The typed form renders through Tamagui's Text, whose web build maps
+    // `role` and not `accessibilityRole`, so a region that lost the role here would still read as assertive text and
+    // never as an alert (kitchensink-9b, 2026-11-01).
+    it('is an alert when assertive', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body">
+                Could not save.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(screen.getByRole('alert').textContent).toBe('Could not save.');
+    });
+
+    it('is no alert while an assertive region is empty', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body">
+                {''}
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('is no alert when polite', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="body">
+                Saved.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
     it('is ink when no tone is named', () => {
         renderWithTamagui(
             <LiveRegion politeness="assertive" typeRole="body">
@@ -309,6 +345,7 @@ describe('LiveRegion (native) — a region in a type role', () => {
         // Read from the constant's own keys, so a key added to it fails here until the variant carries it too.
         // `Object.keys` widens to `string[]`; these are the constant's own keys, every one a style property.
         const keys = Object.keys(VISUALLY_HIDDEN_GEOMETRY) as (keyof typeof VISUALLY_HIDDEN_GEOMETRY)[];
+
         const expected = (key: (typeof keys)[number]): string => {
             const value = VISUALLY_HIDDEN_GEOMETRY[key];
 

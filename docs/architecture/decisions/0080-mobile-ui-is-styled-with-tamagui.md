@@ -84,7 +84,9 @@ All guards live in `packages/tools/repoGuards`. Each new rule was written as a f
 
 The styling ratchet counts each `StyleSheet.create` entry, each other `StyleSheet` member, and each `style` or
 `…Style` attribute. It honours one exemption, `// NATIVE-STYLE-ADAPTER: <reason>`, and only in `ui/src`. The
-exemption is for an Adapter over a surface with no Tamagui path yet, and its uses are counted apart.
+exemption is for an Adapter over a platform value with no Tamagui path, such as `StyleSheet.hairlineWidth` behind the
+`$hairline` token or a third-party list's `contentContainerStyle`. It is never for layout, so the ledger stays small.
+Its uses are counted apart, and the marker needs a reason.
 
 A `styled()` config the walk cannot read is a finding, never a pass. Examples are a config that is not a literal
 object, a spread, and a function variant.
@@ -104,6 +106,11 @@ One rise is allowed: a recount. When a detector learns a new shape, each file wh
 current detector reads the file as it stood at the version that holds its lowest count. If that old source already
 holds the new count, the rise is a recount of existing code. A file absent there, or a rise beyond what its old source
 holds, is new styling, and the guard refuses it. No override is written, reviewed or expired.
+
+The exemption ledger takes one more kind of entry: a new design-system Adapter. A path may enter it only if it is in
+`ui/src` and no committed version of the baseline ever counted a use in it, so a marker cannot relabel styling that
+still owes a migration. From the version that first records it, its count only falls, and once it is gone it cannot
+come back. The counted-use map admits no new path.
 
 The first recording was proven once, by hand. Every file in the styling baseline existed at `5979abcd5` with at least
 its recorded count.

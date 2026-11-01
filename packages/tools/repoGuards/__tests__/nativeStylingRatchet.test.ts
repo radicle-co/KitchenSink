@@ -32,7 +32,7 @@ import { describe, expect, it } from 'vitest';
 import { parseModule } from './appSources.js';
 import { valueBindingsOf } from './moduleBindings.js';
 import { nativeSources } from './nativeSources.js';
-import { nativeStylingUses, type NativeStylingUses } from './nativeStyling.js';
+import { admitsAdapterExemption, nativeStylingUses, type NativeStylingUses } from './nativeStyling.js';
 import { over, raisedAgainst, baselineHistory, stale } from './ratchetBaseline.js';
 import { repoRoot } from './serviceSources.js';
 import { TAMAGUI_MODULE } from './tamaguiElements.js';
@@ -124,6 +124,8 @@ describe('React Native styling only falls (ADR-0080)', () => {
                 baseline.adapterExemptions,
                 (version) => version.adapterExemptions,
                 (file, source) => nativeStylingUses(source, file).exempt.length,
+                // A new design-system Adapter may enter, in a file never counted (`admitsAdapterExemption`).
+                admitsAdapterExemption(history.map((version) => version.baseline.files)),
             ],
         ]);
 

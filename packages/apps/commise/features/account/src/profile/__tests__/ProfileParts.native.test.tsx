@@ -539,10 +539,13 @@ describe('ProfileHeader (native) — type and colour', () => {
         expectTypeRole(screen.getByText('EM'), 'figureStat');
     });
 
-    it('sets the failed read in the sectionTitle role it has always used (the web says it in body)', () => {
+    // REWRITTEN for the designer ruling of 2026-11-01 (`nativeBoards/designAnswers.md`): the failed read is set in
+    // `body`, as the web says it. It used `sectionTitle`, which made an error line look like a heading. Body is 16 and
+    // sectionTitle 18, so the size alone tells the two apart.
+    it('sets the failed read in the body role, like the web, so an error does not look like a heading', () => {
         renderWithTamagui(<ProfileHeader read={{ status: 'failed' }} initials="" onRetry={noop} />, 'light');
 
-        expectTypeRole(screen.getByRole('alert'), 'sectionTitle');
+        expectTypeRole(screen.getByRole('alert'), 'body');
     });
 
     it.each(['light', 'dark'] as const)(

@@ -44,7 +44,6 @@
         "packages/apps/commise/features/recipes/src/detail/DetailRatingLine.native.tsx": 5,
         "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx": 4,
         "packages/apps/commise/features/recipes/src/detail/IngredientCheckRow.native.tsx": 14,
-        "packages/apps/commise/features/recipes/src/detail/NutritionFigure.native.tsx": 6,
         "packages/apps/commise/features/recipes/src/detail/PhotoCarousel.native.tsx": 20,
         "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.native.tsx": 16,
         "packages/apps/commise/features/recipes/src/detail/RecipeDetailSkeleton.native.tsx": 27,

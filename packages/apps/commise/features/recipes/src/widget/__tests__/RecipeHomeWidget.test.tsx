@@ -87,6 +87,20 @@ describe('RecipeHomeWidget (web) — recent recipes', () => {
         expect(heading.compareDocumentPosition(seeAll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
+    // Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, "See all" under its title): wrapped, the link's TEXT
+    // lines up with the title's start edge, and any side padding sits at the END. The padding is the same in both
+    // layouts: beside the title the row's justify-between pins the link's box to the end, so its text does not move.
+    // The END (`pe-3`), not "the right", so it mirrors in a right-to-left layout. ⚠️ jsdom lays nothing out: these
+    // pin the classes; that the wrapped text meets the title's edge shows only in a browser.
+    it('pads "See all" at its end only, so its text starts where the title does when it wraps', async () => {
+        await renderWidget({ seeAll: { href: '/en/recipes', onPress: vi.fn() } });
+
+        const classes = screen.getByRole('link', { name: 'See all recipes' }).className.split(/\s+/u);
+
+        expect(classes).toContain('pe-3');
+        expect(classes.filter((utility) => /^(?:px|ps|pl)-/u.test(utility))).toStrictEqual([]);
+    });
+
     it('renders "See all" as a focusable button, never an href-less link, when the host gives no href', async () => {
         const onPress = vi.fn();
         await renderWidget({ seeAll: { onPress } });

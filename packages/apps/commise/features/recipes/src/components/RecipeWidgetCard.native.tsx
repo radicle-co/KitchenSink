@@ -51,6 +51,9 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[3],
     },
     title: { ...nativeTokens.type.sectionTitle, flexShrink: 1 },
-    seeAll: { minHeight: 48, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[3] },
+    // Padding at the END only (designer ruling 2026-11-01): wrapped under the title, the link's text starts at the
+    // title's edge; beside it, `space-between` pins the box to the end, so the text does not move. `paddingEnd` mirrors
+    // in a right-to-left layout.
+    seeAll: { minHeight: 48, justifyContent: 'center', paddingEnd: nativeTokens.spacing[3] },
     seeAllLabel: { ...nativeTokens.type.label },
 });

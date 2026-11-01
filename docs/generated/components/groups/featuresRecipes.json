@@ -24137,7 +24137,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLoadError.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — native recipe-list LOAD-ERROR fallback (presentational): what the list's error\nboundary renders when the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.\n\nIt draws no create button: the frame does, outside the read boundary, so it shows here without this body (see\n`shouldShowCreateButton`).",
+                    "moduleDoc": "@commise/features-recipes — native recipe-list LOAD-ERROR fallback (presentational): what the list's error\nboundary renders when the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.\n\nIt draws no create button: the frame does, outside the read boundary, so it shows here without this body (see\n`shouldShowCreateButton`). So the alert scrolls and ends with that button's room (`FAB_RESERVED_BOTTOM_PX`), as the\nlist's cards and empty states do. The message is the design-system `Text` in the `body` role, so it grows to the 2x\ntext cap.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -24464,7 +24464,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListResults.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/list",
-                    "moduleDoc": "@commise/features-recipes — the native My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3), the\ntwin of the web leaf: the facet chips with their counts and the result bar (count, sort sheet, list/grid switch),\nthe refresh notice, then the body the host's `LibraryState` names — the first run, a no-match, or the cards in the\ndecided variant in a virtualised list — then \"Load more\" past 500 recipes. The floating create button is the FRAME's\n(outside the read boundary, so it also shows offline).\n\nWhile the frame is collapsed (a short screen with the keyboard open) the chips step aside so the field\nand the first results stay in view. Pure `props → JSX`: the host reads, narrows and decides.",
+                    "moduleDoc": "@commise/features-recipes — the native My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3), the\ntwin of the web leaf: the facet chips with their counts and the result bar (count, sort sheet, list/grid switch),\nthe refresh notice, then the body the host's `LibraryState` names — the first run, a no-match, or the cards in the\ndecided variant — in ONE virtualised list whose foot clears the floating create button in every state, then \"Load\nmore\" past 500 recipes. The floating create button is the FRAME's\n(outside the read boundary, so it also shows offline).\n\nWhile the frame is collapsed (a short screen with the keyboard open) the chips step aside so the field\nand the first results stay in view. Pure `props → JSX`: the host reads, narrows and decides.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -11,6 +11,7 @@ import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { role, roleDark } from '@commise/ui/colors';
+import { nativeTokens } from '@commise/ui/native';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
@@ -108,6 +109,22 @@ describe('RecipeHomeWidget (native) — recent recipes', () => {
         expect(style.flexDirection).toBe('row');
         expect(style.flexWrap).toBe('wrap');
         expect(heading.compareDocumentPosition(seeAll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, "See all" under its title): wrapped, the link's TEXT
+    // lines up with the title's start edge, its target stays at least 48 tall, and any side padding sits at the END.
+    // The padding is the same in both layouts: beside the title the row's space-between pins the link's box to the end,
+    // so its text does not move. The END, not "the right", so it mirrors in a right-to-left layout (as ProfileFactRow).
+    // ⚠️ These read the padding values only; that the wrapped text meets the title's edge shows only on a device.
+    it('pads "See all" at its end only, so its text starts where the title does when it wraps, 48 tall', () => {
+        widget({ seeAll: { onPress: vi.fn() } });
+
+        const style = getComputedStyle(screen.getByRole('link', { name: 'See all recipes' }));
+
+        // react-native-web emits `paddingEnd` as a logical class, which jsdom resolves left-to-right.
+        expect(style.paddingLeft).toBe('0px');
+        expect(style.paddingRight).toBe(`${String(nativeTokens.spacing[3])}px`);
+        expect(style.minHeight).toBe('48px');
     });
 
     it('calls renderNutrition once per card with its own id', () => {

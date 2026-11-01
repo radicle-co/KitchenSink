@@ -36,5 +36,5 @@ export const INGREDIENTS_COLUMN =
     'flex flex-col gap-3 @min-[45rem]/detail:sticky @min-[45rem]/detail:top-20 @min-[45rem]/detail:col-span-5 ' +
     '@min-[45rem]/detail:max-h-[calc(100dvh-6rem)] @min-[45rem]/detail:self-start @min-[45rem]/detail:overflow-y-auto';
 
-/** The steps, nutrition, rating and footer facts: 7/12 from a 720 px body. */
-export const STEPS_COLUMN = 'flex min-w-0 flex-col gap-10 @min-[45rem]/detail:col-span-7';
+/** The steps, nutrition, rating and footer facts, 32 px apart (the section gap): 7/12 from a 720 px body. */
+export const STEPS_COLUMN = 'flex min-w-0 flex-col gap-8 @min-[45rem]/detail:col-span-7';

@@ -175,6 +175,26 @@ describe('RecipeDetailView (web) — header', () => {
         expect(strip.className).not.toContain('22.5rem');
     });
 
+    // The section gap is 32 on web and native, in one column and two (designer ruling, `nativeBoards/designAnswers.md`):
+    // the steps column stacks the steps, the nutrition and the closing blocks with `gap-8`, which is 32 px.
+    it('stacks the steps column’s sections 32 apart', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        const { instructionsHeading, nutritionHeading } = recipeMessages.en.detail;
+        const stepsSection = screen.getByRole('heading', { level: 2, name: instructionsHeading }).closest('section');
+        const stepsColumn = (stepsSection as HTMLElement).parentElement as HTMLElement;
+
+        expect(stepsColumn.contains(screen.getByRole('heading', { level: 2, name: nutritionHeading }))).toBe(true);
+        expect(stepsColumn.className.split(' ')).toContain('gap-8');
+        expect(stepsColumn.className.split(' ')).not.toContain('gap-10');
+    });
+
     // F9: the page draws each group of lines under a label, as the editor does.
     it('draws each ingredient group under its label heading, in stored order', () => {
         render(

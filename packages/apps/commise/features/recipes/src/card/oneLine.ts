@@ -36,7 +36,7 @@ export function metaLineHeightOf(fontScale: number): number {
  * The height of a row that holds a badge (difficulty, status) beside `meta` text (the rating, "No ratings yet"). The
  * badge's box is the design system's (`@commise/ui/badge-box`). The status badge's word stops growing at the 2× cap,
  * but the difficulty badge's word is not on the capped `Text` yet and grows with the system scale, so it sets the row.
- * When it ports, its term becomes `badgeHeightOf(cappedFontScale(fontScale))`.
+ * When it ports, its term becomes `badgeHeightOf(Math.min(fontScale, FONT_SCALE_CAP))`.
  *
  * @param fontScale - The OS font scale.
  * @returns The height, in points: the taller of the badge and the meta text.

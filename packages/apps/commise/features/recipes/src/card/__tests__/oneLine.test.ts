@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { badgeHeightOf } from '@commise/ui/badge-box';
-import { cappedFontScale } from '@commise/ui/font-scale-cap';
 
 import { badgeLineHeightOf, metaLineHeightOf } from '../oneLine.js';
 
@@ -22,19 +21,16 @@ describe('metaLineHeightOf', () => {
 describe('badgeLineHeightOf', () => {
     // REWRITTEN (designer review M-2): the row read its own copy of the badge's floor and padding and left out a neutral
     // badge's edges, so it was 2 pt short of the badge. It now reads the design system's badge box, so it is never
-    // shorter than either badge it can hold: the status badge at the capped scale, the difficulty badge at the system
-    // scale (its word is not on the capped Text yet).
+    // shorter than a badge it can hold. The difficulty badge's word is not on the capped Text yet, so it is held at the
+    // system scale, which also holds the capped status badge (a badge's height never falls as the scale grows).
     it.each([1, 1.3, 2, 2.5, 3.1])('at scale %s holds both badges and the meta text', (scale) => {
-        expect(badgeLineHeightOf(scale)).toBeGreaterThanOrEqual(badgeHeightOf(cappedFontScale(scale)));
         expect(badgeLineHeightOf(scale)).toBeGreaterThanOrEqual(badgeHeightOf(scale));
         expect(badgeLineHeightOf(scale)).toBeGreaterThanOrEqual(metaLineHeightOf(scale));
     });
 
     it('is exactly the tallest of them, so no space is left above the row', () => {
         for (const scale of [1, 1.3, 2, 2.5, 3.1]) {
-            expect(badgeLineHeightOf(scale)).toBe(
-                Math.max(badgeHeightOf(cappedFontScale(scale)), badgeHeightOf(scale), metaLineHeightOf(scale)),
-            );
+            expect(badgeLineHeightOf(scale)).toBe(Math.max(badgeHeightOf(scale), metaLineHeightOf(scale)));
         }
     });
 

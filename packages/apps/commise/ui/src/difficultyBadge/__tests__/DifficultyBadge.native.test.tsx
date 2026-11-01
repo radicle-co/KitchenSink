@@ -35,7 +35,12 @@ describe('DifficultyBadge (native)', () => {
     // over a 2 pt padding drew 26 pt where a row let it grow (designer review M-1).
     it('draws exactly the shared badge height', () => {
         render(<DifficultyBadge level="easy">Word</DifficultyBadge>);
-        const badge = screen.getByText('Word').parentElement as HTMLElement;
+        const badge = screen.getByText('Word').parentElement;
+
+        if (!(badge instanceof HTMLElement)) {
+            throw new Error('no badge around the word');
+        }
+
         const style = getComputedStyle(badge);
         const px = (value: string): number => Number.parseFloat(value) || 0;
         const contents =

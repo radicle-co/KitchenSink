@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { nativeTokens } from '../../tokens/native.js';
 import { BADGE_BOX, badgeHeightOf } from '../badgeBox.js';
-import { cappedFontScale, FONT_SCALE_CAP } from '../../text/fontScaleCap.js';
+import { FONT_SCALE_CAP } from '../../text/fontScaleCap.js';
 
 describe('BADGE_BOX', () => {
     it('fits a caption line, its padding and its edges exactly in the 24 pt floor, so every tone draws 24 pt', () => {
@@ -29,10 +29,9 @@ describe('badgeHeightOf', () => {
     });
 });
 
-describe('cappedFontScale', () => {
-    it('is the system scale up to the 2× cap (owner ruling, ADR-0080 §8)', () => {
+describe('FONT_SCALE_CAP', () => {
+    it('is 2× (owner ruling, ADR-0080 §8), which caps a capped badge at its 2× height', () => {
         expect(FONT_SCALE_CAP).toBe(2);
-        expect(cappedFontScale(1.5)).toBe(1.5);
-        expect(cappedFontScale(3.1)).toBe(2);
+        expect(badgeHeightOf(FONT_SCALE_CAP)).toBe(44);
     });
 });

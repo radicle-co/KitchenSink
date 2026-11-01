@@ -105,7 +105,6 @@
         "./tamagui-config": "./src/tamagui/tamaguiConfig.native.ts",
         "./tamagui-provider": "./src/tamagui/DesignSystemProvider.native.tsx",
         "./text": "./src/text/Text.native.tsx",
-        "./font-scale-cap": "./src/text/fontScaleCap.ts",
         "./badge-box": "./src/badgeBox/badgeBox.ts",
         "./avatar": "./src/avatar/index.ts",
         "./avatar-props": "./src/avatar/props.ts",

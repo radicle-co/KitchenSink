@@ -12,7 +12,7 @@ export const BADGE_BOX = { minHeight: 24, paddingVertical: 1, borderWidth: 1 } a
 
 /**
  * A badge's drawn height at a font scale. A caller passes the scale its word is drawn at: the capped scale for text on
- * the design system's `Text` (`cappedFontScale`), the system scale for text not yet on it. Pure.
+ * the design system's `Text` (at most `FONT_SCALE_CAP`), the system scale for text not yet on it. Pure.
  *
  * @param fontScale - The scale the badge's caption is drawn at.
  * @returns The height, in points, rounded up so the word is never clipped.

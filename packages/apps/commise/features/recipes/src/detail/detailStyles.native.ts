@@ -72,5 +72,4 @@ export const detailStyles = StyleSheet.create({
     },
     linkTouch: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
     link: { textDecorationLine: 'underline' },
-    footer: { alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
 });

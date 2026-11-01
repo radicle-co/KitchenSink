@@ -9,10 +9,9 @@
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
-import { View } from 'react-native';
+import { YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
-import { detailStyles as styles } from './detailStyles.native.js';
 import type { RecipeDetailBodyNativeProps } from './model.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
 
@@ -28,7 +27,7 @@ export const DetailFooter: FC<DetailFooterProps> = ({ recipe, onViewVersions }) 
     const { detail } = useMessages(recipeMessages);
 
     return (
-        <View style={styles.footer}>
+        <YStack alignItems="flex-start" gap="$1">
             <RecipeSourceLine
                 {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
                 {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}
@@ -38,6 +37,6 @@ export const DetailFooter: FC<DetailFooterProps> = ({ recipe, onViewVersions }) 
                     {detail.versionHistory}
                 </Button>
             )}
-        </View>
+        </YStack>
     );
 };

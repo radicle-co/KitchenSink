@@ -8,22 +8,26 @@
  * `nativeBoards/designAnswers.md`). React Native's `textAlign: 'right'` is that end: React Native 0.86 swaps 'right' and
  * 'left' when the text's layout direction is right to left (iOS `RCTAttributedTextUtils.mm`, Android
  * `TextLayoutManager.getTextAlignment`), and the row's own direction flips with the layout, so in a right-to-left
- * language the value sits on the left. At large text (`factRowStacksAt`) the value stacks under its label, at the start
- * of the line: 'left' is the start by the same swap.
+ * language the value sits on the left. When the row has too little room for the text size (`labelValueStacksAt`) the
+ * value stacks under its label, at the start of the line: 'left' is the start by the same swap.
  *
- * Presentational: props → JSX. It reads the window's font scale, as the design system's `Text` does.
+ * Presentational: props → JSX. It reads the room from the window, as the house's other native layouts do: the content
+ * width (`contentWidthOf`) and the font scale the text is drawn at (`cappedFontScale`).
  */
+import { contentWidthOf } from '@commise/ui/container-class';
+import { cappedFontScale } from '@commise/ui/font-scale-cap';
 import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { View } from 'tamagui';
 
-import { factRowStacksAt } from './model.js';
+import { labelValueStacksAt } from './model.js';
 import type { ProfileFactRowProps } from './props.js';
 
 /** The read-only row. */
 export const ProfileFactRow: FC<ProfileFactRowProps> = ({ label, value }) => {
-    const stacked = factRowStacksAt(useWindowDimensions().fontScale);
+    const { width, fontScale } = useWindowDimensions();
+    const stacked = labelValueStacksAt(contentWidthOf(width), cappedFontScale(fontScale));
 
     return (
         <View

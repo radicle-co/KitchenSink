@@ -5,7 +5,7 @@
  * lived in the ProfileHeader suite until the email moved into this row.
  *
  * The value sits at the END of the line, and at large text it stacks under its label (designer ruling 2026-11-01,
- * `nativeBoards/designAnswers.md`). The layout is read at the font scale the window reports, which is mocked.
+ * `nativeBoards/designAnswers.md`). The window's width and font scale are mocked, so each case names the room it is in.
  *
  * REWRITTEN for the row's move to a Tamagui `View` (ADR-0080). The "one accessibility element" case used to wrap React
  * Native's `View`; the row is no longer one, and Tamagui's web build, which this lane runs, drops `accessible`. So
@@ -29,14 +29,14 @@ import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 
-const env = vi.hoisted(() => ({ fontScale: 1 }));
+const env = vi.hoisted(() => ({ width: 390, fontScale: 1 }));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
-        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), fontScale: env.fontScale }),
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: env.width, fontScale: env.fontScale }),
     };
 });
 
@@ -56,6 +56,7 @@ vi.mock('tamagui', async (importOriginal) => {
 import { ProfileFactRow } from '../ProfileFactRow.native.js';
 
 beforeEach(() => {
+    env.width = 390;
     env.fontScale = 1;
 });
 
@@ -135,16 +136,22 @@ describe('ProfileFactRow (native) — type and colour', () => {
     );
 });
 
-// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, `reviews/androidShots1.md`): the value sits at the END of
-// the line beside its label, and at large text it stacks under its label at the start. The row stacks above a capped
-// font scale of 1.3 (`FACT_ROW_STACK_ABOVE`).
+// Designer rulings 2026-11-01 (`nativeBoards/designAnswers.md`, `reviews/androidShots1.md`): the value sits at the END
+// of the line beside its label, and the row stacks by ROOM: when the content width over the capped font scale is below
+// 280. REWRITTEN from the first ruling's scale-only rule (stack above 1.3x), which stacked a wide tablet that had room.
+// A 390 pt phone's content is 358 pt wide (16 pt gutters), so it stacks a little above 1.25x; a 1024 pt tablet's is 960.
 describe('ProfileFactRow (native) — layout at each text size', () => {
     /** The row: the element that holds both texts. */
     function rowOf(): Element {
         return screen.getByText('Email').parentElement as Element;
     }
 
-    it.each([1, 1.3])('sets the value beside its label, at the end of the line, at font scale %s', (fontScale) => {
+    it.each([
+        [390, 1],
+        [390, 1.25],
+        [1024, 3.1],
+    ])('sets the value beside its label, at the end of the line, in a %s pt window at %sx', (width, fontScale) => {
+        env.width = width;
         env.fontScale = fontScale;
         renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
 
@@ -154,7 +161,12 @@ describe('ProfileFactRow (native) — layout at each text size', () => {
         expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('right');
     });
 
-    it.each([1.31, 2, 3.1])('stacks the value under its label, at the start, at font scale %s', (fontScale) => {
+    it.each([
+        [390, 1.3],
+        [390, 2],
+        [320, 1.1],
+    ])('stacks the value under its label, at the start, in a %s pt window at %sx', (width, fontScale) => {
+        env.width = width;
         env.fontScale = fontScale;
         renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
 

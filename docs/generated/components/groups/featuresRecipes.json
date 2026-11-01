@@ -6431,7 +6431,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailEmptySection.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — an empty section of the native recipe page (build spec §6.7): the mirror of\n`DetailEmptySection.tsx`. Its line, and for the owner the ghost action that opens the editor at that section.\nPresentational; colours from the theme at render.",
+                    "moduleDoc": "@commise/features-recipes — an empty section of the native recipe page (build spec §6.7): the mirror of\n`DetailEmptySection.tsx`. Its line, and for the owner the ghost action that opens the editor at that section.\nPresentational; colours are theme keys, so the section follows the scheme with no hook.",
                     "moduleTags": [
                         {
                             "name": "module",

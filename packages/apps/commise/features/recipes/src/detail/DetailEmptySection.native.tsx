@@ -1,13 +1,12 @@
 /**
  * @module @commise/features-recipes — an empty section of the native recipe page (build spec §6.7): the mirror of
  * `DetailEmptySection.tsx`. Its line, and for the owner the ghost action that opens the editor at that section.
- * Presentational; colours from the theme at render.
+ * Presentational; colours are theme keys, so the section follows the scheme with no hook.
  */
 import { Button } from '@commise/ui/button';
-import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { YStack } from 'tamagui';
 
 /** Props for {@link DetailEmptySection}. */
 export interface DetailEmptySectionProps {
@@ -20,22 +19,15 @@ export interface DetailEmptySectionProps {
 }
 
 /** The native empty section. */
-export const DetailEmptySection: FC<DetailEmptySectionProps> = ({ text, actionLabel, onAction }) => {
-    const { colors } = useTheme();
-
-    return (
-        <View style={styles.empty}>
-            <Text style={[styles.text, { color: colors.inkMuted }]}>{text}</Text>
-            {onAction !== undefined && (
-                <Button variant="ghost" size="sm" icon="plus" onPress={onAction}>
-                    {actionLabel}
-                </Button>
-            )}
-        </View>
-    );
-};
-
-const styles = StyleSheet.create({
-    empty: { alignItems: 'flex-start', gap: nativeTokens.spacing[2], paddingVertical: nativeTokens.spacing[2] },
-    text: { ...nativeTokens.type.body },
-});
+export const DetailEmptySection: FC<DetailEmptySectionProps> = ({ text, actionLabel, onAction }) => (
+    <YStack alignItems="flex-start" gap="$2" paddingVertical="$2">
+        <Text typeRole="body" color="$inkMuted">
+            {text}
+        </Text>
+        {onAction !== undefined && (
+            <Button variant="ghost" size="sm" icon="plus" onPress={onAction}>
+                {actionLabel}
+            </Button>
+        )}
+    </YStack>
+);

@@ -14,7 +14,11 @@
  */
 import { sideInsetOf } from '@commise/test-utils';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+// Its leaves draw through the design system's Tamagui `Text` (ADR-0080), so the tree renders in its provider.
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
+import { nativeTokens } from '@commise/ui/native';
+import { rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authBlockMessages } from '@commise/features-account';
@@ -523,8 +527,12 @@ describe('ProfileScreen — sign out (ADR-0009, B17)', () => {
     });
 });
 
-/** The colour a node resolves to, as culori formats it (`rgb(r, g, b)`). */
-const colourOf = (node: HTMLElement): string => window.getComputedStyle(node).color;
+/**
+ * The colour a node resolves to, as culori formats it (`rgb(r, g, b)`). REWRITTEN for ADR-0080: the page's text is the
+ * design system's Tamagui `Text`, which paints through a theme variable jsdom cannot resolve, so the colour is read
+ * through the resolver that follows it (an inline style is read first, as before).
+ */
+const colourOf = (node: HTMLElement): string => resolvedColour(node, 'color');
 
 /** The first painted background at or above a node: the surface the node actually sits on. */
 function backgroundBehind(node: HTMLElement): string {
@@ -571,5 +579,37 @@ describe.each([
         const alert = await screen.findByText(t.signOutFailed);
 
         expect(colourOf(alert)).toBe(rgb(roles.dangerText));
+    });
+});
+
+/**
+ * ADR-0080: the photo failure draws through the design system's `Text`, in the `caption` role and `dangerText`, so it
+ * follows the device's dark scheme and the 2x text cap. It has no web twin (the photo control is native-only).
+ * `renderWithTamagui` sets the Tamagui theme's scheme alone, so a text still painted from `useTheme()` reads light.
+ */
+describe('ProfileScreen — the photo failure’s type and colour', () => {
+    const renderFailedPhoto = (scheme: 'light' | 'dark'): HTMLElement => {
+        setMutation({ isError: true });
+        renderWithTamagui(
+            <SnackbarHost>
+                <ProfileScreen onBack={vi.fn()} onOpenDataSources={vi.fn()} />
+            </SnackbarHost>,
+            scheme,
+        );
+
+        return screen.getByText(profileMessages.en.avatarUploadError);
+    };
+
+    it('sets the failure in the caption role', () => {
+        const spec = nativeTokens.type.caption;
+        const style = getComputedStyle(renderFailedPhoto('light'));
+
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints the failure in dangerText in the %s scheme', (scheme) => {
+        expect(resolvedColour(renderFailedPhoto(scheme), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
     });
 });

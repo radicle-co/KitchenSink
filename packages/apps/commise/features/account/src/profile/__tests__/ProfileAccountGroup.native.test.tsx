@@ -2,7 +2,9 @@
  * The shared "Account" group, rendered through the NATIVE leaves (the native config resolves `./ProfileRow.js` to the
  * `.native.tsx` file): the display-name row, its value rule, and the platform's extra rows after it. Mobile passes none.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+// Its leaves draw through the design system's Tamagui `Text` (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

@@ -5,17 +5,19 @@
  * app-level native control; the host passes it as `avatar` and it replaces the initials disc, so there is one avatar.
  *
  * Three states, never a blocked page: loading is a skeleton, ready is the avatar and the name, failed shows the `user`
- * glyph and says so with a Try again control. Colour comes from the theme at render.
+ * glyph and says so with a Try again control. The text is the design system's capped `Text` in theme colour keys
+ * (ADR-0080); the discs' and the skeleton's fills come from the theme at render.
  *
  * @pattern Visitor — an exhaustive switch over the profile read's three states
  */
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { profileMessages } from './messages.js';
 import { profileHeaderTitleOf } from './model.js';
@@ -41,7 +43,7 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                         <Icon name="user" size={24} tone="inkMuted" />
                     </View>
                     <View style={styles.text}>
-                        <Text role="alert" style={[styles.name, { color: colors.ink }]}>
+                        <Text role="alert" typeRole="sectionTitle" color="$ink">
                             {t.loadError}
                         </Text>
                         <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
@@ -67,12 +69,18 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                             {initials === '' ? (
                                 <Icon name="user" size={24} tone="inkMuted" />
                             ) : (
-                                <Text style={[styles.initials, { color: colors.onAction }]}>{initials}</Text>
+                                <Text typeRole="figureStat" color="$onAction">
+                                    {initials}
+                                </Text>
                             )}
                         </View>
                     )}
                     <View style={styles.text}>
-                        {title === '' ? null : <Text style={[styles.name, { color: colors.ink }]}>{title}</Text>}
+                        {title === '' ? null : (
+                            <Text typeRole="sectionTitle" color="$ink">
+                                {title}
+                            </Text>
+                        )}
                     </View>
                 </View>
             );
@@ -89,8 +97,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    initials: { ...nativeTokens.type.figureStat },
     text: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[1], alignItems: 'flex-start' },
     line: { height: 16, borderRadius: nativeTokens.radius.sm },
-    name: { ...nativeTokens.type.sectionTitle },
 });

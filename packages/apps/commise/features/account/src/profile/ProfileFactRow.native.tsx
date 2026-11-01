@@ -6,24 +6,24 @@
  *
  * Presentational: props → JSX.
  */
-import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
+import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { ProfileFactRowProps } from './props.js';
 
 /** The read-only row. */
-export const ProfileFactRow: FC<ProfileFactRowProps> = ({ label, value }) => {
-    const { colors } = useTheme();
-
-    return (
-        <View accessible style={styles.row}>
-            <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
-            <Text style={[styles.value, { color: colors.inkMuted }]}>{value}</Text>
-        </View>
-    );
-};
+export const ProfileFactRow: FC<ProfileFactRowProps> = ({ label, value }) => (
+    <View accessible style={styles.row}>
+        <Text typeRole="body" color="$ink">
+            {label}
+        </Text>
+        <Text typeRole="body" color="$inkMuted" flexShrink={1} textAlign="right">
+            {value}
+        </Text>
+    </View>
+);
 
 const styles = StyleSheet.create({
     row: {
@@ -35,6 +35,4 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
         paddingVertical: nativeTokens.spacing[2],
     },
-    label: { ...nativeTokens.type.body },
-    value: { ...nativeTokens.type.body, flexShrink: 1, textAlign: 'right' },
 });

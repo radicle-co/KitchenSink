@@ -18,7 +18,7 @@ import { radius, spacing } from '../../tokens/scale.js';
 import { proTone } from '../../tokens/tones.js';
 import { StatusBadge } from '../StatusBadge.native.js';
 import { BADGE_GLYPH, BADGE_STATUSES } from '../props.js';
-import { badgeHeightOf } from '../../badgeBox/badgeBox.js';
+import { BADGE_BOX, badgeHeightOf } from '../../badgeBox/badgeBox.js';
 
 afterEach(cleanup);
 
@@ -135,12 +135,6 @@ describe('StatusBadge (native)', () => {
         },
     );
 
-    it.each(['pro', 'attention'] as const)('%s draws no edge', (status) => {
-        renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
-
-        expect(resolvedStyle(badgeOf('Word'), 'borderTopWidth')).not.toBe('1px');
-    });
-
     it('measures a translucent tint as painted, not as its opaque colour', () => {
         renderWithTamagui(<StatusBadge status="attention">Needs review</StatusBadge>, 'light');
 
@@ -183,6 +177,18 @@ describe('StatusBadge (native)', () => {
             Number.parseFloat(getComputedStyle(screen.getByText('Word')).lineHeight);
 
         expect(Math.max(px('minHeight'), contents)).toBe(badgeHeightOf(1));
+    });
+
+    // Designer review of slice 1b, L-1: at 1× the floor hides a missing edge, but above about 1.1× the contents decide,
+    // so a tone without the shared edge drew 2 pt shorter than a neutral one (42 against 44 at 2×). Every tone carries
+    // the edge, PRO and attention in their own fill so it does not show.
+    it.each(['pro', 'attention'] as const)('%s carries the shared edge in its own fill colour', (status) => {
+        renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
+        const badge = badgeOf('Word');
+
+        expect(resolvedStyle(badge, 'borderTopWidth')).toBe(`${String(BADGE_BOX.borderWidth)}px`);
+        expect(resolvedStyle(badge, 'borderBottomWidth')).toBe(`${String(BADGE_BOX.borderWidth)}px`);
+        expect(resolvedColour(badge, 'borderTopColor')).toBe(resolvedColour(badge, 'backgroundColor'));
     });
 
     it('is 24pt tall with the sm radius, never a pill', () => {

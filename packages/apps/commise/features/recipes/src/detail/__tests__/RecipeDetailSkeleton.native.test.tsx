@@ -3,7 +3,9 @@
  * placeholder blocks that keep the page's geometry and stay out of the accessibility tree.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
 
 import { RecipeDetailSkeleton } from '../RecipeDetailSkeleton.native.js';
 
@@ -19,7 +21,7 @@ describe('RecipeDetailSkeleton (native)', () => {
 
     it('keeps every placeholder block out of the accessibility tree, and the caption in it', () => {
         const { container } = render(<RecipeDetailSkeleton label="Loading recipe…" />);
-        const hidden = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+        const hidden = container.querySelector(ARIA_HIDDEN_CONTENT) as HTMLElement;
 
         // Blocks are the leaf views: a view with a fill and no children.
         const blocks = Array.from(hidden.querySelectorAll('div')).filter((node) => node.childElementCount === 0);
@@ -30,7 +32,7 @@ describe('RecipeDetailSkeleton (native)', () => {
 
     it('draws the hero first, at 4:3', () => {
         const { container } = render(<RecipeDetailSkeleton label="Loading recipe…" />);
-        const hidden = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+        const hidden = container.querySelector(ARIA_HIDDEN_CONTENT) as HTMLElement;
         const hero = hidden.firstElementChild as HTMLElement;
 
         expect(Number.parseFloat(getComputedStyle(hero).aspectRatio)).toBeCloseTo(4 / 3, 2);

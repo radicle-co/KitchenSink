@@ -6,7 +6,9 @@
  * a middle dot between them.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render as renderUnscoped } from '@commise/ui/testing/tamagui';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { makeRecipeDetail, idleUnreachableRetry } from '../../__fixtures__/index.js';

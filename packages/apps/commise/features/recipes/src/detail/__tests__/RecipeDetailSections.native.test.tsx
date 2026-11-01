@@ -8,7 +8,9 @@
  * parent and the scroll spy reads it (`ui/src/scrollHost/props.ts`).
  */
 import { createElement, type ReactElement } from 'react';
-import { act, cleanup, fireEvent, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render as renderUnscoped } from '@commise/ui/testing/tamagui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { idleUnreachableRetry, makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';

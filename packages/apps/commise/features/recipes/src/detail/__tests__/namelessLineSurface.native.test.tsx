@@ -17,7 +17,9 @@
  *   and the recovery is announced; a partial recovery leaves the button, and focus stays on it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render as renderUnscoped } from '@commise/ui/testing/tamagui';
 import { AccessibilityInfo } from 'react-native';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import type { RecipeIngredientView } from '@kitchensink/recipe-core';

@@ -19,11 +19,12 @@ vi.mock('react-native', async (importOriginal) => {
     return { ...actual, Pressable: pressedPressable(actual, () => press.pressed) };
 });
 
+import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 import { themeFor } from '@commise/ui/theme';
 
 import { ResumeNotice } from '../ResumeNotice.native.js';
-import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();
@@ -76,5 +77,41 @@ describe.each(['light', 'dark'] as const)('ResumeNotice (native) in the %s theme
 
         expect(fill).toBe(rgb(theme.press.muted));
         expect(fill).not.toBe(rgb(theme.press.canvas));
+    });
+});
+
+/**
+ * Why Discard is unavailable is a typed live region (ADR-0080 §8): the design-system Text in the `meta` role, in
+ * `inkMuted`, so it grows with the system text size, size and leading together, to the 2× cap.
+ */
+describe('ResumeNotice (native): why Discard is unavailable', () => {
+    const REASON = 'You can’t discard while you’re offline.';
+    const notice = (
+        <ResumeNotice
+            body="You have changes from 10:42 that aren’t saved to your recipe."
+            saveLabel="Save changes"
+            discardLabel="Discard"
+            onSave={vi.fn()}
+            onDiscard={vi.fn()}
+            discardUnavailable={REASON}
+        />
+    );
+
+    it('says it politely, in the meta role, grown with the system text size to the 2× cap', () => {
+        const spec = nativeTokens.type.meta;
+        renderWithTamagui(notice, 'light', 3.1);
+        const reason = screen.getByText(REASON);
+        const style = getComputedStyle(reason);
+
+        expect(reason.getAttribute('aria-live')).toBe('polite');
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight * 2)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints it in inkMuted in the %s scheme', (scheme) => {
+        renderWithTamagui(notice, scheme);
+
+        expect(resolvedColour(screen.getByText(REASON), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
     });
 });

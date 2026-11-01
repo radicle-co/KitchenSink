@@ -100,7 +100,6 @@
         "packages/apps/commise/features/recipes/src/versions/VersionPreviewModal.native.tsx": 24,
         "packages/apps/commise/mobile/src/components/account/AvatarField.tsx": 1,
         "packages/apps/commise/mobile/src/components/AlertBanner.tsx": 2,
-        "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx": 1,
         "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx": 1,
         "packages/apps/commise/ui/src/actionMenu/ActionMenu.native.tsx": 2,
         "packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx": 1,

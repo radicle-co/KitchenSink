@@ -12,7 +12,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled, queryDialogTitled } from '@commise/test-utils';
 import { cleanup, screen, within } from '@testing-library/react';
-import { pressFrameOf, render as renderBare } from '@commise/ui/testing/tamagui';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { pressFrameOf, render as renderBare, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
@@ -928,5 +930,43 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
 
         rerender(leafElement({ paste: { ...PASTE, reading: [], onOpen } }));
         expect(screen.queryByRole('button', { name: editor.ingredients.pasteList })).toBeNull();
+    });
+});
+
+/**
+ * "Pick a food from the list." (§7.5.3), said when the keyboard's submit chooses nothing, is a typed live region
+ * (ADR-0080 §8): the design-system Text in the `caption` role, in `dangerText`, so it grows with the system text size,
+ * size and leading together, to the 2× cap. It is read in both schemes.
+ */
+describe('RecipeIngredientsFields (native) — the pick-a-food notice', () => {
+    const submitWithoutChoice = (scheme: 'light' | 'dark', textScale = 1): HTMLElement => {
+        renderWithTamagui(
+            <BackChain>
+                <StatefulLeaf initial={[RICE]} />
+            </BackChain>,
+            scheme,
+            textScale,
+        );
+        const field = screen.getByLabelText(editor.ingredients.addLabel);
+
+        type(field, 'Kale');
+        fireEvent.keyDown(field, { key: 'Enter' });
+
+        return screen.getByText(editor.ingredients.pickFood);
+    };
+
+    it('says it politely, in the caption role, grown with the system text size to the 2× cap', () => {
+        const spec = nativeTokens.type.caption;
+        const notice = submitWithoutChoice('light', 3.1);
+        const style = getComputedStyle(notice);
+
+        expect(notice.getAttribute('aria-live')).toBe('polite');
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight * 2)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints it in dangerText in the %s scheme', (scheme) => {
+        expect(resolvedColour(submitWithoutChoice(scheme), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
     });
 });

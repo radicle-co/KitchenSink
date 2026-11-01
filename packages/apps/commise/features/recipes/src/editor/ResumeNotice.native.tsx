@@ -38,7 +38,7 @@ export const ResumeNotice: FC<ResumeNoticeProps> = ({
                 </Button>
             </View>
             {discardUnavailable === undefined ? null : (
-                <LiveRegion politeness="polite" style={[styles.reason, { color: colors.inkMuted }]}>
+                <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                     {discardUnavailable}
                 </LiveRegion>
             )}
@@ -50,5 +50,4 @@ const styles = StyleSheet.create({
     card: { gap: nativeTokens.spacing[3], padding: nativeTokens.spacing[4], borderRadius: nativeTokens.radius.lg },
     body: { ...nativeTokens.type.meta },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
-    reason: { ...nativeTokens.type.meta },
 });

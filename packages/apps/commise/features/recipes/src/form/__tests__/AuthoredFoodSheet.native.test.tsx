@@ -13,13 +13,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
 import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
-import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import type { AuthoredFoodCreateState } from '../../hooks/authoredFoodCreate.model.js';
 import { recipeMessages } from '../../messages.js';
 import { AuthoredFoodSheet } from '../AuthoredFoodSheet.native.js';
 import { recipeFormMessages } from '../messages.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
 // React Native has no `aria-invalid`, and react-native-web drops `accessibilityHint`, so the fields are wrapped to
 // record what a screen reader is actually given (`recordedTextInput`).
@@ -233,5 +234,36 @@ describe.each(['light', 'dark'] as const)('AuthoredFoodSheet (native) — the %s
         renderSheet({ kind: 'duplicate', draft: DRAFT, existingFoodId: 'f', reusePending: false, reuseFailed: false });
 
         expect(style(screen.getByText('You already have a food named “saffron”.')).color).toBe(rgb(colours.ink));
+    });
+});
+
+/**
+ * The "Saving…" line is a typed live region (ADR-0080 §8): the design-system Text in the `meta` role, in `inkMuted`, so
+ * it grows with the system text size, size and leading together, to the 2× cap. It is read in both schemes.
+ */
+describe('AuthoredFoodSheet (native) — the saving line', () => {
+    const renderSubmitting = (scheme: 'light' | 'dark', textScale = 1) =>
+        renderWithTamagui(
+            <AuthoredFoodSheet state={{ kind: 'submitting', draft: DRAFT }} {...handlers()} />,
+            scheme,
+            textScale,
+        );
+
+    it('says it politely, in the meta role, grown with the system text size to the 2× cap', () => {
+        const spec = nativeTokens.type.meta;
+        renderSubmitting('light', 3.1);
+        const line = screen.getByText(copy.submitting);
+        const style = getComputedStyle(line);
+
+        expect(line.getAttribute('aria-live')).toBe('polite');
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight * 2)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints it in inkMuted in the %s scheme', (scheme) => {
+        renderSubmitting(scheme);
+
+        expect(resolvedColour(screen.getByText(copy.submitting), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
     });
 });

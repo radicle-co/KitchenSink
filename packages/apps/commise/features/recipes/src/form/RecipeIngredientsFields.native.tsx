@@ -84,7 +84,7 @@ const AddField: FC<{
                         {trailing.readingShown === undefined ? null : (
                             <Text style={caption}>{trailing.readingShown}</Text>
                         )}
-                        <LiveRegion politeness="polite" style={error}>
+                        <LiveRegion politeness="polite" typeRole="caption" tone="dangerText">
                             {trailing.pickFoodNotice ?? ''}
                         </LiveRegion>
                     </>

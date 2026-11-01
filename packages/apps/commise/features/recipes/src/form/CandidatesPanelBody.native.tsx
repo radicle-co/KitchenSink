@@ -79,7 +79,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                                 </View>
                             ),
                         )}
-                        <LiveRegion politeness="polite" style={hint}>
+                        <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                             {line}
                         </LiveRegion>
                     </>
@@ -100,7 +100,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
             case 'loading':
             case 'offline':
                 return (
-                    <LiveRegion politeness="polite" style={hint}>
+                    <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                         {body.text}
                     </LiveRegion>
                 );

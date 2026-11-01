@@ -29,6 +29,24 @@ const eyebrowBack = (): HTMLElement => {
 afterEach(cleanup);
 
 describe('RecipeVersionListError (web)', () => {
+    // Every page ends 48 below its last block (`pb-12`), one end padding for every page (designer ruling 2026-11-01,
+    // `nativeBoards/designAnswers.md`). It was `pb-10`, 40, which is off the spacing scale.
+    it('ends 48 below its last block, like every page', () => {
+        render(
+            <RecipeVersionListError
+                title="We couldn’t load the history."
+                retryLabel="Try again"
+                onRetry={vi.fn()}
+                onBack={vi.fn()}
+                backHref="/en/recipes/r1"
+            />,
+        );
+        const classes = (document.querySelector('.max-w-list') as HTMLElement).className.split(' ');
+
+        expect(classes).toContain('pb-12');
+        expect(classes.filter((name) => /(^|:)(pb|py|p)-/u.test(name) && name !== 'pb-12')).toEqual([]);
+    });
+
     it('keeps the header and says the history could not load, as an alert', () => {
         render(
             <RecipeVersionListError

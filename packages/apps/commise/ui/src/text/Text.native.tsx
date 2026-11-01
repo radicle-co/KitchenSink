@@ -32,6 +32,8 @@ export const FONT_SCALE_CAP = 0;
 export const Text = styled(TamaguiText, {
     name: 'CommiseText',
     maxFontSizeMultiplier: FONT_SCALE_CAP,
+    // Tamagui's Text defaults to `$color`, which no design-system theme defines; a device then logs a warning per text.
+    color: '$ink',
 
     variants: {
         typeRole: {

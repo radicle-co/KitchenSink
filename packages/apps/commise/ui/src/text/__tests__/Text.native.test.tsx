@@ -85,6 +85,17 @@ describe('Text (native)', () => {
         expect(styleOf('plain').fontSize).toBe(`${String(nativeTokens.type.body.fontSize)}px`);
     });
 
+    // Tamagui's own Text defaults to `$color`, a theme key the design system does not define, so a device logged
+    // `[tamagui] unknown color "color"` and showed a warning toast over the screen.
+    it.each([
+        ['light', role],
+        ['dark', roleDark],
+    ] as const)('is ink when no colour is named, in the %s scheme', (scheme, colors) => {
+        renderWithTamagui(<Text>plain</Text>, scheme);
+
+        expect(resolvedColour(screen.getByText('plain'), 'color')).toBe(formatRgb(colors.ink));
+    });
+
     it.each([
         ['light', role],
         ['dark', roleDark],

@@ -21,6 +21,9 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { renderWithProviders, sideInsetOf } from '@commise/test-utils';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { createContainer, type Container } from 'ditox';
 import { Pressable, Text } from 'react-native';
 
@@ -420,4 +423,57 @@ describe('homeContainer (mobile) — v1 registration', () => {
         const recipe = byId.get(RECIPE_HOME_WIDGET_ID);
         expect(recipe && isPlaceholderHomeWidget(recipe)).toBe(false);
     });
+});
+
+// ADR-0080: the "Coming soon" heading and its line draw through the design system's `Text`, so they follow the device's
+// dark scheme and the 2x text cap. The heading is the web's `text-section-title text-ink`, the line its
+// `text-body text-ink-muted`, which the web groups with the heading 4 pt apart (`gap-1`).
+describe('HomeWidgetSurface (mobile) — the "Coming soon" heading’s type and colour', () => {
+    const BODY = 'Meal plans, a grocery list and daily nutrition are on the way.';
+
+    const renderComingSoon = (scheme: 'light' | 'dark'): void => {
+        const Skeleton: FC = () => <Text>fake-skeleton</Text>;
+
+        renderWithTamagui(
+            <HomeWidgetSurface
+                onSeeAllRecipes={noop}
+                onSelectRecipe={noop}
+                container={containerWith(makePlaceholderDescriptor('nutrition', Skeleton))}
+                renderers={{}}
+            />,
+            scheme,
+        );
+    };
+
+    it.each([
+        ['Coming soon', 'sectionTitle'],
+        [BODY, 'body'],
+    ] as const)('sets “%s” in the %s role', (text, typeRole) => {
+        const spec = nativeTokens.type[typeRole];
+        renderComingSoon('light');
+        const style = getComputedStyle(screen.getByText(text));
+
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight)}px`);
+    });
+
+    it('groups the line with its heading, space 1 apart', () => {
+        renderComingSoon('light');
+        const group = screen.getByRole('heading', { name: 'Coming soon' }).parentElement;
+
+        expect(group?.contains(screen.getByText(BODY))).toBe(true);
+        expect(group === null ? undefined : resolvedStyle(group, 'gap')).toBe(`${String(nativeTokens.spacing[1])}px`);
+    });
+
+    it.each(['light', 'dark'] as const)(
+        'paints the heading in ink and its line in inkMuted in the %s scheme',
+        (scheme) => {
+            renderComingSoon(scheme);
+            const roles = rolesFor(scheme);
+
+            expect(resolvedColour(screen.getByRole('heading', { name: 'Coming soon' }), 'color')).toBe(rgb(roles.ink));
+            expect(resolvedColour(screen.getByText(BODY), 'color')).toBe(rgb(roles.inkMuted));
+        },
+    );
 });

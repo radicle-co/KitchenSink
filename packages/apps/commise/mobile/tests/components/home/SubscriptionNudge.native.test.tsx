@@ -7,9 +7,14 @@
  * pass inside `HomeWidgetSurface.native.test.tsx`, so the leaf's own states — closed, open, and each of its
  * two dismissal paths — were never asserted on this platform. Covered here.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
+import { homeMessages } from '@commise/features-core/home';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+// The copy draws through the design system's Tamagui `Text` (ADR-0080), so the sheet renders in its provider.
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
 import { SubscriptionNudge } from '../../../src/components/home/SubscriptionNudge.js';
 
@@ -86,5 +91,27 @@ describe('SubscriptionNudge (mobile) — open', () => {
         fireEvent.click(screen.getByText('See plans'));
 
         expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+});
+
+// ADR-0080: the copy draws through the design system's `Text`, so it follows the device's dark scheme and the 2x text
+// cap. It keeps the `meta` role it always spread; the web body is a raw `text-sm`, the same 14 px with no role.
+describe('SubscriptionNudge (mobile) — the copy’s type and colour', () => {
+    const body = homeMessages.en.nudge.body;
+
+    it('sets the copy in the meta role', () => {
+        const spec = nativeTokens.type.meta;
+        renderWithTamagui(<SubscriptionNudge open onDismiss={() => undefined} />, 'light');
+        const style = getComputedStyle(screen.getByText(body));
+
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints the copy in inkMuted in the %s scheme', (scheme) => {
+        renderWithTamagui(<SubscriptionNudge open onDismiss={() => undefined} />, scheme);
+
+        expect(resolvedColour(screen.getByText(body), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
     });
 });

@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 141,
         "implementationsWithComponentDoc": 131,
         "documentedProps": 750,
-        "classifiedComponents": 74,
+        "classifiedComponents": 75,
         "componentsWithPatternTag": 82,
         "crossPlatformComponents": 59
     },
@@ -1283,7 +1283,7 @@
             "packageName": "@commise/ui",
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/button",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a closed `surface` union rendered through Tamagui `variants`, which is the render map"
             ],
@@ -1299,7 +1299,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/button/ButtonLabel.native.tsx",
                     "dir": "packages/apps/commise/ui/src/button",
-                    "moduleDoc": "button/ButtonLabel — the native Button's label: the design-system Text in the `cardTitle` role, coloured by its\nsurface (ADR-0080 §8). Each surface's colour is a literal theme token in a variant table, so the colour guard reads\nevery one (`colourRoles`). Native only; the web Button colours its label with classes.",
+                    "moduleDoc": "button/ButtonLabel — the native Button's label: the design-system Text in the `cardTitle` role, coloured by its\nsurface (ADR-0080 §8). Each surface's colour is a literal theme token in a variant table, so the colour guard reads\nevery one (`colourRoles`). Native only; the web Button colours its label with classes. Presentational: props in, text\nout, no state.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1328,7 +1328,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

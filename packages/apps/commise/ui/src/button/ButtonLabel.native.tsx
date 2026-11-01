@@ -1,7 +1,8 @@
 /**
  * @module button/ButtonLabel — the native Button's label: the design-system Text in the `cardTitle` role, coloured by its
  * surface (ADR-0080 §8). Each surface's colour is a literal theme token in a variant table, so the colour guard reads
- * every one (`colourRoles`). Native only; the web Button colours its label with classes.
+ * every one (`colourRoles`). Native only; the web Button colours its label with classes. Presentational: props in, text
+ * out, no state.
  *
  * @pattern Variant — a closed `surface` union rendered through Tamagui `variants`, which is the render map
  */

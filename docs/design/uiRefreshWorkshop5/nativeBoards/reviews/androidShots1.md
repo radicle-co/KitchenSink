@@ -70,3 +70,12 @@ matches the sign-in buttons the two platforms draw themselves.
 - At Android 3.1, the Recipes header (title, segments, search, filters, sort) fills the whole screen, so no card can
   be reached. The chrome cap and the 1.5x display cap shrink it. Check it again after those land. If the header still
   fills more than half the screen at the cap, the search and filters must scroll away with the list.
+
+## H-1 closed (fix/im-tamagui-ds, 04681ee68)
+
+At Android 3.1 the body lines on sign-in now sit about 48 pt apart, and the title stops at its 1.5x ceiling. The
+brand line, title and body are the same at 2.0 and at 3.1, so the screen stops growing at the cap. The field labels,
+button labels and status text still grow until they move onto the shared `Text`.
+
+The Google label ruling applies where the Apple button sits beside it, which is iOS. On Android there is no pair, so
+the Google label follows the 1.5x chrome cap, like other one-line control labels.

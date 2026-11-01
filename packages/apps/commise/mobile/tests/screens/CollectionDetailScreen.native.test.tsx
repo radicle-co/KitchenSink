@@ -22,6 +22,7 @@ import { AccessibilityInfo, type ScrollView as ScrollViewType } from 'react-nati
 import { collectionMessages } from '@commise/features-recipes';
 import { renderWithRecipeClient, sideInsetOf } from '@commise/test-utils';
 import { SnackbarHost } from '@commise/ui/snackbar';
+import { nativeTokens } from '@commise/ui/native';
 import {
     NotFoundError,
     type CollectionWithRecipes,
@@ -255,6 +256,25 @@ describe('CollectionDetailScreen — loading and error', () => {
  * ONE allowed second element with that name. The ⋯ menu moved into the bar, ahead of the H1. `hidden: true` counts a copy
  * a plain query would skip, which is the defect.
  */
+// Designer ruling 2026-11-01, corrected (`nativeBoards/designAnswers.md`): no bottom bar covers this page (the tab bar
+// sits below the scroller, and nothing floats over it), so it ends 48 ($7) below its last block, as the web does. It was
+// 120. The top room under the pinned back bar is the frame's inset and is not this foot.
+describe('CollectionDetailScreen — the end of the page', () => {
+    it('ends the scroller’s content 48 below the last block', async () => {
+        renderOver(<CollectionDetailScreen {...props} />);
+        const heading = await screen.findByRole('heading', { name: 'Weeknight favourites' });
+        const feet: string[] = [];
+
+        // The scroller's content container is one of the heading's ancestors.
+        for (let node = heading.parentElement; node !== null; node = node.parentElement) {
+            feet.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(feet).toContain(`${String(nativeTokens.spacing[7])}px`);
+        expect(feet).not.toContain('120px');
+    });
+});
+
 describe('CollectionDetailScreen — one pinned Back in every state', () => {
     const backs = () => screen.getAllByRole('button', { name: BACK_TO_COLLECTIONS, hidden: true });
 

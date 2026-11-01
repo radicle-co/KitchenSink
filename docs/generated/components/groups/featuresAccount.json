@@ -653,7 +653,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (web): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill, so nothing invites a press that does nothing. A long value wraps anywhere rather than\noverflowing 320 px.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (web): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill, so nothing invites a press that does nothing. A long value wraps anywhere rather than\noverflowing 320 px.\n\nThe value sits at the end of the line beside its label. When the group's column (its `rows` container) has less than\n17.5 rem of room, the value stacks under its label at the start, 4 px below it (designer ruling 2026-11-01,\n`nativeBoards/designAnswers.md`). 17.5 rem is the native rule's 280 at the default text size, and a rem follows the\nbrowser's text size. Each variant is written out whole, because Tailwind generates only the class names it finds.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -230,6 +230,23 @@ describe('ProfileGroup (web)', () => {
     });
 });
 
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): a label-and-value row stacks by the room its column
+// has, as a container query. The group's card is that column, so it is the `rows` container every row queries.
+describe('ProfileGroup (web) — the rows container', () => {
+    it('makes its card the rows container, so a row measures the column it sits in', () => {
+        render(
+            <ProfileGroup label="Account">
+                <ProfileRow label="Email" tone="ink" chevron={false} onPress={() => undefined} />
+            </ProfileGroup>,
+        );
+        const card = screen.getByRole('button', { name: 'Email' }).parentElement as HTMLElement;
+
+        // Assembled, not spelled: Tailwind scans this package's files as text too, and a literal here would generate the
+        // container whatever the card says, so `tailwindTheme.integration.test.ts` could no longer catch its absence.
+        expect(card.className.split(' ')).toContain('@container/'.concat('rows'));
+    });
+});
+
 describe('DisplayNameSheet (web)', () => {
     const sheet = (overrides: Partial<DisplayNameSheetProps> = {}): DisplayNameSheetProps => ({
         open: true,

@@ -160,6 +160,22 @@ describe('the sign-in and Profile classes, compiled', () => {
     });
 });
 
+/**
+ * A Profile label-and-value row stacks by the room its column has (designer ruling 2026-11-01,
+ * `nativeBoards/designAnswers.md`): the group's card is the `rows` container and a row's `@max-[17.5rem]/rows:` variants
+ * apply below 17.5 rem. jsdom evaluates no container query, so only the compiled stylesheet shows the query exists, under
+ * the name the card declares. The classes live in `@commise/features-account`, so this also holds only while its
+ * `@source` glob is in `globals.css`.
+ */
+describe('the Profile rows’ container query, compiled', () => {
+    it('declares the rows container and compiles a query below 17.5 rem on it', async () => {
+        const css = await compileAppCss();
+
+        expect(css).toMatch(/container-name:\s*rows/u);
+        expect(css).toMatch(/@container\s+rows\s*\(width\s*<\s*17\.5rem\)/u);
+    });
+});
+
 describe('the pinned back bar’s height, compiled', () => {
     it('reaches the browser as ONE property, with the notch’s inset added once, for every web use to read', async () => {
         const css = await compileAppCss();

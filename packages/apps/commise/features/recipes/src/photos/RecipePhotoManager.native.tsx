@@ -86,7 +86,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 CHANGE to a live region it already holds; iOS is handed an announcement by `LiveRegion`). The first
                 carries its label as visible text (`LoadingNotice` doctrine, specSharedSystem.md §18); the second is
                 spoken only, once per finished file. A failure keeps its own assertive alert. */}
-            <LiveRegion politeness="polite" style={[styles.muted, { color: colors.inkMuted }]}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {uploading === true ? m.uploadingLabel : ''}
             </LiveRegion>
             <LiveRegion politeness="polite" visuallyHidden occurrence={finished}>

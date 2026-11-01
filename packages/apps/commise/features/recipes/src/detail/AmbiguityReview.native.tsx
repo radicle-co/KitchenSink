@@ -100,7 +100,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
 
             {/* Mounted while empty, so each change of the sentence is spoken (`LiveRegion`, WCAG 4.1.3); after the
                 chips, so a sentence that empties at the end moves none of them (P12). */}
-            <LiveRegion politeness="polite" style={[styles.muted, paint.muted]}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {row.status}
             </LiveRegion>
             {row.refreshed && <Text style={[styles.muted, paint.muted]}>{detail.ambiguousReviewRefreshed}</Text>}

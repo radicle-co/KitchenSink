@@ -91,7 +91,7 @@ const FormBody: FC<{
             </View>
             {/* The one line telling the cook this is theirs alone until promotion (D9a/U11). */}
             <Text style={muted}>{copy.privateHint}</Text>
-            <LiveRegion politeness="polite" style={muted}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {submitting ? copy.submitting : ''}
             </LiveRegion>
             <LiveRegion politeness="assertive" style={danger}>

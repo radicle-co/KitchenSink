@@ -4,11 +4,14 @@
  * — no longer exists. The defect class it was written for stands: the stepper's intrinsic width is set by two 44 pt
  * targets and a value box (`SERVING_STEPPER_MIN_WIDTH`), and a row that cannot give it that width slices a button at
  * the screen edge. So the heading row WRAPS, and the stepper never shrinks below its own width.
+ *
+ * The wrap is read through `resolvedStyle`, not from react-native-web's `r-*` atomic rules: the row is the design
+ * system's Tamagui heading-row frame (ADR-0080), whose classes are Tamagui's, so the old reader would find nothing.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedStyle } from '@commise/ui/testing/tamagui';
 
 import { idleUnreachableRetry, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
@@ -16,25 +19,6 @@ import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 
 afterEach(cleanup);
-
-/** The value react-native-web applied for a property, read from its atomic rules. */
-function appliedStyle(element: Element, property: string): string | undefined {
-    for (const className of element.className.split(' ').filter((name) => name.startsWith('r-'))) {
-        for (const sheet of Array.from(document.styleSheets)) {
-            for (const rule of Array.from(sheet.cssRules)) {
-                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
-                    const value = rule.style.getPropertyValue(property);
-
-                    if (value !== '') {
-                        return value;
-                    }
-                }
-            }
-        }
-    }
-
-    return undefined;
-}
 
 describe('the Ingredients heading row (native)', () => {
     it('holds the heading and the serving stepper, and wraps rather than clipping the stepper', () => {
@@ -48,6 +32,6 @@ describe('the Ingredients heading row (native)', () => {
         const row = heading.parentElement as Element;
 
         expect(row.contains(screen.getByRole('button', { name: 'More servings' }))).toBe(true);
-        expect(appliedStyle(row, 'flex-wrap')).toBe('wrap');
+        expect(resolvedStyle(row, 'flexWrap')).toBe('wrap');
     });
 });

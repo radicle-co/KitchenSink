@@ -21,6 +21,7 @@ import { Text, View } from 'react-native';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { DetailEmptySection } from './DetailEmptySection.native.js';
+import { DetailHeadingRow, DetailSection } from './detailFrames.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
 import { IngredientCheckRow } from './IngredientCheckRow.native.js';
 import { ingredientGroupRuns } from './detailFacts.js';
@@ -68,8 +69,9 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
     const hasIngredients = recipe.ingredients.length > 0;
 
     return (
-        <View style={[styles.section, twoColumns ? styles.ingredientsColumn : null]}>
-            <View style={styles.headingRow}>
+        <DetailSection {...(twoColumns ? { column: 'ingredients' } : {})}>
+            <DetailHeadingRow>
+                {/* React Native's Text, not the frame's heading: the screen-reader focus hook is typed to it. */}
                 <Text
                     ref={headingRef}
                     accessibilityRole="header"
@@ -99,7 +101,7 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
                         {detail.editSection}
                     </Button>
                 )}
-            </View>
+            </DetailHeadingRow>
             {scaled.scaling.isScaled && (
                 <Surface tone="muted" accessibilityLiveRegion="polite" style={[styles.scaleNotice]}>
                     <Text style={[styles.meta, ink]}>
@@ -153,6 +155,6 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
             ) : (
                 <DetailEmptySection text={detail.noIngredients} actionLabel={detail.addIngredients} onAction={onEdit} />
             )}
-        </View>
+        </DetailSection>
     );
 };

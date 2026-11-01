@@ -6,7 +6,9 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { themeFor } from '@commise/ui/theme';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
+// Its detail page draws through the design system's Tamagui frames (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';

@@ -33,10 +33,15 @@
             // `scripts/e2eLocal.sh` set it and still built a bundle with no `en-XA`. `NEXT_PUBLIC_*` arrives through
             // turbo's Next.js inference.
             //
-            // ⚠️ This is NOT the whole list. The build also reads `DEPLOY_STAGE`, `SENTRY_RELEASE`, `PREVIEW_BASE_PATH`
-            // (`src/lib/sentryStage.ts`, `src/lib/basePath.ts`) and `SENTRY_AUTH_TOKEN` (`next.config.ts`), and none of
-            // them is declared, so strict mode drops them here too. Whether each should be is an open question, not
-            // settled by this entry; a secret such as `SENTRY_AUTH_TOKEN` must never go in `env`.
+            // `SENTRY_AUTH_TOKEN` (`next.config.ts`) is the Sentry source-map upload credential. It goes in
+            // `passThroughEnv`: it must reach `next build` but does not change the output, and a secret never goes in
+            // the hashed `env`. Undeclared, strict mode dropped it and every Vercel build skipped the upload.
+            // `webBuildEnvReachesTurbo.test.ts` holds every variable `next.config.ts` reads.
+            //
+            // `DEPLOY_STAGE`, `SENTRY_RELEASE` and `PREVIEW_BASE_PATH` (`src/lib/sentryStage.ts`, `src/lib/basePath.ts`)
+            // stay undeclared on purpose: Vercel sets none of them, and the code falls back to `VERCEL_ENV` and
+            // `VERCEL_GIT_COMMIT_SHA`, which turbo passes through. If one is ever set for a turbo build, it changes the
+            // bundle, so it goes in hashed `env`.
             //
             // ⛔ `env`, NOT `passThroughEnv`. The flag changes the bundle, so it must be part of the cache key; passed
             // through unhashed, a pseudo build and a plain build share one key and a cache hit restores the wrong one.
@@ -45,6 +50,7 @@
             // and the outputs are restated, not inherited. `pseudoLocaleBuildGate.test.ts` holds all three.
             "dependsOn": ["^build"],
             "env": ["COMMISE_PSEUDO_LOCALE"],
+            "passThroughEnv": ["SENTRY_AUTH_TOKEN"],
             "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
         },
         "@kitchensink/schema-recipe#build": {

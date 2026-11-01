@@ -31,6 +31,7 @@ import { useContainerClass } from '../layout/useContainerClass.native.js';
 import { ScrollHostContext } from '../scrollHost/scrollHostContext.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
+import { Text as DesignText } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
 
@@ -86,9 +87,11 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
                     {title}
                 </Text>
                 {subtitle === undefined ? null : (
-                    <Text numberOfLines={1} style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>
+                    // Wraps, never cut off: Home's date is a fact the cook reads, at every text size. The design-system
+                    // Text grows its leading with its size, so the wrapped lines never overlap on Android (ADR-0080 §8).
+                    <DesignText typeRole="meta" color="$inkMuted">
                         {subtitle}
-                    </Text>
+                    </DesignText>
                 )}
             </View>
             {action === undefined ? null : actionOf(action)}

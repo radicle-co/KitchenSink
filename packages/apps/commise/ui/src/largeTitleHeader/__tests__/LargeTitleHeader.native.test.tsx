@@ -4,10 +4,12 @@
  * so the host can condense; and a screen-reader focus signal moves the cursor to it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { Pressable, Text } from 'react-native';
 
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
+import { renderWithTamagui, render } from '../../testing/tamaguiTesting.native.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { useScrollHost } from '../../scrollHost/scrollHostContext.js';
 import { LargeTitleHeader } from '../LargeTitleHeader.native.js';
 
@@ -101,6 +103,35 @@ describe('LargeTitleHeader (native)', () => {
         expect(getComputedStyle(header).paddingLeft).toBe('16px');
         expect(getComputedStyle(header).paddingRight).toBe('16px');
         expect(getComputedStyle(action).right).toBe('16px');
+    });
+
+    // Designer review (deviceShots2.md, 2026-11-01): at accessibility sizes Home's date read "Sunday, November...". The
+    // subtitle is a fact the cook reads, so it wraps onto more lines and is never cut off.
+    it('wraps a long subtitle instead of cutting it off', () => {
+        render(<LargeTitleHeader headingId="h" title="Good afternoon" subtitle="Sunday, November 1, 2026" />);
+
+        const subtitle = screen.getByText('Sunday, November 1, 2026');
+
+        expect(getComputedStyle(subtitle).whiteSpace).not.toBe('nowrap');
+        expect(getComputedStyle(subtitle).textOverflow).not.toBe('ellipsis');
+        expect(getComputedStyle(subtitle).getPropertyValue('-webkit-line-clamp')).toBe('');
+    });
+
+    // Once it wraps, its leading must grow with its size, or Android draws the lines over each other (ADR-0080 §8,
+    // H-1). The design-system Text in the meta role grows both together, to the 2× cap.
+    it('draws the subtitle in the meta role, size and leading grown together', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.meta;
+
+        renderWithTamagui(
+            <LargeTitleHeader headingId="h" title="Good afternoon" subtitle="Sunday, November 1, 2026" />,
+            'light',
+            3.1,
+        );
+
+        const subtitle = screen.getByText('Sunday, November 1, 2026');
+
+        expect(getComputedStyle(subtitle).fontSize).toBe(`${String(fontSize * 2)}px`);
+        expect(getComputedStyle(subtitle).lineHeight).toBe(`${String(lineHeight * 2)}px`);
     });
 
     it('reports the title block’s layout to its ScrollHost, which then condenses past it', () => {

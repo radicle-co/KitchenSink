@@ -115,7 +115,7 @@
         "packages/apps/commise/ui/src/input/Stepper.native.tsx": 2,
         "packages/apps/commise/ui/src/keepAwake/KeepAwakeToggle.native.tsx": 1,
         "packages/apps/commise/ui/src/largeTitleHeader/CondensedTitleBar.native.tsx": 2,
-        "packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.native.tsx": 2,
+        "packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.native.tsx": 1,
         "packages/apps/commise/ui/src/loadingNotice/LoadingNotice.native.tsx": 1,
         "packages/apps/commise/ui/src/offlineNotice/OfflineReadSlot.native.tsx": 1,
         "packages/apps/commise/ui/src/optionLabel/OptionLabel.native.tsx": 1,

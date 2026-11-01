@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 82,
-        "implementations": 141,
-        "props": 788,
-        "documentedComponents": 82,
-        "implementationsWithModuleDoc": 141,
+        "components": 83,
+        "implementations": 142,
+        "props": 793,
+        "documentedComponents": 83,
+        "implementationsWithModuleDoc": 142,
         "implementationsWithComponentDoc": 131,
-        "documentedProps": 750,
-        "classifiedComponents": 75,
-        "componentsWithPatternTag": 82,
+        "documentedProps": 754,
+        "classifiedComponents": 76,
+        "componentsWithPatternTag": 83,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -7541,7 +7541,42 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: the visible text's style, applied only while the message is non-empty. Web uses `className`.\nNot accepted: a hidden region is never laid out.",
+                            "description": "Not accepted with a type role.\nNative: the visible text's style, applied only while the message is non-empty. Web uses `className`.\nNot accepted: a hidden region is never laid out.",
+                            "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"inkMuted\"",
+                                "\"dangerText\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native: the message's colour role. `ink` when absent.\nNot accepted with a style.\nNot accepted: a hidden region is never laid out.",
+                            "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
+                        },
+                        {
+                            "name": "typeRole",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"list\"",
+                                "\"body\"",
+                                "\"largeTitle\"",
+                                "\"barTitle\"",
+                                "\"sectionTitle\"",
+                                "\"cardTitle\"",
+                                "\"readingBody\"",
+                                "\"meta\"",
+                                "\"label\"",
+                                "\"caption\"",
+                                "\"figureInline\"",
+                                "\"figureStat\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native: the message's type role.\nNot accepted with a style.\nNot accepted: a hidden region is never laid out.",
                             "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
                         },
                         {
@@ -7627,7 +7662,42 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: the visible text's style, applied only while the message is non-empty. Web uses `className`.\nNot accepted: a hidden region is never laid out.",
+                            "description": "Not accepted with a type role.\nNative: the visible text's style, applied only while the message is non-empty. Web uses `className`.\nNot accepted: a hidden region is never laid out.",
+                            "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"inkMuted\"",
+                                "\"dangerText\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native: the message's colour role. `ink` when absent.\nNot accepted with a style.\nNot accepted: a hidden region is never laid out.",
+                            "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
+                        },
+                        {
+                            "name": "typeRole",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"list\"",
+                                "\"body\"",
+                                "\"largeTitle\"",
+                                "\"barTitle\"",
+                                "\"sectionTitle\"",
+                                "\"cardTitle\"",
+                                "\"readingBody\"",
+                                "\"meta\"",
+                                "\"label\"",
+                                "\"caption\"",
+                                "\"figureInline\"",
+                                "\"figureStat\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native: the message's type role.\nNot accepted with a style.\nNot accepted: a hidden region is never laid out.",
                             "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
                         },
                         {
@@ -7638,6 +7708,64 @@
                             "defaultValue": "false",
                             "description": "Whether the message is only spoken, never shown. Absent here: this region is shown.\nWhether the message is only spoken, never shown.",
                             "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/liveRegion/LiveRegionText",
+            "name": "LiveRegionText",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/liveRegion",
+            "kind": "presentational",
+            "patterns": [
+                "Variant — the tone and the off-flow state are Tamagui variants, so every colour is a literal token the\n    colour guard reads, and no style object is built at render"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "LiveRegionText",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/liveRegion",
+                    "moduleDoc": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with an\ncolour `tone` and an `offFlow` state for a region that is empty or only spoken. It stays MOUNTED (Android's live region must exist before\nits text changes) but leaves the layout flow, the native `visuallyHidden` geometry as a Tamagui variant.\nPresentational: props in, text out, no state.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with an"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the tone and the off-flow state are Tamagui variants, so every colour is a literal token the\n    colour guard reads, and no style object is built at render"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ref",
+                            "type": "Ref<TamaguiTextElement>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],

@@ -33,11 +33,19 @@ import { AccessibilityInfo, Platform, Text } from 'react-native';
 
 import { visuallyHidden as visuallyHiddenStyle } from '../accessibility/visuallyHidden.native.js';
 import type { LiveRegionProps } from './props.js';
+import { LiveRegionText } from './LiveRegionText.native.js';
 import { useOccurrenceSlot } from './useOccurrenceSlot.js';
 import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
 
 /** One mounted region: the platform channel for one message. */
-const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({ children, politeness, style, visuallyHidden = false }) => {
+const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({
+    children,
+    politeness,
+    style,
+    typeRole,
+    tone,
+    visuallyHidden = false,
+}) => {
     // Whether this message REPLACES one the region was already saying — derived during render from the previous
     // render's message (React's "store information from previous renders" state pattern, not a ref).
     const [previousMessage, setPreviousMessage] = useState(children);
@@ -62,19 +70,28 @@ const Region: FC<Omit<LiveRegionProps, 'occurrence'>> = ({ children, politeness,
         });
     }, [children, politeness, supersedesOwn]);
 
+    const channel = {
+        accessibilityRole: politeness === 'assertive' && children !== '' ? ('alert' as const) : undefined,
+        accessibilityLiveRegion: politeness,
+        'aria-live': politeness,
+        // Only iOS: `aria-hidden` there is `accessibilityElementsHidden`, but on Android it would hide the very node
+        // whose live region speaks.
+        'aria-hidden': visuallyHidden && Platform.OS === 'ios' ? true : undefined,
+    };
+    // Empty, it stays MOUNTED (Android's region must exist before its text changes) but leaves the layout flow, so a
+    // caller mounting it early inside a `gap` layout opens no blank row.
+    const offFlow = visuallyHidden || children === '';
+
+    if (typeRole !== undefined) {
+        return (
+            <LiveRegionText typeRole={typeRole} tone={tone ?? 'ink'} offFlow={offFlow} {...channel}>
+                {children}
+            </LiveRegionText>
+        );
+    }
+
     return (
-        <Text
-            maxFontSizeMultiplier={FONT_SCALE_CAP}
-            accessibilityRole={politeness === 'assertive' && children !== '' ? 'alert' : undefined}
-            accessibilityLiveRegion={politeness}
-            aria-live={politeness}
-            // Only iOS: `aria-hidden` there is `accessibilityElementsHidden`, but on Android it would hide the very
-            // node whose live region speaks.
-            aria-hidden={visuallyHidden && Platform.OS === 'ios' ? true : undefined}
-            // Empty, it stays MOUNTED (Android's region must exist before its text changes) but leaves the layout
-            // flow, so a caller mounting it early inside a `gap` layout opens no blank row.
-            style={visuallyHidden || children === '' ? visuallyHiddenStyle : style}
-        >
+        <Text maxFontSizeMultiplier={FONT_SCALE_CAP} {...channel} style={offFlow ? visuallyHiddenStyle : style}>
             {children}
         </Text>
     );

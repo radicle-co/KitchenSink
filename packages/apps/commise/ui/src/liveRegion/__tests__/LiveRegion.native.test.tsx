@@ -2,6 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 
+import { formatRgb } from 'culori';
+
+import { renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import { role } from '../../tokens/colors.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { LiveRegion } from '../LiveRegion.native.js';
 
 /**
@@ -227,5 +232,77 @@ describe('LiveRegion (native) — saying the same message again (R8, `occurrence
         const { container } = render(<LiveRegion politeness="assertive">{LIMIT}</LiveRegion>);
 
         expect(regions(container)).toEqual([LIMIT]);
+    });
+});
+
+/**
+ * A region that names its TYPE ROLE and colour (ADR-0080 §8): it is the design-system Text, so it grows with the system
+ * scale, size and leading together, up to the 2× cap, and its tone is a literal theme token the colour guard reads. The old
+ * `style` region stays for callers not yet ported, and the two are exclusive in the type.
+ */
+describe('LiveRegion (native) — a region in a type role', () => {
+    it('draws its message in its role and colour, as a live region', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="caption" tone="inkMuted">
+                Saving…
+            </LiveRegion>,
+            'light',
+        );
+
+        const node = screen.getByText('Saving…');
+
+        expect(getComputedStyle(node).fontSize).toBe(`${String(nativeTokens.type.caption.fontSize)}px`);
+        expect(resolvedColour(node, 'color')).toBe(formatRgb(role.inkMuted));
+        expect(node.getAttribute('aria-live')).toBe('polite');
+    });
+
+    it('is ink when no tone is named', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body">
+                Could not save.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(resolvedColour(screen.getByText('Could not save.'), 'color')).toBe(formatRgb(role.ink));
+    });
+
+    it('draws a failure in dangerText', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body" tone="dangerText">
+                Could not save.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(resolvedColour(screen.getByText('Could not save.'), 'color')).toBe(formatRgb(role.dangerText));
+    });
+
+    it('grows its size and leading to 2× above the cap', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.body;
+
+        renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="body">
+                Added Basil
+            </LiveRegion>,
+            'light',
+            3.1,
+        );
+
+        expect(getComputedStyle(screen.getByText('Added Basil')).fontSize).toBe(`${String(fontSize * 2)}px`);
+        expect(getComputedStyle(screen.getByText('Added Basil')).lineHeight).toBe(`${String(lineHeight * 2)}px`);
+    });
+
+    it('stays mounted but out of the layout flow while empty', () => {
+        const { container } = renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="body">
+                {''}
+            </LiveRegion>,
+            'light',
+        );
+
+        const node = container.querySelector('[aria-live="polite"]') as HTMLElement;
+
+        expect(getComputedStyle(node).position).toBe('absolute');
     });
 });

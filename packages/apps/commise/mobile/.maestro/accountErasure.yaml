@@ -156,7 +156,8 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Sign in to Commise'
       timeout: 40000
-# At the largest text sizes the form's controls sit below its title, so they are scrolled into view before the asserts.
+# At the largest text sizes the form's controls sit below its title, so each is scrolled into view; the scroll is the
+# check, and it fails when its target never appears.
 - runFlow:
       file: recipes/common/scrollIntoTapView.yaml
       env:

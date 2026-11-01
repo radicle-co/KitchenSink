@@ -6,6 +6,7 @@
  * @pattern Policy — a pure decision over the screen's state, read by the button's leaves
  */
 import type { ViewportClass } from '../tokens/layout.js';
+import { spacing } from '../tokens/scale.js';
 
 /** How the floating button presents: not at all, as a 56 px icon button, or with its label. */
 export type FabPresentation = 'hidden' | 'icon' | 'extended';
@@ -13,11 +14,15 @@ export type FabPresentation = 'hidden' | 'icon' | 'extended';
 /** The visual height of the floating button, px (§3.4). */
 export const FAB_HEIGHT_PX = 56;
 
+/** How far above the screen's foot the floating button rests, px, before a snackbar lifts it. */
+export const FAB_BOTTOM_MARGIN_PX = spacing[4];
+
 /**
- * The bottom padding a list under the floating button reserves, and its `scroll-padding-bottom`: the button's height
- * plus 32 px, so a focused last card is never hidden behind it (WCAG 2.2 SC 2.4.11).
+ * The bottom padding a screen the floating button covers reserves: the button's height, the margin it rests at, and 16
+ * px, computed so it follows the button (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). A focused last
+ * card is never hidden behind it (WCAG 2.2 SC 2.4.11).
  */
-export const FAB_RESERVED_BOTTOM_PX = FAB_HEIGHT_PX + 32;
+export const FAB_RESERVED_BOTTOM_PX = FAB_HEIGHT_PX + FAB_BOTTOM_MARGIN_PX + spacing[4];
 
 /** What the presentation depends on. */
 export interface FabInputs {

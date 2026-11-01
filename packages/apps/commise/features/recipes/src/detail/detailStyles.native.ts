@@ -10,9 +10,10 @@ export const detailStyles = StyleSheet.create({
     // Transparent so the root `AppCanvas` beach-glow gradient shows through (issue #145). An opaque fill here occludes
     // the whole canvas and restores the flat page the wireframes never had.
     scroll: { flex: 1, backgroundColor: 'transparent' },
-    // The page's scroll content. The bottom padding clears the device's navigation bar, so the foot-of-screen controls
-    // — the delete dialog's confirm button when it opens — can be scrolled fully into view.
-    container: { gap: nativeTokens.spacing[6], paddingBottom: 120 },
+    // The page's scroll content. It ends 48 below the last block, the page end the web uses too
+    // (`nativeBoards/designAnswers.md`). Nothing floats over it: the tab bar sits below the scroller and owns the
+    // bottom safe area.
+    container: { gap: nativeTokens.spacing[6], paddingBottom: nativeTokens.spacing[7] },
     top: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
     // Weight 500, sentence case (owner decisions C5/C6): the medium face, which is the `caption` role's.
     groupLabel: { ...nativeTokens.type.caption },

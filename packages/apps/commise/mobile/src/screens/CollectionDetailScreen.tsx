@@ -38,6 +38,7 @@ import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { LoadingNotice } from '@commise/ui/loading-notice';
+import { nativeTokens } from '@commise/ui/native';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { collectionQueries } from '@kitchensink/recipe-service-client';
@@ -178,6 +179,8 @@ const styles = StyleSheet.create({
     // No side padding: the large title insets itself, and the header and the parts after it take their own gutter
     // (`CollectionHeader`, `CollectionDetailGutter`), so nothing moves in twice.
     // The room under the pinned bar is the frame's: it hands each branch its `inset`, which is merged in beside these.
-    content: { paddingBottom: 120 },
+    // The page ends 48 below its last block, as every page does (`nativeBoards/designAnswers.md`): nothing floats over
+    // it, and the tab bar sits below the scroller and owns the bottom safe area.
+    content: { paddingBottom: nativeTokens.spacing[7] },
     beneathBar: { flex: 1 },
 });

@@ -24,8 +24,8 @@
  * cook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared
  * `detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the
  * view's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller
- * are bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view what must
- * scroll with the page (the failed-visibility alert and the delete dialog) as its `scrollFooter`.
+ * are bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view the
+ * failed-visibility alert, which scrolls with the page, and the dialogs, which open in a modal, as its `scrollFooter`.
  *
  * Back is named for where it goes ("Back to Discover"), read from the navigator's stack read-only: the tab stacks
  * and their routes are the navigator's, and this screen only looks at the route below it.

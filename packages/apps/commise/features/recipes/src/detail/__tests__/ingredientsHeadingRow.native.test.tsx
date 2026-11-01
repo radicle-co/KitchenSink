@@ -6,12 +6,13 @@
  * the screen edge. So the heading row WRAPS, and the stepper never shrinks below its own width.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 import { idleUnreachableRetry, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

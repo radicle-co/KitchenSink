@@ -8,7 +8,7 @@
  * The leaf owns its frame now; it was a column for the host's scroll view.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 const windowWidth = vi.hoisted(() => ({ current: 390 }));
@@ -26,6 +26,7 @@ vi.mock('react-native', async (importOriginal) => {
 import { ImportModeChoice } from '../ImportModeChoice.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportModeChoiceProps } from '../props.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = importMessages.en.mode;
 

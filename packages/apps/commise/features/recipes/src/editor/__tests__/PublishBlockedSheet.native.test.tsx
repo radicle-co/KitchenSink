@@ -5,13 +5,14 @@
  * nudge into making public what the cook asked to keep private). Screen-reader focus moves to the title (the Sheet's own contract); returning it belongs to the host.
  * Paid features are hidden everywhere until feature 010 exists, so the Pro line is asserted ABSENT.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PublishBlocked } from '../../hooks/useRecipeEditor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PublishBlockedSheet } from '../PublishBlockedSheet.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
 const entryPoints = vi.hoisted(() => ({ on: false }));

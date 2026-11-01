@@ -6,7 +6,7 @@
  * cook gets for "Make private": "Private collections are part of Pro.", **See Pro** and **Not now**, equal in
  * size and weight, side by side, nothing pre-selected — true, and not a distortion of the choice (DSA Art. 25).
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { CollectionDeleteDialog } from '../CollectionDeleteDialog.js';
 import { CollectionUpsellSheet } from '../CollectionUpsellSheet.native.js';
 import type { CollectionDeleteDialogProps, CollectionUpsellSheetProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
 const entryPoints = vi.hoisted(() => ({ on: false }));

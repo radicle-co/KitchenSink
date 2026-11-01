@@ -2,11 +2,12 @@
  * The Ingredients section's running total (native), failed state: the host's Try again is the design system's quiet
  * Button (`componentFixes.md` §1); with no `onRetry` there is no button at all.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { IngredientsNutritionTotal } from '../IngredientsNutritionTotal.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

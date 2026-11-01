@@ -9,12 +9,13 @@
  * `RecipePhotoManager.native.test.tsx`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 
 import { makeQueueItem } from '../../__fixtures__/index.js';
 import { RecipePhotoManager } from '../RecipePhotoManager.native.js';
 import type { RecipePhotoManagerProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const platform = vi.hoisted(() => ({ os: 'ios' as 'ios' | 'android' }));
 

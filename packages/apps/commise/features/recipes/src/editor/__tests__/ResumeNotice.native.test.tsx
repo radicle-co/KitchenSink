@@ -6,7 +6,7 @@
  * react-native-web's `Pressable` does not toggle `pressed` from jsdom events, so `Pressable` is stood in for by one that
  * renders its `pressed` branch; everything above it (the notice, `Button`, `Surface`, the paint) is the real code.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const press = vi.hoisted(() => ({ pressed: false }));
@@ -23,6 +23,7 @@ import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-sc
 import { themeFor } from '@commise/ui/theme';
 
 import { ResumeNotice } from '../ResumeNotice.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();

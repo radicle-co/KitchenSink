@@ -8,13 +8,14 @@
  * the banners previously carried raw `palette` values baked into one theme at import.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 import { authBlockMessages } from '@commise/features-account';
 import { role, roleDark } from '@commise/ui/colors';
 import { systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { SuspensionBanner } from '../../src/components/SuspensionBanner.js';
+import { render, renderedRoot, rendersNothing } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();
@@ -43,7 +44,7 @@ describe('SuspensionBanner', () => {
     it('renders nothing for an active account', () => {
         const { container } = render(<SuspensionBanner status="active" />);
 
-        expect(container.firstElementChild).toBeNull();
+        expect(rendersNothing(container)).toBe(true);
     });
 
     it('announces the suspension with the localized copy', () => {
@@ -58,7 +59,7 @@ describe('SuspensionBanner', () => {
     it.each(THEMES)('paints the notice from the %s theme’s roles, accented with the danger tone', (name, colors) => {
         systemScheme.current = name;
         const { container } = render(<SuspensionBanner status="suspended" />);
-        const banner = container.firstElementChild as HTMLElement;
+        const banner = renderedRoot(container) as HTMLElement;
         const style = window.getComputedStyle(banner);
 
         expect(style.borderLeftColor).toBe(toRgb(colors.danger));

@@ -2,12 +2,13 @@
  * The native collection-detail gutter pads what it holds 16 pt a side, and the failure line inside it adds none of its
  * own (it used to pad itself AND sit in the screen's padding, so it started at 32).
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { sideInsetOf } from '@commise/test-utils';
 import { CollectionDetailAlert } from '../CollectionDetailAlert.js';
 import { CollectionDetailGutter } from '../CollectionDetailGutter.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

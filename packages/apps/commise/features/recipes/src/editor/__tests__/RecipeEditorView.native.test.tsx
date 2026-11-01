@@ -4,7 +4,7 @@
  * discard confirm, and the conflict view. The editor's lifecycle is a fake result.
  */
 import { LocaleProvider } from '@commise/i18n/react';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useContext, type ReactElement } from 'react';
 import { AccessibilityInfo, Text, type LayoutChangeEvent } from 'react-native';
@@ -21,6 +21,7 @@ import { SectionPresenceContext } from '../sectionPresence.js';
 import type { RecipeEditorViewProps } from '../frameProps.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeEditorView } from '../RecipeEditorView.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const { keyboard, win, reveal } = vi.hoisted(() => ({
     keyboard: { shown: false },

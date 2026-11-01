@@ -4,13 +4,14 @@
  * reports it and closes the sheet.
  */
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
 
 import { DiscoverySortMenu } from '../DiscoverySortMenu.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

@@ -7,13 +7,14 @@
  * is never asked to open anything that did not pass the gate.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Linking } from 'react-native';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeSourceLine } from '../RecipeSourceLine.native.js';
+import { render, rendersNothing } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -31,13 +32,13 @@ describe('RecipeSourceLine (native) — absent source', () => {
     it('renders NOTHING when the recipe has neither a URL nor an attribution', () => {
         const { container } = render(<RecipeSourceLine />);
 
-        expect(container.innerHTML).toBe('');
+        expect(rendersNothing(container)).toBe(true);
     });
 
     it('renders NOTHING when the only source is a URL that must not be opened', () => {
         const { container } = render(<RecipeSourceLine sourceUrl="intent://scan/#Intent;scheme=zxing;end" />);
 
-        expect(container.innerHTML).toBe('');
+        expect(rendersNothing(container)).toBe(true);
     });
 });
 

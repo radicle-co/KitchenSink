@@ -11,7 +11,7 @@
 import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,6 +28,7 @@ import {
     type RecipeFilterState,
     type RecipeIngredientSearchState,
 } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

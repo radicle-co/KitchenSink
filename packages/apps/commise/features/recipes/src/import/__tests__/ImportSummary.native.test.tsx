@@ -3,7 +3,7 @@
  * `ImportSummary.test.tsx`, plus the native rule that the coverage shows only at the wide container class.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 const windowWidth = vi.hoisted(() => ({ current: 390 }));
@@ -24,6 +24,7 @@ import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-sc
 import { ImportSummary } from '../ImportSummary.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportSummaryProps } from '../props.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const s = importMessages.en.summary;
 

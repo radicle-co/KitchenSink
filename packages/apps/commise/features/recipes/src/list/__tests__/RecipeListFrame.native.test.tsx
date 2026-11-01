@@ -12,13 +12,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sideInsetOf } from '@commise/test-utils';
 import { AccessibilityInfo, Text } from 'react-native';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { nativeTokens } from '@commise/ui/native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeListFrame } from '../RecipeListFrame.native.js';
 import type { RecipeListFrameProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {

@@ -20,13 +20,14 @@
  */
 import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { nativeTokens } from '@commise/ui/native';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { createElement, type ComponentProps, type JSX } from 'react';
 import { Text, type ScrollView as ScrollViewType } from 'react-native';
 import { Input } from '@commise/ui/input';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthScreenFrame } from '../../src/components/auth/AuthScreenFrame.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const state = vi.hoisted(() => ({
     keyboardShown: false,

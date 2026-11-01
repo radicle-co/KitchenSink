@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sideInsetOf } from '@commise/test-utils';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -14,6 +14,7 @@ import { RecipeVersionList } from '../RecipeVersionList.native.js';
 import type { RecipeVersionListProps } from '../history.js';
 import { recipeVersionMessages } from '../messages.js';
 import { formatVersionTimestamp } from '../timeFormat.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const { versionList } = recipeVersionMessages.en;
 

@@ -4,7 +4,7 @@
  * state, a link row, and the display-name sheet's field, Save gate and failure.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AccessibilityInfo } from 'react-native';
 
@@ -35,6 +35,7 @@ import { ProfileHeader } from '../ProfileHeader.native.js';
 import { ProfileRow } from '../ProfileRow.native.js';
 import { DISPLAY_NAME_MAX_LENGTH } from '../model.js';
 import type { DisplayNameSheetProps, ProfileRowProps } from '../props.js';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();
@@ -480,7 +481,8 @@ describe('DisplayNameSheet (native) — the length counter (W-26)', () => {
         const shown = screen.getByText('85/100');
         const plain = screen.getByText('Shown next to your username on recipes you publish.');
 
-        expect(shown.style.color).toBe(plain.style.color);
+        // The hint is the design-system Text, whose colour is a theme variable, so both are compared resolved.
+        expect(resolvedColour(shown, 'color')).toBe(resolvedColour(plain, 'color'));
     });
 
     it('does not announce while the cook is under the limit', () => {

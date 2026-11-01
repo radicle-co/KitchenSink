@@ -3,7 +3,7 @@
  * Mirrors `PasteListSheet.test.tsx`. Native reads no clipboard itself: the field's system paste menu pastes (Settled 34).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import type { FC } from 'react';
 
@@ -33,6 +33,7 @@ import { pasteListFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PasteListSheet } from '../PasteListSheet.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();

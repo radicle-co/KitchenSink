@@ -21,7 +21,7 @@
  * unmount, and a hand-fired stub cannot drop anything.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 
@@ -35,6 +35,7 @@ import { profileMessages } from '@commise/features-account/profile';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

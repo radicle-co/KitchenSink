@@ -14,7 +14,7 @@
  * geometry.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -24,6 +24,7 @@ import { nativeTokens } from '@commise/ui/native';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { makePhoto } from '../../__fixtures__/index.js';
 import { RecipeHero } from '../RecipeHero.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** Resize the window: react-native-web's `Dimensions` reads the root element's height on a resize event. */
 function windowHeight(height: number): void {

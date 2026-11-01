@@ -7,7 +7,7 @@
  * Moved here from `recipeFieldGroups.native.test.tsx`, whose basics blocks pinned the wizard-era layout.
  */
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 
@@ -46,6 +46,7 @@ import { DESCRIPTION_COUNTER_FROM, DESCRIPTION_MAX_LENGTH, TITLE_COUNTER_FROM, T
 import { recipeFormMessages } from '../messages.js';
 import type { RecipeFormErrors } from '../validate.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = recipeFormMessages.en;
 const e = editorMessages.en;

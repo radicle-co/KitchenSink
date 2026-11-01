@@ -2,12 +2,13 @@
  * The native sign-out row: an ink Profile row named by its state, with the localized failure beneath it. Not
  * destructive, so never red (`buildSpec.md` §9.1). Every state is asserted by role and name.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { SignOutRow } from '../SignOutRow.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

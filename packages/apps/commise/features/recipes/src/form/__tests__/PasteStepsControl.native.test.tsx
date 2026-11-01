@@ -4,7 +4,7 @@
  * field's own system paste menu pastes (Settled 34), so the tests type into the field.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
@@ -28,6 +28,7 @@ import { pasteStepsFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 import { editorMessages } from '../../editor/messages.js';
 import { PasteStepsControl } from '../PasteStepsControl.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const s = editorMessages.en.steps;
 

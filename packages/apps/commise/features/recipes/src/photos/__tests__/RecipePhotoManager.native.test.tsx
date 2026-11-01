@@ -4,7 +4,7 @@
  * and the add-control/cap boundary — so the two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { Pressable, Text, type Modal as ModalType } from 'react-native';
 import { createElement, type ComponentProps } from 'react';
@@ -17,6 +17,7 @@ import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipePhotoManager } from '../RecipePhotoManager.native.js';
 import { MAX_RECIPE_PHOTOS, type RecipePhotoManagerProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // The platform the render stands in for, and the sheet's Modal: its `onDismiss` is held back so a test fires it itself,
 // standing in for iOS, where React Native reports the end of the slide-out that way (`ActionMenu.native.test.tsx`).

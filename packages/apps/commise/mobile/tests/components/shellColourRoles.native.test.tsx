@@ -11,8 +11,8 @@ import { renderWithProviders } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
 import { LoadingNotice } from '@commise/ui/loading-notice';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { render as renderInDesignSystem, resolvedColour } from '@commise/ui/testing/tamagui';
-import { cleanup, render, screen } from '@testing-library/react';
+import { render, render as renderInDesignSystem, resolvedColour } from '@commise/ui/testing/tamagui';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async (importOriginal) => {

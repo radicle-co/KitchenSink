@@ -8,7 +8,7 @@
  * remove control is now a menu item, the card is the shared one, and the source label moved to the last line.
  */
 import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,6 +17,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 import { CollectionMemberRow } from '../CollectionMemberRow.native.js';
 import type { CollectionMemberRowProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

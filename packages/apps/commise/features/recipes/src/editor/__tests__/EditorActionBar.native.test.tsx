@@ -2,11 +2,12 @@
  * The native editor's action bar (build spec §7.1, §7.8). A-006: the bar pads the bottom for the system navigation bar,
  * but the on-screen keyboard covers that bar, so the padding is a dead band above the keys while it is up.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EditorActionBar } from '../EditorActionBar.native.js';
 import type { EditorActionBarProps } from '../frameProps.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native-safe-area-context', () => ({
     useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 47, left: 0 }),

@@ -4,12 +4,13 @@
  * confirm and keep, busy and failed — so the two platforms cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { RecipeMakePublicDialog } from '../RecipeMakePublicDialog.js';
 import { recipeActionMessages } from '../messages.js';
 import type { RecipeMakePublicDialogProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = recipeActionMessages.en.makePublicDialog;
 

@@ -29,7 +29,7 @@
  * "must be used within a <RecipeServiceProvider>". The mismatch looked exactly like a missing provider.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
 import {
     isSessionSubjectChangedError,
@@ -51,6 +51,7 @@ import { Text } from 'react-native';
 import { RecipeServiceGate } from '../../src/providers/RecipeServiceGate.js';
 import { nativeDeviceStore } from '../../src/storage/deviceSession.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The live session's shape, as the gate reads it from `useClerk()`. */
 interface FakeSession {

@@ -6,12 +6,13 @@ import { touchFloor } from '@commise/ui/layout';
 import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { themeFor } from '@commise/ui/theme';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { ImportReviewRail } from '../ImportReviewRail.native.js';
 import { importMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const r = importMessages.en.wizard.rail;
 

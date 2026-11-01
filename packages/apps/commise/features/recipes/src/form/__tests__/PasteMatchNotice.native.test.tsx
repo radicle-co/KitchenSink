@@ -4,7 +4,7 @@
  * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, RecipeEditorPasteChooseStates).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 
 const platform = vi.hoisted(() => ({ os: 'web' as string }));
@@ -29,6 +29,7 @@ import { recipeFormMessages } from '../messages.js';
 import { pasteMatchNoticeOf } from '../pasteMatchView.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PasteMatchNotice } from '../PasteMatchNotice.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = recipeFormMessages.en;
 

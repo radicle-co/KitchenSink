@@ -7,7 +7,7 @@
  * platform's text input and reads the props each field is handed, keyed by its `nativeID`: a field's error leads its
  * `accessibilityHint`, and its visible label is its `accessibilityLabel`.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +21,7 @@ import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js'
 import { recipeFormMessages } from '../messages.js';
 import type { RecipeFormErrors } from '../validate.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const fields = vi.hoisted(() => new Map<string, ComponentProps<typeof TextInputAdapter>>());
 

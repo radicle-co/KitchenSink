@@ -4,7 +4,7 @@
  * of the visibility field when Private is not offered, read as ONE element by a screen reader; the note for a kept
  * draft's refused Private; and the screen-reader cursor moving onto it when it replaces the field the cook just used.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,6 +18,7 @@ vi.mock('react-native', async (importOriginal) => {
 import { editorMessages } from '../../editor/messages.js';
 import { recipeFormMessages } from '../messages.js';
 import { RecipeVisibilityStatement } from '../RecipeVisibilityStatement.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const v = editorMessages.en.visibility;
 

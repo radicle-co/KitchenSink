@@ -7,10 +7,11 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sideInsetOf } from '@commise/test-utils';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
 import { RecipeVersionListError } from '../RecipeVersionListError.native.js';
 import { recipeVersionMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const { versionList } = recipeVersionMessages.en;
 

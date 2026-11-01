@@ -2,7 +2,7 @@
  * VariantDetailsDialog (native) — every state of the details dialog, rendered through react-native-web (curated U14;
  * `docs/design/ingredientSpecialization.md` §S8, §S10, §S12 rows 17 to 29).
  */
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { role, roleDark } from '@commise/ui/colors';
@@ -14,6 +14,7 @@ import { editEntry, loadedRead, makeDetailsModel } from '../__fixtures__/details
 import type { DetailsDialogEntry } from '../detailsDialogMachine.js';
 import type { VariantDetailsDialogModel } from '../useVariantDetailsDialog.js';
 import { VariantDetailsDialog } from '../VariantDetailsDialog.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The platform and the text size a case stands in for: react-native-web is always `'web'` at font scale 1. */
 const device = vi.hoisted(() => ({ os: 'web' as 'web' | 'ios' | 'android', fontScale: 1 }));

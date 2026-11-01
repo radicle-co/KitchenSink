@@ -3,12 +3,13 @@
  * over the design system's native notice leaves. Mirrors `ImportWizardNotice.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 // ONE component for both platforms: its notices resolve to their native leaves here.
 import { ImportWizardNotice } from '../ImportWizardNotice.js';
 import { importMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const w = importMessages.en.wizard;
 

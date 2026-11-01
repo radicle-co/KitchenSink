@@ -2,11 +2,12 @@
  * The shared "Account" group, rendered through the NATIVE leaves (the native config resolves `./ProfileRow.js` to the
  * `.native.tsx` file): the display-name row, its value rule, and the platform's extra rows after it. Mobile passes none.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ProfileAccountGroup } from '../ProfileAccountGroup.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

@@ -5,10 +5,11 @@
  */
 import { sideInsetOf } from '@commise/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 import { RecipeVersionListSkeleton } from '../RecipeVersionListSkeleton.native.js';
 import { recipeVersionMessages } from '../messages.js';
+import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
 
 const { versionList } = recipeVersionMessages.en;
 
@@ -32,7 +33,7 @@ describe('RecipeVersionListSkeleton (native)', () => {
 
     it('shows the caption once, over three inert rows kept out of the accessibility tree', () => {
         const { container } = render(<RecipeVersionListSkeleton label="Loading version history…" />);
-        const hidden = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+        const hidden = container.querySelector(ARIA_HIDDEN_CONTENT) as HTMLElement;
 
         expect(screen.getAllByText('Loading version history…')).toHaveLength(1);
         expect(hidden.children).toHaveLength(3);
@@ -43,7 +44,7 @@ describe('RecipeVersionListSkeleton (native)', () => {
 describe('RecipeVersionListSkeleton (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
     it('insets the title once (its own 16), and pads the caption and the placeholder rows by 16', () => {
         const { container } = render(<RecipeVersionListSkeleton label="Loading version history…" />);
-        const hidden = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+        const hidden = container.querySelector(ARIA_HIDDEN_CONTENT) as HTMLElement;
 
         expect(sideInsetOf(screen.getByRole('heading', { name: versionList.heading }))).toBe(16);
         // The caption pads itself, so it is measured by its own padding and nothing around it.

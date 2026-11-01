@@ -6,7 +6,7 @@
  * a middle dot between them.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { makeRecipeDetail, idleUnreachableRetry } from '../../__fixtures__/index.js';
@@ -21,6 +21,7 @@ import { RecipeDetailView } from '../RecipeDetailView.native.js';
 import { resetServingScale } from '../servingScale.js';
 import type { ReactElement } from 'react';
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
+import { render as renderUnscoped } from '@commise/ui/testing/tamagui';
 
 /** Every detail renders inside the session’s cook-marks scope, as each app root mounts it. */
 const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>

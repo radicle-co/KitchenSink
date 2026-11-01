@@ -7,7 +7,8 @@
  * A stand-in `TamaguiProvider` prints the scheme it receives and records the config; the real one would render the same
  * children.
  */
-import { act, cleanup, render, screen } from '@testing-library/react';
+// AppProviders mounts the design-system provider itself, so it is rendered without one (`renderUnscoped`).
+import { act, cleanup, screen, render as renderUnscoped } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Text } from 'react-native';
@@ -92,7 +93,7 @@ afterEach(() => {
 
 describe('AppProviders, Tamagui config and scheme', () => {
     it('mounts Tamagui with the design system’s config', async () => {
-        render(<App />);
+        renderUnscoped(<App />);
 
         expect(await screen.findByText('child')).toBeTruthy();
         expect(received.config).toBe(tamaguiConfig);
@@ -104,7 +105,7 @@ describe('AppProviders, Tamagui config and scheme', () => {
         [null, 'light'],
     ] as const)('gives Tamagui the %s device scheme as %s', async (system, expected) => {
         scheme.current = system;
-        render(<App />);
+        renderUnscoped(<App />);
 
         expect(await screen.findByText(`theme:${expected}`)).toBeTruthy();
         expect(screen.getByText('child')).toBeTruthy();
@@ -112,7 +113,7 @@ describe('AppProviders, Tamagui config and scheme', () => {
 
     it('follows a scheme change on the device after mount', async () => {
         scheme.current = 'light';
-        const { rerender } = render(<App />);
+        const { rerender } = renderUnscoped(<App />);
 
         expect(await screen.findByText('theme:light')).toBeTruthy();
 

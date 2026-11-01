@@ -14,7 +14,7 @@
  */
 import { sideInsetOf } from '@commise/test-utils';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authBlockMessages } from '@commise/features-account';
@@ -28,6 +28,7 @@ import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
 import { useUpdateProfile } from '../../src/hooks/useUpdateProfile.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { ProfileScreen } from '../../src/screens/profile.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

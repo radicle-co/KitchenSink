@@ -5,11 +5,12 @@
  * nutrition then reads "4 of 9 counted". Choose now and Publish anyway are the two ways on; closing does neither.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PublishOpenChoicesSheet } from '../PublishOpenChoicesSheet.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

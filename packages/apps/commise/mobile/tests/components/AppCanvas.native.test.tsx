@@ -16,11 +16,12 @@
  */
 import { gradient, toNativeGradient } from '@commise/ui/tokens/gradients';
 import { role } from '@commise/ui/colors';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { Text } from 'react-native';
 import { describe, expect, it } from 'vitest';
 
 import { AppCanvas } from '../../src/components/AppCanvas';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The stub's DOM seam for a rendered `LinearGradient`. */
 function canvasElement(): HTMLElement {

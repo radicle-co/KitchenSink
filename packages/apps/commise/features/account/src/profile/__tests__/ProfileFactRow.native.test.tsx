@@ -9,7 +9,7 @@
  * `data-accessible`, and `data-flex-shrink` (react-native-web's `dataSet`) from the flattened style. What is proven is the props React Native gets, not
  * that a screen reader honours them.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { createElement, forwardRef, type ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -36,6 +36,7 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 import { ProfileFactRow } from '../ProfileFactRow.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

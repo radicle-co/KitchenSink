@@ -16,7 +16,7 @@
  * phone's insets (a 3-button navigation bar on the right).
  */
 import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
 import type { Modal as ModalType } from 'react-native';
@@ -26,6 +26,7 @@ import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-sc
 
 import { makePhoto } from '../../__fixtures__/index.js';
 import { PhotoCarousel } from '../PhotoCarousel.native.js';
+import { render, rendersNothing } from '@commise/ui/testing/tamagui';
 
 const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof ModalType> | undefined }));
 
@@ -152,7 +153,7 @@ describe('PhotoCarousel (native)', () => {
     it('renders nothing when the recipe has no photos', () => {
         const { container } = render(<PhotoCarousel title="Grilled Lamb" photos={[]} />);
 
-        expect(container.firstChild).toBeNull();
+        expect(rendersNothing(container)).toBe(true);
     });
 
     it('draws no slide before it knows how wide its strip is', () => {

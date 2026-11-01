@@ -3,10 +3,11 @@
  * `RecipeBrowseRailLoading.test.tsx`; moved from `RecipeBrowseRails.native.test.tsx`'s "rail states".
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeBrowseRailLoading } from '../RecipeBrowseRailLoading.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

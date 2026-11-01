@@ -3,7 +3,7 @@
  * trimmed name and description, refuse an empty name with an inline error, cap the name with its counter, say a server
  * failure, and confirm before discarding a typed name.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ import {
     type CollectionCreateSheetProps,
     type CollectionRenameSheetProps,
 } from '../CollectionSheet.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // react-native-web drops `accessibilityHint` and iOS ignores `aria-labelledby`, so the fields are wrapped to record the
 // accessibility props a screen reader is actually given.

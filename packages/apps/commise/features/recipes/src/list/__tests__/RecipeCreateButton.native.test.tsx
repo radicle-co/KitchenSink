@@ -3,10 +3,11 @@
  * recipe" button opens the editor in one tap. Native has no sidebar, so the floating form is its only form.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { RecipeCreateButton } from '../RecipeCreateButton.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

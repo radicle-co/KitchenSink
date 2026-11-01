@@ -7,11 +7,12 @@
  * pass inside `HomeWidgetSurface.native.test.tsx`, so the leaf's own states — closed, open, and each of its
  * two dismissal paths — were never asserted on this platform. Covered here.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
 
 import { SubscriptionNudge } from '../../../src/components/home/SubscriptionNudge.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

@@ -7,7 +7,7 @@
  * close route reaching `onCancel`, and `onDismissed` once it is gone. Native has no DOM focus: the Sheet puts the
  * reading cursor on its title, and the duplicate notice takes it as it replaces the form.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
@@ -19,6 +19,7 @@ import type { AuthoredFoodCreateState } from '../../hooks/authoredFoodCreate.mod
 import { recipeMessages } from '../../messages.js';
 import { AuthoredFoodSheet } from '../AuthoredFoodSheet.native.js';
 import { recipeFormMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // React Native has no `aria-invalid`, and react-native-web drops `accessibilityHint`, so the fields are wrapped to
 // record what a screen reader is actually given (`recordedTextInput`).

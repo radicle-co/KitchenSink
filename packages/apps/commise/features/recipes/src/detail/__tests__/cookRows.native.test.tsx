@@ -4,7 +4,7 @@
  * selected state, the step text stays content, and a press anywhere on the step moves the marker for touch users.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';
@@ -16,6 +16,7 @@ import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { IngredientCheckRow } from '../IngredientCheckRow.native.js';
 import { StepRow } from '../StepRow.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

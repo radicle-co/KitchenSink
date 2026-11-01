@@ -5,13 +5,14 @@
  * while saving or saved does nothing and the button stays focusable (`aria-disabled`, never `disabled`); a failure
  * unfills the icon and an inline alert says so.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocaleProvider } from '@commise/i18n/react';
 
 import type { SaveCopyState } from '../../hooks/useSaveCopy.js';
 import { DiscoveryFooter } from '../DiscoveryFooter.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

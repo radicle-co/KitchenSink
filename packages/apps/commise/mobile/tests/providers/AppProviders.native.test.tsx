@@ -13,7 +13,8 @@
  * This keeps the test focused on the FACADE's composition, not re-proving those collaborators' own behavior.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+// AppProviders mounts the design-system provider itself, so it is rendered without one (`renderUnscoped`).
+import { cleanup, screen, waitFor, render as renderUnscoped } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MAX_QUERY_RETRIES } from '@commise/query';
@@ -83,7 +84,7 @@ function ContextProbe() {
 
 describe('AppProviders (DA10-a facade)', () => {
     it('mounts Clerk, a QueryClientProvider, and the recipe-service client in the enforced order', async () => {
-        render(
+        renderUnscoped(
             <AppProviders>
                 <ContextProbe />
             </AppProviders>,
@@ -123,7 +124,7 @@ describe('AppProviders (DA10-a facade)', () => {
                 return <Text>{isError ? 'errored' : 'pending'}</Text>;
             }
 
-            render(
+            renderUnscoped(
                 <AppProviders>
                     <FailingProbe />
                 </AppProviders>,
@@ -147,6 +148,6 @@ describe('AppProviders (DA10-a facade)', () => {
             return null;
         }
 
-        expect(() => render(<Unwrapped />)).toThrow(/RecipeServiceProvider/);
+        expect(() => renderUnscoped(<Unwrapped />)).toThrow(/RecipeServiceProvider/);
     });
 });

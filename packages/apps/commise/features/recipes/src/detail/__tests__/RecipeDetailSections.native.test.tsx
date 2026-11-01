@@ -8,7 +8,7 @@
  * parent and the scroll spy reads it (`ui/src/scrollHost/props.ts`).
  */
 import { createElement, type ReactElement } from 'react';
-import { act, cleanup, fireEvent, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { idleUnreachableRetry, makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
@@ -16,6 +16,7 @@ import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
 import { recipeMessages } from '../../messages.js';
 import { resetServingScale } from '../servingScale.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
+import { render as renderUnscoped } from '@commise/ui/testing/tamagui';
 
 const { detail } = recipeMessages.en;
 

@@ -14,7 +14,7 @@
  * rails block (review D1: the pull refreshed the main search, not the rails on screen); see
  * `RecipeBrowseRails.native.test.tsx`.
  */
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
@@ -28,6 +28,7 @@ import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeDiscoveryResults } from '../RecipeDiscoveryResults.native.js';
 import type { RecipeDiscoveryResultsProps } from '../model.js';
 import { isolate } from '../../byline/bylineText.js';
+import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();
@@ -346,13 +347,13 @@ describe('RecipeDiscoveryResults (native) — newer results pending', () => {
         vi.useFakeTimers();
         const { container } = renderResults({ browseSlot: <Text>CURATED RAILS</Text>, stale: true });
 
-        expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
+        expect(container.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(0);
 
         act(() => {
             vi.advanceTimersByTime(PENDING_BAR_DELAY_MS);
         });
 
-        expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
+        expect(container.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(1);
     });
 
     it('draws no bar once settled, however long it waits', () => {
@@ -363,7 +364,7 @@ describe('RecipeDiscoveryResults (native) — newer results pending', () => {
             vi.advanceTimersByTime(PENDING_BAR_DELAY_MS * 2);
         });
 
-        expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
+        expect(container.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(0);
     });
 });
 

@@ -28,7 +28,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarHost } from '@commise/ui/snackbar';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 
 import {
     RECIPE_BROWSE_RAILS,
@@ -56,6 +56,7 @@ import {
     makeRecipeSearchResult,
     makeSearchResponse,
 } from '../__fixtures__/recipes.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // Home and discovery draw the calorie figure on the full card only (the compact card has no meta line), which they show
 // from a 960 container (owner ruling D8); jsdom has no window to measure, so the window is read as wide here. This is

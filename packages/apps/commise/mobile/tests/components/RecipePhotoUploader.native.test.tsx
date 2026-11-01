@@ -21,7 +21,7 @@
  * reachable here.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
@@ -38,6 +38,7 @@ import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { RecipePhotoUploader } from '../../src/components/RecipePhotoUploader.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // The device's scheme, for the D15 case below; every other case leaves it unset and reads the light roles.
 vi.mock('react-native', async (importOriginal) => {

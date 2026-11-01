@@ -15,7 +15,7 @@ appId: ${APP_ID}
 - runFlow: launchCleared.yaml
 
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 30000
 
 # Focus the password: the keyboard rises, the footer pins above it, and the field must not end up under either.

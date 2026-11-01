@@ -44,6 +44,7 @@ import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocu
 import { dimmedOpacity } from '../tokens/scale.js';
 import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
 import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
+import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
 
 /** A size's visual height on this platform: `md` IS the touch floor, so it grows with it on Android. Pure. */
 const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);
@@ -122,7 +123,9 @@ export const Button: FC<ButtonProps> = (props) => {
     const content: ReactNode = (
         <>
             {iconPlacement === 'start' ? glyph : null}
-            <Text style={[styles.label, { color: theme.colors[foreground] }]}>{children}</Text>
+            <Text maxFontSizeMultiplier={FONT_SCALE_CAP} style={[styles.label, { color: theme.colors[foreground] }]}>
+                {children}
+            </Text>
             {iconPlacement === 'end' ? glyph : null}
         </>
     );

@@ -9,11 +9,10 @@
  */
 import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
-import { useContainerClass } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { JSX } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
 
@@ -30,25 +29,20 @@ export interface AuthHeaderProps {
 export function AuthHeader({ title }: AuthHeaderProps): JSX.Element {
     const { auth } = useMessages(mobileMessages);
     const shared = useMessages(authSurfaceMessages);
-    const { colors } = useTheme();
-    const containerClass = useContainerClass();
 
     return (
         <View style={styles.header}>
-            <Text style={[styles.mark, { color: colors.ink }]}>{auth.brand}</Text>
-            <Text
-                role="heading"
-                aria-level={1}
-                style={[nativeTokens.type.largeTitle[containerClass], { color: colors.ink }]}
-            >
+            <Text typeRole="sectionTitle">{auth.brand}</Text>
+            <Text typeRole="largeTitle" role="heading" aria-level={1}>
                 {title}
             </Text>
-            <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{shared.brandLine}</Text>
+            <Text typeRole="body" color="$inkMuted">
+                {shared.brandLine}
+            </Text>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     header: { gap: nativeTokens.spacing[2] },
-    mark: { ...nativeTokens.type.sectionTitle },
 });

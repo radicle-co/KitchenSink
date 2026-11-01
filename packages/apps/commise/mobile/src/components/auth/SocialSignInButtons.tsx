@@ -16,6 +16,7 @@
 import { BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { dimmedOpacity } from '@commise/ui/scale';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { useMessages } from '@commise/i18n/react';
 import {
@@ -24,7 +25,7 @@ import {
     AppleAuthenticationButtonType,
 } from 'expo-apple-authentication';
 import type { JSX } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { SocialProvider } from '../../auth/socialAuthConfig.js';
 import { mobileMessages } from '../../i18n/messages.js';
@@ -103,19 +104,21 @@ export function SocialSignInButtons({
             </View>
 
             {busyProvider !== null ? (
-                <Text aria-live="polite" style={[styles.status, { color: colors.inkMuted }]}>
+                <Text typeRole="meta" color="$inkMuted" aria-live="polite">
                     {t.socialBusy}
                 </Text>
             ) : null}
             {error !== null && busyProvider === null ? (
-                <Text role="alert" style={[styles.status, { color: colors.dangerText }]}>
+                <Text typeRole="meta" color="$dangerText" role="alert">
                     {error}
                 </Text>
             ) : null}
 
             <View style={styles.divider}>
                 <View style={[styles.rule, { backgroundColor: colors.lineDivider }]} />
-                <Text style={[styles.or, { color: colors.inkMuted }]}>{t.orDivider}</Text>
+                <Text typeRole="meta" color="$inkMuted">
+                    {t.orDivider}
+                </Text>
                 <View style={[styles.rule, { backgroundColor: colors.lineDivider }]} />
             </View>
         </View>
@@ -128,8 +131,6 @@ const styles = StyleSheet.create({
     group: { gap: nativeTokens.spacing[3] },
     apple: { height: HEIGHT, width: '100%' },
     dimmed: { opacity: dimmedOpacity },
-    status: { ...nativeTokens.type.meta },
     divider: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
     rule: { flex: 1, height: StyleSheet.hairlineWidth },
-    or: { ...nativeTokens.type.meta },
 });

@@ -79,6 +79,7 @@ All guards live in `packages/tools/repoGuards`. Each new rule was written as a f
 | G4 (`tamaguiTypeProps`)                        | A Tamagui element sets no type part by itself. A `styled()` line height is a `px` string.                                                                                                                                                                                                                                               |
 | G6 (`tamaguiPressOwnership`)                   | No Tamagui element owns a press: no press handler, no press modifier, no object-form press key. `PressScale` owns the one press responder.                                                                                                                                                                                              |
 | G7 (`tamaguiShorthands`)                       | No Tamagui shorthand (`lh`, `col`, `o`, `pe`, `bblr` and the rest) on a Tamagui element or in `styled()`. Every other guard reads long names, so a shorthand would pass them all. The names come from a config Tamagui itself builds, and a ui config test pins that our config adds none.                                              |
+| Text-scale ratchet (`nativeTextScaleCap`)      | A React Native `Text` or `TextInput` without `maxFontSizeMultiplier={FONT_SCALE_CAP}` only falls per file, and a new file has none. The design system's `Text` carries the cap, and a text nested in a capped text inherits it (§8).                                                                                                    |
 | Older native guards                            | Labelled views, flatten flips, text pointer events, touch floor, face weight, colour roles, radius and the pattern register also read Tamagui elements and `styled()` definitions.                                                                                                                                                      |
 
 The styling ratchet counts each `StyleSheet.create` entry, each other `StyleSheet` member, and each `style` or
@@ -159,6 +160,11 @@ font size: iOS multiplies it by `min(maxFontSizeMultiplier, scale)` (`RCTAttribu
 it with `toPixelFromSP(lineHeight, effectiveMaxFontSizeMultiplier)` (`TextAttributes.kt`). So a `px` leading that
 holds its text at 1× holds it at the cap, and a test of the tokens at 1× covers every scale. Only a device shows the
 clamp itself, so a slice pass checks one dense screen at a system scale above 2×.
+
+Until a shared control is ported, its React Native text carries the same cap as a prop: the button's label, the field
+label and hint, the live region, and the input adapter, which is the one place the app renders React Native's input. A
+box sized around capped text reads `cappedFontScale`, so it stops growing where its text does. The text-scale ratchet
+(§4) holds the count of uncapped native text, so it only falls.
 
 ### 9. The migration moves in slices
 

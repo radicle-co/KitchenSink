@@ -154,10 +154,20 @@ appId: ${APP_ID}
 # the auth gate has put the viewer back on the sign-in form. If the ACCOUNT leg had failed, the flow would
 # still be sitting in the dialog with its error copy, and this would (correctly) time out.
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 40000
-- assertVisible: 'Password'
-- assertVisible: 'Sign in'
+# At the largest text sizes the form's controls sit below its title, so each is scrolled into view; the scroll is the
+# check, and it fails when its target never appears.
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Password'
+          DIRECTION: DOWN
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Sign in'
+          DIRECTION: DOWN
 
 # Nothing authenticated survives: the danger zone the viewer was just standing in is gone, not merely covered.
 - assertNotVisible: 'Erase my data'

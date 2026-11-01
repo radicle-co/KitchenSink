@@ -27,67 +27,122 @@ appId: ${APP_ID}
 # On iOS the clear leaves the Keychain session, so the app would open signed in; sign out through the app first.
 - runFlow: signOutIfSignedIn.yaml
 
-# Cleared state opens on the SIGN-IN FORM ITSELF — no landing screen, no tap required. The email placeholder is
-# the landmark unique to that form (its 'Sign in' submit alone would also match the sign-up screen's return
-# control). `extendedWaitUntil` rather than a bare assert because `AuthGate` paints its "Checking your session…"
-# affordance first, and this is the flow's first read of the screen.
+# Cleared state opens on the SIGN-IN FORM ITSELF — no landing screen, no tap required. The title 'Sign in to Commise'
+# is the landmark unique to that form and its first element, so it is on screen at any text size (its 'Sign in' submit
+# alone would also match the sign-up screen's return control). `extendedWaitUntil` rather than a bare assert because
+# `AuthGate` paints its "Checking your session…" affordance first, and this is the flow's first read of the screen.
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 30000
-- assertVisible: 'Email'
-- assertVisible: 'Password'
-- assertVisible: 'Sign in'
-
 # The regression guard for the decision above: the deleted hero must not reappear in front of the form. (The
-# assertion above — that the form is up with NO interaction — is what actually proves the entry; this one names
+# wait above — that the form is up with NO interaction — is what actually proves the entry; this one names
 # the specific surface that must not come back.)
 - assertNotVisible: 'Cook with confidence. Plan with ease.'
 - assertNotVisible: 'Get started'
 
+# At the largest text sizes the controls sit below the first screen, so each one below the title is scrolled into view,
+# in screen order (the scroll only moves down). The scroll is the check: it fails when its target never appears.
+#
 # Native social sign-in (plan 012): the CI test app is a SANDBOX build, whose Clerk instance has an Android Google client
 # registered and Sign in with Apple on iOS, so the provider group stands above the email form — Google on Android,
 # Apple and Google on iOS. Only PRESENCE is asserted here: a real Google or Apple sign-in needs a real account and the
 # provider's own UI, which cannot be automated, and the cancel / error path is `auth/socialCancel.yaml` (hand-run; see
 # its header for why it is not in the plan). Copy: mobile i18n `auth.continueWithGoogle`, `auth.orDivider`; the Apple
 # button's label is the system's own, so it is matched by its words, not by a key.
-- assertVisible: 'Continue with Google'
-- assertVisible: 'or'
 - runFlow:
       when:
           platform: iOS
       commands:
-          - assertVisible: '.*with Apple'
+          - runFlow:
+                file: ../recipes/common/scrollIntoTapView.yaml
+                env:
+                    TARGET: '.*with Apple'
+                    DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Continue with Google'
+          DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'or'
+          DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Email'
+          DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Password'
+          DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Sign in'
+          DIRECTION: DOWN
 
 # Sign-UP is reachable from the sign-in form, and returns to it. This is the entry point the welcome hero used
 # to own, so it is asserted in both directions rather than assumed (web's `routeProtection.spec.ts` asserts the
 # same property via the sign-up link Clerk renders from `signUpUrl` — cross-platform parity). Copy comes from
 # mobile i18n `auth.signUpLink` / `createHeading` / `createAccountAction` / `haveAccountPrompt`.
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Create an account'
+          DIRECTION: DOWN
 - tapOn: 'Create an account'
-- assertVisible: 'Create your account'
+- extendedWaitUntil:
+      visible: 'Create your account'
+      timeout: 20000
 # The sign-up form asks for first name, last name, username and email (owner ruling 2026-10-13) under the provider
-# group, so its submit and its return link can sit below the fold on a short screen: scroll to them, then assert.
-- assertVisible: 'First name'
-- assertVisible: 'Username'
-- scrollUntilVisible:
-      element: 'Already have an account?'
-      direction: DOWN
-- assertVisible: 'Create account'
-- assertVisible: 'Already have an account?'
+# group, so its fields, its submit and its return link can sit below the fold: each is scrolled into view, in order.
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'First name'
+          DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Username'
+          DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Create account'
+          DIRECTION: DOWN
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Already have an account?'
+          DIRECTION: DOWN
 # The sign-up screen's return control. 'Sign in' is unambiguous HERE (this screen's submit is 'Create account'),
 # whereas on the login screen it would also match that form's own submit — which is why the flow taps it only
-# while the sign-up screen is up, and confirms the login form is back by its unique email placeholder.
+# while the sign-up screen is up, and confirms the login form is back by its title.
 - tapOn: 'Sign in'
 # Audit 2026-10-19, A1.16: the login heading proves we are back on the sign-in form, and the sign-up heading must be gone.
 - extendedWaitUntil:
       visible: 'Sign in to Commise'
       timeout: 20000
 - assertNotVisible: 'Create your account'
-- assertVisible: 'you@example.com'
-- assertVisible: 'Password'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Password'
+          DIRECTION: DOWN
 
 # A WRONG password stops at the password (A-001): Clerk's error shows and NO verification-code step appears. A
 # sign-in that sends the email code before the password is checked would let the mailbox alone sign a user in.
 # `signinHome.yaml` is not reused here because it enters the CORRECT password; this step enters a wrong one.
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'you@example.com'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'you@example.com'
 - inputText: '${E2E_SIGNIN_EMAIL}'
 # Read back, for `signinHome.yaml`'s reason (the iOS Simulator drops keystrokes). A dropped key would otherwise read as

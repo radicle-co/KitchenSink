@@ -23,13 +23,13 @@ import { useClerk } from '@clerk/expo';
 import type { SignUpResource } from '@clerk/shared/types';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import * as Sentry from '@sentry/react-native';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { signUpFailure, signUpFailureCopy, type SignUpErrorField } from '../auth/signUpFailure.js';
 import {
@@ -68,7 +68,6 @@ export function CompleteSignUpScreen({
 }: CompleteSignUpScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
     const shared = useMessages(authSurfaceMessages);
-    const { colors } = useTheme();
     const { setActive } = useClerk();
     const [fields, setFields] = useState<readonly SignUpFieldSpec[]>(initialFields);
     const [values, setValues] = useState<SignUpValues>({});
@@ -172,9 +171,11 @@ export function CompleteSignUpScreen({
         <AuthScreenFrame footer={footer} trailing={wayOut}>
             <AuthHeader title={t.finishTitle} />
             <View style={styles.intro}>
-                <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{t.finishPrompt}</Text>
+                <Text typeRole="body" color="$inkMuted">
+                    {t.finishPrompt}
+                </Text>
                 {signUp.emailAddress ? (
-                    <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>
+                    <Text typeRole="meta" color="$inkMuted">
                         {t.finishSigningUpAs.replace('{email}', signUp.emailAddress)}
                     </Text>
                 ) : null}

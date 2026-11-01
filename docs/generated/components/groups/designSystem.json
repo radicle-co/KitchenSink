@@ -14928,7 +14928,7 @@
                             "text": "Registry client — a field with an id registers itself for its label (`labelFocus.native.ts`)"
                         }
                     ],
-                    "description": "React Native's `TextInput`, never in Android's full-screen editor, and focusable by its label. A presentational\ncomponent: it renders its props and holds no state. Native only, because only Android has the editor.",
+                    "description": "React Native's `TextInput`, never in Android's full-screen editor, focusable by its label, and capped at 2× the text\nsize (ADR-0080 §8). It is the one place the app renders React Native's input, so the cap here reaches every field. A\npresentational component: it renders its props and holds no state. Native only, because only Android has the editor.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",

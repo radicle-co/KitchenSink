@@ -60,7 +60,7 @@ onFlowComplete:
           DIRECTION: DOWN
 - tapOn: 'Sign out'
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 40000
 
 # Cook B signs in on the same process. `signinHome.yaml` finds the form and types B's address.

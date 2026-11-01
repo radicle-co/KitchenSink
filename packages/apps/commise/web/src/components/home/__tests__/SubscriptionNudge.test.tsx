@@ -72,6 +72,29 @@ describe('SubscriptionNudge (web) — open', () => {
     });
 });
 
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): the copy is the `meta` role on both platforms, and the
+// title is the `cardTitle` role, the same role as the native title. A role class carries its size, leading and weight,
+// so no raw size, weight or face class may sit beside it.
+describe('SubscriptionNudge (web) — type roles', () => {
+    const RAW_TYPE = /^(text-(xs|sm|base|lg|xl|\d?xl)|font-(display|body|normal|medium|semibold|bold))$/u;
+
+    it('sets the title in the cardTitle role', () => {
+        render(<SubscriptionNudge open onDismiss={() => undefined} />);
+        const classes = screen.getByRole('heading', { name: 'Unlock Commise Pro' }).className.split(' ');
+
+        expect(classes).toContain('text-card-title');
+        expect(classes.filter((name) => RAW_TYPE.test(name))).toEqual([]);
+    });
+
+    it('sets the copy in the meta role', () => {
+        render(<SubscriptionNudge open onDismiss={() => undefined} />);
+        const classes = screen.getByText('Upgrade to Commise Pro to use this feature.').className.split(' ');
+
+        expect(classes).toContain('text-meta');
+        expect(classes.filter((name) => RAW_TYPE.test(name))).toEqual([]);
+    });
+});
+
 describe('SubscriptionNudge (web) — Radix a11y machinery (B6/CR-003)', () => {
     it('Escape fires onDismiss and returns focus to the sibling trigger that opened it', async () => {
         const user = userEvent.setup();

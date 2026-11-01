@@ -100,9 +100,9 @@ describe('ProfileFactRow (native)', () => {
         const email = `${'a'.repeat(60)}@example.com`;
         render(<ProfileFactRow label="Email" value={email} />);
 
-        // The value takes the room the label leaves; the label keeps its width.
+        // The value takes the room the label leaves; the label's wrapper keeps its width.
         expect(declaredFlexShrink(screen.getByText(email))).toBe('1');
-        expect(declaredFlexShrink(screen.getByText('Email'))).toBeUndefined();
+        expect(declaredFlexShrink(screen.getByText('Email').parentElement as Element)).toBe('0');
     });
 });
 
@@ -137,46 +137,17 @@ describe('ProfileFactRow (native) — type and colour', () => {
 });
 
 // Designer rulings 2026-11-01 (`nativeBoards/designAnswers.md`, `reviews/androidShots1.md`): the value sits at the END
-// of the line beside its label, and the row stacks by ROOM: when the content width over the capped font scale is below
-// 280. REWRITTEN from the first ruling's scale-only rule (stack above 1.3x), which stacked a wide tablet that had room.
-// A 390 pt phone's content is 358 pt wide (16 pt gutters), so it stacks a little above 1.25x; a 1024 pt tablet's is 960.
-describe('ProfileFactRow (native) — layout at each text size', () => {
+// of the line beside its label, and stacks under it when the content width over the capped font scale is below 280.
+// The row draws its label and value through `LabelValuePair`, whose suite pins every window, scale, gap and alignment;
+// these cases MOVED there when ProfileRow came to share the pair. What stays is the row's own frame, and that it lays
+// out through the pair: beside on a 390 pt phone at 1x, stacked at 1.3x.
+describe('ProfileFactRow (native) — frame and layout', () => {
     const px = (n: number): string => `${String(n)}px`;
 
-    /** The row: the element that holds both texts. */
-    function rowOf(): Element {
-        return screen.getByText('Email').parentElement as Element;
+    /** The row's frame: the one accessibility element. */
+    function frameOf(container: Element): Element {
+        return container.querySelector('[data-accessible="true"]') as Element;
     }
-
-    it.each([
-        [390, 1],
-        [390, 1.25],
-        [1024, 3.1],
-    ])('sets the value beside its label, at the end of the line, in a %s pt window at %sx', (width, fontScale) => {
-        env.width = width;
-        env.fontScale = fontScale;
-        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
-
-        expect(rowOf().contains(screen.getByText('eliza@example.com'))).toBe(true);
-        expect(resolvedStyle(rowOf(), 'flexDirection')).toBe('row');
-        expect(resolvedStyle(rowOf(), 'justifyContent')).toBe('space-between');
-        expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('right');
-    });
-
-    it.each([
-        [390, 1.3],
-        [390, 2],
-        [320, 1.1],
-    ])('stacks the value under its label, at the start, in a %s pt window at %sx', (width, fontScale) => {
-        env.width = width;
-        env.fontScale = fontScale;
-        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
-
-        expect(rowOf().contains(screen.getByText('eliza@example.com'))).toBe(true);
-        expect(resolvedStyle(rowOf(), 'flexDirection')).toBe('column');
-        expect(resolvedStyle(rowOf(), 'alignItems')).toBe('flex-start');
-        expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('left');
-    });
 
     it.each([
         [390, 1],
@@ -184,35 +155,33 @@ describe('ProfileFactRow (native) — layout at each text size', () => {
     ])('keeps the 56 pt row and the space-4 and space-2 insets in a %s pt window at %sx', (width, fontScale) => {
         env.width = width;
         env.fontScale = fontScale;
-        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+        const { container } = renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+        const frame = frameOf(container);
 
-        expect(resolvedStyle(rowOf(), 'minHeight')).toBe('56px');
-        expect(resolvedStyle(rowOf(), 'paddingLeft')).toBe(px(nativeTokens.spacing[4]));
-        expect(resolvedStyle(rowOf(), 'paddingRight')).toBe(px(nativeTokens.spacing[4]));
-        expect(resolvedStyle(rowOf(), 'paddingTop')).toBe(px(nativeTokens.spacing[2]));
-        expect(resolvedStyle(rowOf(), 'paddingBottom')).toBe(px(nativeTokens.spacing[2]));
+        expect(resolvedStyle(frame, 'minHeight')).toBe('56px');
+        expect(resolvedStyle(frame, 'paddingLeft')).toBe(px(nativeTokens.spacing[4]));
+        expect(resolvedStyle(frame, 'paddingRight')).toBe(px(nativeTokens.spacing[4]));
+        expect(resolvedStyle(frame, 'paddingTop')).toBe(px(nativeTokens.spacing[2]));
+        expect(resolvedStyle(frame, 'paddingBottom')).toBe(px(nativeTokens.spacing[2]));
     });
 
-    it('puts space-3 between the label and the value beside each other', () => {
+    it.each([
+        [1, 'row'],
+        [1.3, 'column'],
+    ])('lays out through the pair: at %sx on a 390 pt phone its direction is %s', (fontScale, direction) => {
+        env.fontScale = fontScale;
         renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+        const pair = screen.getByText('eliza@example.com').parentElement as Element;
 
-        expect(resolvedStyle(rowOf(), 'gap')).toBe(px(nativeTokens.spacing[3]));
-    });
-
-    // Designer ruling 2026-11-01: a label and its value are one group, so stacked they sit space-1 (4) apart, closer
-    // than the 12 between rows.
-    it('puts space-1 between the label and the value stacked', () => {
-        env.fontScale = 2;
-        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
-
-        expect(resolvedStyle(rowOf(), 'gap')).toBe(px(nativeTokens.spacing[1]));
+        expect(pair.contains(screen.getByText('Email'))).toBe(true);
+        expect(resolvedStyle(pair, 'flexDirection')).toBe(direction);
     });
 
     it('stays one accessibility element, with no button, when it stacks', () => {
         env.fontScale = 2;
         const { container } = render(<ProfileFactRow label="Email" value="eliza@example.com" />);
 
-        expect(container.querySelector('[data-accessible="true"]')?.textContent).toBe('Emaileliza@example.com');
+        expect(frameOf(container).textContent).toBe('Emaileliza@example.com');
         expect(screen.queryByRole('button')).toBeNull();
     });
 });

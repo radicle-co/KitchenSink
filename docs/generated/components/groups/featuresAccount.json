@@ -4,16 +4,16 @@
     "packageName": "@commise/features-account",
     "layer": "feature",
     "coverage": {
-        "components": 8,
-        "implementations": 15,
-        "props": 88,
-        "documentedComponents": 8,
-        "implementationsWithModuleDoc": 15,
-        "implementationsWithComponentDoc": 13,
-        "documentedProps": 66,
-        "classifiedComponents": 6,
+        "components": 9,
+        "implementations": 17,
+        "props": 94,
+        "documentedComponents": 9,
+        "implementationsWithModuleDoc": 17,
+        "implementationsWithComponentDoc": 15,
+        "documentedProps": 72,
+        "classifiedComponents": 7,
         "componentsWithPatternTag": 4,
-        "crossPlatformComponents": 7
+        "crossPlatformComponents": 8
     },
     "components": [
         {
@@ -553,6 +553,129 @@
             ]
         },
         {
+            "id": "featuresAccount/profile/LabelValuePair",
+            "name": "LabelValuePair",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/profile",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "LabelValuePair",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/LabelValuePair.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/LabelValuePair — a label with its value (web): beside it, the value at the\nend of the line, or under it at the start, 4 px below, when the group's column (its `rows` container, `ProfileGroup`)\nhas less than 17.5 rem of room (designer rulings 2026-11-01, `nativeBoards/designAnswers.md`). 17.5 rem is native's\n280 at the default text size, and a rem follows the browser's text size. `ProfileFactRow` and `ProfileRow` draw their\nlabel and value through it. A pair with no `rows` container above it never stacks.\n\nThe label is the caller's own element and a direct flex child, so its minimum width is its longest word and it never\nbreaks inside one. The value wraps anywhere and never truncates. Each variant is written out whole, because Tailwind\ngenerates only the class names it finds.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/LabelValuePair — a label with its value (web): beside it, the value at the"
+                        }
+                    ],
+                    "description": "The label and its value.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The label: the caller's own element, so it keeps its colour, its hint and, on web, its id. Beside the value it\nnever shrinks, so it never breaks inside a word; a long hint beside a value is not a shape any row draws today.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The value. It wraps and never truncates.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "valueId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: the value's id, so a control can be described by it. Native ignores it.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "LabelValuePair",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/profile/LabelValuePair.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/profile",
+                    "moduleDoc": "@commise/features-account/profile/LabelValuePair — a label with its value (native): beside it, the value at the\nEND of the line, or under it at the start when the column has too little room for the text size (designer rulings\n2026-11-01, `nativeBoards/designAnswers.md`). `ProfileFactRow` and `ProfileRow` draw their label and value through it.\n\nThe room is `labelValueStacksAt(contentWidthOf(width), cappedFontScale(fontScale))`, read from the window here and\nnowhere else in the Profile rows: the content width is the house's (`contentWidthOf`, as the recipe page and the list\nresults read it), and the scale is the one the text is drawn at (`cappedFontScale`).\n\nBeside the value the label does not shrink, so it never breaks inside a word, and the value takes what is left and\nwraps; it never truncates. Stacked, the two sit `$1` apart, one group. React Native's `textAlign: 'right'` is the\nline's end: React Native 0.86 swaps 'right' and 'left' when the text's layout direction is right to left (iOS\n`RCTAttributedTextUtils.mm`, Android `TextLayoutManager.getTextAlignment`), so 'left' is the start by the same swap.\n\nPresentational: props → JSX, with the window's size read as the design system's `Text` reads it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/profile/LabelValuePair — a label with its value (native): beside it, the value at the"
+                        }
+                    ],
+                    "description": "The label and its value.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The label: the caller's own element, so it keeps its colour, its hint and, on web, its id. Beside the value it\nnever shrinks, so it never breaks inside a word; a long hint beside a value is not a shape any row draws today.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "value",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The value. It wraps and never truncates.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        },
+                        {
+                            "name": "valueId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: the value's id, so a control can be described by it. Native ignores it.",
+                            "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresAccount/profile/ProfileAccountGroup",
             "name": "ProfileAccountGroup",
             "group": "featuresAccount",
@@ -653,7 +776,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (web): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill, so nothing invites a press that does nothing. A long value wraps anywhere rather than\noverflowing 320 px.\n\nThe value sits at the end of the line beside its label. When the group's column (its `rows` container) has less than\n17.5 rem of room, the value stacks under its label at the start, 4 px below it (designer ruling 2026-11-01,\n`nativeBoards/designAnswers.md`). 17.5 rem is the native rule's 280 at the default text size, and a rem follows the\nbrowser's text size. Each variant is written out whole, because Tailwind generates only the class names it finds.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (web): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill, so nothing invites a press that does nothing. A long value wraps anywhere rather than\noverflowing 320 px.\n\nThe label and the value are a `LabelValuePair`: the value at the end of the line, or under the label when the group's\ncolumn has too little room (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`).\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -696,7 +819,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.native.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (native): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill. It is ONE accessibility element, so a screen reader reads the label and the value together in a\nsingle swipe. The value takes the room the label leaves and wraps, so a long email never runs off the screen.\n\nThe value sits at the END of the line, as the web's `text-end` does (designer ruling 2026-11-01,\n`nativeBoards/designAnswers.md`). React Native's `textAlign: 'right'` is that end: React Native 0.86 swaps 'right' and\n'left' when the text's layout direction is right to left (iOS `RCTAttributedTextUtils.mm`, Android\n`TextLayoutManager.getTextAlignment`), and the row's own direction flips with the layout, so in a right-to-left\nlanguage the value sits on the left. When the row has too little room for the text size (`labelValueStacksAt`) the\nvalue stacks under its label, at the start of the line: 'left' is the start by the same swap.\n\nPresentational: props → JSX. It reads the room from the window, as the house's other native layouts do: the content\nwidth (`contentWidthOf`) and the font scale the text is drawn at (`cappedFontScale`).",
+                    "moduleDoc": "@commise/features-account/profile/ProfileFactRow — a read-only Profile row (native): the label and a value the\ncook cannot change here (their username and email, which Clerk owns). It is text, not a control: no button role, no\nchevron, no press fill. It is ONE accessibility element, so a screen reader reads the label and the value together in a\nsingle swipe. The value takes the room the label leaves and wraps, so a long email never runs off the screen.\n\nThe label and the value are a `LabelValuePair`: the value at the END of the line, as the web's `text-end` does, or\nunder the label when the row has too little room for the text size (designer rulings 2026-11-01,\n`nativeBoards/designAnswers.md`). The pair owns that rule and its right-to-left reading.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1035,11 +1158,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileRow.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button (or the link, when it has a destination), and its hint is inside it, so the\nconsequence of Close account is read with the name. The danger tone changes the TEXT colour only. Sign out is `ink`:\nit is not destructive. While busy the row stays focusable and cancels the press (`aria-busy`), the same rule as the\ndesign-system `Button` (SC 2.4.3). An `inert` row (its action is done) does the same without `aria-busy`: nothing is\nin flight, so it announces disabled and ignores the press, and is not dimmed.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value,\nan optional hint, and a chevron when it opens something (`buildSpec.md` §9.1). A row with a value draws the label and\nthe value as a `LabelValuePair`: the value wraps and never truncates, and it stacks under the label when the group's\ncolumn has too little room (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). The chevron stays at the\nrow's end either way.\n\nOne control: the whole row is the button (or the link, when it has a destination), and its hint is inside it, so the\nconsequence of Close account is read with the name. The danger tone changes the TEXT colour only. Sign out is `ink`:\nit is not destructive. While busy the row stays focusable and cancels the press (`aria-busy`), the same rule as the\ndesign-system `Button` (SC 2.4.3). An `inert` row (its action is done) does the same without `aria-busy`: nothing is\nin flight, so it announces disabled and ignores the press, and is not dimmed.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value"
+                            "text": "@commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value,"
                         },
                         {
                             "name": "pattern",
@@ -1141,7 +1264,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The current value, one line, truncated.",
+                            "description": "The current value. It wraps and never truncates, and stacks under the label when the row has little room.",
                             "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
                         }
                     ],
@@ -1157,11 +1280,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileRow.native.tsx",
                     "dir": "packages/apps/commise/features/account/src/profile",
-                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value\ntruncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).\n\nOne control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign\nout is `ink`. Busy disables the row and exposes `busy` to a screen reader. Inert (its action is done) ignores the press and reads as\ndisabled, with no busy state and no dimming. The row keeps its React Native press frame; its text is the design\nsystem's capped `Text` in theme colour keys (ADR-0080).\nThe web `href` is ignored: native has no URL for a row.\n\nPresentational: props → JSX, apart from one accessibility-focus adapter.",
+                    "moduleDoc": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value,\nan optional hint, and a chevron when it opens something (`buildSpec.md` §9.1). A row with a value draws the label and\nthe value as a `LabelValuePair`: the value wraps and never truncates, and it stacks under the label when the row has too\nlittle room for the text size (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). The chevron stays at the\nrow's end either way.\n\nOne control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign\nout is `ink`. Busy disables the row and exposes `busy` to a screen reader. Inert (its action is done) ignores the press and reads as\ndisabled, with no busy state and no dimming. The row keeps its React Native press frame; its text is the design\nsystem's capped `Text` in theme colour keys (ADR-0080).\nThe web `href` is ignored: native has no URL for a row.\n\nPresentational: props → JSX, apart from one accessibility-focus adapter.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value"
+                            "text": "@commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value,"
                         },
                         {
                             "name": "pattern",
@@ -1263,7 +1386,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The current value, one line, truncated.",
+                            "description": "The current value. It wraps and never truncates, and stacks under the label when the row has little room.",
                             "declaredIn": "packages/apps/commise/features/account/src/profile/props.ts"
                         }
                     ],

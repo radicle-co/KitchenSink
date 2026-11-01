@@ -1,6 +1,9 @@
 /**
- * @module @commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value
- * truncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).
+ * @module @commise/features-account/profile/ProfileRow — a pressable Profile row (native): 56 pt, the label, its value,
+ * an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1). A row with a value draws the label and
+ * the value as a `LabelValuePair`: the value wraps and never truncates, and it stacks under the label when the row has too
+ * little room for the text size (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). The chevron stays at the
+ * row's end either way.
  *
  * One control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign
  * out is `ink`. Busy disables the row and exposes `busy` to a screen reader. Inert (its action is done) ignores the press and reads as
@@ -22,6 +25,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { ProfileRowProps } from './props.js';
 import { usePressFill } from '@commise/ui/surface-tone';
+import { LabelValuePair } from './LabelValuePair.native.js';
 
 /** The pressable row. */
 export const ProfileRow: FC<ProfileRowProps> = ({
@@ -38,6 +42,19 @@ export const ProfileRow: FC<ProfileRowProps> = ({
     const wash = usePressFill();
     const row = useScreenReaderFocusOnSignal<View>(focusSignal);
 
+    const labelLines = (
+        <>
+            <Text typeRole="body" color={tone === 'danger' ? '$dangerText' : '$ink'}>
+                {label}
+            </Text>
+            {hint === undefined ? null : (
+                <Text typeRole="caption" color="$inkMuted">
+                    {hint}
+                </Text>
+            )}
+        </>
+    );
+
     return (
         <Pressable
             ref={row}
@@ -51,20 +68,10 @@ export const ProfileRow: FC<ProfileRowProps> = ({
             onPress={onPress}
             style={({ pressed }) => [styles.row, pressed ? { backgroundColor: wash } : null]}
         >
-            <View style={styles.text}>
-                <Text typeRole="body" color={tone === 'danger' ? '$dangerText' : '$ink'}>
-                    {label}
-                </Text>
-                {hint === undefined ? null : (
-                    <Text typeRole="caption" color="$inkMuted">
-                        {hint}
-                    </Text>
-                )}
-            </View>
-            {value === undefined ? null : (
-                <Text numberOfLines={1} typeRole="body" color="$inkMuted" flexShrink={1} maxWidth="50%">
-                    {value}
-                </Text>
+            {value === undefined ? (
+                <View style={styles.text}>{labelLines}</View>
+            ) : (
+                <LabelValuePair label={labelLines} value={value} />
             )}
             {chevron ? <Icon name="chevronRight" size={20} tone="inkMuted" /> : null}
         </Pressable>

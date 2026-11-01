@@ -26,10 +26,17 @@ vi.mock('@commise/ui/text-input', async (importOriginal) => {
  * ⚠️ `sendAccessibilityEvent` is MOCKED because react-native-web does not implement it: what is proven is the contract
  * with React Native (the right node, the `'focus'` event, only on a CHANGED signal), not that a screen reader honours it.
  */
+const env = vi.hoisted(() => ({ width: 390, fontScale: 1 }));
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
-    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+    return {
+        ...actual,
+        AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        // The window a label-and-value row measures its room in; each case that depends on it sets it.
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: env.width, fontScale: env.fontScale }),
+    };
 });
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -282,6 +289,37 @@ describe('ProfileRow (native)', () => {
         await userEvent.click(screen.getByRole('button', { name: /Food data sources/ }));
 
         expect(onPress).toHaveBeenCalledOnce();
+    });
+});
+
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): ProfileRow ("Display name") stacks by the same room as
+// a fact row. Its label and value draw through `LabelValuePair` (whose suite pins every window and scale) inside the
+// row's own React Native press frame, so the chevron stays at the row's end either way.
+describe('ProfileRow (native) — stacking by room', () => {
+    afterEach(() => {
+        env.width = 390;
+        env.fontScale = 1;
+    });
+
+    it.each([
+        [1, 'row'],
+        [1.3, 'column'],
+    ])('lays its label and value out at %sx on a 390 pt phone as a %s, the chevron last', (fontScale, direction) => {
+        env.fontScale = fontScale;
+        renderWithTamagui(<ProfileRow label="Display name" value="Eliza" tone="ink" chevron onPress={noop} />, 'light');
+        const button = screen.getByRole('button', { name: /Display name/u });
+        const pair = screen.getByText('Eliza').parentElement as Element;
+
+        expect(pair.contains(screen.getByText('Display name'))).toBe(true);
+        expect(resolvedStyle(pair, 'flexDirection')).toBe(direction);
+        expect(button.lastElementChild?.contains(pair)).toBe(false);
+    });
+
+    it('keeps a row with no value as its label alone, filling the row', () => {
+        env.fontScale = 2;
+        renderWithTamagui(<ProfileRow label="Sign out" tone="ink" chevron={false} onPress={noop} />, 'light');
+
+        expect(screen.getByRole('button', { name: 'Sign out' }).textContent).toBe('Sign out');
     });
 });
 
@@ -584,12 +622,16 @@ describe('ProfileRow (native) — type and colour', () => {
         expectTypeRole(screen.getByText('Signs you out.'), 'caption');
     });
 
-    it('lets the value shrink, but to no more than half the row', () => {
+    // REWRITTEN for the designer ruling of 2026-11-01 (`nativeBoards/designAnswers.md`): the value wraps and never
+    // truncates. It was one line, cut with an ellipsis, at most half the row.
+    it('lets the value wrap: no line limit, no ellipsis and no cap at half the row', () => {
         renderWithTamagui(<ProfileRow {...full} />, 'light');
         const value = screen.getByText('Value');
 
         expect(resolvedStyle(value, 'flexShrink')).toBe('1');
-        expect(resolvedStyle(value, 'maxWidth')).toBe('50%');
+        expect(resolvedStyle(value, 'whiteSpace')).not.toBe('nowrap');
+        expect(resolvedStyle(value, 'textOverflow')).not.toBe('ellipsis');
+        expect(resolvedStyle(value, 'maxWidth')).not.toBe('50%');
     });
 
     it.each(['light', 'dark'] as const)('paints each part in its role colour in the %s scheme', (scheme: Scheme) => {

@@ -7483,7 +7483,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert and the delete\ndialog, which must scroll with the page (and clear the foot of the screen) rather than sit outside it. Web ignores\nit: its containers keep these as siblings of the view.",
+                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert, which scrolls with\nthe page, and the dialogs, which open in their own modal window wherever they are mounted, so the page's end needs\nno room for them. Web ignores it: its containers keep these as siblings of the view.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -7746,7 +7746,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert and the delete\ndialog, which must scroll with the page (and clear the foot of the screen) rather than sit outside it. Web ignores\nit: its containers keep these as siblings of the view.",
+                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert, which scrolls with\nthe page, and the dialogs, which open in their own modal window wherever they are mounted, so the page's end needs\nno room for them. Web ignores it: its containers keep these as siblings of the view.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8271,7 +8271,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert and the delete\ndialog, which must scroll with the page (and clear the foot of the screen) rather than sit outside it. Web ignores\nit: its containers keep these as siblings of the view.",
+                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert, which scrolls with\nthe page, and the dialogs, which open in their own modal window wherever they are mounted, so the page's end needs\nno room for them. Web ignores it: its containers keep these as siblings of the view.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8444,7 +8444,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert and the delete\ndialog, which must scroll with the page (and clear the foot of the screen) rather than sit outside it. Web ignores\nit: its containers keep these as siblings of the view.",
+                            "description": "Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert, which scrolls with\nthe page, and the dialogs, which open in their own modal window wherever they are mounted, so the page's end needs\nno room for them. Web ignores it: its containers keep these as siblings of the view.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {

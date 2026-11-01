@@ -790,6 +790,29 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
     });
 });
 
+// Designer ruling 2026-11-01, corrected (`nativeBoards/designAnswers.md`): the page ends 48 ($7) below its last block,
+// as the web does. It was 120: no bottom bar covers this page, since the tab bar sits below the scroller and owns the
+// bottom safe area, and the delete dialog opens in a modal, not in the scroller.
+describe('RecipeDetailView (native) — the end of the page', () => {
+    it('ends the scroller’s content 48 below the last block', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb', steps: [makeStepView({ instruction: 'Grill it.' })] })}
+            />,
+        );
+        const feet: string[] = [];
+
+        // The scroller's content container is one of the step's ancestors.
+        for (let node = screen.getByText('Grill it.').parentElement; node !== null; node = node.parentElement) {
+            feet.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(feet).toContain(`${String(nativeTokens.spacing[7])}px`);
+        expect(feet).not.toContain('120px');
+    });
+});
+
 describe('RecipeDetailView (native) — hero cover (mockup screenRecipeDetail)', () => {
     it('LEADS the screen with the cover hero — it precedes the title heading in document order', () => {
         const { container } = render(

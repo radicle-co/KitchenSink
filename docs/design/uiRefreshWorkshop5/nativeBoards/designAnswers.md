@@ -7,6 +7,9 @@ Each answer is the design ruling a port builds to. Newest first.
 - **A failed widget offers Try again.** Every error state needs a way forward. When a widget's code or render fails,
   show the same message with a Try again button under it, and Try again loads the widget again. How to rebuild the
   failed lazy load is the architect's call. Do not ship a no-action state or a whole-Home reload in its place.
+- **While Try again loads the widget:** the block's header ("Recent recipes" and "See all") stays, and the body shows
+  the block's normal loading skeleton, the same as a first load. Never a blank block. Screen readers hear the
+  loading state through the block's live region, and focus moves to the block's heading so it is not lost.
 - **"See all" under its title:** when the row wraps, the link's text lines up with the title's left edge. Its touch
   target stays at least 48 pt tall. Any side padding sits on the right, not the left.
 - **The floating button over scrolling content** is expected. The 88 pt end room only guarantees that the end of the

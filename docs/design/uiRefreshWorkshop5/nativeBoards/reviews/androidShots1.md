@@ -28,8 +28,9 @@ Shot V (measured), Code I.
 **M-1. At 2x, the PRO mark on a card cover hides the cover's letter.** Shot V.
 
 - The PRO mark grows with the text, so at 2x it covers the top of the letter tile's "M".
-- **Fix:** the PRO mark on a cover is a mark on a picture, like an icon. Draw it at a fixed size that does not grow
-  with text, and keep its accessible label. The card's text still carries "Pro" at full size for anyone who needs it.
+- **Fix (corrected 2026-11-01):** draw the cover's PRO mark at a fixed 1x size, and add the word "Pro" to the
+  card's meta row at the meta role's scaled size. My first fix assumed the card's text already said Pro; it does not,
+  so a fixed mark alone would leave large-text readers with no readable Pro. A screen reader hears Pro once.
 
 ### Low
 

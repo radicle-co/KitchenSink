@@ -46,7 +46,8 @@ export const detailStyles = StyleSheet.create({
     twoColumns: {
         flexDirection: 'row',
         alignItems: 'flex-start',
-        gap: nativeTokens.spacing[8],
+        // The section gap, 32 between the columns as between the sections (designer ruling, designAnswers.md).
+        gap: nativeTokens.spacing[6],
         paddingHorizontal: nativeTokens.spacing[4],
     },
     // Only the ingredients heading reads this: it holds the ref `useScreenReaderFocusOnSignal<Text>` returns, a hook

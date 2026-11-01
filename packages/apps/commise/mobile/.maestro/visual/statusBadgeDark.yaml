@@ -1,6 +1,6 @@
 appId: ${APP_ID}
 ---
-# The status badge in the DARK scheme, on a device (ADR-0080 §7: each slice adds a dark-mode check once it renders a
+# The status badge in the DARK scheme, on a device (ADR-0080 §9: each slice adds a dark-mode check once it renders a
 # theme key). Slice 1 moved the badge's fill, edge and label onto Tamagui theme roles. The component tests read the
 # colours Tamagui's web build emits; only a device shows what React Native draws.
 #

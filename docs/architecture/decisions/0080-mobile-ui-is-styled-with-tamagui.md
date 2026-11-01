@@ -5,8 +5,8 @@
 - **Drivers**: Owner rulings, 2026-10-31. Tamagui styles the mobile app, the shared native components included. "Make
   sure all React Native styling is replaced by tamagui." Design patterns, a seam-and-module architecture and correct
   React component architecture are required. Constitution 2.0.0, Principle VII, records the same rule.
-- **Relates to**: [ADR-0056](0056-native-navigation-react-navigation-7.md), whose back-handler order lives in our
-  own sheet, dialog and popover. `docs/design/uiOverhaul/ownerDecisions.md` D15 (colour comes from roles only) and
+- **Relates to**: [ADR-0056](0056-native-navigation-react-navigation-7.md), whose back-handler order every native
+  sheet, dialog and popover must keep. `docs/design/uiOverhaul/ownerDecisions.md` D15 (colour comes from roles only) and
   D17 (the scheme follows the system).
 
 ## Context
@@ -125,27 +125,48 @@ A component test proves structure, accessibility, behaviour and the values the w
 what a device draws. Maestro on iOS and Android is the evidence for that. `tamaguiRuntimeProbe.native.test.tsx` pins
 what the test lane does, so a Tamagui upgrade that changes it fails there.
 
-### 7. The migration moves in slices
+There are no pixel baselines and no design gallery (owner ruling, 2026-10-31: "I don't care about the before and
+after - work with the designer agent"). The designer session judges each ported slice. It runs `staff-ux-engineer`
+EVALUATE against the design system's tokens, type scale, both schemes, every state, 320 px, the text cap, touch
+targets, accessibility and the owner's standing decisions. Its input is the slice's branch, head commit, component
+list and any change in look or behaviour with its reason, plus the screenshots of the slice's dark-mode capture flow.
+A High finding blocks the merge.
 
-Slice 0 is this config, the scheme hook and the guards. Each later slice ports primitives onto Tamagui and lowers the
+### 7. Shared native components are built from Tamagui's components, behind `@commise/ui`
+
+Owner ruling, 2026-10-31: "We should use tamagui's components but work with the designer agent to make sure the
+results still look like our app. We should continue to use the @commise/ui package for all shared components."
+
+- Each shared component keeps ONE `@commise/ui` export. Its web leaf (`Component.tsx`) is built on Radix, and its
+  native leaf (`Component.native.tsx`) is built from Tamagui's component of the same job: Button, Sheet, Dialog,
+  Popover and the rest. A screen imports the export, never Tamagui's component.
+- G1 opens to each Tamagui component only after the guards are taught it, one component per slice.
+- ADR-0056 still binds. Back must reach an open sheet, dialog or popover through our `BackInterceptProvider`, which
+  sits outside the `NavigationContainer`. So a Tamagui overlay's open state is wired into our back-intercept seam by an
+  Adapter, and neither Tamagui nor React Navigation answers Back first. `staff-architect` blueprints that Adapter
+  before the first Sheet or Dialog port, and the port keeps ADR-0056's device check, because jsdom cannot see
+  back-handler order.
+
+### 8. Text grows with the system's text size, up to 2×
+
+Owner ruling, 2026-10-31: the cap is 2×, which is WCAG 1.4.4's 200 %. It is `maxFontSizeMultiplier: 2`, set once on the
+text primitive (`FONT_SCALE_CAP`). React Native 0.86 scales a set `lineHeight` by the same capped multiplier as the
+font size: iOS multiplies it by `min(maxFontSizeMultiplier, scale)` (`RCTAttributedTextUtils.mm`), and Android converts
+it with `toPixelFromSP(lineHeight, effectiveMaxFontSizeMultiplier)` (`TextAttributes.kt`). So a `px` leading that
+holds its text at 1× holds it at the cap, and a test of the tokens at 1× covers every scale. Only a device shows the
+clamp itself, so a slice pass checks one dense screen at a system scale above 2×.
+
+### 9. The migration moves in slices
+
+Slice 0 is this config, the scheme hook and the guards. Each later slice ports components onto Tamagui and lowers the
 counts.
 
-- Slice 1 ports the text primitive (`@commise/ui/text`, a `typeRole` variant) and the status badge.
-- Slice 2 ports `PressScale` and the button. `PressScale` keeps React Native's `Pressable`, which owns the one press
-  responder, and hands the press state to its Tamagui surface as a `pressed` variant. So G6 needs no exemption.
+- Slice 1 ports the text primitive (`@commise/ui/text`, a `typeRole` variant), the status badge, and the provider the
+  app and the tests share.
+- Later slices port the remaining shared components, each from its Tamagui counterpart under §7, starting with the
+  button. The press and back-handling Adapters are blueprinted before the components that need them.
 
-Each slice adds a dark-mode Maestro check once it renders a theme key.
-
-## Open questions for the owner
-
-- **Restyle only.** The plan keeps our own sheet, dialog, popover, back intercept, focus and press behaviour, and
-  restyles them with Tamagui. It does not adopt Tamagui's Sheet, Dialog or Popover. ADR-0056's back-handler order is
-  the reason.
-- **Font scaling.** The recommendation is a cap at 2×, which is WCAG 1.4.4's 200 %. It is set in ONE place, the
-  `typeRole` variant, so either answer is a one-line change.
-- **The baseline gallery.** Visual baselines need a fixed screen. The proposal is a mobile-only gallery of existing
-  components with fixed copy. When `EXPO_PUBLIC_DESIGN_GALLERY` is set, the build includes it. Every real build leaves
-  it out.
+Each slice adds a dark-mode Maestro capture flow once it renders a theme key, and the designer evaluates it (§6).
 
 ## Consequences
 
@@ -185,5 +206,8 @@ Each slice adds a dark-mode Maestro check once it renders a theme key.
 - **A reviewed override for a detector change.** Someone writes, reviews and expires it. The recount decides the same
   question from evidence.
 - **Run Tamagui's native build in component tests.** It cannot load under react-native-web.
+- **Restyle our own sheet, dialog and popover instead of adopting Tamagui's.** It was the first plan, for ADR-0056's
+  back-handler order. The owner ruled for Tamagui's components behind `@commise/ui` (§7), and an Adapter keeps the order.
+- **A gated design gallery with pixel baselines.** The owner ruled for designer review instead (§6).
 - **Raise a test timeout when a test is slow under load.** Where the test loaded its code caused the cost. How long it
   ran did not.

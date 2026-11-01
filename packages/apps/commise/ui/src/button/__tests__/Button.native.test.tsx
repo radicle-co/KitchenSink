@@ -83,6 +83,7 @@ function rgb(hex: string): string {
 const TIERS = [
     { variant: 'primary', tone: undefined, label: role.onAction, glyph: role.onAction },
     { variant: 'secondary', tone: undefined, label: role.ink, glyph: role.ink },
+    { variant: 'ghost', tone: undefined, label: role.actionText, glyph: role.actionText },
     { variant: 'quiet', tone: undefined, label: role.ink, glyph: role.actionText },
     { variant: 'destructive', tone: 'inline', label: role.dangerText, glyph: role.dangerText },
     { variant: 'destructive', tone: 'confirm', label: role.onAction, glyph: role.onAction },

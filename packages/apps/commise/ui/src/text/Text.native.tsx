@@ -19,14 +19,18 @@
 import { styled, Text as TamaguiText } from 'tamagui';
 
 import { nativeTokens } from '../tokens/native.js';
-import { FONT_SCALE_CAP } from './fontScaleCap.js';
 import type { TypeRole } from '../tokens/typography.js';
+import { scaledTypeMetrics } from './scaledType.js';
+import { TextScaleContext } from './textScaleContext.native.js';
 
 const { type } = nativeTokens;
 
-export const Text = styled(TamaguiText, {
+const TextFrame = styled(TamaguiText, {
     name: 'CommiseText',
-    maxFontSizeMultiplier: FONT_SCALE_CAP,
+    context: TextScaleContext,
+    // React Native 0.86 on Android caps a text's size but not its set line height (`TextAttributeProps.kt:42`), so system
+    // scaling is off and `Text` below draws the size and leading itself (ADR-0080 §8).
+    allowFontScaling: false,
     // Tamagui's Text defaults to `$color`, which no design-system theme defines; a device then logs a warning per text.
     color: '$ink',
     // Android pads a line with the font's own ascent and descent even under a fixed leading; a browser does not.
@@ -36,53 +40,33 @@ export const Text = styled(TamaguiText, {
         typeRole: {
             largeTitle: {
                 fontFamily: type.largeTitle.regular.fontFamily,
-                fontSize: type.largeTitle.regular.fontSize,
-                lineHeight: `${type.largeTitle.regular.lineHeight}px`,
             },
             barTitle: {
                 fontFamily: type.barTitle.fontFamily,
-                fontSize: type.barTitle.fontSize,
-                lineHeight: `${type.barTitle.lineHeight}px`,
             },
             sectionTitle: {
                 fontFamily: type.sectionTitle.fontFamily,
-                fontSize: type.sectionTitle.fontSize,
-                lineHeight: `${type.sectionTitle.lineHeight}px`,
             },
             cardTitle: {
                 fontFamily: type.cardTitle.fontFamily,
-                fontSize: type.cardTitle.fontSize,
-                lineHeight: `${type.cardTitle.lineHeight}px`,
             },
             body: {
                 fontFamily: type.body.fontFamily,
-                fontSize: type.body.fontSize,
-                lineHeight: `${type.body.lineHeight}px`,
             },
             readingBody: {
                 fontFamily: type.readingBody.fontFamily,
-                fontSize: type.readingBody.fontSize,
-                lineHeight: `${type.readingBody.lineHeight}px`,
             },
             meta: {
                 fontFamily: type.meta.fontFamily,
-                fontSize: type.meta.fontSize,
-                lineHeight: `${type.meta.lineHeight}px`,
             },
             list: {
                 fontFamily: type.list.fontFamily,
-                fontSize: type.list.fontSize,
-                lineHeight: `${type.list.lineHeight}px`,
             },
             label: {
                 fontFamily: type.label.fontFamily,
-                fontSize: type.label.fontSize,
-                lineHeight: `${type.label.lineHeight}px`,
             },
             caption: {
                 fontFamily: type.caption.fontFamily,
-                fontSize: type.caption.fontSize,
-                lineHeight: `${type.caption.lineHeight}px`,
             },
             figureInline: {
                 fontFamily: type.figureInline.fontFamily,
@@ -90,15 +74,38 @@ export const Text = styled(TamaguiText, {
             },
             figureStat: {
                 fontFamily: type.figureStat.fontFamily,
-                fontSize: type.figureStat.fontSize,
-                lineHeight: `${type.figureStat.lineHeight}px`,
                 fontVariant: ['tabular-nums', 'lining-nums'],
             },
             // Every type role, and only those: a role added to the scale is a type error here until it is styled.
         } as const satisfies Record<TypeRole, object>,
+        // Tabular, lining digits in the role's own face, so a figure in a line keeps that line's weight (a rating in
+        // regular meta). `figureInline` is the role for a figure the copy stresses.
+        figures: {
+            true: { fontVariant: ['tabular-nums', 'lining-nums'] },
+        },
+        // The system text scale, from TextScaleContext; `.resolve` below turns it into the role's size and leading.
+        textScale: styled.dynamic<number>(),
     } as const,
 
     defaultVariants: {
         typeRole: 'body',
     },
 });
+
+/**
+ * What the resolver reads. Tamagui types a resolver's props loosely, so a misspelled key would compile and read
+ * `undefined`; naming the two fields makes a typo a type error.
+ */
+interface ScaledTextProps {
+    readonly typeRole?: TypeRole;
+    readonly textScale?: number;
+}
+
+/**
+ * The design-system Text: the frame above, drawn at its role's size and leading for the system text scale, up to the
+ * role's ceiling (`scaledTypeMetrics`, ADR-0080 §8). The scale comes from `TextScaleContext`, which `DesignSystemTheme`
+ * provides. `figureInline` gets no size of its own and keeps its line's. A `styled(Text)` inherits the resolver.
+ */
+export const Text = TextFrame.resolve(({ typeRole, textScale }: ScaledTextProps) =>
+    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1),
+);

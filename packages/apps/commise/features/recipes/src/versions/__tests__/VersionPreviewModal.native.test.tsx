@@ -6,7 +6,7 @@
  */
 import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { role, roleDark } from '@commise/ui/colors';
@@ -22,6 +22,7 @@ import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { BRISKET_FLAT_HALF_PARTS, BRISKET_FLAT_HALF_SPOKEN } from '../../detail/__fixtures__/variantLines.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

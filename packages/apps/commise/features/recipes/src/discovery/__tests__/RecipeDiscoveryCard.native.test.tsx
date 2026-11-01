@@ -7,7 +7,7 @@
  * and this file pinned that button's tier and its row-unique name. "Clone" is retired by the glossary and the control is
  * now an icon in the card's footer; the row-unique name is kept ("Save a copy of {title}").
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,6 +18,7 @@ import { toRecipeCardModel } from '../../card/model.js';
 import { RecipeDiscoveryCard } from '../RecipeDiscoveryCard.native.js';
 import type { RecipeDiscoveryCardProps } from '../model.js';
 import { isolate } from '../../byline/bylineText.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

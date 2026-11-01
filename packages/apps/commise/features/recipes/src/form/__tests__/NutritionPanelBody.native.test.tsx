@@ -6,7 +6,7 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async (importOriginal) => {
@@ -19,6 +19,7 @@ import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSyst
 import { recipeFormMessages } from '../messages.js';
 import { NutritionPanelBody } from '../NutritionPanelBody.native.js';
 import type { NutritionPanelState } from '../nutritionPanel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = recipeFormMessages.en;
 

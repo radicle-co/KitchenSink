@@ -10,10 +10,11 @@
  * The providers are wrapped in marker elements around the REAL implementations, so the assertion is on nesting and the
  * real providers still run.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('@clerk/expo', () => ({
     useAuth: () => ({ userId: 'user_1' }),

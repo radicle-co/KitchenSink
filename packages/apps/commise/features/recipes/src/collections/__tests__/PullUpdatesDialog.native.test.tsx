@@ -6,7 +6,7 @@
  */
 import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 
@@ -19,6 +19,7 @@ import { PullUpdatesDialog } from '../PullUpdatesDialog.native.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { PullUpdatesDialogProps } from '../model.js';
 import { collectionMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

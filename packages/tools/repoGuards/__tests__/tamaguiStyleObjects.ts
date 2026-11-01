@@ -4,7 +4,8 @@
  * guard that read `variants: { press: … }` as a press style would refuse a variant called `press`.
  *
  * The walk FAILS CLOSED on structure it cannot read: a config argument that is not an object literal, a spread, a
- * shorthand or method property, a function value (Tamagui's function variants), and a variant table or variant value
+ * shorthand or method property, a function value (Tamagui's function variants; a bare `styled.dynamic<T>()` carrier
+ * is readable), and a variant table or variant value
  * that is not an object literal. Each is returned as `unreadable`, and the guards report it, because a press style or a
  * ratio line height inside it would otherwise pass unseen. ⚠️ A style VALUE that is an identifier or a call is read as
  * a value, not walked: a press modifier held in a variable is not seen. Parentheses, `as` and `satisfies` around an
@@ -65,6 +66,21 @@ function isFunction(node: ts.Expression): boolean {
 }
 
 /**
+ * Whether a variant value is a bare `styled.dynamic<T>()` carrier: Tamagui 3's typed prop that a `.resolve` consumes. It
+ * declares a prop and emits no style, so it is readable; a carrier given a function is not.
+ */
+function isBareDynamicCarrier(node: ts.Expression): boolean {
+    return (
+        ts.isCallExpression(node) &&
+        node.arguments.length === 0 &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'dynamic' &&
+        ts.isIdentifier(node.expression.expression) &&
+        node.expression.expression.text === 'styled'
+    );
+}
+
+/**
  * Every style property inside the object literals a `styled(…)` call is given, at any depth, with the keys of
  * `variants` (variant names) and of each variant (value names) stepped over, and every part it cannot read. Pure.
  *
@@ -86,6 +102,10 @@ export function styledConfig(call: ts.CallExpression): StyledConfig {
             const value = objectThrough(property.initializer);
             const variantTable = depthBelowVariants === 0 && key === 'variants';
             const isName = depthBelowVariants === 1 || depthBelowVariants === 2 || variantTable;
+
+            if (isName && !variantTable && isBareDynamicCarrier(value)) {
+                continue;
+            }
 
             if (isFunction(value) || ((variantTable || isName) && !ts.isObjectLiteralExpression(value))) {
                 unreadable.push(property);

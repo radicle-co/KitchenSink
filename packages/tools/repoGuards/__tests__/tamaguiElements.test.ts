@@ -11,7 +11,10 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { parseModule } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 import { pressOwnershipFindings } from './tamaguiPressOwnership.js';
+import { typePropFindings } from './tamaguiTypeProps.js';
 import {
+    designSystemStyledExports,
+    designSystemStyledKinds,
     styledExportsReader,
     styledKindsReader,
     tamaguiElementKinds,
@@ -285,5 +288,50 @@ describe('tamaguiElementKinds — a frame imported from a module of the same pac
         expect(
             kindsOf('feature/src/detail/Typed.native.tsx', `import type { DetailSection } from './detailFrames.js';\n`),
         ).toEqual({});
+    });
+});
+
+// GATE SCQ-3: the design-system Text is `TextFrame.resolve(…)`, not a bare `styled(…)`. A component a resolver returns is
+// still that component, so every style guard keeps reading it: this pins the real Text as visible, against the tree.
+describe('a component a resolver returns', () => {
+    it('keeps the design-system Text classified as a Tamagui text', () => {
+        expect(designSystemStyledKinds('@commise/ui/text').get('Text')).toBe('text');
+    });
+
+    it('is the kind of the component it resolves', () => {
+        const kinds = tamaguiElementKinds(
+            parseModule(
+                'fixture.tsx',
+                "import { styled, Text } from 'tamagui';\nconst F = styled(Text, {});\nconst T = F.resolve(() => ({}));",
+            ),
+            () => new Map(),
+        );
+
+        expect(kinds.get('T')).toBe('text');
+    });
+
+    it('lets G4 see a type part set on the real design-system Text', () => {
+        const source = "import { Text } from '@commise/ui/text';\nconst a = <Text fontSize={40} />;";
+
+        expect(
+            typePropFindings(
+                source,
+                'packages/apps/commise/features/recipes/src/x/X.native.tsx',
+                designSystemStyledExports,
+            ),
+        ).toHaveLength(1);
+    });
+
+    it('reports a resolver taken from the real design-system Text in a feature', () => {
+        const source =
+            "import { Text } from '@commise/ui/text';\nconst f = () => ({ fontSize: 40 });\nexport const T = Text.resolve(f);";
+
+        expect(
+            typePropFindings(
+                source,
+                'packages/apps/commise/features/recipes/src/x/X.native.tsx',
+                designSystemStyledExports,
+            ),
+        ).toHaveLength(1);
     });
 });

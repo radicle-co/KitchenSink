@@ -4,11 +4,12 @@
  * the 14 px `meta` role, is announced once on opening, and closes on a second tap.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { nativeTokens } from '@commise/ui/native';
 
 import { SeeWhy } from '../SeeWhy.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

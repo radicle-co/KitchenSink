@@ -6,10 +6,11 @@
 import { touchFloor } from '@commise/ui/layout';
 import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { fireEvent } from '@testing-library/dom';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SortOptionRow } from '../SortOptionRow.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import type {
@@ -10,6 +10,7 @@ import type {
 
 import { ConfirmDialog } from '../ConfirmDialog.js';
 import type { ConfirmDialogProps } from '../props.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * ConfirmDialog (native) — the house B6 confirmation modal (RN `Modal`), mirroring

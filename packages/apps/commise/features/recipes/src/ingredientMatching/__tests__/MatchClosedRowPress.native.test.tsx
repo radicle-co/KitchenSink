@@ -7,7 +7,7 @@
  */
 import { themeFor } from '@commise/ui/theme';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Surface } from '@commise/ui/surface-tone';
 
@@ -16,6 +16,7 @@ import { MatchClosedRow } from '../MatchClosedRow.native.js';
 import { lineRowOf } from '../matchLineView.js';
 import { recipeMessages } from '../../messages.js';
 import { matchLineMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const press = vi.hoisted(() => ({ pressed: false }));
 

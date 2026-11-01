@@ -4,11 +4,12 @@
  * the active tab (the library's listeners give that second tap its meaning).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { AppTabBar } from '../../src/navigation/AppTabBar.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const layout = vi.hoisted(() => ({ compact: false, collapsed: false }));
 

@@ -16,7 +16,7 @@ import { useState, type ReactElement } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { NavigationContext, NavigationRouteContext } from '@react-navigation/native';
 
-import { computedContrast, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
+import { contrastRatio, renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 import { role } from '@commise/ui/colors';
 import { SnackbarHost } from '@commise/ui/snackbar';
@@ -36,6 +36,7 @@ import { RecipeDetailScreen } from '../../src/screens/RecipeDetailScreen.js';
 import { useSessionClaims } from '../../src/hooks/useSessionClaims.js';
 import { useUserProfile } from '../../src/hooks/useUserProfile.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
+import { resolvedColour } from '@commise/ui/testing/tamagui';
 
 /** `#RRGGBB` → jsdom's `rgb(r, g, b)`. */
 const cssRgb = (hex: string): string => {
@@ -451,7 +452,10 @@ describe('RecipeDetailScreen — error state', () => {
             'Back to My recipes',
         );
 
-        expect(computedContrast(label, { surface: palette.fog }), 'back control label').toBeGreaterThanOrEqual(4.5);
+        // The label is the design-system Text, whose colour is a theme variable, so it is resolved and measured.
+        expect(contrastRatio(resolvedColour(label, 'color'), palette.fog), 'back control label').toBeGreaterThanOrEqual(
+            4.5,
+        );
     });
 
     it('shows the generic error, with a way out, for an id that cannot name a recipe', () => {

@@ -10,7 +10,7 @@
  * and says so when its toggle fails.
  */
 import { makeRecipe } from '@kitchensink/recipe-core/testing';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +23,7 @@ import { CollectionRecipePickerCandidates } from '../CollectionRecipePickerCandi
 import { CollectionRecipePickerLoadError } from '../CollectionRecipePickerLoadError.native.js';
 import { CollectionRecipePickerLoading } from '../CollectionRecipePickerLoading.native.js';
 import type { CollectionRecipePickerProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

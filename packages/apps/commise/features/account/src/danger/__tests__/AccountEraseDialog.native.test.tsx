@@ -6,7 +6,7 @@
  * can't drift on behaviour or the destructive gate.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { createElement, type ComponentProps } from 'react';
 import type { KeyboardAvoidingView as KeyboardAvoidingViewType, ScrollView as ScrollViewType } from 'react-native';
@@ -18,6 +18,7 @@ import { AccountEraseDialog } from '../AccountEraseDialog.native.js';
 import { accountDangerMessages } from '../messages.js';
 import type { AccountEraseDialogProps } from '../model.js';
 import { makeDonatableRecipe } from '../__fixtures__/index.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const PHRASE = 'ERASE MY DATA';
 

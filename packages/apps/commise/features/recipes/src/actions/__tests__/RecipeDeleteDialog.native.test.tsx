@@ -4,7 +4,7 @@
  * and the deleting state — so the two platform renders can't drift on behaviour or accessibility.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { createElement, type ComponentProps } from 'react';
 import type { KeyboardAvoidingView as KeyboardAvoidingViewType, ScrollView as ScrollViewType } from 'react-native';
@@ -16,6 +16,7 @@ import { cssColor } from '../../__tests__/cssColor.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDeleteDialog } from '../RecipeDeleteDialog.js';
 import type { RecipeDeleteDialogProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // The real ScrollView, its element marked: jsdom has no layout, so "can the actions be scrolled to" is asserted as
 // "the actions sit inside the scroll region".

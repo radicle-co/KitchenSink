@@ -134,11 +134,16 @@ export function rendersNothing(container: Element): boolean {
  *
  * @param ui - The tree.
  * @param scheme - The scheme to render in.
+ * @param textScale - The system text scale, 1 unless a test sets it.
  * @returns The render result.
  * @sideEffect Mounts into the document.
  */
-export function renderWithTamagui(ui: ReactElement, scheme: ColorSchemeName): RenderResult {
-    return renderBare(<DesignSystemTheme scheme={scheme}>{ui}</DesignSystemTheme>);
+export function renderWithTamagui(ui: ReactElement, scheme: ColorSchemeName, textScale = 1): RenderResult {
+    return renderBare(
+        <DesignSystemTheme scheme={scheme} textScale={textScale}>
+            {ui}
+        </DesignSystemTheme>,
+    );
 }
 
 function schemeOf(element: Element): ColorSchemeName {

@@ -6,7 +6,7 @@
  */
 import { themeFor } from '@commise/ui/theme';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 import { DiscoverySortMenu } from '../DiscoverySortMenu.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const press = vi.hoisted(() => ({ pressed: false }));
 

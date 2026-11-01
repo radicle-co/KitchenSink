@@ -8,10 +8,11 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { formatRgb } from 'culori';
 import type { JSX } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { StyleSheet } from 'react-native';
 import { styled, View } from 'tamagui';
 
 import { systemScheme } from '../../testing/systemColorScheme.js';
-import { resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import { resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role, roleDark } from '../../tokens/colors.js';
 import { DesignSystemProvider } from '../DesignSystemProvider.native.js';
 
@@ -43,6 +44,19 @@ describe('DesignSystemProvider (native)', () => {
         );
 
         expect(resolvedColour(screen.getByLabelText('swatch'), 'backgroundColor')).toBe(formatRgb(colors.paper));
+    });
+
+    // Designer ruling 2026-11-01: a section divider or a rule is the device's hairline, through the `$hairline` token.
+    it('draws a `$hairline` border at React Native’s hairline width', () => {
+        render(
+            <DesignSystemProvider>
+                <View aria-label="rule" borderBottomWidth="$hairline" />
+            </DesignSystemProvider>,
+        );
+
+        expect(resolvedStyle(screen.getByLabelText('rule'), 'borderBottomWidth')).toBe(
+            `${String(StyleSheet.hairlineWidth)}px`,
+        );
     });
 
     it('re-themes the tree when the device scheme changes', () => {

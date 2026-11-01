@@ -67,13 +67,17 @@ export function styledDeclarations(
     styledNames: ReadonlySet<string>,
 ): readonly StyledDeclaration[] {
     const declarations: StyledDeclaration[] = [];
+    const resolved: { readonly name: string; readonly of: string }[] = [];
 
     const visit = (node: ts.Node): void => {
         if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer !== undefined) {
             const call = unwrapBase(node.initializer);
+            const of = resolvedComponentOf(call);
 
             if (isTamaguiStyledCall(call, styledNames)) {
                 declarations.push({ name: node.name.text, call });
+            } else if (of !== undefined) {
+                resolved.push({ name: node.name.text, of });
             }
         }
 
@@ -82,7 +86,33 @@ export function styledDeclarations(
 
     visit(file);
 
+    // `const T = F.resolve(…)` is the component F with a resolver: T has F's `styled(…)` call, so it has F's kind and
+    // exports as one (GATE SCQ-3: the design-system Text is built this way). Followed through chains, to any depth.
+    for (let grew = true; grew;) {
+        grew = false;
+
+        for (const { name, of } of resolved) {
+            const base = declarations.find((declaration) => declaration.name === of);
+
+            if (base !== undefined && !declarations.some((declaration) => declaration.name === name)) {
+                declarations.push({ name, call: base.call });
+                grew = true;
+            }
+        }
+    }
+
     return declarations;
+}
+
+/** The name `X` in `X.resolve(…)`, or `undefined` for any other expression. Pure. */
+function resolvedComponentOf(expression: ts.Expression): string | undefined {
+    if (!ts.isCallExpression(expression) || !ts.isPropertyAccessExpression(expression.expression)) {
+        return undefined;
+    }
+
+    const owner = unwrapBase(expression.expression.expression);
+
+    return expression.expression.name.text === 'resolve' && ts.isIdentifier(owner) ? owner.text : undefined;
 }
 
 /**

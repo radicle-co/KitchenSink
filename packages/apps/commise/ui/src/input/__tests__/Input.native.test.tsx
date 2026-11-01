@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { placeholderContrast } from '@commise/test-utils';
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import { FieldLabel } from '../FieldLabel.native.js';
 import { Input } from '../Input.native.js';
 import { TextArea } from '../TextArea.native.js';
@@ -152,13 +153,14 @@ describe('Input + FieldLabel (native)', () => {
 });
 
 describe('FieldLabel (native)', () => {
+    // REWRITTEN (H-1): the label is the design-system Text, whose colour is a theme variable, so it is read resolved.
     it('sets the label in the label role, in inkMuted', () => {
         render(<FieldLabel forId="title" label="Title" />);
 
-        const label = getComputedStyle(screen.getByText('Title'));
+        const label = screen.getByText('Title');
 
-        expect(label.fontFamily).toBe(nativeTokens.type.label.fontFamily);
-        expect(label.color).toBe(rgb(role.inkMuted));
+        expect(getComputedStyle(label).fontFamily).toContain(nativeTokens.type.label.fontFamily);
+        expect(resolvedColour(label, 'color')).toBe(rgb(role.inkMuted));
     });
 
     it('renders a hint in the caption role under the label, under the id the field describes itself by', () => {

@@ -12,7 +12,7 @@
  * `fetch` (the local blob read) are mocked; the on-device picker + real S3 PUT are a Maestro concern.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 
 import { avatarCopyOf, profileMessages } from '@commise/features-account/profile';
 import { role, roleDark } from '@commise/ui/colors';
@@ -21,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { AvatarField } from '../../src/components/account/AvatarField.js';
 import { useAvatarUpload } from '../../src/hooks/useAvatarUpload.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

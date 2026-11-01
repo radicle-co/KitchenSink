@@ -14,7 +14,7 @@
  * `RecipeBrowseRailResults.native.test.tsx`; the bodies here are the real results leaf.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo, Animated } from 'react-native';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
@@ -26,6 +26,7 @@ import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.native.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.native.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {

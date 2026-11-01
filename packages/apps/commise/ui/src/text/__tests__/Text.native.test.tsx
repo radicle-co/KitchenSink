@@ -12,7 +12,7 @@ import { renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.
 import { role, roleDark } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
-import { FONT_SCALE_CAP } from '../fontScaleCap.js';
+import { DesignSystemTheme } from '../../tamagui/DesignSystemTheme.native.js';
 import { Text } from '../Text.native.js';
 
 const SIZED_ROLES = [
@@ -80,6 +80,31 @@ describe('Text (native)', () => {
         expect(styleOf('12').fontFamily).toContain(nativeTokens.type.figureInline.fontFamily);
     });
 
+    // Designer ruling 2026-11-01 (nativeBoards/designAnswers.md): a figure in a line keeps its ROLE's face and only
+    // changes its digits, so the rating number stays regular meta, like the web's `text-meta tabular-nums`.
+    // `figureInline` keeps its semibold for a figure the copy stresses.
+    it('`figures` sets tabular, lining digits and nothing else', () => {
+        const figures = new Map(Object.entries(Text.staticConfig.variants?.['figures'] ?? {}));
+
+        expect(figures.get('true')).toEqual({ fontVariant: ['tabular-nums', 'lining-nums'] });
+    });
+
+    it('`figures` keeps the role it is set on', () => {
+        const spec = nativeTokens.type.meta;
+
+        renderWithTamagui(
+            <Text typeRole="meta" figures>
+                4.5
+            </Text>,
+            'light',
+        );
+
+        expect(styleOf('4.5').fontFamily).toContain(spec.fontFamily);
+        expect(styleOf('4.5').fontFamily).not.toContain(nativeTokens.type.figureInline.fontFamily);
+        expect(styleOf('4.5').fontSize).toBe(`${String(spec.fontSize)}px`);
+        expect(styleOf('4.5').lineHeight).toBe(`${String(spec.lineHeight)}px`);
+    });
+
     it('is body when no role is named', () => {
         renderWithTamagui(<Text>plain</Text>, 'light');
 
@@ -117,30 +142,65 @@ describe('Text (native)', () => {
         expect(Text.staticConfig.defaultProps?.includeFontPadding).toBe(false);
     });
 
-    // Owner ruling 2026-10-31 (ADR-0080 §8): text grows with the system's text size up to 2×, WCAG 1.4.4's 200 %.
-    it('caps the system text size at 2× for every role', () => {
-        expect(FONT_SCALE_CAP).toBe(2);
-        expect(Text.staticConfig.defaultProps?.maxFontSizeMultiplier).toBe(2);
+    // H-1 (ADR-0080 §8, corrected): React Native 0.86 on Android caps a text's size but not a set line height
+    // (`TextAttributeProps.kt:42`), so the design-system Text turns system scaling off and draws both from the system
+    // scale itself (`scaledTypeMetrics`), up to each role's ceiling. REWRITTEN from "caps at 2× via
+    // maxFontSizeMultiplier", whose premise was the false citation.
+    it('turns system scaling off, so React Native cannot grow its leading past the cap', () => {
+        expect(Text.staticConfig.defaultProps?.allowFontScaling).toBe(false);
+        expect(Text.staticConfig.defaultProps?.maxFontSizeMultiplier).toBeUndefined();
     });
 
-    // React Native scales a set line height by the same capped multiplier as the size (ADR-0080 §8 cites its source),
-    // so a leading that holds its text at 1× holds it at the 2× cap; that claim rests on the citation, and this row
-    // holds the 1× half. A bare number would be a RATIO in Tamagui, so a role whose leading stopped being px would
-    // render at that many times its size.
+    it('draws body at 2× size and 2× leading above the cap', () => {
+        renderWithTamagui(<Text typeRole="body">big</Text>, 'light', 3.1);
+
+        expect(styleOf('big').fontSize).toBe('32px');
+        expect(styleOf('big').lineHeight).toBe('48px');
+    });
+
+    it('draws a display role at its 1.5× ceiling', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.largeTitle.regular;
+
+        renderWithTamagui(<Text typeRole="largeTitle">Title</Text>, 'light', 3.1);
+
+        expect(styleOf('Title').fontSize).toBe(`${String(fontSize * 1.5)}px`);
+        expect(styleOf('Title').lineHeight).toBe(`${String(lineHeight * 1.5)}px`);
+    });
+
+    it('lets an inline figure take the scaled size of its line', () => {
+        renderWithTamagui(
+            <Text typeRole="body">
+                Serves <Text typeRole="figureInline">12</Text>
+            </Text>,
+            'light',
+            1.5,
+        );
+
+        expect(styleOf('12').fontSize).toBe('24px');
+    });
+
+    it('follows a change of the system scale', () => {
+        const { rerender } = renderWithTamagui(<Text typeRole="body">live</Text>, 'light', 1);
+
+        expect(styleOf('live').fontSize).toBe('16px');
+
+        rerender(
+            <DesignSystemTheme scheme="light" textScale={1.5}>
+                <Text typeRole="body">live</Text>
+            </DesignSystemTheme>,
+        );
+
+        expect(styleOf('live').fontSize).toBe('24px');
+    });
+
+    // REWRITTEN (H-1): a role's size and leading now come from `scaledTypeMetrics` at the system scale, so the `typeRole`
+    // table carries only the face and the figure style. A size or leading left in it would fight the scaled one.
     it.each(Object.entries(Text.staticConfig.variants?.['typeRole'] ?? {}))(
-        '%s keeps a px leading that holds its text',
+        '%s sets only its face and figures in the role table',
         (_role, style) => {
-            const { fontSize, lineHeight } = style as { readonly fontSize?: number; readonly lineHeight?: string };
-
-            if (fontSize === undefined) {
-                // figureInline takes the size and leading of its line.
-                expect(lineHeight).toBeUndefined();
-
-                return;
-            }
-
-            expect(lineHeight).toMatch(/^\d+px$/u);
-            expect(Number.parseFloat(lineHeight ?? '')).toBeGreaterThanOrEqual(fontSize);
+            expect(Object.keys(style as object).filter((key) => key !== 'fontFamily' && key !== 'fontVariant')).toEqual(
+                [],
+            );
         },
     );
 });

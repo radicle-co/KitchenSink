@@ -4,13 +4,14 @@
  * element one side lacks, and one line when they match.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
 import { recipeMessages } from '../../messages.js';
 import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
 import { compareWithCurrent } from '../compare.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { VersionCompareView } from '../VersionCompareView.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

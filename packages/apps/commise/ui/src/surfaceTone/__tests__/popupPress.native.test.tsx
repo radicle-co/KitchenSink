@@ -10,7 +10,8 @@
  * react-native-web's `Pressable` does not toggle `pressed` from jsdom events, so `Pressable` is stood in for by one that
  * renders its `pressed` branch and turns `onPress` into a click; everything above it is the real code.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { useState, type FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

@@ -7,11 +7,12 @@
  * re-imported the chunk on every remount.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import type { HomeWidgetDescriptor } from '@commise/features-core';
 import { Text } from 'react-native';
 
 import { RoadmapWidgetSlot } from '../../../src/components/home/RoadmapWidgetSlot.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

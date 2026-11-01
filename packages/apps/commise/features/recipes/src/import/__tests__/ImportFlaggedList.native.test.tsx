@@ -3,7 +3,7 @@
  * `ImportFlaggedList.test.tsx`, plus the native rule that the options pane shows only at the wide container class.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { Text } from 'react-native';
 
@@ -25,6 +25,7 @@ vi.mock('react-native', async (importOriginal) => {
 import { ImportFlaggedList } from '../ImportFlaggedList.native.js';
 import type { PendingSend } from '../../ingredientMatching/matchLine.js';
 import type { ImportFlaggedListProps } from '../props.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();

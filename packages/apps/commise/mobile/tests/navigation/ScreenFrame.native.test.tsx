@@ -5,8 +5,9 @@
  * themselves before the navigator framed them.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { Text } from 'react-native';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native-safe-area-context', async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),

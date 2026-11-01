@@ -5,7 +5,7 @@
  * panel, and the minimal changed-fields list — so the two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState } from 'react';
 
@@ -23,6 +23,7 @@ import { recipeVersionMessages } from '../messages.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { RecipeConflictViewProps } from '../conflictView.js';
 import type { RecipeMergeSelections } from '../merge.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

@@ -20,7 +20,7 @@
  * `hooks/__tests__/useRecipeNutritionBatches.test.tsx`.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -28,6 +28,7 @@ import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
 import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
 import type { RecipeNutritionBatchReading } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

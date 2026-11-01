@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { role } from '../../tokens/colors.js';
 import { LoadMoreControl } from '../LoadMoreControl.native.js';
 import type { LoadMoreControlProps } from '../props.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 
 afterEach(cleanup);
 
@@ -76,7 +77,7 @@ describe('LoadMoreControl (native)', () => {
 
         const glyph = container.querySelector<HTMLElement>('[data-commise-stub="icon"]');
 
-        expect(getComputedStyle(screen.getByText('Load more')).color).toBe(rgb(role.actionText));
+        expect(resolvedColour(screen.getByText('Load more'), 'color')).toBe(rgb(role.actionText));
         expect(glyph?.dataset['iconName']).toBe('chevron-down');
         expect(glyph?.dataset['iconColor']).toBe(role.actionText);
         expect(glyph?.closest('[aria-hidden="true"]')).not.toBeNull();
@@ -87,7 +88,7 @@ describe('LoadMoreControl (native)', () => {
 
         const glyph = container.querySelector<HTMLElement>('[data-commise-stub="icon"]');
 
-        expect(getComputedStyle(screen.getByText('Try again')).color).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Try again'), 'color')).toBe(rgb(role.ink));
         expect(glyph?.dataset['iconName']).toBe('refresh-cw');
     });
 });

@@ -3,7 +3,7 @@
  * `RecipeBrowseRailResults.test.tsx`; moved from `RecipeBrowseRails.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 import { Text } from 'react-native';
@@ -12,6 +12,7 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

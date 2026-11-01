@@ -7,13 +7,14 @@
  */
 import { themeFor } from '@commise/ui/theme';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeRecipe } from '@kitchensink/recipe-core/testing';
 import { Surface } from '@commise/ui/surface-tone';
 
 import { CollectionPickerRow } from '../CollectionPickerRow.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const press = vi.hoisted(() => ({ pressed: false }));
 

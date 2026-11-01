@@ -8,7 +8,7 @@
  * and a delete/remove error banner (the page's header and the removal hook own those now); it had no view switch, no count,
  * and focus fell to the page when a row was removed. The windowing and the empty copy are kept.
  */
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,6 +17,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 import { CollectionMembers } from '../CollectionMembers.native.js';
 import type { CollectionMembersProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

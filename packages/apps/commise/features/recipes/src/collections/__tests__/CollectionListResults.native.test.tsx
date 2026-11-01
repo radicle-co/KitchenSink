@@ -7,13 +7,14 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { makeCollection } from '@kitchensink/recipe-core/testing';
 
 import { CollectionListResults } from '../CollectionListResults.native.js';
 import type { CollectionListResultsProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

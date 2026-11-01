@@ -4,9 +4,10 @@
  * half of "create FAB (L1)").
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 import { RecipeListLoading } from '../RecipeListLoading.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

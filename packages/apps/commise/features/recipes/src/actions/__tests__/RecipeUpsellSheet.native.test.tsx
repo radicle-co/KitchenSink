@@ -4,12 +4,13 @@
  * **Not now** of equal weight, nothing pre-selected (DSA Art. 25).
  */
 import { LocaleProvider } from '@commise/i18n/react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RecipeUpsellSheetProps } from '../model.js';
 import { RecipeUpsellSheet } from '../RecipeUpsellSheet.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
 const entryPoints = vi.hoisted(() => ({ on: false }));

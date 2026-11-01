@@ -8,7 +8,7 @@
  * "The new step's field takes focus" (§7.6) is pinned in "adding, empty and refused".
  */
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 
@@ -42,6 +42,7 @@ import { stepFieldId } from '../fieldIds.js';
 import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js';
 import type { RecipeFormErrors } from '../validate.js';
 import { defaultRecipeFormValues, type RecipeFormStep, type RecipeFormValues } from '../values.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const e = editorMessages.en;
 

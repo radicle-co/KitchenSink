@@ -6,12 +6,13 @@
  * REWRITTEN for U4 (2026-10-25): the owner's order and words in one paragraph with the rule, and no muted fill card.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 import { recipeFormMessages } from '../messages.js';
 import { pasteMatchSummaryOf } from '../pasteMatchView.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PasteMatchSummary } from '../PasteMatchSummary.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = recipeFormMessages.en;
 const PARAGRAPH =

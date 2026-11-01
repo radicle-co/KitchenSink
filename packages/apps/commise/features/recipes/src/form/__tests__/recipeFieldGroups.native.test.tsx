@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled } from '@commise/test-utils';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
 import { recordedTextInputLabelled, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
-import { cleanup, render as renderBare, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { fireEvent } from '@testing-library/dom';
 
@@ -49,6 +49,7 @@ import {
     withLineKeys,
     makeIngredientRowEditor,
 } from '../../__fixtures__/index.js';
+import { render as renderBare } from '@commise/ui/testing/tamagui';
 
 const ROW_EDITOR = makeIngredientRowEditor();
 

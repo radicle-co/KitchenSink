@@ -21,6 +21,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createFont, createTamagui, createTokens, styled, TamaguiProvider, Text, View, XStack } from 'tamagui';
 import type { ReactNode } from 'react';
+import { Pressable } from 'react-native';
 
 const font = createFont({ family: 'System', size: { 1: 16 }, lineHeight: { 1: 24 }, weight: { 1: '400' } });
 
@@ -46,6 +47,8 @@ function styleOf(label: string): CSSStyleDeclaration {
 const PxLine = styled(Text, { fontSize: 16, lineHeight: '24px' });
 
 const Paper = styled(View, { backgroundColor: '$paper' });
+
+const Frame = styled(View, { padding: 12, flexDirection: 'row' });
 
 const Busy = styled(View, { variants: { busy: { true: { opacity: 0.4 } } } as const });
 
@@ -116,5 +119,24 @@ describe('Tamagui 3 under the native test lane (web build)', () => {
         );
 
         expect(styleOf('flex').flexShrink).toBe('0');
+    });
+    // PressScale's port (BLUEPRINT 2026-11-01, option a): a design-system frame lends its layout to React Native's Pressable
+    // through `asChild`, and on native Tamagui's Slot clones the Pressable with the merged style. THIS lane cannot show
+    // that: the web build wraps the Pressable in a `display: contents` span and react-native-web's Pressable ignores the
+    // class, so the frame's style never reaches it. A device is the evidence for the merge; if an upgrade changes this
+    // row, the merge can be asserted here instead.
+    it('does not merge an asChild frame’s style onto a react-native-web Pressable', () => {
+        render(
+            <Probe>
+                <Frame asChild>
+                    <Pressable aria-label="press" role="button">
+                        <Text>Go</Text>
+                    </Pressable>
+                </Frame>
+            </Probe>,
+        );
+
+        expect(styleOf('press').paddingTop).toBe('0px');
+        expect(screen.getByLabelText('press').parentElement?.className ?? '').toContain('_dsp_contents');
     });
 });

@@ -3,11 +3,12 @@
  * trailing action (Paste steps, Paste a list) are wider than the row: the row must wrap so the action drops under the
  * heading, and the heading may shrink only to its own line, so it breaks between words and never inside one.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { EditorSection } from '../EditorSection.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

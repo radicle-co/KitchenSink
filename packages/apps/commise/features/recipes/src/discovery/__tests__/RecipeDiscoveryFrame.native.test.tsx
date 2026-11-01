@@ -20,13 +20,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sideInsetOf } from '@commise/test-utils';
 import { AccessibilityInfo, Pressable, Text, TextInput, type ScrollView as ScrollViewType } from 'react-native';
 import { createElement, useState, type ComponentProps } from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { RecipeSearchSortBy } from '@kitchensink/recipe-core';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDiscoveryFrame } from '../RecipeDiscoveryFrame.native.js';
 import type { RecipeDiscoveryFrameProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
 // The real ScrollView is wrapped to mark its element with its tap persistence: jsdom has no keyboard to tap through.

@@ -11,7 +11,7 @@
  * while its pick is sent (M1) and a failed pick in place of its need (M6).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { nativeTokens } from '@commise/ui/native';
 import { touchFloor } from '@commise/ui/layout';
@@ -31,6 +31,7 @@ import { lineRowOf, type LinePlace } from '../matchLineView.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { MatchClosedRow } from '../MatchClosedRow.native.js';
 import { matchLineMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const copy = { line: matchLineMessages.en, details: recipeMessages.en.ingredientDetails };
 const FIVE = Array.from({ length: 5 }, (_, index) =>

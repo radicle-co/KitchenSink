@@ -6,7 +6,7 @@
  */
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { CollectionWithRecipes } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sideInsetOf } from '@commise/test-utils';
 import { CollectionDetailBody } from '../CollectionDetailBody.js';
 import { useCollectionDetail } from '../useCollectionDetail.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

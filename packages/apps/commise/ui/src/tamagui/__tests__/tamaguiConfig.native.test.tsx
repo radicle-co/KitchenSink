@@ -4,6 +4,7 @@
  * the real config matters because Tamagui 3 throws inside `createTokens` on a key it reserves while every map test
  * stays green and `tsc` stays clean.
  */
+import { StyleSheet } from 'react-native';
 import { createTamagui, createTokens } from 'tamagui';
 import { describe, expect, it } from 'vitest';
 
@@ -75,6 +76,13 @@ describe('the built Tamagui config', () => {
         for (const [key, value] of Object.entries(tamaguiThemes[scheme])) {
             expect(theme[key as keyof typeof theme]?.val, key).toBe(value);
         }
+    });
+
+    // Designer ruling 2026-11-01 (nativeBoards/designAnswers.md): a section divider or a rule is a hairline, the
+    // device's thinnest line, and a control outline stays 1 pt. Tamagui reads every border width from this one group.
+    it('has one border width token, the hairline, at React Native’s hairline width', () => {
+        expect(Object.keys(tamaguiConfig.tokens.borderWidth ?? {})).toEqual(['hairline']);
+        expect(valOf(tamaguiConfig.tokens.borderWidth ?? {}, 'hairline')).toBe(StyleSheet.hairlineWidth);
     });
 
     it('carries the two fonts under their registered faces', () => {

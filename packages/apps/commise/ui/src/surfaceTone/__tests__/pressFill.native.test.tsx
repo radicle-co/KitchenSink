@@ -8,7 +8,7 @@
  * react-native-web's `Pressable` does not toggle `pressed` from jsdom events (see `PressScale.native.test`), so
  * `Pressable` is stood in for by one that renders its `pressed` branch; everything above it is the real code.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const press = vi.hoisted(() => ({ pressed: false }));
@@ -29,6 +29,7 @@ import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js'
 import { themeFor } from '../../theme/themeFor.js';
 import { chipFillRoleOf, chipPressToneOf, SURFACE_TONE_NAMES } from '../surfaceTone.js';
 import { Surface } from '../Surface.native.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 
 afterEach(() => {
     cleanup();

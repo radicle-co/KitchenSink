@@ -126,17 +126,17 @@ interface Lowest {
 }
 
 /**
- * Each file's lowest count across the versions (a file absent from a version counts 0 there), and the newest version
- * that holds it. Pure.
+ * Each file's lowest count across the versions it is read from (a file absent from a version counts 0 there), and the
+ * newest version that holds it. Pure.
  */
 function lowestCounts<T>(
-    history: readonly BaselineVersion<T>[],
+    historyOf: (file: string) => readonly BaselineVersion<T>[],
     pick: (baseline: T) => FileCounts,
     files: readonly string[],
 ): ReadonlyMap<string, Lowest> {
     return new Map(
         files.map((file) => {
-            const lowest = history.reduce<Lowest | undefined>((found, { revision, baseline }) => {
+            const lowest = historyOf(file).reduce<Lowest | undefined>((found, { revision, baseline }) => {
                 const count = pick(baseline)[file] ?? 0;
 
                 return found === undefined || count < found.count ? { count, revision } : found;
@@ -145,6 +145,32 @@ function lowestCounts<T>(
             return [file, lowest ?? { count: 0, revision: 'no committed baseline' }];
         }),
     );
+}
+
+/**
+ * Whether a path no version of the baseline recorded may enter it. A map without one admits no new path.
+ */
+export type AdmitNewPath = (file: string) => boolean;
+
+/**
+ * The history a map's lowest counts are read from. With an admission rule, each path's lowest is read only from the
+ * versions since the OLDEST one that records it, so an admitted path is not held to the zero of the versions before
+ * it existed; a path that fell out of a later version still reads 0 there and cannot come back. Pure.
+ */
+function sinceFirstRecorded<T>(
+    history: readonly BaselineVersion<T>[],
+    pick: (baseline: T) => FileCounts,
+    admit: AdmitNewPath | undefined,
+): (file: string) => readonly BaselineVersion<T>[] {
+    return (file) => {
+        if (admit === undefined) {
+            return history;
+        }
+
+        const oldest = history.findLastIndex(({ baseline }) => file in pick(baseline));
+
+        return oldest === -1 ? history : history.slice(0, oldest + 1);
+    };
 }
 
 /**
@@ -158,30 +184,40 @@ function lowestCounts<T>(
  */
 export function raisedAgainst<T>(
     history: readonly BaselineVersion<T>[],
-    pairs: readonly (readonly [committed: FileCounts, pick: (baseline: T) => FileCounts, recount?: Recount])[],
+    pairs: readonly (readonly [
+        committed: FileCounts,
+        pick: (baseline: T) => FileCounts,
+        recount?: Recount,
+        admit?: AdmitNewPath,
+    ])[],
     sourceAt: SourceAt = gitSourceAt,
 ): string[] {
-    return pairs.flatMap(([committed, pick, recount]) => {
-        const lowest = lowestCounts(history, pick, Object.keys(committed));
+    return pairs.flatMap(([committed, pick, recount, admit]) => {
+        const tracked = Object.keys(committed).filter(
+            (file) => admit === undefined || history.some(({ baseline }) => file in pick(baseline)) || !admit(file),
+        );
+        const lowest = lowestCounts(sinceFirstRecorded(history, pick, admit), pick, tracked);
         const recorded = Object.fromEntries([...lowest].map(([file, { count }]) => [file, count]));
 
-        return risesOf(committed, recorded).flatMap(([file, count, before]) => {
-            const { revision } = lowest.get(file) ?? { revision: 'no committed baseline' };
-            const head = `${file}: ${count} > ${before} (lowest at ${revision}`;
+        return risesOf(Object.fromEntries(tracked.map((file) => [file, committed[file] ?? 0])), recorded).flatMap(
+            ([file, count, before]) => {
+                const { revision } = lowest.get(file) ?? { revision: 'no committed baseline' };
+                const head = `${file}: ${count} > ${before} (lowest at ${revision}`;
 
-            if (recount === undefined) {
-                return [`${head})`];
-            }
+                if (recount === undefined) {
+                    return [`${head})`];
+                }
 
-            const source = sourceAt(revision, file);
+                const source = sourceAt(revision, file);
 
-            if (source === undefined) {
-                return [`${head}, where the file did not exist)`];
-            }
+                if (source === undefined) {
+                    return [`${head}, where the file did not exist)`];
+                }
 
-            const then = recount(file, source);
+                const then = recount(file, source);
 
-            return count > then ? [`${head}, where the current detector counts ${then})`] : [];
-        });
+                return count > then ? [`${head}, where the current detector counts ${then})`] : [];
+            },
+        );
     });
 }

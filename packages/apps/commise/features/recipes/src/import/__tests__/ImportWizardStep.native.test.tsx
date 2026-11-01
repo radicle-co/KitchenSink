@@ -8,7 +8,7 @@
  * is left open, the host's request moves the screen reader to Next recipe.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { Text } from 'react-native';
 
@@ -31,6 +31,7 @@ import { themeFor } from '@commise/ui/theme';
 import { ImportWizardStep } from '../ImportWizardStep.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportWizardStepProps } from '../props.js';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 const w = importMessages.en.wizard;
 
@@ -170,7 +171,7 @@ describe('ImportWizardStep (native)', () => {
         const hex = themeFor('light').colors.ink;
         const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
 
-        expect(getComputedStyle(within(skip).getByText(w.skip)).color).toBe(
+        expect(resolvedColour(within(skip).getByText(w.skip), 'color')).toBe(
             `rgb(${String(r)}, ${String(g)}, ${String(b)})`,
         );
     });

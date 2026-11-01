@@ -7,7 +7,7 @@
  * ⚠️ REWRITTEN for slice 4 of the UI overhaul, for the reasons the web test's header gives.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
@@ -16,6 +16,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeListResults } from '../RecipeListResults.native.js';
 import type { RecipeListResultsProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The frame's collapse (compact height AND a keyboard open), served by the test: jsdom has neither. */
 const layout = vi.hoisted(() => ({ collapsed: false }));

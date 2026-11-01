@@ -70,6 +70,46 @@ describe('raisedAgainst', () => {
         ]);
     });
 
+    // A map may ADMIT a path no version recorded, under a rule the caller states (the design system's adapter
+    // exemptions, `nativeStylingRatchet.test.ts`). From the version that first records it, the path only falls, and once
+    // it is gone it cannot come back.
+    describe('with an admission rule for new paths', () => {
+        const admitE = (file: string): boolean => file === 'e.tsx';
+
+        function admitted(files: Readonly<Record<string, number>>): string[] {
+            return raisedAgainst(history, [[files, (baseline) => baseline.files, recount, admitE]], sourceAt);
+        }
+
+        it('admits a path no version recorded when the rule admits it', () => {
+            expect(admitted({ 'a.tsx': 2, 'b.tsx': 3, 'd.tsx': 1, 'e.tsx': 1 })).toEqual([]);
+        });
+
+        it('still refuses a new path the rule does not admit', () => {
+            expect(admitted({ 'a.tsx': 2, 'b.tsx': 3, 'd.tsx': 1, 'f.tsx': 1 })).toEqual([
+                'f.tsx: 1 > 0 (lowest at r2, where the file did not exist)',
+            ]);
+        });
+
+        it('does not let the rule re-admit a path that fell to zero', () => {
+            expect(raisedAgainst(history, [[{ 'c.tsx': 1 }, (b) => b.files, recount, () => true]], sourceAt)).toEqual([
+                'c.tsx: 1 > 0 (lowest at r2, where the file did not exist)',
+            ]);
+        });
+
+        it('holds an admitted path to the lowest count recorded since it was admitted', () => {
+            const since: readonly BaselineVersion<Baseline>[] = [
+                { revision: 'r4', baseline: { files: { 'e.tsx': 1 } } },
+                { revision: 'r3', baseline: { files: { 'e.tsx': 2 } } },
+                ...history,
+            ];
+
+            expect(raisedAgainst(since, [[{ 'e.tsx': 1 }, (b) => b.files, undefined, admitE]], sourceAt)).toEqual([]);
+            expect(raisedAgainst(since, [[{ 'e.tsx': 2 }, (b) => b.files, undefined, admitE]], sourceAt)).toEqual([
+                'e.tsx: 2 > 1 (lowest at r4)',
+            ]);
+        });
+    });
+
     it('refuses a rise when the map has no detector to recount with', () => {
         expect(raisedAgainst(history, [[{ 'a.tsx': 4 }, (baseline) => baseline.files]], sourceAt)).toEqual([
             'a.tsx: 4 > 2 (lowest at r2)',

@@ -9,7 +9,8 @@
  * the app does.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+// AppProviders mounts the design-system provider itself, so it is rendered without one (`renderUnscoped`).
+import { cleanup, screen, render as renderUnscoped } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
 import { Text } from 'react-native';
 
@@ -79,7 +80,7 @@ afterEach(() => {
 
 describe('AppProviders, safe area and Tamagui', () => {
     it('mounts SafeAreaProvider above TamaguiProvider, so Tamagui can read the insets', async () => {
-        render(
+        renderUnscoped(
             <AppProviders>
                 <Text>child</Text>
             </AppProviders>,

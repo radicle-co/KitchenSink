@@ -6,7 +6,7 @@
  * ⚠️ REWRITTEN for slice 4, with the native per-component tests of the pieces it composes moved here (see the web file).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -17,6 +17,7 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import { RecipeWidgetLoadError } from '../../components/RecipeWidgetLoadError.native.js';
 import { RecipeWidgetLoadingCard } from '../../components/RecipeWidgetLoadingCard.js';
 import RecipeHomeWidget, { type RecipeHomeWidgetProps } from '../RecipeHomeWidget.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The system colour scheme and window width the next render sees. */
 const env = vi.hoisted(() => ({ width: 390 }));

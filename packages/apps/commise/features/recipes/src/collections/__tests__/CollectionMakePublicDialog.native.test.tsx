@@ -5,12 +5,13 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { fireEvent } from '@testing-library/dom';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CollectionMakePublicDialog } from '../CollectionMakePublicDialog.js';
 import type { CollectionMakePublicDialogProps } from '../detailModel.js';
 import { collectionMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = collectionMessages.en.dialogs;
 

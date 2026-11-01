@@ -156,3 +156,16 @@ export function nativeStylingUses(source: string, fileName: string): NativeStyli
 
     return { counted, exempt, misplacedExemptions };
 }
+
+/**
+ * Whether a file may record a new adapter exemption: it is in the design system, and no committed baseline ever counted
+ * a use in it, so the marker cannot turn styling the ratchet still owes a migration into an exemption. Pure.
+ *
+ * @param countedHistory - The counted-use map of every committed baseline version.
+ * @returns The admission rule for the exemption map.
+ */
+export function admitsAdapterExemption(
+    countedHistory: readonly Readonly<Record<string, number>>[],
+): (file: string) => boolean {
+    return (file) => file.startsWith(DESIGN_SYSTEM) && countedHistory.every((counts) => (counts[file] ?? 0) === 0);
+}

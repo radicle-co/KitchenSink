@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { nativeStylingUses } from './nativeStyling.js';
+import { admitsAdapterExemption, nativeStylingUses } from './nativeStyling.js';
 
 const UI = 'packages/apps/commise/ui/src/thing/Thing.native.tsx';
 const FEATURE = 'packages/apps/commise/features/recipes/src/thing/Thing.native.tsx';
@@ -131,5 +131,23 @@ describe('nativeStylingUses', () => {
         const uses = nativeStylingUses(`const a = 1;\nconst v = <View style={{ padding: 4 }} />;`, FEATURE);
 
         expect(uses.counted).toEqual([{ line: 2, text: 'style={{ padding: 4 }}' }]);
+    });
+});
+
+// A design-system Adapter may record a NEW adapter exemption (the hairline token was the first), but only in a file
+// whose uses were never counted: an exemption marker must not relabel styling the ratchet still owes a migration.
+describe('admitsAdapterExemption', () => {
+    const history: readonly Readonly<Record<string, number>>[] = [{ [FEATURE]: 2 }, { [FEATURE]: 3, [UI]: 1 }];
+
+    it('admits a design-system file no baseline ever counted', () => {
+        expect(admitsAdapterExemption([{ [FEATURE]: 2 }])(UI)).toBe(true);
+    });
+
+    it('refuses a design-system file whose counted uses would become exemptions', () => {
+        expect(admitsAdapterExemption(history)(UI)).toBe(false);
+    });
+
+    it('refuses a file outside the design system', () => {
+        expect(admitsAdapterExemption([{}])(FEATURE)).toBe(false);
     });
 });

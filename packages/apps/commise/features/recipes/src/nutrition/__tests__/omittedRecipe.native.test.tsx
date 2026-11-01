@@ -38,7 +38,7 @@
  * where it used to be a hand-written host over the deleted `RecipeNutritionBoundary`.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -47,6 +47,7 @@ import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 // The slot is shared; the native config's resolver maps its chip and skeleton to the `.native.tsx` leaves.
 import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
 import { NUTRITION_FOOD_UNAVAILABLE, selectRecipeCalorieState } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

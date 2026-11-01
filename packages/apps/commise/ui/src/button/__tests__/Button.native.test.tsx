@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo } from 'react-native';
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { render, renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
 import { BUTTON_VISUAL_HEIGHT, type ButtonProps, type ButtonSize } from '../props.js';
@@ -82,6 +83,7 @@ function rgb(hex: string): string {
 const TIERS = [
     { variant: 'primary', tone: undefined, label: role.onAction, glyph: role.onAction },
     { variant: 'secondary', tone: undefined, label: role.ink, glyph: role.ink },
+    { variant: 'ghost', tone: undefined, label: role.actionText, glyph: role.actionText },
     { variant: 'quiet', tone: undefined, label: role.ink, glyph: role.actionText },
     { variant: 'destructive', tone: 'inline', label: role.dangerText, glyph: role.dangerText },
     { variant: 'destructive', tone: 'confirm', label: role.onAction, glyph: role.onAction },
@@ -127,7 +129,7 @@ describe('Button (native)', () => {
             );
 
             expect(glyphIn(container)?.dataset['iconColor'], `${variant} ${String(tone)}`).toBe(glyph);
-            expect(getComputedStyle(screen.getByText('Tier')).color, `${variant} ${String(tone)}`).toBe(rgb(label));
+            expect(resolvedColour(screen.getByText('Tier'), 'color'), `${variant} ${String(tone)}`).toBe(rgb(label));
             unmount();
         }
     });
@@ -243,7 +245,7 @@ describe('Button (native)', () => {
 
         expect(pill.backgroundColor).toBe(rgb(roleDark.paper));
         expect(pill.borderTopColor).toBe(rgb(roleDark.lineControl));
-        expect(getComputedStyle(screen.getByText('Cancel')).color).toBe(rgb(roleDark.ink));
+        expect(resolvedColour(screen.getByText('Cancel'), 'color')).toBe(rgb(roleDark.ink));
         expect(glyphIn(container)?.dataset['iconColor']).toBe(roleDark.ink);
     });
 
@@ -269,7 +271,7 @@ describe('Button (native)', () => {
 
         expect(pill.backgroundColor).toBe('rgba(0, 0, 0, 0)');
         expect(pill.borderTopWidth).toBe('0px');
-        expect(getComputedStyle(screen.getByText('Show all')).color).toBe(rgb(role.actionText));
+        expect(resolvedColour(screen.getByText('Show all'), 'color')).toBe(rgb(role.actionText));
     });
 
     it('lets a ghost button have no glyph, and shows the spinner there when busy', () => {
@@ -295,7 +297,7 @@ describe('Button (native)', () => {
 
         expect(pill.backgroundColor).toBe('rgba(0, 0, 0, 0)');
         expect(pill.borderTopWidth).toBe('0px');
-        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Keep as written'), 'color')).toBe(rgb(role.ink));
     });
 
     it('repaints the quiet label and glyph from the dark roles when the system is dark', () => {
@@ -306,7 +308,7 @@ describe('Button (native)', () => {
             </Button>,
         );
 
-        expect(getComputedStyle(screen.getByText('Keep as written')).color).toBe(rgb(roleDark.ink));
+        expect(resolvedColour(screen.getByText('Keep as written'), 'color')).toBe(rgb(roleDark.ink));
         expect(glyphIn(container)?.dataset['iconColor']).toBe(roleDark.actionText);
     });
 
@@ -377,6 +379,17 @@ describe('Button (native)', () => {
         expect(label.fontSize).toBe('16px');
         expect(label.fontSize).not.toBe(`${String(nativeTokens.type.label.fontSize)}px`);
         expect(['', 'normal', '400']).toContain(label.fontWeight);
+    });
+
+    // H-1 (ADR-0080 §8): the label is the design-system Text, so it grows with the system scale, size and leading
+    // together, to the 2× cap; React Native's own text left the leading uncapped on Android.
+    it('grows the label and its leading to 2× above the cap', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.cardTitle;
+
+        renderWithTamagui(<Button icon="plus">Add</Button>, 'light', 3.1);
+
+        expect(getComputedStyle(screen.getByText('Add')).fontSize).toBe(`${String(fontSize * 2)}px`);
+        expect(getComputedStyle(screen.getByText('Add')).lineHeight).toBe(`${String(lineHeight * 2)}px`);
     });
 
     it('sizes lg at 52, md at 44 and sm at 36 visual points on iOS', () => {

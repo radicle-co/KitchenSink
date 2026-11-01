@@ -2,11 +2,12 @@
  * Component tests for the native `BoundaryErrorNotice` (react-native-web under jsdom): what a routed screen shows when it
  * crashed. `AppRoot.native.test.tsx` drives the whole boundary; this file pins the notice alone.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BoundaryErrorNotice } from '../BoundaryErrorNotice.js';
 import { boundaryMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

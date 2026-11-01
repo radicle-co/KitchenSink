@@ -4,7 +4,7 @@
  * layer's material; padded by the bottom inset; and every press reported — the active tab's too, which is its second tap.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
@@ -12,6 +12,7 @@ import { homeMessages } from '@commise/features-core/home';
 import { role } from '@commise/ui/colors';
 
 import { HomeTabBar } from '../../../src/components/home/chrome/HomeTabBar.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

@@ -3,11 +3,12 @@
  * first. Renamed from the editor builder's `PastedLine` when both flows came to draw it; the list-role case is new.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { nativeTokens } from '@commise/ui/native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { MatchLineText } from '../MatchLineText.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

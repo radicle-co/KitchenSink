@@ -17,7 +17,7 @@
  * handed a promise, so every state renders synchronously with no Suspense to flush.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 
 import type { Recipe } from '@kitchensink/recipe-core';
@@ -33,6 +33,7 @@ import { RecipeDiscoveryResults } from '../../discovery/RecipeDiscoveryResults.n
 import { RecipeListResults } from '../../list/RecipeListResults.native.js';
 import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
 import type { RecipeNutritionBatchReading, RenderRecipeNutrition } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

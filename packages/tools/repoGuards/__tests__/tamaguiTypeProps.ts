@@ -9,7 +9,15 @@ import ts from 'typescript';
 import type { StyledExportsOf } from './tamaguiElements.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
 
-const TYPE_PARTS = new Set(['fontSize', 'lineHeight', 'fontFamily', 'fontWeight', 'letterSpacing']);
+const TYPE_PARTS = new Set([
+    'fontSize',
+    'lineHeight',
+    'fontFamily',
+    'fontWeight',
+    'letterSpacing',
+    'fontVariant',
+    'textScale',
+]);
 
 const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
 
@@ -42,6 +50,8 @@ export function typePropFindings(
             ts.isJsxAttribute(attribute)
                 ? TYPE_PARTS.has(attribute.name.getText(file))
                 : OLD_TYPE_STYLES.test(attribute.expression.getText(file)),
-        property: ({ key, value }) => key === 'lineHeight' && !isPxLineHeight(value),
+        // `textScale` is the design-system Text's context value (ADR-0080 §8); as a default it would hold every instance at
+        // one scale, whatever the cook's setting (GATE SCQ-2).
+        property: ({ key, value }) => key === 'textScale' || (key === 'lineHeight' && !isPxLineHeight(value)),
     });
 }

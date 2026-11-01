@@ -9,7 +9,8 @@
  * `Pressable` is stood in for by one that renders its `pressed` branch, and everything above it (Button, PressScale, the
  * paint) is the real code.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const press = vi.hoisted(() => ({ pressed: false, reduceMotion: false }));

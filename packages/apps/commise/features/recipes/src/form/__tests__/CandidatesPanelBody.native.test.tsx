@@ -5,7 +5,7 @@
  * (`docs/design/rowEditorOpenDecisions.md`, S7 list contract P5, P6, P8, P10 and P12).
  */
 import type { ProgressiveFrame } from '@kitchensink/food-service-client';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { createElement } from 'react';
 import type { ViewProps } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +28,7 @@ import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSyst
 import { CandidatesPanelBody } from '../CandidatesPanelBody.native.js';
 import { recipeFormMessages } from '../messages.js';
 import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // Every `View`'s props, recorded: React Native 0.86 flattens a View that only lays out its children out of Android's
 // native tree, label and all (`ViewShadowNode.cpp`), and react-native-web, which renders every View, cannot show that.

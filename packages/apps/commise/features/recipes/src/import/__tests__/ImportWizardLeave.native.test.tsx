@@ -3,7 +3,7 @@
  * `ImportWizardLeave.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 vi.mock('react-native', async (importOriginal) => {
@@ -15,6 +15,7 @@ vi.mock('react-native', async (importOriginal) => {
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { ImportWizardLeave } from '../ImportWizardLeave.native.js';
 import { importMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const l = importMessages.en.leave;
 

@@ -7,8 +7,9 @@
  * fill, a neutral one wears a 1 pt `lineDivider` edge, the label wraps and is never cut off, and it is 24 pt tall with
  * the `sm` radius.
  *
- * Styled with Tamagui (ADR-0080): every colour is a theme role, so the badge follows the scheme with no hook. PRO's
- * pair is `inkMuted` under `inverseInk`, which are the PRO tone's values in both themes.
+ * Styled with Tamagui (ADR-0080): every colour is a theme key, so the badge follows the scheme with no hook. PRO's pair
+ * is `proFill` under `proInk`, the PRO tone's own keys. A glyph takes the label's colour, as `currentColor` does on web;
+ * only neutral badges carry one.
  *
  * @pattern Registry consumer — the status picks its tone and glyph from closed `Record`s (`TONE_OF`, `BADGE_GLYPH`)
  * @pattern Variant — the tone is a Tamagui variant on the badge and on its label, the discriminated-union render map
@@ -47,7 +48,7 @@ const Badge = styled(XStack, {
 
     variants: {
         tone: {
-            pro: { backgroundColor: '$inkMuted' },
+            pro: { backgroundColor: '$proFill' },
             attention: { backgroundColor: '$attentionTint' },
             neutral: { backgroundColor: '$paper', borderWidth: 1, borderColor: '$lineDivider' },
         } as const satisfies Record<BadgeTone, object>,
@@ -61,7 +62,7 @@ const Label = styled(Text, {
 
     variants: {
         tone: {
-            pro: { color: '$inverseInk' },
+            pro: { color: '$proInk' },
             attention: { color: '$ink' },
             neutral: { color: '$inkMuted' },
         } as const satisfies Record<BadgeTone, object>,
@@ -75,7 +76,7 @@ export const StatusBadge: FC<StatusBadgeProps> = ({ status, children }) => {
 
     return (
         <Badge tone={tone}>
-            {glyph === null ? null : <Icon name={glyph} size={16} tone="ink" />}
+            {glyph === null ? null : <Icon name={glyph} size={16} tone="inkMuted" />}
             <Label tone={tone}>{children}</Label>
         </Badge>
     );

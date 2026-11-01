@@ -23,17 +23,18 @@ import type { TypeRole } from '../tokens/typography.js';
 const { type } = nativeTokens;
 
 /**
- * The most a role's text grows with the system's text-size setting. `0` means no cap (React Native). It is set here
- * and nowhere else, so the owner's open decision (a cap at 2×, WCAG 1.4.4's 200 %, is the recommendation) is a
- * one-line change.
+ * The most a role's text grows with the system's text-size setting: 2×, WCAG 1.4.4's 200 % (owner ruling, ADR-0080 §8).
+ * React Native scales the line height by the same capped multiplier, so each px leading keeps holding its text.
  */
-export const FONT_SCALE_CAP = 0;
+export const FONT_SCALE_CAP = 2;
 
 export const Text = styled(TamaguiText, {
     name: 'CommiseText',
     maxFontSizeMultiplier: FONT_SCALE_CAP,
     // Tamagui's Text defaults to `$color`, which no design-system theme defines; a device then logs a warning per text.
     color: '$ink',
+    // Android pads a line with the font's own ascent and descent even under a fixed leading; a browser does not.
+    includeFontPadding: false,
 
     variants: {
         typeRole: {

@@ -110,7 +110,38 @@ describe('Text (native)', () => {
         expect(resolvedColour(screen.getByText('quiet'), 'color')).toBe(formatRgb(colors.inkMuted));
     });
 
-    it('applies the one font-scale cap to every role', () => {
-        expect(Text.staticConfig.defaultProps?.maxFontSizeMultiplier).toBe(FONT_SCALE_CAP);
+    // Android adds the font's own padding above and below a line, even under a fixed leading, so text sat low in a badge
+    // or a pill (Tamagui audit M7). A browser adds none, so jsdom cannot show it; a device can.
+    it('turns off Android font padding for every role', () => {
+        expect(Text.staticConfig.defaultProps?.includeFontPadding).toBe(false);
     });
+
+    // Owner ruling 2026-10-31 (ADR-0080 §8): text grows with the system's text size up to 2×, WCAG 1.4.4's 200 %.
+    it('caps the system text size at 2× for every role', () => {
+        expect(FONT_SCALE_CAP).toBe(2);
+        expect(Text.staticConfig.defaultProps?.maxFontSizeMultiplier).toBe(2);
+    });
+
+    // React Native scales a set line height by the same capped multiplier as the size (ADR-0080 §8 cites the source),
+    // so a leading that holds its text at 1× holds it at the 2× cap. A bare number would be a RATIO in Tamagui, so a
+    // role whose leading stopped being px would render at that many times its size, at every scale.
+    it.each([...new Map(Object.entries(Text.staticConfig.variants?.['typeRole'] ?? {}))])(
+        '%s keeps a px leading that holds its text at 1× and at the 2× cap',
+        (_role, style) => {
+            const { fontSize, lineHeight } = style as { readonly fontSize?: number; readonly lineHeight?: string };
+
+            if (fontSize === undefined) {
+                // figureInline takes the size and leading of its line.
+                expect(lineHeight).toBeUndefined();
+
+                return;
+            }
+
+            expect(lineHeight).toMatch(/^\d+px$/u);
+
+            for (const scale of [1, 1.3, FONT_SCALE_CAP]) {
+                expect(Number.parseFloat(lineHeight ?? '') * scale).toBeGreaterThanOrEqual(fontSize * scale);
+            }
+        },
+    );
 });

@@ -48,6 +48,23 @@ describe('StatusBadge (native)', () => {
         expect(resolvedColour(screen.getByText('PRO'), 'color')).toBe(formatRgb(proTone.text));
     });
 
+    it('paints PRO through its own theme keys, so a change to the PRO tone reaches native', () => {
+        renderWithTamagui(<StatusBadge status="pro">PRO</StatusBadge>, 'light');
+
+        expect(getComputedStyle(badgeOf('PRO')).backgroundColor).toBe('var(--proFill)');
+        expect(getComputedStyle(screen.getByText('PRO')).color).toBe('var(--proInk)');
+    });
+
+    // On web the glyph takes the label's colour (`currentColor`); native names the same role.
+    it.each(['draft', 'private', 'public'] as const)('%s draws its glyph in the label’s colour', (status) => {
+        const { container } = renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
+
+        expect(resolvedColour(screen.getByText('Word'), 'color')).toBe(formatRgb(role.inkMuted));
+        expect(container.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconColor']).toBe(
+            role.inkMuted,
+        );
+    });
+
     it('renders its words as text a screen reader reads, with no hiding', () => {
         renderWithTamagui(<StatusBadge status="note">Custom</StatusBadge>, 'light');
 

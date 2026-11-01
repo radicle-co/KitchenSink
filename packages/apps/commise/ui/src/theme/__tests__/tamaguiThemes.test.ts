@@ -13,13 +13,24 @@ import {
     type PressScheme,
 } from '../../surfaceTone/surfaceTone.js';
 import { role, roleDark, type Role } from '../../tokens/colors.js';
-import { surfaceToneThemeKeys, tamaguiThemes } from '../tamaguiThemes.js';
+import { proTone, proToneDark } from '../../tokens/tones.js';
+import { proThemeKeys, surfaceToneThemeKeys, tamaguiThemes } from '../tamaguiThemes.js';
 
 const roleNames = Object.keys(role) as Role[];
 
 const sources: Readonly<Record<PressScheme, Readonly<Record<Role, string>>>> = { light: role, dark: roleDark };
 
 describe('tamaguiThemes', () => {
+    // The PRO badge's pair is its own tone (`tones.ts`), not two text roles that equal it today by chance, so a change
+    // to the PRO tone moves native with web (Tamagui audit H2).
+    it.each([
+        ['light', proTone],
+        ['dark', proToneDark],
+    ] as const)('%s: carries the PRO pair from the PRO tone', (scheme, tone) => {
+        expect(tamaguiThemes[scheme].proFill).toBe(tone.fill);
+        expect(tamaguiThemes[scheme].proInk).toBe(tone.text);
+    });
+
     it('has exactly a light and a dark theme', () => {
         expect(Object.keys(tamaguiThemes).sort()).toEqual(['dark', 'light']);
     });
@@ -27,7 +38,7 @@ describe('tamaguiThemes', () => {
     it.each(['light', 'dark'] as const)('%s: carries every role, and only roles and surface-tone keys', (scheme) => {
         const keys = Object.keys(tamaguiThemes[scheme]).sort();
 
-        expect(keys).toEqual([...roleNames, ...surfaceToneThemeKeys].sort());
+        expect(keys).toEqual([...roleNames, ...surfaceToneThemeKeys, ...proThemeKeys].sort());
     });
 
     it('keeps the surface-tone keys apart from the role names, so no tone key can shadow a role', () => {

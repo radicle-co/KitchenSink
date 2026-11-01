@@ -261,6 +261,34 @@ export function resolvedStyle(element: Element, property: StyleProperty): string
 }
 
 /**
+ * The frame `PressScale` wraps a control's `Pressable` in: the control's parent, which carries the press scale and the
+ * width. The scale reaches the DOM as Tamagui's `_s-compose` class, so a parent without it is refused rather than read.
+ *
+ * @param control - The pressable control, found by its role.
+ * @returns The frame.
+ * @throws Error when the control's parent is not a press-scale frame.
+ */
+export function pressFrameOf(control: Element): HTMLElement {
+    const frame = control.parentElement;
+
+    if (frame === null || !frame.classList.contains('_s-compose')) {
+        throw new Error('The control is not inside a PressScale frame.');
+    }
+
+    return frame;
+}
+
+/**
+ * The press scale `PressScale` draws a control at: `1` at rest, `0.98` while held.
+ *
+ * @param control - The pressable control, found by its role.
+ * @returns The scale, as Tamagui writes it.
+ */
+export function pressScaleOf(control: Element): string {
+    return getComputedStyle(pressFrameOf(control)).getPropertyValue('--t-scale-x').trim();
+}
+
+/**
  * The colour an element paints for one property, with every Tamagui theme variable resolved.
  *
  * @param element - The element.

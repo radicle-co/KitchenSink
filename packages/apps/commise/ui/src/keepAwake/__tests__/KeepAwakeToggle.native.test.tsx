@@ -15,7 +15,7 @@ import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { KeepAwakeToggle } from '../KeepAwakeToggle.native.js';
 import { useKeepAwake } from '../useKeepAwake.native.js';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { pressScaleOf, render } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * The native `KeepAwakeToggle` and `useKeepAwake` (blueprint A20). Native always has the capability, so the toggle
@@ -72,8 +72,8 @@ describe('KeepAwakeToggle (native) — presses like Button', () => {
 
         const toggle = screen.getByRole('switch', { name: 'Screen on' });
 
-        expect(toggle.style.transform).toBe('scale(1)');
-        expect(toggle.style.transform).toBe(screen.getByRole('button', { name: 'Done' }).style.transform);
+        expect(pressScaleOf(toggle)).toBe('1');
+        expect(pressScaleOf(toggle)).toBe(pressScaleOf(screen.getByRole('button', { name: 'Done' })));
     });
 });
 

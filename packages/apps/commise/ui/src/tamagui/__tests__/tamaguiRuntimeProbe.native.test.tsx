@@ -139,4 +139,26 @@ describe('Tamagui 3 under the native test lane (web build)', () => {
         expect(styleOf('press').paddingTop).toBe('0px');
         expect(screen.getByLabelText('press').parentElement?.className ?? '').toContain('_dsp_contents');
     });
+
+    // And nothing of the frame's own props reaches that span: Tamagui writes their rules (`._as-…`, `._tsx-…`) to the
+    // stylesheet but puts none of the classes on the span or the Pressable. So this lane cannot see a scale or a
+    // stretch an asChild frame lends its child; only a device can.
+    it('puts none of an asChild frame’s own classes on the wrapper span', () => {
+        render(
+            <Probe>
+                <View alignSelf="stretch" asChild scale={0.98}>
+                    <Pressable aria-label="press" role="button">
+                        <Text>Go</Text>
+                    </Pressable>
+                </View>
+            </Probe>,
+        );
+
+        const press = screen.getByLabelText('press');
+        const span = press.parentElement as HTMLElement;
+
+        expect(span.className.trim()).toBe('_dsp_contents');
+        expect(getComputedStyle(span).transform).toBe('none');
+        expect(getComputedStyle(press).alignSelf).not.toBe('stretch');
+    });
 });

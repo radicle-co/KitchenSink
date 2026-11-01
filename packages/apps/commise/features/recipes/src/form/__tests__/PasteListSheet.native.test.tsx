@@ -33,7 +33,7 @@ import { pasteListFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PasteListSheet } from '../PasteListSheet.native.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();
@@ -70,7 +70,9 @@ describe('PasteListSheet (native)', () => {
     it('fills the primary and has no Cancel', () => {
         render(<Host paste={fakePaste()} />);
 
-        expect(screen.getByRole('button', { name: 'Add 0 ingredients' }).style.alignSelf).toBe('stretch');
+        expect(
+            getComputedStyle(pressFrameOf(screen.getByRole('button', { name: 'Add 0 ingredients' }))).alignSelf,
+        ).toBe('stretch');
         expect(screen.queryByRole('button', { name: t.pasteCancel })).toBeNull();
     });
 

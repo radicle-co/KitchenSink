@@ -28,7 +28,7 @@ import { pasteStepsFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 import { editorMessages } from '../../editor/messages.js';
 import { PasteStepsControl } from '../PasteStepsControl.native.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 const s = editorMessages.en.steps;
 
@@ -84,7 +84,9 @@ describe('PasteStepsControl (native)', () => {
         render(<PasteStepsControl onAdd={onAdd} />);
         fireEvent.click(screen.getByRole('button', { name: s.paste }));
 
-        expect(screen.getByRole('button', { name: 'Add 0 steps' }).style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(screen.getByRole('button', { name: 'Add 0 steps' }))).alignSelf).toBe(
+            'stretch',
+        );
         expect(screen.queryByRole('button', { name: s.pasteCancel })).toBeNull();
 
         fireEvent.change(field(), { target: { value: 'Boil.' } });

@@ -23,10 +23,14 @@
  * });
  * ```
  *
+ * A held press also calls the `Pressable`'s `onPressIn` once it is mounted, as a finger would. `PressScale` tracks the
+ * pressed flag from press-in and press-out and hands it to its children itself, so its pressed branch shows only once
+ * that call lands.
+ *
  * @pattern Test Double (Stub) — a `View` that renders a `Pressable`'s pressed branch
  */
-import { createElement, type ComponentProps } from 'react';
-import type { Pressable as PressableType } from 'react-native';
+import { createElement, useLayoutEffect, type ComponentProps } from 'react';
+import type { GestureResponderEvent, Pressable as PressableType } from 'react-native';
 
 type PressableProps = ComponentProps<typeof PressableType>;
 
@@ -35,7 +39,7 @@ type NativeModule = Pick<typeof import('react-native'), 'View' | 'Pressable'>;
 
 /**
  * A `Pressable` that renders its `pressed` branch while `isPressed()` is true and is the real one otherwise. It keeps
- * the role, label, checked and selected state a query reads. Pure.
+ * the role, label, checked and selected state a query reads, and calls `onPressIn` while held.
  *
  * @param actual - The real `react-native` module, from `importOriginal`.
  * @param isPressed - Read on every render: whether the press is held.
@@ -43,7 +47,17 @@ type NativeModule = Pick<typeof import('react-native'), 'View' | 'Pressable'>;
  */
 export function pressedPressable(actual: NativeModule, isPressed: () => boolean = () => true) {
     return (props: PressableProps) => {
-        if (!isPressed()) {
+        const held = isPressed();
+        const { onPressIn } = props;
+
+        useLayoutEffect(() => {
+            if (held) {
+                // No handler reads the event: a press-in only says the press began.
+                onPressIn?.({} as GestureResponderEvent);
+            }
+        }, [held, onPressIn]);
+
+        if (!held) {
             return createElement(actual.Pressable, props);
         }
 

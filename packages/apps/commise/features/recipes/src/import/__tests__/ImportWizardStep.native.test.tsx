@@ -31,7 +31,7 @@ import { themeFor } from '@commise/ui/theme';
 import { ImportWizardStep } from '../ImportWizardStep.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportWizardStepProps } from '../props.js';
-import { render, resolvedColour } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 const w = importMessages.en.wizard;
 
@@ -156,7 +156,7 @@ describe('ImportWizardStep (native)', () => {
 
         // Next stretches across a column, so it takes the bar's whole width (the 383 px row clipped it at 320).
         expect(getComputedStyle(bar).flexDirection).toBe('column');
-        expect(next.style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(next)).alignSelf).toBe('stretch');
         // Back and Skip sit together on one row that does not hold Next, and that row comes first, above Next.
         expect(row === null ? undefined : getComputedStyle(row).flexDirection).toBe('row');
         expect(row?.contains(next)).toBe(false);
@@ -186,7 +186,9 @@ describe('ImportWizardStep (native)', () => {
                 .getAllByRole('button')
                 .map((button) => button.textContent),
         ).toEqual([w.skip, w.next]);
-        expect(within(bar).getByRole('button', { name: w.next }).style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(within(bar).getByRole('button', { name: w.next }))).alignSelf).toBe(
+            'stretch',
+        );
     });
 
     it('at the wide container class the three share one row, Next at its end', () => {

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { role } from '../../tokens/colors.js';
 import { StateNotice } from '../StateNotice.native.js';
-import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import { pressFrameOf, render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 
 afterEach(cleanup);
 
@@ -113,11 +113,13 @@ describe('StateNotice (native)', () => {
                 secondary={{ label: 'Back to Home', icon: 'house', onPress: vi.fn() }}
             />,
         );
-        const actions = screen.getByRole('button', { name: 'Try again' }).parentElement as HTMLElement;
-        const style = getComputedStyle(actions);
+        // Each action sits in its press-scale frame, so the row of actions is the frame's parent, and the frame is what
+        // that row lays out.
+        const frame = pressFrameOf(screen.getByRole('button', { name: 'Try again' }));
+        const style = getComputedStyle(frame.parentElement as HTMLElement);
 
         expect(style.alignItems).not.toBe('stretch');
         expect(style.alignSelf).not.toBe('stretch');
-        expect(getComputedStyle(screen.getByRole('button', { name: 'Try again' })).alignSelf).not.toBe('stretch');
+        expect(getComputedStyle(frame).alignSelf).not.toBe('stretch');
     });
 });

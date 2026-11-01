@@ -7742,11 +7742,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
                     "dir": "packages/apps/commise/ui/src/liveRegion",
-                    "moduleDoc": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with an\ncolour `tone` and an `offFlow` state for a region that is empty or only spoken. It stays MOUNTED (Android's live region must exist before\nits text changes) but leaves the layout flow, the native `visuallyHidden` geometry as a Tamagui variant.\nPresentational: props in, text out, no state.",
+                    "moduleDoc": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with a\ncolour `tone` and an `offFlow` state for a region that is empty or only spoken. It stays MOUNTED (Android's live\nregion must exist before its text changes) but leaves the layout flow, by the one visually-hidden geometry.\nPresentational: props in, text out, no state.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with an"
+                            "text": "liveRegion/LiveRegionText — the text of a LiveRegion that names a type role: the design-system Text, with a"
                         },
                         {
                             "name": "pattern",
@@ -9213,8 +9213,9 @@
             "dir": "packages/apps/commise/ui/src/pressScale",
             "kind": "presentational",
             "patterns": [
-                "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts.",
-                "Decorator over its child's press state — CSS puts an activated element's ANCESTORS into `:active`, so\n    wrapping is enough and the child keeps all of the press semantics."
+                "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its pressed state, which is why the web leaf decorates and this one adapts.",
+                "Decorator over its child's press state — CSS puts an activated element's ANCESTORS into `:active`, so\n    wrapping is enough and the child keeps all of the press semantics.",
+                "Decorator — `PressScaleFrame` adds the width and the press scale around the `Pressable`"
             ],
             "platforms": [
                 "web",
@@ -9365,7 +9366,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/pressScale/PressScale.native.tsx",
                     "dir": "packages/apps/commise/ui/src/pressScale",
-                    "moduleDoc": "@commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive.\n\nOwns the interaction: it renders the `Pressable` and drives a `transform: [{ scale }]` from that\n`Pressable`'s `pressed` state, so a held control shrinks to `PRESS_SCALE` and springs back on\nrelease. The scale is suppressed when the control is disabled and — crucially — when the OS \"reduce\nmotion\" setting is on (non-essential motion is gated), mirroring the web leaf's `motion-safe:` gate. The\nbranch itself lives in the pure {@link pressedScale} so it is provable without a renderer, and the\npreference is read through the design system's single {@link useReduceMotion} reader.",
+                    "moduleDoc": "@commise/ui/press-scale — the native design-system {@link PressScale} press-feedback primitive.\n\nOwns the interaction: it renders the `Pressable` and drives a `transform: [{ scale }]` from that\n`Pressable`'s `pressed` state, so a held control shrinks to `PRESS_SCALE` and springs back on\nrelease. The scale is suppressed when the control is disabled and — crucially — when the OS \"reduce\nmotion\" setting is on (non-essential motion is gated), mirroring the web leaf's `motion-safe:` gate. The\nbranch itself lives in the pure {@link pressedScale} so it is provable without a renderer, and the\npreference is read through the design system's single {@link useReduceMotion} reader.\n\nThe pressed state is tracked here, from the `Pressable`'s press-in and press-out, so the scale and a function child\nread the same flag. The scale and the width live on `PressScaleFrame`, a Tamagui view around the `Pressable`, so the\nleaf sets no React Native style (ADR-0080). The frame has no events and no accessibility props, so the `Pressable`\nstays the one press responder and the one control a screen reader finds. `asChild` was weighed and rejected: the test\nlane cannot see a style an `asChild` frame lends its child (`tamaguiRuntimeProbe.native.test.tsx`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9373,7 +9374,11 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its `pressed` state, which is why the web leaf decorates and this one adapts."
+                            "text": "Adapter over the RN `Pressable` — React Native has no ancestor `:active`, so this leaf OWNS the pressable\n    and drives the scale from its pressed state, which is why the web leaf decorates and this one adapts."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — `PressScaleFrame` adds the width and the press scale around the `Pressable`"
                         }
                     ],
                     "description": "The Commise press-feedback wrapper — a `Pressable` that scales its content while held (motion-safe).",

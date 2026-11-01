@@ -2,7 +2,7 @@
  * StateNotice (native) — the body is Try again's description, as the accessibility hint a device receives
  * (`componentFixes.md` §1). Stands in for `Pressable`; react-native-web would project a hint to nothing.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const seen = vi.hoisted(() => ({ buttons: [] as Record<string, unknown>[] }));
@@ -21,6 +21,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { StateNotice } from '../StateNotice.native.js';
 
 afterEach(() => {

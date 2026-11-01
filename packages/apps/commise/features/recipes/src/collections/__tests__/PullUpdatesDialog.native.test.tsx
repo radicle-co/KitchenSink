@@ -19,7 +19,7 @@ import { PullUpdatesDialog } from '../PullUpdatesDialog.native.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { PullUpdatesDialogProps } from '../model.js';
 import { collectionMessages } from '../messages.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -224,10 +224,9 @@ describe('PullUpdatesDialog (native) — the action row', () => {
         observer.observed.clear();
     });
 
-    /** Lay the action row out at `width`: the row is the parent of Cancel's wrapper. */
+    /** Lay the action row out at `width`: the row is the parent of Cancel's press-scale frame. */
     function layOutActions(width: number): HTMLElement {
-        const row = screen.getByRole('button', { name: 'Cancel' }).closest('[class*="r-"]')
-            ?.parentElement as HTMLElement;
+        const row = pressFrameOf(screen.getByRole('button', { name: 'Cancel' })).parentElement as HTMLElement;
 
         Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
         Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });

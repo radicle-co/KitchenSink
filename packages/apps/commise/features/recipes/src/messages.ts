@@ -300,6 +300,11 @@ export interface RecipeDetailMessages {
     readonly nutritionSourcesLink: string;
     /** The user-entered disclosure, shown when a line is user-entered (001 FR-007a; §S15). */
     readonly nutritionCustomNote: string;
+    /**
+     * The one name a screen reader hears for a per-serving figure, label first ("Calories, 320"), as the web's
+     * `dt`/`dd` pair reads (contains `{label}` and `{value}`). The native figure draws the value over its label.
+     */
+    readonly nutritionFigureLabel: string;
     /** Label for calories. */
     readonly caloriesLabel: string;
     /** Label for protein. */
@@ -995,6 +1000,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             nutritionSourceNote: 'Nutrition comes from public food databases.',
             nutritionSourcesLink: 'Data sources',
             nutritionCustomNote: 'Custom ingredients count only the nutrition you entered for them.',
+            nutritionFigureLabel: '{label}, {value}',
             caloriesLabel: 'Calories',
             proteinLabel: 'Protein',
             carbsLabel: 'Carbs',

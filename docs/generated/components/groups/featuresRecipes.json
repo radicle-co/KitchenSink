@@ -7136,7 +7136,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/NutritionFigure.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — one per-serving nutrition figure on the native recipe page (build spec §6.1):\nthe value in `figureStat` over its `caption` label, half a row wide so four make a 2 × 2. Presentational; colours\nare theme keys, so the figure follows the scheme with no hook.",
+                    "moduleDoc": "@commise/features-recipes — one per-serving nutrition figure on the native recipe page (build spec §6.1):\nthe value in `figureStat` over its `caption` label, half a row wide so four make a 2 × 2. Presentational; colours\nare theme keys, so the figure follows the scheme with no hook.\n\nA screen reader hears it as ONE stop, label first (\"Calories, 320\"), as the web's `dt`/`dd` pair reads: the stack is\none accessible element named by `nutritionFigureLabel`, and its two lines are hidden from assistive technology.",
                     "moduleTags": [
                         {
                             "name": "module",

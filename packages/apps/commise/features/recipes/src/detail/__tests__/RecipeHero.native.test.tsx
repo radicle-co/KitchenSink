@@ -14,7 +14,9 @@
  * geometry.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';

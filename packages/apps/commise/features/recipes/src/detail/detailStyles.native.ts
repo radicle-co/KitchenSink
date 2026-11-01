@@ -22,7 +22,6 @@ export const detailStyles = StyleSheet.create({
     inline: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
     meta: { ...nativeTokens.type.meta },
     caption: { ...nativeTokens.type.caption },
-    readingBody: { ...nativeTokens.type.readingBody },
     figures: { fontVariant: ['tabular-nums', 'lining-nums'] },
     figureGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: nativeTokens.spacing[4] },
     statStrip: {
@@ -40,12 +39,9 @@ export const detailStyles = StyleSheet.create({
     },
     statValue: { ...nativeTokens.type.figureStat },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    description: { alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
     // One section (or the run of closing blocks) as a direct child of the scroll content: the page's one 16 gutter,
     // and the 8 that makes the 24 content gap between top blocks the 32 between sections.
     sectionBlock: { paddingHorizontal: nativeTokens.spacing[4], marginTop: nativeTokens.spacing[2] },
-    // Blocks stacked with a section's gap and NO gutter of their own: the gutter belongs to whatever holds them.
-    stack: { gap: nativeTokens.spacing[8] },
     hint: { alignSelf: 'flex-start' },
     twoColumns: {
         flexDirection: 'row',
@@ -53,16 +49,9 @@ export const detailStyles = StyleSheet.create({
         gap: nativeTokens.spacing[8],
         paddingHorizontal: nativeTokens.spacing[4],
     },
-    ingredientsColumn: { flex: 5 },
-    stepsColumn: { flex: 7 },
-    section: { gap: nativeTokens.spacing[3] },
-    headingRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: nativeTokens.spacing[2],
-    },
+    // Only the ingredients heading reads this: it holds the ref `useScreenReaderFocusOnSignal<Text>` returns, a hook
+    // typed to React Native's Text, so it cannot be the Tamagui `DetailSectionHeading` until the design system settles
+    // the hook's target. It is the same token (`nativeTokens.type.sectionTitle`), so it is not a second authority.
     sectionHeading: { ...nativeTokens.type.sectionTitle },
     scaleNotice: {
         alignItems: 'flex-start',
@@ -79,8 +68,6 @@ export const detailStyles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    steps: { gap: nativeTokens.spacing[6] },
     linkTouch: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
     link: { textDecorationLine: 'underline' },
-    footer: { alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
 });

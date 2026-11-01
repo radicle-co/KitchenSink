@@ -8,7 +8,9 @@
  * the `minus`/`plus` glyphs (not "−"/"+" text) and its count is Inter in tabular digits.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-core/scaling';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';

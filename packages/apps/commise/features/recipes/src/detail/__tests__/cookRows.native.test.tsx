@@ -4,7 +4,9 @@
  * selected state, the step text stays content, and a press anywhere on the step moves the marker for touch users.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';

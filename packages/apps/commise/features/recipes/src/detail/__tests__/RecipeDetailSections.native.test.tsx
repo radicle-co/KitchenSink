@@ -8,13 +8,17 @@
  * parent and the scroll spy reads it (`ui/src/scrollHost/props.ts`).
  */
 import { createElement, type ReactElement } from 'react';
-import { act, cleanup, fireEvent, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { nativeTokens } from '@commise/ui/native';
+import { render as renderUnscoped, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { idleUnreachableRetry, makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
 import { recipeMessages } from '../../messages.js';
 import { resetServingScale } from '../servingScale.js';
+import { DetailSection, DetailStack } from '../detailFrames.native.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 
 const { detail } = recipeMessages.en;
@@ -163,6 +167,67 @@ describe('RecipeDetailView (native) — from a 720 pt body', () => {
 
         expect(toggles).toHaveLength(1);
         expect(within(toggles[0] as HTMLElement).getByText(detail.screenOn)).toBeTruthy();
+    });
+});
+
+/**
+ * How the sections share the page (build spec §6.1): from a 720 pt body the ingredients take five parts of twelve and
+ * the steps column seven, and the blocks of a column, or of the closing run, sit space-8 apart.
+ *
+ * The column share is a variant of the page's frames (`detailFrames.native.ts`). Tamagui's web build writes it as the
+ * shorthand `flex: 5 0 0`, which jsdom drops as it parses, so no computed style can show it (ADR-0080 §6: a style
+ * jsdom cannot hold is asserted on the variant table, in `detailFrames.native.test.tsx`). What this suite proves is
+ * that the page USES that variant: a column renders with exactly the classes of a reference frame given the variant,
+ * and a section below 720 pt with those of a frame given none.
+ */
+describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () => {
+    const px = (step: keyof typeof nativeTokens.spacing): string => `${String(nativeTokens.spacing[step])}px`;
+    /** The section frame that holds a heading: the heading sits in its heading row, the row in the section. */
+    const sectionOf = (name: string): HTMLElement =>
+        (screen.getByRole('heading', { name }).parentElement as HTMLElement).parentElement as HTMLElement;
+
+    /** The classes a reference frame renders with, so a page element can be compared with it. */
+    const classesOf = (frame: ReactElement): string => {
+        const { container, unmount } = renderUnscoped(frame);
+        const classes = (container.querySelector('[name]') as HTMLElement).className;
+        unmount();
+
+        return classes;
+    };
+
+    it('gives the ingredients five parts of the row and the steps column seven, from a 720 pt body', () => {
+        const ingredientsColumn = classesOf(<DetailSection column="ingredients" />);
+        const stepsColumn = classesOf(<DetailStack column="steps" />);
+
+        device.width = 1024;
+        render(view());
+
+        expect(sectionOf(detail.ingredientsHeading).className).toBe(ingredientsColumn);
+        expect((sectionOf(detail.instructionsHeading).parentElement as HTMLElement).className).toBe(stepsColumn);
+    });
+
+    it('gives a section no share of a row below a 720 pt body, where it is the only thing in it', () => {
+        const plainSection = classesOf(<DetailSection />);
+        render(view());
+
+        expect(sectionOf(detail.ingredientsHeading).className).toBe(plainSection);
+    });
+
+    it('stacks the steps column’s blocks space-8 apart, from a 720 pt body', () => {
+        device.width = 1024;
+        render(view());
+        const stepsColumn = sectionOf(detail.instructionsHeading).parentElement as HTMLElement;
+
+        expect(resolvedStyle(stepsColumn, 'gap')).toBe(px(8));
+    });
+
+    it('stacks the closing blocks space-8 apart below a 720 pt body', () => {
+        render(view(makeRecipeDetail({ sourceAttribution: 'Grandma’s card' })));
+        // The source line's label is a heading in its row; the row sits in the footer, the footer in the closing stack.
+        const sourceRow = screen.getByRole('heading', { name: detail.sourceHeading }).parentElement as HTMLElement;
+        const footer = sourceRow.parentElement as HTMLElement;
+
+        expect(resolvedStyle(footer.parentElement as HTMLElement, 'gap')).toBe(px(8));
     });
 });
 

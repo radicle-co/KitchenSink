@@ -16,6 +16,7 @@ import type { FC } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
+import { DetailSection, DetailSectionHeading } from './detailFrames.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
 import {
     needsReviewNotice,
@@ -62,10 +63,8 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
     );
 
     return (
-        <View style={styles.section}>
-            <Text accessibilityRole="header" style={[styles.sectionHeading, { color: colors.ink }]}>
-                {detail.nutritionHeading}
-            </Text>
+        <DetailSection>
+            <DetailSectionHeading>{detail.nutritionHeading}</DetailSectionHeading>
             <View style={styles.figureGrid}>
                 {cells.cells.map((cell) => (
                     <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
@@ -97,6 +96,6 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
             {hasUserEnteredIngredients(recipe.ingredients) && (
                 <Text style={[styles.caption, muted]}>{detail.nutritionCustomNote}</Text>
             )}
-        </View>
+        </DetailSection>
     );
 };

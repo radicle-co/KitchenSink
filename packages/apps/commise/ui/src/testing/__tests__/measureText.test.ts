@@ -41,8 +41,11 @@ describe('measureTextWidth', () => {
         expect(measureTextWidth('Discover', bodyFontFace.semibold, 16)).toBeCloseTo(68.8, 2);
     });
 
-    it('refuses a face the app does not load', () => {
-        expect(() => measureTextWidth('Home', 'Inter_900Black_Unknown', 16)).toThrow(/Inter_900Black_Unknown/u);
-        expect(() => measureTextWidth('Home', 'Roboto', 16)).toThrow(/Roboto/u);
+    // `Inter_700Bold` is a real file in the installed package, so only the face registry can refuse it. The parameter's
+    // type refuses it at compile time; the casts check the runtime refusal a caller outside TypeScript meets.
+    it('refuses a face the app does not load, even one whose font file is installed', () => {
+        expect(() => measureTextWidth('Home', 'Inter_700Bold' as never, 16)).toThrow(/Inter_700Bold/u);
+        expect(() => measureTextWidth('Home', 'Manrope_800ExtraBold' as never, 16)).toThrow(/Manrope_800ExtraBold/u);
+        expect(() => measureTextWidth('Home', 'Roboto' as never, 16)).toThrow(/Roboto/u);
     });
 });

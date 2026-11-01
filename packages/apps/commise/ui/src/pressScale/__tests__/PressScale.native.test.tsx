@@ -233,15 +233,18 @@ describe('PressScale (native) — pressed state for children', () => {
         press('onPressOut');
         expect(seen.at(-1)).toBe(false);
     });
+
     // A control can turn disabled while a finger is down (a save starts). The scale settles at once, because the
     // policy forces 1 while disabled, and the release still clears the flag, so the child is not left painted pressed.
     it('settles when the control turns disabled mid-press, and clears the flag on release', () => {
         const seen: boolean[] = [];
+
         const child = ({ pressed }: { readonly pressed: boolean }) => {
             seen.push(pressed);
 
             return <Text>Tap me</Text>;
         };
+
         const { rerender } = render(
             <PressScale onPress={vi.fn()} accessibilityLabel="Tap me">
                 {child}

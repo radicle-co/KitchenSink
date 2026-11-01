@@ -4,12 +4,12 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 20,
-        "missing-component-doc": 160,
+        "missing-component-doc": 161,
         "missing-module-doc": 21,
-        "platform-singleton": 72,
+        "platform-singleton": 73,
         "ref-api": 15,
         "unclassified-layer": 92,
-        "undocumented-prop": 180
+        "undocumented-prop": 181
     },
     "findings": [
         {
@@ -454,6 +454,34 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "value"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/liveRegion/LiveRegionText",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/liveRegion/LiveRegionText",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/liveRegion/LiveRegionText",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "ref"
             ]
         },
         {

@@ -20,6 +20,12 @@ const TYPE_PARTS = new Set([
 ]);
 
 const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
+/**
+ * The navigation chrome, the only modules that may lower a label's ceiling with `chromeCap` (designer ruling
+ * 2026-11-01, ADR-0080 §8): the tab bar, which draws every tab label, and the view-switch control.
+ */
+const CHROME_MODULES =
+    /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx)$/u;
 
 const PX = /^\d+(?:\.\d+)?px$/u;
 
@@ -48,10 +54,12 @@ export function typePropFindings(
     return styleSiteFindings(source, fileName, styledExportsOf, {
         attribute: (attribute, file) =>
             ts.isJsxAttribute(attribute)
-                ? TYPE_PARTS.has(attribute.name.getText(file))
+                ? TYPE_PARTS.has(attribute.name.getText(file)) ||
+                  (attribute.name.getText(file) === 'chromeCap' && !CHROME_MODULES.test(file.fileName))
                 : OLD_TYPE_STYLES.test(attribute.expression.getText(file)),
         // `textScale` is the design-system Text's context value (ADR-0080 §8); as a default it would hold every instance at
         // one scale, whatever the cook's setting (GATE SCQ-2).
-        property: ({ key, value }) => key === 'textScale' || (key === 'lineHeight' && !isPxLineHeight(value)),
+        property: ({ key, value }) =>
+            key === 'textScale' || key === 'chromeCap' || (key === 'lineHeight' && !isPxLineHeight(value)),
     });
 }

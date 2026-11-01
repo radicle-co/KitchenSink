@@ -22,9 +22,9 @@ import { googleSignIn } from '@commise/ui/brands';
 import { BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { dimmedOpacity } from '@commise/ui/scale';
-import { FONT_SCALE_CAP } from '@commise/ui/font-scale-cap';
+import { scaledTypeSize } from '@commise/ui/scaled-type';
 import type { JSX } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, useWindowDimensions } from 'react-native';
 import { Path, Svg } from 'react-native-svg';
 
 const HEIGHT = BUTTON_VISUAL_HEIGHT.lg;
@@ -72,6 +72,12 @@ function GoogleMark(): JSX.Element {
  * @returns The Google sign-in button.
  */
 export function GoogleSignInButton({ label, onPress, disabled, busy }: GoogleSignInButtonProps): JSX.Element {
+    // Beside Apple's system button on iOS, which cannot scale, the label stays at its 1× size; on Android it follows the
+    // navigation-chrome cap (designer ruling 2026-11-01, ADR-0080 §8). System scaling is off, so the size AND leading
+    // come from here: React Native leaves a set leading uncapped on Android.
+    const { fontScale } = useWindowDimensions();
+    const labelSize = scaledTypeSize('label', Platform.OS === 'ios' ? 1 : fontScale, '1.5');
+
     return (
         <Pressable
             role="button"
@@ -88,8 +94,8 @@ export function GoogleSignInButton({ label, onPress, disabled, busy }: GoogleSig
             ]}
         >
             {busy ? <ActivityIndicator color={googleSignIn.text} /> : <GoogleMark />}
-            {/* Google's own colours, which no design-system role holds, so this label stays React Native's, capped. */}
-            <Text maxFontSizeMultiplier={FONT_SCALE_CAP} style={[styles.label, { color: googleSignIn.text }]}>
+            {/* Google's own colours, which no design-system role holds, so this label stays React Native's own text. */}
+            <Text allowFontScaling={false} style={[styles.label, labelSize, { color: googleSignIn.text }]}>
                 {label}
             </Text>
         </Pressable>
@@ -111,5 +117,5 @@ const styles = StyleSheet.create({
     // The same dimming the design system gives a locked control (§1.10).
     dimmed: { opacity: dimmedOpacity },
     // The label wraps rather than truncates; it is never `nowrap` (owner rule on control text).
-    label: { ...nativeTokens.type.label, flexShrink: 1, textAlign: 'center' },
+    label: { fontFamily: nativeTokens.type.label.fontFamily, flexShrink: 1, textAlign: 'center' },
 });

@@ -167,6 +167,22 @@ describe('Text (native)', () => {
         expect(styleOf('Title').lineHeight).toBe(`${String(lineHeight * 1.5)}px`);
     });
 
+    // Designer ruling 2026-11-01 (ADR-0080 §8): navigation chrome caps its labels at 1.5×, and only chrome may say so.
+    it('draws a chrome label at its chrome cap above the system scale', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.caption;
+
+        renderWithTamagui(
+            <Text typeRole="caption" chromeCap="1.5">
+                Recipes
+            </Text>,
+            'light',
+            3.1,
+        );
+
+        expect(styleOf('Recipes').fontSize).toBe(`${String(fontSize * 1.5)}px`);
+        expect(styleOf('Recipes').lineHeight).toBe(`${String(lineHeight * 1.5)}px`);
+    });
+
     it('lets an inline figure take the scaled size of its line', () => {
         renderWithTamagui(
             <Text typeRole="body">

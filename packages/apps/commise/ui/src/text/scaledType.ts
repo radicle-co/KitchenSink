@@ -32,6 +32,22 @@ const CEILING: Readonly<Record<Exclude<TypeRole, 'figureInline'>, number>> = {
     figureStat: FONT_SCALE_CAP,
 };
 
+/**
+ * The navigation-chrome steps (designer ruling 2026-11-01): a tab-bar or view-switch label grows to 1.5× at most, and a
+ * fit test may lower its control to 1.4× or 1.3×, never further. A step only LOWERS a role's ceiling, so a chrome label
+ * can never be frozen at 1× or drawn below the system scale up to 1.3×.
+ */
+export const CHROME_CAPS = ['1.5', '1.4', '1.3'] as const;
+
+/** One navigation-chrome step. */
+export type ChromeCap = (typeof CHROME_CAPS)[number];
+
+/** A sized role's size and leading, in px numbers, for a React Native text that cannot be the design-system Text. */
+export interface ScaledTypeSize {
+    readonly fontSize: number;
+    readonly lineHeight: number;
+}
+
 /** A sized role's metrics: the leading is a `px` string, because Tamagui 3 reads a bare number as a ratio. */
 export interface ScaledTypeMetrics {
     readonly fontSize: number;
@@ -39,19 +55,43 @@ export interface ScaledTypeMetrics {
 }
 
 /**
- * The size and leading a role is drawn at. Pure.
+ * The size and leading a sized role is drawn at, in px numbers. Pure.
+ *
+ * @param role - The type role (any but `figureInline`, which takes its line's).
+ * @param systemScale - The system font scale (`useWindowDimensions().fontScale`).
+ * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
+ * @returns The scaled size and leading.
+ */
+export function scaledTypeSize(
+    role: Exclude<TypeRole, 'figureInline'>,
+    systemScale: number,
+    chromeCap?: ChromeCap,
+): ScaledTypeSize {
+    const base = role === 'largeTitle' ? nativeTokens.type.largeTitle.regular : nativeTokens.type[role];
+    const ceiling = chromeCap === undefined ? CEILING[role] : Math.min(CEILING[role], Number(chromeCap));
+    const grown = Math.min(systemScale, ceiling);
+
+    return { fontSize: base.fontSize * grown, lineHeight: base.lineHeight * grown };
+}
+
+/**
+ * The size and leading a role is drawn at, as the design-system Text sets them. Pure.
  *
  * @param role - The type role.
  * @param systemScale - The system font scale (`useWindowDimensions().fontScale`).
+ * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
  * @returns The scaled size and leading, or nothing for `figureInline`, which keeps its line's.
  */
-export function scaledTypeMetrics(role: TypeRole, systemScale: number): ScaledTypeMetrics | Record<string, never> {
+export function scaledTypeMetrics(
+    role: TypeRole,
+    systemScale: number,
+    chromeCap?: ChromeCap,
+): ScaledTypeMetrics | Record<string, never> {
     if (role === 'figureInline') {
         return {};
     }
 
-    const base = role === 'largeTitle' ? nativeTokens.type.largeTitle.regular : nativeTokens.type[role];
-    const grown = Math.min(systemScale, CEILING[role]);
+    const { fontSize, lineHeight } = scaledTypeSize(role, systemScale, chromeCap);
 
-    return { fontSize: base.fontSize * grown, lineHeight: `${base.lineHeight * grown}px` };
+    return { fontSize, lineHeight: `${lineHeight}px` };
 }

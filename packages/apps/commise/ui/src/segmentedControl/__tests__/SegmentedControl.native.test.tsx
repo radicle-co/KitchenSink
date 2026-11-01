@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState } from 'react';
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { render, renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { SegmentedControl } from '../SegmentedControl.native.js';
 import { palette, role } from '../../tokens/colors.js';
+import { nativeTokens } from '../../tokens/native.js';
 
 /**
  * SegmentedControl (native) — a route is a `tablist` of `tab`s (`aria-selected`), a view a `radiogroup` of `radio`s
@@ -65,8 +67,9 @@ describe('SegmentedControl (native) — route', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
 
         expect(getComputedStyle(screen.getByRole('tab', { name: 'My recipes' })).backgroundColor).toBe(rgb(role.paper));
-        expect(getComputedStyle(screen.getByText('My recipes')).color).toBe(rgb(role.ink));
-        expect(getComputedStyle(screen.getByText('Collections')).color).toBe(rgb(role.inkMuted));
+        // The label is the design-system Text, whose colour is a theme variable, so it is read resolved.
+        expect(resolvedColour(screen.getByText('My recipes'), 'color')).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Collections'), 'color')).toBe(rgb(role.inkMuted));
         expect(getComputedStyle(screen.getByRole('tablist', { name: 'Recipes' })).backgroundColor).toBe(
             rgb(palette.pearl),
         );
@@ -85,6 +88,31 @@ describe('SegmentedControl (native) — route', () => {
         expect(current.backgroundColor).toBe(rgb(role.paper));
         expect(other.borderTopWidth).toBe('1px');
         expect(other.borderTopColor).not.toBe(rgb(role.lineControl));
+    });
+
+    // Designer ruling 2026-11-01 (ADR-0080 §8): a view-switch label is navigation chrome, so it grows to 1.5× at most,
+    // size and leading together, and keeps its accessible name.
+    it('draws its labels at the 1.5× chrome cap above the system scale, named as before', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.label;
+
+        renderWithTamagui(
+            <SegmentedControl
+                form="view"
+                label="Show"
+                value="mine"
+                onChange={vi.fn()}
+                segments={[
+                    { id: 'mine', label: 'My recipes' },
+                    { id: 'collections', label: 'Collections' },
+                ]}
+            />,
+            'light',
+            3.1,
+        );
+
+        expect(getComputedStyle(screen.getByText('Collections')).fontSize).toBe(`${String(fontSize * 1.5)}px`);
+        expect(getComputedStyle(screen.getByText('Collections')).lineHeight).toBe(`${String(lineHeight * 1.5)}px`);
+        expect(screen.getByRole('radio', { name: 'Collections' })).toBeTruthy();
     });
 
     it('is 44 pt tall on iOS and 48 dp on Android', () => {

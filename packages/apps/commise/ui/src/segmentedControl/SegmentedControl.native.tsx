@@ -8,7 +8,7 @@
  * @pattern Visitor — the `form` discriminated union picks the roles; the look is shared
  */
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
@@ -17,6 +17,7 @@ import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
+import { Text } from '../text/Text.native.js';
 
 /** Where an `adaptive` route control stops filling the row and takes its content's width, in dp (`containerThreshold.regular`). */
 const ADAPTIVE_FROM = 600;
@@ -91,7 +92,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                         <Icon name={face.icon} size={20} tone={face.selected ? 'ink' : 'inkMuted'} />
                     )}
                     {props.form === 'view' && props.labelVisibility === 'hidden' ? null : (
-                        <Text style={[styles.label, { color: face.selected ? colors.ink : colors.inkMuted }]}>
+                        <Text typeRole="label" chromeCap="1.5" color={face.selected ? '$ink' : '$inkMuted'}>
                             {face.label}
                         </Text>
                     )}
@@ -127,5 +128,4 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
     },
     selected: nativeTokens.elevation.sm,
-    label: nativeTokens.type.label,
 });

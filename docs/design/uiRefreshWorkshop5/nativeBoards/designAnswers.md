@@ -2,6 +2,23 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-01: label and value rows at large text (asked by kitchensink-87)
+
+- **When a row stacks:** decide by room, not by scale alone, as the recipe detail page does. A label and value row
+  stacks when its content width divided by the capped font scale is below 280 pt. On a 390 pt phone with 16 pt sides
+  that happens a little above 1.25x. On a tablet it does not happen at the cap. A scale-only rule would stack rows
+  on a wide tablet that has room.
+- **Gap when stacked:** 4 pt (`$1`). A label and its value are one group, so they sit closer than the 12 pt between
+  rows (spec §1.6).
+- **Web:** the same rule, with a container query at 17.5 rem (280 px at the default size), so it follows browser
+  text size.
+- **Applies to:** `ProfileFactRow` and `ProfileRow` ("Display name"), and any later row with a label beside a value.
+  The label never breaks inside a word, and the value wraps, never truncates.
+- **Page-end padding:** every page-end `pb-10` (40) becomes `pb-12` (48): `RecipeVersionList`, its error and
+  skeleton, and `DataSourcesPage`. One end padding for every page.
+- **Native detail `paddingBottom: 120`:** this is room for the pinned bar, so it is not a spacing step. Compute it
+  from the pinned bar's height, the bottom safe area and 16 pt, so it stays right when the bar changes.
+
 ## 2026-11-01: Home and Profile text, and two off-scale steps (asked by kitchensink-87)
 
 - **Recipe detail bottom padding:** `DETAIL_ARTICLE`'s `pb-10` (40) becomes `pb-12` (48). The end of the page gets

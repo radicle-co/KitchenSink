@@ -32,7 +32,7 @@ appId: ${APP_ID}
 # control). `extendedWaitUntil` rather than a bare assert because `AuthGate` paints its "Checking your session…"
 # affordance first, and this is the flow's first read of the screen.
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 30000
 - assertVisible: 'Email'
 - assertVisible: 'Password'
@@ -82,12 +82,18 @@ appId: ${APP_ID}
       visible: 'Sign in to Commise'
       timeout: 20000
 - assertNotVisible: 'Create your account'
-- assertVisible: 'you@example.com'
+- assertVisible: 'Sign in to Commise'
 - assertVisible: 'Password'
 
 # A WRONG password stops at the password (A-001): Clerk's error shows and NO verification-code step appears. A
 # sign-in that sends the email code before the password is checked would let the mailbox alone sign a user in.
 # `signinHome.yaml` is not reused here because it enters the CORRECT password; this step enters a wrong one.
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'you@example.com'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'you@example.com'
 - inputText: '${E2E_SIGNIN_EMAIL}'
 # Read back, for `signinHome.yaml`'s reason (the iOS Simulator drops keystrokes). A dropped key would otherwise read as

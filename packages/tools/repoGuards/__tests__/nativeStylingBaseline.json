@@ -148,7 +148,7 @@
         "packages/apps/commise/mobile/App.tsx": 1,
         "packages/apps/commise/mobile/src/components/AlertBanner.tsx": 6,
         "packages/apps/commise/mobile/src/components/AppCanvas.tsx": 2,
-        "packages/apps/commise/mobile/src/components/AuthGate.tsx": 11,
+        "packages/apps/commise/mobile/src/components/AuthGate.tsx": 5,
         "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx": 4,
         "packages/apps/commise/mobile/src/components/account/AccountDangerZone.tsx": 5,
         "packages/apps/commise/mobile/src/components/account/AvatarField.tsx": 9,

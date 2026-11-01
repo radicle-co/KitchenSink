@@ -132,7 +132,6 @@
         "packages/apps/commise/mobile/src/components/AlertBanner.tsx": 5,
         "packages/apps/commise/mobile/src/components/auth/AuthFooter.tsx": 1,
         "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx": 2,
-        "packages/apps/commise/mobile/src/components/AuthGate.tsx": 2,
         "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx": 3,
         "packages/apps/commise/mobile/src/components/home/HomeWidgetErrorNotice.tsx": 1,
         "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx": 2,

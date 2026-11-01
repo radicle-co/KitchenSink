@@ -154,7 +154,7 @@ appId: ${APP_ID}
 # the auth gate has put the viewer back on the sign-in form. If the ACCOUNT leg had failed, the flow would
 # still be sitting in the dialog with its error copy, and this would (correctly) time out.
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 40000
 - assertVisible: 'Password'
 - assertVisible: 'Sign in'

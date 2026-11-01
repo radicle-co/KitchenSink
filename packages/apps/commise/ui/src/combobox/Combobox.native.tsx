@@ -333,7 +333,8 @@ export const Combobox: FC<ComboboxProps> = ({
         ));
 
     // P2: `listMaxRows + 0.5` rows at the current font scale (the half row shows the list scrolls), never past 45% of
-    // the window; only when there are more options than the bound.
+    // the window; only when there are more options than the bound. ⚠️ The RAW scale, because the option rows' text is
+    // not capped yet; the slice that caps it switches this to `cappedFontScale` in the same change (ADR-0080 §8).
     const boundedHeight =
         listMaxRows !== undefined && optionCount > listMaxRows
             ? Math.min((listMaxRows + 0.5) * TARGET_DP * fontScale, windowHeight * BOUNDED_LIST_WINDOW_SHARE)

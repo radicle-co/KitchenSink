@@ -49,8 +49,9 @@ appId: ${APP_ID}
       timeout: 30000
 
 # Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
-# The guard keys on the email PLACEHOLDER 'you@example.com', which is unique to the login form — a plain
-# 'Sign in' guard would false-match the form's own submit button and the sign-up screen's return control.
+# The guard keys on the form's TITLE 'Sign in to Commise', which is unique to the login form and is its first element,
+# so it is on screen at any text size — a plain 'Sign in' guard would false-match the form's own submit button and the
+# sign-up screen's return control.
 #
 # The U2 rebuild puts the login form on the design-system `Input`, which renders a VISIBLE LABEL as a
 # separate element from the text field (associated for assistive tech). So the fields are tapped by their

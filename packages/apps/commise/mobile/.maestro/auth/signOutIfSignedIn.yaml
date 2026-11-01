@@ -21,7 +21,7 @@ appId: ${APP_ID}
       permissions: {}
       stopApp: false
 - extendedWaitUntil:
-      visible: 'you@example\.com|Profile.*'
+      visible: 'Sign in to Commise|Profile.*'
       timeout: 30000
 - runFlow:
       when:
@@ -36,5 +36,5 @@ appId: ${APP_ID}
                     TIMEOUT: 20000
           - tapOn: 'Sign out'
           - extendedWaitUntil:
-                visible: 'you@example\.com'
+                visible: 'Sign in to Commise'
                 timeout: 40000

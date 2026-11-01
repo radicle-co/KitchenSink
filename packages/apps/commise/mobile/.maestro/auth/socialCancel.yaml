@@ -20,7 +20,7 @@ appId: ${APP_ID}
 ---
 - runFlow: launchCleared.yaml
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 30000
 - tapOn: 'Continue with Google'
 
@@ -31,7 +31,7 @@ appId: ${APP_ID}
           # The system prompt's own button; cancelling it is the person closing the provider sheet.
           - tapOn: 'Cancel'
           - extendedWaitUntil:
-                visible: 'you@example.com'
+                visible: 'Sign in to Commise'
                 timeout: 15000
           - assertNotVisible: '.*use your email.*'
           - assertNotVisible: 'Signing you in…'
@@ -46,6 +46,12 @@ appId: ${APP_ID}
           - assertNotVisible: 'Signing you in…'
 
 # Either way the email form is live again: the provider's failure or cancel never strands the person.
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'you@example.com'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
 - tapOn: 'you@example.com'
 - inputText: 'nobody@example.com'
 - assertVisible: 'nobody@example.com'

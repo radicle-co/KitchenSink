@@ -2,14 +2,16 @@
  * Every React Native text in a native source file that grows with the system's text size without limit (ADR-0080 §8:
  * the cap is 2×), read with the TypeScript parser. The detector behind `nativeTextScaleCapRatchet.test.ts`.
  *
- * A React Native `Text` (directly, through a namespace import, or as `Animated.Text`) or `TextInput` is capped only by
+ * A React Native `Text` (directly, through a namespace import, or as `Animated.Text`) or `TextInput`, or a Tamagui text
+ * that is not the design system's (Tamagui's own `Text`, or a `styled()` over it), is capped only by
  * `maxFontSizeMultiplier={FONT_SCALE_CAP}`; a number, `allowFontScaling={false}` and a spread are not trusted. The
- * design system's `Text` carries the cap itself and is not counted. React Native passes text attributes down to nested
- * text, so a text inside another text, React Native's or the design system's, is part of that text's run and is not
- * counted on its own: capping the outer text caps the run.
+ * design system's `Text` (`@commise/ui/text`, or `text/Text.native` inside the design system), and a `styled()` over it,
+ * carries the cap itself and is not counted.
  *
- * ⚠️ It reads React Native text only. A Tamagui `Text` in app code is capped only if it is the design system's; a
- * `styled()` over Tamagui's own `Text` would not be seen.
+ * React Native passes text attributes down to nested text (`TextAttributes::apply`), so a text inside a capped text is
+ * part of that run and is not counted on its own, unless it sets its own `maxFontSizeMultiplier` or `allowFontScaling`,
+ * which overrides the inherited value. A text inside an uncapped text is counted once, at the outer text. Any other
+ * element between them starts a new run.
  *
  * @pattern Specification — a pure predicate over a parsed source file
  */
@@ -19,10 +21,56 @@ import { parseModule } from './appSources.js';
 import { isReactNative, localsOf, valueBindingsOf } from './moduleBindings.js';
 import { tamaguiElementKinds, type StyledKindsOf } from './tamaguiElements.js';
 
-/** The one cap a React Native text may name: the design system's constant. */
-const CAP = 'FONT_SCALE_CAP';
+/** Where the design system's cap is imported from: its package subpath, or its file inside the package. */
+function isCapModule(specifier: string): boolean {
+    return specifier === '@commise/ui/font-scale-cap' || /(?:^|\/)text\/fontScaleCap(?:\.js)?$/u.test(specifier);
+}
+
+/** Where the design system's capped `Text` is imported from: its package subpath, or its file inside the package. */
+function isDesignTextModule(specifier: string): boolean {
+    return specifier === '@commise/ui/text' || /(?:^|\/)text\/Text\.native(?:\.js)?$/u.test(specifier);
+}
+
+/** The local names bound to the design system's `Text`, and every local `styled()` over one, to any depth. */
+function designTextsOf(file: ts.SourceFile): ReadonlySet<string> {
+    const names = new Set(localsOf(valueBindingsOf(file, isDesignTextModule), 'Text'));
+    let grew = true;
+
+    while (grew) {
+        grew = false;
+        file.forEachChild((statement) => {
+            if (!ts.isVariableStatement(statement)) {
+                return;
+            }
+
+            for (const declaration of statement.declarationList.declarations) {
+                const init = declaration.initializer;
+
+                if (
+                    ts.isIdentifier(declaration.name) &&
+                    !names.has(declaration.name.text) &&
+                    init !== undefined &&
+                    ts.isCallExpression(init) &&
+                    ts.isIdentifier(init.expression) &&
+                    init.expression.text === 'styled' &&
+                    init.arguments[0] !== undefined &&
+                    ts.isIdentifier(init.arguments[0]) &&
+                    names.has(init.arguments[0].text)
+                ) {
+                    names.add(declaration.name.text);
+                    grew = true;
+                }
+            }
+        });
+    }
+
+    return names;
+}
 
 interface TextBindings {
+    /** The local names of the design system's `FONT_SCALE_CAP`, by import: a local constant of that name is not it. */
+    readonly caps: ReadonlySet<string>;
+    readonly designTexts: ReadonlySet<string>;
     readonly texts: ReadonlySet<string>;
     readonly inputs: ReadonlySet<string>;
     readonly animated: ReadonlySet<string>;
@@ -48,22 +96,52 @@ function isReactNativeText(tag: ts.JsxTagNameExpression, b: TextBindings): boole
     );
 }
 
-function isText(tag: ts.JsxTagNameExpression, b: TextBindings): boolean {
-    return b.tamagui.get(tag.getText()) === 'text' || isReactNativeText(tag, b);
+function isDesignText(tag: ts.JsxTagNameExpression, b: TextBindings): boolean {
+    return ts.isIdentifier(tag) && b.designTexts.has(tag.text);
 }
 
-function capped(attributes: ts.JsxAttributes): boolean {
-    return attributes.properties.some(
-        (property) =>
-            ts.isJsxAttribute(property) &&
-            property.name.getText() === 'maxFontSizeMultiplier' &&
-            property.initializer !== undefined &&
-            ts.isJsxExpression(property.initializer) &&
-            property.initializer.expression !== undefined &&
-            ts.isIdentifier(property.initializer.expression) &&
-            property.initializer.expression.text === CAP,
+/** A text that grows with the system's text size unless it is capped: React Native's, or a Tamagui text not the design system's. */
+function isScalingText(tag: ts.JsxTagNameExpression, b: TextBindings): boolean {
+    return isReactNativeText(tag, b) || (b.tamagui.get(tag.getText()) === 'text' && !isDesignText(tag, b));
+}
+
+function attribute(attributes: ts.JsxAttributes, name: string): ts.JsxAttribute | undefined {
+    return attributes.properties.find(
+        (property): property is ts.JsxAttribute => ts.isJsxAttribute(property) && property.name.getText() === name,
     );
 }
+
+function capped(attributes: ts.JsxAttributes, caps: ReadonlySet<string>): boolean {
+    const cap = attribute(attributes, 'maxFontSizeMultiplier')?.initializer;
+
+    return (
+        cap !== undefined &&
+        ts.isJsxExpression(cap) &&
+        cap.expression !== undefined &&
+        ts.isIdentifier(cap.expression) &&
+        caps.has(cap.expression.text)
+    );
+}
+
+/** Whether a text sets its own scaling, which overrides what it would inherit. */
+function setsOwnScaling(attributes: ts.JsxAttributes): boolean {
+    return (
+        attribute(attributes, 'maxFontSizeMultiplier') !== undefined ||
+        attribute(attributes, 'allowFontScaling') !== undefined
+    );
+}
+
+/** The opening element of a JSX element, or `undefined` for any other node. */
+function openingOf(node: ts.Node): ts.JsxOpeningElement | ts.JsxSelfClosingElement | undefined {
+    if (ts.isJsxElement(node)) {
+        return node.openingElement;
+    }
+
+    return ts.isJsxSelfClosingElement(node) ? node : undefined;
+}
+
+/** Where a text sits: in no text, in a capped run, or in an uncapped run already counted at its root. */
+type Run = 'none' | 'capped' | 'uncapped';
 
 /**
  * The 1-based lines of every uncapped React Native text that is not inside another text. Pure.
@@ -77,6 +155,8 @@ export function uncappedTexts(source: string, fileName: string, styledKindsOf: S
     const file = parseModule(fileName, source);
     const rn = valueBindingsOf(file, isReactNative);
     const bindings: TextBindings = {
+        caps: localsOf(valueBindingsOf(file, isCapModule), 'FONT_SCALE_CAP'),
+        designTexts: designTextsOf(file),
         texts: localsOf(rn, 'Text'),
         inputs: localsOf(rn, 'TextInput'),
         animated: localsOf(rn, 'Animated'),
@@ -85,33 +165,47 @@ export function uncappedTexts(source: string, fileName: string, styledKindsOf: S
     };
     const lines: number[] = [];
 
-    const visit = (node: ts.Node, insideText: boolean): void => {
-        const opening = ts.isJsxElement(node)
-            ? node.openingElement
-            : ts.isJsxSelfClosingElement(node)
-              ? node
-              : undefined;
+    const visit = (node: ts.Node, run: Run): void => {
+        const opening = openingOf(node);
 
         if (opening === undefined) {
             ts.forEachChild(node, (child) => {
-                visit(child, insideText);
+                visit(child, run);
             });
 
             return;
         }
 
-        if (!insideText && isReactNativeText(opening.tagName, bindings) && !capped(opening.attributes)) {
-            lines.push(file.getLineAndCharacterOfPosition(opening.getStart(file)).line + 1);
+        const tag = opening.tagName;
+        let inner: Run = 'none';
+
+        if (isDesignText(tag, bindings)) {
+            inner = 'capped';
+        } else if (isScalingText(tag, bindings)) {
+            const ownCap = capped(opening.attributes, bindings.caps);
+            const inheritsCap = run === 'capped' && !setsOwnScaling(opening.attributes);
+            const counted = run === 'uncapped' && !ownCap;
+
+            if (!ownCap && !inheritsCap && !counted) {
+                lines.push(file.getLineAndCharacterOfPosition(opening.getStart(file)).line + 1);
+            }
+
+            inner = ownCap || inheritsCap ? 'capped' : 'uncapped';
         }
 
-        const childrenInside = insideText || isText(opening.tagName, bindings);
+        // An attribute's JSX is not inside this element's text run; only its children are.
+        for (const property of opening.attributes.properties) {
+            visit(property, 'none');
+        }
 
-        ts.forEachChild(node, (child) => {
-            visit(child, childrenInside);
-        });
+        if (ts.isJsxElement(node)) {
+            for (const child of node.children) {
+                visit(child, inner);
+            }
+        }
     };
 
-    visit(file, false);
+    visit(file, 'none');
 
     return lines;
 }

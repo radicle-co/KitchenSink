@@ -19,6 +19,7 @@ const kinds: StyledKindsOf = (specifier) =>
 const RN = `import { Animated, Text, TextInput } from 'react-native';\nimport * as RN from 'react-native';\n`;
 const CAP = `import { FONT_SCALE_CAP } from '@commise/ui/font-scale-cap';\n`;
 const DS = `import { Text as DsText } from '@commise/ui/text';\n`;
+const TG = `import { Text as TText, styled } from 'tamagui';\n`;
 
 describe('uncappedTexts', () => {
     it.each([
@@ -53,6 +54,62 @@ describe('uncappedTexts', () => {
             1,
         ],
         ['no React Native import, no finding', `const Text = (p) => p.children;\nconst A = () => <Text>a</Text>;`, 0],
+        // REVIEW 2026-11-01 (staff-architect, High): only the design system's Text carries the cap. Tamagui's own Text,
+        // which app code may import, is a text root like React Native's, and excuses nothing nested in it.
+        ["Tamagui's own Text", `${TG}const A = () => <TText>a</TText>;`, 1],
+        [
+            "Tamagui's own Text with the cap",
+            `${TG}${CAP}const A = () => <TText maxFontSizeMultiplier={FONT_SCALE_CAP}>a</TText>;`,
+            0,
+        ],
+        [
+            "a React Native Text inside Tamagui's own Text is one uncapped run",
+            `${RN}${TG}const A = () => <TText>a <Text>b</Text></TText>;`,
+            1,
+        ],
+        [
+            'a styled() over the design system Text keeps its cap',
+            `${DS}${TG}const L = styled(DsText, {});\nconst A = () => <L>a</L>;`,
+            0,
+        ],
+        [
+            'the design system Text imported by path, inside the design system',
+            `import { Text as Own } from '../text/Text.native.js';\nconst A = () => <Own typeRole="body">a</Own>;`,
+            0,
+        ],
+        // GATE 2026-11-01: the cap is the design system's constant by import, not any name that reads FONT_SCALE_CAP.
+        [
+            'a local constant named like the cap',
+            `${RN}const FONT_SCALE_CAP = 9;\nconst A = () => <Text maxFontSizeMultiplier={FONT_SCALE_CAP}>a</Text>;`,
+            1,
+        ],
+        [
+            'the cap imported under another name',
+            `${RN}import { FONT_SCALE_CAP as CAP2 } from '@commise/ui/font-scale-cap';\nconst A = () => <Text maxFontSizeMultiplier={CAP2}>a</Text>;`,
+            0,
+        ],
+        [
+            'the cap imported by path inside the design system',
+            `${RN}import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';\nconst A = () => <Text maxFontSizeMultiplier={FONT_SCALE_CAP}>a</Text>;`,
+            0,
+        ],
+        // REVIEW 2026-11-01 (Low): a View inside a text starts a new root, and a nested text that sets its own scaling
+        // overrides the cap it would inherit (React Native's TextAttributes::apply).
+        [
+            'a Text in a View inside a capped Text is a new root',
+            `${RN}${CAP}import { View } from 'react-native';\nconst A = () => <Text maxFontSizeMultiplier={FONT_SCALE_CAP}><View><Text>b</Text></View></Text>;`,
+            1,
+        ],
+        [
+            'a nested Text that lifts the cap',
+            `${RN}${CAP}const A = () => <Text maxFontSizeMultiplier={FONT_SCALE_CAP}>a <Text maxFontSizeMultiplier={0}>b</Text></Text>;`,
+            1,
+        ],
+        [
+            'a nested Text that turns scaling off',
+            `${RN}${CAP}const A = () => <Text maxFontSizeMultiplier={FONT_SCALE_CAP}>a <Text allowFontScaling={false}>b</Text></Text>;`,
+            1,
+        ],
     ] as const)('%s → %i', (_name, source, count) => {
         expect(uncappedTexts(source, FILE, kinds)).toHaveLength(count);
     });

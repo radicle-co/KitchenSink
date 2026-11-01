@@ -45,6 +45,10 @@ appId: ${APP_ID}
       visible:
           text: '^1 recipe$'
       timeout: 20000
+# Close the keyboard before the capture: at 2× text it covers the card row. A tap on the plain count, which is no
+# control, closes it, as `common/typeTitle.yaml` closes the editor's keyboard with a heading.
+- tapOn:
+      text: '^1 recipe$'
 - takeScreenshot: statusBadgeDark_draftCard
 
 # The draft's detail, where the badge sits on the rating line.

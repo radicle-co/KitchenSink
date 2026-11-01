@@ -184,8 +184,8 @@ its labels at 1.5×, and never below 1.3×. A label never breaks inside a word, 
 Chrome says so with Text's closed `chromeCap` variant (`1.5`, `1.4` or `1.3`), which can only lower a role's ceiling, so
 nothing can freeze a label at 1×. A guard admits it only in the tab bar and the view-switch control, and never as a
 `styled()` default. A mark drawn on a picture, such as PRO on a card cover, is part of that picture. Text's `pictorial`
-variant keeps the mark at its role's own size at every scale, so it cannot grow over the cover's letter. The card
-states the same word in its text at the scaled size, and a screen reader hears it once (designer ruling 2026-11-01,
+variant keeps the mark at its role's own size at every scale, so it cannot grow over the cover's letter. The card must
+state the same word in its text, at the scaled size, so that a screen reader hears it once (designer ruling 2026-11-01,
 M-1). The status badge sets the variant through its `onPicture` prop. A guard admits `pictorial` only in the badge, and
 never as a `styled()` default.
 The Google sign-in label is the one fixed-scale site: on iOS it sits beside Apple's system button,

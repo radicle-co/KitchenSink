@@ -1,7 +1,12 @@
 /**
  * The native bottom tab bar (`buildSpec.md` §3.2; D6, D14): the three reachable destinations and no "Soon" tab, each a
- * `tab` named by its label; the active one `selected`, in `ink` at weight 600 with the here-bar; on the floating
- * layer's material; padded by the bottom inset; and every press reported — the active tab's too, which is its second tap.
+ * `tab` named by its label; the active one `selected`, its label in the `label` role (weight 600) in `ink` with the
+ * here-bar, the rest in the `caption` role (weight 500) in `inkMuted`; on the floating layer's material; padded by the
+ * bottom inset; and every press reported — the active tab's too, which is its second tap.
+ *
+ * The labels are the design-system Text (ADR-0080 §8), so their colour is a Tamagui theme variable: the colour test
+ * reads it through `resolvedColour` in each scheme, where it used to read jsdom's computed colour of a React Native
+ * style. The here-bar is still painted from `useTheme()`, which follows the device scheme, so it is asserted in light.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
@@ -10,39 +15,46 @@ import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
 import { homeMessages } from '@commise/features-core/home';
 import { role } from '@commise/ui/colors';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
-import { HomeTabBar } from '../../../src/components/home/chrome/HomeTabBar.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { HomeTabBar, type HomeTabBarProps } from '../../../src/components/home/chrome/HomeTabBar.js';
 
 afterEach(cleanup);
 
 const chrome = homeMessages.en.chrome;
+
+const barProps = (
+    activeId: HomeNavItemId,
+    onPress: HomeTabBarProps['onPress'],
+    live: readonly string[],
+    over: { compact?: boolean; leftInset?: number; rightInset?: number },
+): HomeTabBarProps => ({
+    chrome,
+    liveCapabilities: live,
+    activeId,
+    onPress,
+    bottomInset: 34,
+    compact: over.compact ?? false,
+    leftInset: over.leftInset ?? 0,
+    rightInset: over.rightInset ?? 0,
+});
 
 const renderBar = (
     activeId: HomeNavItemId = 'home',
     onPress = vi.fn(),
     live = [RECIPE_HOME_WIDGET_CAPABILITY],
     over: { compact?: boolean; leftInset?: number; rightInset?: number } = {},
-) =>
-    render(
-        <HomeTabBar
-            chrome={chrome}
-            liveCapabilities={live}
-            activeId={activeId}
-            onPress={onPress}
-            bottomInset={34}
-            compact={over.compact ?? false}
-            leftInset={over.leftInset ?? 0}
-            rightInset={over.rightInset ?? 0}
-        />,
+) => render(<HomeTabBar {...barProps(activeId, onPress, live, over)} />);
+
+/** The bar in one scheme and at one system text scale, whatever the device reports. */
+const renderBarIn = (scheme: 'light' | 'dark', activeId: HomeNavItemId, textScale = 1) =>
+    renderWithTamagui(
+        <HomeTabBar {...barProps(activeId, vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], {})} />,
+        scheme,
+        textScale,
     );
-
-/** `#RRGGBB` as the `rgb(r, g, b)` jsdom reports. */
-const rgb = (hex: string): string => {
-    const value = Number.parseInt(hex.slice(1), 16);
-
-    return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
-};
 
 describe('HomeTabBar (native)', () => {
     it('shows exactly Home, Recipes and Discover as tabs, and no "Soon" tab', () => {
@@ -58,7 +70,7 @@ describe('HomeTabBar (native)', () => {
         expect(screen.getByRole('tab', { name: 'Plan' })).toBeTruthy();
     });
 
-    it('marks the active tab selected, in ink, with the here-bar; the rest inkMuted and unselected', () => {
+    it('marks the active tab selected, with the here-bar; the rest unselected and without it', () => {
         renderBar('recipes');
 
         const active = screen.getByRole('tab', { name: 'Recipes' });
@@ -66,10 +78,57 @@ describe('HomeTabBar (native)', () => {
 
         expect(active.getAttribute('aria-selected')).toBe('true');
         expect(inactive.getAttribute('aria-selected')).toBe('false');
-        expect(getComputedStyle(screen.getByText('Recipes')).color).toBe(rgb(role.ink));
-        expect(getComputedStyle(screen.getByText('Home')).color).toBe(rgb(role.inkMuted));
         expect(getComputedStyle(active.firstElementChild as Element).backgroundColor).toBe(rgb(role.hereBar));
         expect(getComputedStyle(inactive.firstElementChild as Element).backgroundColor).not.toBe(rgb(role.hereBar));
+    });
+
+    // The active label differs in colour AND weight, and keeps the here-bar, so weight is never the only signal.
+    it.each(['light', 'dark'] as const)(
+        'paints the active label ink and the rest inkMuted in the %s scheme',
+        (scheme) => {
+            renderBarIn(scheme, 'recipes');
+
+            expect(resolvedColour(screen.getByText('Recipes'), 'color')).toBe(rgb(rolesFor(scheme).ink));
+            expect(resolvedColour(screen.getByText('Home'), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
+            expect(resolvedColour(screen.getByText('Discover'), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
+        },
+    );
+
+    it('sets the active label in the label role (weight 600) and the rest in the caption role (weight 500)', () => {
+        const { label, caption } = nativeTokens.type;
+        renderBarIn('light', 'recipes');
+
+        const active = getComputedStyle(screen.getByText('Recipes'));
+        const inactive = getComputedStyle(screen.getByText('Home'));
+
+        expect(active.fontFamily).toContain(label.fontFamily);
+        expect(active.fontSize).toBe(`${String(label.fontSize)}px`);
+        expect(active.lineHeight).toBe(`${String(label.lineHeight)}px`);
+        expect(inactive.fontFamily).toContain(caption.fontFamily);
+        expect(inactive.fontSize).toBe(`${String(caption.fontSize)}px`);
+        expect(inactive.lineHeight).toBe(`${String(caption.lineHeight)}px`);
+    });
+
+    // Designer ruling 2026-11-01 (ADR-0080 §8): a tab label is navigation chrome, so above the system scale it grows to
+    // 1.5× and stops there, where the rest of the screen grows to 2×.
+    it('grows each label with the system scale to the 1.5× chrome cap, not to 2×', () => {
+        const { label, caption } = nativeTokens.type;
+        renderBarIn('light', 'recipes', 3.1);
+
+        const active = getComputedStyle(screen.getByText('Recipes'));
+        const inactive = getComputedStyle(screen.getByText('Home'));
+
+        expect(active.fontSize).toBe(`${String(label.fontSize * 1.5)}px`);
+        expect(active.lineHeight).toBe(`${String(label.lineHeight * 1.5)}px`);
+        expect(inactive.fontSize).toBe(`${String(caption.fontSize * 1.5)}px`);
+        expect(inactive.lineHeight).toBe(`${String(caption.lineHeight * 1.5)}px`);
+    });
+
+    it('grows each label with the system scale below the cap', () => {
+        const { caption } = nativeTokens.type;
+        renderBarIn('light', 'recipes', 1.25);
+
+        expect(getComputedStyle(screen.getByText('Home')).fontSize).toBe(`${String(caption.fontSize * 1.25)}px`);
     });
 
     it('reports every press, the active tab’s too (its second tap)', () => {

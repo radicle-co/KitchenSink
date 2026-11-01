@@ -152,7 +152,7 @@
         "packages/apps/commise/mobile/src/components/auth/SocialSignInButtons.tsx": 14,
         "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx": 12,
         "packages/apps/commise/mobile/src/components/home/SubscriptionNudge.tsx": 5,
-        "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx": 9,
+        "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx": 7,
         "packages/apps/commise/mobile/src/components/home/skeletons/MealPlanWidgetSkeleton.tsx": 7,
         "packages/apps/commise/mobile/src/components/home/skeletons/NutritionWidgetSkeleton.tsx": 13,
         "packages/apps/commise/mobile/src/components/home/skeletons/PlaceholderWidgetCard.tsx": 8,

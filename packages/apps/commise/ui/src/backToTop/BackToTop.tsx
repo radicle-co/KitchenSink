@@ -38,9 +38,11 @@ export const BackToTop: FC<BackToTopProps> = ({ label, onReturn, aboveFab = fals
         <div
             className={`fixed end-4 z-40 ${
                 aboveFab
-                    ? // The floating button's 56 px plus 16 px between them, above the same bottom chrome.
-                      'bottom-[calc(var(--bottom-chrome,0px)+5.5rem)] nav:bottom-[calc(var(--bottom-chrome,0px)+1rem)]'
-                    : 'bottom-[calc(var(--bottom-chrome,0px)+1rem)]'
+                    ? // On the room the floating button reserves (its height, its margin and 16), above the same bottom
+                      // chrome; from 840 there is no floating button, so it rests at the button's margin.
+                      'bottom-[calc(var(--bottom-chrome,0px)+var(--fab-reserved-bottom))] ' +
+                      'nav:bottom-[calc(var(--bottom-chrome,0px)+var(--fab-bottom-margin))]'
+                    : 'bottom-[calc(var(--bottom-chrome,0px)+var(--fab-bottom-margin))]'
             }`}
         >
             <Button

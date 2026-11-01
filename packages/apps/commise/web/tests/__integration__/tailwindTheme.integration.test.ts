@@ -36,6 +36,7 @@ import postcss from 'postcss';
 import tailwind from '@tailwindcss/postcss';
 import { describe, expect, it } from 'vitest';
 
+import { FAB_BOTTOM_MARGIN_PX, FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { role, roleDark } from '@commise/ui/colors';
 import { PRESS_FILL_CLASS, SURFACE_TONE_CLASS } from '@commise/ui/surface-tone';
@@ -173,6 +174,34 @@ describe('the Profile rows’ container query, compiled', () => {
 
         expect(css).toMatch(/container-name:\s*rows/u);
         expect(css).toMatch(/@container\s+rows\s*\(width\s*<\s*17\.5rem\)/u);
+    });
+});
+
+/**
+ * The room under the floating "new" button is ONE theme property, `--fab-reserved-bottom`, computed in `@commise/ui` from
+ * the button's height, its margin and 16 (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`): 88, as on native.
+ * The document's `scroll-padding-bottom` under the tab bar reads it, so a focused last card clears the button by the same
+ * room `<main>`'s foot leaves. It was a `6.5rem` literal (104 px) that had drifted from the 88 its comment named.
+ */
+describe('the room under the floating create button, compiled', () => {
+    it('declares the reserve from the shared constant and reads it in the tab bar’s scroll padding', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+        const reserve = `${String(FAB_RESERVED_BOTTOM_PX / 16)}rem`;
+
+        expect(css).toContain(`--fab-reserved-bottom: ${reserve};`);
+        expect(css).toMatch(
+            /html:has\(\[data-tab-bar\]\) \{ scroll-padding-bottom: calc\(4rem \+ env\(safe-area-inset-bottom\) \+ var\(--fab-reserved-bottom\)\);/u,
+        );
+        expect(css).not.toContain('6.5rem');
+    });
+
+    // The button's own `bottom` is an inline style (`fabBottomOf`) that reads `--fab-bottom-margin`, and no stylesheet
+    // rule names it, so only the compiled theme shows the property reaches the browser. Without it the inline `calc()`
+    // is invalid and the button drops to the foot.
+    it('declares the margin the floating button’s inline offset reads', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+
+        expect(css).toContain(`--fab-bottom-margin: ${String(FAB_BOTTOM_MARGIN_PX / 16)}rem;`);
     });
 });
 

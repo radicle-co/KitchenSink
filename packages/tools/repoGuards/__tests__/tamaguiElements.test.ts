@@ -260,6 +260,27 @@ describe('tamaguiElementKinds — a frame imported from a module of the same pac
         ).toHaveLength(1);
     });
 
+    it('gives every importer of a module the same frames, whichever importer reads it first', () => {
+        // B re-exports a frame from A, and A is the first to import B. The first reading of B must not depend on who
+        // asked: C, a later importer, sees the frame too.
+        write(
+            'feature/src/cycle/A.native.tsx',
+            `import { styled, YStack } from 'tamagui';\nexport const AFrame = styled(YStack, {});\n`,
+        );
+        write('feature/src/cycle/B.ts', `export { AFrame as Again } from './A.js';\n`);
+
+        expect(
+            kindsOf(
+                'feature/src/cycle/A.native.tsx',
+                `import { styled, YStack } from 'tamagui';\nimport { Again } from './B.js';\n` +
+                    `export const AFrame = styled(YStack, {});\n`,
+            ),
+        ).toMatchObject({ Again: 'view' });
+        expect(kindsOf('feature/src/cycle/C.native.tsx', `import { Again } from './B.js';\n`)).toEqual({
+            Again: 'view',
+        });
+    });
+
     it('ignores a type-only import of a frame', () => {
         expect(
             kindsOf('feature/src/detail/Typed.native.tsx', `import type { DetailSection } from './detailFrames.js';\n`),

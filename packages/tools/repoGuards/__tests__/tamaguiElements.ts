@@ -374,7 +374,11 @@ function packageRootOf(file: string): string | undefined {
     }
 }
 
-/** What each sibling module exports as `styled(…)`, by its resolved path; the sources do not change during a run. */
+/**
+ * What each sibling module exports as `styled(…)`, by its resolved path. A tree scan reads sources that do not change
+ * during a run; each fixture suite writes under its own `mkdtemp` root, so no two of them share a path. The value is
+ * computed from the leaf alone (an empty cycle set), so it does not depend on which importer asked first.
+ */
 const siblingKindsCache = new Map<string, ReadonlyMap<string, TamaguiKind>>();
 
 /**
@@ -401,7 +405,7 @@ function siblingStyledKinds(file: ts.SourceFile): ReadonlyMap<string, TamaguiKin
             continue;
         }
 
-        const exported = siblingKindsCache.get(leaf) ?? styledKindsOfFile(leaf, new Set([from]));
+        const exported = siblingKindsCache.get(leaf) ?? styledKindsOfFile(leaf, new Set());
         siblingKindsCache.set(leaf, exported);
         const bindings = valueBindingsOf(file, (candidate) => candidate === specifier);
 

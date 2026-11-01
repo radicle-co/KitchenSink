@@ -13,7 +13,9 @@
  * ⚠️ `sendAccessibilityEvent` and `announceForAccessibilityWithOptions` are mocked because react-native-web does not
  * implement them, and `Platform.OS` because react-native-web is `'web'`: a case sets `'ios'` to hear iOS's channel.
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+// The option tag is the Tamagui status badge, so the tree renders in the design system's provider (ADR-0080).
+import { ARIA_HIDDEN_CONTENT, render } from '../../testing/tamaguiTesting.native.js';
 import { useState, type FC } from 'react';
 import { AccessibilityInfo, Dimensions, Keyboard, Text, View } from 'react-native';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -329,7 +331,7 @@ describe('Combobox (native) — the list’s own lines', () => {
         const line = screen.getByText('Searching ingredients');
         expect(isLive(line)).toBe(false);
         expect(screen.getByText('⌕').closest('[aria-hidden="true"]')).not.toBeNull();
-        expect(document.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
+        expect(document.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(1);
     });
 
     it('NOTE shows with the options, and it is not live', () => {

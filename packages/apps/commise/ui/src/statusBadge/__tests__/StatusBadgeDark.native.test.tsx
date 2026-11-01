@@ -1,42 +1,48 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+/**
+ * The status badge in the dark scheme (native) paints the DARK pairs. It once read the light PRO constant in both
+ * themes, so a dark-mode PRO chip was the light fill on a dark page.
+ *
+ * ⚠️ REWRITTEN for ADR-0080 slice 1: the badge takes its colours as Tamagui theme tokens, so the scheme is the
+ * provider's (`renderWithTamagui(…, 'dark')`), not a faked `useColorScheme`. Mutation lens: a badge that reads a light
+ * constant, or a raw palette colour, fails here.
+ */
+import { cleanup, screen } from '@testing-library/react';
 import { formatRgb } from 'culori';
+import { afterEach, describe, expect, it } from 'vitest';
 
-vi.mock('react-native', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-native')>()),
-    useColorScheme: () => 'dark',
-}));
-
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { roleDark } from '../../tokens/colors.js';
 import { proToneDark } from '../../tokens/tones.js';
 import { StatusBadge } from '../StatusBadge.native.js';
 
-/**
- * The PRO badge in the dark scheme (native) paints the DARK pair: charcoal on light grey. It used to read the light
- * constant in both themes, so a dark-mode PRO chip was the light fill on a dark page. Mutation lens: read `proTone`
- * directly in the badge and this fails.
- */
 afterEach(cleanup);
+
+function badgeOf(text: string): HTMLElement {
+    const badge = screen.getByText(text).parentElement;
+
+    if (badge === null) {
+        throw new Error(`no badge around ${text}`);
+    }
+
+    return badge;
+}
 
 describe('StatusBadge (native, dark scheme)', () => {
     it('paints PRO with the dark pair', () => {
-        render(<StatusBadge status="pro">PRO</StatusBadge>);
+        renderWithTamagui(<StatusBadge status="pro">PRO</StatusBadge>, 'dark');
 
-        expect(getComputedStyle(screen.getByText('PRO').parentElement as HTMLElement).backgroundColor).toBe(
-            formatRgb(proToneDark.fill),
-        );
-        expect(getComputedStyle(screen.getByText('PRO')).color).toBe(formatRgb(proToneDark.text));
+        expect(resolvedColour(badgeOf('PRO'), 'backgroundColor')).toBe(formatRgb(proToneDark.fill));
+        expect(resolvedColour(screen.getByText('PRO'), 'color')).toBe(formatRgb(proToneDark.text));
     });
 
-    // componentFixes §7 in the dark scheme: a raised dark surface is surfaceMuted, and the neutral badge must not be it.
     it('paints a neutral badge dark paper with a dark lineDivider edge and inkMuted text', () => {
-        render(<StatusBadge status="draft">Draft</StatusBadge>);
-        const badge = getComputedStyle(screen.getByText('Draft').parentElement as HTMLElement);
+        renderWithTamagui(<StatusBadge status="draft">Draft</StatusBadge>, 'dark');
+        const badge = badgeOf('Draft');
 
-        expect(badge.backgroundColor).toBe(formatRgb(roleDark.paper));
-        expect(badge.backgroundColor).not.toBe(formatRgb(roleDark.surfaceMuted));
-        expect(badge.borderTopWidth).toBe('1px');
-        expect(badge.borderTopColor).toBe(formatRgb(roleDark.lineDivider));
-        expect(getComputedStyle(screen.getByText('Draft')).color).toBe(formatRgb(roleDark.inkMuted));
+        expect(resolvedColour(badge, 'backgroundColor')).toBe(formatRgb(roleDark.paper));
+        expect(resolvedColour(badge, 'backgroundColor')).not.toBe(formatRgb(roleDark.surfaceMuted));
+        expect(resolvedStyle(badge, 'borderTopWidth')).toBe('1px');
+        expect(resolvedColour(badge, 'borderTopColor')).toBe(formatRgb(roleDark.lineDivider));
+        expect(resolvedColour(screen.getByText('Draft'), 'color')).toBe(formatRgb(roleDark.inkMuted));
     });
 });

@@ -4,7 +4,8 @@
  * nutrition (complete vs partial), and photos (present vs absent) — so the two platform renders can't drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render as renderUnscoped, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { render as renderUnscoped } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { AccessibilityInfo } from 'react-native';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';

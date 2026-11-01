@@ -205,6 +205,15 @@ describe('computedContrast', () => {
         expect(computedContrast(element)).toBeCloseTo(contrastRatio(palette['ocean-dark'], composited), 5);
     });
 
+    it.each([
+        ['background', { color: palette.slate, backgroundColor: 'var(--paper)' }],
+        ['text colour', { color: 'var(--ink)' }],
+    ] as const)('refuses a %s that is an unresolved theme variable, naming the resolver', (_part, styles) => {
+        // A Tamagui component paints through CSS variables, which jsdom keeps as text. Measuring past one would
+        // compare against a default surface, not the colour a device paints.
+        expect(() => computedContrast(withStyle(styles))).toThrow(/resolvedColour/u);
+    });
+
     it('treats a fully transparent background as no background at all', () => {
         const element = withStyle({ color: palette.slate, backgroundColor: 'rgba(0, 0, 0, 0)' });
 

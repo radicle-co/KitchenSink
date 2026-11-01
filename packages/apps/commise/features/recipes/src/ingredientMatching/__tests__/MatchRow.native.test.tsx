@@ -8,7 +8,8 @@
  * note's reason, which "See why" needs.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { recipeMessages } from '../../messages.js';

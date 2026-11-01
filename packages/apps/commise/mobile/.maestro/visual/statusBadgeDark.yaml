@@ -1,0 +1,65 @@
+appId: ${APP_ID}
+---
+# The status badge in the DARK scheme, on a device (ADR-0080 §9: each slice adds a dark-mode check once it renders a
+# theme key). Slice 1 moved the badge's fill, edge and label onto Tamagui theme roles. The component tests read the
+# colours Tamagui's web build emits; only a device shows what React Native draws.
+#
+# A capture flow, like `primitives.yaml`: not under `config.yaml`'s discovery, run by name, and its screenshots reviewed
+# by eye. Put the device in dark mode BEFORE the run, because Maestro has no appearance command:
+#
+#   Android: adb -s <serial> shell cmd uimode night yes
+#   iOS:     xcrun simctl ui <udid> appearance dark
+#
+# What to look for: the Draft badge on the new draft's card and on its detail is a filled pill, dark paper with a
+# lighter `lineDivider` edge, its pencil glyph in the same muted ink as its word, and no light fill on the dark page.
+# The seeded recipes carry no badge (the list shows their visibility as an icon), so the flow makes a draft, captures
+# it, and discards it through the editor, leaving nothing behind.
+- runFlow: ../auth/signinHome.yaml
+- tapOn: 'Recipes'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+- takeScreenshot: statusBadgeDark_recipeList
+
+# A draft: the editor saves on exit, so typing a title and closing keeps it.
+- tapOn: 'New recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 20000
+- runFlow:
+      file: ../recipes/common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Badge Draft'
+- extendedWaitUntil:
+      visible: 'Saved'
+      timeout: 30000
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 20000
+# The new draft can sit below the seeded cards, where iOS still reports it visible and a tap misses it. A search
+# narrows the list to the draft alone, at the top.
+- tapOn: 'Search your recipes'
+- inputText: 'Maestro Badge'
+- extendedWaitUntil:
+      visible:
+          text: '^1 recipe$'
+      timeout: 20000
+- takeScreenshot: statusBadgeDark_draftCard
+
+# The draft's detail, where the badge sits on the rating line.
+- tapOn: 'Maestro Badge Draft.*'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- takeScreenshot: statusBadgeDark_draftDetail
+
+# Clean up: discard the draft through the editor's own menu.
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 20000
+- runFlow: ../recipes/common/discardDraft.yaml

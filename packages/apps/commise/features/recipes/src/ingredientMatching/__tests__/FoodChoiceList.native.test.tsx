@@ -18,7 +18,8 @@
  * where it can break, on web (`FoodChoiceList.test.tsx`, `ChoiceRow.test.tsx`), and native rows are never radios.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { nativeTokens } from '@commise/ui/native';
 import { touchFloor } from '@commise/ui/layout';

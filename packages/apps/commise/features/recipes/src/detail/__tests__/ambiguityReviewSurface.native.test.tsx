@@ -26,6 +26,9 @@ import type { ProgressiveFrame } from '@kitchensink/food-service-client';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { tint } from '@commise/ui';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
+// REWRITTEN for ADR-0080: the shared render frames the tree in Tamagui's provider, whose web build adds elements that
+// draw no box, so "renders nothing" is read through `rendersNothing` rather than an empty `innerHTML`.
+import { rendersNothing } from '@commise/ui/testing/tamagui';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
@@ -245,7 +248,7 @@ describe('AmbiguityReview (native) — every state', () => {
         (viewerIsOwner) => {
             const { container } = renderReview(recipeOf([FLOUR]), viewerIsOwner);
 
-            expect(container.innerHTML).toBe('');
+            expect(rendersNothing(container)).toBe(true);
         },
     );
 
@@ -253,7 +256,7 @@ describe('AmbiguityReview (native) — every state', () => {
         const { container } = renderReview(SIBLINGS, false);
 
         expect(screen.queryByRole('button', { name: ENTRY_NAME })).toBeNull();
-        expect(container.innerHTML).toBe('');
+        expect(rendersNothing(container)).toBe(true);
     });
 
     it('the ENTRY counts lines (singular), and the surface stays closed until toggled', () => {
@@ -687,7 +690,7 @@ describe('AmbiguityReview (native) — every state', () => {
     it('a clone that kept NOTHING private shows no banner — the ordinary clone is silent', () => {
         const { container } = renderReview(recipeOf([FLOUR], { clonePrivateFoodLineCount: 0 }));
 
-        expect(container.innerHTML).toBe('');
+        expect(rendersNothing(container)).toBe(true);
     });
 });
 

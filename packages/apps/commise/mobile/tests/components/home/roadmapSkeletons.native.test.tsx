@@ -29,6 +29,7 @@ import type { FC } from 'react';
 
 import { ROADMAP_WIDGET_IDS, type RoadmapWidgetId } from '@commise/features-core';
 import { renderWithProviders } from '@commise/test-utils';
+import { ARIA_HIDDEN_CONTENT } from '@commise/ui/testing/tamagui';
 
 import { MealPlanWidgetSkeleton } from '../../../src/components/home/skeletons/MealPlanWidgetSkeleton.js';
 import { NutritionWidgetSkeleton } from '../../../src/components/home/skeletons/NutritionWidgetSkeleton.js';
@@ -157,7 +158,8 @@ describe('roadmap skeletons (mobile) — no fake data (the CR-001 red line)', ()
         const { container } = renderWithProviders(<MealPlanWidgetSkeleton />);
 
         // One hidden thumbnail per day tile — the unknown, and nothing else on the strip.
-        expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(7);
+        // `ARIA_HIDDEN_CONTENT` leaves out the hidden config marker the design system's provider adds (ADR-0080).
+        expect(container.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(7);
 
         for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
             expect(

@@ -13,7 +13,8 @@
  * re-render with the next open line expanded, focus IS that line's "Search for a food".
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 

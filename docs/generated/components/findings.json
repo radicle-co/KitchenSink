@@ -4,12 +4,12 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 20,
-        "missing-component-doc": 160,
+        "missing-component-doc": 161,
         "missing-module-doc": 21,
-        "platform-singleton": 68,
+        "platform-singleton": 71,
         "ref-api": 15,
         "unclassified-layer": 92,
-        "undocumented-prop": 177
+        "undocumented-prop": 179
     },
     "findings": [
         {
@@ -702,6 +702,36 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
+            "component": "designSystem/tamagui/DesignSystemProvider",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemProvider.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/tamagui/DesignSystemTheme",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemTheme.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/tamagui/DesignSystemTheme",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemTheme.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "scheme"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "designSystem/testing/LucideGlyphStub",
             "sourcePath": "packages/apps/commise/ui/src/testing/lucideNativeGlyph.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
@@ -750,6 +780,53 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/text/Text",
+            "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/text/Text",
+            "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/text/Text",
+            "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "adjustsFontSizeToFit",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeID",
+                "onAccessibilityAction",
+                "onPointerEnter",
+                "onPointerLeave",
+                "ref",
+                "target",
+                "testID"
             ]
         },
         {

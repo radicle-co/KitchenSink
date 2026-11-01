@@ -40,6 +40,16 @@ describe('typePropFindings', () => {
         ],
         ['a type part on a namespace member', `import * as T from 'tamagui';\n<T.Text fontSize={16} />`, 1],
         ['a variant table built by a call', `const T = styled(Text, { variants: { role: rolesOf(c) } });`, 1],
+        [
+            'a variant table cast `as const`, as Tamagui writes it, is read through',
+            'const T = styled(Text, { variants: { r: { body: { lineHeight: 24 } } } as const });',
+            1,
+        ],
+        [
+            'a px line height in a variant table cast `as const`',
+            "const T = styled(Text, { variants: { r: { body: { lineHeight: '24px' } } } as const });",
+            0,
+        ],
         ['a px line height in styled()', `const T = styled(Text, { fontSize: 16, lineHeight: '24px' });`, 0],
         ['a px template line height in styled()', 'const T = styled(Text, { lineHeight: `${n}px` });', 0],
         ['a type role', `<Text typeRole="body" />`, 0],

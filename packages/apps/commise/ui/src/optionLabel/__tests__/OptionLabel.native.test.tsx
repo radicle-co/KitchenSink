@@ -9,7 +9,9 @@
  * - `list` draws the 14 px `list` role's face, size and leading; `bodyMd` the combobox's field-matching size. The parts
  *   line is 14 px at either size.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+// The tag is the Tamagui status badge, so the tree renders in the design system's provider (ADR-0080).
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { nativeTokens } from '../../tokens/native.js';

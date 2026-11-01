@@ -234,7 +234,6 @@
         "packages/apps/commise/ui/src/snackbar/UndoSnackbar.native.tsx": 8,
         "packages/apps/commise/ui/src/standIn/StandIn.native.tsx": 4,
         "packages/apps/commise/ui/src/stateNotice/StateNotice.native.tsx": 10,
-        "packages/apps/commise/ui/src/statusBadge/StatusBadge.native.tsx": 4,
         "packages/apps/commise/ui/src/surface/GradientSurface.native.tsx": 1,
         "packages/apps/commise/ui/src/surfaceTone/Surface.native.tsx": 1,
         "packages/apps/commise/ui/src/syncNotice/SyncNotice.native.tsx": 6,

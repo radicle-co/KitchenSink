@@ -7,9 +7,12 @@
  * shorthand or method property, a function value (Tamagui's function variants), and a variant table or variant value
  * that is not an object literal. Each is returned as `unreadable`, and the guards report it, because a press style or a
  * ratio line height inside it would otherwise pass unseen. ⚠️ A style VALUE that is an identifier or a call is read as
- * a value, not walked: a press modifier held in a variable is not seen.
+ * a value, not walked: a press modifier held in a variable is not seen. Parentheses, `as` and `satisfies` around an
+ * OBJECT are read through, because Tamagui's own examples write `variants: { … } as const`.
  */
 import ts from 'typescript';
+
+import { unwrapBase } from './tamaguiElements.js';
 
 /** One style property met inside a `styled(…)` argument: its key and its value. */
 export interface StyleProperty {
@@ -46,6 +49,17 @@ function depthAfter(depthBelowVariants: number, enteringVariantTable: boolean): 
     return depthBelowVariants > 0 && depthBelowVariants < 3 ? depthBelowVariants + 1 : 0;
 }
 
+/**
+ * An object literal with its parentheses, `as` and `satisfies` read through, or the expression as written. Only an
+ * OBJECT is read through: a cast on a style VALUE (`'$ink' as ColorTokens`) is kept, because the guards refuse it.
+ * Pure.
+ */
+function objectThrough(expression: ts.Expression): ts.Expression {
+    const inner = unwrapBase(expression);
+
+    return ts.isObjectLiteralExpression(inner) ? inner : expression;
+}
+
 function isFunction(node: ts.Expression): boolean {
     return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
 }
@@ -69,7 +83,7 @@ export function styledConfig(call: ts.CallExpression): StyledConfig {
             }
 
             const key = keyOf(property);
-            const value = property.initializer;
+            const value = objectThrough(property.initializer);
             const variantTable = depthBelowVariants === 0 && key === 'variants';
             const isName = depthBelowVariants === 1 || depthBelowVariants === 2 || variantTable;
 
@@ -89,7 +103,9 @@ export function styledConfig(call: ts.CallExpression): StyledConfig {
     };
 
     // The first argument is the component being styled; every later one is configuration.
-    for (const argument of call.arguments.slice(1)) {
+    for (const written of call.arguments.slice(1)) {
+        const argument = objectThrough(written);
+
         if (ts.isObjectLiteralExpression(argument)) {
             walk(argument, 0, false);
         } else {

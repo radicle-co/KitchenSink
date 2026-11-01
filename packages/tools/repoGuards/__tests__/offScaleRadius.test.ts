@@ -179,6 +179,11 @@ describe('Tamagui radius', () => {
         ['a styled() number', `const P = styled(View, { borderRadius: 16 });`, 1],
         ['a styled() cast', `const P = styled(View, { borderRadius: '$md' as RadiusTokens });`, 1],
         [
+            'a variant table cast `as const`, as Tamagui writes it',
+            `const P = styled(View, { variants: { round: { true: { borderRadius: '$md' } } } as const });`,
+            0,
+        ],
+        [
             'a styled() variant number',
             `const P = styled(View, { variants: { round: { true: { borderRadius: 999 } } } });`,
             1,

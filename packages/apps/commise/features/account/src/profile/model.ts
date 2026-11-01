@@ -6,6 +6,7 @@
  * it says: a Google given name only PREFILLS an empty field, never replaces a saved name, and nothing is written until
  * the cook presses Save.
  */
+import { cappedFontScale } from '@commise/ui/font-scale-cap';
 import { patchUserMeRequestSchema } from '@kitchensink/schema-identity';
 
 /**
@@ -189,4 +190,22 @@ export function profileReadOf(query: ProfileQueryState): ProfileRead {
     }
 
     return { status: query.isError ? 'failed' : 'loading' };
+}
+
+/**
+ * The capped font scale above which a read-only row stacks its value under its label (designer ruling 2026-11-01,
+ * `nativeBoards/designAnswers.md`; `reviews/androidShots1.md`). The design system names no font-scale threshold, so this
+ * is 1.3, the smallest scale the chrome ruling lets a label cap at. It is chosen here and waits for the designer's word.
+ */
+export const FACT_ROW_STACK_ABOVE = 1.3;
+
+/**
+ * Whether a read-only row stacks its value under its label at a font scale. The scale is capped first, because the
+ * text is drawn at the capped scale (ADR-0080 §8). Pure.
+ *
+ * @param fontScale - The system font scale (`useWindowDimensions().fontScale`).
+ * @returns `true` above {@link FACT_ROW_STACK_ABOVE}.
+ */
+export function factRowStacksAt(fontScale: number): boolean {
+    return cappedFontScale(fontScale) > FACT_ROW_STACK_ABOVE;
 }

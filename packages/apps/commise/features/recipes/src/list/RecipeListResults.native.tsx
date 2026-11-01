@@ -2,7 +2,8 @@
  * @module @commise/features-recipes — the native My recipes RESULTS (`docs/design/uiOverhaul/buildSpec.md` §4.3), the
  * twin of the web leaf: the facet chips with their counts and the result bar (count, sort sheet, list/grid switch),
  * the refresh notice, then the body the host's `LibraryState` names — the first run, a no-match, or the cards in the
- * decided variant in a virtualised list — then "Load more" past 500 recipes. The floating create button is the FRAME's
+ * decided variant — in ONE virtualised list whose foot clears the floating create button in every state, then "Load
+ * more" past 500 recipes. The floating create button is the FRAME's
  * (outside the read boundary, so it also shows offline).
  *
  * While the frame is collapsed (a short screen with the keyboard open) the chips step aside so the field
@@ -123,10 +124,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
     const { colors } = useTheme();
     const locale = useLocale();
 
-    if (state === 'firstRun') {
-        return <FirstRun onCreateRecipe={onCreateRecipe} onPasteIngredients={onPasteIngredients} />;
-    }
-
+    const showingRows = state === 'results';
     const columns = variant === 'grid' ? libraryGridColumnsOf(contentWidthOf(width)) : 1;
     const count = formatRecipeCount(recipes.length, { one: list.countOne, other: list.countOther }, locale);
     const loadMoreControl =
@@ -141,43 +139,12 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                 }}
             />
         );
+    let emptyBody: ReactElement | null = null;
 
-    let body: ReactElement;
-
-    if (state === 'results') {
-        body = (
-            <FlashList
-                // A new column count is a new layout: keying on it makes FlashList measure afresh.
-                key={columns}
-                {...scrollBind}
-                data={recipes}
-                numColumns={columns}
-                keyExtractor={(recipe) => recipe.id}
-                renderItem={({ item }) => (
-                    <View style={columns > 1 ? styles.gridCell : null}>
-                        <RecipeCard
-                            variant={variant}
-                            headingLevel={2}
-                            recipe={item}
-                            onSelect={onSelectRecipe}
-                            nutrition={renderNutrition?.(item.id)}
-                        />
-                    </View>
-                )}
-                ItemSeparatorComponent={variant === 'row' ? RowSeparator : GridSeparator}
-                ListFooterComponent={loadMoreControl}
-                style={styles.cardsScroll}
-                contentContainerStyle={styles.cards}
-                keyboardShouldPersistTaps="handled"
-                refreshControl={
-                    refresh === undefined ? undefined : (
-                        <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
-                    )
-                }
-            />
-        );
-    } else {
-        body = (
+    if (state === 'firstRun') {
+        emptyBody = <FirstRun onCreateRecipe={onCreateRecipe} onPasteIngredients={onPasteIngredients} />;
+    } else if (!showingRows) {
+        emptyBody = (
             <NoMatch
                 state={state}
                 searchValue={searchValue}
@@ -185,6 +152,46 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                 onClearFilters={onClearFilters}
             />
         );
+    }
+
+    // ONE scroller for every state (designer ruling 2026-11-01): the first run and a no-match are its empty body, so
+    // they scroll and end with the same room for the floating button as the cards. Load more and pull to refresh stay
+    // with the rows.
+    const body = (
+        <FlashList
+            // A new column count is a new layout: keying on it makes FlashList measure afresh.
+            key={columns}
+            {...scrollBind}
+            data={showingRows ? recipes : []}
+            numColumns={columns}
+            keyExtractor={(recipe) => recipe.id}
+            renderItem={({ item }) => (
+                <View style={columns > 1 ? styles.gridCell : null}>
+                    <RecipeCard
+                        variant={variant}
+                        headingLevel={2}
+                        recipe={item}
+                        onSelect={onSelectRecipe}
+                        nutrition={renderNutrition?.(item.id)}
+                    />
+                </View>
+            )}
+            ItemSeparatorComponent={variant === 'row' ? RowSeparator : GridSeparator}
+            ListEmptyComponent={emptyBody}
+            ListFooterComponent={showingRows ? loadMoreControl : null}
+            style={styles.cardsScroll}
+            contentContainerStyle={styles.cards}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+                !showingRows || refresh === undefined ? undefined : (
+                    <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
+                )
+            }
+        />
+    );
+
+    if (state === 'firstRun') {
+        return body;
     }
 
     return (
@@ -286,7 +293,8 @@ const styles = StyleSheet.create({
     viewSwitch: { width: 112 },
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
-    // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state.
+    // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state, the empty ones
+    // too (they are the list's empty body).
     cards: { paddingBottom: FAB_RESERVED_BOTTOM_PX },
     gridCell: { flex: 1, paddingHorizontal: GRID_GAP / 2 },
     rowSeparator: { height: nativeTokens.spacing[2] },

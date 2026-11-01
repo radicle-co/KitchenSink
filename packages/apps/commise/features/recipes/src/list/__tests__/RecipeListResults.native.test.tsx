@@ -215,6 +215,59 @@ describe('RecipeListResults (native) — the foot reserved for the floating crea
     );
 });
 
+/**
+ * Whether the element sits in a SCROLLER whose content ends with the floating button's room: some ancestor pads its foot
+ * by `FAB_RESERVED_BOTTOM_PX` AND is the direct child of an element that scrolls. Room on a view that does not scroll
+ * moves nothing, so the room alone is not enough.
+ */
+function endsInScrollerWithFabRoom(element: HTMLElement): boolean {
+    for (let node = element.parentElement; node?.parentElement; node = node.parentElement) {
+        const scrolls = ['auto', 'scroll'].includes(getComputedStyle(node.parentElement).overflowY);
+
+        if (scrolls && getComputedStyle(node).paddingBottom === `${String(FAB_RESERVED_BOTTOM_PX)}px`) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, Recipes tab): the error and empty states get the same 88
+ * end room as the cards. They used to sit in a view that did not scroll, so at a large text size their foot ran under
+ * the floating button with no way to scroll it clear. Each now sits in the list's own scroller, with the cards' foot.
+ * ⚠️ That the end of the content clears the button shows only on a device.
+ */
+describe('RecipeListResults (native) — the empty states scroll, and end with the floating button’s room', () => {
+    it.each([
+        ['the first run', { state: 'firstRun' }, 'Your recipe box is empty'],
+        ['a search no-match', { state: 'noMatchQuery', searchValue: 'zzz' }, 'Nothing matches “zzz”.'],
+        ['a chips no-match', { state: 'noMatchFilters' }, 'No recipes match these filters.'],
+    ] as const)('%s', (_name, over, text) => {
+        render(results({ recipes: [], ...over }));
+
+        expect(endsInScrollerWithFabRoom(screen.getByText(text))).toBe(true);
+    });
+
+    it('the cards still do', () => {
+        render(results());
+
+        expect(endsInScrollerWithFabRoom(screen.getByText('Gourmet Garden Salad'))).toBe(true);
+    });
+
+    it('offers no Load more under a no-match, however many rows the library holds', () => {
+        render(
+            results({
+                recipes: [],
+                state: 'noMatchFilters',
+                loadMore: { hasMore: true, loading: false, failed: false, onLoadMore: noop },
+            }),
+        );
+
+        expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    });
+});
+
 describe('RecipeListResults (native) — states', () => {
     it('the first run offers the two ways to start, and no chips, bar or dial', () => {
         const onCreateRecipe = vi.fn();

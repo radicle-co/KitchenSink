@@ -7,12 +7,31 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { RecipeListLoadError } from '../RecipeListLoadError.native.js';
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { render } from '@commise/ui/testing/tamagui';
+
+import { RecipeListLoadError } from '../RecipeListLoadError.native.js';
 
 afterEach(cleanup);
 
 const noop = () => undefined;
+
+/**
+ * Whether the element sits in a SCROLLER whose content ends with the floating button's room: some ancestor pads its foot
+ * by `FAB_RESERVED_BOTTOM_PX` AND is the direct child of an element that scrolls. Room on a view that does not scroll
+ * moves nothing, so the room alone is not enough.
+ */
+function endsInScrollerWithFabRoom(element: HTMLElement): boolean {
+    for (let node = element.parentElement; node?.parentElement; node = node.parentElement) {
+        const scrolls = ['auto', 'scroll'].includes(getComputedStyle(node.parentElement).overflowY);
+
+        if (scrolls && getComputedStyle(node).paddingBottom === `${String(FAB_RESERVED_BOTTOM_PX)}px`) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 describe('RecipeListLoadError (native)', () => {
     it('shows an alert with a retry action that reports upward', () => {
@@ -41,5 +60,14 @@ describe('RecipeListLoadError (native)', () => {
 
         expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
         expect(screen.queryByText('Your recipe box is empty')).toBeNull();
+    });
+
+    // Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, Recipes tab): the error state gets the same 88 end
+    // room as the cards, so the floating button the frame keeps here never covers its end. It used to sit in a view that
+    // did not scroll. ⚠️ That the end clears the button shows only on a device.
+    it('scrolls, and ends with the floating button’s room', () => {
+        render(<RecipeListLoadError onRetry={noop} />);
+
+        expect(endsInScrollerWithFabRoom(screen.getByText('We couldn’t load your recipes.'))).toBe(true);
     });
 });

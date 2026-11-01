@@ -172,7 +172,8 @@ describe('RecipeDetailView (native) — from a 720 pt body', () => {
 
 /**
  * How the sections share the page (build spec §6.1): from a 720 pt body the ingredients take five parts of twelve and
- * the steps column seven, and the blocks of a column, or of the closing run, sit space-8 apart.
+ * the steps column seven, and the blocks of a column, or of the closing run, sit space-6 (32) apart: the section
+ * gap, 32 on web and native in one column and two (designer ruling, `nativeBoards/designAnswers.md`). It was 64.
  *
  * The column share is a variant of the page's frames (`detailFrames.native.ts`). Tamagui's web build writes it as the
  * shorthand `flex: 5 0 0`, which jsdom drops as it parses, so no computed style can show it (ADR-0080 §6: a style
@@ -213,21 +214,21 @@ describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () 
         expect(sectionOf(detail.ingredientsHeading).className).toBe(plainSection);
     });
 
-    it('stacks the steps column’s blocks space-8 apart, from a 720 pt body', () => {
+    it('stacks the steps column’s blocks space-6 (32) apart, from a 720 pt body', () => {
         device.width = 1024;
         render(view());
         const stepsColumn = sectionOf(detail.instructionsHeading).parentElement as HTMLElement;
 
-        expect(resolvedStyle(stepsColumn, 'gap')).toBe(px(8));
+        expect(resolvedStyle(stepsColumn, 'gap')).toBe(px(6));
     });
 
-    it('stacks the closing blocks space-8 apart below a 720 pt body', () => {
+    it('stacks the closing blocks space-6 (32) apart below a 720 pt body', () => {
         render(view(makeRecipeDetail({ sourceAttribution: 'Grandma’s card' })));
         // The source line's label is a heading in its row; the row sits in the footer, the footer in the closing stack.
         const sourceRow = screen.getByRole('heading', { name: detail.sourceHeading }).parentElement as HTMLElement;
         const footer = sourceRow.parentElement as HTMLElement;
 
-        expect(resolvedStyle(footer.parentElement as HTMLElement, 'gap')).toBe(px(8));
+        expect(resolvedStyle(footer.parentElement as HTMLElement, 'gap')).toBe(px(6));
     });
 });
 

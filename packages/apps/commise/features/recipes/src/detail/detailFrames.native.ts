@@ -27,14 +27,15 @@ export const DetailSection = styled(YStack, {
 });
 
 /**
- * Blocks stacked with a section's gap and no gutter of their own: the gutter belongs to whatever holds them. From a
- * 720 pt body the steps column is one, and takes seven parts of twelve of the row (§6.1, the web's `col-span-7`).
+ * Blocks stacked with a section's gap, space-6 (32, the same on web and native in one column and two), and no gutter
+ * of their own: the gutter belongs to whatever holds them. From a 720 pt body the steps column is one, and takes seven
+ * parts of twelve of the row (§6.1, the web's `col-span-7`).
  *
  * @pattern Variant — the column a stack fills is a closed Tamagui variant, not a style passed in
  */
 export const DetailStack = styled(YStack, {
     name: 'DetailStack',
-    gap: '$8',
+    gap: '$6',
 
     variants: {
         column: {

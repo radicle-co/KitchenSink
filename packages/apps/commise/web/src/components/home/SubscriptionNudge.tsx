@@ -76,10 +76,8 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                     // goes asymmetric. See `@commise/ui/tokens/themeCss`.
                     className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-xl ${surfaceToneClass('paper')} p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl`}
                 >
-                    <Dialog.Title className="font-display text-lg font-semibold text-ink">
-                        {home.nudge.title}
-                    </Dialog.Title>
-                    <p className="text-sm text-ink-muted">{home.nudge.body}</p>
+                    <Dialog.Title className="text-card-title text-ink">{home.nudge.title}</Dialog.Title>
+                    <p className="text-meta text-ink-muted">{home.nudge.body}</p>
                     <div className="flex justify-end gap-3">
                         {/* A Radix slot, so it wears the Button surface rather than being one; `clock` is mobile's "later" glyph. */}
                         <Dialog.Close type="button" className={buttonSurfaceClass('secondary')}>

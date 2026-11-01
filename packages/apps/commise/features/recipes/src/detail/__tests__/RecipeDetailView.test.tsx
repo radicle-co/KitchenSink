@@ -216,6 +216,23 @@ describe('RecipeDetailView (web) — header', () => {
         expect(classes.filter((name) => /(^|:)gap-/u.test(name) && !name.endsWith('gap-8'))).toEqual([]);
     });
 
+    // The end of the page gets 48 below it (`pb-12`), more than the 32 between sections, so the page reads as finished
+    // (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). It was `pb-10`, 40, which is off the spacing scale.
+    it('leaves 48 below the last section, more than the 32 between sections', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        const classes = screen.getByRole('article', { name: 'Lamb' }).className.split(' ');
+
+        expect(classes).toContain('pb-12');
+        expect(classes.filter((name) => /(^|:)(pb|py|p)-/u.test(name) && name !== 'pb-12')).toEqual([]);
+    });
+
     // F9: the page draws each group of lines under a label, as the editor does.
     it('draws each ingredient group under its label heading, in stored order', () => {
         render(

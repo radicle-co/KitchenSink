@@ -43,7 +43,7 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                         <Icon name="user" size={24} tone="inkMuted" />
                     </View>
                     <View style={styles.text}>
-                        <Text role="alert" typeRole="sectionTitle" color="$ink">
+                        <Text role="alert" typeRole="body" color="$ink">
                             {t.loadError}
                         </Text>
                         <Button variant="quiet" icon="refreshCw" onPress={onRetry}>

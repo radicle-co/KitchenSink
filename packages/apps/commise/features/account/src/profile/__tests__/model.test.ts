@@ -12,6 +12,7 @@ import {
     DISPLAY_NAME_MAX_LENGTH,
     canSaveDisplayName,
     displayNameDraftOf,
+    factRowStacksAt,
     formatNameCounter,
     profileHeaderTitleOf,
     givenNameOf,
@@ -214,5 +215,17 @@ describe('profileHeaderTitleOf (T8)', () => {
 
     it('treats a blank username as none', () => {
         expect(profileHeaderTitleOf(ready('', '  '), '@{username}')).toBe('');
+    });
+});
+
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): at large text a label-and-value row stacks its value
+// under its label. The house has no font-scale threshold of its own, so the row stacks above a capped scale of 1.3.
+describe('factRowStacksAt', () => {
+    it.each([0.85, 1, 1.15, 1.3])('keeps the value beside its label at font scale %s', (fontScale) => {
+        expect(factRowStacksAt(fontScale)).toBe(false);
+    });
+
+    it.each([1.31, 1.5, 2, 3.1])('stacks the value under its label at font scale %s', (fontScale) => {
+        expect(factRowStacksAt(fontScale)).toBe(true);
     });
 });

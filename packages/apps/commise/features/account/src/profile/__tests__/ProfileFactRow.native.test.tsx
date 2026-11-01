@@ -4,31 +4,49 @@
  * shrinks and wraps rather than running off a 320 pt screen. This restores the "unbroken email wraps at 320" case that
  * lived in the ProfileHeader suite until the email moved into this row.
  *
- * ⚠️ react-native-web drops RN's `accessible` prop, so `View` is wrapped to put what React Native receives on the node
- * as `data-accessible` (react-native-web's `dataSet`). What is proven is the prop React Native gets, not that a screen
- * reader honours it.
+ * The value sits at the END of the line, and at large text it stacks under its label (designer ruling 2026-11-01,
+ * `nativeBoards/designAnswers.md`). The layout is read at the font scale the window reports, which is mocked.
  *
- * REWRITTEN for ADR-0080: the label and the value are the design system's Tamagui `Text`, so they render in its
- * provider, and the shrink is read from what each text's own class rules DECLARE. A browser's (and jsdom's) initial
- * `flex-shrink` is 1 where React Native's is 0, so the computed value cannot tell the two texts apart; the declared one
- * is what Tamagui hands React Native. The old `Text` wrapper read the same fact from a React Native style, which these
- * texts no longer have.
+ * REWRITTEN for the row's move to a Tamagui `View` (ADR-0080). The "one accessibility element" case used to wrap React
+ * Native's `View`; the row is no longer one, and Tamagui's web build, which this lane runs, drops `accessible`. So
+ * Tamagui's `View` is wrapped to put the prop it receives on the node as `data-accessible`. What is proven is the prop
+ * Tamagui gets, which its native build hands to React Native's view, not that a screen reader honours it.
+ *
+ * ⚠️ jsdom cannot show the right-to-left flip. React Native swaps `textAlign` 'right' and 'left' when the text's layout
+ * direction is right to left, but Tamagui's web build writes CSS `text-align: right`, which is physical. Only a device
+ * in a right-to-left layout proves it.
+ *
+ * The label and the value are the design system's Tamagui `Text`, so they render in its provider, and the shrink is
+ * read from what each text's own class rules DECLARE. A browser's (and jsdom's) initial `flex-shrink` is 1 where React
+ * Native's is 0, so the computed value cannot tell the two texts apart; the declared one is what Tamagui hands React
+ * Native.
  */
 import { cleanup, screen } from '@testing-library/react';
 import { createElement, forwardRef, type ComponentProps } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 
+const env = vi.hoisted(() => ({ fontScale: 1 }));
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), fontScale: env.fontScale }),
+    };
+});
+
+vi.mock('tamagui', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('tamagui')>();
     const View = forwardRef<unknown, ComponentProps<typeof actual.View>>((props, ref) =>
         createElement(actual.View, {
             ...props,
             ref,
-            ...(props.accessible === true ? { dataSet: { accessible: 'true' } } : {}),
+            ...(props.accessible === true ? { 'data-accessible': 'true' } : {}),
         } as never),
     );
 
@@ -36,6 +54,10 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 import { ProfileFactRow } from '../ProfileFactRow.native.js';
+
+beforeEach(() => {
+    env.fontScale = 1;
+});
 
 afterEach(cleanup);
 
@@ -111,4 +133,58 @@ describe('ProfileFactRow (native) — type and colour', () => {
             expect(resolvedColour(screen.getByText('eliza@example.com'), 'color')).toBe(rgb(roles.inkMuted));
         },
     );
+});
+
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, `reviews/androidShots1.md`): the value sits at the END of
+// the line beside its label, and at large text it stacks under its label at the start. The row stacks above a capped
+// font scale of 1.3 (`FACT_ROW_STACK_ABOVE`).
+describe('ProfileFactRow (native) — layout at each text size', () => {
+    /** The row: the element that holds both texts. */
+    function rowOf(): Element {
+        return screen.getByText('Email').parentElement as Element;
+    }
+
+    it.each([1, 1.3])('sets the value beside its label, at the end of the line, at font scale %s', (fontScale) => {
+        env.fontScale = fontScale;
+        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+
+        expect(rowOf().contains(screen.getByText('eliza@example.com'))).toBe(true);
+        expect(resolvedStyle(rowOf(), 'flexDirection')).toBe('row');
+        expect(resolvedStyle(rowOf(), 'justifyContent')).toBe('space-between');
+        expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('right');
+    });
+
+    it.each([1.31, 2, 3.1])('stacks the value under its label, at the start, at font scale %s', (fontScale) => {
+        env.fontScale = fontScale;
+        renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+
+        expect(rowOf().contains(screen.getByText('eliza@example.com'))).toBe(true);
+        expect(resolvedStyle(rowOf(), 'flexDirection')).toBe('column');
+        expect(resolvedStyle(rowOf(), 'alignItems')).toBe('flex-start');
+        expect(resolvedStyle(screen.getByText('eliza@example.com'), 'textAlign')).toBe('left');
+    });
+
+    it.each([1, 2])(
+        'keeps the 56 pt row, space-3 between the parts and the space-4 and space-2 insets at %s',
+        (scale) => {
+            env.fontScale = scale;
+            renderWithTamagui(<ProfileFactRow label="Email" value="eliza@example.com" />, 'light');
+            const px = (n: number): string => `${String(n)}px`;
+
+            expect(resolvedStyle(rowOf(), 'minHeight')).toBe('56px');
+            expect(resolvedStyle(rowOf(), 'gap')).toBe(px(nativeTokens.spacing[3]));
+            expect(resolvedStyle(rowOf(), 'paddingLeft')).toBe(px(nativeTokens.spacing[4]));
+            expect(resolvedStyle(rowOf(), 'paddingRight')).toBe(px(nativeTokens.spacing[4]));
+            expect(resolvedStyle(rowOf(), 'paddingTop')).toBe(px(nativeTokens.spacing[2]));
+            expect(resolvedStyle(rowOf(), 'paddingBottom')).toBe(px(nativeTokens.spacing[2]));
+        },
+    );
+
+    it('stays one accessibility element, with no button, when it stacks', () => {
+        env.fontScale = 2;
+        const { container } = render(<ProfileFactRow label="Email" value="eliza@example.com" />);
+
+        expect(container.querySelector('[data-accessible="true"]')?.textContent).toBe('Emaileliza@example.com');
+        expect(screen.queryByRole('button')).toBeNull();
+    });
 });

@@ -36,6 +36,9 @@ button's height (about 21 pt SF Pro), so it is larger than any role on our scale
   loading state through the block's live region, and focus moves to the block's heading so it is not lost.
 - **"See all" under its title:** when the row wraps, the link's text lines up with the title's left edge. Its touch
   target stays at least 48 pt tall. Any side padding sits on the right, not the left.
+- **Web "See all":** its target stays 44 px tall, the web shell's floor; 48 is the native figure. The text lines up
+  with the title, but the hover fill and focus ring extend 12 px past the text on both sides (a negative start margin
+  of 12 with 12 padding), so they never hug the text.
 - **The floating button over scrolling content** is expected. The 88 pt end room only guarantees that the end of the
   content can scroll clear of it.
 - **Recipes tab:** its error and empty states get the same 88 pt end room as its cards.

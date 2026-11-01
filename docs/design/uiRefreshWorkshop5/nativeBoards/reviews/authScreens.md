@@ -32,3 +32,12 @@ holds Google's colours. The Apple button is drawn by the system, so its text is 
 ## Findings
 
 None in the code.
+
+## Device check (Android, fix/im-tamagui-ds at 8ff3bec6c)
+
+Pass. At 2.0 and 3.1, in light and dark, the sign-in and sign-up screens stop growing at the cap. The field labels,
+the hint and the button labels now share the capped `Text`, and every control can be reached by scrolling. The
+placeholders fit on one line, "Create an account" and "Sign in" do not truncate, and the hint sits closer to its
+field than to the next label.
+
+Still open: the Google label's 1.5x chrome cap on Android and fixed size on iOS, which Thing 1 builds next.

@@ -892,9 +892,9 @@ export interface RecipeDetailViewProps {
      */
     readonly heroControls?: ReactNode;
     /**
-     * Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert and the delete
-     * dialog, which must scroll with the page (and clear the foot of the screen) rather than sit outside it. Web ignores
-     * it: its containers keep these as siblings of the view.
+     * Native: rendered as the LAST item of the page's scroller — the owner's failed-visibility alert, which scrolls with
+     * the page, and the dialogs, which open in their own modal window wherever they are mounted, so the page's end needs
+     * no room for them. Web ignores it: its containers keep these as siblings of the view.
      */
     readonly scrollFooter?: ReactNode;
     /** The rating block under the nutrition: the input for another cook, the read-only average for the owner. */

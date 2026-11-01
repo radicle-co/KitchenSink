@@ -21,6 +21,7 @@ import {
 } from '@commise/features-core';
 import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
 import { renderWithProviders, sideInsetOf } from '@commise/test-utils';
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
@@ -401,6 +402,31 @@ describe('HomeWidgetSurface (mobile) — host composition', () => {
  * observable end to end — `tests/screens/AppRoot.recipeTap.native.test.tsx` renders the real Home, host, slot,
  * widget and card leaves and taps a card — plus the slot own `RecipeWidgetSlot.native.test.tsx` activation cases.
  */
+// Designer ruling 2026-11-01, corrected (`nativeBoards/designAnswers.md`): Home's "New recipe" button floats over its
+// foot, so the page ends with the button's height, its margin and 16, computed (`FAB_RESERVED_BOTTOM_PX`), not the 48
+// every other page ends with. Written after the code, which already read the constant; it was shown to fail by setting
+// the foot to the 48 page end.
+describe('HomeWidgetSurface (mobile) — the foot under the floating create button', () => {
+    it('ends the scroller’s content with the room the floating create button needs', () => {
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
+        });
+        const feet: string[] = [];
+
+        // The scroller's content container is one of the widget's ancestors.
+        for (
+            let node = screen.getByText('fake-recipe-widget').parentElement;
+            node !== null;
+            node = node.parentElement
+        ) {
+            feet.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(feet).toContain(`${String(FAB_RESERVED_BOTTOM_PX)}px`);
+    });
+});
+
 describe('homeContainer (mobile) — v1 registration', () => {
     it('registers the live recipe widget AND the roadmap placeholders (005–009 are skeletons, not absent)', () => {
         const ids = resolveHomeWidgets(homeContainer).map((descriptor) => descriptor.id);

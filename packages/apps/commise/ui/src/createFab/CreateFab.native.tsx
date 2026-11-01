@@ -23,6 +23,7 @@ import { SnackbarClearanceContext } from '../snackbar/snackbarClearanceContext.j
 import { useWindowWidth } from '../screenEnvironment/useWindowWidth.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { fabLiftOver } from './fabLift.js';
+import { FAB_BOTTOM_MARGIN_PX } from './createFabPolicy.js';
 import { FabFace } from './FabFace.native.js';
 import type { CreateFabProps } from './props.js';
 import { useFabPresentation } from './useFabPresentation.native.js';
@@ -49,7 +50,7 @@ export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = 
             onPress={onPress}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            style={[styles.corner, { end: margin + sideInset, bottom: RESTING_BOTTOM + lift }]}
+            style={[styles.corner, { end: margin + sideInset, bottom: FAB_BOTTOM_MARGIN_PX + lift }]}
         >
             <FabFace label={label} icon={icon} presentation={presentation} onLabelWidth={setLabelWidthPx} />
         </Pressable>
@@ -59,9 +60,6 @@ export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = 
 /** The button's margin from the window's end edge, before the safe-area inset is added. */
 const PHONE_MARGIN = nativeTokens.spacing[4];
 const TABLET_MARGIN = nativeTokens.spacing[6];
-
-/** The button's resting distance from the foot, dp. */
-const RESTING_BOTTOM = nativeTokens.spacing[4];
 
 const styles = StyleSheet.create({
     corner: { position: 'absolute' },

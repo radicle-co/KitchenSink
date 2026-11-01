@@ -4,7 +4,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { FAB_HEIGHT_PX, FAB_RESERVED_BOTTOM_PX, fabPresentationOf, type FabInputs } from '../createFabPolicy.js';
+import { spacing } from '../../tokens/scale.js';
+import {
+    FAB_BOTTOM_MARGIN_PX,
+    FAB_HEIGHT_PX,
+    FAB_RESERVED_BOTTOM_PX,
+    fabPresentationOf,
+    type FabInputs,
+} from '../createFabPolicy.js';
 
 const BASE: FabInputs = {
     viewportClass: 'compact',
@@ -60,9 +67,17 @@ describe('fabPresentationOf', () => {
     });
 });
 
+// REWRITTEN for the designer ruling of 2026-11-01, corrected (`nativeBoards/designAnswers.md`): a screen the button
+// floats over ends with the button's height, the margin it rests at and 16, computed, not a fixed number. It was pinned
+// as "the height plus 32", which hid the margin inside the 32. The value is unchanged.
 describe('FAB_RESERVED_BOTTOM_PX', () => {
-    it('is the button height plus 32, the padding the list under it reserves (SC 2.4.11)', () => {
+    it('rests the button 16 above the foot', () => {
+        expect(FAB_BOTTOM_MARGIN_PX).toBe(spacing[4]);
+    });
+
+    it('is the button’s height, the margin it rests at, and 16 (SC 2.4.11)', () => {
         expect(FAB_HEIGHT_PX).toBe(56);
+        expect(FAB_RESERVED_BOTTOM_PX).toBe(FAB_HEIGHT_PX + FAB_BOTTOM_MARGIN_PX + spacing[4]);
         expect(FAB_RESERVED_BOTTOM_PX).toBe(88);
     });
 });

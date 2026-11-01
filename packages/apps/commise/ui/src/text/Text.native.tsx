@@ -93,10 +93,19 @@ const TextFrame = styled(TamaguiText, {
 });
 
 /**
+ * What the resolver reads. Tamagui types a resolver's props loosely, so a misspelled key would compile and read
+ * `undefined`; naming the two fields makes a typo a type error.
+ */
+interface ScaledTextProps {
+    readonly typeRole?: TypeRole;
+    readonly textScale?: number;
+}
+
+/**
  * The design-system Text: the frame above, drawn at its role's size and leading for the system text scale, up to the
  * role's ceiling (`scaledTypeMetrics`, ADR-0080 §8). The scale comes from `TextScaleContext`, which `DesignSystemTheme`
  * provides. `figureInline` gets no size of its own and keeps its line's. A `styled(Text)` inherits the resolver.
  */
-export const Text = TextFrame.resolve(({ typeRole, textScale }) =>
+export const Text = TextFrame.resolve(({ typeRole, textScale }: ScaledTextProps) =>
     scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1),
 );

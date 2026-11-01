@@ -127,11 +127,15 @@ function capped(attributes: ts.JsxAttributes, caps: ReadonlySet<string>): boolea
     );
 }
 
-/** Whether a text sets its own scaling, which overrides what it would inherit. */
+/**
+ * Whether a text sets its own scaling, which overrides what it would inherit. `textScale` is the design-system Text's
+ * context value; as a prop it beats the system scale the provider passes down (GATE SCQ-2).
+ */
 function setsOwnScaling(attributes: ts.JsxAttributes): boolean {
     return (
         attribute(attributes, 'maxFontSizeMultiplier') !== undefined ||
-        attribute(attributes, 'allowFontScaling') !== undefined
+        attribute(attributes, 'allowFontScaling') !== undefined ||
+        attribute(attributes, 'textScale') !== undefined
     );
 }
 

@@ -94,6 +94,21 @@ describe('React Native styling only falls (ADR-0080)', () => {
         expect(stale(exemptCounts, baseline.adapterExemptions)).toEqual([]);
     });
 
+    // GATE (minor): the admission rule lets a new design-system file into the ledger with no limit on its first count, so
+    // every admitted path is also listed, with its reason, in ADR-0080 §5, and the two must match in both directions. A
+    // new adapter is then a reviewed ADR line, not only a JSON diff.
+    it('lists every admitted adapter, with its reason, in ADR-0080 §5', () => {
+        const adr = readFileSync(
+            path.join(repoRoot, 'docs/architecture/decisions/0080-mobile-ui-is-styled-with-tamagui.md'),
+            'utf8',
+        );
+        const listed = [...adr.matchAll(/^- `(packages\/apps\/commise\/ui\/src\/[^`]+)`: \S/gmu)].map(
+            ([, file]) => file,
+        );
+
+        expect([...listed].sort()).toEqual(Object.keys(baseline.adapterExemptions).sort());
+    });
+
     it('refuses an adapter exemption outside the design system', () => {
         const misplaced = [...usesOf].flatMap(([file, uses]) =>
             uses.misplacedExemptions.map(({ line, text }) => `${file}:${line} ${text}`),

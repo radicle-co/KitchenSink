@@ -20,23 +20,36 @@ import { styledConfig, type StyleProperty } from './tamaguiStyleObjects.js';
 /** The one module whose `.resolve` is readable: the design-system Text (ADR-0080 §8). */
 const SCALED_TEXT_MODULE = /(?:^|\/)packages\/apps\/commise\/ui\/src\/text\/Text\.native\.tsx$/u;
 
-/** A Tamagui 3 component resolver: `X.resolve(fn)`, whose function can return any style, so no guard can read it. */
-function isResolverCall(node: ts.Node): node is ts.CallExpression {
-    return (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression) &&
-        node.expression.name.text === 'resolve' &&
-        node.arguments.length === 1 &&
-        node.arguments[0] !== undefined &&
-        (ts.isArrowFunction(node.arguments[0]) || ts.isFunctionExpression(node.arguments[0]))
-    );
+/**
+ * A reach for a Tamagui component's `resolve`: `X.resolve` or `X['resolve']`, where `X` is a name the module binds to a
+ * Tamagui component. Its function can return any style, so no guard can read it. Matching the REFERENCE, not one call
+ * shape, catches a named callback, `.call`, and a resolver taken out first (GATE SCQ-1).
+ */
+function resolverReference(node: ts.Node, components: ReadonlySet<string>): boolean {
+    const owner = ts.isPropertyAccessExpression(node)
+        ? node.name.text === 'resolve'
+            ? node.expression
+            : undefined
+        : ts.isElementAccessExpression(node) &&
+            ts.isStringLiteralLike(node.argumentExpression) &&
+            node.argumentExpression.text === 'resolve'
+          ? node.expression
+          : undefined;
+
+    return owner !== undefined && ts.isIdentifier(owner) && components.has(owner.text);
 }
 
 /**
  * The design-system Text's resolver: in that one module, an arrow whose whole body is a call to `scaledTypeMetrics`, the
  * pure, tested function that owns the type-scaling arithmetic. Every other resolver is unreadable, so a finding.
  */
-function isScaledTypeResolver(call: ts.CallExpression): boolean {
+function isScaledTypeResolver(reference: ts.Node): boolean {
+    const call = reference.parent;
+
+    if (!ts.isCallExpression(call) || call.expression !== reference || call.arguments.length !== 1) {
+        return false;
+    }
+
     const [resolver] = call.arguments;
 
     return (
@@ -78,14 +91,16 @@ export function styleSiteFindings(
         findings.push(`${fileName}:${lineOf(file, node)} ${node.getText(file)}`);
     };
 
-    for (const element of tamaguiOpeningElements(file, tamaguiElementNames(file, styledExportsOf))) {
+    const components = tamaguiElementNames(file, styledExportsOf);
+
+    for (const element of tamaguiOpeningElements(file, components)) {
         element.attributes.properties.filter((attribute) => rule.attribute(attribute, file)).forEach(report);
     }
 
     const styledNames = tamaguiStyledNames(file);
 
     const visit = (node: ts.Node): void => {
-        if (isResolverCall(node) && !isScaledTypeResolver(node)) {
+        if (resolverReference(node, components) && !isScaledTypeResolver(node)) {
             report(node);
         }
 

@@ -11,7 +11,7 @@ import { renderWithProviders } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
 import { LoadingNotice } from '@commise/ui/loading-notice';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { render, render as renderInDesignSystem, resolvedColour } from '@commise/ui/testing/tamagui';
+import { render as renderInDesignSystem, resolvedColour } from '@commise/ui/testing/tamagui';
 import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -55,7 +55,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
 
     it('LoadingNotice captions its spinner in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<LoadingNotice label="Loading recipe…" />);
+        renderInDesignSystem(<LoadingNotice label="Loading recipe…" />);
 
         expect(colourOf(screen.getByText('Loading recipe…'))).toBe(rgb(colours.inkMuted));
     });
@@ -81,7 +81,9 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
 
     it('BoundaryErrorNotice titles the crash in ink, with its body in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<BoundaryErrorNotice body={boundaryMessages.en.errorBodyHome} onRetry={() => undefined} />);
+        renderInDesignSystem(
+            <BoundaryErrorNotice body={boundaryMessages.en.errorBodyHome} onRetry={() => undefined} />,
+        );
 
         expect(colourOf(screen.getByText(boundaryMessages.en.errorTitle))).toBe(rgb(colours.ink));
         expect(colourOf(screen.getByText(boundaryMessages.en.errorBodyHome))).toBe(rgb(colours.inkMuted));

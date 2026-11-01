@@ -110,7 +110,11 @@ holds, is new styling, and the guard refuses it. No override is written, reviewe
 The exemption ledger takes one more kind of entry: a new design-system Adapter. A path may enter it only if it is in
 `ui/src` and no committed version of the baseline ever counted a use in it, so a marker cannot relabel styling that
 still owes a migration. From the version that first records it, its count only falls, and once it is gone it cannot
-come back. The counted-use map admits no new path.
+come back. The counted-use map admits no new path. Every admitted adapter is also listed here, with its reason, and the
+styling ratchet asserts this list and the ledger match in both directions:
+
+- `packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts`: `StyleSheet.hairlineWidth` behind the `$hairline`
+  border-width token, a density-dependent platform value with no Tamagui source.
 
 The first recording was proven once, by hand. Every file in the styling baseline existed at `5979abcd5` with at least
 its recorded count.

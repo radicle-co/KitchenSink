@@ -152,6 +152,12 @@ describe('uncappedTexts', () => {
             `${DS}const A = () => <DsText allowFontScaling>a</DsText>;`,
             1,
         ],
+        // GATE SCQ-2: a `textScale` prop overrides the system scale the provider passes down.
+        [
+            'the design system Text given its own text scale',
+            `${DS}const A = () => <DsText textScale={1}>a</DsText>;`,
+            1,
+        ],
         [
             'a Text inside a design system Text that lifts its cap is one uncapped run',
             `${RN}${DS}const A = () => <DsText maxFontSizeMultiplier={0}>a <Text>b</Text></DsText>;`,

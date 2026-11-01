@@ -195,6 +195,27 @@ describe('RecipeDetailView (web) — header', () => {
         expect(stepsColumn.className.split(' ')).not.toContain('gap-10');
     });
 
+    // The same 32 between the ingredients and the steps column: under each other on a narrow page, side by side on a
+    // wide one (designer ruling, `nativeBoards/designAnswers.md`). `gap-8` is 32 px; it used to be `gap-10`, 40 px.
+    it('puts the ingredients and the steps column 32 apart', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        const { ingredientsHeading, instructionsHeading } = recipeMessages.en.detail;
+        const ingredients = screen.getByRole('heading', { level: 2, name: ingredientsHeading }).closest('section');
+        const body = (ingredients as HTMLElement).parentElement as HTMLElement;
+        const classes = body.className.split(' ');
+
+        expect(body.contains(screen.getByRole('heading', { level: 2, name: instructionsHeading }))).toBe(true);
+        expect(classes).toContain('gap-8');
+        expect(classes.filter((name) => /(^|:)gap-/u.test(name) && !name.endsWith('gap-8'))).toEqual([]);
+    });
+
     // F9: the page draws each group of lines under a label, as the editor does.
     it('draws each ingredient group under its label heading, in stored order', () => {
         render(

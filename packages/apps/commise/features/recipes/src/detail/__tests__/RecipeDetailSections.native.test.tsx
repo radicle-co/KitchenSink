@@ -174,6 +174,7 @@ describe('RecipeDetailView (native) — from a 720 pt body', () => {
  * How the sections share the page (build spec §6.1): from a 720 pt body the ingredients take five parts of twelve and
  * the steps column seven, and the blocks of a column, or of the closing run, sit space-6 (32) apart: the section
  * gap, 32 on web and native in one column and two (designer ruling, `nativeBoards/designAnswers.md`). It was 64.
+ * The two columns sit 32 apart too; that gap was 64.
  *
  * The column share is a variant of the page's frames (`detailFrames.native.ts`). Tamagui's web build writes it as the
  * shorthand `flex: 5 0 0`, which jsdom drops as it parses, so no computed style can show it (ADR-0080 §6: a style
@@ -212,6 +213,15 @@ describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () 
         render(view());
 
         expect(sectionOf(detail.ingredientsHeading).className).toBe(plainSection);
+    });
+
+    it('puts the two columns space-6 (32) apart, from a 720 pt body', () => {
+        device.width = 1024;
+        render(view());
+        const columns = sectionOf(detail.ingredientsHeading).parentElement as HTMLElement;
+
+        expect(columns.contains(screen.getByRole('heading', { name: detail.instructionsHeading }))).toBe(true);
+        expect(resolvedStyle(columns, 'gap')).toBe(px(6));
     });
 
     it('stacks the steps column’s blocks space-6 (32) apart, from a 720 pt body', () => {

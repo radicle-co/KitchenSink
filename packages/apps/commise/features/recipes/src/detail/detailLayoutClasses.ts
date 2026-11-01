@@ -27,9 +27,8 @@ export const HEADER_BESIDE_PHOTO =
 export const HERO_BAND_CELL = '@min-[60rem]/detail:col-span-12 @min-[60rem]/detail:row-start-1';
 export const HEADER_UNDER_BAND = '@min-[60rem]/detail:col-span-12 @min-[60rem]/detail:row-start-2';
 
-/** The body: one column, two from a 720 px body. */
-export const BODY_GRID =
-    'flex flex-col gap-10 @min-[45rem]/detail:grid @min-[45rem]/detail:grid-cols-12 @min-[45rem]/detail:gap-8';
+/** The body: one column, two from a 720 px body; 32 px between them either way (the section gap). */
+export const BODY_GRID = 'flex flex-col gap-8 @min-[45rem]/detail:grid @min-[45rem]/detail:grid-cols-12';
 
 /** The ingredients: 5/12 from a 720 px body, sticky under the chrome with a scroll of their own. */
 export const INGREDIENTS_COLUMN =

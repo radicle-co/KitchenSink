@@ -48,3 +48,25 @@ draws it, not into each screen:
 - **Home:** the date clips to "Sunday, Novemb...". Wrap it, do not cut it.
 - **Profile:** "Display name" breaks inside a word, and its value clips. A label and value row stacks the value
   under its label at large text.
+
+## iOS screenshots (iPhone 17 simulator, iOS 26.5), added the same day
+
+iOS already stops the line height at the cap: at 2.64x the body lines sit 48 pt apart. So H-1 is Android only. The
+shared `Text` fix still applies to both, so both platforms use the same arithmetic.
+
+### Ruling: the Google button label does not grow
+
+Above the cap, Apple's "Continue with Apple" button keeps its own label size, and our "Continue with Google" label
+grows and wraps to two lines. The two buttons are a pair and must match. Apple draws its label and we cannot scale
+it, so the Google label follows Apple: it does not grow with text size, and its accessible label is unchanged. This
+matches the sign-in buttons the two platforms draw themselves.
+
+### For the Recipes list port
+
+- At about 2x, the "New recipe" button covers the last card's time and rating. The list needs bottom space equal to
+  the button's height plus its margin, so the last card can scroll clear of it.
+- The same screen shows M-1 (the PRO mark covers the cover letter) and the segmented control breaking inside a word
+  ("Collection / s"). Both rulings above apply.
+- At Android 3.1, the Recipes header (title, segments, search, filters, sort) fills the whole screen, so no card can
+  be reached. The chrome cap and the 1.5x display cap shrink it. Check it again after those land. If the header still
+  fills more than half the screen at the cap, the search and filters must scroll away with the list.

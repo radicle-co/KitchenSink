@@ -128,6 +128,26 @@ describe('resolvedStyle', () => {
         expect(resolvedStyle(box, 'paddingLeft')).toBe(`${String(spacing[2])}px`);
         expect(resolvedStyle(box, 'borderTopLeftRadius')).toBe(`${String(radius.sm)}px`);
     });
+
+    it('reads an edge no style sets as 0, as React Native draws it, not as the browser default', () => {
+        const Plain = styled(View, { paddingVertical: 3 });
+
+        renderWithTamagui(<Plain aria-label="plain" />, 'light');
+
+        expect(resolvedStyle(screen.getByLabelText('plain'), 'borderTopWidth')).toBe('0px');
+        expect(resolvedStyle(screen.getByLabelText('plain'), 'borderBottomWidth')).toBe('0px');
+    });
+
+    it('reads every edge of a border width and of a vertical padding Tamagui writes as a shorthand', () => {
+        const Edged = styled(View, { borderWidth: 1, borderColor: '$lineDivider', paddingVertical: 3 });
+
+        renderWithTamagui(<Edged aria-label="edged" />, 'light');
+
+        const edged = screen.getByLabelText('edged');
+
+        expect(resolvedStyle(edged, 'borderBottomWidth')).toBe('1px');
+        expect(resolvedStyle(edged, 'paddingBottom')).toBe('3px');
+    });
 });
 
 describe('renderedRoot', () => {

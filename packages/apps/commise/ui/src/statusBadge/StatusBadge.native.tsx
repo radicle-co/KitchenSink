@@ -17,6 +17,7 @@
 import type { FC } from 'react';
 import { styled, XStack } from 'tamagui';
 
+import { BADGE_BOX } from '../badgeBox/badgeBox.js';
 import { Icon } from '../icon/Icon.native.js';
 import { Text } from '../text/Text.native.js';
 import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
@@ -24,7 +25,11 @@ import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js
 /** The three paint jobs a badge has (`componentFixes.md` §7). */
 type BadgeTone = 'pro' | 'attention' | 'neutral';
 
-/** Each status's tone. A neutral badge is paper under `inkMuted` with a 1 pt `lineDivider` edge. */
+/**
+ * Each status's tone. A neutral badge is paper under `inkMuted` with a 1 pt `lineDivider` edge. Every tone carries the
+ * same 1 pt edge (`BADGE_BOX`), so all tones draw one height at every font scale. PRO's and attention's edge is
+ * transparent: React Native paints the fill under the border, so an edge in a translucent fill's own colour would show.
+ */
 const TONE_OF: Readonly<Record<BadgeStatus, BadgeTone>> = {
     pro: 'pro',
     attention: 'attention',
@@ -41,16 +46,17 @@ const Badge = styled(XStack, {
     alignSelf: 'flex-start',
     gap: '$1',
     maxWidth: '100%',
-    minHeight: '$5',
+    minHeight: BADGE_BOX.minHeight,
     borderRadius: '$sm',
     paddingHorizontal: '$2',
-    paddingVertical: 2,
+    paddingVertical: BADGE_BOX.paddingVertical,
+    borderWidth: BADGE_BOX.borderWidth,
 
     variants: {
         tone: {
-            pro: { backgroundColor: '$proFill' },
-            attention: { backgroundColor: '$attentionTint' },
-            neutral: { backgroundColor: '$paper', borderWidth: 1, borderColor: '$lineDivider' },
+            pro: { backgroundColor: '$proFill', borderColor: 'transparent' },
+            attention: { backgroundColor: '$attentionTint', borderColor: 'transparent' },
+            neutral: { backgroundColor: '$paper', borderColor: '$lineDivider' },
         } as const satisfies Record<BadgeTone, object>,
     } as const,
 });

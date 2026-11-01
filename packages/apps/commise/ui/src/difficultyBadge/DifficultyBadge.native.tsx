@@ -8,6 +8,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
+import { BADGE_BOX } from '../badgeBox/badgeBox.js';
 import { nativeTokens } from '../tokens/native.js';
 import { difficultyTone, difficultyToneDark } from '../tokens/tones.js';
 import { DIFFICULTY_METER, METER_DOTS, type DifficultyBadgeProps } from './props.js';
@@ -53,13 +54,13 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
         flexShrink: 0,
         gap: nativeTokens.spacing[1],
-        minHeight: 24,
+        minHeight: BADGE_BOX.minHeight,
         maxWidth: '100%',
         borderRadius: nativeTokens.radius.sm,
         // The neutral-badge edge (`componentFixes.md` §7); its colour is the theme's, so only the width is static.
-        borderWidth: 1,
+        borderWidth: BADGE_BOX.borderWidth,
         paddingHorizontal: nativeTokens.spacing[2],
-        paddingVertical: 2,
+        paddingVertical: BADGE_BOX.paddingVertical,
     },
     meter: { flexDirection: 'row', alignItems: 'center', gap: 2 },
     dot: { width: 6, height: 6, borderRadius: nativeTokens.radius.full, borderWidth: 1 },

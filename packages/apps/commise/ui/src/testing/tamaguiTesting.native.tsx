@@ -30,6 +30,7 @@ const VARIABLE = /^var\(--([\w-]+)\)$/u;
 const SHORTHAND_OF: Readonly<Record<string, string>> = {
     'border-top-color': 'border-color',
     'border-top-width': 'border-width',
+    'border-bottom-width': 'border-width',
     'border-top-left-radius': 'border-radius',
     'padding-left': 'padding-inline',
     'padding-right': 'padding-inline',
@@ -227,7 +228,8 @@ function declaredOnClasses(element: Element, property: StyleProperty): string | 
  *
  * @param element - The element.
  * @param property - The property, by its camel-case name.
- * @returns The value, or the computed value as it is when no variable is involved.
+ * @returns The value, or the computed value as it is when no variable is involved. An edge width no style sets is
+ *     `0px`, as React Native draws it.
  * @throws Error when a variable is defined by no theme, so a misspelt token cannot read as a value.
  */
 export function resolvedStyle(element: Element, property: StyleProperty): string {
@@ -236,6 +238,8 @@ export function resolvedStyle(element: Element, property: StyleProperty): string
     let value =
         declaredInline(element, property) ??
         declaredOnClasses(element, property) ??
+        // React Native draws no edge it is not given; jsdom answers its own default width for an undeclared border.
+        (/^border\w*Width$/u.test(property) ? '0px' : undefined) ??
         (typeof computed === 'string' ? computed : '');
 
     for (let hops = 0; hops < 8; hops += 1) {

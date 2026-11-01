@@ -18,6 +18,7 @@ import { radius, spacing } from '../../tokens/scale.js';
 import { proTone } from '../../tokens/tones.js';
 import { StatusBadge } from '../StatusBadge.native.js';
 import { BADGE_GLYPH, BADGE_STATUSES } from '../props.js';
+import { BADGE_BOX, badgeHeightOf } from '../../badgeBox/badgeBox.js';
 
 afterEach(cleanup);
 
@@ -134,12 +135,6 @@ describe('StatusBadge (native)', () => {
         },
     );
 
-    it.each(['pro', 'attention'] as const)('%s draws no edge', (status) => {
-        renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
-
-        expect(resolvedStyle(badgeOf('Word'), 'borderTopWidth')).not.toBe('1px');
-    });
-
     it('measures a translucent tint as painted, not as its opaque colour', () => {
         renderWithTamagui(<StatusBadge status="attention">Needs review</StatusBadge>, 'light');
 
@@ -163,6 +158,38 @@ describe('StatusBadge (native)', () => {
         expect(label.getAttribute('numberOfLines')).toBeNull();
         expect(resolvedStyle(label, 'flexShrink')).toBe('1');
         expect(resolvedStyle(badgeOf('Choose a match'), 'maxWidth')).toBe('100%');
+    });
+
+    // REWRITTEN (designer review M-1): the old row read the `minHeight` style, which a 26 pt drawn box also passes. A
+    // box draws at its floor or at its contents, whichever is taller, so this row computes the drawn height from the
+    // resolved padding, edges and the label's leading. A neutral badge drew 26 pt on the detail and was squeezed to 24 in
+    // the list row.
+    it.each(BADGE_STATUSES)('%s draws exactly the shared badge height', (status) => {
+        renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
+        const badge = badgeOf('Word');
+        const px = (property: Parameters<typeof resolvedStyle>[1]): number =>
+            Number.parseFloat(resolvedStyle(badge, property)) || 0;
+        const contents =
+            px('paddingTop') +
+            px('paddingBottom') +
+            px('borderTopWidth') +
+            px('borderBottomWidth') +
+            Number.parseFloat(getComputedStyle(screen.getByText('Word')).lineHeight);
+
+        expect(Math.max(px('minHeight'), contents)).toBe(badgeHeightOf(1));
+    });
+
+    // Designer review of slice 1b, L-1: at 1× the floor hides a missing edge, but above about 1.1× the contents decide,
+    // so a tone without the shared edge drew 2 pt shorter than a neutral one (42 against 44 at 2×). Every tone carries
+    // the edge's width; PRO's and attention's is TRANSPARENT. React Native paints the fill under the border, so an edge
+    // in the fill's own colour stacks a translucent tint on itself and shows as a darker ring (GATE, 2026-11-01).
+    it.each(['pro', 'attention'] as const)('%s carries the shared edge width, transparent', (status) => {
+        renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
+        const badge = badgeOf('Word');
+
+        expect(resolvedStyle(badge, 'borderTopWidth')).toBe(`${String(BADGE_BOX.borderWidth)}px`);
+        expect(resolvedStyle(badge, 'borderBottomWidth')).toBe(`${String(BADGE_BOX.borderWidth)}px`);
+        expect(resolvedColour(badge, 'borderTopColor')).toBe('rgba(0, 0, 0, 0)');
     });
 
     it('is 24pt tall with the sm radius, never a pill', () => {

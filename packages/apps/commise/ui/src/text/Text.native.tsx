@@ -19,15 +19,10 @@
 import { styled, Text as TamaguiText } from 'tamagui';
 
 import { nativeTokens } from '../tokens/native.js';
+import { FONT_SCALE_CAP } from './fontScaleCap.js';
 import type { TypeRole } from '../tokens/typography.js';
 
 const { type } = nativeTokens;
-
-/**
- * The most a role's text grows with the system's text-size setting: 2×, WCAG 1.4.4's 200 % (owner ruling, ADR-0080 §8).
- * React Native scales the line height by the same capped multiplier, so each px leading keeps holding its text.
- */
-export const FONT_SCALE_CAP = 2;
 
 export const Text = styled(TamaguiText, {
     name: 'CommiseText',

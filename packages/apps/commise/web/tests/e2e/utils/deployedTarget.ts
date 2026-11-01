@@ -10,6 +10,11 @@
  * Loopback addresses come from `node:net`'s `BlockList` (127.0.0.0/8, ::1) plus the names RFC 6761 reserves for the
  * local host (`localhost` and `*.localhost`) and the unspecified address, which a browser reaches as this machine.
  *
+ * ⚠️ This is deliberately BROADER than `@kitchensink/service-test-harness`'s `loopbackHost.ts` (which `clerk-verify`'s
+ * loopback origin rule also narrows). That rule REFUSES a remote host, so its safe direction is a short list; this one
+ * SKIPS a local host, so its safe direction is to count every way of naming this machine as local. Merging them would
+ * make one of the two unsafe.
+ *
  * Every function in this module is pure.
  */
 import { BlockList, isIP } from 'node:net';

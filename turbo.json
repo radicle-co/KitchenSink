@@ -28,10 +28,15 @@
             "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
         },
         "@commise/web#build": {
-            // The web build reads one variable that is not `NEXT_PUBLIC_*` (which turbo's Next.js inference already
-            // declares): `COMMISE_PSEUDO_LOCALE`, which `next.config.ts` inlines so only a build MADE with it routes the
+            // Declares `COMMISE_PSEUDO_LOCALE`, which `next.config.ts` inlines so only a build MADE with it routes the
             // `en-XA` pseudo-locale. Turbo runs in strict env mode, so an undeclared variable never reaches the task:
-            // `scripts/e2eLocal.sh` set it and still built a bundle with no `en-XA`.
+            // `scripts/e2eLocal.sh` set it and still built a bundle with no `en-XA`. `NEXT_PUBLIC_*` arrives through
+            // turbo's Next.js inference.
+            //
+            // ⚠️ This is NOT the whole list. The build also reads `DEPLOY_STAGE`, `SENTRY_RELEASE`, `PREVIEW_BASE_PATH`
+            // (`src/lib/sentryStage.ts`, `src/lib/basePath.ts`) and `SENTRY_AUTH_TOKEN` (`next.config.ts`), and none of
+            // them is declared, so strict mode drops them here too. Whether each should be is an open question, not
+            // settled by this entry; a secret such as `SENTRY_AUTH_TOKEN` must never go in `env`.
             //
             // ⛔ `env`, NOT `passThroughEnv`. The flag changes the bundle, so it must be part of the cache key; passed
             // through unhashed, a pseudo build and a plain build share one key and a cache hit restores the wrong one.

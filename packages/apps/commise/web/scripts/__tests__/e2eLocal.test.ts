@@ -42,8 +42,12 @@ const bakedDefaults = (): ReadonlyMap<string, string> =>
         ]),
     );
 
+/** The line indexes of every match of a pattern in the code. */
+const linesOf = (pattern: RegExp): readonly number[] =>
+    CODE.split('\n').flatMap((line, index) => (pattern.test(line) ? [index] : []));
+
 /** The line index of the first match of a pattern in the code, or -1. */
-const lineOf = (pattern: RegExp): number => CODE.split('\n').findIndex((line) => pattern.test(line));
+const lineOf = (pattern: RegExp): number => linesOf(pattern)[0] ?? -1;
 
 describe('the local Playwright lane’s API origins', () => {
     it('exports one for every backend the app calls, and no other', () => {
@@ -66,12 +70,17 @@ describe('the local Playwright lane’s API origins', () => {
 
     it('sets them after the port is chosen and before either server mode is decided, so dev and start agree', () => {
         const portChosen = lineOf(/^PORT="\$\(find_free_port\)"/u);
-        const firstExport = lineOf(/^\s*export NEXT_PUBLIC_[A-Z_]+_API_URL=/u);
+        const exports = linesOf(/^\s*export NEXT_PUBLIC_[A-Z_]+_API_URL=/u);
         const modeBranch = lineOf(/^if \[\[ "\$\{MODE\}" == 'start' \]\]/u);
 
         expect(portChosen).toBeGreaterThanOrEqual(0);
         expect(modeBranch).toBeGreaterThanOrEqual(0);
-        expect(firstExport).toBeGreaterThan(portChosen);
-        expect(firstExport).toBeLessThan(modeBranch);
+        expect(exports).toHaveLength(Object.keys(SERVICE_URL_ENV_VARS).length);
+
+        // EVERY export, not the first: one moved inside the `start` branch would leave `dev` on the stack's port.
+        for (const line of exports) {
+            expect(line).toBeGreaterThan(portChosen);
+            expect(line).toBeLessThan(modeBranch);
+        }
     });
 });

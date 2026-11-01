@@ -78,7 +78,9 @@ export PORT
 # lose to what that service held.
 #
 # So every origin defaults to THIS run's web server: the one address certain to be listening and certain
-# not to be an API, whatever else the machine runs. Nothing in this suite needs the local stack: the
+# not to be an API, whatever else the machine runs. ⚠️ That matches CI exactly for recipe only: CI gives
+# identity and food ports nothing listens on, so there a call is REFUSED, while here Next answers 404 HTML.
+# Both fail the server's prefetch the same way; a spec that told a network error from an HTTP error would not. Nothing in this suite needs the local stack: the
 # unmocked specs need only Clerk, and the one that reads a live service (paidFeatureRoles) targets a
 # DEPLOYED identity and skips without one. A caller's explicit value still wins (the `:-`).
 #

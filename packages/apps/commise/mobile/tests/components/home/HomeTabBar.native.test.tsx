@@ -9,7 +9,7 @@
  * style. The here-bar is still painted from `useTheme()`, which follows the device scheme, so it is asserted in light.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import type { HomeNavItemId } from '@commise/features-core';
@@ -146,6 +146,50 @@ describe('HomeTabBar (native)', () => {
 
         expect(getComputedStyle(screen.getByRole('tablist')).paddingBottom).toBe('34px');
         expect(getComputedStyle(screen.getByRole('tab', { name: 'Home' })).minHeight).toBe('64px');
+    });
+});
+
+/**
+ * Design review 2026-11-01 (`deviceShots2.md` M-2): at the largest text size "Recipes" and "Discover" wrapped to two
+ * lines and "Home" did not, and each tab centred its content in the row's shared height, so the Home glyph sat lower
+ * than the other two. The glyph row is one fixed row at the top of every tab, whatever its label does: each column
+ * starts at the top, 8 dp down (the row's 1x look: 8 + 24 glyph + 4 + 20 label in 64), glyph first, label under it.
+ *
+ * ⚠️ jsdom lays nothing out, so these read the column's alignment, not a glyph's position. Only a device proves the row
+ * lines up.
+ */
+describe('HomeTabBar (native) — one glyph row, whatever the labels do', () => {
+    const longLabels = { ...chrome, destinations: { ...chrome.destinations, recipes: 'Recipes '.repeat(6).trim() } };
+
+    it('starts every tab’s column at the top, 8 dp down, centred across, when one label is far longer', () => {
+        render(<HomeTabBar {...barProps('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], {})} chrome={longLabels} />);
+
+        for (const tab of screen.getAllByRole('tab')) {
+            const style = getComputedStyle(tab);
+
+            expect(style.flexDirection).toBe('column');
+            expect(style.justifyContent).toBe('flex-start');
+            expect(style.paddingTop).toBe(`${String(nativeTokens.spacing[2])}px`);
+            expect(style.alignItems).toBe('center');
+        }
+    });
+
+    it('draws each tab’s glyph before its label', () => {
+        renderBar();
+
+        for (const tab of screen.getAllByRole('tab')) {
+            const glyph = tab.querySelector('[data-icon-name]');
+            const label = within(tab).getByText(tab.getAttribute('aria-label') ?? '');
+
+            expect(glyph).not.toBeNull();
+            expect(glyph!.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        }
+    });
+
+    it('keeps the compact row centred: there the label sits beside the glyph, not under it', () => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { compact: true });
+
+        expect(getComputedStyle(screen.getByRole('tab', { name: 'Home' })).justifyContent).toBe('center');
     });
 });
 

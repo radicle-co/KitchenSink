@@ -12,6 +12,8 @@
  *   a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)
  * - Each label is the design-system Text at the navigation-chrome cap (`chromeCap="1.5"`, designer ruling 2026-11-01;
  *   ADR-0080 §8): it grows with the system text size to 1.5×, where the rest of the screen grows to 2×.
+ * - The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps
+ *   grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).
  * - Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.
  * - Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits
  *   BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the
@@ -121,8 +123,17 @@ const SIDE_PADDING = nativeTokens.spacing[1];
 
 const styles = StyleSheet.create({
     bar: { flexDirection: 'row', justifyContent: 'space-around' },
-    // 48 dp covers Android's floor and iOS's 44 pt; 64 tall with the label, like the web bar.
-    tab: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: nativeTokens.spacing[1] },
+    // 48 dp covers Android's floor and iOS's 44 pt; 64 tall with the label, like the web bar. The row stretches every tab
+    // to the tallest, so each column starts at the TOP: the glyphs stay one row when a label wraps (`deviceShots2.md`
+    // M-2). 8 + 24 + 4 + 20 = 56 in 64 is the 1x look the centred column had.
+    tab: {
+        flex: 1,
+        minHeight: 64,
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        paddingTop: nativeTokens.spacing[2],
+        gap: nativeTokens.spacing[1],
+    },
     // Compact height: the label beside the glyph. 48 dp on Android, 44 pt on iOS (each platform's own floor).
     tabCompact: {
         flex: 1,

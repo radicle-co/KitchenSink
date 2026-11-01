@@ -19,7 +19,12 @@ import {
     type ErrorReporter,
     type HomeWidgetDescriptor,
 } from '@commise/features-core';
-import { RECIPE_HOME_WIDGET_ID } from '@commise/features-recipes';
+import {
+    RECIPE_HOME_WIDGET_ID,
+    RecipeWidgetEmptyState,
+    RecipeWidgetLoadError,
+    RecipeWidgetLoadingCard,
+} from '@commise/features-recipes';
 import { renderWithProviders, sideInsetOf } from '@commise/test-utils';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
@@ -424,6 +429,48 @@ describe('HomeWidgetSurface (mobile) — the foot under the floating create butt
         }
 
         expect(feet).toContain(`${String(FAB_RESERVED_BOTTOM_PX)}px`);
+    });
+
+    /**
+     * Design review 2026-11-01 (`deviceShots2.md`, Low): the floating button sat over "We couldn't load your recent
+     * recipes.". The foot is the SCROLLER's, so every state the recent block can be in — and the host's own failure
+     * notice — ends with the same room, never a state of its own. These draw the real leaves through the renderer seam.
+     * ⚠️ At rest a floating button covers whatever scrolls under it; what the room guarantees is that the END of the
+     * content clears it, which only a device shows.
+     */
+    const Throws: FC = () => {
+        throw new Error('slot failed');
+    };
+    const STATES: readonly (readonly [string, FC, () => HTMLElement])[] = [
+        [
+            'the read failed (Try again)',
+            () => <RecipeWidgetLoadError onRetry={noop} seeAll={{ onPress: noop }} />,
+            () => screen.getByText('We couldn’t load your recent recipes.'),
+        ],
+        [
+            'loading',
+            () => <RecipeWidgetLoadingCard variant="compact" />,
+            () => screen.getByLabelText('Loading recipes'),
+        ],
+        ['empty', () => <RecipeWidgetEmptyState />, () => screen.getByText('Your recipes will show up here.')],
+        ['the slot itself failed', Throws, () => screen.getByText('This section couldn’t load.')],
+    ];
+
+    it.each(STATES)('ends with the same room when the recent block is in the state: %s', (_name, Widget, anchor) => {
+        // React logs the slot's throw; the boundary is what is under test, not the log.
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(noop);
+        renderSurface({
+            container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
+            renderers: { [RECIPE_HOME_WIDGET_ID]: Widget },
+        });
+        const feet: string[] = [];
+
+        for (let node = anchor().parentElement; node !== null; node = node.parentElement) {
+            feet.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(feet).toContain(`${String(FAB_RESERVED_BOTTOM_PX)}px`);
+        consoleError.mockRestore();
     });
 });
 

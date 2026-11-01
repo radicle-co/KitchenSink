@@ -4,7 +4,9 @@
  * discard confirm, and the conflict view. The editor's lifecycle is a fake result.
  */
 import { LocaleProvider } from '@commise/i18n/react';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
+// Its leaves draw through the design system's Tamagui `Text` (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useContext, type ReactElement } from 'react';
 import { AccessibilityInfo, Text, type LayoutChangeEvent } from 'react-native';

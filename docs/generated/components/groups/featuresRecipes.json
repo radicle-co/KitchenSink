@@ -1019,7 +1019,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailAlert.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the\ncollection detail says when an action failed, as an alert in the danger text colour. It draws no side gutter: `CollectionDetailGutter` around it\ndoes. The colour is read from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the\ncollection detail says when an action failed, as an alert in the body role and the danger text colour, like the web\n`text-body text-danger-text`. It draws no side gutter: `CollectionDetailGutter` around it does.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

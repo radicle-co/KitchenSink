@@ -151,6 +151,10 @@ describe('web tokens — the page-canvas gradient is emitted into a real namespa
  * This test used to RE-IMPLEMENT the generator's emission loops, which meant it could not fail when the
  * generator drifted — the duplication is now gone and the assertion is honest.
  *
+ * Re-baselined for the floating create button's room (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`):
+ * `--fab-bottom-margin` and `--fab-reserved-bottom` are appended at the end of the theme block, computed from the
+ * button's constants (`fabReserve.test.ts`). No other declaration changed its value or its order.
+ *
  * Re-baselined for the REDESIGN (steel on a cool base, dusk dark mode; deliberately, from the design session's sources
  * pinned value by value in `redesignPin.test.ts`): the palette is renamed and recoloured, the roles and cover tints change
  * in both themes, the radii are 8/12/18/24, the shadows are cool and layered, the canvas wash is flat, and the dark block
@@ -325,6 +329,8 @@ describe('web tokens — generated theme.css artifact', () => {
               --color-bar: rgba(252, 253, 255, 0.92);
               --animate-section-enter: section-enter 400ms ease-out both;
               --animate-pending-bar-reveal: pending-bar-reveal 0s linear both;
+              --fab-bottom-margin: 1rem;
+              --fab-reserved-bottom: 5.5rem;
           }
 
           @keyframes section-enter {

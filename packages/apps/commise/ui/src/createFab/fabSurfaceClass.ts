@@ -18,11 +18,12 @@ export function fabSurfaceClass(presentation: Exclude<FabPresentation, 'hidden'>
 }
 
 /**
- * The button's `bottom` offset: 16 px above the bottom chrome, plus however far it rises to clear a snackbar.
+ * The button's `bottom` offset: its margin above the bottom chrome (`--fab-bottom-margin`, the theme's copy of
+ * `FAB_BOTTOM_MARGIN_PX`), plus however far it rises to clear a snackbar.
  *
  * @param lift - The rise from `fabLiftOver`, px; `0` when no snackbar shows.
  * @returns A CSS length. Pure.
  */
 export function fabBottomOf(lift: number): string {
-    return `calc(var(--bottom-chrome,0px) + 1rem + ${String(lift)}px)`;
+    return `calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + ${String(lift)}px)`;
 }

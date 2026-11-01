@@ -162,6 +162,29 @@ describe('typePropFindings', () => {
         });
     });
 
+    // M-1 (designer ruling 2026-11-01, ADR-0080 §8): only the status badge draws a mark on a picture, so `pictorial` is
+    // admitted there alone, on an element, and never as a styled() default.
+    describe('pictorial', () => {
+        const mark = '<Text typeRole="caption" pictorial={onPicture} />';
+
+        it.each([
+            ['the status badge', 'packages/apps/commise/ui/src/statusBadge/StatusBadge.native.tsx', 0],
+            ['any other module', 'packages/apps/commise/features/recipes/src/card/RecipeCard.native.tsx', 1],
+        ] as const)('on an element in %s', (_where, file, expected) => {
+            expect(typePropFindings(head + mark, file, none)).toHaveLength(expected);
+        });
+
+        it('is refused as a styled() default, even in the status badge', () => {
+            expect(
+                typePropFindings(
+                    `${head}const T = styled(Text, { pictorial: true });`,
+                    'packages/apps/commise/ui/src/statusBadge/StatusBadge.native.tsx',
+                    none,
+                ),
+            ).toHaveLength(1);
+        });
+    });
+
     it('finds none in the tree', () => {
         const findings = nativeSources().flatMap((file) =>
             typePropFindings(readFileSync(path.join(repoRoot, file), 'utf8'), file, designSystemStyledExports),

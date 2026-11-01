@@ -27,6 +27,9 @@ const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
 const CHROME_MODULES =
     /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx)$/u;
 
+/** The status badge, the only module that draws a mark on a picture with `pictorial` (designer ruling 2026-11-01, M-1). */
+const PICTURE_MODULES = /(?:^|\/)packages\/apps\/commise\/ui\/src\/statusBadge\/StatusBadge\.native\.tsx$/u;
+
 const PX = /^\d+(?:\.\d+)?px$/u;
 
 function isPxLineHeight(value: ts.Expression): boolean {
@@ -55,11 +58,15 @@ export function typePropFindings(
         attribute: (attribute, file) =>
             ts.isJsxAttribute(attribute)
                 ? TYPE_PARTS.has(attribute.name.getText(file)) ||
-                  (attribute.name.getText(file) === 'chromeCap' && !CHROME_MODULES.test(file.fileName))
+                  (attribute.name.getText(file) === 'chromeCap' && !CHROME_MODULES.test(file.fileName)) ||
+                  (attribute.name.getText(file) === 'pictorial' && !PICTURE_MODULES.test(file.fileName))
                 : OLD_TYPE_STYLES.test(attribute.expression.getText(file)),
         // `textScale` is the design-system Text's context value (ADR-0080 §8); as a default it would hold every instance at
         // one scale, whatever the cook's setting (GATE SCQ-2).
         property: ({ key, value }) =>
-            key === 'textScale' || key === 'chromeCap' || (key === 'lineHeight' && !isPxLineHeight(value)),
+            key === 'textScale' ||
+            key === 'chromeCap' ||
+            key === 'pictorial' ||
+            (key === 'lineHeight' && !isPxLineHeight(value)),
     });
 }

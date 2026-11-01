@@ -6,11 +6,11 @@
     "coverage": {
         "components": 83,
         "implementations": 142,
-        "props": 793,
+        "props": 795,
         "documentedComponents": 83,
         "implementationsWithModuleDoc": 142,
         "implementationsWithComponentDoc": 131,
-        "documentedProps": 754,
+        "documentedProps": 756,
         "classifiedComponents": 76,
         "componentsWithPatternTag": 83,
         "crossPlatformComponents": 59
@@ -12835,6 +12835,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/statusBadge/props.ts"
                         },
                         {
+                            "name": "onPicture",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Drawn on a picture, such as PRO on a card cover: native keeps the words at their own size at every text scale, so\nthey cannot grow over the picture, and the caller states the same word in its text at the scaled size (designer\nruling 2026-11-01, M-1). Web text grows by the page zoom with everything around it, so web ignores it.",
+                            "declaredIn": "packages/apps/commise/ui/src/statusBadge/props.ts"
+                        },
+                        {
                             "name": "status",
                             "type": "enum",
                             "typeDetail": [
@@ -12891,6 +12900,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The badge's words. Announced with the text the badge sits in; never hidden.",
+                            "declaredIn": "packages/apps/commise/ui/src/statusBadge/props.ts"
+                        },
+                        {
+                            "name": "onPicture",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Drawn on a picture, such as PRO on a card cover: native keeps the words at their own size at every text scale, so\nthey cannot grow over the picture, and the caller states the same word in its text at the scaled size (designer\nruling 2026-11-01, M-1). Web text grows by the page zoom with everything around it, so web ignores it.",
                             "declaredIn": "packages/apps/commise/ui/src/statusBadge/props.ts"
                         },
                         {

@@ -92,6 +92,10 @@ const TextFrame = styled(TamaguiText, {
             '1.4': {},
             '1.3': {},
         } satisfies Record<ChromeCap, object>,
+        // A mark drawn on a picture (a guard admits it in the status badge only): the role's own size at every scale.
+        pictorial: {
+            true: {},
+        },
     } as const,
 
     defaultVariants: {
@@ -107,6 +111,7 @@ interface ScaledTextProps {
     readonly typeRole?: TypeRole;
     readonly textScale?: number;
     readonly chromeCap?: ChromeCap;
+    readonly pictorial?: boolean;
 }
 
 /**
@@ -114,6 +119,6 @@ interface ScaledTextProps {
  * role's ceiling (`scaledTypeMetrics`, ADR-0080 §8). The scale comes from `TextScaleContext`, which `DesignSystemTheme`
  * provides. `figureInline` gets no size of its own and keeps its line's. A `styled(Text)` inherits the resolver.
  */
-export const Text = TextFrame.resolve(({ typeRole, textScale, chromeCap }: ScaledTextProps) =>
-    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap),
+export const Text = TextFrame.resolve(({ typeRole, textScale, chromeCap, pictorial }: ScaledTextProps) =>
+    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap, pictorial),
 );

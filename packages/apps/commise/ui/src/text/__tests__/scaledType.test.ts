@@ -113,3 +113,29 @@ describe('scaledTypeMetrics with a chrome cap', () => {
         });
     });
 });
+
+// Designer ruling 2026-11-01 (M-1, ADR-0080 §8): a mark drawn on a picture, such as PRO on a card cover, is part of the
+// picture, so it stays at its role's own size and leading at every system scale. The card states the same word in its
+// text, at the scaled size, for a reader who needs it larger.
+describe('scaledTypeMetrics for a mark on a picture', () => {
+    const SCALES_P = [1, 1.3, 2, 3.1] as const;
+    const ROLES = Object.keys(CEILING) as (keyof typeof CEILING)[];
+
+    it.each(ROLES.flatMap((role) => SCALES_P.map((scale) => [role, scale] as const)))(
+        '%s on a picture at system scale %s keeps its own size and leading',
+        (role, scale) => {
+            const { fontSize, lineHeight } = baseOf(role);
+
+            expect(scaledTypeMetrics(role, scale, undefined, true)).toEqual({
+                fontSize,
+                lineHeight: `${String(lineHeight)}px`,
+            });
+        },
+    );
+
+    it('still grows the same role when it is not on a picture', () => {
+        const { fontSize } = nativeTokens.type.caption;
+
+        expect(scaledTypeMetrics('caption', 3.1, undefined, false)).toMatchObject({ fontSize: fontSize * 2 });
+    });
+});

@@ -15,6 +15,7 @@ import { View } from 'tamagui';
 import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 import { radius, spacing } from '../../tokens/scale.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { proTone } from '../../tokens/tones.js';
 import { StatusBadge } from '../StatusBadge.native.js';
 import { BADGE_GLYPH, BADGE_STATUSES } from '../props.js';
@@ -199,5 +200,30 @@ describe('StatusBadge (native)', () => {
 
         expect(resolvedStyle(badge, 'minHeight')).toBe(`${String(spacing[5])}px`);
         expect(resolvedStyle(badge, 'borderTopLeftRadius')).toBe(`${String(radius.sm)}px`);
+    });
+});
+
+// M-1 (designer ruling 2026-11-01, ADR-0080 §8): on a card cover the badge is a mark on a picture, so its words keep
+// the caption size at every text scale and cannot grow over the cover's letter. Off a picture it grows as text does.
+describe('StatusBadge (native) — on a picture', () => {
+    const { fontSize, lineHeight } = nativeTokens.type.caption;
+
+    it('keeps the caption size and leading at the largest text scale', () => {
+        renderWithTamagui(
+            <StatusBadge status="pro" onPicture>
+                PRO
+            </StatusBadge>,
+            'light',
+            3.1,
+        );
+
+        expect(getComputedStyle(screen.getByText('PRO')).fontSize).toBe(`${String(fontSize)}px`);
+        expect(getComputedStyle(screen.getByText('PRO')).lineHeight).toBe(`${String(lineHeight)}px`);
+    });
+
+    it('grows with the text scale when it is not on a picture', () => {
+        renderWithTamagui(<StatusBadge status="pro">PRO</StatusBadge>, 'light', 3.1);
+
+        expect(getComputedStyle(screen.getByText('PRO')).fontSize).toBe(`${String(fontSize * 2)}px`);
     });
 });

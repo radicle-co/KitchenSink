@@ -9,7 +9,7 @@ import ts from 'typescript';
 import type { StyledExportsOf } from './tamaguiElements.js';
 import { styleSiteFindings } from './tamaguiStyleSites.js';
 
-const TYPE_PARTS = new Set(['fontSize', 'lineHeight', 'fontFamily', 'fontWeight', 'letterSpacing']);
+const TYPE_PARTS = new Set(['fontSize', 'lineHeight', 'fontFamily', 'fontWeight', 'letterSpacing', 'fontVariant']);
 
 const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
 

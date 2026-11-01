@@ -1,7 +1,8 @@
 /**
  * G4 (ADR-0080): native text is set by TYPE ROLE, never by its parts. A type role names a face, a size and a leading
- * together, so a Tamagui element may not set `fontSize`, `lineHeight`, `fontFamily`, `fontWeight` or `letterSpacing`
- * itself, nor spread the old `nativeTokens.type` styles.
+ * together, so a Tamagui element may not set `fontSize`, `lineHeight`, `fontFamily`, `fontWeight`, `letterSpacing` or
+ * `fontVariant` itself, nor spread the old `nativeTokens.type` styles. A figure's digits come from Text's `figures`
+ * variant, in the role's own face.
  *
  * Inside `styled()` the parts are written once, by the primitive that defines the roles, and there a line height must
  * be a `px` string: Tamagui 3 reads a bare number, and a numeric string, as a RATIO of the font size
@@ -31,6 +32,9 @@ describe('typePropFindings', () => {
             4,
         ],
         ['a spread of the old type styles', `<Text {...nativeTokens.type.body} />`, 1],
+        // Designer ruling 2026-11-01: a figure's digits come from the design system's `figures` variant, in its role's face.
+        ['figure digits set by hand on an element', `<Text fontVariant={['tabular-nums']} />`, 1],
+        ['the design system figures variant', `<Text typeRole="meta" figures />`, 0],
         ['a number line height in styled()', `const T = styled(Text, { lineHeight: 24 });`, 1],
         ['a numeric-string line height in styled()', `const T = styled(Text, { lineHeight: '24' });`, 1],
         [

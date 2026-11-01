@@ -80,6 +80,31 @@ describe('Text (native)', () => {
         expect(styleOf('12').fontFamily).toContain(nativeTokens.type.figureInline.fontFamily);
     });
 
+    // Designer ruling 2026-11-01 (nativeBoards/designAnswers.md): a figure in a line keeps its ROLE's face and only
+    // changes its digits, so the rating number stays regular meta, like the web's `text-meta tabular-nums`.
+    // `figureInline` keeps its semibold for a figure the copy stresses.
+    it('`figures` sets tabular, lining digits and nothing else', () => {
+        const figures = new Map(Object.entries(Text.staticConfig.variants?.['figures'] ?? {}));
+
+        expect(figures.get('true')).toEqual({ fontVariant: ['tabular-nums', 'lining-nums'] });
+    });
+
+    it('`figures` keeps the role it is set on', () => {
+        const spec = nativeTokens.type.meta;
+
+        renderWithTamagui(
+            <Text typeRole="meta" figures>
+                4.5
+            </Text>,
+            'light',
+        );
+
+        expect(styleOf('4.5').fontFamily).toContain(spec.fontFamily);
+        expect(styleOf('4.5').fontFamily).not.toContain(nativeTokens.type.figureInline.fontFamily);
+        expect(styleOf('4.5').fontSize).toBe(`${String(spec.fontSize)}px`);
+        expect(styleOf('4.5').lineHeight).toBe(`${String(spec.lineHeight)}px`);
+    });
+
     it('is body when no role is named', () => {
         renderWithTamagui(<Text>plain</Text>, 'light');
 

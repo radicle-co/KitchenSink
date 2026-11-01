@@ -96,6 +96,11 @@ export const Text = styled(TamaguiText, {
             },
             // Every type role, and only those: a role added to the scale is a type error here until it is styled.
         } as const satisfies Record<TypeRole, object>,
+        // Tabular, lining digits in the role's own face, so a figure in a line keeps that line's weight (a rating in
+        // regular meta). `figureInline` is the role for a figure the copy stresses.
+        figures: {
+            true: { fontVariant: ['tabular-nums', 'lining-nums'] },
+        },
     } as const,
 
     defaultVariants: {

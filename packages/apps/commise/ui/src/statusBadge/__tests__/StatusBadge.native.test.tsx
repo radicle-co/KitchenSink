@@ -181,14 +181,15 @@ describe('StatusBadge (native)', () => {
 
     // Designer review of slice 1b, L-1: at 1× the floor hides a missing edge, but above about 1.1× the contents decide,
     // so a tone without the shared edge drew 2 pt shorter than a neutral one (42 against 44 at 2×). Every tone carries
-    // the edge, PRO and attention in their own fill so it does not show.
-    it.each(['pro', 'attention'] as const)('%s carries the shared edge in its own fill colour', (status) => {
+    // the edge's width; PRO's and attention's is TRANSPARENT. React Native paints the fill under the border, so an edge
+    // in the fill's own colour stacks a translucent tint on itself and shows as a darker ring (GATE, 2026-11-01).
+    it.each(['pro', 'attention'] as const)('%s carries the shared edge width, transparent', (status) => {
         renderWithTamagui(<StatusBadge status={status}>Word</StatusBadge>, 'light');
         const badge = badgeOf('Word');
 
         expect(resolvedStyle(badge, 'borderTopWidth')).toBe(`${String(BADGE_BOX.borderWidth)}px`);
         expect(resolvedStyle(badge, 'borderBottomWidth')).toBe(`${String(BADGE_BOX.borderWidth)}px`);
-        expect(resolvedColour(badge, 'borderTopColor')).toBe(resolvedColour(badge, 'backgroundColor'));
+        expect(resolvedColour(badge, 'borderTopColor')).toBe('rgba(0, 0, 0, 0)');
     });
 
     it('is 24pt tall with the sm radius, never a pill', () => {

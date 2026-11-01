@@ -27,7 +27,8 @@ type BadgeTone = 'pro' | 'attention' | 'neutral';
 
 /**
  * Each status's tone. A neutral badge is paper under `inkMuted` with a 1 pt `lineDivider` edge. Every tone carries the
- * same 1 pt edge (`BADGE_BOX`), PRO and attention in their own fill, so all tones draw one height at every font scale.
+ * same 1 pt edge (`BADGE_BOX`), so all tones draw one height at every font scale. PRO's and attention's edge is
+ * transparent: React Native paints the fill under the border, so an edge in a translucent fill's own colour would show.
  */
 const TONE_OF: Readonly<Record<BadgeStatus, BadgeTone>> = {
     pro: 'pro',
@@ -53,8 +54,8 @@ const Badge = styled(XStack, {
 
     variants: {
         tone: {
-            pro: { backgroundColor: '$proFill', borderColor: '$proFill' },
-            attention: { backgroundColor: '$attentionTint', borderColor: '$attentionTint' },
+            pro: { backgroundColor: '$proFill', borderColor: 'transparent' },
+            attention: { backgroundColor: '$attentionTint', borderColor: 'transparent' },
             neutral: { backgroundColor: '$paper', borderColor: '$lineDivider' },
         } as const satisfies Record<BadgeTone, object>,
     } as const,

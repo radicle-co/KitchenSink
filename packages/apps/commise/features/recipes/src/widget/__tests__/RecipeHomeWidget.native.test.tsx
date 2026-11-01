@@ -6,7 +6,7 @@
  * ⚠️ REWRITTEN for slice 4, with the native per-component tests of the pieces it composes moved here (see the web file).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -150,5 +150,21 @@ describe('the Home recent block’s own fallbacks (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
         expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    // Design review 2026-11-01 (`deviceShots2.md` M-3): an error state needs its action in view, so Try again is the
+    // element straight after the message, in the same announced region — nothing may come between them.
+    it('load error: puts Try again directly under the message, in the same status region', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeWidgetLoadError onRetry={vi.fn()} seeAll={{ onPress: vi.fn() }} />
+            </LocaleProvider>,
+        );
+
+        const status = screen.getByRole('status');
+        const message = within(status).getByText('We couldn’t load your recent recipes.');
+        const retry = within(status).getByRole('button', { name: 'Try again' });
+
+        expect(message.nextElementSibling?.contains(retry)).toBe(true);
     });
 });

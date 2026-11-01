@@ -212,6 +212,22 @@ describe('the Home recent block’s own fallbacks (web)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
+    // Design review 2026-11-01 (`deviceShots2.md` M-3): an error state needs its action in view, so Try again is the
+    // element straight after the message, in the same announced region — nothing may come between them.
+    it('load error: puts Try again directly under the message, in the same status region', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeWidgetLoadError onRetry={vi.fn()} seeAll={{ onPress: vi.fn() }} />
+            </LocaleProvider>,
+        );
+
+        const status = screen.getByRole('status');
+        const message = within(status).getByText('We couldn’t load your recent recipes.');
+        const retry = within(status).getByRole('button', { name: 'Try again' });
+
+        expect(message.nextElementSibling?.contains(retry)).toBe(true);
+    });
+
     it('load error with no retry: says so, with no dead button', () => {
         render(
             <LocaleProvider locale="en">

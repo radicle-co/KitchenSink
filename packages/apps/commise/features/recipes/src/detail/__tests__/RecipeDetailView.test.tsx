@@ -175,6 +175,64 @@ describe('RecipeDetailView (web) — header', () => {
         expect(strip.className).not.toContain('22.5rem');
     });
 
+    // The section gap is 32 on web and native, in one column and two (designer ruling, `nativeBoards/designAnswers.md`):
+    // the steps column stacks the steps, the nutrition and the closing blocks with `gap-8`, which is 32 px.
+    it('stacks the steps column’s sections 32 apart', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        const { instructionsHeading, nutritionHeading } = recipeMessages.en.detail;
+        const stepsSection = screen.getByRole('heading', { level: 2, name: instructionsHeading }).closest('section');
+        const stepsColumn = (stepsSection as HTMLElement).parentElement as HTMLElement;
+
+        expect(stepsColumn.contains(screen.getByRole('heading', { level: 2, name: nutritionHeading }))).toBe(true);
+        expect(stepsColumn.className.split(' ')).toContain('gap-8');
+        expect(stepsColumn.className.split(' ')).not.toContain('gap-10');
+    });
+
+    // The same 32 between the ingredients and the steps column: under each other on a narrow page, side by side on a
+    // wide one (designer ruling, `nativeBoards/designAnswers.md`). `gap-8` is 32 px; it used to be `gap-10`, 40 px.
+    it('puts the ingredients and the steps column 32 apart', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        const { ingredientsHeading, instructionsHeading } = recipeMessages.en.detail;
+        const ingredients = screen.getByRole('heading', { level: 2, name: ingredientsHeading }).closest('section');
+        const body = (ingredients as HTMLElement).parentElement as HTMLElement;
+        const classes = body.className.split(' ');
+
+        expect(body.contains(screen.getByRole('heading', { level: 2, name: instructionsHeading }))).toBe(true);
+        expect(classes).toContain('gap-8');
+        expect(classes.filter((name) => /(^|:)gap-/u.test(name) && !name.endsWith('gap-8'))).toEqual([]);
+    });
+
+    // The end of the page gets 48 below it (`pb-12`), more than the 32 between sections, so the page reads as finished
+    // (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). It was `pb-10`, 40, which is off the spacing scale.
+    it('leaves 48 below the last section, more than the 32 between sections', () => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ title: 'Lamb' })}
+            />,
+        );
+
+        const classes = screen.getByRole('article', { name: 'Lamb' }).className.split(' ');
+
+        expect(classes).toContain('pb-12');
+        expect(classes.filter((name) => /(^|:)(pb|py|p)-/u.test(name) && name !== 'pb-12')).toEqual([]);
+    });
+
     // F9: the page draws each group of lines under a label, as the editor does.
     it('draws each ingredient group under its label heading, in stored order', () => {
         render(

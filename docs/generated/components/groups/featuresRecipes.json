@@ -1019,7 +1019,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailAlert.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the\ncollection detail says when an action failed, as an alert in the danger text colour. It draws no side gutter: `CollectionDetailGutter` around it\ndoes. The colour is read from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the\ncollection detail says when an action failed, as an alert in the body role and the danger text colour, like the web\n`text-body text-danger-text`. It draws no side gutter: `CollectionDetailGutter` around it does.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6431,7 +6431,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailEmptySection.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — an empty section of the native recipe page (build spec §6.7): the mirror of\n`DetailEmptySection.tsx`. Its line, and for the owner the ghost action that opens the editor at that section.\nPresentational; colours from the theme at render.",
+                    "moduleDoc": "@commise/features-recipes — an empty section of the native recipe page (build spec §6.7): the mirror of\n`DetailEmptySection.tsx`. Its line, and for the owner the ghost action that opens the editor at that section.\nPresentational; colours are theme keys, so the section follows the scheme with no hook.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7136,7 +7136,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/NutritionFigure.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — one per-serving nutrition figure on the native recipe page (build spec §6.1):\nthe value in `figureStat` over its `caption` label, half a row wide so four make a 2 × 2. Presentational; colours\nfrom the theme at render.",
+                    "moduleDoc": "@commise/features-recipes — one per-serving nutrition figure on the native recipe page (build spec §6.1):\nthe value in `figureStat` over its `caption` label, half a row wide so four make a 2 × 2. Presentational; colours\nare theme keys, so the figure follows the scheme with no hook.\n\nA screen reader hears it as ONE stop, label first (\"Calories, 320\"), as the web's `dt`/`dd` pair reads: the stack is\none accessible element named by `nutritionFigureLabel`, and its two lines are hidden from assistive technology.",
                     "moduleTags": [
                         {
                             "name": "module",

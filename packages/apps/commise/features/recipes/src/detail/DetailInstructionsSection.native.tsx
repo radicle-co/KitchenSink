@@ -8,13 +8,12 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
-import { Text, View } from 'react-native';
+import { YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
 import { DetailEmptySection } from './DetailEmptySection.native.js';
-import { detailStyles as styles } from './detailStyles.native.js';
+import { DetailHeadingRow, DetailSection, DetailSectionHeading } from './detailFrames.native.js';
 import type { RecipeDetailBodyNativeProps } from './model.js';
 import { StepRow } from './StepRow.native.js';
 
@@ -29,15 +28,12 @@ export interface DetailInstructionsSectionProps {
 /** The native instructions section. */
 export const DetailInstructionsSection: FC<DetailInstructionsSectionProps> = ({ steps, marks, onEdit }) => {
     const { detail } = useMessages(recipeMessages);
-    const { colors } = useTheme();
 
     return (
-        <View style={styles.section}>
+        <DetailSection>
             {/* The owner's Edit: a ghost link at the end of the heading row (§6.1, F22). */}
-            <View style={styles.headingRow}>
-                <Text accessibilityRole="header" style={[styles.sectionHeading, { color: colors.ink }]}>
-                    {detail.instructionsHeading}
-                </Text>
+            <DetailHeadingRow>
+                <DetailSectionHeading>{detail.instructionsHeading}</DetailSectionHeading>
                 {onEdit !== undefined && steps.length > 0 && (
                     <Button
                         variant="ghost"
@@ -49,11 +45,11 @@ export const DetailInstructionsSection: FC<DetailInstructionsSectionProps> = ({ 
                         {detail.editSection}
                     </Button>
                 )}
-            </View>
+            </DetailHeadingRow>
             {steps.length === 0 ? (
                 <DetailEmptySection text={detail.noSteps} actionLabel={detail.addSteps} onAction={onEdit} />
             ) : (
-                <View style={styles.steps}>
+                <YStack gap="$6">
                     {steps.map((step) => (
                         <StepRow
                             key={step.stepNumber}
@@ -62,8 +58,8 @@ export const DetailInstructionsSection: FC<DetailInstructionsSectionProps> = ({ 
                             onToggle={marks.toggleStep}
                         />
                     ))}
-                </View>
+                </YStack>
             )}
-        </View>
+        </DetailSection>
     );
 };

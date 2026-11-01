@@ -9,6 +9,8 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { parseModule } from './appSources.js';
+import { repoRoot } from './serviceSources.js';
+import { pressOwnershipFindings } from './tamaguiPressOwnership.js';
 import {
     styledExportsReader,
     styledKindsReader,
@@ -157,5 +159,131 @@ describe('styledExportsReader', () => {
         expect(Object.fromEntries(readKinds('@commise/ui/text'))).toEqual({ Text: 'text' });
         expect(Object.fromEntries(readKinds('@commise/ui/pill'))).toEqual({ Pill: 'view' });
         expect(Object.fromEntries(readKinds('@commise/ui/chain'))).toEqual({ Renamed: 'view' });
+    });
+});
+
+/**
+ * A feature module's own frames: a leaf that imports a `styled(…)` frame from a module of the SAME package renders a
+ * Tamagui element, so every Tamagui guard must see it (the detail screen's `detailFrames.native.ts`, ADR-0080). The
+ * follow stops at the package's edge, because a relative path into another package is refused by lint and is not a
+ * seam this reading owns. Written to a temporary directory for the reason the reader suite above gives.
+ */
+describe('tamaguiElementKinds — a frame imported from a module of the same package', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'tamaguiFeature-'));
+
+    const write = (file: string, text: string): string => {
+        const full = path.join(root, file);
+        mkdirSync(path.dirname(full), { recursive: true });
+        writeFileSync(full, text);
+
+        return full;
+    };
+
+    write('feature/package.json', JSON.stringify({ name: '@commise/features-example' }));
+    write(
+        'feature/src/detail/detailFrames.native.ts',
+        `import { styled, XStack, YStack } from 'tamagui';\n` +
+            `export const DetailSection = styled(YStack, {});\nexport const DetailHeadingRow = styled(XStack, {});\n` +
+            `export const notAFrame = 1;\n`,
+    );
+    write('feature/src/detail/frames.ts', `export { DetailSection as Section } from './detailFrames.js';\n`);
+    write('other/package.json', JSON.stringify({ name: '@commise/features-other' }));
+    write(
+        'other/src/otherFrames.native.ts',
+        `import { styled, View } from 'tamagui';\nexport const Foreign = styled(View, {});\n`,
+    );
+
+    const kindsOf = (file: string, source: string): Readonly<Record<string, TamaguiKind>> =>
+        Object.fromEntries([...tamaguiElementKinds(parseModule(write(file, source), source), () => new Map())].sort());
+
+    afterAll(() => {
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('reads a frame a leaf imports from a sibling module, by its base', () => {
+        expect(
+            kindsOf(
+                'feature/src/detail/Leaf.native.tsx',
+                `import { DetailHeadingRow, DetailSection, notAFrame } from './detailFrames.js';\n`,
+            ),
+        ).toEqual({ DetailHeadingRow: 'view', DetailSection: 'view' });
+    });
+
+    it('keeps the local name of a renamed import', () => {
+        expect(
+            kindsOf(
+                'feature/src/detail/Renamed.native.tsx',
+                `import { DetailSection as Box } from './detailFrames.js';\n`,
+            ),
+        ).toEqual({ Box: 'view' });
+    });
+
+    it('follows a re-export through a second module of the package', () => {
+        expect(kindsOf('feature/src/detail/Second.native.tsx', `import { Section } from './frames.js';\n`)).toEqual({
+            Section: 'view',
+        });
+    });
+
+    it('reads a frame imported from another folder of the same package', () => {
+        expect(
+            kindsOf('feature/src/list/Far.native.tsx', `import { DetailSection } from '../detail/detailFrames.js';\n`),
+        ).toEqual({ DetailSection: 'view' });
+    });
+
+    it('does not follow a relative path out of the package', () => {
+        expect(
+            kindsOf(
+                'feature/src/detail/Out.native.tsx',
+                `import { Foreign } from '../../../other/src/otherFrames.js';\n`,
+            ),
+        ).toEqual({});
+    });
+
+    it('resolves a repo-relative file name, the form the tree scans pass', () => {
+        const leaf = write(
+            'feature/src/detail/Relative.native.tsx',
+            `import { DetailSection } from './detailFrames.js';\n`,
+        );
+        const source = parseModule(
+            path.relative(repoRoot, leaf),
+            `import { DetailSection } from './detailFrames.js';\n`,
+        );
+
+        expect(Object.fromEntries(tamaguiElementKinds(source, () => new Map()))).toEqual({ DetailSection: 'view' });
+    });
+
+    it('lets G6 see a press handler on a frame a leaf imports', () => {
+        const source = `import { DetailSection } from './detailFrames.js';\n<DetailSection onPress={go} />`;
+
+        expect(
+            pressOwnershipFindings(source, write('feature/src/detail/Press.native.tsx', source), () => new Set()),
+        ).toHaveLength(1);
+    });
+
+    it('gives every importer of a module the same frames, whichever importer reads it first', () => {
+        // B re-exports a frame from A, and A is the first to import B. The first reading of B must not depend on who
+        // asked: C, a later importer, sees the frame too.
+        write(
+            'feature/src/cycle/A.native.tsx',
+            `import { styled, YStack } from 'tamagui';\nexport const AFrame = styled(YStack, {});\n`,
+        );
+        write('feature/src/cycle/B.ts', `export { AFrame as Again } from './A.js';\n`);
+
+        expect(
+            kindsOf(
+                'feature/src/cycle/A.native.tsx',
+                `import { styled, YStack } from 'tamagui';\nimport { Again } from './B.js';\n` +
+                    `export const AFrame = styled(YStack, {});\n`,
+            ),
+        ).toMatchObject({ Again: 'view' });
+        expect(kindsOf('feature/src/cycle/C.native.tsx', `import { Again } from './B.js';\n`)).toEqual({
+            Again: 'view',
+        });
+    });
+
+    it('ignores a type-only import of a frame', () => {
+        expect(
+            kindsOf('feature/src/detail/Typed.native.tsx', `import type { DetailSection } from './detailFrames.js';\n`),
+        ).toEqual({});
     });
 });

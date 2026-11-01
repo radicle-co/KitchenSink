@@ -41,9 +41,10 @@
  * information this module exists to expose.
  */
 import { nativeTokens } from '@commise/ui/native';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 /** Props for {@link PlaceholderWidgetCard}. */
 export interface PlaceholderWidgetCardProps {
@@ -65,7 +66,8 @@ export interface PlaceholderWidgetCardProps {
  *
  * The card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner
  * D12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink
- * on light glass (`evaluateFinal.md` F1). Every colour is a role read from `useTheme()`.
+ * on light glass (`evaluateFinal.md` F1). The title and the badge are the design system's capped `Text` in theme colour
+ * keys (ADR-0080); the card's fill and the edges are roles read from `useTheme()`.
  *
  * @param props - The widget `title`, the `soonLabel`, and the skeleton `children`.
  * @returns A card presenting the coming widget without inventing any of its data.
@@ -76,10 +78,16 @@ export function PlaceholderWidgetCard({ title, soonLabel, children }: Placeholde
     return (
         <View style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
             <View accessible accessibilityRole="header" style={styles.header}>
-                <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
-                <Text style={[styles.badge, { color: colors.inkMuted, borderColor: colors.lineDivider }]}>
-                    {soonLabel}
+                <Text typeRole="cardTitle" color="$ink" flexShrink={1}>
+                    {title}
                 </Text>
+                {/* The pill's hairline edge and its 2 pt inset have no Tamagui token, so the edge stays a React Native
+                frame around the capped text. */}
+                <View style={[styles.badge, { borderColor: colors.lineDivider }]}>
+                    <Text typeRole="caption" color="$inkMuted">
+                        {soonLabel}
+                    </Text>
+                </View>
             </View>
 
             {children}
@@ -101,9 +109,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: nativeTokens.spacing[3],
     },
-    title: { ...nativeTokens.type.cardTitle, flexShrink: 1 },
     badge: {
-        ...nativeTokens.type.caption,
         borderWidth: StyleSheet.hairlineWidth,
         borderRadius: nativeTokens.radius.sm,
         paddingHorizontal: nativeTokens.spacing[2],

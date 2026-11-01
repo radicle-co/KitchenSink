@@ -5,20 +5,14 @@
  *
  * Presentational: props → JSX.
  */
-import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { StyleSheet, Text } from 'react-native';
 
 import type { UnmatchedNoteProps } from './UnmatchedNote.js';
 
 /** The native note. */
-export const UnmatchedNote: FC<UnmatchedNoteProps> = ({ text }) => {
-    const { colors } = useTheme();
-
-    return <Text style={[styles.note, { color: colors.attention }]}>{text}</Text>;
-};
-
-const styles = StyleSheet.create({
-    note: { ...nativeTokens.type.meta },
-});
+export const UnmatchedNote: FC<UnmatchedNoteProps> = ({ text }) => (
+    <Text typeRole="caption" color="$attention">
+        {text}
+    </Text>
+);

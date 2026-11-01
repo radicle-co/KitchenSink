@@ -15,6 +15,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -24,7 +26,6 @@ import { nativeTokens } from '@commise/ui/native';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { makePhoto } from '../../__fixtures__/index.js';
 import { RecipeHero } from '../RecipeHero.native.js';
-import { render } from '@commise/ui/testing/tamagui';
 
 /** Resize the window: react-native-web's `Dimensions` reads the root element's height on a resize event. */
 function windowHeight(height: number): void {

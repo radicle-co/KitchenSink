@@ -8,13 +8,12 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { Text, View } from 'react-native';
+import { YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
 import { isLongDescription } from './detailFacts.js';
-import { detailStyles as styles } from './detailStyles.native.js';
 
 /** Props for {@link DetailDescription}. */
 export interface DetailDescriptionProps {
@@ -31,18 +30,14 @@ export interface DetailDescriptionProps {
 /** The native description. */
 export const DetailDescription: FC<DetailDescriptionProps> = ({ description, expanded, twoColumns, onToggle }) => {
     const { detail } = useMessages(recipeMessages);
-    const { colors } = useTheme();
 
     if (description === '') {
         return null;
     }
 
     return (
-        <View style={styles.description}>
-            <Text
-                numberOfLines={expanded || twoColumns ? undefined : 4}
-                style={[styles.readingBody, { color: colors.ink }]}
-            >
+        <YStack alignItems="flex-start" gap="$1">
+            <Text typeRole="readingBody" color="$ink" numberOfLines={expanded || twoColumns ? undefined : 4}>
                 {description}
             </Text>
             {!twoColumns && isLongDescription(description) && (
@@ -50,6 +45,6 @@ export const DetailDescription: FC<DetailDescriptionProps> = ({ description, exp
                     {expanded ? detail.descriptionLess : detail.descriptionMore}
                 </Button>
             )}
-        </View>
+        </YStack>
     );
 };

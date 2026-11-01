@@ -38,9 +38,9 @@ import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { nativeTokens } from '@commise/ui/native';
 import { PushedPageFrame, type PushedPageInset } from '@commise/ui/pushed-page';
 import type { ScrollBind } from '@commise/ui/scroll-host';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import { useId, useState, type JSX } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { AccountDangerZone } from '../components/account/AccountDangerZone.js';
 import { AvatarField } from '../components/account/AvatarField.js';
@@ -98,7 +98,6 @@ export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps)
 /** The page. */
 function ProfileSurface({ scrollBind, inset, headingId, onOpenDataSources }: ProfileSurfaceProps): JSX.Element {
     const t = useMessages(profileMessages);
-    const { colors } = useTheme();
     const query = useUserProfile();
     const { user: clerkUser } = useUser();
     // The name and the photo are two mutations, so a photo upload never reads as the name saving, and back.
@@ -145,7 +144,7 @@ function ProfileSurface({ scrollBind, inset, headingId, onOpenDataSources }: Pro
                         }
                     />
                     {photoError === undefined ? null : (
-                        <Text role="alert" style={[styles.photoError, { color: colors.dangerText }]}>
+                        <Text role="alert" typeRole="caption" color="$dangerText">
                             {photoError}
                         </Text>
                     )}
@@ -190,5 +189,4 @@ const styles = StyleSheet.create({
     },
     // Everything under the title: the title insets its own sides, so the rest pads itself.
     body: { paddingHorizontal: nativeTokens.spacing[4], gap: nativeTokens.spacing[5] },
-    photoError: { ...nativeTokens.type.caption },
 });

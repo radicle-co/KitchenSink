@@ -40,8 +40,8 @@ appId: ${APP_ID}
 - assertNotVisible: 'Cook with confidence. Plan with ease.'
 - assertNotVisible: 'Get started'
 
-# At the largest text sizes the controls sit below the first screen, so each one below the title is scrolled into view
-# before it is asserted, in screen order (the scroll only moves down).
+# At the largest text sizes the controls sit below the first screen, so each one below the title is scrolled into view,
+# in screen order (the scroll only moves down). The scroll is the check: it fails when its target never appears.
 #
 # Native social sign-in (plan 012): the CI test app is a SANDBOX build, whose Clerk instance has an Android Google client
 # registered and Sign in with Apple on iOS, so the provider group stands above the email form — Google on Android,

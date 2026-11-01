@@ -116,6 +116,16 @@ describe('ProfileSurface — the pinned back bar', () => {
 });
 
 describe('ProfileSurface — the page', () => {
+    // Every page ends 48 below its last block (`pb-12`), one end padding for every page (designer ruling 2026-11-01,
+    // `nativeBoards/designAnswers.md`). It was `pb-10`, 40, which is off the spacing scale.
+    it('ends 48 below its last block, like every page', () => {
+        mount();
+        const classes = (document.querySelector('.max-w-reading') as HTMLElement).className.split(' ');
+
+        expect(classes).toContain('pb-12');
+        expect(classes.filter((name) => /(^|:)(pb|py|p)-/u.test(name) && name !== 'pb-12')).toEqual([]);
+    });
+
     it('has one H1, “Profile”, and a way back to Home', () => {
         mount();
 

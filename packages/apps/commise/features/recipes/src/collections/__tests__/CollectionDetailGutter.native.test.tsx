@@ -3,12 +3,13 @@
  * own (it used to pad itself AND sit in the screen's padding, so it started at 32).
  */
 import { cleanup, screen } from '@testing-library/react';
+// Its leaves draw through the design system's Tamagui `Text` (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { sideInsetOf } from '@commise/test-utils';
 import { CollectionDetailAlert } from '../CollectionDetailAlert.js';
 import { CollectionDetailGutter } from '../CollectionDetailGutter.js';
-import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

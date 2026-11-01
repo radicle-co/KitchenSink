@@ -1,27 +1,17 @@
 /**
  * @module @commise/features-recipes/collections — the native twin of the web `CollectionDetailAlert`: the line the
- * collection detail says when an action failed, as an alert in the danger text colour. It draws no side gutter: `CollectionDetailGutter` around it
- * does. The colour is read from the theme at render.
+ * collection detail says when an action failed, as an alert in the body role and the danger text colour, like the web
+ * `text-body text-danger-text`. It draws no side gutter: `CollectionDetailGutter` around it does.
  *
  * Presentational: props → JSX.
  */
-import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { StyleSheet, Text } from 'react-native';
 
 import type { CollectionDetailAlertProps } from './CollectionDetailAlert.js';
 
-export const CollectionDetailAlert: FC<CollectionDetailAlertProps> = ({ text }) => {
-    const { colors } = useTheme();
-
-    return (
-        <Text role="alert" style={[styles.alert, { color: colors.dangerText }]}>
-            {text}
-        </Text>
-    );
-};
-
-const styles = StyleSheet.create({
-    alert: { paddingVertical: nativeTokens.spacing[2] },
-});
+export const CollectionDetailAlert: FC<CollectionDetailAlertProps> = ({ text }) => (
+    <Text role="alert" typeRole="body" color="$dangerText" paddingVertical="$2">
+        {text}
+    </Text>
+);

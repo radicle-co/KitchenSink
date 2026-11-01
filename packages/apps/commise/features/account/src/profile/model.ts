@@ -190,3 +190,22 @@ export function profileReadOf(query: ProfileQueryState): ProfileRead {
 
     return { status: query.isError ? 'failed' : 'loading' };
 }
+
+/**
+ * The room, in points of text at 1x, below which a label-and-value row stacks its value under its label (designer ruling
+ * 2026-11-01, `nativeBoards/designAnswers.md`). The web reads the same room as a 17.5 rem container query.
+ */
+export const LABEL_VALUE_MIN_ROOM = 280;
+
+/**
+ * Whether a label-and-value row stacks: by ROOM, as the recipe page's stat strip is judged (`detailNativeLayoutOf`), so a
+ * wide tablet that has room never stacks. The room is the content width in units of text: the width over the scale the
+ * text is drawn at. Pure.
+ *
+ * @param contentWidth - The width the page's content gets, in points (native: `contentWidthOf` of the window).
+ * @param cappedScale - The font scale the text is drawn at (`cappedFontScale`).
+ * @returns `true` when the room is below {@link LABEL_VALUE_MIN_ROOM}; exactly 280 stays beside.
+ */
+export function labelValueStacksAt(contentWidth: number, cappedScale: number): boolean {
+    return contentWidth / cappedScale < LABEL_VALUE_MIN_ROOM;
+}

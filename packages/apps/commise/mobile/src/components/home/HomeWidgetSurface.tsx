@@ -32,13 +32,13 @@ import { useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
@@ -92,7 +92,6 @@ export function HomeWidgetSurface({
     renderers,
 }: HomeWidgetSurfaceProps): JSX.Element {
     const home = useMessages(homeMessages);
-    const { colors } = useTheme();
     const profile = useUserProfile();
 
     // Plan 2026-10-14-009 D13: the viewer's paid features alone decide the widget tier and whether the upsell nudge is
@@ -206,15 +205,15 @@ export function HomeWidgetSurface({
                         ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
                             {curated.comingSoon.length > 0 && (
                                 <View style={styles.comingSoon}>
-                                    <Text
-                                        accessibilityRole="header"
-                                        style={[styles.comingSoonHeading, { color: colors.ink }]}
-                                    >
-                                        {home.roadmap.comingSoonHeading}
-                                    </Text>
-                                    <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
-                                        {home.roadmap.comingSoonBody}
-                                    </Text>
+                                    {/* The heading and its line are one group, 4 pt apart, as on web (`gap-1`). */}
+                                    <View style={styles.comingSoonHeader}>
+                                        <Text role="heading" typeRole="sectionTitle" color="$ink">
+                                            {home.roadmap.comingSoonHeading}
+                                        </Text>
+                                        <Text typeRole="body" color="$inkMuted">
+                                            {home.roadmap.comingSoonBody}
+                                        </Text>
+                                    </View>
                                     {curated.comingSoon.map(renderWidget)}
                                 </View>
                             )}
@@ -237,6 +236,5 @@ const styles = StyleSheet.create({
     regionContent: { paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
     widgets: { paddingHorizontal: 16, gap: 16 },
     comingSoon: { gap: nativeTokens.spacing[4] },
-    comingSoonHeading: { ...nativeTokens.type.sectionTitle },
-    comingSoonBody: { ...nativeTokens.type.body, marginTop: -nativeTokens.spacing[3] },
+    comingSoonHeader: { gap: nativeTokens.spacing[1] },
 });

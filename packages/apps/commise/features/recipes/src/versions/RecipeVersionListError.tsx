@@ -51,7 +51,7 @@ export const RecipeVersionListError: FC<RecipeVersionListErrorWebProps> = ({
     const back = versionBackOf(versionList.backToRecipe, versionList.recipeParent, onBack, backHref);
 
     return (
-        <section className="flex w-full max-w-list flex-col gap-4 pb-10">
+        <section className="flex w-full max-w-list flex-col gap-4 pb-12">
             <RecipeVersionListHeader headingId={VERSION_TITLE_ID} back={back} />
             <div role="alert" className="flex flex-col items-start gap-3">
                 <p className="text-body text-ink">{title}</p>

@@ -5,6 +5,8 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';
@@ -16,7 +18,6 @@ import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { IngredientCheckRow } from '../IngredientCheckRow.native.js';
 import { StepRow } from '../StepRow.native.js';
-import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

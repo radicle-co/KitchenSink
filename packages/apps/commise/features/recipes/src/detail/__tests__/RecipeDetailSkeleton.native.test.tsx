@@ -4,9 +4,10 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
 
 import { RecipeDetailSkeleton } from '../RecipeDetailSkeleton.native.js';
-import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

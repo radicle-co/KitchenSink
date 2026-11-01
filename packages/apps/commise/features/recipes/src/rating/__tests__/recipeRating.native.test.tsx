@@ -11,6 +11,8 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
+// Its leaves draw through the design system's Tamagui `Text` (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -22,7 +24,6 @@ import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-sc
 import { RecipeRatingDisplay } from '../RecipeRatingDisplay.native.js';
 import { RecipeRatingInput } from '../RecipeRatingInput.native.js';
 import type { RecipeRatingDisplayProps, RecipeRatingInputProps } from '../model.js';
-import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

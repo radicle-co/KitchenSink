@@ -4,7 +4,8 @@
  *
  * A tag is Tamagui when its name is a PascalCase value import from `tamagui` or an `@tamagui/*` package (renamed or
  * not), a member of a namespace import of one (`T.View`), a local `styled(…)` binding whose `styled` is Tamagui's, or a
- * design-system export that is itself a Tamagui `styled(…)` (`designSystemStyledExports`).
+ * design-system export that is itself a Tamagui `styled(…)` (`designSystemStyledExports`), or a `styled(…)` export of a
+ * module of the SAME package that the file imports by a relative path (a feature's own frames module).
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -360,6 +361,62 @@ export function styledExportsReader(packageRoot: string): StyledExportsOf {
     return (subpath) => new Set(kindsOf(subpath).keys());
 }
 
+/** The directory of the nearest `package.json` above a file, or `undefined` above the filesystem root. Reads files. */
+function packageRootOf(file: string): string | undefined {
+    for (let dir = path.dirname(file); ; dir = path.dirname(dir)) {
+        if (existsSync(path.join(dir, 'package.json'))) {
+            return dir;
+        }
+
+        if (path.dirname(dir) === dir) {
+            return undefined;
+        }
+    }
+}
+
+/**
+ * What each sibling module exports as `styled(…)`, by its resolved path. A tree scan reads sources that do not change
+ * during a run; each fixture suite writes under its own `mkdtemp` root, so no two of them share a path. The value is
+ * computed from the leaf alone (an empty cycle set), so it does not depend on which importer asked first.
+ */
+const siblingKindsCache = new Map<string, ReadonlyMap<string, TamaguiKind>>();
+
+/**
+ * The kind of each `styled(…)` export a file's relative import names, when the import resolves to a module of the SAME
+ * package. A relative path out of the package is not followed: lint refuses it, and it is not a seam this reading owns.
+ * Reads files.
+ */
+function siblingStyledKinds(file: ts.SourceFile): ReadonlyMap<string, TamaguiKind> {
+    const kinds = new Map<string, TamaguiKind>();
+    // The tree scans pass a repo-relative name; a fixture may pass an absolute one.
+    const from = path.isAbsolute(file.fileName) ? file.fileName : path.join(repoRoot, file.fileName);
+    const home = packageRootOf(from);
+    const specifiers = file.statements
+        .filter(ts.isImportDeclaration)
+        .map((statement) => statement.moduleSpecifier)
+        .filter(ts.isStringLiteral)
+        .map((specifier) => specifier.text)
+        .filter((specifier) => specifier.startsWith('.'));
+
+    for (const specifier of new Set(specifiers)) {
+        const leaf = leafOf(from, specifier);
+
+        if (leaf === undefined || home === undefined || packageRootOf(leaf) !== home) {
+            continue;
+        }
+
+        const exported = siblingKindsCache.get(leaf) ?? styledKindsOfFile(leaf, new Set());
+        siblingKindsCache.set(leaf, exported);
+        const bindings = valueBindingsOf(file, (candidate) => candidate === specifier);
+
+        for (const [name, kind] of exported) {
+            localsOf(bindings, name).forEach((local) => kinds.set(local, kind));
+        }
+    }
+
+    return kinds;
+}
+
 /** The design system's own readers (`@commise/ui`). */
 export const designSystemStyledKinds: StyledKindsOf = styledKindsReader(UI_ROOT);
 
@@ -369,9 +426,10 @@ export const designSystemStyledExports: StyledExportsOf = styledExportsReader(UI
 /**
  * What each JSX tag that renders a Tamagui element is: `view`, `text` or `other`. The one reading of which tags are
  * Tamagui: a PascalCase value import from `tamagui` or an `@tamagui/*` package (renamed or not), a member of a
- * namespace import of one (`T.View`), a local `styled(…)` binding, or a design-system export that is itself a styled
- * component. A Tamagui `View`, stack or `ScrollView` is a `view`, `Text` is a `text`; a `styled(Base, …)` is that of its
- * base, followed through local bindings; a design-system export is what its own `styled(…)` says. Pure, given
+ * namespace import of one (`T.View`), a local `styled(…)` binding, a design-system export that is itself a styled
+ * component, or a styled export of a same-package module the file imports by a relative path. A Tamagui `View`, stack or
+ * `ScrollView` is a `view`, `Text` is a `text`; a `styled(Base, …)` is that of its base, followed through local bindings;
+ * an export is what its own `styled(…)` says. Reads the modules a relative import names; otherwise pure, given
  * `styledKindsOf`.
  *
  * @param file - The parsed module.
@@ -404,6 +462,10 @@ export function tamaguiElementKinds(
         for (const [exported, kind] of styledKindsOf(specifier)) {
             localsOf(bindings, exported).forEach((local) => kinds.set(local, kind));
         }
+    }
+
+    for (const [local, kind] of siblingStyledKinds(file)) {
+        kinds.set(local, kind);
     }
 
     for (const [local, kind] of localKindsOf(file)) {

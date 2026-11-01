@@ -7,6 +7,8 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { themeFor } from '@commise/ui/theme';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
+// Its detail page draws through the design system's Tamagui frames (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
@@ -15,7 +17,6 @@ import { cssColor } from '../../__tests__/cssColor.js';
 import { previewRecipeOf } from '../previewRecipe.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipePreviewSheet } from '../RecipePreviewSheet.native.js';
-import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();

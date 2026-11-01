@@ -42,6 +42,7 @@ import { AmbiguityReview } from './AmbiguityReview.native.js';
 import { DetailDescription } from './DetailDescription.native.js';
 import { detailMetaItems, detailRatingLine, detailStatCells } from './detailFacts.js';
 import { DetailFooter } from './DetailFooter.native.js';
+import { DetailStack } from './detailFrames.native.js';
 import { DetailIngredientsSection } from './DetailIngredientsSection.native.js';
 import { DetailInstructionsSection } from './DetailInstructionsSection.native.js';
 import { DetailNutritionSection } from './DetailNutritionSection.native.js';
@@ -215,11 +216,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
         children.push(
             <View key="columns" style={styles.twoColumns}>
                 {ingredients}
-                <View style={[styles.stack, styles.stepsColumn]}>
+                <DetailStack column="steps">
                     {steps}
                     {nutrition}
                     {tail}
-                </View>
+                </DetailStack>
             </View>,
         );
     } else {
@@ -265,8 +266,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
             <View key="nutrition" onLayout={host.sectionLayout('nutrition')} style={styles.sectionBlock}>
                 {nutrition}
             </View>,
-            <View key="tail" style={[styles.stack, styles.sectionBlock]}>
-                {tail}
+            <View key="tail" style={styles.sectionBlock}>
+                <DetailStack>{tail}</DetailStack>
             </View>,
         );
     }

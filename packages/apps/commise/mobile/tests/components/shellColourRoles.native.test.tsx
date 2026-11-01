@@ -87,18 +87,20 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         expect(colourOf(screen.getByText(boundaryMessages.en.errorBodyHome))).toBe(rgb(colours.inkMuted));
     });
 
+    // REWRITTEN for ADR-0080 (both): the notice and the nudge's copy are the design system's Tamagui `Text`, so they
+    // render in the provider and their colours are read through the resolver that follows the theme variables.
     it('HomeWidgetErrorNotice says the failure in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<HomeWidgetErrorNotice />);
+        renderInDesignSystem(<HomeWidgetErrorNotice />);
 
-        expect(colourOf(screen.getByRole('status'))).toBe(rgb(colours.inkMuted));
+        expect(resolvedColour(screen.getByRole('status'), 'color')).toBe(rgb(colours.inkMuted));
     });
 
     it('SubscriptionNudge writes its body in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<SubscriptionNudge open onDismiss={() => undefined} />);
+        renderInDesignSystem(<SubscriptionNudge open onDismiss={() => undefined} />);
 
-        expect(colourOf(screen.getByText(homeMessages.en.nudge.body))).toBe(rgb(colours.inkMuted));
+        expect(resolvedColour(screen.getByText(homeMessages.en.nudge.body), 'color')).toBe(rgb(colours.inkMuted));
     });
 
     it('a roadmap card titles itself in ink, its badge in inkMuted, inside a lineDivider edge', () => {
@@ -106,8 +108,10 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         renderWithProviders(<NutritionWidgetSkeleton />);
         const title = screen.getByText(homeMessages.en.roadmap.titles.nutrition);
 
-        expect(colourOf(title)).toBe(rgb(colours.ink));
-        expect(colourOf(screen.getByText(homeMessages.en.roadmap.soon))).toBe(rgb(colours.inkMuted));
+        // REWRITTEN for ADR-0080: the title and the badge are the design system's Tamagui `Text`, read through the
+        // resolver that follows the theme variables. The edge below is still React Native's, read as computed.
+        expect(resolvedColour(title, 'color')).toBe(rgb(colours.ink));
+        expect(resolvedColour(screen.getByText(homeMessages.en.roadmap.soon), 'color')).toBe(rgb(colours.inkMuted));
 
         let card: Element | null = title;
 
@@ -149,6 +153,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
             Array.from({ length: 7 }, () => rgb(colours.lineDivider)),
         );
         expect(filledWith(container, rgb(colours.surfaceMuted))).toHaveLength(7);
-        expect(colourOf(days[0]?.firstElementChild as Element)).toBe(rgb(colours.inkMuted));
+        // REWRITTEN for ADR-0080: the day is the design system's Tamagui `Text`, read through the theme resolver.
+        expect(resolvedColour(days[0]?.firstElementChild as Element, 'color')).toBe(rgb(colours.inkMuted));
     });
 });

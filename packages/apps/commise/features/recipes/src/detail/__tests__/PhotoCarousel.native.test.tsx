@@ -17,6 +17,8 @@
  */
 import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { act, cleanup, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render, rendersNothing } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
 import type { Modal as ModalType } from 'react-native';
@@ -26,7 +28,6 @@ import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-sc
 
 import { makePhoto } from '../../__fixtures__/index.js';
 import { PhotoCarousel } from '../PhotoCarousel.native.js';
-import { render, rendersNothing } from '@commise/ui/testing/tamagui';
 
 const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof ModalType> | undefined }));
 

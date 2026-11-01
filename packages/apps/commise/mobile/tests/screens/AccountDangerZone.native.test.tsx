@@ -22,6 +22,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+// Its leaves draw through the design system's Tamagui `Text` (ADR-0080), so the tree renders in its provider.
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query';
 import type { ReactElement } from 'react';
 
@@ -35,7 +37,6 @@ import { profileMessages } from '@commise/features-account/profile';
 
 import { AccountDangerZone } from '../../src/components/account/AccountDangerZone.js';
 import { useDeleteAccount } from '../../src/hooks/useDeleteAccount.js';
-import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -161,12 +162,14 @@ describe.each([
     it('paints both labels in dangerText and both hints in inkMuted, on role colours', () => {
         renderZone();
 
+        // REWRITTEN for ADR-0080: the rows' text is the design system's Tamagui `Text`, read through the resolver that
+        // follows its theme variable. The expected colours are as before.
         for (const label of [close.trigger, erase.trigger]) {
-            expect(window.getComputedStyle(screen.getByText(label)).color, label).toBe(rgb(roles.dangerText));
+            expect(resolvedColour(screen.getByText(label), 'color'), label).toBe(rgb(roles.dangerText));
         }
 
         for (const hint of [close.rowHint, erase.rowHint]) {
-            expect(window.getComputedStyle(screen.getByText(hint)).color, hint).toBe(rgb(roles.inkMuted));
+            expect(resolvedColour(screen.getByText(hint), 'color'), hint).toBe(rgb(roles.inkMuted));
         }
     });
 

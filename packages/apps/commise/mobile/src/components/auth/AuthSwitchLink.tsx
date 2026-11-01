@@ -3,8 +3,9 @@
  * screens (`buildSpec.md` §8 Order): the prompt, then an inline LINK, wrapping to a second line rather than
  * overflowing. Sign-in and sign-up differ only in the words and the handler, so the shape lives here once.
  *
- * The link text never breaks across lines (`numberOfLines={1}`) and its target is 48 px tall, so the narrow-screen
- * and large-font cases wrap the ROW, not the link.
+ * The row wraps first, so the link moves under its prompt on a narrow screen. When the link alone is wider than the
+ * screen, at the system's largest text, its label wraps too: a control's label is never cut off (owner ruling; it read
+ * "Create an accou.." at Android font_scale 3.1). Its target is 48 px tall.
  *
  * Presentational: props → JSX.
  */
@@ -38,9 +39,7 @@ export function AuthSwitchLink({ prompt, label, onPress, disabled = false }: Aut
             <Text style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>{prompt}</Text>
             <PressScale accessibilityRole="link" accessibilityLabel={label} disabled={disabled} onPress={onPress}>
                 <View style={styles.target}>
-                    <Text numberOfLines={1} style={[nativeTokens.type.meta, styles.link, { color: colors.actionText }]}>
-                        {label}
-                    </Text>
+                    <Text style={[nativeTokens.type.meta, styles.link, { color: colors.actionText }]}>{label}</Text>
                 </View>
             </PressScale>
         </View>

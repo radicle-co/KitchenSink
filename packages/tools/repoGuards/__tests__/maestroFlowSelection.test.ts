@@ -675,9 +675,12 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(KNOWN_UNRUN_FLOWS).toContain('auth/signUpFlow');
     });
 
+    // REWRITTEN 2026-11-01: the guard keys on the login form's TITLE, its first element, not the email placeholder. At
+    // the system's largest text the fields sit below the first screen, where Android does not report them visible, so a
+    // placeholder guard skipped the sign-in of a signed-out cook. The title is unique to the login form.
     it('keeps that credential block guarded on the login form being visible', () => {
         const body = readFileSync(join(MAESTRO_DIR, 'auth/signinHome.yaml'), 'utf8');
-        const guard = body.indexOf("visible: 'you@example.com'");
+        const guard = body.indexOf("visible: 'Sign in to Commise'");
 
         expect(guard, 'without the guard every flow would sign in again').toBeGreaterThan(0);
         expect(body.indexOf("inputText: '424242'")).toBeGreaterThan(guard);

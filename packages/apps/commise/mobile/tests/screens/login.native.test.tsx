@@ -555,6 +555,18 @@ describe('LoginScreen — Section 8 native: order, copy and field hints', () => 
         });
     });
 
+    // A control's label wraps and is never cut off (owner ruling, the wrapping rule): at the system's largest text the
+    // one-line link read "Create an accou.." on Android (font_scale 3.1, 2026-11-01).
+    it('lets the sign-up link wrap instead of cutting its label off', () => {
+        setup();
+
+        const label = within(screen.getByRole('link', { name: shared.signUpLink })).getByText(shared.signUpLink);
+        const style = getComputedStyle(label);
+
+        expect(style.whiteSpace).not.toBe('nowrap');
+        expect(style.textOverflow).not.toBe('ellipsis');
+    });
+
     it('uses the spec copy: the brand line, and “New to Commise? Create an account”', () => {
         setup();
 

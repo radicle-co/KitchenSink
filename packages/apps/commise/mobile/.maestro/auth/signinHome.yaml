@@ -37,11 +37,15 @@ appId: ${APP_ID}
 # still showing its "Checking your session…" affordance, the guard would evaluate false, the sign-in would be
 # skipped entirely, and the flow would fail 40s later at the Home assertion for a reason unrelated to sign-in.
 # Previously the welcome-crossing `tapOn` absorbed that window incidentally. Keyed on one of the two SETTLED
-# outcomes being on screen — the login form's email placeholder or the Home greeting — never on the loading
+# outcomes being on screen — the login form's title or the Home greeting — never on the loading
 # label's absence: after `clearState` the label is also absent before the gate has rendered anything at all, so
 # a `notVisible` wait passed at once and the guard below read an empty screen.
+#
+# The form is recognised by its TITLE, the screen's first element, not by a field: at the system's largest text sizes
+# the title fills the first screen and the fields are below it, where Android does not report them visible (Android
+# font_scale 3.1, 2026-11-01). Every control below is scrolled into view before it is used, for the same reason.
 - extendedWaitUntil:
-      visible: 'you@example\.com|Profile.*'
+      visible: 'Sign in to Commise|Profile.*'
       timeout: 30000
 
 # Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
@@ -55,8 +59,14 @@ appId: ${APP_ID}
 # i18n `auth.emailPlaceholder` / `passwordPlaceholder` / `codePlaceholder`.
 - runFlow:
       when:
-          visible: 'you@example.com'
+          visible: 'Sign in to Commise'
       commands:
+          - runFlow:
+                file: ../recipes/common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'you@example.com'
+                    DIRECTION: DOWN
+                    TIMEOUT: 20000
           - tapOn: 'you@example.com'
           # ⛔ THE ONE RE-TAP THE FLOWS HOLD (owner ruling 2026-10-23, `maestroNoTimingCrutches.test.ts`). On a fresh
           # launch the iOS Simulator's SpringBoard can keep its switcher window over the drawn app, so this tap reaches
@@ -96,6 +106,12 @@ appId: ${APP_ID}
           # it and Maestro tapped a key (run 38835438945); that step hid exactly the defect the pin fixes, so it is
           # gone. Not the keyboard's Go key either: that tests a different control, and its behaviour is the screen
           # test's (`login.native.test.tsx`, the return key).
+          - runFlow:
+                file: ../recipes/common/scrollIntoTapView.yaml
+                env:
+                    TARGET: 'Sign in'
+                    DIRECTION: DOWN
+                    TIMEOUT: 20000
           - tapOn: 'Sign in'
           # New-device verification: this Clerk instance requires an email code after the password factor
           # (the web sign-in spec fills the same code), and `clearState` makes every fresh sign-in a new
@@ -112,6 +128,12 @@ appId: ${APP_ID}
                     visible: 'Verification code'
                 commands:
                     - runFlow: dismissSavePassword.yaml
+                    - runFlow:
+                          file: ../recipes/common/scrollIntoTapView.yaml
+                          env:
+                              TARGET: '123456'
+                              DIRECTION: DOWN
+                              TIMEOUT: 20000
                     - tapOn: '123456'
                     - inputText: '424242'
                     # iOS can raise "Save Password?" while the code is typed, so it is dismissed again before the read-back.
@@ -119,6 +141,12 @@ appId: ${APP_ID}
                     # The email's read-back, for the code.
                     - assertVisible: '424242'
                     - runFlow: dismissSavePassword.yaml
+                    - runFlow:
+                          file: ../recipes/common/scrollIntoTapView.yaml
+                          env:
+                              TARGET: 'Verify'
+                              DIRECTION: DOWN
+                              TIMEOUT: 20000
                     - tapOn: 'Verify'
 
 # The authenticated landing: Home's large title carries the avatar, named "Profile, {name}" (or "Profile" with no

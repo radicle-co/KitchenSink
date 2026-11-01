@@ -4,6 +4,7 @@ import { ROLE_LANE_IDS, slotFor } from '@kitchensink/e2e-fixtures/testPool';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
+import { deployedTargetOrigin } from './utils/deployedTarget';
 
 /**
  * The paid features by ROLE, against the real identity service (plan 2026-10-14-009 D12; owner ruling 2026-10-13: "tests
@@ -24,6 +25,12 @@ import { route } from './utils/basePath';
  * profile.
  *
  * Its own blank context per test (`SESSION_OWNING_SPECS`): it signs in as five different users.
+ *
+ * ⛔ It SKIPS when the run has no deployed target (`utils/deployedTarget.ts`), and the skip is not a pass. A local run
+ * is not that target: its browser serves at a free port and asks the local stack, which admits a browser only from the
+ * origin the stack is configured with, so every test used to wait 60 s for a `200` that could not come. The owner's
+ * rulings (2026-09-05, 2026-10-03) say a DEPLOYED-target spec skips when its target is absent and is never re-pointed at
+ * localhost. Mobile's `recipes/paidFeaturesByRole` flow checks the same rule, and it can run against the local stack.
  */
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -47,6 +54,12 @@ async function openEditorAs(page: Page, role: keyof typeof ROLE_LANE_IDS): Promi
 }
 
 test.describe('paid features by role (deployed identity)', () => {
+    test.skip(
+        deployedTargetOrigin(process.env) === undefined,
+        'No deployed target: PLAYWRIGHT_BASE_URL names no non-loopback origin, and this spec reads the DEPLOYED ' +
+            'identity, so it is not run. A skip here proves nothing about paid features by role.',
+    );
+
     for (const role of ['premium', 'vip', 'superuser'] as const) {
         test(`${role}: always granted — Private is a choice, with no count and no Pro badge`, async ({ page }) => {
             expect(await openEditorAs(page, role)).toBe('granted');

@@ -29,8 +29,8 @@ import { signInWithTicket } from './utils/auth';
  * the More-actions Popover. Chip, ChipRow, SegmentedControl, SearchField, Stepper and the UndoSnackbar have no screen
  * consumer yet (slices 3–5 adopt them); they are measured when a screen first renders them.
  *
- * The app is built with `COMMISE_PSEUDO_LOCALE=1` for this tier (`_ci.yml` `build`; `playwright.config.ts` locally),
- * the only build that routes `en-XA` (`pseudoLocaleBuildGate.test.ts`).
+ * The app is built with `COMMISE_PSEUDO_LOCALE=1` for this tier (`_ci.yml` `build`; locally `scripts/e2eLocal.sh`'s build,
+ * or `playwright.config.ts` for a dev server), the only build that routes `en-XA` (`pseudoLocaleBuildGate.test.ts`).
  */
 
 test.use({ viewport: { width: 320, height: 640 } });

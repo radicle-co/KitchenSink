@@ -267,17 +267,32 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
         expect(persisted?.servings).toBe(8);
     });
 
-    test('a stale base (>10 versions behind) gates Overwrite on an explicit confirm', async ({ page }) => {
+    /**
+     * REWRITTEN to prove the warning as it is now. It asserted "far ahead of the version you started from", copy the
+     * app stopped showing long ago, so it failed on text rather than behaviour. Two later changes are what it now holds:
+     * the sentence names no count, because the same warning shows when the base has left the history with one version
+     * behind (5c83d6ea0); and it names only Keep mine, because Compare changes nothing and so never waits for the tick
+     * box (613334ff9, owner ruling T16, 2026-10-29). The sentence is quoted whole, as this spec quotes
+     * `versions/messages.ts` everywhere, and `RecipeConflictView.test.tsx` pins it on both platforms.
+     */
+    test('a stale base (>10 versions behind) gates Keep mine on an explicit confirm, and leaves Compare open', async ({
+        page,
+    }) => {
         await enterConflict(page, { serverChanges: { servings: 8 }, versionsAhead: 12 });
 
-        const warning = page.getByRole('alert').filter({ hasText: 'far ahead of the version you started from' });
+        const warning = page.getByRole('alert').filter({
+            hasText: 'Some changes saved elsewhere can’t be shown here. Keeping yours may undo changes you can’t see.',
+        });
         await expect(warning).toBeVisible();
 
-        const overwriteButton = page.getByRole('button', { name: 'Keep mine' });
-        await expect(overwriteButton).toBeDisabled();
+        const keepMine = page.getByRole('button', { name: 'Keep mine' });
+        const confirm = page.getByRole('checkbox', { name: 'I understand. Let me choose anyway' });
+        await expect(confirm).not.toBeChecked();
+        await expect(keepMine).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Compare' })).toBeEnabled();
 
-        await page.getByRole('checkbox', { name: 'I understand. Let me choose anyway' }).check();
-        await expect(overwriteButton).toBeEnabled();
+        await confirm.check();
+        await expect(keepMine).toBeEnabled();
     });
 
     /**

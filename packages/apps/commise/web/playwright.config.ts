@@ -207,7 +207,8 @@ export default defineConfig({
                   ...serviceUrlEnv(SERVICE_URLS),
                   ...(BASE_PATH ? { PREVIEW_BASE_PATH: BASE_PATH } : {}),
                   // Routes the `en-XA` pseudo-locale `controlLabels.spec.ts` lays the app out in. Reaches a server
-                  // this config BUILDS (`dev`); under `start`, CI's `build` job sets it (`pseudoLocaleBuildGate`).
+                  // this config BUILDS (`dev`); under `start` it must be in the build already, which CI's `build` job
+                  // and `scripts/e2eLocal.sh`'s build command set (`pseudoLocaleBuildGate`).
                   COMMISE_PSEUDO_LOCALE: '1',
               },
               // Readiness probe: the localized sign-in page returns 200 (`/sign-in` 307s to `/{locale}`).

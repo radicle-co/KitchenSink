@@ -5,14 +5,16 @@
  *
  * The web app routes `en-XA` only in a build made with `COMMISE_PSEUDO_LOCALE=1`, which `next.config.ts` inlines
  * (`packages/apps/commise/web/src/lib/i18n.ts`; its unit tests prove both builds). So the question this guard answers
- * is WHO sets that flag at build time. Exactly one place may: `_ci.yml`'s `build` job, whose web output is "deployed
- * nowhere" and is served only to the stubbed-API Playwright tier (the comment on that step, and
- * `webE2eProductionBuild.test.ts`), where `controlLabels.spec.ts` lays the app out in `en-XA`. Vercel, which builds
- * every preview and production, and every other workflow must never set it.
+ * is WHO sets that flag at build time. Exactly two places may, and both build output that is deployed nowhere: in CI,
+ * `_ci.yml`'s `build` job, served only to the stubbed-API Playwright tier (the comment on that step, and
+ * `webE2eProductionBuild.test.ts`), where `controlLabels.spec.ts` lays the app out in `en-XA`; on a developer's
+ * machine, the build command of the local Playwright lane (`scripts/e2eLocal.sh`), for the same spec. Vercel, which
+ * builds every preview and production, and every other workflow must never set it.
  *
  * Read as YAML for the one sanctioned place, and as TEXT for everything else, so a `COMMISE_PSEUDO_LOCALE=1 npm run …`
  * inside a `run:` script — invisible to an env-map reader — is caught too.
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -115,5 +117,74 @@ describe('the pseudo-locale build flag', () => {
         const config = read('packages/apps/commise/web/next.config.ts');
 
         expect(config).toContain(`${FLAG}: process.env['${FLAG}'] === '1' ? '1' : '',`);
+    });
+});
+
+/**
+ * The developer's lane builds through TURBO, not `npm run build`, and turbo runs in strict env mode: a variable no task
+ * declares never reaches the task. The flag was declared nowhere, so `scripts/e2eLocal.sh` built a bundle with no
+ * `en-XA` and `controlLabels.spec.ts` failed on every test, while CI (which builds with `npm run build`) passed.
+ *
+ * It is declared as hashed `env`, never `passThroughEnv`: the flag changes the bundle, so a pass-through would let a
+ * pseudo build and a plain build share one cache key, and the next run would restore the wrong one.
+ */
+describe('the pseudo-locale flag in the local Playwright lane', () => {
+    const LANE = 'packages/apps/commise/web/scripts/e2eLocal.sh';
+
+    /** Turbo's resolved plan for the web build, made with the flag set the way the lane sets it. */
+    function webBuildPlan(): {
+        readonly environmentVariables: { readonly configured: readonly string[]; readonly inferred: readonly string[] };
+        readonly resolvedTaskDefinition: { readonly dependsOn: readonly string[]; readonly outputs: readonly string[] };
+    } {
+        const stdout = execFileSync(
+            path.join(repoRoot, 'node_modules/.bin/turbo'),
+            ['run', 'build', '--filter=@commise/web', '--dry=json'],
+            {
+                cwd: repoRoot,
+                encoding: 'utf8',
+                env: { ...process.env, [FLAG]: '1', NEXT_PUBLIC_RECIPE_API_URL: 'http://localhost:3010' },
+                maxBuffer: 64 * 1024 * 1024,
+            },
+        );
+        const plan = JSON.parse(stdout) as {
+            tasks: (ReturnType<typeof webBuildPlan> & { readonly taskId: string })[];
+        };
+        const task = plan.tasks.find((candidate) => candidate.taskId === '@commise/web#build');
+
+        if (task === undefined) {
+            throw new Error('turbo planned no @commise/web#build');
+        }
+
+        return task;
+    }
+
+    it('reaches the web build through turbo, and is part of its cache key', () => {
+        const plan = webBuildPlan();
+
+        expect(plan.environmentVariables.configured.some((entry) => entry.startsWith(`${FLAG}=`))).toBe(true);
+    });
+
+    it('keeps turbo’s Next.js inference, which hashes the NEXT_PUBLIC_* API origins the lane bakes', () => {
+        // The lane bakes the run's own port into those origins, so this hash is what rebuilds the bundle when the
+        // free port changes; without it a run on one port would serve a bundle baked for another. Vercel builds through
+        // the same task (`vercel.json`), so this is the production build's hash too.
+        const { inferred } = webBuildPlan().environmentVariables;
+
+        expect(inferred.some((entry) => entry.startsWith('NEXT_PUBLIC_RECIPE_API_URL='))).toBe(true);
+    });
+
+    it('keeps the web build’s own dependency edge and outputs (a package task REPLACES the base task)', () => {
+        const { dependsOn, outputs } = webBuildPlan().resolvedTaskDefinition;
+
+        expect(dependsOn).toContain('^build');
+        expect([...outputs].sort()).toEqual(['!.next/cache/**', '.next/**', 'dist/**']);
+    });
+
+    it('is set by the lane on its build command alone, never exported to the rest of the run', () => {
+        const lines = read(LANE)
+            .split('\n')
+            .filter((line) => !line.trimStart().startsWith('#') && mentions(line) > 0);
+
+        expect(lines.map((line) => line.trim())).toEqual([`${FLAG}=1 npx turbo run build --filter=@commise/web`]);
     });
 });

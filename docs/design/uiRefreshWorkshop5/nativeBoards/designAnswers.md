@@ -2,6 +2,17 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-01: Home error actions and the wrapped "See all" (asked by kitchensink-5f)
+
+- **A failed widget offers Try again.** Every error state needs a way forward. When a widget's code or render fails,
+  show the same message with a Try again button under it, and Try again loads the widget again. How to rebuild the
+  failed lazy load is the architect's call. Do not ship a no-action state or a whole-Home reload in its place.
+- **"See all" under its title:** when the row wraps, the link's text lines up with the title's left edge. Its touch
+  target stays at least 48 pt tall. Any side padding sits on the right, not the left.
+- **The floating button over scrolling content** is expected. The 88 pt end room only guarantees that the end of the
+  content can scroll clear of it.
+- **Recipes tab:** its error and empty states get the same 88 pt end room as its cards.
+
 ## 2026-11-01: active tab weight and icon-only segments (asked by Thing 1)
 
 - **Active tab:** no new role. An inactive tab label is `caption` (14 px, weight 500). The active label is `label`

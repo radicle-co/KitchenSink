@@ -6,10 +6,10 @@
  * landmark between. There is no top bar and no drawer: each page's large title is its H1 (`LargeTitleHeader`).
  *
  * `<main>` is the `main` container every page queries; its gutters are padding, so a query reads the content box. Below
- * `nav` its foot reserves the tab bar plus the floating create button's 88 px, and the same reservation is the
- * document's `scroll-padding-bottom` (`globals.css`, keyed on the bar), so a focused last card is never hidden (SC
- * 2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav` and on a focused task — is what the floating button,
- * "Back to top" and the snackbar stand on.
+ * `nav` its foot reserves the tab bar plus the floating create button's room (`--fab-reserved-bottom`, 88 px from
+ * `@commise/ui`'s theme), and the same reservation is the document's `scroll-padding-bottom` (`globals.css`, keyed on
+ * the bar), so a focused last card is never hidden (SC 2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav`
+ * and on a focused task — is what the floating button, "Back to top" and the snackbar stand on.
  *
  * A pushed page (`PushedPageFrame`) pins a Back bar over the top below `nav`. `<main>` takes the bar's height as its top
  * padding on such a page (`--main-top`, `globals.css`), so the notice below sits under the bar, and it offers the frame a
@@ -114,7 +114,7 @@ export function HomeChrome({
                           // editor as an inset card (F15). Its own bar is `sticky` in the form column, so it already
                           // takes its place in the flow and pads the safe area itself: `main` reserves nothing (E21).
                           ''
-                        : 'px-4 pt-[var(--main-top)] medium:px-6 nav:px-8 nav:pb-8 pb-[calc(var(--bottom-chrome)+6.5rem)]'
+                        : 'px-4 pt-[var(--main-top)] medium:px-6 nav:px-8 nav:pb-8 pb-[calc(var(--bottom-chrome)+var(--fab-reserved-bottom))]'
                 }`}
             >
                 <MainElementContext value={mainElement}>

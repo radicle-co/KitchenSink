@@ -81,7 +81,7 @@ describe('HomeChrome (web)', () => {
         expect(main.className).toContain('@container/main');
         expect(main.className).toContain('px-4');
         expect(main.className).toContain('nav:px-8');
-        expect(main.className).toContain('pb-[calc(var(--bottom-chrome)+6.5rem)]');
+        expect(main.className).toContain('pb-[calc(var(--bottom-chrome)+var(--fab-reserved-bottom))]');
     });
 
     it('sets --bottom-chrome to the tab bar below nav and 0 from it', () => {
@@ -122,10 +122,15 @@ describe('HomeChrome (web)', () => {
         expect(main.filter((utility) => /^(?:\S+:)?pb-/u.test(utility))).toStrictEqual([]);
     });
 
+    // REWRITTEN for the designer ruling of 2026-11-01 (`nativeBoards/designAnswers.md`): the room for the floating
+    // button is the theme's `--fab-reserved-bottom` (88: its height, its margin and 16, as on native). It was a `6.5rem`
+    // literal, 104 px, which had drifted from the 88 its comments named.
     it('keeps the foot reserved for the tab bar and the floating button on every other page', () => {
         renderChrome();
+        const main = screen.getByRole('main').className.split(/\s+/u);
 
-        expect(screen.getByRole('main').className).toContain('pb-[calc(var(--bottom-chrome)+6.5rem)]');
+        expect(main).toContain('pb-[calc(var(--bottom-chrome)+var(--fab-reserved-bottom))]');
+        expect(main.filter((utility) => /^(?:\S+:)?pb-.*\d(?:\.\d+)?rem/u.test(utility))).toStrictEqual([]);
     });
 
     /**

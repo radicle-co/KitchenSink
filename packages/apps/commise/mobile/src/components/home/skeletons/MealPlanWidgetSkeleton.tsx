@@ -12,9 +12,10 @@ import { homeMessages } from '@commise/features-core/home';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useContainerClass } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { PlaceholderWidgetCard } from './PlaceholderWidgetCard.js';
 
@@ -43,7 +44,9 @@ export function MealPlanWidgetSkeleton(): JSX.Element {
                         style={[styles.tile, { borderColor: colors.lineDivider }]}
                     >
                         {/* The weekday is REAL data — announced by its full name. Only the meal is unknown. */}
-                        <Text style={[styles.day, { color: colors.inkMuted }]}>{shown[index]}</Text>
+                        <Text typeRole="caption" color="$inkMuted">
+                            {shown[index]}
+                        </Text>
                         {/* The meal thumbnail — the only unknown on this tile, so the only thing hidden. */}
                         <View aria-hidden style={[styles.meal, { backgroundColor: colors.surfaceMuted }]} />
                     </View>
@@ -65,6 +68,5 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[2],
         paddingHorizontal: 2,
     },
-    day: { ...nativeTokens.type.caption },
     meal: { width: '100%', maxWidth: 48, aspectRatio: 1, borderRadius: nativeTokens.radius.sm },
 });

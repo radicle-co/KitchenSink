@@ -2045,7 +2045,7 @@
                             "text": "home/skeletons/PlaceholderWidgetCard — the shared shell of a roadmap skeleton placeholder (mobile)."
                         }
                     ],
-                    "description": "The shell of a roadmap skeleton placeholder (mobile): a level-1 card carrying the real widget's heading, a visible\n\"Soon\" badge, and the caller's shape.\n\nThe card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner\nD12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink\non light glass (`evaluateFinal.md` F1). Every colour is a role read from `useTheme()`.",
+                    "description": "The shell of a roadmap skeleton placeholder (mobile): a level-1 card carrying the real widget's heading, a visible\n\"Soon\" badge, and the caller's shape.\n\nThe card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner\nD12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink\non light glass (`evaluateFinal.md` F1). The title and the badge are the design system's capped `Text` in theme colour\nkeys (ADR-0080); the card's fill and the edges are roles read from `useTheme()`.",
                     "tags": [
                         {
                             "name": "param",

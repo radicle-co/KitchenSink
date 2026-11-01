@@ -4,7 +4,8 @@
  *
  * One control: the whole row is the button, its hint inside it. The danger tone changes the TEXT colour only, and sign
  * out is `ink`. Busy disables the row and exposes `busy` to a screen reader. Inert (its action is done) ignores the press and reads as
- * disabled, with no busy state and no dimming. Colour comes from the theme at render.
+ * disabled, with no busy state and no dimming. The row keeps its React Native press frame; its text is the design
+ * system's capped `Text` in theme colour keys (ADR-0080).
  * The web `href` is ignored: native has no URL for a row.
  *
  * Presentational: props → JSX, apart from one accessibility-focus adapter.
@@ -14,10 +15,10 @@
  */
 import { Icon } from '@commise/ui/icon';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import { nativeTokens } from '@commise/ui/native';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { ProfileRowProps } from './props.js';
 import { usePressFill } from '@commise/ui/surface-tone';
@@ -34,10 +35,8 @@ export const ProfileRow: FC<ProfileRowProps> = ({
     onPress,
     focusSignal = 0,
 }) => {
-    const { colors } = useTheme();
     const wash = usePressFill();
     const row = useScreenReaderFocusOnSignal<View>(focusSignal);
-    const labelColor = tone === 'danger' ? colors.dangerText : colors.ink;
 
     return (
         <Pressable
@@ -53,11 +52,17 @@ export const ProfileRow: FC<ProfileRowProps> = ({
             style={({ pressed }) => [styles.row, pressed ? { backgroundColor: wash } : null]}
         >
             <View style={styles.text}>
-                <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
-                {hint === undefined ? null : <Text style={[styles.hint, { color: colors.inkMuted }]}>{hint}</Text>}
+                <Text typeRole="body" color={tone === 'danger' ? '$dangerText' : '$ink'}>
+                    {label}
+                </Text>
+                {hint === undefined ? null : (
+                    <Text typeRole="caption" color="$inkMuted">
+                        {hint}
+                    </Text>
+                )}
             </View>
             {value === undefined ? null : (
-                <Text numberOfLines={1} style={[styles.value, { color: colors.inkMuted }]}>
+                <Text numberOfLines={1} typeRole="body" color="$inkMuted" flexShrink={1} maxWidth="50%">
                     {value}
                 </Text>
             )}
@@ -76,7 +81,4 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[2],
     },
     text: { flex: 1, minWidth: 0 },
-    label: { ...nativeTokens.type.body },
-    hint: { ...nativeTokens.type.caption },
-    value: { ...nativeTokens.type.body, flexShrink: 1, maxWidth: '50%' },
 });

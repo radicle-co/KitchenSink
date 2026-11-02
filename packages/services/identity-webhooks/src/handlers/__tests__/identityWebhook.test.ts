@@ -447,6 +447,70 @@ describe('identity-webhook handler', () => {
         expect(daoInstance.settleHandleSync).toHaveBeenCalledWith('usr_ulid', STAMPED, null);
     });
 
+    describe('user.updated email handling', () => {
+        const existingRow = {
+            id: 'usr_ulid',
+            identityId: 'user_abc123',
+            email: 'user_abc123@no-email.invalid',
+            name: 'John Doe',
+            picture: null,
+        };
+        const useDao = (syncProviderFields: ReturnType<typeof vi.fn>) => {
+            vi.mocked(UserDAO).mockImplementation(function () {
+                return {
+                    upsertByIdentityId: vi.fn(),
+                    findByIdentityId: vi.fn().mockResolvedValue(existingRow),
+                    updateProfile: vi.fn(),
+                    syncProviderFields,
+                    settleHandleSync: vi.fn().mockResolvedValue(undefined),
+                };
+            });
+        };
+
+        // A placeholder holder (`<sub>@no-email.invalid`) whose real address belongs to another row would hit
+        // `users_email_unique` on EVERY update. Provisioning keeps the placeholder on that same violation; so must this.
+        it('keeps the current email on a users_email_unique violation and still syncs the name', async () => {
+            const { db, whereUser } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            mockVerifyWebhook.mockReturnValue(userUpdatedPayload as never);
+            whereUser.mockRejectedValueOnce(
+                Object.assign(new Error('duplicate key'), { code: '23505', constraint: 'users_email_unique' }),
+            );
+            const syncProviderFields = vi.fn().mockResolvedValue({});
+            useDao(syncProviderFields);
+
+            const result = await handler(
+                makeEvent(JSON.stringify(userUpdatedPayload), { 'svix-id': 'msg_789' }),
+                makeContext(),
+            );
+
+            expect(result.statusCode).toBe(200);
+            expect(syncProviderFields).toHaveBeenCalledWith('usr_ulid', expect.objectContaining({ name: 'Jane Doe' }));
+            expect(mockRecordOnce).toHaveBeenCalledWith(db, 'msg_789', 'user_abc123', 'user.updated');
+        });
+
+        it('still fails on any other database error, so svix retries', async () => {
+            const { db, whereUser } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            mockVerifyWebhook.mockReturnValue(userUpdatedPayload as never);
+            whereUser.mockRejectedValueOnce(new Error('connection reset'));
+            const syncProviderFields = vi.fn().mockResolvedValue({});
+            useDao(syncProviderFields);
+
+            const outcome = await handler(
+                makeEvent(JSON.stringify(userUpdatedPayload), { 'svix-id': 'msg_790' }),
+                makeContext(),
+            ).then(
+                (value) => value,
+                (thrown: unknown) => thrown,
+            );
+
+            expect(outcome).not.toMatchObject({ statusCode: 200 });
+            expect(syncProviderFields).not.toHaveBeenCalled();
+            expect(mockRecordOnce).not.toHaveBeenCalled();
+        });
+    });
+
     /**
      * ⛔ R10: NO PROVIDER SYNC REPOPULATES A CLOSED OR ERASED ROW. Self-service erasure commits `status='erased'` while
      * the Clerk delete still waits on the queue, so Clerk can send a `user.updated` after the scrub; the later

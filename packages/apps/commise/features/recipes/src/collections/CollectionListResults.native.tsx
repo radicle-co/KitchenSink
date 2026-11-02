@@ -7,7 +7,7 @@
  * auto-measures — no `estimatedItemSize`), pull-to-refresh is wired through the recycler, and the styles derive from
  * the shared design scale (`nativeTokens`).
  */
-import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -52,6 +52,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     const { colors } = useTheme();
     const locale = useLocale();
     const searchId = useId();
+    const fabRoom = useFabReservedBottom();
     const contentWidth = contentWidthOf(useWindowDimensions().width);
     // Two columns on a phone; from a 600 container, as many columns of at least 240 as fit (§5.1).
     const columns = containerClassOf(contentWidth) === 'narrow' ? 2 : libraryGridColumnsOf(contentWidth);
@@ -135,7 +136,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                         )
                     }
                     style={styles.cardsScroll}
-                    contentContainerStyle={styles.cards}
+                    contentContainerStyle={{ paddingBottom: fabRoom }}
                     refreshControl={
                         refresh !== undefined ? (
                             <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
@@ -267,7 +268,6 @@ const styles = StyleSheet.create({
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
     // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state.
-    cards: { paddingBottom: FAB_RESERVED_BOTTOM_PX },
     cardSeparator: { height: nativeTokens.spacing[4] },
     cell: { flex: 1, paddingHorizontal: nativeTokens.spacing[2] },
     card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth, ...nativeTokens.elevation.sm },

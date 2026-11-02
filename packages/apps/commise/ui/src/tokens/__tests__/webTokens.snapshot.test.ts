@@ -333,6 +333,14 @@ describe('web tokens — generated theme.css artifact', () => {
               --fab-reserved-bottom: 5.5rem;
           }
 
+          @custom-variant fab-floats (@media (height >= 400px));
+
+          @media (height < 400px) {
+              :root {
+                  --fab-reserved-bottom: 0px;
+              }
+          }
+
           @keyframes section-enter {
               from {
                   opacity: 0;

@@ -118,6 +118,7 @@
         "./tooltip": "./src/tooltip/index.ts",
         "./chrome-surface": "./src/chromeSurface/index.ts",
         "./create-fab": "./src/createFab/index.ts",
+        "./create-fab-policy": "./src/createFab/createFabPolicy.ts",
         "./hero-button": "./src/heroButton/index.ts",
         "./photo-control": "./src/photoControl/index.ts",
         "./large-title-header": "./src/largeTitleHeader/index.ts",

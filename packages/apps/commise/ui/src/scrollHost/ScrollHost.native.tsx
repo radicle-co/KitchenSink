@@ -27,7 +27,6 @@
  * @pattern Observer — the scroll spy, through the one `currentSectionOf` algorithm
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
-import { Animated, type NativeSyntheticEvent } from 'react-native';
 
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import type { LayoutReport, ScrollBind, ScrollHostApi, ScrollHostProps, ScrollReport, ScrollTarget } from './props.js';
@@ -42,9 +41,6 @@ const END_SLOP_PX = 1;
 
 /** How long a jump's own scroll is given to end when it reports no momentum end (a jump that did not move). */
 const JUMP_SETTLE_MS = 1_000;
-
-/** The default section list: one array, so an omitted `sections` does not rebuild the scroll handler every render. */
-const NO_SECTIONS: readonly string[] = [];
 
 /** A jump's hold: the section it named, and whether the jump's own scroll has ended (so the next scroll releases). */
 interface Hold {
@@ -64,42 +60,17 @@ function scrollTargetTo(target: ScrollTarget, y: number, animated: boolean): voi
 /**
  * Calls the screen's render prop with `bind` from a CHILD component, so the host's own render never invokes a function
  * holding its handler (which closes over the `last` latch): the handler runs only when the scroller fires it.
- *
- * It also swaps the handler for a native scroll event: the offset is written into `scrollY` on the native thread and
- * the host's handler rides along as the event's listener, so every consumer of `bind.onScroll` is unchanged. The event
- * is rebuilt only when the handler changes (a layout input), because a list re-attaches a native event whenever its
- * identity changes.
  */
-const BoundScreen: FC<{
-    readonly render: (bind: ScrollBind) => ReactNode;
-    readonly bind: ScrollBind;
-    readonly scrollY: Animated.Value;
-}> = ({ render, bind, scrollY }) => {
-    const { onScroll } = bind;
-    const bound = useMemo<ScrollBind>(
-        () => ({
-            ...bind,
-            onScroll: Animated.event<ScrollReport['nativeEvent']>(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                {
-                    useNativeDriver: true,
-                    listener: (event: NativeSyntheticEvent<ScrollReport['nativeEvent']>) => onScroll(event),
-                },
-            ),
-        }),
-        [bind, onScroll, scrollY],
-    );
-
-    return render(bound);
-};
+const BoundScreen: FC<{ readonly render: (bind: ScrollBind) => ReactNode; readonly bind: ScrollBind }> = ({
+    render,
+    bind,
+}) => render(bind);
 
 /** The native design-system scroll host. */
-export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activationOffset = 0, children }) => {
+export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffset = 0, children }) => {
     const [scroller, setScroller] = useState<ScrollTarget | null>(null);
     const last = useRef<{ y: number; current: string | undefined }>({ y: 0, current: undefined });
     const [changes] = useState(createCurrentChangeSubject);
-    // One value for the host's life: a chrome interpolates from it on the native thread (the search pin, `scrollY`).
-    const [scrollY] = useState(() => new Animated.Value(0));
     const reduceMotion = useReduceMotion() === true;
     const [state, setState] = useState(INITIAL_SCROLL_STATE);
     const [headingBottom, setHeadingBottom] = useState<number | undefined>(undefined);
@@ -163,7 +134,6 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
         () => ({
             ...state,
             current: held?.id ?? state.current,
-            scrollY,
             onCurrentChange: changes.subscribe,
             scrollToTop: () => {
                 setHeld(undefined);
@@ -210,7 +180,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
             },
             handle: { current: scroller },
         }),
-        [activationOffset, changes, held, pendingJump, reduceMotion, scrollY, scroller, state, tops],
+        [activationOffset, changes, held, pendingJump, reduceMotion, scroller, state, tops],
     );
 
     const bind = useMemo<ScrollBind>(
@@ -227,11 +197,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
     return (
         <ScrollHostContext.Provider value={api}>
             <FieldTargetContext.Provider value={targets}>
-                {typeof children === 'function' ? (
-                    <BoundScreen render={children} bind={bind} scrollY={scrollY} />
-                ) : (
-                    children
-                )}
+                {typeof children === 'function' ? <BoundScreen render={children} bind={bind} /> : children}
             </FieldTargetContext.Provider>
         </ScrollHostContext.Provider>
     );

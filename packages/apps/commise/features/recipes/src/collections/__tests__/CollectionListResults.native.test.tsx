@@ -9,18 +9,19 @@ import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import type { ReactElement } from 'react';
 
 import { makeCollection } from '@kitchensink/recipe-core/testing';
 
 import { CollectionListResults } from '../CollectionListResults.native.js';
 import type { CollectionListResultsProps } from '../model.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
 const noop = () => undefined;
 
-function renderList(overrides: Partial<CollectionListResultsProps> = {}) {
+function renderList(overrides: Partial<CollectionListResultsProps> = {}, textScale?: number) {
     const props: CollectionListResultsProps = {
         collections: [],
         total: overrides.collections?.length ?? 0,
@@ -29,7 +30,7 @@ function renderList(overrides: Partial<CollectionListResultsProps> = {}) {
         firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
         ...overrides,
     };
-    render(
+    (textScale === undefined ? render : (ui: ReactElement) => renderWithTamagui(ui, 'light', textScale))(
         <LocaleProvider locale="en">
             <CollectionListResults {...props} />
         </LocaleProvider>,
@@ -71,6 +72,22 @@ describe('CollectionListResults (native) — the foot reserved for the floating 
         }
 
         expect(foot).toContain(`${FAB_RESERVED_BOTTOM_PX}px`);
+    });
+});
+
+// Designer rulings d and e (2026-11-02): the room follows the button's drawn height at the current text scale.
+describe('CollectionListResults (native) — the end room follows the font scale', () => {
+    it('reserves 98 px under the last row at 1.5x', () => {
+        renderList({ collections: threeCollections }, 1.5);
+        const row = screen.getByRole('link', { name: 'Meal Prep, Private' });
+        const foot: string[] = [];
+
+        for (let node = row.parentElement; node !== null; node = node.parentElement) {
+            foot.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(foot).toContain('98px');
+        expect(foot).not.toContain(`${FAB_RESERVED_BOTTOM_PX}px`);
     });
 });
 

@@ -2,6 +2,15 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-02: what stays fixed on the Recipes tab (asked by Nova Squad, corrects C-2 in `mergedUiIos1.md`)
+
+- **No condensed bar on Recipes.** It is a top-level page, like Home, and the tab bar already says where you are.
+- **Only the search field sticks**, as buildSpec §4.3 says and web does today. The title, avatar, segments, chips
+  and the count/sort/toggle row all scroll away with the list. The segments do not stick.
+- **Native guard:** the search field sticks only while its own height is under a third of the visible window. With
+  the keyboard open, the visible window is the part above the keyboard. Above that, it scrolls with the rest.
+- **Web:** no change. The document already scrolls, and the sticky search stays.
+
 ## 2026-11-02: calories, covers, sheets, buttons, shadows and the add field (asked by Nova Squad)
 
 - **Calories stay on cards (owner, 2026-11-02).** This replaces "nutrition" in the dropped-fields ruling above. Keep

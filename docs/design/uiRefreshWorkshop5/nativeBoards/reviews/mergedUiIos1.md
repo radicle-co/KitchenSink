@@ -26,8 +26,8 @@ stop at their ceilings. Chrome stops: the tab bar labels and the My recipes / Co
 
 **C-2. Recipes at the cap: no card can be reached.** The header block (title, segments, search, chips, count, sort,
 view toggle) stays fixed and leaves a viewport of about 23 pt. C-1 causes most of this. But even after C-1, the
-header must not be fixed above the list on a phone. It scrolls away with the list, and only the condensed bar stays.
-The segments may stick under the bar only while the header block is shorter than a third of the screen.
+header must scroll away with the list on a phone. (Corrected 2026-11-02, see `designAnswers.md`: no condensed bar,
+and only the search field sticks.)
 
 ### High
 

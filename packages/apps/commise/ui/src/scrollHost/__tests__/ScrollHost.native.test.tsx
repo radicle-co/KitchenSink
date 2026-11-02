@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render } from '@testing-library/react';
-import { Text } from 'react-native';
+import { Animated, Text } from 'react-native';
 
 const motion = vi.hoisted(() => ({ reduce: false }));
 
@@ -452,5 +452,41 @@ describe('ScrollHost (native)', () => {
         );
 
         expect(getByText('plain')).toBeTruthy();
+    });
+});
+
+describe('ScrollHost (native) — the scroll offset a chrome can animate from', () => {
+    it('publishes one Animated.Value that stays the same object across renders and scrolls', () => {
+        const { bind, api } = renderHost();
+        const first = api().scrollY;
+
+        act(() => bind().onScroll(report(120)));
+
+        expect(first).toBeInstanceOf(Animated.Value);
+        expect(api().scrollY).toBe(first);
+    });
+
+    it('keeps the bind handler the same function across scrolls that change no layout input', () => {
+        // The list re-attaches a native scroll event whenever this identity changes.
+        const { bind } = renderHost();
+        const first = bind().onScroll;
+
+        act(() => bind().onScroll(report(120)));
+
+        expect(bind().onScroll).toBe(first);
+    });
+
+    it('feeds the scroll offset into scrollY and still runs the host handler for the same event', () => {
+        const { bind, api } = renderHost();
+        const seen: number[] = [];
+        api().scrollY?.addListener(({ value }) => seen.push(value));
+
+        expect(api().atTop).toBe(true);
+
+        act(() => bind().onScroll(report(300)));
+
+        expect(seen).toEqual([300]);
+        expect(api().atTop).toBe(false);
+        expect(api().scrollingDown).toBe(true);
     });
 });

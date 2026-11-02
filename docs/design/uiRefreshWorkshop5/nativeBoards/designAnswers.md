@@ -2,6 +2,33 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-02: recipe card status, fields and the floating button (asked by Nova Squad)
+
+- **Where status goes (corrects ruling b in `reviews/mergedUiAndroid1.md`):** ruling b covers the list row only
+  (Recipes on phones and web 390). There, Private, Draft and Pro are pills in the pills row before "Edited 2d ago".
+  Every grid tile (Home, and Recipes on iPad and web) keeps its status as a chip on the cover, top-start, as the
+  boards draw it.
+- **Pro:** no board draws it yet. In the list row it is a pill after the status pill, so the order is Draft or
+  Private, then Pro, then "Edited". It uses the `pro` tone, so it reads apart from visibility. Its box is the
+  board's pill box: 24 high, radius 8, 14/500. On a tile it is a second cover chip after the status chip. If the
+  chips do not fit on one line, the second one moves whole to the next line.
+- **Fields dropped on every card:** servings, cuisine, nutrition, the tags line, the version badge and the cover time
+  chip. The time shows in the meta line instead.
+- **"Edited" on tiles:** Recipes tiles show it and Home tiles do not. This is intended. Home is already the recent
+  list, so the time adds nothing there.
+- **Difficulty:** plain text in the meta line ("Medium"). Cards do not use `DifficultyBadge`.
+- **Neutral pill fill (replaces the neutral edge in `reviews/slice1b.md`):** the board wins. A neutral status pill is
+  `surfaceMuted` with a transparent 1 pt edge, so every tone keeps one height. The word carries the meaning, so the
+  fill needs no 3:1 against the paper card. Make the change once, in the shared `StatusBadge`.
+- **List row:** build the board's measures. Padding 10, thumb 84 at radius 12, the title in the display face at
+  16/24 and 600 that wraps, the no-photo gradient with its disc and photo icon, and "Edited" that wraps and never
+  truncates.
+- **Floating button height:** the native pill grows with its label. 56 is the minimum, and the vertical padding stays
+  the same, so the height is 56 + 20 x (min(scale, 1.5) - 1). That is 66 at 1.5x. The end room is that height + 16 +
+  16, which is 98 at 1.5x.
+- **The collapsed disc:** it stays 56 x 56 because it holds no text. The end room always uses the extended height, so
+  the list foot does not jump when the button collapses.
+
 ## 2026-11-01: TextLink (asked by Thing 1)
 
 - **Leaving the app:** every link that opens outside the app draws a trailing ↗, as `DataSourceCard` does, hidden from

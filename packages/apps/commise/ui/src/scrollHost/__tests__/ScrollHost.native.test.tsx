@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import { Animated, ScrollView, Text } from 'react-native';
 
 const motion = vi.hoisted(() => ({ reduce: false }));
@@ -17,6 +17,24 @@ import type { ScrollBind, ScrollHostApi, ScrollReport } from '../props.js';
 import { useFieldTarget } from '../fieldTarget.js';
 import { ScrollHost } from '../ScrollHost.native.js';
 import { useScrollHost } from '../scrollHostContext.js';
+
+/** Hands the nearest host's API to a test after each commit, so no test writes to its own variables while rendering. */
+const ApiProbe = ({ onApi }: { readonly onApi: (api: ScrollHostApi) => void }): null => {
+    const api = useScrollHost();
+
+    useEffect(() => onApi(api));
+
+    return null;
+};
+
+/** Hands a field's target count to a test after each commit. */
+const CountProbe = ({ id, onCount }: { readonly id: string; readonly onCount: (count: number) => void }): null => {
+    const count = useFieldTarget(id);
+
+    useEffect(() => onCount(count));
+
+    return null;
+};
 
 afterEach(() => {
     cleanup();
@@ -35,18 +53,18 @@ const report = (y: number, viewport = 800, content = 4000): ScrollReport => ({
 function renderHost(sections?: readonly string[]): { bind: () => ScrollBind; api: () => ScrollHostApi } {
     const seen: { bind?: ScrollBind; api?: ScrollHostApi } = {};
 
-    const Probe = (): null => {
-        seen.api = useScrollHost();
-
-        return null;
-    };
-
     render(
         <ScrollHost {...(sections === undefined ? {} : { sections })}>
             {(bind) => {
                 seen.bind = bind;
 
-                return <Probe />;
+                return (
+                    <ApiProbe
+                        onApi={(api) => {
+                            seen.api = api;
+                        }}
+                    />
+                );
             }}
         </ScrollHost>,
     );
@@ -321,23 +339,21 @@ describe('ScrollHost (native)', () => {
         } {
             const seen: { api?: ScrollHostApi; counts: Record<string, number> } = { counts: {} };
 
-            const Reader = ({ id }: { readonly id: string }): null => {
-                seen.counts[id] = useFieldTarget(id);
-
-                return null;
-            };
-
-            const Probe = (): null => {
-                seen.api = useScrollHost();
-
-                return null;
-            };
-
             render(
                 <ScrollHost sections={['details', 'steps']}>
-                    <Probe />
+                    <ApiProbe
+                        onApi={(api) => {
+                            seen.api = api;
+                        }}
+                    />
                     {ids.map((id) => (
-                        <Reader key={id} id={id} />
+                        <CountProbe
+                            key={id}
+                            id={id}
+                            onCount={(count) => {
+                                seen.counts[id] = count;
+                            }}
+                        />
                     ))}
                 </ScrollHost>,
             );
@@ -396,18 +412,18 @@ describe('ScrollHost (native)', () => {
             const scrollView = { scrollTo: vi.fn() };
             const seen: { api?: ScrollHostApi; bind?: ScrollBind } = {};
 
-            const Probe = (): null => {
-                seen.api = useScrollHost();
-
-                return null;
-            };
-
             render(
                 <ScrollHost sections={['details', 'steps']}>
                     {(bind) => {
                         seen.bind = bind;
 
-                        return <Probe />;
+                        return (
+                            <ApiProbe
+                                onApi={(api) => {
+                                    seen.api = api;
+                                }}
+                            />
+                        );
                     }}
                 </ScrollHost>,
             );
@@ -465,17 +481,15 @@ describe('ScrollHost (native) — a plain ScrollView takes bind as it always did
 
         const seen: { api?: ScrollHostApi } = {};
 
-        const Probe = (): null => {
-            seen.api = useScrollHost();
-
-            return null;
-        };
-
         render(
             <ScrollHost>
                 {(bind) => (
                     <ScrollView {...bind} testID="scroller">
-                        <Probe />
+                        <ApiProbe
+                            onApi={(api) => {
+                                seen.api = api;
+                            }}
+                        />
                     </ScrollView>
                 )}
             </ScrollHost>,
@@ -527,17 +541,15 @@ describe('ScrollHost (native) — the opt-in for an Animated scroller', () => {
     it('feeds an Animated scroller offset into scrollY and still runs the host handler', () => {
         const seen: { api?: ScrollHostApi } = {};
 
-        const Probe = (): null => {
-            seen.api = useScrollHost();
-
-            return null;
-        };
-
         render(
             <ScrollHost>
                 {() => (
                     <>
-                        <Probe />
+                        <ApiProbe
+                            onApi={(api) => {
+                                seen.api = api;
+                            }}
+                        />
                         <AnimatedScroller />
                     </>
                 )}

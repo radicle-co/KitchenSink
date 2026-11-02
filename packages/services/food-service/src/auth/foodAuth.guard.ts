@@ -23,15 +23,22 @@
  * @implements FR-035 FR-036 FR-037 FR-038 FR-040 FR-042 FR-047 FR-052 FR-053
  */
 import {
-    ForbiddenException,
     Injectable,
     Optional,
     ServiceUnavailableException,
     UnauthorizedException,
     type NestMiddleware,
 } from '@nestjs/common';
-import { isClerkAccountSuspendedError, resolveAzpEnforcement, verifyClerkToken } from '@kitchensink/clerk-verify';
+import {
+    ACCOUNT_SUSPENDED_CODE,
+    ACCOUNT_SUSPENDED_MESSAGE,
+    isClerkAccountSuspendedError,
+    resolveAzpEnforcement,
+    verifyClerkToken,
+} from '@kitchensink/clerk-verify';
 import type { NextFunction, Response } from 'express';
+
+import { apiError } from '../common/apiError.js';
 
 import { isDeployedStage, settingFromEnv } from '../config/env.schema.js';
 import { AuthLoadShedder, type AuthLoadShedderOptions } from './AuthLoadShedder.js';
@@ -166,7 +173,7 @@ export class FoodAuthGuard implements NestMiddleware {
             // authentication failure, so it is NOT fed to the 401-rate cap below. Food exempts no route (its erasure
             // is service-to-service), so every route answers it.
             if (isClerkAccountSuspendedError(error)) {
-                throw new ForbiddenException({ code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended' });
+                throw apiError(ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE);
             }
 
             // Any failure (bad signature, expiry, wrong azp, missing key) → opaque 401 (never the reason).

@@ -75,6 +75,7 @@ import type {
 
 import { reportContractSkewOnce } from './contractSkew.js';
 import {
+    AccountSuspendedError,
     BadRequestError,
     CandidateMismatchError,
     ConflictError,
@@ -1295,6 +1296,9 @@ export class FoodServiceClient {
             case 'UNAUTHORIZED':
             case 'IDENTITY_SYNC_PENDING':
                 return new UnauthorizedError(body.message);
+            // ADR-0081: its own class, a ForbiddenError by inheritance. No retry or sign-in lifts a suspension.
+            case 'ACCOUNT_SUSPENDED':
+                return new AccountSuspendedError(body.message);
             case 'FORBIDDEN':
                 return new ForbiddenError(body.message);
             case 'FOOD_NOT_FOUND':

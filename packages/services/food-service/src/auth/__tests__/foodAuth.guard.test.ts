@@ -11,7 +11,7 @@
  * - FR-038        → "forged x-debug-sub / x-authorizer-context is ignored"
  * - FR-047        → "an azp-allowlisted M2M token is accepted"
  */
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, UnauthorizedException } from '@nestjs/common';
 import type { NextFunction, Response } from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,7 +21,12 @@ vi.mock('@kitchensink/clerk-verify', async () => {
     return { ...actual, verifyClerkToken: vi.fn() };
 });
 
-import { ClerkAccountSuspendedError, ClerkVerificationError, verifyClerkToken } from '@kitchensink/clerk-verify';
+import {
+    ACCOUNT_SUSPENDED_CODE,
+    ClerkAccountSuspendedError,
+    ClerkVerificationError,
+    verifyClerkToken,
+} from '@kitchensink/clerk-verify';
 
 import { FoodAuthGuard } from '../foodAuth.guard.js';
 import type { AuthenticatedRequest } from '../authenticatedPrincipal.js';
@@ -90,8 +95,9 @@ describe('FoodAuthGuard', () => {
             .use(makeReq({ authorization: 'Bearer suspended' }), {} as Response, next)
             .catch((thrown: unknown) => thrown);
 
-        expect(error).toBeInstanceOf(ForbiddenException);
-        expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'ACCOUNT_SUSPENDED' });
+        expect(error).toBeInstanceOf(HttpException);
+        expect((error as HttpException).getStatus()).toBe(403);
+        expect((error as HttpException).getResponse()).toMatchObject({ code: ACCOUNT_SUSPENDED_CODE });
         expect(shedder.recordFailure).not.toHaveBeenCalled();
         expect(shedder.release).toHaveBeenCalledTimes(1);
         expect(next).not.toHaveBeenCalled();

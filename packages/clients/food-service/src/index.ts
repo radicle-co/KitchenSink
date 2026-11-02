@@ -19,6 +19,7 @@ export type { ProgressiveAnswer } from './progressiveAnswer.js';
 export { shouldRetryFoodServiceFailure } from './retryPolicy.js';
 
 export {
+    AccountSuspendedError,
     BadRequestError,
     CandidateMismatchError,
     ConflictError,
@@ -34,6 +35,7 @@ export {
     SourceBusyError,
     UnauthorizedError,
     UnexpectedResponseError,
+    isAccountSuspendedError,
     isBadRequestError,
     isCandidateMismatchError,
     isConflictError,

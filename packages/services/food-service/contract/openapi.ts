@@ -19,8 +19,9 @@
  * `openApiComponents` is typed, so referencing a component that does not exist is a `typecheck` failure, and the
  * generator prints every response left without a body schema on each run.
  */
-import { buildOpenApiDocument } from '@kitchensink/contract-gen';
-import type { OpenApiBuildResult, OpenApiResponse } from '@kitchensink/contract-gen';
+import { buildOpenApiDocument, withResponseOnOperations } from '@kitchensink/contract-gen';
+import type { OpenApiBuildResult, OpenApiResponse, OpenApiSpec } from '@kitchensink/contract-gen';
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import { z } from 'zod';
 
 import { apiErrorSchema } from '../src/common/apiError.schema.js';
@@ -251,7 +252,7 @@ const searchRateLimited = {
 } as const;
 
 /** The derived document plus its response-schema coverage report. */
-export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
+const foodOpenApiSpec: OpenApiSpec<typeof openApiComponents> = {
     title: 'Commise Food (Ingredient) API',
     version: '1.0.0',
     description:
@@ -941,4 +942,27 @@ export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
             },
         },
     },
+};
+
+/**
+ * The food OpenAPI document and its coverage report.
+ *
+ * The suspended-account `403` is added here to every operation a Clerk session reaches, rather than written on each
+ * route: the guard answers it before any handler runs (ADR-0081), so it is a property of the surface, and a route
+ * added tomorrow is covered without anyone remembering. A route's own `403` keeps its meaning and gains this one.
+ */
+export const foodOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
+    ...foodOpenApiSpec,
+    paths: withResponseOnOperations<keyof typeof openApiComponents & string>(foodOpenApiSpec.paths, {
+        status: '403',
+        response: {
+            description:
+                `The token is genuine but its account is suspended: \`code: ${ACCOUNT_SUSPENDED_CODE}\` (ADR-0081). ` +
+                'Answered before the route runs, so it belongs to every operation a Clerk session reaches.',
+            schema: 'ApiError',
+        },
+        // The default requirement, or one that names the Clerk scheme. Public probes (`security: []`) and the
+        // service-token routes are out.
+        appliesTo: (operation) => operation.security === undefined || operation.security.includes('clerkSession'),
+    }),
 });

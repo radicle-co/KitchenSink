@@ -28,8 +28,21 @@ import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
 import { formatAmount, isLineFoodRemoved } from './model.js';
 
+/**
+ * A hairline above a row, inset to where its text starts (the 16 gutter, the 18 box, a 12 gap): drawn on the `li`, so it is
+ * the row's own and never the list's. Written whole, for Tailwind.
+ */
+const DIVIDED_ROW =
+    'relative before:absolute before:end-0 before:start-[46px] before:top-0 before:h-px before:bg-line-divider';
+
 /** The web checkable ingredient row. */
-export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, checked, allRemoved, onToggle }) => {
+export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
+    ingredient,
+    checked,
+    allRemoved,
+    onToggle,
+    divided = false,
+}) => {
     const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     const locale = useLocale();
     const statusId = useId();
@@ -38,7 +51,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
 
     return (
-        <li>
+        <li className={divided ? DIVIDED_ROW : undefined}>
             <button
                 type="button"
                 role="checkbox"
@@ -51,7 +64,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                 )}
                 aria-describedby={statuses.length > 0 ? statusId : undefined}
                 onClick={() => onToggle(ingredient.ingredientId)}
-                className={`flex min-h-11 w-full items-start gap-3 rounded-md px-3 py-2 text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
+                className={`flex min-h-11 w-full items-start gap-3 rounded-md px-4 py-2 text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
             >
                 {/* The 18 px box sits on the text's 20 px first line, 1 px down to centre on it. */}
                 <span className="mt-px flex">
@@ -59,7 +72,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, ch
                 </span>
                 <span
                     data-line-text
-                    className={`min-w-0 flex-1 break-words text-list transition-colors motion-reduce:transition-none ${checked ? 'text-ink-muted' : 'text-ink'}`}
+                    className={`min-w-0 flex-1 break-words text-body transition-colors motion-reduce:transition-none ${checked ? 'text-ink-muted' : 'text-ink'}`}
                 >
                     {amount !== '' && (
                         <>

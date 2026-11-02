@@ -79,8 +79,8 @@ test.describe('recipe detail — original source', () => {
         await page.goto(route(`/recipes/${RECIPE_ID.own}`));
         await expect(page.getByRole('heading', { level: 1, name: 'My Own Pasta' })).toBeVisible();
 
-        // Absent source renders NOTHING — not an empty "Source" row.
-        await expect(page.getByText('Source', { exact: true })).toHaveCount(0);
+        // Absent source renders NOTHING — not an empty "Adapted from" row (the label read "Source" before slice 1).
+        await expect(page.getByText('Adapted from', { exact: true })).toHaveCount(0);
     });
 });
 

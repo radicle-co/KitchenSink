@@ -590,7 +590,7 @@ describe('RecipeDetailScreen — ready state', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         expect(screen.queryByRole('radiogroup', { name: 'Your rating' })).toBeNull();
-        expect(screen.getByText('You can’t rate your own recipe.')).toBeTruthy();
+        expect(screen.getByText('Only other cooks can rate your recipe.')).toBeTruthy();
     });
 });
 
@@ -980,8 +980,9 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
         expect(screen.getByRole('menuitem', { name: t.deleteRecipe })).toBeTruthy();
     });
 
-    // REWRITTEN in UI-overhaul slice 2: the DS primary tier is ONE flat `action` fill (the gradient was removed).
-    it('paints the primary Edit action with the DS primary tier’s flat action fill', () => {
+    // REWRITTEN IN SLICE 1 (`designAnswers.md` D2): Edit recipe is a TEXT action, the DS ghost tier. It carries no fill at
+    // all, where it used to carry the primary tier's flat `action` fill, and no gradient.
+    it('draws the Edit action as a text action, with no action fill and no gradient', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
         const edit = screen.getByRole('button', { name: recipeActionMessages.en.detailActions.editRecipe });
@@ -989,7 +990,7 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
             (element) => window.getComputedStyle(element).backgroundColor,
         );
 
-        expect(painted).toContain(cssRgb(role.action));
+        expect(painted).not.toContain(cssRgb(role.action));
         expect(edit.querySelector('[data-commise-stub="linear-gradient"]')).toBeNull();
     });
 

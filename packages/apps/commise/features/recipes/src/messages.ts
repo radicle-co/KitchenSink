@@ -100,8 +100,6 @@ export interface RecipeListMessages {
 export interface RecipeDetailMessages {
     /** Label for the prep-time meta stat. */
     readonly prepLabel: string;
-    /** Label for the cook-time meta stat. */
-    readonly cookLabel: string;
     /** Label for the total-time meta stat. */
     readonly totalLabel: string;
     /** Label for the servings meta stat. */
@@ -116,6 +114,10 @@ export interface RecipeDetailMessages {
     readonly photoDotsLabel: string;
     /** Accessible name for a single navigation dot (contains `{title}` and `{index}`). */
     readonly photoDot: string;
+    /** Accessible name for the carousel's paging chevron to the previous photo (contains `{title}`). */
+    readonly photoPrevious: string;
+    /** Accessible name for the carousel's paging chevron to the next photo (contains `{title}`). */
+    readonly photoNext: string;
     /** Accessible name for the lightbox close control. */
     readonly lightboxClose: string;
     /** Heading for the ingredients section. */
@@ -364,7 +366,7 @@ export interface RecipeDetailMessages {
     readonly scaledAnnounce: string;
     /** The "Screen on" switch's name. */
     readonly screenOn: string;
-    /** The one-time hint under the section switch the first time Screen on shows. */
+    /** What Screen on does, as the switch's accessibility hint (never drawn). */
     readonly screenOnHint: string;
     /** The steps section with no steps. */
     readonly noSteps: string;
@@ -384,10 +386,6 @@ export interface RecipeDetailMessages {
     readonly descriptionMore: string;
     /** The same button once the description is expanded. */
     readonly descriptionLess: string;
-    /** The name of the section switch's navigation. */
-    readonly sectionsLabel: string;
-    /** The section switch's link to the nutrition section. */
-    readonly nutritionLink: string;
     /** The ghost link in the footer facts that opens the version history. */
     readonly versionHistory: string;
     /**
@@ -940,7 +938,6 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             refreshError: 'We couldn’t refresh this recipe.',
             refreshRetry: 'Try again',
             prepLabel: 'Prep',
-            cookLabel: 'Cook',
             totalLabel: 'Total',
             servingsLabel: 'Serves',
             photosLabel: 'Recipe photos',
@@ -948,6 +945,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             photoOpen: 'Open {title} photo {index} full screen',
             photoDotsLabel: 'Photo navigation',
             photoDot: 'Go to {title} photo {index}',
+            photoPrevious: 'Previous {title} photo',
+            photoNext: 'Next {title} photo',
             lightboxClose: 'Close photo',
             ingredientsHeading: 'Ingredients',
             userEnteredBadge: 'Your own food',
@@ -1010,7 +1009,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             badgesLabel: 'Recipe status',
-            sourceHeading: 'Source',
+            sourceHeading: 'Adapted from',
             servingsAdjustLabel: 'Servings',
             servingsDecrease: 'Fewer servings',
             servingsIncrease: 'More servings',
@@ -1038,8 +1037,6 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             editStepsLabel: 'Edit steps',
             descriptionMore: 'More',
             descriptionLess: 'Less',
-            sectionsLabel: 'Recipe sections',
-            nutritionLink: 'Nutrition',
             versionHistory: 'Version history',
             backTo: 'Back to {parent}',
             parentHome: 'Home',

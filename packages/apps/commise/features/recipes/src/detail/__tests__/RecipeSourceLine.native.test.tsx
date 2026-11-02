@@ -5,11 +5,15 @@
  * (`Linking.openURL`), which will happily dispatch `tel:`, `sms:`, an app deep link, or an Android
  * `intent:` — so the scheme gate is not a nicety here, it is the boundary. These tests assert that the OS
  * is never asked to open anything that did not pass the gate.
+ *
+ * REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md` item 5): the line reads "Adapted from" where it read "Source", it is a
+ * label and no longer a header (it is a line under the title, not a section), and it paints through the design system's
+ * `Text`, so its colours are read through `resolvedColour`. The scheme gate and the link behaviour are unchanged.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render, rendersNothing } from '@commise/ui/testing/tamagui';
+import { render, rendersNothing, resolvedColour } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { Linking } from 'react-native';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -47,7 +51,7 @@ describe('RecipeSourceLine (native) — attribution without a usable URL', () =>
     it('renders the attribution as plain text, with no link', () => {
         render(<RecipeSourceLine sourceAttribution="Grandma’s cookbook" />);
 
-        expect(screen.getByText('Source')).toBeTruthy();
+        expect(screen.getByText('Adapted from')).toBeTruthy();
         expect(screen.getByText('Grandma’s cookbook')).toBeTruthy();
         expect(screen.queryByRole('link')).toBeNull();
     });
@@ -106,21 +110,22 @@ describe('RecipeSourceLine (native) — a linkable source', () => {
 });
 
 /**
- * `docs/design/nativeContainerNames.md` N1 rule 2: the line's "Source" label names it, so it is a header and the line
- * carries no name of its own; "Source" is said once (N4). Both drawn shapes are checked: text alone, and a link.
+ * `docs/design/nativeContainerNames.md` N1: the line is said once. "Adapted from" is the visible label, the line carries no
+ * name of its own, and it is not a header. Both drawn shapes are checked: text alone, and a link.
  */
-describe('RecipeSourceLine (native) — N1: the line is named once, by its "Source" header', () => {
+describe('RecipeSourceLine (native) — N1: the line is said once, by its visible label', () => {
     it.each([
         ['an attribution alone', { sourceAttribution: 'Grandma’s cookbook' }],
         [
             'a linkable source',
             { sourceUrl: 'https://www.seriouseats.com/recipes/lamb', sourceAttribution: 'Serious Eats' },
         ],
-    ])('says "Source" through one header, and no node is labelled with it (%s)', (_shape, source) => {
+    ])('says "Adapted from" once, as a label, and no node is named with it (%s)', (_shape, source) => {
         render(<RecipeSourceLine {...source} />);
 
-        expect(screen.getAllByRole('heading', { name: 'Source' })).toHaveLength(1);
-        expect(screen.queryAllByLabelText('Source')).toEqual([]);
+        expect(screen.getAllByText('Adapted from')).toHaveLength(1);
+        expect(screen.queryAllByRole('heading')).toEqual([]);
+        expect(screen.queryAllByLabelText('Adapted from')).toEqual([]);
     });
 });
 
@@ -131,8 +136,8 @@ describe.each(['light', 'dark'] as const)('RecipeSourceLine (native) — the %s 
         const colours = rolesFor(scheme);
         render(<RecipeSourceLine sourceUrl="https://example.com/pie" sourceAttribution="Grandma’s cookbook" />);
 
-        expect(getComputedStyle(screen.getByText('Source')).color).toBe(rgb(colours.inkMuted));
-        expect(getComputedStyle(screen.getByText('Grandma’s cookbook')).color).toBe(rgb(colours.ink));
-        expect(getComputedStyle(screen.getByText('example.com')).color).toBe(rgb(colours.actionText));
+        expect(resolvedColour(screen.getByText('Adapted from'), 'color')).toBe(rgb(colours.inkMuted));
+        expect(resolvedColour(screen.getByText('Grandma’s cookbook'), 'color')).toBe(rgb(colours.ink));
+        expect(resolvedColour(screen.getByText('example.com'), 'color')).toBe(rgb(colours.actionText));
     });
 });

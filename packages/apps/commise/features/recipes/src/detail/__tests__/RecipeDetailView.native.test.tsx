@@ -5,7 +5,13 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { render as renderInDesignSystem, resolvedStyle } from '@commise/ui/testing/tamagui';
+import {
+    render as renderInDesignSystem,
+    renderWithTamagui,
+    resolvedColour,
+    resolvedStyle,
+} from '@commise/ui/testing/tamagui';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import userEvent from '@testing-library/user-event';
 import { AccessibilityInfo } from 'react-native';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
@@ -36,7 +42,6 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CookMarksTestProvider, idleDetailBodyState } from '../../__fixtures__/cookMarks.js';
-import { ScrollHost } from '@commise/ui/scroll-host';
 import { heldKeepAwakeTags } from '@commise/ui/testing/expo-keep-awake';
 
 /** Every detail renders inside the session’s cook-marks scope, as each app root mounts it. */
@@ -46,7 +51,7 @@ const render = (
 ): ReturnType<typeof renderInDesignSystem> => renderInDesignSystem(ui, { wrapper });
 
 /** The owner's view also mounts the ambiguity review, which reads the food client. */
-const ownerWrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
+const OwnerScope: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <QueryClientProvider client={new QueryClient()}>
         <RecipeServiceProvider client={createFakeRecipeServiceClient()}>
             <FoodServiceProvider client={guardedFoodClient()} subject="user_test">
@@ -90,7 +95,8 @@ describe('RecipeDetailView (native)', () => {
             <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail({ title: 'Lamb' })} />,
         );
 
-        const applied = appliedFontFamily(screen.getByRole('heading', { name: 'Lamb' }));
+        // REWRITTEN IN SLICE 2: the heading is a View around the design system's `Text`, which carries the face.
+        const applied = resolvedStyle(screen.getByText('Lamb'), 'fontFamily');
 
         expect(applied).toBe(nativeTokens.type.largeTitle.narrow.fontFamily);
         expect(applied).not.toContain(',');
@@ -123,13 +129,15 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText('Mediterranean')).toBeTruthy();
     });
 
-    // Plan 2026-10-15-010 D11 — the same byline the web meta line shows, from the one shared rule.
+    // Plan 2026-10-15-010 D11 — the same byline the web meta line shows, from the one shared rule. REWRITTEN IN SLICE 2: the
+    // display name alone (`designAnswers.md` 2026-11-02), with the handle only for an author who has no display name.
     it.each([
         [
-            '@username (Display Name)',
+            'the display name, with no handle beside it',
             { authorUsername: 'braise', authorDisplayName: 'Eliza Moreno' },
-            'by ⁨@braise⁩ (⁨Eliza Moreno⁩)',
+            'by ⁨Eliza Moreno⁩',
         ],
+        ['the handle when there is no display name', { authorUsername: 'braise' }, 'by ⁨@braise⁩'],
         ['the display name alone', { authorDisplayName: 'Eliza Moreno' }, 'by ⁨Eliza Moreno⁩'],
         ['a former member', { authorDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' }, 'by a former member'],
     ])('names another cook’s recipe’s author as %s', (_case, author, expected) => {
@@ -156,7 +164,8 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText('4')).toBeTruthy();
     });
 
-    it('orders the stat strip Total, Prep, Cook, Difficulty (§6.1)', () => {
+    // REWRITTEN IN SLICE 1: the board draws three fact tiles, Total, Prep and Difficulty, and no Cook tile.
+    it('orders the fact tiles Total, Prep, Difficulty and draws no Cook tile (§6.1)', () => {
         render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
@@ -170,7 +179,7 @@ describe('RecipeDetailView (native)', () => {
         );
 
         const labels = screen.getAllByText(/^(Total|Prep|Cook|Difficulty)$/u).map((el) => el.textContent);
-        expect(labels).toEqual(['Total', 'Prep', 'Cook', 'Difficulty']);
+        expect(labels).toEqual(['Total', 'Prep', 'Difficulty']);
         expect(screen.getByText('Hard')).toBeTruthy();
     });
 
@@ -207,9 +216,10 @@ describe('RecipeDetailView (native)', () => {
         const lamb = screen.getByRole('heading', { name: 'For the lamb' });
 
         // C5/C6 (redesign): a group name is weight 500, in the registered medium face (never a weight on a family).
-        expect(appliedFontFamily(lamb)).toBe(nativeTokens.type.caption.fontFamily);
+        // REWRITTEN IN SLICE 2: the label is the design system's `Text`, so both reads go through the theme resolver.
+        expect(resolvedStyle(lamb, 'fontFamily')).toContain(nativeTokens.type.caption.fontFamily);
         // T1: 16 above a group name.
-        expect(getComputedStyle(lamb).paddingTop).toBe(`${nativeTokens.spacing[4]}px`);
+        expect(resolvedStyle(lamb, 'paddingTop')).toBe(`${nativeTokens.spacing[4]}px`);
         const chickpeas = screen.getByRole('heading', { name: 'For the chickpeas' });
 
         expect(
@@ -630,7 +640,7 @@ describe('RecipeDetailView (native) — tap-to-check and the current step', () =
                 onEditSection={onEditSection}
                 recipe={makeRecipeDetail({ steps: [] })}
             />,
-            ownerWrapper,
+            OwnerScope,
         );
 
         expect(screen.getByText('No steps yet.')).toBeTruthy();
@@ -638,12 +648,10 @@ describe('RecipeDetailView (native) — tap-to-check and the current step', () =
         expect(onEditSection).toHaveBeenCalledWith('steps');
     });
 
-    // F22 (`evaluateFinal.md`; §6.1): the owner's Edit links sat centred on their own line. Each is a ghost link at the
-    // end of its section's heading row, as on web.
-    it.each([
-        ['Ingredients', 'Edit ingredients'],
-        ['Steps', 'Edit steps'],
-    ])('puts the %s Edit link in its heading row', (heading, edit) => {
+    // F22 (`evaluateFinal.md`; §6.1): the owner's Edit links sat centred on their own line. The Steps Edit is a ghost link at
+    // the end of its heading row. REWRITTEN IN SLICE 2 for Ingredients: its Edit sits UNDER the heading row, at the start
+    // (`RecipeDetailAndroid384`); the card tests in `IngredientsCard.native.test.tsx` prove it.
+    it('puts the Steps Edit link in its heading row', () => {
         render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
@@ -651,13 +659,13 @@ describe('RecipeDetailView (native) — tap-to-check and the current step', () =
                 onEditSection={vi.fn()}
                 recipe={makeRecipeDetail()}
             />,
-            ownerWrapper,
+            OwnerScope,
         );
 
-        const row = screen.getByRole('heading', { name: heading }).parentElement as HTMLElement;
+        const row = screen.getByRole('heading', { name: 'Steps' }).parentElement as HTMLElement;
 
         expect(getComputedStyle(row).flexDirection).toBe('row');
-        expect(row.contains(screen.getByRole('button', { name: edit }))).toBe(true);
+        expect(row.contains(screen.getByRole('button', { name: 'Edit steps' }))).toBe(true);
     });
 });
 
@@ -706,7 +714,7 @@ describe('RecipeDetailView (native) — contrast (WCAG AA)', () => {
     });
 });
 
-describe('RecipeDetailView (native) — footer facts and the rating line (§6.1)', () => {
+describe('RecipeDetailView (native) — the status row (§6.1)', () => {
     it('opens the version history, and states no version number', () => {
         const onViewVersions = vi.fn();
         render(
@@ -730,7 +738,7 @@ describe('RecipeDetailView (native) — footer facts and the rating line (§6.1)
                 viewerIsOwner
                 recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })}
             />,
-            ownerWrapper,
+            OwnerScope,
         );
         expect(screen.getByText('Private')).toBeTruthy();
         owner.unmount();
@@ -743,17 +751,6 @@ describe('RecipeDetailView (native) — footer facts and the rating line (§6.1)
         );
         expect(screen.queryByText('Private')).toBeNull();
     });
-
-    it('states the rating and its count beside a star', () => {
-        render(
-            <RecipeDetailView
-                unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ averageRating: 4.8, ratingCount: 12 })}
-            />,
-        );
-
-        expect(screen.getByText('4.8 (12)')).toBeTruthy();
-    });
 });
 
 describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
@@ -762,6 +759,10 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
      * its OWN drop shadow the moment it also sets `overflow: 'hidden'` (Android's `elevation` does not), so
      * an elevated card must never clip. This guards that invariant across the whole detail surface — the
      * same structural rule `RecipeCard.native` enforces with its shell/content split.
+     *
+     * REWRITTEN IN SLICE 1: the elevated stat strip is gone (the fact tiles are flat `cover-steel` fills), so the page
+     * may have no shadowed node at all and the "an elevation is present" check, which only guarded against the guard
+     * going vacuous, is dropped. The invariant stays: a node that has a shadow must not clip.
      */
     it('never puts a card shadow and an overflow clip on the same node', () => {
         const { container } = render(
@@ -780,10 +781,7 @@ describe('RecipeDetailView (native) — iOS shadow-clipping guard', () => {
             (node) => window.getComputedStyle(node).boxShadow !== '',
         );
 
-        // The elevation is present (the guard would be vacuous if the shadows had simply been dropped)…
-        expect(elevated.length).toBeGreaterThan(0);
-
-        // …and no elevated node clips.
+        // No elevated node clips.
         for (const node of elevated) {
             expect(window.getComputedStyle(node).overflowX).not.toBe('hidden');
         }
@@ -854,7 +852,8 @@ describe('RecipeDetailView (native) — hero cover (mockup screenRecipeDetail)',
         expect(screen.getAllByLabelText('Recipe photos')).toHaveLength(1);
     });
 
-    it('renders the monogram band hero for a recipe with no cover', () => {
+    // REWRITTEN IN SLICE 1 (designer, iosBatch1): the no-photo band is the tint only, with no monogram letter.
+    it('renders the tint band hero for a recipe with no cover, with no monogram', () => {
         render(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
@@ -862,8 +861,8 @@ describe('RecipeDetailView (native) — hero cover (mockup screenRecipeDetail)',
             />,
         );
 
-        // The 96 pt monogram band (F10): the title's first letter, and no picture glyph.
-        expect(screen.getByText('L')).toBeTruthy();
+        // The 96 pt band (F10): no letter, and no picture glyph.
+        expect(screen.queryByText('L')).toBeNull();
         expect(screen.queryByLabelText('No photo yet')).toBeNull();
         // And the title still renders — a missing cover degrades the hero, never the screen.
         expect(screen.getByRole('heading', { name: 'Lamb' })).toBeTruthy();
@@ -1115,30 +1114,6 @@ describe('RecipeDetailView (native) — the quantity flows with the name (D1)', 
     });
 });
 
-function appliedFontFamily(element: Element): string | undefined {
-    const className = element.className.split(' ').find((name) => name.startsWith('r-fontFamily-'));
-
-    if (className === undefined) {
-        return undefined;
-    }
-
-    const sheets = document.styleSheets;
-
-    for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
-        const rules = sheets[sheetIndex]?.cssRules;
-
-        for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
-            const rule = rules?.[ruleIndex];
-
-            if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
-                return rule.style.getPropertyValue('font-family');
-            }
-        }
-    }
-
-    return undefined;
-}
-
 describe('RecipeDetailView (native) — the current step is tellable from the others', () => {
     it('fills the current step’s numeral with the action colour and reports it pressed; the others do neither', () => {
         render(
@@ -1256,21 +1231,16 @@ describe('RecipeDetailView (native) — serving scale', () => {
     /** Render the PURE body at an explicit serving count — the ratio cases, with no store involved. */
     const renderAt = (servings: number) =>
         render(
-            <ScrollHost>
-                {(bind) => (
-                    <RecipeDetailBody
-                        unreachableRetry={idleUnreachableRetry}
-                        recipe={scalable()}
-                        servings={servings}
-                        onServingsChange={vi.fn()}
-                        onOpenDataSources={vi.fn()}
-                        dataSourcesReturnFocusSignal={0}
-                        layout={{ columns: 'one', statsPerRow: 4 }}
-                        bind={bind}
-                        {...idleDetailBodyState}
-                    />
-                )}
-            </ScrollHost>,
+            <RecipeDetailBody
+                unreachableRetry={idleUnreachableRetry}
+                recipe={scalable()}
+                servings={servings}
+                onServingsChange={vi.fn()}
+                onOpenDataSources={vi.fn()}
+                dataSourcesReturnFocusSignal={0}
+                layout={{ columns: 'one', bodyWidth: 358, textScale: 1 }}
+                {...idleDetailBodyState}
+            />,
         );
 
     it('opens at the serving count the recipe was created with', () => {
@@ -1305,7 +1275,8 @@ describe('RecipeDetailView (native) — serving scale', () => {
         expect(screen.getByText('30 min')).toBeTruthy(); // prep 15 -> 30
         // Said in hours and minutes through `formatDuration` (§6.1), so the rebuilt 60 minutes reads "1 h".
         expect(screen.getByText('1 h')).toBeTruthy(); // total 45 + the prep delta
-        expect(screen.getByText('25 min')).toBeTruthy(); // cook: UNCHANGED
+        // The page draws no Cook tile now, so cook time is no longer on screen to assert; that it does not scale is
+        // proved where it is decided, `scaleRecipeForServings` in recipe-core.
         expect(screen.getByText('10 min')).toBeTruthy(); // step timer: UNCHANGED
     });
 
@@ -1581,7 +1552,7 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
     const regions = (): NodeListOf<Element> => document.querySelectorAll('[aria-live="assertive"]');
 
     it('mounts an empty assertive region for the owner when there is nothing to say', () => {
-        render(view(), ownerWrapper);
+        render(view(), OwnerScope);
 
         expect(regions()).toHaveLength(1);
         expect(regions()[0]?.textContent).toBe('');
@@ -1589,7 +1560,7 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
     });
 
     it('⛔ fills the region that is already mounted, rather than mounting it with its text', () => {
-        const { rerender } = render(view(), ownerWrapper);
+        const { rerender } = render(view(), OwnerScope);
         const before = regions()[0];
 
         rerender(view(NOTICE));
@@ -1599,14 +1570,27 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
         expect(screen.getByRole('alert').textContent).toBe(NOTICE);
     });
 
-    it('shows the words in the danger colour', () => {
-        render(view(NOTICE), ownerWrapper);
+    // REWRITTEN IN SLICE 1 follow-up: the region is the typed `LiveRegion` (a type role and a colour role, not a `style`), so
+    // its colour is read through the theme and its size follows the system text scale, which a hand-picked style did not.
+    it.each(['light', 'dark'] as const)('shows the words in the danger colour role in the %s scheme', (scheme) => {
+        renderWithTamagui(<OwnerScope>{view(NOTICE)}</OwnerScope>, scheme);
 
-        expect(getComputedStyle(screen.getByRole('alert')).color).toBe(cssColor(palette['error-dark']));
+        expect(resolvedColour(screen.getByRole('alert'), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
+    });
+
+    it('sets the words in the meta role, and grows them with the system text scale', () => {
+        const { fontSize } = nativeTokens.type.meta;
+
+        renderWithTamagui(<OwnerScope>{view(NOTICE)}</OwnerScope>, 'light');
+        expect(resolvedStyle(screen.getByRole('alert'), 'fontSize')).toBe(`${String(fontSize)}px`);
+        cleanup();
+
+        renderWithTamagui(<OwnerScope>{view(NOTICE)}</OwnerScope>, 'light', 2);
+        expect(resolvedStyle(screen.getByRole('alert'), 'fontSize')).toBe(`${String(fontSize * 2)}px`);
     });
 
     it('sits directly under the rating and visibility line', () => {
-        render(view(NOTICE), ownerWrapper);
+        render(view(NOTICE), OwnerScope);
 
         const region = screen.getByRole('alert');
         const ratingLine = screen.getByText('Public').parentElement?.parentElement as HTMLElement;

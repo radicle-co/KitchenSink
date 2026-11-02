@@ -296,8 +296,9 @@ for (const [scheme, colors] of THEMES) {
                     await expect(title).toBeVisible();
                     expect(await title.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Manrope/u);
 
-                    // F7: each stat value on one line ("5 h 30 min", "Medium" whole).
-                    for (const value of ['5 h 30 min', '30 min', '5 h', 'Medium']) {
+                    // F7: each fact tile's value on one line ("5 h 30 min", "Medium" whole). REWRITTEN IN SLICE 1: there is no
+                    // Cook tile, so its "5 h" is no longer on the page.
+                    for (const value of ['5 h 30 min', '30 min', 'Medium']) {
                         const cell = page.getByText(value, { exact: true }).first();
                         await expect(cell).toBeVisible();
                         expect(await textLines(cell), value).toBe(1);
@@ -315,19 +316,9 @@ for (const [scheme, colors] of THEMES) {
                         expect(Math.round((await title.boundingBox())?.x ?? 0)).toBe(16);
                     }
 
-                    // F14: below a 720 px body the section bar's links never sit under its toggle.
-                    const sections = page.getByRole('navigation', { name: 'Recipe sections' });
-
-                    if (await sections.isVisible()) {
-                        const nutrition = sections.getByRole('link', { name: 'Nutrition' });
-                        await nutrition.focus();
-                        const link = await nutrition.boundingBox();
-                        const nav = await sections.boundingBox();
-                        expect((link?.x ?? 0) + (link?.width ?? 0)).toBeLessThanOrEqual(
-                            (nav?.x ?? 0) + (nav?.width ?? 0) + 1,
-                        );
-                        expect(link?.width ?? 0).toBeGreaterThanOrEqual(24);
-                    }
+                    // REWRITTEN IN SLICE 1: F14's section bar is gone from the recipe page at every width, so its links can no
+                    // longer sit under its toggle; what is asserted is that there is no bar.
+                    await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toHaveCount(0);
 
                     expect(await pageOverflowX(page)).toBeLessThanOrEqual(0);
                 });

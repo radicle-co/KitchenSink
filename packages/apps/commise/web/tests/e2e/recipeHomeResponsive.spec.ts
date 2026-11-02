@@ -367,14 +367,7 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         // decisions of 2026-10-13: with no photo the 96 px band takes the whole top row with the header under it (P1),
         // and the page shows no version number (decision 7).
         //
-        // The Screen on hint is a one-time line that appears once the page knows the browser can keep the screen awake
-        // and leaves at the first scroll (§6.3), and the screenshot's own scroll into view takes it away: the article is
-        // 29 px taller, then shorter, mid-capture. The picture is of the page after the cook has scrolled once: the hint
-        // is waited for first, so the scroll that takes it back is one the page is listening for.
-        const hint = page.getByText('Keeps the screen awake while you cook.');
-        await expect(hint.filter({ visible: true })).toHaveCount(1);
-        await page.mouse.wheel(0, 1);
-        await expect(hint).toHaveCount(0);
+        // Screen on has no caption (designer, iosBatch1), so no scroll is needed before the picture.
         await expect(page.getByRole('article', { name: 'Weeknight Pasta with Garlic' })).toHaveScreenshot(
             'recipeDetailDesktop.png',
             { maxDiffPixelRatio: 0.02 },

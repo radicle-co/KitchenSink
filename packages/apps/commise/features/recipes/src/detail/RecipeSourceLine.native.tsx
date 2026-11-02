@@ -1,31 +1,48 @@
 /**
- * @module @commise/features-recipes — NATIVE recipe-source (provenance) line.
+ * @module @commise/features-recipes — NATIVE recipe-source (provenance) line: "Adapted from" and where.
  *
- * The React Native leaf of `RecipeSourceLine`: same contract, same rules, same states. Renders for EVERY
- * viewer — provenance belongs to the recipe, not to who is looking.
+ * The React Native leaf of `RecipeSourceLine`: same contract, same rules, same states. Renders for EVERY viewer,
+ * because provenance belongs to the recipe, not to who is looking.
  *
- * Pattern: **pure presentational (render) component** + an injected **Adapter** for the one thing a render
- * cannot do. React Native has no declarative link, so opening a URL is a platform call; it is injected as
- * `onOpen`, defaulting to `openExternalUrl` (`./openExternalUrl.native.ts`). The component itself stays
- * `props → JSX` with a delegating `onPress`.
+ * React Native has no declarative link, so opening a URL is a platform call, injected as `onOpen` and defaulting to
+ * `openExternalUrl`.
  *
- * SAFETY — sharper here than on web, because this platform hands the string to the OS. `Linking.openURL`
- * will happily dispatch `tel:`, `sms:`, a rival app's deep link, or an Android `intent:`, so a URL that
- * `safeHttpUrl` refuses gets no tap target at all. The visible link text is the VERIFIED HOST, never the
- * untrusted `sourceAttribution` (which renders beside it, as text): a recipe must not be able to label the
- * thing you tap with a site it does not actually point at.
+ * SAFETY, sharper here than on web because this platform hands the string to the OS: `Linking.openURL` dispatches
+ * `tel:`, `sms:` and `intent:` too, so a URL that `safeHttpUrl` refuses gets no tap target at all. The link text is the
+ * VERIFIED HOST, never the untrusted `sourceAttribution`, which renders beside it as plain text.
+ *
+ * @pattern Adapter — `onOpen` wraps the platform's URL opener
  */
 import { useMessages } from '@commise/i18n/react';
-import { useTheme } from '@commise/ui/theme';
-import { nativeTokens } from '@commise/ui/native';
 import { touchFloor } from '@commise/ui/layout';
+import { PressScale } from '@commise/ui/press-scale';
+import { Text } from '@commise/ui/text';
 import { safeHttpUrl } from '@kitchensink/recipe-core/external-url';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { styled, XStack, YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
 import type { RecipeSourceLineNativeProps } from './model.js';
 import { openExternalUrl } from './openExternalUrl.native.js';
+
+const Row = styled(XStack, { name: 'SourceRow', flexWrap: 'wrap', alignItems: 'center', columnGap: '$2' });
+
+// The host is often a short string, and a link that small is unhittable under the touch floor (RC-3).
+const LinkTouch = styled(YStack, {
+    name: 'SourceLinkTouch',
+    flexShrink: 1,
+    justifyContent: 'center',
+    minHeight: touchFloor(),
+});
+
+// `actionText` is 6.20:1 on the light page and 9.61:1 on the dark one. Underlined so the affordance does not ride on
+// colour alone (SC 1.4.1).
+const LinkText = styled(Text, {
+    name: 'SourceLinkText',
+    typeRole: 'caption',
+    color: '$actionText',
+    textDecorationLine: 'underline',
+});
 
 export const RecipeSourceLine: FC<RecipeSourceLineNativeProps> = ({
     sourceUrl,
@@ -33,7 +50,6 @@ export const RecipeSourceLine: FC<RecipeSourceLineNativeProps> = ({
     onOpen = openExternalUrl,
 }) => {
     const { detail } = useMessages(recipeMessages);
-    const { colors } = useTheme();
     const safe = sourceUrl === undefined ? null : safeHttpUrl(sourceUrl);
     const attribution = sourceAttribution !== undefined && sourceAttribution.length > 0 ? sourceAttribution : undefined;
 
@@ -42,47 +58,24 @@ export const RecipeSourceLine: FC<RecipeSourceLineNativeProps> = ({
     }
 
     return (
-        <View style={styles.row}>
-            <Text accessibilityRole="header" style={[styles.label, { color: colors.inkMuted }]}>
+        <Row>
+            <Text typeRole="meta" color="$inkMuted">
                 {detail.sourceHeading}
             </Text>
             {attribution !== undefined && (
-                <Text style={[styles.attribution, { color: colors.ink }]}>{attribution}</Text>
+                // `flexShrink`: unbounded user text would otherwise take its full width and push the link off screen.
+                <Text typeRole="meta" flexShrink={1}>
+                    {attribution}
+                </Text>
             )}
             {safe !== null && (
-                <Pressable
-                    accessibilityRole="link"
-                    // 44pt touch floor (RC-3): the host is often a short string, and a link that small is
-                    // unhittable without it.
-                    style={styles.linkTouch}
-                    onPress={() => onOpen(safe.href)}
-                >
-                    <Text style={[styles.link, { color: colors.actionText }]}>{safe.host}</Text>
-                </Pressable>
+                // `PressScale` owns the one press responder (G6), and states the link role.
+                <PressScale accessibilityRole="link" onPress={() => onOpen(safe.href)}>
+                    <LinkTouch>
+                        <LinkText>{safe.host}</LinkText>
+                    </LinkTouch>
+                </PressScale>
             )}
-        </View>
+        </Row>
     );
 };
-
-const styles = StyleSheet.create({
-    row: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: nativeTokens.spacing[2],
-        paddingHorizontal: nativeTokens.spacing[1],
-    },
-    label: { ...nativeTokens.type.label },
-    // RN defaults `flexShrink` to 0, so unbounded user text (`sourceAttribution` has a `min`, no `max`)
-    // would take its full intrinsic width and push the link past the screen edge — the same failure the
-    // detail's ingredient row already documents.
-    attribution: { ...nativeTokens.type.meta, flexShrink: 1 },
-    linkTouch: { flexShrink: 1, minHeight: touchFloor(), justifyContent: 'center' },
-    // Contrast (WCAG AA): `actionText` is 6.20:1 on the light page, 9.61:1 on the dark one (`darkTheme.md` §3.1). Underlined so the affordance does not
-    // ride on colour alone (SC 1.4.1).
-    link: {
-        ...nativeTokens.type.caption,
-        flexShrink: 1,
-        textDecorationLine: 'underline',
-    },
-});

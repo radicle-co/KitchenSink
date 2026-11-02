@@ -16,7 +16,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedStyle } from '@commise/ui/testing/tamagui';
+import { themeFor } from '@commise/ui/theme';
 import { Text } from 'react-native';
 
 import { LocaleProvider } from '@commise/i18n/react';
@@ -62,45 +63,6 @@ const gradientLayers = (container: HTMLElement, firstColor: string): readonly El
 const SCRIM_FIRST_COLOR = gradient.scrim.stops[0].color;
 
 /**
- * Resolve the value react-native-web actually APPLIED for a CSS property, by walking the element's atomic
- * `r-*` classes back to their compiled rules. `getComputedStyle` does not resolve these, and a `style`
- * attribute check would miss `StyleSheet.create` styles entirely — so this is the only honest read of the
- * geometry that ships. Mirrors the `appliedFontFamily` helper in `RecipeDetailView.native.test.tsx`.
- */
-function appliedStyle(element: Element, property: string): string | undefined {
-    // A size computed per render (the window-capped hero) lands inline, not in a compiled class.
-    const inline = (element as HTMLElement).style.getPropertyValue(property);
-
-    if (inline !== '') {
-        return inline;
-    }
-
-    const classNames = element.className.split(' ').filter((name) => name.startsWith('r-'));
-    const sheets = document.styleSheets;
-    let resolved: string | undefined;
-
-    for (const className of classNames) {
-        for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
-            const rules = sheets[sheetIndex]?.cssRules;
-
-            for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
-                const rule = rules?.[ruleIndex];
-
-                if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
-                    const value = rule.style.getPropertyValue(property);
-
-                    if (value !== '') {
-                        resolved = value;
-                    }
-                }
-            }
-        }
-    }
-
-    return resolved;
-}
-
-/**
  * F2 — mirrors the web leaf: the hero IS the photo carousel, built from `photos` alone, so the cover is shown once.
  * These replace the old cover-image tests (its window-capped height, its scrim), whose element no longer exists; the
  * carousel sizes itself from the same window cap (`carouselBox`), pinned in `PhotoCarousel.native.test.tsx`.
@@ -109,13 +71,13 @@ describe('RecipeHero (native) — photos present: the hero IS the carousel', () 
     const photos = [makePhoto({ url: 'https://cdn/p0.jpg' })];
 
     it('renders the photo carousel as the lead surface', () => {
-        renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
+        renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
 
         expect(screen.getAllByLabelText('Recipe photos')).toHaveLength(1);
     });
 
     it('does NOT render the no-photo placeholder or a scrim when there are photos', () => {
-        const { container } = renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
+        const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
 
         expect(screen.queryByLabelText('No photo yet')).toBeNull();
         expect(gradientLayers(container, SCRIM_FIRST_COLOR)).toHaveLength(0);
@@ -127,27 +89,45 @@ describe('RecipeHero (native) — photos present: the hero IS the carousel', () 
  * (§1.8, §6.7) is the 96 px `RecipeCover` band with the monogram, decorative because the title already names the
  * recipe. These replace the old glyph-placeholder tests.
  */
-describe('RecipeHero (native) — no photo: the 96 px monogram band', () => {
-    const noPhoto = <RecipeHero recipeId="rec_herb" title="Herb Risotto" cuisine="Italian" photos={[]} />;
+describe('RecipeHero (native) — no photo: the 96 pt gradient band', () => {
+    // REWRITTEN IN SLICE 1 (designer, `designAnswers.md` 2026-11-02, iosBatch1): the no-photo band on the recipe page is the
+    // tint only, with no monogram letter and no cuisine label. Cards and thumbnails keep the monogram.
+    const noPhoto = <RecipeHero title="Herb Risotto" photos={[]} />;
 
-    it('draws the title’s first letter, with no image and no picture glyph', () => {
+    it('draws no letter, no cuisine, no image and no picture glyph', () => {
         const { container } = renderHero(noPhoto);
 
         expect(container.querySelector('img')).toBeNull();
         expect(container.querySelector('[data-icon-name="image"]')).toBeNull();
         expect(screen.queryByLabelText('No photo yet')).toBeNull();
-        expect(screen.getByText('H')).toBeTruthy();
+        expect(screen.queryByText('H')).toBeNull();
+        expect(container.textContent).toBe('');
     });
 
     it('occupies the 96 pt band (mediaHeight.heroPlaceholder), never the full hero height', () => {
         const { container } = renderHero(noPhoto);
-        const band = Array.from(container.querySelectorAll('div')).find(
-            (node) => appliedStyle(node, 'height') === `${nativeTokens.mediaHeight.heroPlaceholder}px`,
-        );
+        const band = container.querySelector('[name="HeroBand"]') as HTMLElement;
 
         expect(nativeTokens.mediaHeight.heroPlaceholder).toBe(96);
-        expect(band).toBeDefined();
-        expect(band?.textContent).toContain('H');
+        expect(resolvedStyle(band, 'height')).toBe(`${nativeTokens.mediaHeight.heroPlaceholder}px`);
+    });
+
+    // The ONE no-photo gradient the cards use (designer ruling C2): sky to cream, leaning 170 degrees. The band is that
+    // gradient alone, with no disc and no letter.
+    it('paints the shared sky-to-cream gradient', () => {
+        const { container } = renderHero(noPhoto);
+        const band = container.querySelector('[name="HeroBand"]') as HTMLElement;
+        const { covers } = themeFor('light');
+        const layers = band.querySelectorAll('[data-commise-stub="linear-gradient"]');
+
+        expect(layers).toHaveLength(1);
+        expect(layers[0]?.getAttribute('data-colors')).toBe(`${covers.sky}|${covers.cream}`);
+    });
+
+    it('is out of the accessibility tree: the title already names the recipe', () => {
+        const { container } = renderHero(noPhoto);
+
+        expect((container.querySelector('[name="HeroBand"]') as HTMLElement).getAttribute('aria-hidden')).toBe('true');
     });
 });
 
@@ -166,7 +146,7 @@ describe('RecipeHero (native) — the overlay over the photo', () => {
     ])('draws the overlay absolutely over the top of the hero (%s)', (_state, list) => {
         render(
             <LocaleProvider locale="en">
-                <RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={list} overlay={overlay} />
+                <RecipeHero title="Herb Risotto" photos={list} overlay={overlay} />
             </LocaleProvider>,
         );
 
@@ -183,7 +163,7 @@ describe('RecipeHero (native) — the overlay over the photo', () => {
     it('puts the overlay before the photos in the reading order', () => {
         render(
             <LocaleProvider locale="en">
-                <RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} overlay={overlay} />
+                <RecipeHero title="Herb Risotto" photos={photos} overlay={overlay} />
             </LocaleProvider>,
         );
 

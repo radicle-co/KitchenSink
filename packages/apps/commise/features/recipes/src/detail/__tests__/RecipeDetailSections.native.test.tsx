@@ -8,7 +8,7 @@
  * parent and the scroll spy reads it (`ui/src/scrollHost/props.ts`).
  */
 import { createElement, type ReactElement } from 'react';
-import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
 import { nativeTokens } from '@commise/ui/native';
 import { render as renderInDesignSystem, resolvedStyle } from '@commise/ui/testing/tamagui';
@@ -75,76 +75,29 @@ const view = (recipe = makeRecipeDetail()): ReactElement => (
     <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={recipe} />
 );
 
-describe('RecipeDetailView (native) — below a 720 pt body (A-013, D1)', () => {
-    it('draws the section switch, naming the three sections', () => {
+// REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md`: no `SectionSwitch` tab strip on phones). The page is one flat scroll:
+// the tests that proved the switch, its sticky header, its Screen on icon and the scroll spy's layout reports are gone
+// with the switch (Screen on as a page row is proved in `RecipeDetailTop.native.test.tsx`), and these prove what is left:
+// no sticky header, and each section still a DIRECT child of the content, in page order.
+describe('RecipeDetailView (native) — below a 720 pt body, one flat page', () => {
+    it('sticks nothing: there is no section switch to stick', () => {
         render(view());
 
-        const nav = screen.getByRole('navigation', { name: detail.sectionsLabel });
-
-        for (const label of [detail.ingredientsHeading, detail.instructionsHeading, detail.nutritionLink]) {
-            expect(within(nav).getByRole('link', { name: label })).toBeTruthy();
-        }
+        expect(pageScroller().props['stickyHeaderIndices']).toBeUndefined();
     });
 
-    it('makes the switch a DIRECT child of the scroller content, and the one sticky header', () => {
-        render(view());
-
-        const { content, props } = pageScroller();
-        const nav = screen.getByRole('navigation', { name: detail.sectionsLabel });
-        const holding = childIndexHolding(content, nav);
-
-        expect(holding).toBeGreaterThan(0);
-        expect(props['stickyHeaderIndices']).toEqual([holding]);
-    });
-
-    it('puts each of the three sections in its own direct child, in page order, after the switch', () => {
+    it('puts each of the three sections in its own direct child, in page order', () => {
         render(view());
 
         const { content } = pageScroller();
         const at = (name: string): number => childIndexHolding(content, screen.getByRole('heading', { name }));
-        const nav = childIndexHolding(content, screen.getByRole('navigation', { name: detail.sectionsLabel }));
         const ingredients = at(detail.ingredientsHeading);
         const steps = at(detail.instructionsHeading);
         const nutrition = at(detail.nutritionHeading);
 
-        expect(nav).toBeLessThan(ingredients);
+        expect(ingredients).toBeGreaterThan(0);
         expect(ingredients).toBeLessThan(steps);
         expect(steps).toBeLessThan(nutrition);
-    });
-
-    it('reports each section’s layout to the scroll host (the scroll spy reads the direct children)', () => {
-        render(view());
-
-        const content = pageScroller().props['children'];
-        const reporting = (Array.isArray(content) ? content.flat(Infinity) : [content]).filter(
-            (child): child is ReactElement<{ onLayout?: unknown }> =>
-                typeof child === 'object' &&
-                child !== null &&
-                'props' in child &&
-                typeof child.props.onLayout === 'function',
-        );
-
-        expect(reporting).toHaveLength(3);
-    });
-
-    it('moves Screen on into the switch as ONE icon-only control, named in full', () => {
-        render(view());
-
-        const toggles = screen.getAllByRole('switch', { name: detail.screenOn });
-        const nav = screen.getByRole('navigation', { name: detail.sectionsLabel });
-
-        expect(toggles).toHaveLength(1);
-        expect((nav.parentElement as HTMLElement).contains(toggles[0] as HTMLElement)).toBe(true);
-        expect(within(toggles[0] as HTMLElement).queryByText(detail.screenOn)).toBeNull();
-    });
-
-    it('marks the section the cook jumped to', () => {
-        render(view());
-
-        fireEvent.click(screen.getByRole('link', { name: detail.nutritionLink }));
-
-        expect(screen.getByRole('link', { name: detail.nutritionLink }).getAttribute('aria-current')).toBe('location');
-        expect(screen.getByRole('link', { name: detail.ingredientsHeading }).getAttribute('aria-current')).toBeNull();
     });
 });
 
@@ -156,7 +109,7 @@ describe('RecipeDetailView (native) — from a 720 pt body', () => {
     it('draws no section switch and no sticky header: both columns are on screen', () => {
         render(view());
 
-        expect(screen.queryByRole('navigation', { name: detail.sectionsLabel })).toBeNull();
+        expect(screen.queryByRole('navigation', { name: 'Recipe sections' })).toBeNull();
         expect(pageScroller().props['stickyHeaderIndices']).toBeUndefined();
     });
 
@@ -187,6 +140,9 @@ describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () 
     /** The section frame that holds a heading: the heading sits in its heading row, the row in the section. */
     const sectionOf = (name: string): HTMLElement =>
         (screen.getByRole('heading', { name }).parentElement as HTMLElement).parentElement as HTMLElement;
+    // REWRITTEN IN SLICE 2: the ingredients heading sits in its heading row, the row in the paper card, the card in the
+    // section, so it is one level deeper than the other sections.
+    const ingredientsSection = (): HTMLElement => sectionOf(detail.ingredientsHeading).parentElement as HTMLElement;
 
     /** The classes a reference frame renders with, so a page element can be compared with it. */
     const classesOf = (frame: ReactElement): string => {
@@ -204,7 +160,7 @@ describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () 
         device.width = 1024;
         render(view());
 
-        expect(sectionOf(detail.ingredientsHeading).className).toBe(ingredientsColumn);
+        expect(ingredientsSection().className).toBe(ingredientsColumn);
         expect((sectionOf(detail.instructionsHeading).parentElement as HTMLElement).className).toBe(stepsColumn);
     });
 
@@ -212,13 +168,13 @@ describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () 
         const plainSection = classesOf(<DetailSection />);
         render(view());
 
-        expect(sectionOf(detail.ingredientsHeading).className).toBe(plainSection);
+        expect(ingredientsSection().className).toBe(plainSection);
     });
 
     it('puts the two columns space-6 (32) apart, from a 720 pt body', () => {
         device.width = 1024;
         render(view());
-        const columns = sectionOf(detail.ingredientsHeading).parentElement as HTMLElement;
+        const columns = ingredientsSection().parentElement as HTMLElement;
 
         expect(columns.contains(screen.getByRole('heading', { name: detail.instructionsHeading }))).toBe(true);
         expect(resolvedStyle(columns, 'gap')).toBe(px(6));
@@ -230,15 +186,6 @@ describe('RecipeDetailView (native) — the columns and the stacks (§6.1)', () 
         const stepsColumn = sectionOf(detail.instructionsHeading).parentElement as HTMLElement;
 
         expect(resolvedStyle(stepsColumn, 'gap')).toBe(px(6));
-    });
-
-    it('stacks the closing blocks space-6 (32) apart below a 720 pt body', () => {
-        render(view(makeRecipeDetail({ sourceAttribution: 'Grandma’s card' })));
-        // The source line's label is a heading in its row; the row sits in the footer, the footer in the closing stack.
-        const sourceRow = screen.getByRole('heading', { name: detail.sourceHeading }).parentElement as HTMLElement;
-        const footer = sourceRow.parentElement as HTMLElement;
-
-        expect(resolvedStyle(footer.parentElement as HTMLElement, 'gap')).toBe(px(6));
     });
 });
 
@@ -266,91 +213,13 @@ describe('RecipeDetailView (native) — one gutter (A-024)', () => {
     );
 });
 
-describe('RecipeDetailView (native) — the stat strip (D8, A-028 d)', () => {
-    const threeStats = (): ReturnType<typeof makeRecipeDetail> =>
-        makeRecipeDetail({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30, difficulty: undefined });
-
-    /** The flex-basis of the strip cell labelled `label`. */
-    const basisOf = (label: string): string => {
-        const caption = screen.getByText(label);
-
-        return (caption.parentElement as HTMLElement).style.flexBasis;
-    };
-
-    it('lets the last cell of an odd count span the row when two fit a row, instead of leaving a hole', () => {
-        device.width = 330;
-        render(view(threeStats()));
-
-        expect(basisOf(detail.totalLabel)).toBe('50%');
-        expect(basisOf(detail.prepLabel)).toBe('50%');
-        expect(basisOf(detail.cookLabel)).toBe('100%');
-    });
-
-    it('draws three cells in one row when four fit a row', () => {
-        device.width = 500;
-        render(view(threeStats()));
-
-        for (const label of [detail.totalLabel, detail.prepLabel, detail.cookLabel]) {
-            expect(Number.parseFloat(basisOf(label))).toBeCloseTo(100 / 3, 1);
-        }
-    });
-
-    it('falls back to two to a row when a large font leaves a cell too little room', () => {
-        device.width = 500;
-        device.fontScale = 2;
+// REWRITTEN IN SLICE 1 (designer, iosBatch1): "Screen on" has no caption, so there is no hint to show, dismiss or remember.
+describe('RecipeDetailView (native) — Screen on has no caption', () => {
+    it.each([390, 1024])('draws no hint under the toggle, at a %s pt width', (width) => {
+        device.width = width;
         render(view());
 
-        expect(basisOf(detail.totalLabel)).toBe('50%');
-    });
-});
-
-describe('RecipeDetailView (native) — the Screen on hint (D6)', () => {
-    it('shows the hint once, under the section switch', () => {
-        render(view());
-
-        const hint = screen.getByText(detail.screenOnHint);
-        const nav = screen.getByRole('navigation', { name: detail.sectionsLabel });
-
-        expect(nav.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-
-    it('shows the hint under the action-row toggle from a 720 pt body', () => {
-        device.width = 1024;
-        render(view());
-
-        expect(screen.getByText(detail.screenOnHint)).toBeTruthy();
-    });
-
-    it('is gone after the cook uses the toggle', () => {
-        render(view());
-
-        fireEvent.click(screen.getByRole('switch', { name: detail.screenOn }));
-
-        expect(screen.queryByText(detail.screenOnHint)).toBeNull();
-    });
-
-    it('is gone after the first scroll', () => {
-        render(view());
-
-        act(() => {
-            (pageScroller().props['onScroll'] as (event: unknown) => void)({
-                nativeEvent: {
-                    contentOffset: { y: 120 },
-                    layoutMeasurement: { height: 800 },
-                    contentSize: { height: 3000 },
-                },
-            });
-        });
-
-        expect(screen.queryByText(detail.screenOnHint)).toBeNull();
-    });
-
-    it('stays hidden once dismissed, even when the cook scrolls back to the top', () => {
-        render(view());
-        fireEvent.click(screen.getByRole('switch', { name: detail.screenOn }));
-        fireEvent.click(screen.getByRole('switch', { name: detail.screenOn }));
-
-        expect(screen.queryByText(detail.screenOnHint)).toBeNull();
+        expect(screen.queryByText('Keeps the screen awake while you cook.')).toBeNull();
     });
 });
 

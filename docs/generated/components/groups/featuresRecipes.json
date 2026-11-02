@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 189,
-        "implementations": 322,
+        "components": 191,
+        "implementations": 324,
         "props": 2496,
-        "documentedComponents": 189,
-        "implementationsWithModuleDoc": 322,
-        "implementationsWithComponentDoc": 213,
-        "documentedProps": 1883,
-        "classifiedComponents": 169,
-        "componentsWithPatternTag": 91,
+        "documentedComponents": 191,
+        "implementationsWithModuleDoc": 324,
+        "implementationsWithComponentDoc": 215,
+        "documentedProps": 1884,
+        "classifiedComponents": 171,
+        "componentsWithPatternTag": 92,
         "crossPlatformComponents": 133
     },
     "components": [
@@ -6589,8 +6589,8 @@
             ]
         },
         {
-            "id": "featuresRecipes/detail/DetailFooter",
-            "name": "DetailFooter",
+            "id": "featuresRecipes/detail/DetailFactTiles",
+            "name": "DetailFactTiles",
             "group": "featuresRecipes",
             "packageName": "@commise/features-recipes",
             "layer": "feature",
@@ -6605,39 +6605,39 @@
             "documented": true,
             "implementations": [
                 {
-                    "name": "DetailFooter",
+                    "name": "DetailFactTiles",
                     "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFactTiles.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — the native recipe page's footer facts: where the recipe came from, which version\nthis is, and the way to the version history.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native recipe page's fact tiles: Total, Prep and Difficulty, each a `cover-steel`\ntile with its glyph and label and its value (`RecipeDetailAndroid384`, `designAnswers.md` D5). A missing time hides its\ntile; with no tile to show nothing is drawn. A tile is one group, so a screen reader says \"Total: 1 h 50 min\".\n\nThree go across only while each tile has 100 pt per unit of text scale (`columnsKeepingMinOf`, designer iosBatch2); below that\neach takes a row, the label at the start and the value at the end, so no word is ever broken. Difficulty is plain text in\nthe same value style as the others, as on the board and the cards.\n\nPresentational: props to JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — the native recipe page's footer facts: where the recipe came from, which version"
+                            "text": "@commise/features-recipes — the native recipe page's fact tiles: Total, Prep and Difficulty, each a `cover-steel`"
                         }
                     ],
-                    "description": "The native footer facts.",
+                    "description": "The native fact tiles.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "onViewVersions",
-                            "type": "(() => void) | undefined",
+                            "name": "layout",
+                            "type": "Pick<DetailNativeLayout, \"bodyWidth\" | \"textScale\">",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Open the version history; absent when the page offers none.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx"
+                            "description": "The room the tiles are drawn in.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailFactTiles.native.tsx"
                         },
                         {
-                            "name": "recipe",
-                            "type": "Pick<RecipeDetail, \"sourceUrl\" | \"sourceAttribution\">",
+                            "name": "tiles",
+                            "type": "readonly DetailStatCell[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx"
+                            "description": "The tiles `detailStatCells` derived, in display order.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailFactTiles.native.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -6923,8 +6923,8 @@
             ]
         },
         {
-            "id": "featuresRecipes/detail/DetailRatingLine",
-            "name": "DetailRatingLine",
+            "id": "featuresRecipes/detail/DetailStatusRow",
+            "name": "DetailStatusRow",
             "group": "featuresRecipes",
             "packageName": "@commise/features-recipes",
             "layer": "feature",
@@ -6939,30 +6939,39 @@
             "documented": true,
             "implementations": [
                 {
-                    "name": "DetailRatingLine",
+                    "name": "DetailStatusRow",
                     "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailRatingLine.native.tsx",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatusRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — the native recipe page's rating line: the star and figure, then the draft badge\nor the visibility mark. Draws nothing when the recipe states neither.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native recipe page's status row: the owner's visibility (or the Draft\nbadge) and the \"Version history\" link, on one line under the title. It draws nothing when it has neither.\n\nPresentational: props to JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — the native recipe page's rating line: the star and figure, then the draft badge"
+                            "text": "@commise/features-recipes — the native recipe page's status row: the owner's visibility (or the Draft"
                         }
                     ],
-                    "description": "The native rating line.",
+                    "description": "The native status row.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "ratingLine",
-                            "type": "DetailRatingLine",
+                            "name": "onViewVersions",
+                            "type": "(() => void) | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The facts `detailRatingLine` derived.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailRatingLine.native.tsx"
+                            "description": "Open the version history; absent when the page offers none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailStatusRow.native.tsx"
+                        },
+                        {
+                            "name": "status",
+                            "type": "DetailStatus | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The owner's status; absent for another cook's viewer.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailStatusRow.native.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -6975,8 +6984,8 @@
             ]
         },
         {
-            "id": "featuresRecipes/detail/DetailStatStrip",
-            "name": "DetailStatStrip",
+            "id": "featuresRecipes/detail/HeroBand",
+            "name": "HeroBand",
             "group": "featuresRecipes",
             "packageName": "@commise/features-recipes",
             "layer": "feature",
@@ -6991,44 +7000,22 @@
             "documented": true,
             "implementations": [
                 {
-                    "name": "DetailStatStrip",
+                    "name": "HeroBand",
                     "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/heroBand.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — the native recipe page's stat strip: one cell per figure, two to a row below a\n360 pt strip (counted in text, so a large font gets it sooner). Draws nothing when the recipe has no figure to show.\nWith two to a row and an odd count, the last cell spans the row rather than leaving a hole beside it (D8).\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native recipe hero's no-photo band (ADR-0080): the ONE no-photo gradient the cards\nuse (sky to cream, leaning 170 degrees; designer ruling C2), 96 pt tall, alone: no disc and no letter on it (designer,\n2026-11-02). Feature-local and TEMPORARY: `RecipeCover` on fix/im-recipescard draws the same gradient at `aspect=\"band\"`, and\nthis file goes when that lands, the hero then rendering `<RecipeCover aspect=\"band\" />`.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — the native recipe page's stat strip: one cell per figure, two to a row below a"
+                            "text": "@commise/features-recipes — the native recipe hero's no-photo band (ADR-0080): the ONE no-photo gradient the cards"
                         }
                     ],
-                    "description": "The native stat strip.",
+                    "description": "The no-photo band: presentational (props to JSX), and decorative, because the title below names the recipe.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "stats",
-                            "type": "readonly DetailStatCell[]",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The cells `detailStatCells` derived, in display order.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx"
-                        },
-                        {
-                            "name": "statsPerRow",
-                            "type": "enum",
-                            "typeDetail": [
-                                "2",
-                                "4"
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "How many cells fit a row at this width.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx"
-                        }
-                    ],
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -7091,6 +7078,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
                         },
                         {
+                            "name": "divided",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether a hairline separates this row from the one above it: every row of a group but its first.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
+                        },
+                        {
                             "name": "ingredient",
                             "type": "RecipeIngredientView",
                             "typeDetail": null,
@@ -7149,6 +7145,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Whether the cook has checked the line off.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
+                        },
+                        {
+                            "name": "divided",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether a hairline separates this row from the one above it: every row of a group but its first.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
                         },
                         {
@@ -7293,7 +7298,7 @@
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
             "patterns": [
-                "Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as\n    the web leaf, expressed with platform primitives; the open slide is local view state.",
+                "Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as\n    the web leaf, expressed with platform primitives; the open slide is local view state. The `ScrollView`'s handle\n    is held in state through a callback ref, for `scrollTo`: an imperative call with no declarative form, which the\n    chevrons need to page the strip.",
                 "Adapter over the house Radix `Dialog` for the lightbox — Radix owns the focus trap, Escape-to-dismiss,\n    background inert and focus-return to the activating slide; the open slide is local view state, not data."
             ],
             "platforms": [
@@ -7309,7 +7314,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoCarousel.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2). It is the recipe\ndetail's hero (`RecipeHero`), so it is the screen's one photo surface (F2).\n\nReplaces the static photo grid with a swipeable, scroll-snap strip of slides, a dot-navigation strip\n(shown only when there is more than one photo), and a full-screen lightbox opened by activating a slide.\n\nPattern: the lightbox is the house **Radix `Dialog`** (per B6) — Radix owns the focus trap, Escape-to-\ndismiss, background inert, and focus-return to the activating slide, so this component hand-rolls none of\nthat (`aria-modal` div). The open slide is ephemeral, self-contained view state (`activeIndex`), not data\nor a behavior-switching prop, so it stays local to this interactive widget rather than lifting to the\norchestration container (nothing else consumes it — YAGNI).\n\nB7: offscreen slides are `loading=\"lazy\"` so a 10-photo recipe does not eagerly paint ~50 MB of\nfull-size originals; the lightbox image is eager (the user asked to see it). A service-side gallery\nthumbnail rendition remains the fuller fix (tracked with the gallery projection) — out of scope here.",
+                    "moduleDoc": "@commise/features-recipes — web recipe-photo carousel + lightbox (W2 Task 2.2, D2). It is the recipe\ndetail's hero (`RecipeHero`), so it is the screen's one photo surface (F2).\n\nReplaces the static photo grid with a swipeable, scroll-snap strip of slides, a dot-navigation strip\n(shown only when there is more than one photo), and a full-screen lightbox opened by activating a slide.\n\nPattern: the lightbox is the house **Radix `Dialog`** (per B6) — Radix owns the focus trap, Escape-to-\ndismiss, background inert, and focus-return to the activating slide, so this component hand-rolls none of\nthat (`aria-modal` div). The open slide is ephemeral, self-contained view state (`activeIndex`), not data\nor a behavior-switching prop, so it stays local to this interactive widget rather than lifting to the\norchestration container (nothing else consumes it — YAGNI).\n\nHERO PAGING (`nativeBoards/buildLists.md` item 1): paging chevrons at the sides and dots that track the page. The page is\nstate, read from the strip's scroll offset and set directly when a chevron is pressed; a chevron scrolls the next\nslide into view (`block: 'nearest'`, so the page itself does not move). The slide pitch is read from the slides, not\nassumed, so the strip's gap can change without breaking the rule.\n\nB7: offscreen slides are `loading=\"lazy\"` so a 10-photo recipe does not eagerly paint ~50 MB of\nfull-size originals; the lightbox image is eager (the user asked to see it). A service-side gallery\nthumbnail rendition remains the fuller fix (tracked with the gallery projection) — out of scope here.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7356,7 +7361,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoCarousel.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-photo carousel + lightbox (W2 Task 2.2, D2).\n\nThe React Native leaf of `PhotoCarousel`: a horizontal, paging\n`ScrollView` of photo slides, a dot-indicator row (only when there is more than one photo), and a\nfull-screen `Modal` lightbox opened by tapping a slide. Same read model, same accessible names, and the\nsame branch behaviour as the web leaf so the two platforms can't drift.\n\nA `ScrollView` (not a `FlatList`) backs the strip: a recipe has at most `MAX_PHOTOS_PER_RECIPE` (≤10)\nphotos, so `FlatList` virtualization buys nothing here while complicating layout/testing — the simplest\ncorrect paging container wins (KISS/YAGNI). The open slide is ephemeral local view state, not data.\n\n⛔ A SLIDE IS THE STRIP'S WIDTH, FROM THE STRIP'S OWN LAYOUT (`docs/design/compactHeightLayout.md` §8). It used to be\nthe window's width inside a strip 32 dp and the side insets narrower, so `pagingEnabled` (which pages by the strip's\nwidth) drifted by that much per slide, upright as well as sideways. The slides render once the container reports its\nwidth; the strip sits below the fold, so the one-frame wait does not show. The box is `carouselBox`: 4:3 at that\nwidth, capped at 40% of the window's height, and narrowed to keep 4:3, so a sideways phone shows a photo rather than\na slide taller than the screen. The strip is exactly one slide wide and centred.\n\nThe lightbox is drawn edge to edge, and its photo and its 48 dp Close sit inside the safe area, so a side navigation\nbar or a cutout never covers either.",
+                    "moduleDoc": "@commise/features-recipes — native recipe-photo carousel + lightbox (W2 Task 2.2, D2).\n\nThe React Native leaf of `PhotoCarousel`: a horizontal, paging\n`ScrollView` of photo slides, a dot-indicator row (only when there is more than one photo), and a\nfull-screen `Modal` lightbox opened by tapping a slide. Same read model, same accessible names, and the\nsame branch behaviour as the web leaf so the two platforms can't drift.\n\nA `ScrollView` (not a `FlatList`) backs the strip: a recipe has at most `MAX_PHOTOS_PER_RECIPE` (≤10)\nphotos, so `FlatList` virtualization buys nothing here while complicating layout/testing — the simplest\ncorrect paging container wins (KISS/YAGNI). The open slide is ephemeral local view state, not data.\n\n⛔ A SLIDE IS THE STRIP'S WIDTH, FROM THE STRIP'S OWN LAYOUT (`docs/design/compactHeightLayout.md` §8). It used to be\nthe window's width inside a strip 32 dp and the side insets narrower, so `pagingEnabled` (which pages by the strip's\nwidth) drifted by that much per slide, upright as well as sideways. The slides render once the container reports its\nwidth; the strip sits below the fold, so the one-frame wait does not show. The box is `carouselBox`: 4:3 at that\nwidth, capped at 40% of the window's height, and narrowed to keep 4:3, so a sideways phone shows a photo rather than\na slide taller than the screen. The strip is exactly one slide wide and centred.\n\nThe lightbox is drawn edge to edge, and its photo and its 48 dp Close sit inside the safe area, so a side navigation\nbar or a cutout never covers either.\n\nHERO PAGING (`nativeBoards/buildLists.md` item 1): paging chevrons at the sides and dots that track the page. The page\nis state: read from the strip's scroll offset and set directly when a chevron is pressed.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7364,7 +7369,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as\n    the web leaf, expressed with platform primitives; the open slide is local view state."
+                            "text": "Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as\n    the web leaf, expressed with platform primitives; the open slide is local view state. The `ScrollView`'s handle\n    is held in state through a callback ref, for `scrollTo`: an imperative call with no declarative form, which the\n    chevrons need to page the strip."
                         }
                     ],
                     "description": "",
@@ -7401,6 +7406,164 @@
             ]
         },
         {
+            "id": "featuresRecipes/detail/PhotoDots",
+            "name": "PhotoDots",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PhotoDots",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoDots.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the native photo carousel's dots: one per photo, the current page's in `ink` and\nthe others in the divider tone. Each is named for its photo and states whether it is the current one. Drawn only\nfor more than one photo, because a lone dot conveys nothing.\n\nPresentational: props to JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the native photo carousel's dots: one per photo, the current page's in `ink` and"
+                        }
+                    ],
+                    "description": "The native photo dots.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "page",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The page the strip is on, from zero.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoDots.native.tsx"
+                        },
+                        {
+                            "name": "photos",
+                            "type": "readonly RecipePhoto[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's photos, in display order.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoDots.native.tsx"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe title, for each dot's name.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoDots.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/detail/PhotoPagingChevrons",
+            "name": "PhotoPagingChevrons",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PhotoPagingChevrons",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the native photo carousel's paging chevrons: the strip, with a \"Previous\" disc at\nits start side and a \"Next\" disc at its end side, each drawn only when there is a photo to go to. They sit over the\nphoto, centred on the strip's height (`RecipeDetailAndroid384`).\n\nPresentational: props to JSX. The page and the scroll belong to the carousel.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the native photo carousel's paging chevrons: the strip, with a \"Previous\" disc at"
+                        }
+                    ],
+                    "description": "The strip with its paging chevrons.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The strip the chevrons sit over.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx"
+                        },
+                        {
+                            "name": "count",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "How many photos the strip holds.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx"
+                        },
+                        {
+                            "name": "onGo",
+                            "type": "(page: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Go to a page.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx"
+                        },
+                        {
+                            "name": "page",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The page the strip is on, from zero.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe title, for the chevrons' names.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/detail/RecipeDetailBody",
             "name": "RecipeDetailBody",
             "group": "featuresRecipes",
@@ -7425,7 +7588,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`\n§6, the first slice of 008 FR-035).\n\nThe PURE render half of the recipe page, in reading order: the hero, the back link, the meta line, the title, the\nrating line, the stat strip, the action row, the description and the tags as text; then the body — the section\nswitch below a 720 px body, and from 720 two columns, ingredients (5/12, sticky with its own scroll) beside the steps\n(7/12), with the nutrition, the rating, the review surface and the footer facts under the steps.\n\nEvery width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the\nserver render and the hydrated page are the same page. \"Screen on\" is therefore drawn in two places (the section\nswitch below 720, the action row from 720) from ONE state its shell holds, and the toggle itself renders nothing\nwhere the browser cannot keep the screen awake.\n\nIts orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and\nthe description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`\n§6, the first slice of 008 FR-035).\n\nThe PURE render half of the recipe page, in reading order: the hero, the back link, the rating card, the cuisine eyebrow\nand the title, the status row, the source line and byline, the fact tiles, the actions, the Screen on row, the\ndescription and the tags; then the body — one column below a 720 px body, and from 720 two columns, ingredients (5/12,\nsticky with its own scroll) beside the steps (7/12), with the nutrition and the review surface under the steps.\n\nThere is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features\nship (`designAnswers.md` D1, D2): the comments row and \"Start cooking\".\n\nEvery width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the\nserver render and the hydrated page are the same page. \"Screen on\" is a labelled row, and the toggle itself renders\nnothing where the browser cannot keep the screen awake.\n\nIts orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and\nthe description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7448,15 +7611,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The back link above the meta line (web), e.g. \"‹ My recipes\". Absent draws none.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
-                            "name": "currentSection",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The section the reader is in, from the screen's `ScrollHost` (blueprint A7); the section switch marks it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -7546,7 +7700,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: open the version history from the footer.",
+                            "description": "Native: open the version history from the status row.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -7555,7 +7709,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The rating block under the nutrition: the input for another cook, the read-only average for the owner.",
+                            "description": "The rating card at the top of the page: the input for another cook, the read-only average for the owner.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -7652,11 +7806,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`\n§6, the first slice of 008 FR-035).\n\nThe React Native leaf of the recipe page — the same contract, sections and reading order as the web leaf: the hero,\nthe meta line, the title, the rating line, the stat strip, the action row, the description and the tags as text;\nthen the ingredients (serves in the heading, tap-to-check rows), the steps (the current step), the nutrition, the\nrating, the review surface and the footer facts. From a 720 pt body the ingredients and the steps sit side by side.\n\nIt renders the page's ONE scroller. Below 720 the page is a flat list of DIRECT children of the scroll content: the\nhero, the top block, the section switch (the sticky header), then each section in a `View` that reports its layout to\nthe scroll host. Both are forced by React Native: a sticky header sticks only a direct child of the content, and\n`onLayout` y is relative to the parent, so a section wrapped with its siblings would report a y the spy cannot use.\n\"Screen on\" is drawn once: icon-only in the switch below 720, labelled in the action row from 720. From 720 both\ncolumns show, so there is no switch and nothing sticks.\n\nColours are read from the theme at render; the `StyleSheet` holds layout only, so the page repaints in dark mode.\n\nThis is the PURE render half. Its orchestration shell — `RecipeDetailView.native.tsx` — binds the session state,\nmounts the `ScrollHost` and measures the layout, because a file does ONE thing (CODING_STANDARDS §1).",
+                    "moduleDoc": "@commise/features-recipes — native recipe-detail view (T066 building block; `nativeBoards/buildLists.md`, the\n`RecipeDetailAndroid384` board).\n\nThe React Native leaf of the recipe page, in reading order: the hero; the rating card; the cuisine eyebrow and the\ntitle; the status row; the source line and byline; the fact tiles; the actions; the Screen on row; the description\nand the tags; then the ingredients (serves in the heading, tap-to-check rows), the steps (the current step), the\nnutrition, the review surface. From a 720 pt body the ingredients and the steps sit side by side.\n\nIt renders the page's ONE scroller. Every section is a direct child of the scroll content, one flat list. There is no\nsection switch: the page is one scroll, and \"Screen on\" is a labelled row in the page, drawn once.\n\nLeft out until their features ship (`designAnswers.md` D1, D2): the comments row and \"Start cooking\".\n\nThis is the PURE render half. Its orchestration shell, `RecipeDetailView.native.tsx`, binds the session state and\nmeasures the layout, because a file does ONE thing (CODING_STANDARDS §1).",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — native recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`"
+                            "text": "@commise/features-recipes — native recipe-detail view (T066 building block; `nativeBoards/buildLists.md`, the"
                         },
                         {
                             "name": "pattern",
@@ -7675,24 +7829,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The back link above the meta line (web), e.g. \"‹ My recipes\". Absent draws none.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
-                            "name": "bind",
-                            "type": "ScrollBind",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The page's ONE scroller's binding, from the `ScrollHost` the shell mounts. The body renders the `ScrollView`\nitself because React Native's sticky header sticks only a DIRECT child of the scroller's content, and the scroll\nspy reads each section's `onLayout` y, which is relative to its parent (`@commise/ui/scroll-host`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
-                            "name": "currentSection",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The section the reader is in, from the screen's `ScrollHost` (blueprint A7); the section switch marks it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -7755,7 +7891,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The page's layout at this width (§6.1): one column below a 720 pt body and two from it, and the stat strip two\ncells to a row below a 360 pt strip. The shell measures the window, because a pure leaf takes no dimension hook;\nthe web leaf reads the same thresholds through container queries instead.",
+                            "description": "The page's layout at this width (§6.1): one column below a 720 pt body and two from it. The shell measures the\nwindow, because a pure leaf takes no dimension hook; the web leaf reads the same threshold through container\nqueries instead.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -7809,7 +7945,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: open the version history from the footer.",
+                            "description": "Native: open the version history from the status row.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -7818,7 +7954,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The rating block under the nutrition: the input for another cook, the read-only average for the owner.",
+                            "description": "The rating card at the top of the page: the input for another cook, the read-only average for the owner.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8284,15 +8420,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
-                            "name": "currentSection",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The section the reader is in, from the screen's `ScrollHost` (blueprint A7); the section switch marks it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
                             "name": "dataSourcesHref",
                             "type": "string",
                             "typeDetail": null,
@@ -8343,7 +8470,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: open the version history from the footer.",
+                            "description": "Native: open the version history from the status row.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8352,7 +8479,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The rating block under the nutrition: the input for another cook, the read-only average for the owner.",
+                            "description": "The rating card at the top of the page: the input for another cook, the read-only average for the owner.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8442,7 +8569,7 @@
                             "text": "Orchestration shell over the Humble Object render half — the same bindings as the web shell, kept here\n    rather than in the screen so one platform cannot ship the page with any of them inert."
                         }
                     ],
-                    "description": "The native orchestration shell of the recipe page: the scroll host, and the page under it.",
+                    "description": "The native orchestration shell of the recipe page: the bindings under the pure body.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -8454,15 +8581,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The back link above the meta line (web), e.g. \"‹ My recipes\". Absent draws none.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
-                            "name": "currentSection",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The section the reader is in, from the screen's `ScrollHost` (blueprint A7); the section switch marks it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8516,7 +8634,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Native: open the version history from the footer.",
+                            "description": "Native: open the version history from the status row.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8525,7 +8643,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The rating block under the nutrition: the input for another cook, the read-only average for the owner.",
+                            "description": "The rating card at the top of the page: the input for another cook, the read-only average for the owner.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8610,8 +8728,8 @@
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
             "patterns": [
-                "Null Object for the no-cover state — the monogram band stands in for the missing photo, the same\n    `RecipeCover` the web leaf draws.",
-                "Null Object for the no-cover state — the monogram band stands in for the missing photo."
+                "Null Object for the no-cover state — the gradient band stands in for the missing photo.",
+                "Null Object for the no-cover state — the tint band stands in for the missing photo."
             ],
             "platforms": [
                 "web",
@@ -8626,7 +8744,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`).\n\nThe recipe detail opens with its photos. The hero IS the photo carousel: slide 1 is the cover, because the service\nmakes the cover `photos[0]` on every read path. It used to paint the cover as a separate image and then a second\ncarousel below repeated it as slide 1 (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`), so there is now one\nphoto surface, built from `photos` alone (`specRecipeAndWizard.md` S2.1).\n\n## No photo: the monogram band\n\nA recipe with no photo shows the 96 px `RecipeCover` band (`buildSpec.md` §1.8, §6.7): a tint chosen by the recipe\nid with the title's first letter. It renders no `<img>` (an empty `src` paints a broken-image glyph), keeps a real\nheight, and is decorative, because the H1 names the recipe. The picture glyph in a 4:3 box it replaces read as \"the\nimage failed\" (`evaluateFinal.md` F10).\n\nThe leaf itself holds no state, fetches nothing and navigates nowhere; the carousel's open slide is the carousel's\nown view state. The mockup's overlaid back/share/save controls are NOT part of this leaf — those are navigation and\nmutations, so they belong to the orchestration layer.",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail HERO (mockup `screenRecipeDetail`).\n\nThe recipe detail opens with its photos. The hero IS the photo carousel: slide 1 is the cover, because the service\nmakes the cover `photos[0]` on every read path. It used to paint the cover as a separate image and then a second\ncarousel below repeated it as slide 1 (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`), so there is now one\nphoto surface, built from `photos` alone (`specRecipeAndWizard.md` S2.1).\n\n## No photo: the gradient band\n\nA recipe with no photo shows a 96 px band (`buildSpec.md` §1.8, §6.7) of the ONE no-photo gradient the cards use (sky to\ncream at 170 degrees), alone: no disc, no monogram and no cuisine on it (`designAnswers.md` 2026-11-02). It is drawn here\nuntil `RecipeCover` on fix/im-recipescard lands, which draws the same gradient at `aspect=\"band\"`; the hero then renders that. It renders no `<img>` (an empty `src` paints a broken-image glyph), keeps a real height, and is\ndecorative, because the H1 names the recipe. The picture glyph in a 4:3 box it replaces read as \"the\nimage failed\" (`evaluateFinal.md` F10).\n\nThe leaf itself holds no state, fetches nothing and navigates nowhere; the carousel's open slide is the carousel's\nown view state. The mockup's overlaid back/share/save controls are NOT part of this leaf — those are navigation and\nmutations, so they belong to the orchestration layer.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8634,7 +8752,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Null Object for the no-cover state — the monogram band stands in for the missing photo."
+                            "text": "Null Object for the no-cover state — the gradient band stands in for the missing photo."
                         }
                     ],
                     "description": "The recipe-detail hero: the photo carousel, or its deliberate no-photo fallback.",
@@ -8642,15 +8760,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "cuisine",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The cuisine, the monogram band's caption.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
                         {
                             "name": "overlay",
                             "type": "ReactNode",
@@ -8666,16 +8775,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px monogram band (§1.8, §6.7).\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
-                            "name": "recipeId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The recipe's id — with no photo, it picks the monogram band's tint (`RecipeCover`).",
+                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px gradient band (§1.8, §6.7).\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8684,7 +8784,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it; its first letter is the monogram.",
+                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -8700,7 +8800,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeHero.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).\n\nSame contract and same two states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the service's\nrule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no photo\nshows the 96 pt `RecipeCover` monogram band (`buildSpec.md` §1.8, §6.7). The band is a tint chosen by the recipe id\nwith the title's first letter: it never renders an image component (an empty `source` paints a broken-image glyph),\nit keeps a real height, and it is decorative, because the title below names the recipe. The picture glyph it\nreplaces read as \"the image failed\" and overflowed the right edge (`evaluateFinal.md` F10).\n\nThe leaf holds no state, fetches nothing and navigates nowhere. The overlaid back and ⋯ controls are NOT this leaf's:\nthey are navigation and mutations, so the orchestration layer passes them in as `overlay`.",
+                    "moduleDoc": "@commise/features-recipes — native recipe-detail HERO (the RN leaf of RecipeHero).\n\nSame contract and same two states as `RecipeHero`: the hero IS the photo carousel (slide 1 the cover, the service's\nrule), so the cover is shown once (F2, `docs/design/uiOverhaul/evaluateRecipeAndWizard.md`); a recipe with no photo\nshows the 96 pt gradient band, with no disc, no monogram and no cuisine (`designAnswers.md` 2026-11-02; cards and thumbnails keep the\nmonogram and disc through `RecipeCover`). The band is the one no-photo gradient the cards use, decorative because the title below names the\nrecipe; it never renders an image component (an empty `source` paints a broken-image glyph).\n\nThe leaf holds no state, fetches nothing and navigates nowhere. The overlaid back and ⋯ controls are NOT this leaf's:\nthey are navigation and mutations, so the orchestration layer passes them in as `overlay`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8708,7 +8808,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Null Object for the no-cover state — the monogram band stands in for the missing photo, the same\n    `RecipeCover` the web leaf draws."
+                            "text": "Null Object for the no-cover state — the tint band stands in for the missing photo."
                         }
                     ],
                     "description": "The recipe-detail hero (native): the photo carousel, or its deliberate compact no-photo fallback.",
@@ -8716,15 +8816,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "cuisine",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The cuisine, the monogram band's caption.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
                         {
                             "name": "overlay",
                             "type": "ReactNode",
@@ -8740,16 +8831,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px monogram band (§1.8, §6.7).\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
-                        },
-                        {
-                            "name": "recipeId",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The recipe's id — with no photo, it picks the monogram band's tint (`RecipeCover`).",
+                            "description": "The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the\nhero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px gradient band (§1.8, §6.7).\n\nDeliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here\nas well is how the cover came to be painted twice.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8758,7 +8840,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it; its first letter is the monogram.",
+                            "description": "The recipe title — the photos' alt text and the carousel's names are built from it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -8855,7 +8937,9 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter — `onOpen` wraps the platform's URL opener"
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -8912,11 +8996,15 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeSourceLine.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — NATIVE recipe-source (provenance) line.\n\nThe React Native leaf of `RecipeSourceLine`: same contract, same rules, same states. Renders for EVERY\nviewer — provenance belongs to the recipe, not to who is looking.\n\nPattern: **pure presentational (render) component** + an injected **Adapter** for the one thing a render\ncannot do. React Native has no declarative link, so opening a URL is a platform call; it is injected as\n`onOpen`, defaulting to `openExternalUrl` (`./openExternalUrl.native.ts`). The component itself stays\n`props → JSX` with a delegating `onPress`.\n\nSAFETY — sharper here than on web, because this platform hands the string to the OS. `Linking.openURL`\nwill happily dispatch `tel:`, `sms:`, a rival app's deep link, or an Android `intent:`, so a URL that\n`safeHttpUrl` refuses gets no tap target at all. The visible link text is the VERIFIED HOST, never the\nuntrusted `sourceAttribution` (which renders beside it, as text): a recipe must not be able to label the\nthing you tap with a site it does not actually point at.",
+                    "moduleDoc": "@commise/features-recipes — NATIVE recipe-source (provenance) line: \"Adapted from\" and where.\n\nThe React Native leaf of `RecipeSourceLine`: same contract, same rules, same states. Renders for EVERY viewer,\nbecause provenance belongs to the recipe, not to who is looking.\n\nReact Native has no declarative link, so opening a URL is a platform call, injected as `onOpen` and defaulting to\n`openExternalUrl`.\n\nSAFETY, sharper here than on web because this platform hands the string to the OS: `Linking.openURL` dispatches\n`tel:`, `sms:` and `intent:` too, so a URL that `safeHttpUrl` refuses gets no tap target at all. The link text is the\nVERIFIED HOST, never the untrusted `sourceAttribution`, which renders beside it as plain text.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — NATIVE recipe-source (provenance) line."
+                            "text": "@commise/features-recipes — NATIVE recipe-source (provenance) line: \"Adapted from\" and where."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — `onOpen` wraps the platform's URL opener"
                         }
                     ],
                     "description": "",
@@ -8955,7 +9043,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -33961,7 +34049,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/rating/RatingSection.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/rating",
-                    "moduleDoc": "@commise/features-recipes/rating — the shared rating-section scaffold, web leaf.\n\nThe labelled region + community heading + read-only aggregate that BOTH rating variants\n(`RecipeRatingDisplay`, `RecipeRatingInput`) render, with each variant's distinct tail supplied as\n`children`. Keeps the section chrome in one place (§3 DRY) so the display and input variants cannot drift on\nthe heading, region label, or aggregate.\n\nThe COMMUNITY aggregate — the social-proof score every viewer sees (`average` / `ratingCount`) — is private\nto this module: it has exactly one consumer, and it is the aggregate's placement inside the scaffold that\nthe two variants must not be able to disagree about.",
+                    "moduleDoc": "@commise/features-recipes/rating — the shared rating-section scaffold, web leaf.\n\nThe labelled card + read-only aggregate that BOTH rating variants (`RecipeRatingDisplay`,\n`RecipeRatingInput`) render, with each variant's distinct tail supplied as `children`. Keeps the card chrome in\none place (§3 DRY) so the display and input variants cannot drift on the region label or aggregate. The card\ndraws no heading of its own (`RecipeDetailAndroid384`).\n\nThe COMMUNITY aggregate — the social-proof score every viewer sees (`average` / `ratingCount`) — is private\nto this module: it has exactly one consumer, and it is the aggregate's placement inside the scaffold that\nthe two variants must not be able to disagree about.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -34022,22 +34110,22 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/rating/RatingSection.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/rating",
-                    "moduleDoc": "@commise/features-recipes/rating — the shared rating-section scaffold, native leaf.\n\nThe React Native peer of the web `RatingSection`: the labelled region + community heading + read-only\naggregate that BOTH rating variants render, with each variant's distinct tail supplied as `children`. Keeps\nthe section chrome in one place (§3 DRY) so the display and input variants cannot drift on the heading,\nregion label, or aggregate.\n\nAs on web, the COMMUNITY aggregate is private to this module — it has exactly one consumer, and its\nplacement inside the scaffold is precisely what the two variants must not be able to disagree about.",
+                    "moduleDoc": "@commise/features-recipes/rating — the rating card's scaffold, native leaf.\n\nThe React Native peer of the web `RatingSection`: the labelled card that BOTH rating variants render, with each\nvariant's tail supplied as `children`. It draws the community summary on one row, stars then the figure then the\ncount (`RecipeDetailAndroid384`), and no heading of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes/rating — the shared rating-section scaffold, native leaf."
+                            "text": "@commise/features-recipes/rating — the rating card's scaffold, native leaf."
                         }
                     ],
-                    "description": "The rating section chrome.",
+                    "description": "The rating card.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The community aggregate values and the variant's tail."
+                            "text": "props - The community summary values and the variant's tail."
                         },
                         {
                             "name": "returns",
-                            "text": "The labelled rating region."
+                            "text": "The labelled rating card."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -34058,7 +34146,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The variant's own tail, rendered below the aggregate.",
+                            "description": "The variant's own tail, rendered below the summary.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/rating/RatingSection.native.tsx"
                         },
                         {
@@ -34507,7 +34595,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/rating/StarShape.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/rating",
-                    "moduleDoc": "@commise/features-recipes/rating — one star pip, native leaf.\n\nThe React Native peer of the web `StarShape`: a purely decorative glyph. Native draws the star as text\nrather than SVG, so `size` is a font size rather than a utility class, but the CONTRACT is the web one —\n`filled` selects between the score tone and the scale tone, and the pip carries no accessible name (the\nenclosing `image`/`radio` does).",
+                    "moduleDoc": "@commise/features-recipes/rating — one star pip, native leaf.\n\nThe React Native peer of the web `StarShape`: a purely decorative glyph. It is the design system's `star` icon, so it\ndoes not grow with the system text scale (a glyph drawn as text would, and on iOS without a cap); `size` is the\nglyph's side in points. The CONTRACT is the web one: `filled` selects between the score tone and the scale tone,\nand the pip carries no accessible name (the enclosing `image`/`radio` does).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -34539,11 +34627,16 @@
                         },
                         {
                             "name": "size",
-                            "type": "number",
-                            "typeDetail": null,
+                            "type": "enum",
+                            "typeDetail": [
+                                "20",
+                                "48",
+                                "16",
+                                "24"
+                            ],
                             "required": false,
                             "defaultValue": "16",
-                            "description": "Glyph font size; defaults to the small readout size.",
+                            "description": "Glyph side in points; defaults to the small readout size.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/rating/StarShape.native.tsx"
                         }
                     ],

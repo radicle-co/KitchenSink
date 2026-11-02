@@ -10,6 +10,10 @@
  * mutation lens: selecting a star calls `onRate` with EXACTLY that star count (an off-by-one or index-for-value
  * control fails). Which component the container mounts for an owner vs a rater is asserted where that decision
  * lives — `ratingModeFor` (model.test.ts) + the detail containers' tests.
+ *
+ * REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md` item 2, `designAnswers.md` D3): the rating is a CARD at the top of
+ * the page with no "Community rating" heading. It reads stars, the figure and the count on one row, and the own-recipe
+ * reason is "Only other cooks can rate your recipe.". The last describe now proves the card draws no heading of its own.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -60,6 +64,19 @@ describe('RecipeRatingDisplay (web) — read-only own-recipe variant (Sc8)', () 
         expect(screen.getByRole('img', { name: /out of 5/ })).toBeTruthy();
     });
 
+    it('reads the figure and the count beside the stars, as the board does', () => {
+        renderDisplay({ average: 4.8, ratingCount: 12 });
+
+        expect(screen.getByText('4.8')).toBeTruthy();
+        expect(screen.getByText('12 ratings')).toBeTruthy();
+    });
+
+    it('says one rating in the singular', () => {
+        renderDisplay({ average: 5, ratingCount: 1 });
+
+        expect(screen.getByText('1 rating')).toBeTruthy();
+    });
+
     it('shows an honest "not yet rated" summary (never a 0-star score) when unrated', () => {
         renderDisplay({ average: undefined, ratingCount: 0 });
 
@@ -73,7 +90,7 @@ describe('RecipeRatingDisplay (web) — read-only own-recipe variant (Sc8)', () 
         // Dropping the gate — mounting the input variant here — would render a radiogroup and fail this test.
         expect(screen.queryByRole('radiogroup')).toBeNull();
         expect(screen.queryByRole('radio')).toBeNull();
-        expect(screen.getByText('You can’t rate your own recipe.')).toBeTruthy();
+        expect(screen.getByText('Only other cooks can rate your recipe.')).toBeTruthy();
     });
 });
 
@@ -246,19 +263,23 @@ describe('recipe rating (web) — text contrast (WCAG 2.1 AA)', () => {
     });
 });
 
-/**
- * F8 and F15 (`evaluateFinal.md`): "Community rating" was the one Manrope H2 among Inter siblings, and its section
- * carried its own gutter and centring, so it started 16 px inside the column the other headings share.
- */
-describe('RatingSection (web) — the heading and the column edge', () => {
-    it('sets the heading in sectionTitle, like every sibling H2, and adds no gutter of its own', () => {
+describe('RatingSection (web) — the card', () => {
+    it('is a labelled card with no community heading', () => {
         renderDisplay({ average: 4, ratingCount: 3 });
 
-        const heading = screen.getByRole('heading', { level: 2 });
-        const section = heading.closest('section') as HTMLElement;
+        const card = screen.getByRole('region', { name: 'Recipe rating' });
 
-        expect(heading.className).toContain('text-section-title');
-        expect(heading.className).not.toContain('font-display');
-        expect(section.className).not.toMatch(/(?:^|\s)(?:px-\S+|mx-auto|max-w-\S+)/u);
+        expect(screen.queryByText('Community rating')).toBeNull();
+        expect(screen.queryByRole('heading', { level: 2 })).toBeNull();
+        expect(card.className).toMatch(/(?:^|\s)border(?:\s|$)/u);
+        expect(card.className).toMatch(/(?:^|\s)p-4(?:\s|$)/u);
+    });
+
+    it('adds no gutter or centring of its own, so it starts at the column edge', () => {
+        renderDisplay({ average: 4, ratingCount: 3 });
+
+        expect(screen.getByRole('region', { name: 'Recipe rating' }).className).not.toMatch(
+            /(?:^|\s)(?:px-\S+|mx-auto|max-w-\S+)/u,
+        );
     });
 });

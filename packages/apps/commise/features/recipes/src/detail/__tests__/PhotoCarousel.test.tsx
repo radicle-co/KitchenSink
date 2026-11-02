@@ -3,9 +3,13 @@
  * photo grid: a scroll-snap strip of slides with a dot-navigation strip, and a Radix `Dialog` lightbox
  * (focus-trapping, Escape-dismissable) opened by activating a slide. Covers the N-slide, dot-count,
  * single-photo, no-photo, and open/close lightbox branches — every path the view can render.
+ *
+ * HERO PAGING (`nativeBoards/buildLists.md` item 1): paging chevrons at the sides and dots that track the page. The page is
+ * read from the strip's scroll position, and a chevron scrolls the next slide into view. jsdom has no layout and no
+ * `scrollIntoView`, so the suite serves a slide pitch of 400 and records the scroll a press asks for.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { makePhoto } from '../../__fixtures__/index.js';
@@ -118,5 +122,131 @@ describe('PhotoCarousel (web) — touch targets (44px floor)', () => {
         expect(dot.className).toContain('size-11');
         expect(dot.className).toContain('sm:size-4');
         expect(dot.querySelector('[class*="size-2.5"]')).not.toBeNull();
+    });
+});
+
+describe('PhotoCarousel (web) — paging chevrons and tracking dots', () => {
+    const photos = [
+        makePhoto({ id: 'pho_1', order: 1 }),
+        makePhoto({ id: 'pho_2', order: 2 }),
+        makePhoto({ id: 'pho_3', order: 3 }),
+    ];
+    const scrollIntoView = vi.fn();
+
+    /** The strip's slides sit 400 apart, as a 388 wide slide and a 12 gap would. */
+    function layOut(): void {
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+            value: scrollIntoView,
+            configurable: true,
+            writable: true,
+        });
+        Object.defineProperty(HTMLElement.prototype, 'offsetLeft', {
+            configurable: true,
+            get(this: HTMLElement) {
+                return (Number(this.id.replace('recipe-photo-pho_', '')) - 1) * 400 || 0;
+            },
+        });
+    }
+
+    afterEach(() => {
+        scrollIntoView.mockReset();
+        Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView');
+        Reflect.deleteProperty(HTMLElement.prototype, 'offsetLeft');
+    });
+
+    const dot = (index: number): HTMLElement => screen.getByRole('link', { name: `Go to Grilled Lamb photo ${index}` });
+
+    /** Settle the strip at `scrollLeft`. */
+    function scrollTo(scrollLeft: number): void {
+        const strip = screen.getAllByRole('listitem')[0]?.parentElement as HTMLElement;
+
+        fireEvent.scroll(strip, { target: { scrollLeft } });
+    }
+
+    it('opens on the first photo: Next is drawn, Previous is not, and the first dot is the current one', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+
+        expect(screen.getByRole('button', { name: 'Next Grilled Lamb photo' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Previous Grilled Lamb photo' })).toBeNull();
+        expect(dot(1).getAttribute('aria-current')).toBe('true');
+        expect(dot(2).getAttribute('aria-current')).toBeNull();
+    });
+
+    it('draws no chevron for a single photo', () => {
+        render(<PhotoCarousel title="Grilled Lamb" photos={[photos[0] as (typeof photos)[number]]} />);
+
+        expect(screen.queryByRole('button', { name: 'Next Grilled Lamb photo' })).toBeNull();
+    });
+
+    it('scrolls the next slide into view on Next, without scrolling the page, and moves the dot', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById('recipe-photo-pho_2'));
+        expect(dot(2).getAttribute('aria-current')).toBe('true');
+        expect(screen.getByRole('button', { name: 'Previous Grilled Lamb photo' })).toBeTruthy();
+    });
+
+    it('scrolls back one slide on Previous', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+        scrollIntoView.mockClear();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Previous Grilled Lamb photo' }));
+
+        expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById('recipe-photo-pho_1'));
+        expect(dot(1).getAttribute('aria-current')).toBe('true');
+    });
+
+    it('draws no Next on the last photo', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+
+        expect(screen.queryByRole('button', { name: 'Next Grilled Lamb photo' })).toBeNull();
+        expect(dot(3).getAttribute('aria-current')).toBe('true');
+    });
+
+    it('follows a swipe: the dot and the chevrons move to the slide the strip rests on', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+
+        scrollTo(800);
+
+        expect(dot(3).getAttribute('aria-current')).toBe('true');
+        expect(screen.queryByRole('button', { name: 'Next Grilled Lamb photo' })).toBeNull();
+    });
+
+    it('rounds up a scroll past the midpoint of a slide', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+
+        scrollTo(400 + 250);
+
+        expect(dot(3).getAttribute('aria-current')).toBe('true');
+    });
+
+    it('stays on the last photo for a scroll past the end', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+
+        scrollTo(5000);
+
+        expect(dot(3).getAttribute('aria-current')).toBe('true');
+    });
+
+    it('rounds a scroll between two slides to the nearer one', () => {
+        layOut();
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+
+        scrollTo(400 + 150);
+
+        expect(dot(2).getAttribute('aria-current')).toBe('true');
     });
 });

@@ -205,6 +205,23 @@ structural root cause, and is enforced at push. GATE costs ≈ 6 minutes on a 20
 definition is `~/.claude/agents/staff-code-quality.md` (user-scoped); the evaluation record and the
 defects it surfaced in this tree are in `docs/engineering/CodeQualityAgentDesignReferences.md`.
 
+## ⛔ MANDATORY: use the least expensive model that does the job well (owner directive, 2026-11-01)
+
+Every subagent call names its `model`. Choose the least expensive model that does not harm the result. A smaller
+model is often also faster. This applies at all times, to every agent type, including the staff agents. The staff
+agents use the session model unless you pass `model`, so a call with no `model` runs on the most expensive model.
+
+- **Haiku:** lookups and mechanical reads with one clear answer: find a file, grep for a symbol, read a log for the
+  failing line, count or list things, check a PR's state, summarise one short document, or classify a trivial change.
+- **Sonnet:** the default. Building from a written spec, blueprint or exact finding list, fixing a bug whose cause is
+  known, device and screenshot runs, test reruns and CI triage, doc and contract regeneration, GATE rounds, and
+  staff-ux-engineer and staff-architect reviews of ordinary changes.
+- **Opus:** only where judgement sets a one-way door: a staff-architect design of a persisted schema, a wire
+  contract, or a security or IAM boundary, or debugging a cause that is still unknown after a Sonnet attempt. Tell
+  the owner when you use it, and why.
+
+If you are not sure, choose Sonnet. Split "design + build" so that only the design step can use a more expensive model.
+
 ## Commands
 
 ```bash

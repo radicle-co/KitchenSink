@@ -1,7 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo, Animated, Text, View } from 'react-native';
 
+import { scrollViewSizes, stubBoundingRects } from '../../testing/boundingRects.js';
+import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { HorizontalScroller } from '../HorizontalScroller.native.js';
@@ -13,10 +15,11 @@ import type { ScrollExtent } from '../scrollHint.js';
  * react-native-web: the native indicator is left to the platform, a chevron shows only while the content overflows and
  * the scroller rests at its start, and a gradient to the surface colour shows while more lies ahead.
  *
- * react-native-web reports layout through the view's layout handler and emits `scroll` on a 32 ms throttle, so a test
- * lays the views out by calling the handler and moves the clock between two scrolls. The chevron's opacity is read
- * from its computed style: the OS reduce-motion preference is still unknown during these tests, which the design
- * defines as an instant change.
+ * The scroller is a Tamagui `ScrollView`, whose web build reports a view's size once, at mount, from
+ * `getBoundingClientRect`: a test states the three sizes with `stubBoundingRects` before it renders (the box around the
+ * scroller and the chevron's column, the scroller, its content). A size cannot change after mount, so a test that needs
+ * another size renders again. The chevron's opacity is read from its computed style: the OS reduce-motion preference is
+ * still unknown during these tests, which the design defines as an instant change.
  */
 
 const FADE = '[data-commise-stub="linear-gradient"]';
@@ -34,23 +37,12 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-/** Report a laid-out size to a view, the way react-native-web's ResizeObserver does. */
-function layOut(element: Element, width: number): void {
-    const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
+let restoreRects: (() => void) | undefined;
 
-    if (handler === undefined) {
-        throw new Error('the view has no layout handler');
-    }
-
-    act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
-}
-
-/** The views of a rendered scroller that report their size: the box around it, the scroller, then the content. */
-function measured(container: HTMLElement): readonly Element[] {
-    return [...container.querySelectorAll('*')].filter(
-        (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
-    );
-}
+afterEach(() => {
+    restoreRects?.();
+    restoreRects = undefined;
+});
 
 function mount(
     props: Partial<HorizontalScrollerProps> = {},
@@ -58,6 +50,12 @@ function mount(
     // The box around the scroller and the chevron's column; by default as wide as the scroller, i.e. no column yet.
     outer: number | undefined = undefined,
 ) {
+    if (sizes !== null) {
+        restoreRects = stubBoundingRects(
+            scrollViewSizes({ scroller: sizes[0], content: sizes[1], box: outer ?? sizes[0] }),
+        );
+    }
+
     const result = render(
         <HorizontalScroller {...props}>
             <View>
@@ -65,15 +63,8 @@ function mount(
             </View>
         </HorizontalScroller>,
     );
-    const [box, scroller, content] = measured(result.container);
 
-    if (sizes !== null) {
-        layOut(box as Element, outer ?? sizes[0]);
-        layOut(scroller as Element, sizes[0]);
-        layOut(content as Element, sizes[1]);
-    }
-
-    return { ...result, scroller: scroller as HTMLElement };
+    return { ...result, scroller: result.container.querySelector<HTMLElement>('[style*="overflow-x"]') as HTMLElement };
 }
 
 /** Scroll the native scroller to `x`, past the emit throttle of the one before. */
@@ -89,6 +80,9 @@ function chevronOf(container: HTMLElement): HTMLElement | undefined {
 
     return glyph?.closest<HTMLElement>('[style*="opacity"]') ?? undefined;
 }
+
+/** The Tamagui frame around the chevron: it owns the 24 dp column, and the opacity view inside it owns the fade. */
+const columnOf = (container: HTMLElement): HTMLElement => chevronOf(container)?.parentElement as HTMLElement;
 
 const chevronOpacity = (container: HTMLElement): string => {
     const chevron = chevronOf(container);
@@ -120,18 +114,18 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
         const fade = container.querySelector<HTMLElement>(FADE);
 
         expect(chevronOpacity(container)).toBe('1');
-        expect(getComputedStyle(fade?.parentElement as HTMLElement).width).toBe('16px');
+        expect(resolvedStyle(fade?.parentElement as HTMLElement, 'width')).toBe('16px');
     });
 
     // The chevron sits in a column of its own beside the scroller (`horizontalScrollHint.md` §3.6): drawn over the
     // scroller on a solid 24 dp band it hid the last characters of the chip at the edge.
     it('puts the chevron in a 24 dp column beside the scroller, not over it, while the content overflows', () => {
         const { container } = mount({}, [276, 640], 300);
-        const chevron = getComputedStyle(chevronOf(container) as HTMLElement);
+        const column = columnOf(container);
 
-        expect(chevron.position).not.toBe('absolute');
-        expect(chevron.display).not.toBe('none');
-        expect(chevron.width).toBe('24px');
+        expect(resolvedStyle(column, 'position')).not.toBe('absolute');
+        expect(resolvedStyle(column, 'display')).not.toBe('none');
+        expect(resolvedStyle(column, 'width')).toBe('24px');
     });
 
     it('keeps the column through a scroll, so nothing reflows when the chevron fades', () => {
@@ -140,8 +134,8 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
         scrollTo(scroller, 5);
 
         expect(chevronOpacity(container)).toBe('0');
-        expect(getComputedStyle(chevronOf(container) as HTMLElement).display).not.toBe('none');
-        expect(getComputedStyle(container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement).width).toBe(
+        expect(resolvedStyle(columnOf(container), 'display')).not.toBe('none');
+        expect(resolvedStyle(container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement, 'width')).toBe(
             '16px',
         );
     });
@@ -150,7 +144,7 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
         // 280 fits the 300 box; read against the 276 scroller it would overflow and the column would flip on and off.
         const { container } = mount({}, [276, 280], 300);
 
-        expect(getComputedStyle(chevronOf(container) as HTMLElement).display).toBe('none');
+        expect(resolvedStyle(columnOf(container), 'display')).toBe('none');
         expect(chevronOpacity(container)).toBe('0');
         expect(container.querySelector(FADE)).toBeNull();
     });
@@ -175,26 +169,14 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
         expect(chevronOpacity(container)).toBe('1');
     });
 
-    it('measures again when the content grows', () => {
-        const { container, scroller } = mount({}, [400, 240]);
-        const content = measured(container)[2] as Element;
-
-        expect(chevronOpacity(container)).toBe('0');
-        expect(scroller).toBeTruthy();
-
-        layOut(content, 900);
-
-        expect(chevronOpacity(container)).toBe('1');
-    });
-
     it('is decorative and takes no touch', () => {
         const { container } = mount();
         const chevron = chevronOf(container) as HTMLElement;
         const fadeBox = container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement;
 
         for (const node of [chevron, fadeBox]) {
-            expect(node.getAttribute('aria-hidden')).toBe('true');
-            expect(getComputedStyle(node).pointerEvents).toBe('none');
+            expect(node.closest('[aria-hidden="true"]')).not.toBeNull();
+            expect(resolvedStyle(node.closest('[aria-hidden="true"]') as HTMLElement, 'pointerEvents')).toBe('none');
         }
     });
 

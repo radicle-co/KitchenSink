@@ -115,6 +115,10 @@ styling ratchet asserts this list and the ledger match in both directions:
 
 - `packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts`: `StyleSheet.hairlineWidth` behind the `$hairline`
   border-width token, a density-dependent platform value with no Tamagui source.
+- `packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx`: the scroll hint's chevron opacity, an
+  `Animated.Value` with no Tamagui animation driver. One use, and no `tamagui` import in the file.
+- `packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx`: the scroll hint's `expo-linear-gradient` fill,
+  which takes a React Native style. One use, and no `tamagui` import in the file.
 
 The first recording was proven once, by hand. Every file in the styling baseline existed at `5979abcd5` with at least
 its recorded count.

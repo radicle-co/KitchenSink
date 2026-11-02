@@ -8,22 +8,21 @@
  * @pattern Adapter over a ScrollView's layout, content-size and scroll callbacks
  */
 import { useEffect, useEffectEvent, useState } from 'react';
-import {
-    I18nManager,
-    Platform,
-    type LayoutChangeEvent,
-    type NativeScrollEvent,
-    type NativeSyntheticEvent,
-} from 'react-native';
+import { I18nManager, Platform, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { scrollExtentOf, startOffsetOf, type ScrollExtent } from './scrollHint.js';
+
+/** The part of a layout event the hint reads: Tamagui's `ScrollView` and React Native's `View` both deliver it. */
+export interface WidthEvent {
+    readonly nativeEvent: { readonly layout: { readonly width: number } };
+}
 
 /** What the leaf needs to draw the hint and to wire the `ScrollView`. */
 export interface NativeScrollHintBinding {
     /** The scroller's own layout. */
-    readonly onLayout: (event: LayoutChangeEvent) => void;
+    readonly onLayout: (event: WidthEvent) => void;
     /** The layout of the box around the scroller and the chevron's column. */
-    readonly onBoxLayout: (event: LayoutChangeEvent) => void;
+    readonly onBoxLayout: (event: WidthEvent) => void;
     readonly onContentSizeChange: (width: number) => void;
     readonly onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     /** Where the scroller rests. */

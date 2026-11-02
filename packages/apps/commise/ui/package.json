@@ -39,6 +39,7 @@
         "./testing/platform-os": "./src/testing/platformOs.native.ts",
         "./testing/pressed-pressable": "./src/testing/pressedPressable.ts",
         "./testing/resize-observer": "./src/testing/resizeObserver.ts",
+        "./testing/bounding-rects": "./src/testing/boundingRects.ts",
         "./testing/surface-tone-of": "./src/testing/surfaceToneOf.ts",
         "./testing/record-text-inputs": "./src/testing/recordTextInputs.native.tsx",
         "./testing/tamagui": "./src/testing/tamaguiTesting.native.tsx",

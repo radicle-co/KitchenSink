@@ -15,10 +15,12 @@ import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { touchFloor } from '@commise/ui/layout';
+import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
+import { numeralDiscOf } from '../format/numeralDisc.js';
 import { recipeMessages } from '../messages.js';
 import type { StepRowProps } from './cookRowProps.js';
 import { stepTimerLabel } from './model.js';
@@ -27,6 +29,8 @@ import { stepTimerLabel } from './model.js';
 export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
     const { detail, duration } = useMessages(recipeMessages);
     const { colors } = useTheme();
+    // The numeral caps at 1.5x and its circle grows with it (designer ruling 2026-11-03).
+    const disc = numeralDiscOf('caption', useWindowDimensions().fontScale);
     const timer = stepTimerLabel(step.timerSeconds, detail.stepTimer, duration);
 
     return (
@@ -40,10 +44,20 @@ export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
                 onPress={() => onToggle(step.stepNumber)}
                 style={styles.toggle}
             >
-                <View style={[styles.numeral, { backgroundColor: current ? colors.action : colors.selectedFill }]}>
-                    <Text style={[styles.numeralText, { color: current ? colors.onAction : colors.ink }]}>
+                <View
+                    style={[
+                        styles.numeral,
+                        {
+                            minWidth: disc,
+                            minHeight: disc,
+                            borderRadius: disc / 2,
+                            backgroundColor: current ? colors.action : colors.selectedFill,
+                        },
+                    ]}
+                >
+                    <DesignText typeRole="caption" chromeCap="1.5" figures color={current ? '$onAction' : '$ink'}>
                         {step.stepNumber}
-                    </Text>
+                    </DesignText>
                 </View>
             </Pressable>
             <View style={styles.body}>
@@ -68,14 +82,7 @@ const styles = StyleSheet.create({
     },
     hereBar: { position: 'absolute', top: 0, bottom: 0, start: 0, width: 3, borderRadius: nativeTokens.radius.full },
     toggle: { width: touchFloor(), height: touchFloor(), alignItems: 'center', justifyContent: 'center' },
-    numeral: {
-        width: 32,
-        height: 32,
-        borderRadius: nativeTokens.radius.full,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    numeralText: { ...nativeTokens.type.caption, fontVariant: ['tabular-nums', 'lining-nums'] },
+    numeral: { alignItems: 'center', justifyContent: 'center' },
     body: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[2], paddingTop: nativeTokens.spacing[2] },
     text: { ...nativeTokens.type.readingBody },
     timer: {

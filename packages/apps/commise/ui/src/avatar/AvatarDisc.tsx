@@ -13,12 +13,13 @@
 import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
-import { avatarFaceOf, type AvatarDiscProps, type AvatarSize } from './props.js';
+import { initialsPxOf } from './initialsSize.js';
+import { AVATAR_DISC_PT, avatarFaceOf, type AvatarDiscProps, type AvatarSize } from './props.js';
 
 /** The disc's fill and ink per face. The initials sit on `action` at 4.67:1 (§3.3). */
 const DISC_CLASS: Readonly<Record<ReturnType<typeof avatarFaceOf>, string>> = {
     blank: 'bg-surface-muted',
-    initials: 'bg-action text-label text-on-action',
+    initials: 'bg-action font-semibold text-on-action',
     glyph: 'bg-surface-muted text-ink-muted',
 };
 
@@ -37,7 +38,9 @@ export const AvatarDisc: FC<AvatarDiscProps> = ({ status, initials, size = 'defa
             aria-hidden="true"
             className={`flex ${SIZE_CLASS[size]} shrink-0 items-center justify-center rounded-full ${DISC_CLASS[face]}`}
         >
-            {face === 'initials' ? initials : null}
+            {face === 'initials' ? (
+                <span style={{ fontSize: initialsPxOf(AVATAR_DISC_PT[size]) }}>{initials}</span>
+            ) : null}
             {face === 'glyph' ? <Icon name="user" size={20} /> : null}
         </span>
     );

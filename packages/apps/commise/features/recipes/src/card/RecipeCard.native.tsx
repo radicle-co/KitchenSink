@@ -36,6 +36,7 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { CardVariant } from './cardVariant.js';
 import { STAR_COUNT } from './model.js';
+import { COVER_CHIP_INSET, COVER_CHIP_PADDING, COVER_CHIP_PADDING_V } from './coverChip.js';
 import { badgeLineHeightOf, metaLineHeightOf } from './oneLine.js';
 import {
     RecipeCardNutritionContext,
@@ -63,15 +64,31 @@ const OneLine: FC<{ readonly kind: 'meta' | 'badge'; readonly children: ReactNod
     return <View style={[styles.oneLine, { height }]}>{children}</View>;
 };
 
-/** A cover chip: solid `photoChip`, `ink`, the `sm` radius. */
-const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string }> = ({ children, label }) => {
+/**
+ * A cover chip: solid `photoChip`, `ink`, the `sm` radius.
+ *
+ * `oneLine` is the status chip (designer ruling 2026-11-03): its word, then its glyph, drawn right to left in a row that is
+ * exactly one line and clips what wraps, so a chip wider than the cover drops the GLYPH (the last item to wrap) and keeps
+ * the word. The line is the meta line scaled by the OS font scale, as the card's other one-line rows are.
+ */
+const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string; readonly oneLine?: boolean }> = ({
+    children,
+    label,
+    oneLine = false,
+}) => {
     const { colors } = useTheme();
+    const fontScale = useContext(FontScaleContext);
 
     return (
         <View
             collapsable={false}
             {...(label === undefined ? {} : { accessible: true, accessibilityLabel: label })}
-            style={[styles.coverChip, { backgroundColor: colors.photoChip }]}
+            style={[
+                styles.coverChip,
+                oneLine && styles.chipLine,
+                oneLine && { height: metaLineHeightOf(fontScale) + 2 * COVER_CHIP_PADDING_V },
+                { backgroundColor: colors.photoChip },
+            ]}
         >
             {children}
         </View>
@@ -96,25 +113,32 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
-            {!thumbnail && cover.status !== undefined && (
-                <View style={styles.topStart}>
-                    <CoverChip label={cover.status.text}>
-                        <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} tone="ink" />
-                        <Text numberOfLines={1} style={[styles.caption, styles.shrink, { color: colors.ink }]}>
-                            {cover.status.text}
-                        </Text>
-                    </CoverChip>
-                </View>
-            )}
-            {cover.pro !== undefined && (
-                <View
-                    accessible
-                    accessibilityLabel={cover.pro.label}
-                    style={thumbnail ? styles.topEndTight : styles.topEnd}
-                >
-                    <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
-                </View>
-            )}
+            {thumbnail
+                ? cover.pro !== undefined && (
+                      <View accessible accessibilityLabel={cover.pro.label} style={styles.topEndTight}>
+                          <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
+                      </View>
+                  )
+                : (cover.status !== undefined || cover.pro !== undefined) && (
+                      // One wrapping row: a second chip that does not fit moves whole to the next line.
+                      <View style={styles.coverTop}>
+                          {cover.status !== undefined && (
+                              <CoverChip oneLine label={cover.status.text}>
+                                  <Text style={[styles.caption, { color: colors.ink }]}>{cover.status.text}</Text>
+                                  <Icon
+                                      name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'}
+                                      size={16}
+                                      tone="ink"
+                                  />
+                              </CoverChip>
+                          )}
+                          {cover.pro !== undefined && (
+                              <View accessible accessibilityLabel={cover.pro.label}>
+                                  <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
+                              </View>
+                          )}
+                      </View>
+                  )}
             {!thumbnail && cover.time !== undefined && (
                 <View style={styles.bottomStart}>
                     <CoverChip label={cover.time.label}>
@@ -480,9 +504,19 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.md,
         overflow: 'hidden',
     },
-    // Half the cover at most, so the status chip and PRO never meet at a large font scale (W-08, A-028).
-    topStart: { position: 'absolute', top: nativeTokens.spacing[2], start: nativeTokens.spacing[2], maxWidth: '50%' },
-    topEnd: { position: 'absolute', top: nativeTokens.spacing[2], end: nativeTokens.spacing[2] },
+    // The status chip and PRO share one wrapping row (designer ruling 2026-11-03, reversing W-08's half-cover cap): the
+    // chip takes its content width, and PRO moves whole to the next line when the two do not fit.
+    coverTop: {
+        position: 'absolute',
+        top: COVER_CHIP_INSET,
+        start: COVER_CHIP_INSET,
+        end: COVER_CHIP_INSET,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: nativeTokens.spacing[1],
+    },
     topEndTight: { position: 'absolute', top: nativeTokens.spacing[1], end: nativeTokens.spacing[1] },
     bottomStart: { position: 'absolute', bottom: nativeTokens.spacing[2], start: nativeTokens.spacing[2] },
     coverChip: {
@@ -490,9 +524,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: nativeTokens.spacing[1],
         minHeight: 24,
+        maxWidth: '100%',
         borderRadius: nativeTokens.radius.sm,
-        paddingHorizontal: nativeTokens.spacing[2],
-        paddingVertical: 2,
+        paddingHorizontal: COVER_CHIP_PADDING,
+        paddingVertical: COVER_CHIP_PADDING_V,
+    },
+    // One line, drawn right to left, clipping what wraps: the glyph wraps first and the word stays.
+    chipLine: {
+        flexDirection: 'row-reverse',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: nativeTokens.spacing[1],
+        overflow: 'hidden',
     },
     body: {
         paddingHorizontal: nativeTokens.spacing[4],

@@ -13,6 +13,7 @@ import { styled, YStack } from 'tamagui';
 import { Icon } from '../icon/Icon.native.js';
 import { Text } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
+import { initialsPxOf } from './initialsSize.js';
 import { AVATAR_DISC_PT, avatarFaceOf, type AvatarDiscProps, type AvatarSize } from './props.js';
 
 /** What the disc shows (its face). */
@@ -55,7 +56,7 @@ export const AvatarDisc: FC<AvatarDiscProps> = ({ status, initials, size = 'defa
     return (
         <Disc aria-hidden face={face} size={size} {...(size === 'large' ? LARGE_SHADOW : {})}>
             {face === 'initials' ? (
-                <Text typeRole="label" color="$onAction">
+                <Text typeRole="label" color="$onAction" fixedPx={initialsPxOf(AVATAR_DISC_PT[size])}>
                     {initials}
                 </Text>
             ) : null}

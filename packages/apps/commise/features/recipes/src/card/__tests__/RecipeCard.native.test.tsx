@@ -465,11 +465,53 @@ describe('RecipeCard (native, grid) — W-08: the cuisine never sits under the t
         expect(screen.getAllByText('French')).toHaveLength(2);
     });
 
-    it('caps the status chip at half the cover, and keeps its word as its name', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ status: RecipeStatus.DRAFT })} />);
-        const chip = screen.getByLabelText('Draft');
+    // REWRITTEN for the designer's ruling (2026-11-03, designAnswers.md bdb2403cb), which reverses W-08's half-cover cap:
+    // 50% of a 148 pt tile less the chip's padding and glyph left 38 pt, and "Private" needs 47. The chip takes its content
+    // width, its word never truncates, a second chip moves whole to the next line, and a chip wider than the cover
+    // drops its glyph and keeps the word. Pixel widths are the fit harness's (`libraryGrid.fit.test.ts`).
+    describe('the status chip takes its content width and never clips its word (designer ruling 2026-11-03)', () => {
+        const draftAndPro = () =>
+            renderCard(
+                <RecipeCard
+                    headingLevel={3}
+                    variant="grid"
+                    recipe={model({ status: RecipeStatus.DRAFT, usesPremiumCapability: true })}
+                />,
+            );
+        const wordOf = () => screen.getByText('Draft');
+        const lineOf = () => wordOf().parentElement as HTMLElement;
+        const chipOf = () => screen.getByLabelText('Draft');
 
-        expect(getComputedStyle(chip.parentElement as HTMLElement).maxWidth).toBe('50%');
+        it('has no half-cover cap: the chip may be as wide as the row it sits in', () => {
+            draftAndPro();
+
+            expect(getComputedStyle(chipOf()).maxWidth).toBe('100%');
+        });
+
+        it('does not truncate the word', () => {
+            draftAndPro();
+
+            expect(getComputedStyle(wordOf()).textOverflow).not.toBe('ellipsis');
+        });
+
+        it('lays the word before the glyph in a reversed, wrapping, clipped line, so a chip too wide drops the glyph and keeps the word', () => {
+            draftAndPro();
+            const line = lineOf();
+            const style = getComputedStyle(line);
+
+            expect(style.flexDirection).toBe('row-reverse');
+            expect(style.flexWrap).toBe('wrap');
+            expect(style.overflowX).toBe('hidden');
+            expect(line.firstElementChild).toBe(wordOf());
+        });
+
+        it('keeps the status chip and PRO in one wrapping row, so the second moves whole to the next line', () => {
+            draftAndPro();
+            const row = chipOf().parentElement as HTMLElement;
+
+            expect(getComputedStyle(row).flexWrap).toBe('wrap');
+            expect(row.contains(screen.getByLabelText('Pro recipe'))).toBe(true);
+        });
     });
 });
 

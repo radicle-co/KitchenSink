@@ -268,6 +268,10 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: "The native twin: `node` is a host node whose sole use is `AccessibilityInfo.sendAccessibilityEvent(node, 'focus')` (through `moveScreenReaderFocus`), the imperative screen-reader API with no declarative form, moving the reading cursor only. `seen` is the same in-effect previous-value latch as the web hook.",
     },
+    'packages/apps/commise/ui/src/searchField/useFocusInputOnSignal.native.ts': {
+        verdict: 'sanctioned',
+        why: "`seen` is the same in-effect previous-value latch as the screen-reader twin, and the ref it acts on is the CALLER's (`SearchField`'s, attached to a native `TextInput`), whose sole use here is the imperative `TextInput.focus()` — the external, non-declarative native API with no declarative form (`autoFocus` fires at mount only). It moves keyboard focus only for a press the person started (the Recipes search proxy), never on mount or on an unrelated render.",
+    },
     'packages/apps/commise/features/recipes/src/hooks/useIngredientEntry.ts': {
         verdict: 'sanctioned-adjacent',
         why: 'ONE `useRef`, `sessionRef`, the open analytics session (a Memento). It holds no render-affecting state: it is written and read only in effects and in the handlers that settle a session (a pick, a change of active field, a row removed), so a session survives the re-renders typing causes and settles exactly once.',

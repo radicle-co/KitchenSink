@@ -10,6 +10,9 @@
  * registered Adapter — this leaf holds no ref of its own). The keyboard stays as the host's
  * `keyboardShouldPersistTaps` leaves it.
  *
+ * `focusSignal` hands the field KEYBOARD focus when a counter the screen owns advances (`useFocusInputOnSignal`), for a
+ * proxy elsewhere in the reading order.
+ *
  * @pattern Adapter over `@commise/ui/text-input` — the label, glyph and clear control are the primitive's
  */
 import { useState, type FC } from 'react';
@@ -21,6 +24,7 @@ import { fieldLabelId } from '../input/props.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
+import { useFocusInputOnSignal } from './useFocusInputOnSignal.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SearchFieldProps } from './props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
@@ -41,10 +45,12 @@ export const SearchField: FC<SearchFieldProps> = ({
     placeholder,
     onFocus,
     onBlur,
+    focusSignal,
 }) => {
     const { colors } = useTheme();
     const [clears, setClears] = useState(0);
     const field = useScreenReaderFocusOnSignal<NativeTextInput>(clears);
+    useFocusInputOnSignal(field, focusSignal);
 
     return (
         <View style={styles.stack}>

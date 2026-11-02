@@ -154,7 +154,7 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     },
     'designSystem/scrollHost/ScrollHost': {
         verdict: 'sanctioned-adjacent',
-        why: "`last` is a previous-value latch (the last y and the scroll spy's last section), read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API) and what lets the handler raise a section change as an event, once per change. The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
+        why: "Two latches. `lastScroller` is an identity latch, written ONLY in the `bind.ref` callback and never during render: it tells a different scroller replacing the old one (the list remounted under a new key) from the same one re-attaching, and only the first resets the offset and the scroll state. `last` is a previous-value latch (the last y and the scroll spy's last section), read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API) and what lets the handler raise a section change as an event, once per change. The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
     },
     'designSystem/button/Button': {
         verdict: 'sanctioned',
@@ -279,6 +279,10 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
     'packages/apps/commise/ui/src/screenReaderFocus/useScreenReaderFocusOnSignal.native.ts': {
         verdict: 'sanctioned',
         why: "The native twin: `node` is a host node whose sole use is `AccessibilityInfo.sendAccessibilityEvent(node, 'focus')` (through `moveScreenReaderFocus`), the imperative screen-reader API with no declarative form, moving the reading cursor only. `seen` is the same in-effect previous-value latch as the web hook.",
+    },
+    'packages/apps/commise/ui/src/searchField/useFocusInputOnSignal.native.ts': {
+        verdict: 'sanctioned',
+        why: "`seen` is the same in-effect previous-value latch as the screen-reader twin, and the ref it acts on is the CALLER's (`SearchField`'s, attached to a native `TextInput`), whose sole use here is the imperative `TextInput.focus()` — the external, non-declarative native API with no declarative form (`autoFocus` fires at mount only). It moves keyboard focus only for a press the person started (the Recipes search proxy), never on mount or on an unrelated render.",
     },
     'packages/apps/commise/features/recipes/src/hooks/useIngredientEntry.ts': {
         verdict: 'sanctioned-adjacent',

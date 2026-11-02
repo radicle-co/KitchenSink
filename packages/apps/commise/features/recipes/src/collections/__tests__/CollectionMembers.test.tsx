@@ -201,3 +201,25 @@ describe('CollectionMembers (web) — focus after a removal', () => {
         expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
     });
 });
+
+// Designer ruling (2026-11-02): below 600 the collection detail grid is the compact tile, two to a row (CollectionDetailIphone390),
+// but a collection tile DROPS the "Edited" line: only Recipes tiles keep it, because only a Recipes sort may not be by recency.
+describe('CollectionMembers (web) — a narrow collection tile carries no Edited line', () => {
+    it('draws compact tiles with their title and no Edited or Created footer', () => {
+        renderMembers({
+            variant: 'compact',
+            viewMode: 'grid',
+            members: [
+                makeCollectionMemberRecipe({
+                    id: 'rec_e',
+                    title: 'Herb Risotto',
+                    createdAt: '2020-01-01T00:00:00.000Z',
+                    updatedAt: '2020-01-02T00:00:00.000Z',
+                }),
+            ],
+        });
+
+        expect(screen.getByRole('link', { name: 'Herb Risotto' })).toBeTruthy();
+        expect(screen.queryByText(/Edited |Created /u)).toBeNull();
+    });
+});

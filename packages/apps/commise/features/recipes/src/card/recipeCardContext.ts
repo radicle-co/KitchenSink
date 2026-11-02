@@ -48,6 +48,12 @@ interface RecipeCardBaseProps {
      * arrangements, so check for `<RecipeCard.Meta />` before concluding the figure never arrived.
      */
     readonly nutrition?: ReactNode;
+    /**
+     * The compact tile only: draw the version and timestamp line ("Edited 2d ago") under the title, as the grid does. Home's
+     * tile does not ask, so it stays the cover and the title; the Recipes list asks, because a Recipes sort may not be by
+     * recency (designer, 2026-11-02). A surface `footer` replaces it, as in the grid; the grid and the row ignore it.
+     */
+    readonly showEdited?: boolean;
 }
 
 /** The slots a surface may fill, spelled out so a card can never be given one its variant has no place for. */

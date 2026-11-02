@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { IOS_INK_DROP_EM } from '../../input/inputTextStyle.js';
 import { scaledTypeSize } from '../../text/scaledType.js';
 import { TextInput } from '../TextInput.native.js';
 
@@ -67,11 +68,19 @@ describe('TextInput (native) — the input text style', () => {
         expect(input.style.paddingBottom).toBe('16px');
     });
 
-    it('leaves the padding alone on Android', () => {
+    it('lifts a single-line field on Android by the same padding move', () => {
         const input = field('android', 1);
+        const drop = scaledTypeSize('body', 1).fontSize * IOS_INK_DROP_EM;
 
-        expect(input.style.paddingTop).toBe('12px');
-        expect(input.style.paddingBottom).toBe('12px');
+        expect(Number.parseFloat(input.style.paddingTop)).toBeCloseTo(12 - drop, 3);
+        expect(Number.parseFloat(input.style.paddingBottom)).toBeCloseTo(12 + drop, 3);
+    });
+
+    it('leaves a multi-line field on Android its padding', () => {
+        const input = field('android', 1, true, { paddingVertical: 16 });
+
+        expect(input.style.paddingTop).toBe('16px');
+        expect(input.style.paddingBottom).toBe('16px');
     });
 
     it.each([

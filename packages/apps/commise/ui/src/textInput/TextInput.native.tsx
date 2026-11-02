@@ -77,7 +77,7 @@ export const TextInput: FC<TextInputProps> = ({ ref, style, ...props }) => {
             style={[
                 inputTextStyle(scale, os, multiline),
                 style,
-                // The ink centred in the box, on iOS (see `inputTextStyle`).
+                // The ink centred in the box (see `inputTextStyle`).
                 inputBoxPadding(style, os, multiline, scale, isNumeric({ inputMode, keyboardType })),
             ]}
         />

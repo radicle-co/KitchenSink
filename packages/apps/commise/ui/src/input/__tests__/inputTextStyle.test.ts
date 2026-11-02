@@ -129,9 +129,22 @@ describe('inputBoxPadding', () => {
         ).toBe(0);
     });
 
-    it('changes nothing on Android', () => {
-        expect(inputBoxPadding({ paddingVertical: 12 }, 'android', false, 1, false)).toBeUndefined();
+    // qa-device, clean frames (committed text, caret off), Android 1.0: five single-line text fields read 1.5 to 1.7 pt
+    // low in a 50 dp box, which is the descender drop (0.11 em of 16) the iOS probe found. Android lifts them the same.
+    it('lifts a single-line input on Android exactly as on iOS, the height unchanged', () => {
+        const android = inputBoxPadding({ paddingVertical: 12 }, 'android', false, 1) as InputBoxPadding;
+
+        expect(android).toEqual(inputBoxPadding({ paddingVertical: 12 }, 'ios', false, 1));
+        expect(android.paddingTop + android.paddingBottom).toBeCloseTo(24, 5);
+        expect(android.paddingBottom - 12).toBeCloseTo(16 * IOS_INK_DROP_EM, 5);
+    });
+
+    it('leaves a multi-line input on Android alone (its first line is held for the next measurement)', () => {
         expect(inputBoxPadding({ paddingVertical: 16 }, 'android', true, 1, false)).toBeUndefined();
+    });
+
+    it('leaves a numeric input on Android alone', () => {
+        expect(inputBoxPadding({ paddingVertical: 12 }, 'android', false, 1, true)).toBeUndefined();
     });
 
     it('reads a style array and skips what is not a style', () => {

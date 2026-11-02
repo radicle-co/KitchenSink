@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { bodyFontFace, displayFontFace } from '../../tokens/scale.js';
-import { measureTextWidth } from '../measureText.js';
+import { nativeTokens } from '../../tokens/native.js';
+import { asLoadedFace, measureTextWidth } from '../measureText.js';
 
 describe('measureTextWidth', () => {
     it('measures nothing for no words', () => {
@@ -47,5 +48,11 @@ describe('measureTextWidth', () => {
         expect(() => measureTextWidth('Home', 'Inter_700Bold' as never, 16)).toThrow(/Inter_700Bold/u);
         expect(() => measureTextWidth('Home', 'Manrope_800ExtraBold' as never, 16)).toThrow(/Manrope_800ExtraBold/u);
         expect(() => measureTextWidth('Home', 'Roboto' as never, 16)).toThrow(/Roboto/u);
+    });
+
+    // A type role's face is a plain string in the tokens; `asLoadedFace` checks it against the registry instead of a cast.
+    it('accepts a type role’s face, and refuses a name the app does not load', () => {
+        expect(asLoadedFace(nativeTokens.type.label.fontFamily)).toBe(nativeTokens.type.label.fontFamily);
+        expect(() => asLoadedFace('Inter_700Bold')).toThrow(/Inter_700Bold/u);
     });
 });

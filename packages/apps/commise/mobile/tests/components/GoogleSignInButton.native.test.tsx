@@ -1,7 +1,8 @@
 /**
- * The Google sign-in label's text size (designer ruling 2026-11-01, ADR-0080 §8). On iOS it sits beside Apple's system
- * button, which cannot scale, so it stays at its 1× size; on Android there is no pair, so it follows the 1.5× navigation
- * chrome cap. Google's colours are no design-system role, so the label is React Native's own text, with system scaling
+ * The Google sign-in label's text size (designer rulings 2026-11-01, ADR-0080 §8). It is drawn in our own Button
+ * label's role, `cardTitle`, so our two sign-in buttons read alike; it does not chase the letter size of Apple's system
+ * button. On iOS it sits beside that button, which does not grow, so it stays at its 1× size; on Android there is no
+ * pair, so it follows the 1.5× navigation chrome cap. Google's colours are no design-system role, so the label is React Native's own text, with system scaling
  * off and its size AND leading set from the scale here (React Native leaves a set leading uncapped on Android).
  */
 import { cleanup, screen } from '@testing-library/react';
@@ -34,7 +35,8 @@ function labelStyle(): CSSStyleDeclaration {
     return screen.getByText('Continue with Google').style;
 }
 
-const { fontSize, lineHeight } = nativeTokens.type.label;
+// Our Button's label role (`ButtonLabel.native.tsx`): the designer's ruling is that the two read alike.
+const { fontSize, lineHeight } = nativeTokens.type.cardTitle;
 
 describe('GoogleSignInButton label size', () => {
     it('stays at its 1× size on iOS, beside Apple’s button, however large the system text', () => {

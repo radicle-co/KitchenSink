@@ -27,7 +27,7 @@
         "test": "vitest run && vitest run --config vitest.native.config.ts",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
-        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json && tsc --noEmit -p tsconfig.fit.json",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "fixtures:generate": "tsx scripts/generateSeedVariants.ts"

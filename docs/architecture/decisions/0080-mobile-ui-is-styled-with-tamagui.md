@@ -188,8 +188,10 @@ variant keeps the mark at its role's own size at every scale, so it cannot grow 
 state the same word in its text, at the scaled size (designer ruling 2026-11-01, M-1). A screen reader then hears the
 word once. The status badge sets the variant through its `onPicture` prop. A guard admits `pictorial` only in the badge, and
 never as a `styled()` default.
-The Google sign-in label is the one fixed-scale site: on iOS it sits beside Apple's system button,
-which cannot scale, so it stays at 1×, and on Android it follows the 1.5× chrome cap. Its colours are no design-system
+The Google sign-in label is the one fixed-scale site. On iOS it sits beside Apple's system button,
+which does not grow, so it stays at 1×. On Android it follows the 1.5× chrome cap. It uses our Button label's
+role, `cardTitle`, so our two sign-in buttons read alike. Apple's button draws larger letters. A label that matched them
+breaks the type scale, so ours keeps its role (designer ruling 2026-11-01). Its colours are no design-system
 role, so it is React Native's own text with `allowFontScaling={false}` and its size and leading from `scaledTypeSize`.
 The text-scale detector trusts that only in that file (`FIXED_SCALE_SITES`).
 A test of `scaledTypeMetrics` covers every role at every scale; a device covers what is drawn.

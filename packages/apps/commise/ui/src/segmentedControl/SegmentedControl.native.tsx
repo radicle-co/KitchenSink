@@ -18,6 +18,16 @@ import type { SegmentedControlProps } from './props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
 import { Text } from '../text/Text.native.js';
+import {
+    SEGMENT_EDGE,
+    SEGMENT_GAP,
+    SEGMENT_ICON,
+    SEGMENT_ICON_GAP,
+    SEGMENT_CHROME_CAP,
+    SEGMENT_LABEL_ROLE,
+    SEGMENT_PADDING_X,
+    TRACK_INSET,
+} from './nativeSegmentGeometry.js';
 
 /** Where an `adaptive` route control stops filling the row and takes its content's width, in dp (`containerThreshold.regular`). */
 const ADAPTIVE_FROM = 600;
@@ -89,10 +99,14 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     ]}
                 >
                     {face.icon === undefined ? null : (
-                        <Icon name={face.icon} size={20} tone={face.selected ? 'ink' : 'inkMuted'} />
+                        <Icon name={face.icon} size={SEGMENT_ICON} tone={face.selected ? 'ink' : 'inkMuted'} />
                     )}
                     {props.form === 'view' && props.labelVisibility === 'hidden' ? null : (
-                        <Text typeRole="label" chromeCap="1.5" color={face.selected ? '$ink' : '$inkMuted'}>
+                        <Text
+                            typeRole={SEGMENT_LABEL_ROLE}
+                            chromeCap={SEGMENT_CHROME_CAP}
+                            color={face.selected ? '$ink' : '$inkMuted'}
+                        >
                             {face.label}
                         </Text>
                     )}
@@ -106,8 +120,8 @@ const styles = StyleSheet.create({
     track: {
         flexDirection: 'row',
         alignItems: 'stretch',
-        gap: nativeTokens.spacing[1],
-        padding: nativeTokens.spacing[1],
+        gap: SEGMENT_GAP,
+        padding: TRACK_INSET,
         borderRadius: nativeTokens.radius.full,
     },
     trackContent: { alignSelf: 'flex-start' },
@@ -119,13 +133,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: nativeTokens.spacing[2],
+        gap: SEGMENT_ICON_GAP,
         borderRadius: nativeTokens.radius.full,
         // A transparent 1 pt edge on every segment; the selected one colours it `lineControl` (`componentFixes.md` §8),
         // so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
-        borderWidth: 1,
+        borderWidth: SEGMENT_EDGE,
         borderColor: 'transparent',
-        paddingHorizontal: nativeTokens.spacing[3],
+        paddingHorizontal: SEGMENT_PADDING_X,
     },
     selected: nativeTokens.elevation.sm,
 });

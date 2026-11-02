@@ -93,6 +93,7 @@
         "./variant-parts-line": "./src/variantPartsLine/index.ts",
         "./chip": "./src/chip/index.ts",
         "./segmented-control": "./src/segmentedControl/index.ts",
+        "./segmented-control/geometry": "./src/segmentedControl/nativeSegmentGeometry.ts",
         "./radio-list": "./src/radioList/index.ts",
         "./progress-bar": "./src/progressBar/index.ts",
         "./search-field": "./src/searchField/index.ts",

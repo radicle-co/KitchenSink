@@ -76,7 +76,9 @@ export function GoogleSignInButton({ label, onPress, disabled, busy }: GoogleSig
     // navigation-chrome cap (designer ruling 2026-11-01, ADR-0080 §8). System scaling is off, so the size AND leading
     // come from here: React Native leaves a set leading uncapped on Android.
     const { fontScale } = useWindowDimensions();
-    const labelSize = scaledTypeSize('label', Platform.OS === 'ios' ? 1 : fontScale, '1.5');
+    // Our Button's label role, so the two sign-in buttons read alike (designer ruling 2026-11-01); it does not chase the
+    // letter size of Apple's system button, which does not grow.
+    const labelSize = scaledTypeSize('cardTitle', Platform.OS === 'ios' ? 1 : fontScale, '1.5');
 
     return (
         <Pressable
@@ -117,5 +119,5 @@ const styles = StyleSheet.create({
     // The same dimming the design system gives a locked control (§1.10).
     dimmed: { opacity: dimmedOpacity },
     // The label wraps rather than truncates; it is never `nowrap` (owner rule on control text).
-    label: { fontFamily: nativeTokens.type.label.fontFamily, flexShrink: 1, textAlign: 'center' },
+    label: { fontFamily: nativeTokens.type.cardTitle.fontFamily, flexShrink: 1, textAlign: 'center' },
 });

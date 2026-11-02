@@ -30,6 +30,26 @@ const PACKAGE_OF: readonly { readonly faces: Readonly<Record<string, string>>; r
 
 const fonts = new Map<LoadedFace, opentype.Font>();
 
+/** Whether a face name is one the app loads. Pure. */
+function isLoadedFace(face: string): face is LoadedFace {
+    return PACKAGE_OF.some(({ faces }) => Object.values(faces).includes(face));
+}
+
+/**
+ * A face name the tokens type as a plain string, checked against the registry. Pure.
+ *
+ * @param face - A face name, for example a type role's `fontFamily`.
+ * @returns The same name, typed as a face the app loads.
+ * @throws Error when the app does not load that face.
+ */
+export function asLoadedFace(face: string): LoadedFace {
+    if (!isLoadedFace(face)) {
+        throw new Error(`"${face}" is not a face the app loads (tokens/scale.ts lists them).`);
+    }
+
+    return face;
+}
+
 /**
  * The parsed font for a registered face, read once.
  * @sideEffect Reads the face's font file from disk, and caches the parsed font.

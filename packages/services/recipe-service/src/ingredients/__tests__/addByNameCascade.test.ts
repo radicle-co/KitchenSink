@@ -1,5 +1,5 @@
 /**
- * `IngredientsService.addByName` records WHICH TIER bound a line, and nothing else (ADR-0071).
+ * `IngredientsService.addByNameThroughCascade` (the version restorer's door; the editor's by-name no longer consults the tiers) records WHICH TIER bound a line, and nothing else (ADR-0071).
  *
  * ⚠️ REWRITTEN for ADR-0071. This file used to prove that a RANKED resolution persisted its full band-keyed event
  * (rung, margin, shortlist, query shape, ranker version, observed band epoch) and read band authority for the epoch.
@@ -84,7 +84,7 @@ describe('addByName — the resolution event names the tier, on the binding (ADR
     it('records the binding and the tier that bound it, and nothing more', async () => {
         const record = vi.fn().mockResolvedValue(undefined);
 
-        await build(record, curatedTier).addByName(CALLER, NAME, AUTHOR);
+        await build(record, curatedTier).addByNameThroughCascade(CALLER, NAME, AUTHOR);
 
         expect(record).toHaveBeenCalledWith({ foodLookupId: 'lookup-mapped', tier: 'curated' });
     });
@@ -92,7 +92,7 @@ describe('addByName — the resolution event names the tier, on the binding (ADR
     it('⛔ writes no ranked shape and no band epoch, whatever the tier handed over', async () => {
         const record = vi.fn().mockResolvedValue(undefined);
 
-        await build(record, rankedShapedTier).addByName(CALLER, NAME, AUTHOR);
+        await build(record, rankedShapedTier).addByNameThroughCascade(CALLER, NAME, AUTHOR);
 
         expect(record).toHaveBeenCalledWith({ foodLookupId: 'lookup-mapped', tier: 'memo' });
     });
@@ -100,7 +100,7 @@ describe('addByName — the resolution event names the tier, on the binding (ADR
     it('⚠️ a lost event never fails a resolution that succeeded', async () => {
         const record = vi.fn().mockRejectedValue(new Error('insert refused'));
 
-        const admitted = await build(record, curatedTier).addByName(CALLER, NAME, AUTHOR);
+        const admitted = await build(record, curatedTier).addByNameThroughCascade(CALLER, NAME, AUTHOR);
 
         expect(admitted.foodId).toBe(MAPPED_FOOD);
     });

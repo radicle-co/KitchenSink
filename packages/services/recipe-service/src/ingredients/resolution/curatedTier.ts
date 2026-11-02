@@ -40,6 +40,8 @@ export function decideCuratedTier(inForce: MappingInForce | undefined): TierOutc
         // two users agreeing, and one user's private note all resolve identically here but read very
         // differently in an audit of why a line landed where it did.
         evidence: `curated mapping (${inForce.scope}, origin ${inForce.origin})`,
+        // The structured twin of the prose above: callers that must tell the sources apart read this, never the prose.
+        mapping: { scope: inForce.scope, origin: inForce.origin },
     };
 }
 

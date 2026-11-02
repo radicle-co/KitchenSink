@@ -114,6 +114,7 @@ import {
     confirmPhotoRequestSchema,
     createCollectionRequestSchema,
     createIngredientRequestSchema,
+    ingredientNameProposalsResponseSchema,
     createPhotoUploadRequestSchema,
     createRecipeRequestSchema,
     erasureRequestAcceptedResponseSchema,
@@ -151,6 +152,7 @@ import type {
     WithdrawParseJobLinesRequest,
     IngredientFoodNutritionRequest,
     IngredientFoodNutritionResponse,
+    IngredientNameProposalsResponse,
     ParseJobResponse,
     PrivateSlotUsage,
     RecipeApiError,
@@ -675,6 +677,36 @@ export class RecipeServiceClient {
         );
 
         return this.expect(res, 202, ingredientSchema);
+    }
+
+    /**
+     * `GET /api/v1/ingredients/by-name/proposals?name=` — the foods the add-by-name field SUGGESTS for what the cook
+     * typed: their own earlier correction, a staff ruling, two cooks agreeing, a memo another cook's save taught.
+     *
+     * A READ. It binds nothing and writes nothing; the cook binds a proposal by picking it, through
+     * {@link addIngredientByFood} or {@link addIngredientByFoodVariant}. The answer varies by caller and is always
+     * `200`: a food food will not show, or a source that could not be read, is simply absent.
+     *
+     * @param name - The name the cook typed.
+     * @param options - An abort signal, so a keystroke supersedes the request it made before.
+     * @returns The phrase and the proposals, strongest source first. `source` is an open key: show the food even when it
+     *   is one this client does not know.
+     * @throws {UnauthorizedError} on auth failure; a `ZodError` if the response has drifted.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getIngredientNameProposals(
+        name: string,
+        options: { readonly signal?: AbortSignal } = {},
+    ): Promise<IngredientNameProposalsResponse> {
+        const res = await this.send(
+            'GET',
+            '/api/v1/ingredients/by-name/proposals',
+            undefined,
+            { name },
+            options.signal,
+        );
+
+        return this.expect(res, 200, ingredientNameProposalsResponseSchema);
     }
 
     /**

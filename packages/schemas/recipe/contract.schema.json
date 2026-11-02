@@ -6797,6 +6797,102 @@
             "readOnly": true,
             "type": "array"
         },
+        "ingredientNameProposalSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "id": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "kind": {
+                    "enum": [
+                        "root",
+                        "variant"
+                    ],
+                    "type": "string"
+                },
+                "name": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "source": {
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind",
+                "id",
+                "name",
+                "source"
+            ],
+            "type": "object"
+        },
+        "ingredientNameProposalsQuerySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "type": "object"
+        },
+        "ingredientNameProposalsResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "phrase": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "proposals": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "id": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "kind": {
+                                "enum": [
+                                    "root",
+                                    "variant"
+                                ],
+                                "type": "string"
+                            },
+                            "name": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "source": {
+                                "minLength": 1,
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "kind",
+                            "id",
+                            "name",
+                            "source"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                }
+            },
+            "required": [
+                "phrase",
+                "proposals"
+            ],
+            "type": "object"
+        },
         "ingredientSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,

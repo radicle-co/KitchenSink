@@ -62,6 +62,7 @@ import type { ScoredCandidate } from '@kitchensink/recipe-core/resolution/verifi
 
 import type { CallerToken } from '../../auth/CallerToken.js';
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
+import type { CorrectionOrigin, CorrectionScope } from '../domain/correctionScopePolicy.js';
 
 /**
  * The four tier identifiers R11 names — as a SET, in no meaningful order.
@@ -272,6 +273,11 @@ export type TierOutcome =
            * band epoch is observed, and the verification is excluded from band feedback on both sides.
            */
           readonly authorAugmented?: boolean | undefined;
+          /**
+           * The curated tier only: WHICH mapping answered, as structured facts. The name proposals read the source of a
+           * proposal from here, never from the `evidence` prose, which is for a human reading an audit.
+           */
+          readonly mapping?: { readonly scope: CorrectionScope; readonly origin: CorrectionOrigin } | undefined;
       }
     | {
           readonly kind: 'pass';
@@ -444,6 +450,54 @@ export async function runResolutionCascade(
     }
 
     return { kind: 'exhausted', consulted, unavailable };
+}
+
+/**
+ * What {@link consultEveryTier} heard: every tier's answer, and the tiers that could not be asked.
+ */
+export interface EveryTierAnswer {
+    /** The tiers' answers in consultation order, resolved and passed alike. A tier that failed has none. */
+    readonly outcomes: readonly TierOutcome[];
+    /** The tiers whose I/O FAILED. */
+    readonly unavailable: readonly ResolutionTierId[];
+}
+
+/**
+ * Ask EVERY tier and keep every answer: the read-only sibling of {@link runResolutionCascade}.
+ *
+ * The cascade stops at the first resolution because binding wants ONE answer, in precedence order. The editor's name
+ * proposals want what each settled source remembers, so the cook can pick among them, and nothing here binds. The two
+ * loops stay apart on purpose: one loop with a flag would make a boolean choose between binding and proposing, and the
+ * first-wins contract is what keeps a machine guess from outranking a person's ruling.
+ *
+ * Tier order is kept, so a caller can rank by it. A failing tier is reported and skipped, exactly as in the cascade.
+ *
+ * @param tiers - The tiers to ask, in order. An empty list answers nothing.
+ * @param query - The phrase and its key.
+ * @param context - Per-request facts, passed to every tier unchanged.
+ * @param observers - Where a tier failure is reported.
+ * @returns Every answer, and which tiers could not be asked.
+ * @sideEffect Delegates to tiers, which perform I/O.
+ */
+export async function consultEveryTier(
+    tiers: readonly ResolutionTier[],
+    query: ResolutionQuery,
+    context: ResolutionContext,
+    observers: CascadeObservers,
+): Promise<EveryTierAnswer> {
+    const outcomes: TierOutcome[] = [];
+    const unavailable: ResolutionTierId[] = [];
+
+    for (const tier of tiers) {
+        try {
+            outcomes.push(await tier.resolve(query, context));
+        } catch (error) {
+            unavailable.push(tier.id);
+            report(observers, tier.id, error);
+        }
+    }
+
+    return { outcomes, unavailable };
 }
 
 /**

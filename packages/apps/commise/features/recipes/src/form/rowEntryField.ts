@@ -103,6 +103,10 @@ export function chooseEntryOption(
             entry.selectRemoteFood(option.food);
 
             return;
+        case 'suggestedFood':
+            entry.selectSuggestion(option.proposal);
+
+            return;
         case 'findByName':
             entry.findByName();
 
@@ -134,6 +138,7 @@ export const rowEntryFieldOf = (input: RowEntryFieldInput, copy: RowEntryFieldCo
             active: entry.isActive(target),
             text,
             view: entry.view,
+            suggestions: entry.suggestions,
             databaseSaidEarly: entry.databaseSaidEarly,
             pickFailure: input.pickFailure,
             offersCreateOwnFood: false,

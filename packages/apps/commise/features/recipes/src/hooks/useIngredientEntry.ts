@@ -24,6 +24,8 @@
  */
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import type { QueryOutcomeEvent } from '@kitchensink/recipe-core/analytics/event-payload';
+import { useIngredientNameProposals } from '@kitchensink/recipe-service-client/hooks';
+import type { IngredientNameProposal } from '@kitchensink/schema-recipe';
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 
 import { abandonOutcome, observeServedList, pickOutcome, type SearchSession } from '../analytics/queryOutcome.model.js';
@@ -63,7 +65,7 @@ import {
 } from './foodSuggestions.model.js';
 import { INGREDIENT_SEARCH_DEBOUNCE_MS } from './ingredientSearchDebounce.js';
 import { useIngredientSuggestionSource } from './ingredientSuggestionSource.js';
-import type { IngredientPick, LineCommitPort, LineCommitTarget, NewLinePlacement } from './lineCommit.js';
+import type { BoundPick, IngredientPick, LineCommitPort, LineCommitTarget, NewLinePlacement } from './lineCommit.js';
 import { useDebouncedValue } from './useDebouncedValue.js';
 import { useReadDeadline } from './useReadDeadline.js';
 import type { SourceLimit } from './useSourceLimit.js';
@@ -73,6 +75,20 @@ import type { SourceLimit } from './useSourceLimit.js';
  * person's flow of thought is not broken.
  */
 export const COUNT_GUARD_MS = 1_000;
+
+/**
+ * How long the served list waits for the remembered answers it leads with. Past it the list shows without them, so a
+ * slow read never blocks the foods; the wait is short because the list cannot show before it ends (P2).
+ */
+export const SUGGESTIONS_DEADLINE_MS = 400;
+
+const NO_SUGGESTIONS: readonly IngredientNameProposal[] = [];
+
+/** The pick a suggestion stands for: a root is its food, a variant is that variant. Pure. */
+const suggestionPickOf = (proposal: IngredientNameProposal): BoundPick =>
+    proposal.kind === 'root'
+        ? { kind: 'catalogFood', foodId: proposal.id, name: proposal.name }
+        : { kind: 'catalogVariant', foodVariantId: proposal.id };
 
 /** Options for {@link useIngredientEntry}. */
 export interface UseIngredientEntryOptions {
@@ -98,6 +114,11 @@ export interface IngredientEntry {
     readonly isActive: (target: LineCommitTarget) => boolean;
     /** The active field's food list: the progressive answer, as it stands. */
     readonly view: EntrySearchView;
+    /**
+     * The foods remembered for the active field's settled text (a correction, a ruling), to lead its list. Empty unless
+     * that read settled with an answer in time ({@link SUGGESTIONS_DEADLINE_MS}); never a pick made for the cook.
+     */
+    readonly suggestions: readonly IngredientNameProposal[];
     /**
      * The answer still ran {@link COUNT_GUARD_MS} after its database part settled, so that part is said then and the end
      * says only what came after (P7's slow path).
@@ -128,6 +149,8 @@ export interface IngredientEntry {
     readonly selectFood: (food: FoodOption) => void;
     /** Pick a remote food from the active field's list: adopted, then committed, by the commit port (P8). */
     readonly selectRemoteFood: (food: RemoteFoodOption) => void;
+    /** Pick a food the list SUGGESTS from a remembered answer; it binds like any listed food, and only on this pick. */
+    readonly selectSuggestion: (proposal: IngredientNameProposal) => void;
     /** Find nutrition by the active field's text. */
     readonly findByName: () => void;
     /** Use the active field's text as written, without nutrition. */
@@ -175,10 +198,35 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
     const searchEnabled = settledForActive && meetsSearchMinimum(settled.trimmed);
     const search = useIngredientSuggestionSource(settled.trimmed, searchEnabled, sourceLimit.hold);
     const debouncedTrimmed = settledForActive ? settled.trimmed : '';
+
+    // The remembered answers for the settled text (owner ruling 2026-11-03). They lead the list, so they must be known
+    // BEFORE the list first shows (P2: nothing already shown moves): the served list is held back as `searching` while
+    // the read runs, and the read gets SUGGESTIONS_DEADLINE_MS. After that, or on an error, there are none for this text,
+    // and an answer that lands late is dropped, so a slow read never blocks the foods and never moves them.
+    const proposals = useIngredientNameProposals(settled.trimmed, { enabled: searchEnabled });
+    const proposalsKey = searchEnabled ? `${settled.targetKey}:${settled.trimmed}` : undefined;
+    const [givenUpFor, setGivenUpFor] = useState<string | undefined>(undefined);
+
+    useReadDeadline(proposals.isLoading ? proposalsKey : undefined, SUGGESTIONS_DEADLINE_MS, () =>
+        setGivenUpFor(proposalsKey),
+    );
+
+    const proposalsOpen = proposalsKey !== undefined && givenUpFor !== proposalsKey;
+    const waitingForProposals = proposalsOpen && proposals.isLoading;
+    const suggestions =
+        proposalsOpen && !proposals.isError ? (proposals.data?.proposals ?? NO_SUGGESTIONS) : NO_SUGGESTIONS;
+
     // The same object while the text and the read are, so the session effect below observes each frame once.
-    const view = useMemo(
+    const answered = useMemo(
         () => entrySearchViewOf({ trimmed, debouncedTrimmed, read: search.read }),
         [trimmed, debouncedTrimmed, search.read],
+    );
+    const view = useMemo<EntrySearchView>(
+        () =>
+            waitingForProposals && answered.kind === 'served'
+                ? { kind: 'searching', resumed: answered.resumed }
+                : answered,
+        [waitingForProposals, answered],
     );
 
     // P7's guard: its key is the answer, from the moment its database part settles while it still runs. A guard that
@@ -318,6 +366,7 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
         active,
         isActive: (target) => activeKey !== undefined && keyOf(target) === activeKey,
         view,
+        suggestions,
         databaseSaidEarly: view.kind === 'served' && saidEarlyFor === answerKey,
         changing: changingOf(state, lines),
         beginChange: (key) => {
@@ -353,6 +402,15 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
             // The pick is recorded at the tap: the one moment its place in the served list is known (KTD6).
             settleSession(pickOutcome(sessionRef.current?.session ?? null, food));
             commitPick(foodPickOf(food));
+        },
+        selectSuggestion: (proposal) => {
+            if (active === undefined) {
+                return;
+            }
+
+            // Like a remote pick, a suggestion is not in the served groups the analytics wire can name: a no-pick.
+            settleSession(abandoned());
+            commitPick(suggestionPickOf(proposal));
         },
         findByName: () => commitTyped((text) => ({ kind: 'name', text })),
         declareAsWritten: () => commitTyped((text) => ({ kind: 'declared', text })),

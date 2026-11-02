@@ -158,6 +158,25 @@ describe('rowEntryFieldOf', () => {
         expect(actions.declareAsWritten).toHaveBeenCalledTimes(1);
     });
 
+    it('lists the entry’s suggestions first, and choosing one reaches selectSuggestion with its proposal only', () => {
+        const proposal = { kind: 'root', id: 'food_kale_baby', name: 'Kale, baby', source: 'ownCorrection' } as const;
+        const actions = { selectFood: vi.fn(), selectSuggestion: vi.fn() };
+        const entry = makeIngredientEntry({
+            ...actions,
+            textOf: () => 'kale',
+            isActive: () => true,
+            view: KALE_LISTED,
+            suggestions: [proposal],
+        });
+        const props = rowEntryFieldOf(input({ entry }), COPY);
+
+        expect(props.groups[0]?.options.map((option) => option.label)).toEqual(['Kale, baby']);
+        props.onSelect('suggested:root:food_kale_baby');
+
+        expect(actions.selectSuggestion).toHaveBeenCalledExactlyOnceWith(proposal);
+        expect(actions.selectFood).not.toHaveBeenCalled();
+    });
+
     it('a choice with a key the field did not list does nothing', () => {
         const findByName = vi.fn();
 

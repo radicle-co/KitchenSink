@@ -3,16 +3,18 @@
  * value is read from `colors.ts` and `surfaceTone.ts`, so a palette or table change moves this test with it; what the
  * test pins is the SHAPE of the projection: which keys exist, and which source each one is read from.
  */
+import { wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
 
 import {
     chipFillRoleOf,
+    INVERSE_INK_ALPHA,
     pressFillsOf,
     SURFACE_TONE_NAMES,
     SURFACE_TONES,
     type PressScheme,
 } from '../../surfaceTone/surfaceTone.js';
-import { role, roleDark, type Role } from '../../tokens/colors.js';
+import { mixOver, role, roleDark, type Role } from '../../tokens/colors.js';
 import { proTone, proToneDark } from '../../tokens/tones.js';
 import {
     proThemeKeys,
@@ -103,10 +105,21 @@ describe('the surface-tone sub-themes (audit H3)', () => {
     });
 
     it('keeps the five tone keys apart from every role but ink, so a role cannot be shadowed', () => {
-        const clash = TONE_THEME_KEYS.filter((key) => key !== 'ink' && (roleNames as string[]).includes(key));
+        const sharedWithRoles: readonly string[] = ['ink', 'inkMuted', 'lineDivider'];
+        const clash = TONE_THEME_KEYS.filter(
+            (key) => !sharedWithRoles.includes(key) && (roleNames as string[]).includes(key),
+        );
 
         expect(clash).toEqual([]);
-        expect([...TONE_THEME_KEYS].sort()).toEqual(['background', 'backgroundPress', 'borderColor', 'color', 'ink']);
+        expect([...TONE_THEME_KEYS].sort()).toEqual([
+            'background',
+            'backgroundPress',
+            'borderColor',
+            'color',
+            'ink',
+            'inkMuted',
+            'lineDivider',
+        ]);
     });
 
     it.each(['light', 'dark'] as const)(
@@ -141,6 +154,69 @@ describe('the surface-tone sub-themes (audit H3)', () => {
         expect(parent['backgroundPress']).toBe(press.canvas);
         expect(parent['borderColor']).toBe(colors.lineControl);
     });
+
+    // Muted text and the divider restate the page's roles on every surface but one whose ink is not the page's: there
+    // they are that ink laid over the surface at an alpha (H3, the designer's answer, Q5), so a bare muted `Text` or a rule
+    // on the inverse surface reads right with no override. No inverse surface draws them yet.
+    it.each(['light', 'dark'] as const)(
+        '%s: muted text and the divider are the page’s roles, except on an inverse ink',
+        (scheme) => {
+            const colors = sources[scheme];
+
+            for (const tone of SURFACE_TONE_NAMES) {
+                const theme = (tamaguiThemes as Readonly<Record<string, Readonly<Record<string, string>>>>)[
+                    `${scheme}_${tone}`
+                ];
+
+                if (SURFACE_TONES[tone].ink === 'ink') {
+                    expect(theme?.['inkMuted'], tone).toBe(colors.inkMuted);
+                    expect(theme?.['lineDivider'], tone).toBe(colors.lineDivider);
+                } else {
+                    const ink = colors[SURFACE_TONES[tone].ink];
+                    const fill = colors[SURFACE_TONES[tone].fill];
+
+                    expect(theme?.['inkMuted'], tone).toBe(mixOver(ink, fill, INVERSE_INK_ALPHA.inkMuted));
+                    expect(theme?.['lineDivider'], tone).toBe(mixOver(ink, fill, INVERSE_INK_ALPHA.lineDivider));
+                }
+            }
+        },
+    );
+
+    // The page's own divider is a hairline below 1.2:1 on some surfaces by design, so the divider floor is held only for the
+    // one this file derives; muted TEXT is held to 4.5:1 on every surface, derived or not.
+    it.each(['light', 'dark'] as const)('%s: muted text holds 4.5:1 on every surface', (scheme) => {
+        const colors = sources[scheme];
+
+        for (const tone of SURFACE_TONE_NAMES) {
+            const theme = (tamaguiThemes as Readonly<Record<string, Readonly<Record<string, string>>>>)[
+                `${scheme}_${tone}`
+            ];
+            const fill = colors[SURFACE_TONES[tone].fill];
+
+            expect(wcagContrast(theme?.['inkMuted'] ?? '', fill), `${scheme} ${tone}`).toBeGreaterThanOrEqual(4.5);
+        }
+    });
+
+    it.each(['light', 'dark'] as const)(
+        '%s: a derived divider clears the 1.2:1 line floor on its surface',
+        (scheme) => {
+            const colors = sources[scheme];
+            const derived = SURFACE_TONE_NAMES.filter((tone) => SURFACE_TONES[tone].ink !== 'ink');
+
+            expect(derived).toContain('inverse');
+
+            for (const tone of derived) {
+                const theme = (tamaguiThemes as Readonly<Record<string, Readonly<Record<string, string>>>>)[
+                    `${scheme}_${tone}`
+                ];
+
+                expect(
+                    wcagContrast(theme?.['lineDivider'] ?? '', colors[SURFACE_TONES[tone].fill]),
+                    `${scheme} ${tone}`,
+                ).toBeGreaterThanOrEqual(1.2);
+            }
+        },
+    );
 
     it('is the only place an inverse surface’s ink differs from the page’s', () => {
         expect(tamaguiThemes['light_inverse'].ink).toBe(role.inverseInk);

@@ -8,7 +8,7 @@
         "missing-module-doc": 21,
         "platform-singleton": 75,
         "ref-api": 15,
-        "unclassified-layer": 94,
+        "unclassified-layer": 92,
         "undocumented-prop": 181
     },
     "findings": [
@@ -350,14 +350,6 @@
             ]
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "designSystem/horizontalScroller/ScrollChevron",
-            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "designSystem/horizontalScroller/ScrollFade",
@@ -366,14 +358,6 @@
             "evidence": [
                 "native"
             ]
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "designSystem/horizontalScroller/ScrollFade",
-            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
         },
         {
             "rule": "ref-api",

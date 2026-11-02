@@ -3,6 +3,8 @@
  * `expo-linear-gradient` takes a React Native style, held here and nowhere else. This file must not import `tamagui` (a
  * file that does holds no React Native styling).
  *
+ * Presentational: props → JSX.
+ *
  * @pattern Adapter — expo-linear-gradient behind a plain component
  */
 import { LinearGradient } from 'expo-linear-gradient';

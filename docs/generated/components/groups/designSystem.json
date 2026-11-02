@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 144,
         "implementationsWithComponentDoc": 133,
         "documentedProps": 760,
-        "classifiedComponents": 76,
+        "classifiedComponents": 78,
         "componentsWithPatternTag": 85,
         "crossPlatformComponents": 59
     },
@@ -4982,7 +4982,7 @@
             "packageName": "@commise/ui",
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/horizontalScroller",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Adapter — an Animated.Value opacity behind a plain component"
             ],
@@ -4998,7 +4998,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx",
                     "dir": "packages/apps/commise/ui/src/horizontalScroller",
-                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's chevron, the one part Tamagui cannot draw yet: its opacity is\nan `Animated.Value` (the config has no animation driver), which takes one React Native style, held here and nowhere\nelse. This file must not import `tamagui` (a file that does holds no React Native styling).",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's chevron, the one part Tamagui cannot draw yet: its opacity is\nan `Animated.Value` (the config has no animation driver), which takes one React Native style, held here and nowhere\nelse. This file must not import `tamagui` (a file that does holds no React Native styling).\n\nOrchestration: it owns the opacity animation and reads the reduce-motion preference; it fetches nothing.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -5037,7 +5037,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -5049,7 +5049,7 @@
             "packageName": "@commise/ui",
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/horizontalScroller",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Adapter — expo-linear-gradient behind a plain component"
             ],
@@ -5065,7 +5065,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx",
                     "dir": "packages/apps/commise/ui/src/horizontalScroller",
-                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's gradient fade, the one part Tamagui cannot draw yet:\n`expo-linear-gradient` takes a React Native style, held here and nowhere else. This file must not import `tamagui` (a\nfile that does holds no React Native styling).",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's gradient fade, the one part Tamagui cannot draw yet:\n`expo-linear-gradient` takes a React Native style, held here and nowhere else. This file must not import `tamagui` (a\nfile that does holds no React Native styling).\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -5103,7 +5103,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

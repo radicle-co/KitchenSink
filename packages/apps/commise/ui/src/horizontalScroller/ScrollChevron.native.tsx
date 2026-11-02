@@ -3,6 +3,8 @@
  * an `Animated.Value` (the config has no animation driver), which takes one React Native style, held here and nowhere
  * else. This file must not import `tamagui` (a file that does holds no React Native styling).
  *
+ * Orchestration: it owns the opacity animation and reads the reduce-motion preference; it fetches nothing.
+ *
  * @pattern Adapter — an Animated.Value opacity behind a plain component
  */
 import { useEffect, useState, type FC } from 'react';

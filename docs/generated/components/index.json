@@ -4,12 +4,12 @@
     "totals": {
         "components": 413,
         "implementations": 613,
-        "props": 2823,
+        "props": 2829,
         "documentedComponents": 409,
         "implementationsWithModuleDoc": 592,
         "implementationsWithComponentDoc": 452,
-        "documentedProps": 2438,
-        "classifiedComponents": 321,
+        "documentedProps": 2444,
+        "classifiedComponents": 322,
         "componentsWithPatternTag": 229,
         "crossPlatformComponents": 200
     },
@@ -23,11 +23,11 @@
             "coverage": {
                 "components": 86,
                 "implementations": 145,
-                "props": 821,
+                "props": 825,
                 "documentedComponents": 86,
                 "implementationsWithModuleDoc": 145,
                 "implementationsWithComponentDoc": 134,
-                "documentedProps": 776,
+                "documentedProps": 780,
                 "classifiedComponents": 79,
                 "componentsWithPatternTag": 86,
                 "crossPlatformComponents": 59
@@ -80,11 +80,11 @@
             "coverage": {
                 "components": 82,
                 "implementations": 82,
-                "props": 98,
+                "props": 99,
                 "documentedComponents": 79,
                 "implementationsWithModuleDoc": 63,
                 "implementationsWithComponentDoc": 58,
-                "documentedProps": 65,
+                "documentedProps": 66,
                 "classifiedComponents": 35,
                 "componentsWithPatternTag": 30,
                 "crossPlatformComponents": 0
@@ -99,12 +99,12 @@
             "coverage": {
                 "components": 55,
                 "implementations": 55,
-                "props": 154,
+                "props": 155,
                 "documentedComponents": 54,
                 "implementationsWithModuleDoc": 53,
                 "implementationsWithComponentDoc": 40,
-                "documentedProps": 148,
-                "classifiedComponents": 39,
+                "documentedProps": 149,
+                "classifiedComponents": 40,
                 "componentsWithPatternTag": 26,
                 "crossPlatformComponents": 0
             }

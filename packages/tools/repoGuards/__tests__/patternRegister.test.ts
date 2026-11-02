@@ -390,8 +390,11 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * ⚠️ It went 93 → 92 with the pinned back bar. `RecipeVersionsScreen`, which stated no layer, now says it is the
  * orchestration of its three framed branches; the two components the change added (`PushedPageFrame`,
  * `CollectionMoreMenu`) state theirs in their own docblocks.
+ *
+ * ⚠️ It went 92 → 91 with the Home header. `AvatarDisc.native.tsx` was rebuilt on Tamagui and now states that it is
+ * presentational.
  */
-const LAYER_UNSTATED_CENSUS = 92;
+const LAYER_UNSTATED_CENSUS = 91;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

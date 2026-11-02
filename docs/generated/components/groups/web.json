@@ -6,11 +6,11 @@
     "coverage": {
         "components": 82,
         "implementations": 82,
-        "props": 98,
+        "props": 99,
         "documentedComponents": 79,
         "implementationsWithModuleDoc": 63,
         "implementationsWithComponentDoc": 58,
-        "documentedProps": 65,
+        "documentedProps": 66,
         "classifiedComponents": 35,
         "componentsWithPatternTag": 30,
         "crossPlatformComponents": 0
@@ -2723,11 +2723,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/ProfileAvatarEntry.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header below `nav`, opening\nProfile (`docs/design/uiOverhaul/buildSpec.md` §3.3). From `nav` the header drops it; the sidebar's profile row is the\nsame entry there.\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`, the same cached query `AppShell` reads) and the\nrouter, and hands `@commise/ui/avatar` its state. Data enters the page chrome here, and only here.",
+                    "moduleDoc": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header, opening Profile\n(`docs/design/uiOverhaul/buildSpec.md` §3.3). Home's header shows it at every width, as the Home boards draw it; the\nsidebar's profile row is the same entry beside it from `nav`.\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`, the same cached query `AppShell` reads) and the\nrouter, and hands `@commise/ui/avatar` its state. Data enters the page chrome here, and only here.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header below `nav`, opening"
+                            "text": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header, opening Profile"
                         },
                         {
                             "name": "pattern",
@@ -2735,10 +2735,32 @@
                         }
                     ],
                     "description": "The page header's profile entry.",
-                    "tags": [],
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The disc's form."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The avatar link to Profile."
+                        }
+                    ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The disc's form; Home's header asks for `large`. Omitted, it is the 32 px disc.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/ProfileAvatarEntry.tsx"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -2827,11 +2849,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), drawn by the design system's `LargeTitleHeader` with the\nheader's action (the avatar) and the floating create button right after the H1.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet\nidentically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
+                    "moduleDoc": "home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), in ONE row as the Home boards draw it — the text stacked\non the start side, the 44 px profile button on the end side at every width — with the floating create button right\nafter the row in DOM order. It is no longer the shared `LargeTitleHeader`: the greeting is a `cardTitle`, not a large\ntitle.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet\nidentically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;"
+                            "text": "home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;"
                         }
                     ],
                     "description": "The Home large title.",
@@ -2854,7 +2876,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The header's action: the avatar, below 840.",
+                            "description": "The header's action: the avatar, at every width.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx"
                         },
                         {

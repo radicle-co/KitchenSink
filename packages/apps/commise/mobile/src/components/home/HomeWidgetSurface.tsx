@@ -15,7 +15,7 @@
  *
  * The host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first
  * child, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the
- * recipe slot. The tab bar, the condensed title bar and the floating create button are NOT here: the navigator owns the
+ * recipe slot. The tab bar and the floating create button are NOT here: the navigator owns the
  * bar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.
  */
 import { profileEntryOf, resolveErrorReporter, type HomeWidgetId } from '@commise/features-core';
@@ -191,14 +191,13 @@ export function HomeWidgetSurface({
                         style={styles.region}
                         contentContainerStyle={[styles.regionContent, { paddingBottom: fabRoom }]}
                     >
-                        {/* The large title is the scroller's FIRST child, so its host knows when it has scrolled under the
-                        top (`LargeTitleHeader`); it sits on the app canvas, never in a card (§1.6). */}
+                        {/* The one-row header is the scroller's first child; it sits on the app canvas, never in a card (§1.6). */}
                         <HomeGreeting
                             {...(cookName === undefined ? {} : { name: cookName })}
                             {...(headerAction === undefined ? {} : { action: headerAction })}
                         />
 
-                        {/* The widgets pad themselves: the title insets its own sides, so the region does not pad. */}
+                        {/* The widgets pad themselves: the header insets its own sides, so the region does not pad. */}
                         <View style={styles.widgets}>
                             {curated.live.map(renderWidget)}
 

@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * @module home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;
- * US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), drawn by the design system's `LargeTitleHeader` with the
- * header's action (the avatar) and the floating create button right after the H1.
+ * @module home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;
+ * US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), in ONE row as the Home boards draw it — the text stacked
+ * on the start side, the 44 px profile button on the end side at every width — with the floating create button right
+ * after the row in DOM order. It is no longer the shared `LargeTitleHeader`: the greeting is a `cardTitle`, not a large
+ * title.
  *
  * "Good afternoon, Eliza" over "Sunday, May 31, 2026"; "Good afternoon" when the cook has no name yet. Both are derived from the viewer's
  * LOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet
@@ -35,12 +37,7 @@
  * reachable from a browser test, so both would keep the masks.
  */
 import { useHomeGreeting } from '@commise/features-core/home';
-import {
-    LARGE_SUBTITLE_CLASS,
-    LARGE_TITLE_CLASS,
-    LargeTitleHeader,
-    type HeaderAction,
-} from '@commise/ui/large-title-header';
+import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { JSX, ReactNode } from 'react';
 
 import { useIsHydrated } from '@/hooks/useIsHydrated';
@@ -49,10 +46,10 @@ import { useIsHydrated } from '@/hooks/useIsHydrated';
  * The greeting line's typography, stated ONCE so the real line and the reserved placeholder cannot drift into
  * different heights (which is what would reintroduce a layout shift at hydration).
  */
-const GREETING_LINE = `${LARGE_TITLE_CLASS} focus:outline-none`;
+const GREETING_LINE = 'break-words text-card-title text-ink focus:outline-none';
 
 /** The date line's typography — same single-statement reason as {@link GREETING_LINE}. */
-const DATE_LINE = LARGE_SUBTITLE_CLASS;
+const DATE_LINE = 'text-body text-ink-muted';
 
 /** The id of Home's H1. */
 const HOME_TITLE_ID = 'home-title';
@@ -61,7 +58,7 @@ const HOME_TITLE_ID = 'home-title';
 export interface HomeGreetingProps {
     /** The cook's display name, if any. */
     readonly name?: string;
-    /** The header's action: the avatar, below 840. */
+    /** The header's action: the avatar, at every width. */
     readonly action?: HeaderAction;
     /** What comes right after the H1: the floating create button. */
     readonly afterTitle?: ReactNode;
@@ -96,12 +93,22 @@ export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {
     }
 
     return (
-        <LargeTitleHeader
-            headingId={HOME_TITLE_ID}
-            title={title}
-            subtitle={subtitle}
-            {...(action === undefined ? {} : { action })}
-            {...(afterTitle === undefined ? {} : { afterTitle })}
-        />
+        <header>
+            <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                    <h1 id={HOME_TITLE_ID} tabIndex={-1} className={GREETING_LINE}>
+                        {title}
+                    </h1>
+                    <p className={DATE_LINE}>{subtitle}</p>
+                </div>
+                {action?.kind === 'avatar' ? (
+                    // The 44 px target is the floor; the -mr-1 lines the 32 px disc up with the page gutter.
+                    <div className="-mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center">
+                        {action.avatar}
+                    </div>
+                ) : null}
+            </div>
+            {afterTitle}
+        </header>
     );
 }

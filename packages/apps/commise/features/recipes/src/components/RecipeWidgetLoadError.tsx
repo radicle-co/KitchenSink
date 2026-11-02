@@ -19,7 +19,7 @@ export const RecipeWidgetLoadError: FC<RecipeWidgetLoadErrorProps> = ({ onRetry,
             <div role="status" className="flex flex-col items-start gap-3">
                 <p className="text-body text-ink-muted">{home.loadError}</p>
                 {onRetry === undefined ? null : (
-                    <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
+                    <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
                         {home.retry}
                     </Button>
                 )}

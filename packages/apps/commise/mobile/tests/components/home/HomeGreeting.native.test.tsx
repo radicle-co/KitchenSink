@@ -29,6 +29,9 @@ describe('HomeGreeting (mobile) — time-of-day bucket', () => {
         [14, 'Good afternoon'],
         [19, 'Good evening'],
         [23, 'Still up?'],
+        [0, 'Still up?'],
+        [4, 'Still up?'],
+        [5, 'Good morning'],
     ])('at hour %i greets "%s"', (hour, expected) => {
         renderAt(2026, 4, 31, hour);
 
@@ -48,10 +51,77 @@ describe('HomeGreeting (mobile) — time-of-day bucket', () => {
 });
 
 describe('HomeGreeting (mobile) — date subtitle', () => {
-    it('renders the local calendar date in the mockup long form', () => {
+    it('renders the local calendar date without the year (board: "Sunday 25 October")', () => {
         renderAt(2026, 4, 31, 14);
 
         // 2026-05-31 is a Sunday (the mockup label "Saturday" was fictional copy).
-        expect(screen.getByText('Sunday, May 31, 2026')).toBeTruthy();
+        expect(screen.getByText('Sunday, May 31')).toBeTruthy();
+    });
+});
+
+/**
+ * The Home header board (HomeAndroid384 / HomeIphone390): ONE row — the greeting and date stacked on the start side,
+ * the 44 pt profile button on the end side. It is no longer the shared `LargeTitleHeader` with a floating action.
+ */
+describe('HomeGreeting (mobile) — the one-row header', () => {
+    const renderRow = (name?: string): void => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
+        renderWithProviders(
+            <HomeGreeting
+                {...(name === undefined ? {} : { name })}
+                action={{
+                    kind: 'avatar',
+                    avatar: (
+                        <button type="button" aria-label="Profile, Eliza">
+                            E
+                        </button>
+                    ),
+                }}
+            />,
+            { locale: 'en' },
+        );
+    };
+
+    it('keeps the greeting as the one heading, with the date under it and the button after both', () => {
+        renderRow('Eliza');
+        const heading = screen.getByRole('heading', { name: 'Good afternoon, Eliza' });
+        const date = screen.getByText('Sunday, May 31');
+        const profile = screen.getByRole('button', { name: 'Profile, Eliza' });
+
+        expect(screen.getAllByRole('heading')).toHaveLength(1);
+        expect(heading.compareDocumentPosition(date) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(date.compareDocumentPosition(profile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('lays the text block and the button side by side in one row, the button last (end side)', () => {
+        renderRow('Eliza');
+        const profile = screen.getByRole('button', { name: 'Profile, Eliza' });
+        const heading = screen.getByRole('heading', { name: 'Good afternoon, Eliza' });
+        const row = heading.parentElement?.parentElement as HTMLElement;
+
+        expect(row.contains(profile)).toBe(true);
+        expect(getComputedStyle(row).flexDirection).toBe('row');
+        expect(getComputedStyle(row).alignItems).toBe('center');
+        // The text block takes the free width and wraps; the action is never squeezed below its 44 pt target.
+        expect(getComputedStyle(profile.parentElement as HTMLElement).minWidth).toBe('44px');
+        expect(getComputedStyle(profile.parentElement as HTMLElement).minHeight).toBe('44px');
+    });
+
+    it('wraps a long name instead of pushing the button off the row', () => {
+        renderRow('Maximilian-Alexander Featherstonehaugh-Cholmondeley');
+        const heading = screen.getByRole('heading');
+
+        expect(getComputedStyle(heading.parentElement as HTMLElement).flexShrink).toBe('1');
+        expect(screen.getByRole('button', { name: 'Profile, Eliza' })).toBeTruthy();
+    });
+
+    it('draws the header without an action when there is none', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
+        renderWithProviders(<HomeGreeting />, { locale: 'en' });
+
+        expect(screen.getByRole('heading', { name: 'Good afternoon' })).toBeTruthy();
+        expect(screen.queryByRole('button')).toBeNull();
     });
 });

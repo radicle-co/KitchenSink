@@ -15,6 +15,12 @@
 --
 -- ⚠️ EXPAND-FIRST (ADR-0035): a nullable column nothing wrote before. An older worker never sets it, an older service
 -- never reads it, and NULL means "no budget outcome", which is what every existing row is.
+-- ⚠️ `lock_timeout`: ALTER TABLE takes ACCESS EXCLUSIVE, and the runner's own lock_timeout covers only its advisory lock.
+--   A deploy that cannot take the table lock in 5 s fails and a re-run retries it, instead of stalling every query
+--   queued behind it (food 0025 to 0027 do the same; `migrationLockTimeout.test.ts` holds the rule).
+
+SET LOCAL lock_timeout = '5s';
+
 ALTER TABLE recipe_verification_attempts
     ADD COLUMN IF NOT EXISTS budget_spent_period text;
 

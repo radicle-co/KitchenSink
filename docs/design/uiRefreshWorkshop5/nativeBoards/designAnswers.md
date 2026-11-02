@@ -2,6 +2,33 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-02: calories, covers, sheets, buttons, shadows and the add field (asked by Nova Squad)
+
+- **Calories stay on cards (owner, 2026-11-02).** This replaces "nutrition" in the dropped-fields ruling above. Keep
+  the ADR-0079 calorie figure on every card, Home included. It is plain text at the end of the meta line, after
+  the rating: "35 min · Medium · ★ 4.8 (12) · 520 cal". On a compact Home tile it follows the time. Its loading and
+  unavailable forms stay as they are, in the meta line's style. I add it to the card boards.
+- **No-photo band on recipe detail:** the gradient only, with no photo disc. On a page-wide band, a picture glyph
+  reads as "image failed". Cards and thumbnails keep the disc.
+- **Byline:** "by {display name}" on other cooks' recipes only, until recipes carry a handle.
+- **Night greeting:** keep the code's 22:00 to 04:59. My 00:00 was a slip.
+- **Muted text and dividers on inverse surfaces:** derive them from `inverseInk` at alpha, like press fills. A test
+  must hold muted text at 4.5:1 or more on the inverse surface. No new roles.
+- **Home widget heading:** 24 above and 8 below. I fix the board's 28 and 10.
+- **Button radius tokens:** approved as named: `controlSm` 18, `controlMd` 22, `controlMdTouch` 24, `controlLg` 26.
+- **Pressed fill:** an instant change is fine. The press scale already gives the motion.
+- **Sheet drag:** only the handle and the title row drag the sheet. A drag that starts in the content scrolls it or
+  edits it, and never moves the sheet, so a cook cannot dismiss a form by accident. If Tamagui 3.1.9 cannot do
+  this, tell me before building.
+- **Sheet exit:** both platforms slide out with the one spring. Reduce motion makes it instant.
+- **Shadows in dark mode:** one set serves both schemes. In dark mode, depth comes from the lighter surface tone, not
+  the shadow. No scheme-aware tokens.
+- **Android 7 and 8:** the Material fallback is accepted, with `lg` 5 and `xl` 7.
+- **SectionIndex gaps:** 4 (`$1`) for all three.
+- **Add by name with a shared memo:** no new step. The add field already makes the cook pick the food from the list
+  (buildSpec 7.5.3). Show the memo's food as the first option with a `caption` "Suggested". It is never the active
+  option when the list opens, so Enter alone does not pick it. Web and mobile alike.
+
 ## 2026-11-02: card, Home header and Recipe detail build questions (asked by Nova Squad)
 
 - **Card padding and thumb:** the board's 10 and 84 are off the spacing scale, so the board is wrong. Build 12 and

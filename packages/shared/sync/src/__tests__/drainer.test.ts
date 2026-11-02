@@ -19,12 +19,12 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     MAX_INLINE_WAIT_MS,
     drain,
-    resendsWhenParked,
     type DrainJournal,
     type SettlementEvent,
     type SendResult,
     type Sender,
 } from '../drainer.js';
+import { resendsWhenParked } from '../itemStatus.js';
 import { EMPTY_OUTBOX, appendIntent, markSending, recoverInterrupted, settle, type OutboxLog } from '../outboxLog.js';
 import type { Intent, OutboxRecord } from '../record.js';
 

@@ -184,7 +184,6 @@
         "packages/apps/commise/ui/src/durationField/DurationField.native.tsx": 15,
         "packages/apps/commise/ui/src/fieldReveal/RevealSpacer.native.tsx": 1,
         "packages/apps/commise/ui/src/heroButton/HeroButton.native.tsx": 9,
-        "packages/apps/commise/ui/src/horizontalScroller/HorizontalScroller.native.tsx": 14,
         "packages/apps/commise/ui/src/icon/Icon.native.tsx": 3,
         "packages/apps/commise/ui/src/input/Input.native.tsx": 3,
         "packages/apps/commise/ui/src/input/Stepper.native.tsx": 11,
@@ -227,6 +226,8 @@
         "packages/apps/commise/ui/src/variantPartsLine/VariantPartsLine.native.tsx": 3
     },
     "adapterExemptions": {
+        "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx": 1,
+        "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx": 1,
         "packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts": 1
     }
 }

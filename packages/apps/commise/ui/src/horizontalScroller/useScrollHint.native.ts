@@ -8,22 +8,21 @@
  * @pattern Adapter over a ScrollView's layout, content-size and scroll callbacks
  */
 import { useEffect, useEffectEvent, useState } from 'react';
-import {
-    I18nManager,
-    Platform,
-    type LayoutChangeEvent,
-    type NativeScrollEvent,
-    type NativeSyntheticEvent,
-} from 'react-native';
+import { I18nManager, Platform, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 
 import { scrollExtentOf, startOffsetOf, type ScrollExtent } from './scrollHint.js';
+
+/** The part of a layout event the hint reads: Tamagui's `ScrollView` and React Native's `View` both deliver it. */
+export interface WidthEvent {
+    readonly nativeEvent: { readonly layout: { readonly width: number } };
+}
 
 /** What the leaf needs to draw the hint and to wire the `ScrollView`. */
 export interface NativeScrollHintBinding {
     /** The scroller's own layout. */
-    readonly onLayout: (event: LayoutChangeEvent) => void;
+    readonly onLayout: (event: WidthEvent) => void;
     /** The layout of the box around the scroller and the chevron's column. */
-    readonly onBoxLayout: (event: LayoutChangeEvent) => void;
+    readonly onBoxLayout: (event: WidthEvent) => void;
     readonly onContentSizeChange: (width: number) => void;
     readonly onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
     /** Where the scroller rests. */
@@ -37,6 +36,7 @@ interface Measures {
     readonly x: number;
 }
 
+/** Widths are kept in whole pixels: Android re-sends a layout for float noise, and an unchanged width costs no commit. */
 const UNMEASURED: Measures = { viewport: 0, outer: 0, content: 0, x: 0 };
 
 /**
@@ -71,16 +71,18 @@ export function useScrollHint(onPosition: ((extent: ScrollExtent) => void) | und
 
     return {
         onLayout: (event) => {
-            const width = event.nativeEvent.layout.width;
+            const width = Math.round(event.nativeEvent.layout.width);
 
             setMeasures((current) => (current.viewport === width ? current : { ...current, viewport: width }));
         },
         onBoxLayout: (event) => {
-            const width = event.nativeEvent.layout.width;
+            const width = Math.round(event.nativeEvent.layout.width);
 
             setMeasures((current) => (current.outer === width ? current : { ...current, outer: width }));
         },
-        onContentSizeChange: (width) => {
+        onContentSizeChange: (reported) => {
+            const width = Math.round(reported);
+
             setMeasures((current) => (current.content === width ? current : { ...current, content: width }));
         },
         onScroll: (event) => {

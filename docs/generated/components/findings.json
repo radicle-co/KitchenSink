@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 164,
         "missing-module-doc": 21,
-        "platform-singleton": 87,
+        "platform-singleton": 89,
         "ref-api": 19,
         "unclassified-layer": 91,
         "undocumented-prop": 192
@@ -395,6 +395,26 @@
             "evidence": [
                 "web: disabled expanded href icon label onPress",
                 "native: disabled expanded href icon label onPress ref"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/horizontalScroller/ScrollChevron",
+            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/horizontalScroller/ScrollFade",
+            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {

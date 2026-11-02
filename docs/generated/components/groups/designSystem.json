@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 90,
-        "implementations": 149,
-        "props": 850,
-        "documentedComponents": 90,
-        "implementationsWithModuleDoc": 149,
-        "implementationsWithComponentDoc": 135,
-        "documentedProps": 802,
-        "classifiedComponents": 83,
-        "componentsWithPatternTag": 90,
+        "components": 92,
+        "implementations": 151,
+        "props": 854,
+        "documentedComponents": 92,
+        "implementationsWithModuleDoc": 151,
+        "implementationsWithComponentDoc": 137,
+        "documentedProps": 806,
+        "classifiedComponents": 85,
+        "componentsWithPatternTag": 92,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -5074,7 +5074,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/HorizontalScroller.native.tsx",
                     "dir": "packages/apps/commise/ui/src/horizontalScroller",
-                    "moduleDoc": "@commise/ui/horizontal-scroller — the native design-system {@link HorizontalScroller}\n(`docs/design/uiOverhaul/horizontalScrollHint.md`).\n\nA horizontal `ScrollView` that keeps the platform's own scroll indicator (iOS and Android show it only while the\nreader scrolls), a 16 dp gradient over its inline-end edge into the surface colour while more lies ahead, and a\ndecorative chevron while the content overflows and the scroller rests at its start. React Native has no CSS mask, so\nthe fade is a gradient to the colour behind the scroller: say which with `surface`.\n\nThe chevron has a 24 dp COLUMN of its own beside the scroller while the content overflows, so it never sits on the\nchip at the edge (the old solid band drawn over the scroller hid that chip's last characters). The column stays for\nas long as the content overflows and only the chevron's opacity changes, so nothing reflows on the first scroll.\nOverflow is read against the box around the scroller AND the column, which the column does not move, never against\nthe scroller, which it does (`scrollHint.ts`, `outer`).\n\nThe chevron changes opacity over 150 ms, instantly while the OS reduce-motion preference is on or not yet known.\n\nPresentational: props → JSX; the position is read by {@link useScrollHint}.",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the native design-system {@link HorizontalScroller}\n(`docs/design/uiOverhaul/horizontalScrollHint.md`).\n\nA horizontal `ScrollView` that keeps the platform's own scroll indicator (iOS and Android show it only while the\nreader scrolls), a 16 dp gradient over its inline-end edge into the surface colour while more lies ahead, and a\ndecorative chevron while the content overflows and the scroller rests at its start. React Native has no CSS mask, so\nthe fade is a gradient to the colour behind the scroller: say which with `surface`.\n\nThe chevron has a 24 dp COLUMN of its own beside the scroller while the content overflows, so it never sits on the\nchip at the edge (the old solid band drawn over the scroller hid that chip's last characters). The column stays for\nas long as the content overflows and only the chevron's opacity changes, so nothing reflows on the first scroll.\nOverflow is read against the box around the scroller AND the column, which the column does not move, never against\nthe scroller, which it does (`scrollHint.ts`, `outer`).\n\nThe chevron changes opacity over 150 ms, instantly while the OS reduce-motion preference is on or not yet known.\n\nPresentational: props → JSX; the position is read by {@link useScrollHint}.\n\nThe animated chevron and the gradient are the two parts Tamagui cannot draw yet; they live in `ScrollChevron.native` and `ScrollFade.native`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -5151,6 +5151,140 @@
                             "defaultValue": "canvas",
                             "description": "The surface behind the scroller; see {@link ScrollerSurface}.",
                             "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/horizontalScroller/ScrollChevron",
+            "name": "ScrollChevron",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/horizontalScroller",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — an Animated.Value opacity behind a plain component"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ScrollChevron",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/horizontalScroller",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's chevron, the one part Tamagui cannot draw yet: its opacity is\nan `Animated.Value` (the config has no animation driver), which takes one React Native style, held here and nowhere\nelse. This file must not import `tamagui` (a file that does holds no React Native styling).\n\nOrchestration: it owns the opacity animation and reads the reduce-motion preference; it fetches nothing.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/horizontal-scroller — the scroll hint's chevron, the one part Tamagui cannot draw yet: its opacity is"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — an Animated.Value opacity behind a plain component"
+                        }
+                    ],
+                    "description": "The decorative chevron. It fades over 150 ms, and not at all while the OS reduce-motion preference is on or not yet\nknown.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "measured",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether anything has been measured yet; before that the chevron stays at its initial 0.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx"
+                        },
+                        {
+                            "name": "show",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the chevron shows.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/horizontalScroller/ScrollFade",
+            "name": "ScrollFade",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/horizontalScroller",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter — expo-linear-gradient behind a plain component"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ScrollFade",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/horizontalScroller",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's gradient fade, the one part Tamagui cannot draw yet:\n`expo-linear-gradient` takes a React Native style, held here and nowhere else. This file must not import `tamagui` (a\nfile that does holds no React Native styling).\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/horizontal-scroller — the scroll hint's gradient fade, the one part Tamagui cannot draw yet:"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — expo-linear-gradient behind a plain component"
+                        }
+                    ],
+                    "description": "A gradient from transparent to the colour behind the scroller, filling the box it is placed in.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ground",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The colour behind the scroller, which the fade ends in.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx"
+                        },
+                        {
+                            "name": "rtl",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the writing direction is right to left, which flips the gradient.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx"
                         }
                     ],
                     "usesRefApi": [],

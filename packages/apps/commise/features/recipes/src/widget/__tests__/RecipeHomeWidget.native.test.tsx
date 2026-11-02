@@ -21,7 +21,7 @@ import RecipeHomeWidget, { type RecipeHomeWidgetProps } from '../RecipeHomeWidge
 import { render } from '@commise/ui/testing/tamagui';
 
 /** The system colour scheme and window width the next render sees. */
-const env = vi.hoisted(() => ({ width: 390 }));
+const env = vi.hoisted(() => ({ width: 390, fontScale: 1 }));
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -29,7 +29,7 @@ vi.mock('react-native', async (importOriginal) => {
 
     return {
         ...withSystemScheme(actual),
-        useWindowDimensions: () => ({ width: env.width, height: 844, scale: 2, fontScale: 1 }),
+        useWindowDimensions: () => ({ width: env.width, height: 844, scale: 2, fontScale: env.fontScale }),
     };
 });
 
@@ -37,6 +37,7 @@ afterEach(() => {
     cleanup();
     systemScheme.current = null;
     env.width = 390;
+    env.fontScale = 1;
 });
 
 const recipes = ['r1', 'r2', 'r3', 'r4', 'r5'].map((id) => makeRecipe({ id, title: `Recipe ${id}` }));
@@ -72,16 +73,34 @@ describe('RecipeHomeWidget (native) — recent recipes', () => {
         expect(onSelectRecipe).toHaveBeenCalledWith('r3');
     });
 
-    it.each<[number, string]>([
-        [390, '48%'],
-        [768, '23%'],
-    ])('lays a %i-wide window out in Home’s grid (cell width %s)', (width, cell) => {
+    // Designer rule (2026-11-02, `designAnswers.md` 1eff5092a), the ONE rule for every phone grid: two columns while the
+    // content width over the capped text scale is at least 320 pt, one below. A wider window keeps Home's own four.
+    // REWRITTEN: the grid read only the window class and ignored the text scale, with a fixed 48% cell.
+    it.each<[number, number, number, string]>([
+        [390, 1, 2, '48%'],
+        [390, 2, 1, '100%'],
+        [320, 1, 1, '100%'],
+        [768, 1, 4, '23%'],
+        [768, 2, 4, '23%'],
+    ])('lays a %i pt window at %sx out in %i column(s): a cell is %s wide', (width, fontScale, columns, cell) => {
         env.width = width;
+        env.fontScale = fontScale;
         const { container } = widget();
         const cells = container.querySelectorAll<HTMLElement>('[data-home-cell]');
 
         expect(cells).toHaveLength(4);
         expect(cells[0]?.style.width || getComputedStyle(cells[0]!).width).toBe(cell);
+        expect(columns).toBe(cell === '100%' ? 1 : cell === '48%' ? 2 : 4);
+    });
+
+    it('stacks the four cards in one column at 2x: every cell is full width, none half', () => {
+        env.fontScale = 2;
+        const { container } = widget();
+        const widths = Array.from(container.querySelectorAll<HTMLElement>('[data-home-cell]')).map(
+            (cell) => cell.style.width || getComputedStyle(cell).width,
+        );
+
+        expect(widths).toEqual(['100%', '100%', '100%', '100%']);
     });
 
     it('offers "See all", named "See all recipes"', () => {

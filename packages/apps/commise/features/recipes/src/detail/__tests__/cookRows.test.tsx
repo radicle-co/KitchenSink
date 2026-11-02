@@ -163,6 +163,19 @@ describe('IngredientCheckRow (web)', () => {
 describe('StepRow (web)', () => {
     const step = makeStepView({ stepNumber: 3, instruction: 'Rest the lamb for 20 minutes.', timerSeconds: 1200 });
 
+    // Designer ruling c10ecadbf (2026-11-03): the numeral's circle is at least 32 and grows with the numeral, so two digits fit.
+    it('draws the numeral in a circle that is at least 2rem and can only grow', () => {
+        render(
+            <ul>
+                <StepRow step={step} current={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+        const classes = (screen.getByText(String(step.stepNumber)).className ?? '').split(/\s+/u);
+
+        expect(classes).toEqual(expect.arrayContaining(['min-h-8', 'min-w-8', 'aspect-square']));
+        expect(classes).not.toContain('size-8');
+    });
+
     it('keeps the step text as plain content beside a toggle named for the step', () => {
         render(
             <ol>

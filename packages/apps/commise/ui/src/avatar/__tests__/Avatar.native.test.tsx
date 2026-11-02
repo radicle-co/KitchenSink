@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { Avatar } from '../Avatar.native.js';
 
 afterEach(cleanup);
@@ -137,5 +137,34 @@ describe('Avatar (native) — no Tamagui warning', () => {
         const variants = source.slice(source.indexOf('variants:'), source.indexOf('});', source.indexOf('variants:')));
 
         expect(variants).not.toMatch(/elevation/u);
+    });
+});
+
+// Designer ruling c10ecadbf (2026-11-03): initials do not scale; they are 40% of the disc's diameter (rounded down to an
+// even size), so two letters fit at every size. A fit test on real font metrics proves the fit
+// (`features/recipes/src/format/__tests__/discGeometry.fit.test.ts`).
+describe('Avatar (native) — initials are 40% of the disc and do not scale', () => {
+    it.each([
+        ['default', 12],
+        ['large', 14],
+    ] as const)("draws the %s disc's initials at %i pt at system scale 2", (size, px) => {
+        renderWithTamagui(
+            <Avatar size={size} status="ready" initials="MW" label="Profile" onPress={() => undefined} />,
+            'light',
+            2,
+        );
+        const initials = screen.getByText('MW');
+
+        expect(resolvedStyle(initials, 'fontSize')).toBe(`${String(px)}px`);
+    });
+
+    it('draws the same size at system scale 1', () => {
+        renderWithTamagui(
+            <Avatar status="ready" initials="MW" label="Profile" onPress={() => undefined} />,
+            'light',
+            1,
+        );
+
+        expect(resolvedStyle(screen.getByText('MW'), 'fontSize')).toBe('12px');
     });
 });

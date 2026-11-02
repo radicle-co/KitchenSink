@@ -33,10 +33,11 @@ import { RecipeCover } from '@commise/ui/recipe-cover';
 import { isModifiedClick } from '@commise/ui/route-link';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
-import { createContext, useContext, type FC, type ReactNode } from 'react';
+import { createContext, useContext, type CSSProperties, type FC, type ReactNode } from 'react';
 
 import { GRID_CELL_CLASS } from './cardGridClass.js';
 import type { CardVariant } from './cardVariant.js';
+import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from './coverChip.js';
 import { STAR_COUNT } from './model.js';
 import {
     RecipeCardNutritionContext,
@@ -85,8 +86,19 @@ const CUISINE_ITEM = `${LINE_ITEM_BASE} max-w-1/2`;
 const COVER_CHIP =
     'inline-flex min-h-6 items-center gap-1 rounded-sm bg-photo-chip px-2 py-0.5 text-caption font-medium text-ink';
 
-/** The status chip's cap: half the cover, so it and the PRO badge never meet (W-08). */
-const STATUS_CHIP = `max-w-1/2 ${COVER_CHIP}`;
+/**
+ * The status chip (designer ruling 2026-11-03, reversing W-08's half-cover cap): it takes its content width, up to the
+ * row it sits in, and its word never truncates. Its content is the word, then the glyph, in a row drawn right to left
+ * that is exactly one line and clips what wraps, so a chip wider than the cover drops the GLYPH and keeps the word.
+ */
+const STATUS_CHIP =
+    'inline-flex h-[max(1.5rem,1lh)] max-w-full flex-row-reverse flex-wrap content-start items-center gap-x-1 overflow-hidden rounded-sm bg-photo-chip text-caption font-medium leading-[max(1.5rem,1lh)] text-ink';
+
+/** The row the status chip and PRO share, placed by the same insets the native card and the fit harness use. */
+const COVER_TOP_STYLE: CSSProperties = { top: COVER_CHIP_INSET, left: COVER_CHIP_INSET, right: COVER_CHIP_INSET };
+
+/** The status chip's padding, from `coverChip.ts`, so the number is stated once. */
+const STATUS_CHIP_STYLE: CSSProperties = { paddingLeft: COVER_CHIP_PADDING, paddingRight: COVER_CHIP_PADDING };
 
 const Star: FC<{ readonly filled: boolean; readonly extra: boolean }> = ({ filled, extra }) => (
     <svg
@@ -124,20 +136,31 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
-            {chips === 'all' && cover.status !== undefined && (
-                <span className={`absolute start-2 top-2 ${STATUS_CHIP}`}>
-                    <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} />
-                    <span className="truncate">{cover.status.text}</span>
-                </span>
-            )}
-            {cover.pro !== undefined && (
-                <span
-                    aria-label={cover.pro.label}
-                    className={`absolute ${aspect === '4:3' ? 'end-2 top-2' : 'end-1 top-1'}`}
-                >
-                    <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
-                </span>
-            )}
+            {chips === 'all'
+                ? (cover.status !== undefined || cover.pro !== undefined) && (
+                      // One wrapping row: a second chip that does not fit moves whole to the next line.
+                      <div
+                          className="absolute flex flex-wrap items-start justify-between gap-1"
+                          style={COVER_TOP_STYLE}
+                      >
+                          {cover.status !== undefined && (
+                              <span className={STATUS_CHIP} style={STATUS_CHIP_STYLE}>
+                                  <span>{cover.status.text}</span>
+                                  <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} />
+                              </span>
+                          )}
+                          {cover.pro !== undefined && (
+                              <span aria-label={cover.pro.label}>
+                                  <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
+                              </span>
+                          )}
+                      </div>
+                  )
+                : cover.pro !== undefined && (
+                      <span aria-label={cover.pro.label} className="absolute end-1 top-1">
+                          <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
+                      </span>
+                  )}
             {chips === 'all' && cover.time !== undefined && (
                 <span aria-label={cover.time.label} className={`absolute bottom-2 start-2 ${COVER_CHIP}`}>
                     <Icon name="clock" size={16} />

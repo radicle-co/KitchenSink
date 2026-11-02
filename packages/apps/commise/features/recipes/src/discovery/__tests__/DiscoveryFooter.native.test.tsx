@@ -12,7 +12,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 
 import type { SaveCopyState } from '../../hooks/useSaveCopy.js';
 import { DiscoveryFooter } from '../DiscoveryFooter.native.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedStyle } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
@@ -166,5 +166,27 @@ describe('DiscoveryFooter (native) — Save a copy', () => {
             expect(screen.queryByRole('alert')).toBeNull();
             cleanup();
         }
+    });
+});
+
+// Designer ruling c10ecadbf (2026-11-03): initials do not scale; they are 40% of the 20 pt disc, so 8 pt, at every size.
+describe('DiscoveryFooter (native) — the avatar initial is 40% of its disc and does not scale', () => {
+    it.each([1, 2])('is 8 pt at system scale %f', (scale) => {
+        renderWithTamagui(
+            <LocaleProvider locale="en">
+                <DiscoveryFooter
+                    title="Pasta"
+                    authorUsername="braise"
+                    authorDisplayName="Eliza Moreno"
+                    avatar="shown"
+                    state={{ kind: 'idle' } as SaveCopyState}
+                    onSave={vi.fn()}
+                />
+            </LocaleProvider>,
+            'light',
+            scale,
+        );
+
+        expect(resolvedStyle(screen.getByText(/^[A-Z]$/u), 'fontSize')).toBe('8px');
     });
 });

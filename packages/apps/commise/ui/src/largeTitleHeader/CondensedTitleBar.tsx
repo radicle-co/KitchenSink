@@ -40,7 +40,7 @@ export const CondensedTitleBar: FC<CondensedTitleBarWebProps> = ({
     <div
         ref={barRef}
         data-condensed={titleShown ? 'true' : 'false'}
-        className="pointer-events-none fixed inset-x-0 top-0 z-40 isolate flex h-[var(--pinned-bar-block)] items-center gap-2 pl-4 pr-2 pt-[env(safe-area-inset-top)] medium:pl-6 nav:hidden"
+        className="pointer-events-none fixed inset-x-0 top-0 z-40 isolate flex min-h-[var(--pinned-bar-block)] items-center gap-2 pl-4 pr-2 pt-[env(safe-area-inset-top)] medium:pl-6 nav:hidden"
     >
         <ChromeSurface edge="bottom" visible={surfaceShown} />
         {back === undefined ? null : (

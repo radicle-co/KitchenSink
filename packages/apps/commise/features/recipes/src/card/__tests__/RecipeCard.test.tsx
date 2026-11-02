@@ -19,6 +19,7 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import type { CardVariant } from '../cardVariant.js';
 import { toRecipeCardModel } from '../model.js';
 import { RecipeCard } from '../RecipeCard.js';
+import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from '../coverChip.js';
 
 afterEach(cleanup);
 
@@ -517,12 +518,65 @@ describe('RecipeCard (web, grid) — W-08: the cuisine never sits under the time
         expect(screen.getAllByText('French')).toHaveLength(2);
     });
 
-    it('caps the status chip at half the cover, truncates its word, and keeps the word as its name', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ status: RecipeStatus.DRAFT })} />);
-        const chip = screen.getByText('Draft').parentElement as HTMLElement;
+    // REWRITTEN for the designer's ruling (2026-11-03, designAnswers.md bdb2403cb), which reverses W-08's half-cover cap:
+    // the chip takes its content width, its word never truncates, a second chip moves whole to the next line, and a chip
+    // wider than the cover drops its glyph and keeps the word.
+    describe('the status chip takes its content width and never clips its word (designer ruling 2026-11-03)', () => {
+        const draftAndPro = () =>
+            renderCard(
+                <RecipeCard
+                    headingLevel={3}
+                    variant="grid"
+                    recipe={model({ status: RecipeStatus.DRAFT, usesPremiumCapability: true })}
+                />,
+            );
+        const classesOf = (node: HTMLElement) => node.className.split(/\s+/u);
 
-        expect(chip.className.split(/\s+/u)).toContain('max-w-1/2');
-        expect(within(chip).getByText('Draft').className.split(/\s+/u)).toContain('truncate');
+        it('has no half-cover cap: the chip may be as wide as the row it sits in', () => {
+            draftAndPro();
+            const chip = screen.getByText('Draft').parentElement as HTMLElement;
+
+            expect(classesOf(chip)).toContain('max-w-full');
+            expect(classesOf(chip)).not.toContain('max-w-1/2');
+        });
+
+        it('does not truncate the word', () => {
+            draftAndPro();
+
+            expect(classesOf(screen.getByText('Draft'))).not.toContain('truncate');
+        });
+
+        it('lays the word before the glyph in a reversed, wrapping, clipped line, so a chip too wide drops the glyph and keeps the word', () => {
+            draftAndPro();
+            const chip = screen.getByText('Draft').parentElement as HTMLElement;
+
+            expect(classesOf(chip)).toEqual(
+                expect.arrayContaining(['flex-row-reverse', 'flex-wrap', 'overflow-hidden']),
+            );
+            expect(chip.firstElementChild).toBe(screen.getByText('Draft'));
+        });
+
+        it('reads its insets and padding from coverChip.ts, not from classes that repeat the numbers', () => {
+            draftAndPro();
+            const chip = screen.getByText('Draft').parentElement as HTMLElement;
+            const row = chip.parentElement as HTMLElement;
+
+            expect(row.style.top).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(row.style.left).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(row.style.right).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(chip.style.paddingLeft).toBe(`${String(COVER_CHIP_PADDING)}px`);
+            expect(chip.style.paddingRight).toBe(`${String(COVER_CHIP_PADDING)}px`);
+            expect(classesOf(row)).not.toEqual(expect.arrayContaining(['inset-x-2']));
+            expect(classesOf(chip)).not.toContain('px-2');
+        });
+
+        it('keeps the status chip and PRO in one wrapping row, so the second moves whole to the next line', () => {
+            draftAndPro();
+            const row = (screen.getByText('Draft').parentElement as HTMLElement).parentElement as HTMLElement;
+
+            expect(classesOf(row)).toContain('flex-wrap');
+            expect(row.contains(screen.getByLabelText('Pro recipe'))).toBe(true);
+        });
     });
 });
 

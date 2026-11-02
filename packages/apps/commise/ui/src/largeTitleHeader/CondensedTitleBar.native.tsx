@@ -21,13 +21,13 @@
  * @pattern Composite — the back control, the title and the menu over one floating-layer material
  */
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ChromeSurface } from '../chromeSurface/ChromeSurface.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { useContainerClass } from '../layout/useContainerClass.native.js';
-import { useTheme } from '../theme/useTheme.native.js';
+import { Text } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { PINNED_BAR_HEIGHT, backGlyphInset, barStartPadding } from './barGeometry.js';
 import type { CondensedTitleBarProps } from './props.js';
@@ -37,7 +37,6 @@ const PARENT_LABEL_MAX_WIDTH = '40%';
 
 /** The native design-system condensed title bar. */
 export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, menu, surfaceShown, titleShown }) => {
-    const { colors } = useTheme();
     // From a tablet's width the control names its parent too ("‹ Collections"); a phone shows the chevron alone.
     const showsParent = useContainerClass() !== 'narrow';
     const floor = touchFloor();
@@ -64,10 +63,13 @@ export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, men
                     <Icon name="chevronLeft" size={24} tone="actionText" />
                     {showsParent ? (
                         <Text
+                            typeRole="label"
+                            chromeCap="1.5"
+                            color="$actionText"
                             numberOfLines={1}
                             // The control's own label names it in full; this is the parent's name for sight only.
                             aria-hidden
-                            style={[styles.parentName, nativeTokens.type.label, { color: colors.actionText }]}
+                            style={styles.parentName}
                         >
                             {back.parent}
                         </Text>
@@ -79,10 +81,14 @@ export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, men
             <View pointerEvents="none" style={styles.title}>
                 {title === undefined ? null : (
                     <Text
+                        typeRole="barTitle"
+                        chromeCap="1.5"
+                        color="$ink"
+                        // One line, and the only title allowed to truncate: it repeats the page H1 (designer ruling 2026-11-03).
                         numberOfLines={1}
                         // The H1 says it; the bar repeats it for sight only.
                         aria-hidden
-                        style={[nativeTokens.type.barTitle, { color: colors.ink, opacity: titleShown ? 1 : 0 }]}
+                        style={{ opacity: titleShown ? 1 : 0 }}
                     >
                         {title}
                     </Text>
@@ -100,7 +106,8 @@ const styles = StyleSheet.create({
         start: 0,
         end: 0,
         zIndex: 10,
-        height: PINNED_BAR_HEIGHT,
+        // The minimum: the bar grows to fit its text, which caps at 1.5x (designer ruling 2026-11-03).
+        minHeight: PINNED_BAR_HEIGHT,
         flexDirection: 'row',
         alignItems: 'center',
         gap: nativeTokens.spacing[2],

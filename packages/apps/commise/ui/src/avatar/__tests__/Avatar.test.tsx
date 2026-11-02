@@ -126,3 +126,25 @@ describe('Avatar (web)', () => {
         });
     });
 });
+
+// Designer ruling c10ecadbf (2026-11-03): initials are 40% of the disc's diameter and do not scale with the text size.
+describe('Avatar (web) — initials are 40% of the disc', () => {
+    it.each([
+        ['default', 12],
+        ['large', 14],
+    ] as const)("draws the %s disc's initials at %i px, set in px so the text size cannot grow them", (size, px) => {
+        render(
+            <Avatar
+                size={size}
+                status="ready"
+                initials="MW"
+                label="Profile"
+                href="/en/profile"
+                onPress={() => undefined}
+            />,
+        );
+        const disc = screen.getByText('MW');
+
+        expect(disc.style.fontSize).toBe(`${String(px)}px`);
+    });
+});

@@ -1159,12 +1159,15 @@ describe('RecipeDetailView (native) — the current step is tellable from the ot
         fireEvent.click(screen.getByRole('button', { name: 'Mark step 1 as current' }));
 
         // C6 (redesign): the step number is weight 500, in the registered medium face.
+        // REWRITTEN (designer ruling c10ecadbf, 2026-11-03): the numeral is the design-system Text (capped at 1.5x), which
+        // sets its face through the theme, so it is read resolved, not from a React Native class.
         expect(
-            appliedFontFamily(
+            resolvedStyle(
                 screen.getByRole('button', { name: 'Mark step 1 as current' }).firstElementChild
                     ?.firstElementChild as Element,
+                'fontFamily',
             ),
-        ).toBe(nativeTokens.type.caption.fontFamily);
+        ).toContain(nativeTokens.type.caption.fontFamily);
         expect(numeral(1)).toBe(cssColor(palette.steel));
         expect(numeral(2)).not.toBe(numeral(1));
         expect(screen.getByRole('button', { name: 'Mark step 1 as current' }).getAttribute('aria-pressed')).toBe(

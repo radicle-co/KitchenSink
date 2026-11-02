@@ -9,12 +9,12 @@
  */
 import { styled, View } from 'tamagui';
 
-/** A box with the 16 pt side gutter every list child outside the header carries. */
+/** Presentational: a box with the 16 pt side gutter every list child outside the header carries. */
 export const ListEdge = styled(View, { name: 'RecipeListEdge', paddingHorizontal: '$4' });
 
 /**
- * The header group's box: 8 above, and 16 below before the chips, or 8 in compact height (what the screen's top padding
- * and gap gave it before the header became the list's first child).
+ * Presentational: the header group's box: 8 above, and 16 below before the chips, or 8 in compact height (what the screen's
+ * top padding and gap gave it before the header became the list's first child).
  */
 export const ListHeaderBox = styled(View, {
     name: 'RecipeListHeaderBox',
@@ -24,7 +24,7 @@ export const ListHeaderBox = styled(View, {
 });
 
 /**
- * The header's group: title (or the compact heading) and the search field's spacer, in one box. In compact height, a phone
+ * Presentational: the header's group: title (or the compact heading) and the search field's spacer, in one box. In compact height, a phone
  * held sideways, the heading shares one wrapping row with the field and the box insets its own sides.
  */
 export const ListHeaderGroup = styled(View, {
@@ -37,11 +37,11 @@ export const ListHeaderGroup = styled(View, {
     } as const,
 });
 
-/** A box that fills the room it is given: the Recipes frame and the content it holds. */
+/** Presentational: a box that fills the room it is given: the Recipes frame and the content it holds. */
 export const FillBox = styled(View, { name: 'RecipeListFill', flex: 1 });
 
 /**
- * The band behind the pinned search field: the canvas colour with a lineDivider hairline on its bottom edge only, and no
+ * Presentational: the band behind the pinned search field: the canvas colour with a lineDivider hairline on its bottom edge only, and no
  * shadow. It fills the animated box the frame sizes and places, so the card text that scrolls under a pinned field does not
  * show above or beside it.
  */
@@ -57,7 +57,7 @@ export const SearchBand = styled(View, {
     borderBottomColor: '$lineDivider',
 });
 
-/** The frame's layer above the list for the pinned search field. It takes no touches itself; the field inside does. */
+/** Presentational: the frame's layer above the list for the pinned search field. It takes no touches itself; the field inside does. */
 export const SearchOverlay = styled(View, {
     name: 'RecipeSearchOverlay',
     position: 'absolute',

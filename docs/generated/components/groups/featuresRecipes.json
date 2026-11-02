@@ -9,9 +9,9 @@
         "props": 2378,
         "documentedComponents": 190,
         "implementationsWithModuleDoc": 323,
-        "implementationsWithComponentDoc": 213,
+        "implementationsWithComponentDoc": 214,
         "documentedProps": 1813,
-        "classifiedComponents": 163,
+        "classifiedComponents": 170,
         "componentsWithPatternTag": 91,
         "crossPlatformComponents": 133
     },
@@ -23780,7 +23780,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -23807,7 +23807,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "A box that fills the room it is given: the Recipes frame and the content it holds.",
+                    "description": "Presentational: a box that fills the room it is given: the Recipes frame and the content it holds.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -24966,7 +24966,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -24979,7 +24979,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Adapter — a host-fed Animated scroll view behind FlashList's `renderScrollComponent` seam"
             ],
@@ -25006,7 +25006,7 @@
                             "text": "Adapter — a host-fed Animated scroll view behind FlashList's `renderScrollComponent` seam"
                         }
                     ],
-                    "description": "",
+                    "description": "Orchestration: reads the host's scroll offset and builds the one native-driven `Animated.event` over it (a hook and an Animated\nnode), then hands the Animated scroll view its props. It holds no ref.",
                     "tags": [
                         {
                             "name": "param",
@@ -25024,7 +25024,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -25178,7 +25178,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -25205,7 +25205,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "A box with the 16 pt side gutter every list child outside the header carries.",
+                    "description": "Presentational: a box with the 16 pt side gutter every list child outside the header carries.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -26364,7 +26364,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -26377,7 +26377,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -26404,7 +26404,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The header group's box: 8 above, and 16 below before the chips, or 8 in compact height (what the screen's top padding\nand gap gave it before the header became the list's first child).",
+                    "description": "Presentational: the header group's box: 8 above, and 16 below before the chips, or 8 in compact height (what the screen's\ntop padding and gap gave it before the header became the list's first child).",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -27563,7 +27563,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -27576,7 +27576,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -27603,7 +27603,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The header's group: title (or the compact heading) and the search field's spacer, in one box. In compact height, a phone\nheld sideways, the heading shares one wrapping row with the field and the box insets its own sides.",
+                    "description": "Presentational: the header's group: title (or the compact heading) and the search field's spacer, in one box. In compact height, a phone\nheld sideways, the heading shares one wrapping row with the field and the box insets its own sides.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -28762,7 +28762,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -29753,7 +29753,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -29780,7 +29780,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The band behind the pinned search field: the canvas colour with a lineDivider hairline on its bottom edge only, and no\nshadow. It fills the animated box the frame sizes and places, so the card text that scrolls under a pinned field does not\nshow above or beside it.",
+                    "description": "Presentational: the band behind the pinned search field: the canvas colour with a lineDivider hairline on its bottom edge only, and no\nshadow. It fills the animated box the frame sizes and places, so the card text that scrolls under a pinned field does not\nshow above or beside it.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -30939,7 +30939,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -30952,7 +30952,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -30979,7 +30979,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The frame's layer above the list for the pinned search field. It takes no touches itself; the field inside does.",
+                    "description": "Presentational: the frame's layer above the list for the pinned search field. It takes no touches itself; the field inside does.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -32138,7 +32138,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

@@ -54,7 +54,7 @@ appId: ${APP_ID}
           notVisible: 'Discard this collection\?'
       commands:
           - pressKey: Back
-# The host hides the sheet while the question is up (`open={open && !confirming}`, so no two modals are on screen at once,
+# The host sets the sheet aside while the question is up (`held`: its window closes, so no two modals are on screen at once,
 # RN's rule on iOS): only the dialog is in the tree. Keep editing brings the sheet back with the typed name.
 - assertVisible: 'Discard this collection\?'
 # Back on the dialog closes only the dialog (Keep editing). The sheet and the typed name remain.
@@ -109,8 +109,14 @@ appId: ${APP_ID}
 - assertNotVisible: 'Unit'
 - assertVisible: 'Close editor'
 
-# Leave the editor untitled: nothing is created.
+# Leave the editor untitled: nothing is created. Closing the row editor hands focus back to the field that had it ('Add an
+# ingredient'), which raises the keyboard, so the first Back is the keyboard's and a second one leaves the editor.
 - pressKey: Back
+- runFlow:
+      when:
+          visible: 'Close editor'
+      commands:
+          - pressKey: Back
 - assertNotVisible: 'Close editor'
 - assertVisible: 'My recipes'
 

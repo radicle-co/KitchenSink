@@ -10,10 +10,9 @@
  * keeps it pure and testable without freezing time.
  */
 
-/** The date-part options that produce the mockup's "Saturday, May 31, 2026" long form. */
+/** The date-part options for the board's "Sunday 25 October" form; the year is added only for a past year. */
 const HOME_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
     weekday: 'long',
-    year: 'numeric',
     month: 'long',
     day: 'numeric',
 };
@@ -26,26 +25,35 @@ const HOME_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
  * the date must be rendered in their local zone. A malformed `locale` degrades to the runtime default rather
  * than throwing — a decorative subtitle must never be able to break the Home header.
  *
- * @param date - The instant to render (the caller supplies `new Date()`).
+ * The year is dropped when `date` falls in the same calendar year as `now` (board: "Sunday 25 October") and kept
+ * otherwise, so a date never reads as the wrong year.
+ *
+ * @param date - The instant to render.
  * @param locale - A BCP-47 language tag.
- * @returns The localized long-form date string. Pure.
+ * @param now - The current instant, supplied by the caller so this stays pure.
+ * @returns The localized date string. Pure.
  */
-export function formatHomeDate(date: Date, locale: string): string {
-    return createDateFormatter(locale).format(date);
+export function formatHomeDate(date: Date, locale: string, now: Date): string {
+    const withYear = date.getFullYear() !== now.getFullYear();
+
+    return createDateFormatter(locale, withYear).format(date);
 }
 
 /**
  * Build the date formatter, degrading to the runtime default locale on an unusable tag.
  *
  * @param locale - A BCP-47 language tag.
- * @returns A formatter emitting the long-form date in the local timezone.
+ * @param withYear - Whether to include the year.
+ * @returns A formatter emitting the date in the local timezone.
  */
-function createDateFormatter(locale: string): Intl.DateTimeFormat {
+function createDateFormatter(locale: string, withYear: boolean): Intl.DateTimeFormat {
+    const options = withYear ? { ...HOME_DATE_OPTIONS, year: 'numeric' as const } : HOME_DATE_OPTIONS;
+
     try {
-        return new Intl.DateTimeFormat(locale, HOME_DATE_OPTIONS);
+        return new Intl.DateTimeFormat(locale, options);
     } catch {
         // `Intl` throws RangeError on a malformed tag. A bad locale must degrade to the default, not blank
         // the greeting subtitle.
-        return new Intl.DateTimeFormat(undefined, HOME_DATE_OPTIONS);
+        return new Intl.DateTimeFormat(undefined, options);
     }
 }

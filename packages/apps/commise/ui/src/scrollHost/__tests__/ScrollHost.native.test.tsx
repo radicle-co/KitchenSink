@@ -6,17 +6,35 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { useEffect } from 'react';
 import { Animated, ScrollView, Text } from 'react-native';
 
 const motion = vi.hoisted(() => ({ reduce: false }));
 
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => motion.reduce }));
 
-import type { ScrollBind, ScrollHostApi, ScrollReport } from '../props.js';
+import type { LayoutReport, ScrollBind, ScrollHostApi, ScrollReport } from '../props.js';
 import { useFieldTarget } from '../fieldTarget.js';
 import { ScrollHost } from '../ScrollHost.native.js';
 import { useScrollHost } from '../scrollHostContext.js';
+
+/** Hands the nearest host's API to a test after each commit, so no test writes to its own variables while rendering. */
+const ApiProbe = ({ onApi }: { readonly onApi: (api: ScrollHostApi) => void }): null => {
+    const api = useScrollHost();
+
+    useEffect(() => onApi(api));
+
+    return null;
+};
+
+/** Hands a field's target count to a test after each commit. */
+const CountProbe = ({ id, onCount }: { readonly id: string; readonly onCount: (count: number) => void }): null => {
+    const count = useFieldTarget(id);
+
+    useEffect(() => onCount(count));
+
+    return null;
+};
 
 afterEach(() => {
     cleanup();
@@ -35,18 +53,18 @@ const report = (y: number, viewport = 800, content = 4000): ScrollReport => ({
 function renderHost(sections?: readonly string[]): { bind: () => ScrollBind; api: () => ScrollHostApi } {
     const seen: { bind?: ScrollBind; api?: ScrollHostApi } = {};
 
-    const Probe = (): null => {
-        seen.api = useScrollHost();
-
-        return null;
-    };
-
     render(
         <ScrollHost {...(sections === undefined ? {} : { sections })}>
             {(bind) => {
                 seen.bind = bind;
 
-                return <Probe />;
+                return (
+                    <ApiProbe
+                        onApi={(api) => {
+                            seen.api = api;
+                        }}
+                    />
+                );
             }}
         </ScrollHost>,
     );
@@ -321,23 +339,21 @@ describe('ScrollHost (native)', () => {
         } {
             const seen: { api?: ScrollHostApi; counts: Record<string, number> } = { counts: {} };
 
-            const Reader = ({ id }: { readonly id: string }): null => {
-                seen.counts[id] = useFieldTarget(id);
-
-                return null;
-            };
-
-            const Probe = (): null => {
-                seen.api = useScrollHost();
-
-                return null;
-            };
-
             render(
                 <ScrollHost sections={['details', 'steps']}>
-                    <Probe />
+                    <ApiProbe
+                        onApi={(api) => {
+                            seen.api = api;
+                        }}
+                    />
                     {ids.map((id) => (
-                        <Reader key={id} id={id} />
+                        <CountProbe
+                            key={id}
+                            id={id}
+                            onCount={(count) => {
+                                seen.counts[id] = count;
+                            }}
+                        />
                     ))}
                 </ScrollHost>,
             );
@@ -396,18 +412,18 @@ describe('ScrollHost (native)', () => {
             const scrollView = { scrollTo: vi.fn() };
             const seen: { api?: ScrollHostApi; bind?: ScrollBind } = {};
 
-            const Probe = (): null => {
-                seen.api = useScrollHost();
-
-                return null;
-            };
-
             render(
                 <ScrollHost sections={['details', 'steps']}>
                     {(bind) => {
                         seen.bind = bind;
 
-                        return <Probe />;
+                        return (
+                            <ApiProbe
+                                onApi={(api) => {
+                                    seen.api = api;
+                                }}
+                            />
+                        );
                     }}
                 </ScrollHost>,
             );
@@ -459,23 +475,17 @@ describe('ScrollHost (native)', () => {
 describe('ScrollHost (native) — a plain ScrollView takes bind as it always did', () => {
     // The 2026-11-02 crash: a native-driven Animated.event is an OBJECT, and a plain ScrollView calls `props.onScroll(e)`.
     it('survives a scroll event through a real ScrollView and still updates the host', () => {
-        // On a device `Animated.event` with the native driver returns an event OBJECT, which cannot be called. The web
-        // build the tests run on returns a function, so make it answer as the device does.
-        const event = vi.spyOn(Animated, 'event').mockImplementation(() => ({}) as never);
-
         const seen: { api?: ScrollHostApi } = {};
-
-        const Probe = (): null => {
-            seen.api = useScrollHost();
-
-            return null;
-        };
 
         render(
             <ScrollHost>
                 {(bind) => (
                     <ScrollView {...bind} testID="scroller">
-                        <Probe />
+                        <ApiProbe
+                            onApi={(api) => {
+                                seen.api = api;
+                            }}
+                        />
                     </ScrollView>
                 )}
             </ScrollHost>,
@@ -488,11 +498,10 @@ describe('ScrollHost (native) — a plain ScrollView takes bind as it always did
 
         expect(() => fireEvent.scroll(scroller)).not.toThrow();
         expect(seen.api?.atTop).toBe(false);
-        event.mockRestore();
     });
 });
 
-describe('ScrollHost (native) — the opt-in for an Animated scroller', () => {
+describe('ScrollHost (native) — the scroll offset an Animated list writes', () => {
     it('publishes one Animated.Value that stays the same object across renders and scrolls', () => {
         const { bind, api } = renderHost();
         const first = api().scrollY;
@@ -502,63 +511,77 @@ describe('ScrollHost (native) — the opt-in for an Animated scroller', () => {
         expect(first).toBeInstanceOf(Animated.Value);
         expect(api().scrollY).toBe(first);
     });
+});
 
-    it('keeps bind.onScroll a function and leaves the animated event off bind', () => {
-        const { bind, api } = renderHost();
+describe('ScrollHost (native) — layout noise does not cost a commit', () => {
+    const layout = (y: number, height: number): LayoutReport => ({ nativeEvent: { layout: { y, height } } });
 
-        expect(typeof bind().onScroll).toBe('function');
-        expect('animatedOnScroll' in bind()).toBe(false);
-        expect(api().animatedOnScroll).toBeDefined();
-        expect(api().animatedOnScroll).not.toBe(bind().onScroll);
-    });
-
-    it('keeps both handlers the same across scrolls that change no layout input', () => {
-        // A list re-attaches a native event whenever this identity changes.
-        const { bind, api } = renderHost();
-        const plain = bind().onScroll;
-        const animated = api().animatedOnScroll;
-
-        act(() => bind().onScroll(report(120)));
-
-        expect(bind().onScroll).toBe(plain);
-        expect(api().animatedOnScroll).toBe(animated);
-    });
-
-    it('feeds an Animated scroller offset into scrollY and still runs the host handler', () => {
-        const seen: { api?: ScrollHostApi } = {};
-
-        const Probe = (): null => {
-            seen.api = useScrollHost();
-
-            return null;
-        };
+    /** Render a host and count how many times its screen is rendered. */
+    function renderCounting(sections: readonly string[]): { api: () => ScrollHostApi; renders: () => number } {
+        const seen: { api?: ScrollHostApi; renders: number } = { renders: 0 };
 
         render(
-            <ScrollHost>
-                {() => (
-                    <>
-                        <Probe />
-                        <AnimatedScroller />
-                    </>
-                )}
+            <ScrollHost sections={sections}>
+                {() => {
+                    seen.renders += 1;
+
+                    return (
+                        <ApiProbe
+                            onApi={(api) => {
+                                seen.api = api;
+                            }}
+                        />
+                    );
+                }}
             </ScrollHost>,
         );
 
-        const offsets: number[] = [];
-        seen.api?.scrollY?.addListener(({ value }) => offsets.push(value));
-        const scroller = screen.getByTestId('animated');
-        Object.defineProperty(scroller, 'scrollTop', { value: 300, configurable: true });
+        return {
+            api: () => {
+                if (seen.api === undefined) {
+                    throw new Error('no api');
+                }
 
-        fireEvent.scroll(scroller);
+                return seen.api;
+            },
+            renders: () => seen.renders,
+        };
+    }
 
-        expect(offsets).toEqual([300]);
-        expect(seen.api?.atTop).toBe(false);
+    // Android re-sends a layout for float noise (+0.0004). The scroll handler is rebuilt for a new heading bottom, so
+    // each wobble would re-render the screen and re-attach the native scroll event.
+    it('re-renders nothing for a heading layout that differs by a fraction of a pixel', () => {
+        const { api, renders } = renderCounting([]);
+
+        act(() => api().headingLayout(layout(100, 50.0004)));
+        const settled = renders();
+
+        act(() => api().headingLayout(layout(100, 49.9996)));
+        act(() => api().headingLayout(layout(100.0003, 50)));
+
+        expect(renders()).toBe(settled);
+    });
+
+    it('re-renders nothing for a section layout that differs by a fraction of a pixel', () => {
+        const { api, renders } = renderCounting(['a']);
+
+        act(() => api().sectionLayout('a')(layout(400.0004, 80)));
+        const settled = renders();
+
+        act(() => api().sectionLayout('a')(layout(399.9996, 80)));
+        act(() => api().sectionLayout('a')(layout(400.0002, 80)));
+
+        expect(renders()).toBe(settled);
+    });
+
+    it('still re-renders for a real change of a whole pixel', () => {
+        const { api, renders } = renderCounting([]);
+
+        act(() => api().headingLayout(layout(100, 50)));
+        const settled = renders();
+
+        act(() => api().headingLayout(layout(100, 52)));
+
+        expect(renders()).toBeGreaterThan(settled);
     });
 });
-
-/** An Animated scroller that takes the opt-in handler from the host, as the Recipes list will. */
-const AnimatedScroller = (): ReactElement => {
-    const { animatedOnScroll } = useScrollHost();
-
-    return <Animated.ScrollView testID="animated" onScroll={animatedOnScroll} scrollEventThrottle={16} />;
-};

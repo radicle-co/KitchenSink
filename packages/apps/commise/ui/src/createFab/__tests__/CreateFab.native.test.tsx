@@ -4,7 +4,8 @@
  * with the keyboard and while it yields.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import type { ReactElement } from 'react';
 import { Pressable, Text } from 'react-native';
 

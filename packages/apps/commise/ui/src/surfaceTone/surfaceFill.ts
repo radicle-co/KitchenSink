@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/surface-tone — the native paint of a tone, read from the one table (`surfaceTone.ts`). A root that
- * paints itself (a sheet's animated view) reads the fill here and states the tone with `SurfaceToneScope`; `Surface`
+ * paints itself (a sheet's animated view) reads the fill here and states the tone with `ToneScope`; `Surface`
  * does both. Pure.
  */
 import type { Theme } from '../theme/themeFor.js';

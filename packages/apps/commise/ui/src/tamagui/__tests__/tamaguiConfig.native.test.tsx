@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { role, roleDark, type Role } from '../../tokens/colors.js';
 import { radius, spacing } from '../../tokens/scale.js';
 import { tamaguiFonts } from '../tamaguiFonts.js';
-import { tamaguiThemes } from '../../theme/tamaguiThemes.js';
+import { tamaguiThemes, toneThemeNames } from '../../theme/tamaguiThemes.js';
 
 // Tamagui's built-in shorthand table, read from a config built BEFORE ours: `createTamagui` keeps global state, so a
 // config built after ours would carry our shorthands too, and the comparison below would compare a table with itself.
@@ -96,5 +96,35 @@ describe('the built Tamagui config', () => {
 
     it('defines no media queries, because native layout reads its container class and not the window', () => {
         expect(Object.keys(tamaguiConfig.media ?? {})).toEqual([]);
+    });
+});
+
+/** The sub-themes reach the built config, whose proxy merges each with its parents (a misspelt name fails silently). */
+describe('the built Tamagui config — surface-tone sub-themes', () => {
+    const themes = tamaguiConfig.themes as Readonly<Record<string, Readonly<Record<string, { readonly val: unknown } | string>>>>;
+    const valueOf = (entry: { readonly val: unknown } | string | undefined): unknown =>
+        typeof entry === 'object' ? entry.val : entry;
+
+    it('registers every scheme and tone by the name `<Theme name>` will look up', () => {
+        for (const name of toneThemeNames) {
+            expect(Object.keys(themes), name).toContain(name);
+        }
+    });
+
+    it('merges a sub-theme with its parent, so it holds every key its scheme holds', () => {
+        for (const name of toneThemeNames) {
+            const scheme = name.split('_')[0] as 'light' | 'dark';
+
+            for (const key of Object.keys(tamaguiThemes[scheme])) {
+                expect(themes[name]?.[key], `${name}.${key}`).toBeDefined();
+            }
+        }
+    });
+
+    it('lets the tone win over the parent for the keys it states', () => {
+        expect(valueOf(themes['light_inverse']?.['ink'])).toBe(role.inverseInk);
+        expect(valueOf(themes['light_inverse']?.['color'])).toBe(role.inverseInk);
+        expect(valueOf(themes['light']?.['ink'])).toBe(role.ink);
+        expect(valueOf(themes['dark_inverse']?.['ink'])).toBe(roleDark.inverseInk);
     });
 });

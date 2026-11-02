@@ -6,7 +6,8 @@
  *
  * Mutation lens: paint a different role, forget the provider, or let the innermost surface lose, and a test fails.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async (importOriginal) => {

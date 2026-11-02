@@ -276,6 +276,8 @@ function holdsOf(
 
 interface FrameReading {
     readonly line: number;
+    /** The frame as written: its tag and the attributes that set its size, so a finding can be named without its line. */
+    readonly frame: string;
     readonly height: StyleHeight;
     readonly holds: Holds;
 }
@@ -309,7 +311,17 @@ function framesOf(source: string, fileName: string, styledKindsOf: StyledKindsOf
                 }
             }
 
-            readings.push({ line: lineOf(file, node), height, holds: holdsOf(node, isText, isView) });
+            const sizing = opening.attributes.properties
+                .filter(
+                    (attribute) =>
+                        ts.isJsxAttribute(attribute) &&
+                        (attribute.name.getText() === 'style' || HEIGHT_KEYS.has(attribute.name.getText())),
+                )
+                .map((attribute) => attribute.getText().replace(/\s+/gu, ' '))
+                .join(' ');
+            const frame = `<${opening.tagName.getText()} ${sizing}>`.replace(' >', '>').slice(0, 90);
+
+            readings.push({ line: lineOf(file, node), frame, height, holds: holdsOf(node, isText, isView) });
         }
 
         ts.forEachChild(node, visit);
@@ -333,19 +345,19 @@ export function fixedHeightTextFrames(
     fileName: string,
     styledKindsOf: StyledKindsOf,
 ): readonly string[] {
-    return framesOf(source, fileName, styledKindsOf).flatMap(({ line, height, holds }): string[] => {
+    return framesOf(source, fileName, styledKindsOf).flatMap(({ line, frame, height, holds }): string[] => {
         if (height === 'fixed' && holds === 'text') {
-            return [`${String(line)}: a fixed height around text`];
+            return [`${String(line)}: a fixed height around text — ${frame}`];
         }
 
         if (height === 'fixed' && holds === 'opaque') {
             return [
-                `${String(line)}: a fixed height that may hold text (children or a component this reader cannot see into)`,
+                `${String(line)}: a fixed height that may hold text (children or a component this reader cannot see into) — ${frame}`,
             ];
         }
 
         if (height === 'unreadable' && holds === 'text') {
-            return [`${String(line)}: a style this reader cannot read, around text`];
+            return [`${String(line)}: a style this reader cannot read, around text — ${frame}`];
         }
 
         return [];

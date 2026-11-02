@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { SEARCH_STICKS_BELOW_SHARE, searchPinInterpolation, searchSticks } from '../searchPin.js';
+import { SEARCH_STICKS_BELOW_SHARE, UNPINNED_FLOOR, searchPinGeometry, searchSticks } from '../searchPin.js';
 
 describe('searchSticks (C-2, the window rule)', () => {
     it('names the designer’s one third', () => {
@@ -33,46 +33,18 @@ describe('searchSticks (C-2, the window rule)', () => {
     });
 });
 
-describe('searchPinInterpolation (the slide-and-stop)', () => {
-    it('slides one for one with the scroll, from where the field naturally sits to the pinned top', () => {
-        expect(searchPinInterpolation({ naturalTop: 180, pinnedTop: 8, pins: true })).toEqual({
-            inputRange: [0, 172],
-            outputRange: [180, 8],
-            extrapolateLeft: 'extend',
-            extrapolateRight: 'clamp',
+describe('searchPinGeometry (what the slide is built from)', () => {
+    it('is the measured natural top and the pinned top when the field pins', () => {
+        expect(searchPinGeometry({ naturalTop: 180, pinnedTop: 8, pins: true })).toEqual({
+            naturalTop: 180,
+            pinnedTop: 8,
         });
     });
 
-    it('follows an overscroll or a pull to refresh (extends on the left) and holds at the top (clamps on the right)', () => {
-        const pinned = searchPinInterpolation({ naturalTop: 180, pinnedTop: 8, pins: true });
-
-        expect(pinned.extrapolateLeft).toBe('extend');
-        expect(pinned.extrapolateRight).toBe('clamp');
-    });
-
-    it('moves exactly with the page, never stopping, when the field is too tall to pin', () => {
-        expect(searchPinInterpolation({ naturalTop: 180, pinnedTop: 8, pins: false }).extrapolateRight).toBe('extend');
-    });
-
-    it('moves the range when the title above the field grows (font scale), so the pin engages at the right offset', () => {
-        const small = searchPinInterpolation({ naturalTop: 180, pinnedTop: 8, pins: true });
-        const large = searchPinInterpolation({ naturalTop: 320, pinnedTop: 8, pins: true });
-
-        expect(small.inputRange).toEqual([0, 172]);
-        expect(large.inputRange).toEqual([0, 312]);
-        expect(large.outputRange).toEqual([320, 8]);
-    });
-
-    it('holds still, at a valid range, when the field already sits at or above the pinned top', () => {
-        const { inputRange, outputRange } = searchPinInterpolation({ naturalTop: 8, pinnedTop: 8, pins: true });
-
-        expect(inputRange[1]).toBeGreaterThan(inputRange[0] ?? 0);
-        expect(new Set(outputRange)).toEqual(new Set([8]));
-    });
-
-    it('follows the natural position when the field starts above the pinned top and does not pin', () => {
-        const { outputRange } = searchPinInterpolation({ naturalTop: 0, pinnedTop: 8, pins: false });
-
-        expect(outputRange[0]).toBe(0);
+    it('puts the pinned top out of reach when the field is too tall to pin, so it leaves with the page', () => {
+        expect(searchPinGeometry({ naturalTop: 180, pinnedTop: 8, pins: false })).toEqual({
+            naturalTop: 180,
+            pinnedTop: UNPINNED_FLOOR,
+        });
     });
 });

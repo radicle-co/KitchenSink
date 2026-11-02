@@ -17,7 +17,7 @@ import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { SegmentedControl } from '@commise/ui/segmented-control';
 import { useId, type FC, type ReactElement } from 'react';
 
-import { GRID_CELL_CLASS, LIBRARY_GRID_CLASS, LIBRARY_LIST_CLASS } from '../card/cardGridClass.js';
+import { CARD_LIST_CLASS, GRID_CELL_CLASS } from '../card/cardGridClass.js';
 import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import { RecipeCard } from '../card/RecipeCard.js';
 import { recipeMessages } from '../messages.js';
@@ -128,13 +128,14 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
 
     if (state === 'results') {
         body = (
-            <ul aria-labelledby={countId} className={isGrid ? LIBRARY_GRID_CLASS : LIBRARY_LIST_CLASS}>
+            <ul aria-labelledby={countId} className={CARD_LIST_CLASS[variant]}>
                 {recipes.map((recipe) => (
                     <li key={recipe.id} className={isGrid ? GRID_CELL_CLASS : undefined}>
                         {/* ONE promise, N slots: the host's renderer closes over the library's single nutrition
                             batch, so the figures cost one request and land together. */}
                         <RecipeCard
                             variant={variant}
+                            showEdited
                             headingLevel={2}
                             recipe={recipe}
                             onSelect={onSelectRecipe}

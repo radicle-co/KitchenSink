@@ -513,6 +513,89 @@ describe('ScrollHost (native) — the scroll offset an Animated list writes', ()
     });
 });
 
+// A list that remounts (the Recipes list is keyed on its layout, so a Grid to List switch or a text-scale column change gives a
+// new scroller) starts at offset 0, but the host's offset is written only by native scroll events and keeps its last value until the
+// next one. A pin that reads it would stay pinned over a list at the top. A scroller that replaces another resets the host.
+describe('ScrollHost (native) — a new scroller starts at the top', () => {
+    const scroller = (): { scrollTo: (options: { y?: number }) => void } => ({ scrollTo: vi.fn() });
+
+    const offsetOf = (api: () => ScrollHostApi): Animated.Value => {
+        const value = api().scrollY;
+
+        if (value === undefined) {
+            throw new Error('the host publishes no offset');
+        }
+
+        return value;
+    };
+
+    it('resets the offset and the scroll state when a different scroller attaches', () => {
+        const { bind, api } = renderHost();
+        const first = scroller();
+        const second = scroller();
+
+        act(() => bind().ref(first));
+        act(() => offsetOf(api).setValue(300));
+        act(() => bind().onScroll(report(300)));
+        expect(api().atTop).toBe(false);
+
+        // React detaches the old scroller and attaches the new one when the list is keyed anew.
+        act(() => bind().ref(null));
+        act(() => bind().ref(second));
+
+        expect(Number(JSON.stringify(offsetOf(api)))).toBe(0);
+        expect(api().atTop).toBe(true);
+        expect(api().viewportsDown).toBe(0);
+    });
+
+    // The reset is complete: a section jump's hold and a jump still waiting for its layout belong to the OLD scroller's
+    // position, so a new scroller must not inherit them (a held section would stay current over a list at the top).
+    it('releases a held section when a different scroller attaches', () => {
+        const host = renderHost(['details', 'ingredients', 'steps']);
+        const first = scroller();
+        act(() => host.bind().ref(first));
+        act(() => host.api().sectionLayout('details')({ nativeEvent: { layout: { y: 0, height: 500 } } }));
+        act(() => host.api().sectionLayout('ingredients')({ nativeEvent: { layout: { y: 500, height: 900 } } }));
+        act(() => host.api().sectionLayout('steps')({ nativeEvent: { layout: { y: 1400, height: 200 } } }));
+        act(() => host.bind().onScroll(report(600, 800, 1600)));
+        act(() => host.api().scrollToSection('steps'));
+        act(() => host.bind().onScroll(report(800, 800, 1600)));
+        expect(host.api().current).toBe('steps');
+
+        act(() => host.bind().ref(null));
+        act(() => host.bind().ref(scroller()));
+
+        expect(host.api().current).toBeUndefined();
+    });
+
+    it('drops a jump still waiting for its layout when a different scroller attaches', () => {
+        const host = renderHost(['details']);
+        const second = scroller();
+        act(() => host.bind().ref(scroller()));
+        act(() => host.api().scrollToSection('details'));
+
+        act(() => host.bind().ref(null));
+        act(() => host.bind().ref(second));
+        act(() => host.api().sectionLayout('details')({ nativeEvent: { layout: { y: 400, height: 500 } } }));
+
+        expect(second.scrollTo).not.toHaveBeenCalled();
+    });
+
+    it('leaves the offset alone when the SAME scroller re-attaches', () => {
+        const { bind, api } = renderHost();
+        const only = scroller();
+
+        act(() => bind().ref(only));
+        act(() => offsetOf(api).setValue(300));
+        act(() => bind().onScroll(report(300)));
+        act(() => bind().ref(null));
+        act(() => bind().ref(only));
+
+        expect(Number(JSON.stringify(offsetOf(api)))).toBe(300);
+        expect(api().atTop).toBe(false);
+    });
+});
+
 describe('ScrollHost (native) — layout noise does not cost a commit', () => {
     const layout = (y: number, height: number): LayoutReport => ({ nativeEvent: { layout: { y, height } } });
 

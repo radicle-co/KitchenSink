@@ -184,7 +184,7 @@ export function useCollectionDetail({
     );
     // The deferred calorie lookup (ADR-0079 §6), fed from EVERY member, not the revealed window: the window grows on tap,
     // and batching it would re-batch on every "load more" and blink the figures already on screen back to skeletons. The
-    // library surface never draws the compact card (`cardVariantOf`), so every card here reads its page's batch.
+    // compact tile (the grid below 600) draws no calorie figure, so there the batch is simply unread.
     const nutritionFor = useRecipeNutritionBatches([memberIds]);
 
     useLeaveWhenClosed(deleteCollection.isSuccess, deleteOpen, nav.onDeleted);

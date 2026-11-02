@@ -41,7 +41,11 @@ export const FabFace: FC<FabFaceProps> = ({ label, icon, presentation, onLabelWi
                     {label}
                 </Text>
             ) : null}
-            <View aria-hidden onLayout={(event) => onLabelWidth(event.nativeEvent.layout.width)} style={styles.twin}>
+            <View
+                aria-hidden
+                onLayout={(event) => onLabelWidth(Math.round(event.nativeEvent.layout.width))}
+                style={styles.twin}
+            >
                 <Text typeRole="label" chromeCap="1.5" aria-hidden numberOfLines={1}>
                     {label}
                 </Text>

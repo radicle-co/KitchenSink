@@ -11,6 +11,7 @@
  *
  * Web-only class strings; native lays its rows out in `cardGridLayout.native.ts`.
  */
+import type { CardVariant } from './cardVariant.js';
 
 /** The library's grid of full cards. */
 export const LIBRARY_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4 @regular/main:gap-6';
@@ -29,3 +30,10 @@ export const HOME_GRID_CLASS = 'grid grid-cols-2 gap-3 @regular/main:grid-cols-4
 
 /** Compact cards (Discover's results, a collection's members) in two columns below a 600 container, where a full card needs more than half the width. */
 export const COMPACT_GRID_CLASS = 'grid grid-cols-2 gap-3';
+
+/** The list's class for a variant: a column of rows, a grid of full cards, or two-up compact tiles. The one lookup for every web card list. */
+export const CARD_LIST_CLASS: Readonly<Record<CardVariant, string>> = {
+    row: LIBRARY_LIST_CLASS,
+    grid: LIBRARY_GRID_CLASS,
+    compact: COMPACT_GRID_CLASS,
+};

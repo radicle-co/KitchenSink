@@ -7,7 +7,7 @@
  */
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { Locale } from '@commise/i18n';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import type { ChipRowOverflow } from '@commise/ui/chip';
 import type { LoadMoreControlProps } from '@commise/ui/load-more';
@@ -291,6 +291,11 @@ export interface RecipeListFacetControl {
  * narrows it with `./library.ts`, decides the card variant with `cardVariantOf`, and hands over the result.
  */
 export interface RecipeListResultsProps extends RecipeCreateDestinations {
+    /**
+     * What the read is doing. Absent: settled. Native draws ONE list for every state, so a pending or failed read hands
+     * over its body here; web still wraps its read in a suspense boundary and never passes it.
+     */
+    readonly reading?: RecipeListReading;
     /** The visible rows — the library after the viewer's search and chips. */
     readonly recipes: readonly RecipeListItem[];
     /** Which body to draw (`libraryStateOf`). */
@@ -398,3 +403,11 @@ export const sourceTabLabel = (
     value: RecipeListTab,
     labels: Pick<RecipeListMessages, 'tabMine' | 'tabCommunity'>,
 ): string => (value === 'mine' ? labels.tabMine : labels.tabCommunity);
+
+/**
+ * What the list draws under the header, as the host's read has it (plan `recipesScrollPlan.md`): the settled results, or
+ * the body the host gives a read that is still pending or has failed. ONE list serves every state, so the header the
+ * frame puts at its top is never unmounted and the search field keeps its focus.
+ */
+export type RecipeListReading =
+    { readonly kind: 'settled' } | { readonly kind: 'pending' | 'failed'; readonly body: ReactElement };

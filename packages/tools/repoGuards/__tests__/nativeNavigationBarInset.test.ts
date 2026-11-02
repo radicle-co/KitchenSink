@@ -4,14 +4,16 @@
  *
  * ⛔ WHY. A `Modal` with `navigationBarTranslucent` is edge to edge, so the navigation bar covers its foot and the
  * keyboard does not resize it. A sheet that adds no bottom inset puts its actions under the bar or behind the keyboard
- * (found on a device). The real tree is NOT asserted here yet: its findings go to the lead first (job `preDevice`).
- * The rows `reads the real windows` pin that the reader finds them, so a later tree assertion cannot pass vacuously.
+ * (found on a device). The tree is asserted below, and the rows `reads the real windows` pin that the reader finds
+ * them, so the assertion cannot pass vacuously. The house `Modal` and `OverlayHost` only forward their props; the flag is
+ * read at each call site that sets it.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { nativeSources } from './nativeSources.js';
 import { translucentWindowSites, windowsWithoutBottomInset } from './nativeNavigationBarInset.js';
 import { repoRoot } from './serviceSources.js';
 
@@ -70,8 +72,42 @@ const SHAPES: readonly (readonly [string, string, number])[] = [
     ['translucency off', `${RN} const A = () => <Modal navigationBarTranslucent={false} />;`, 0],
     ['no translucency', `${RN} const A = () => <Modal visible />;`, 0],
     ['the house overlay host, translucent, no inset', `const A = () => <OverlayHost navigationBarTranslucent />;`, 1],
-    ['a spread on a Modal cannot be read', `${RN} const A = (props) => <Modal {...props} />;`, 1],
-    ['a spread on an OverlayHost cannot be read', `const A = (props) => <OverlayHost {...props} />;`, 1],
+    [
+        "a spread of a value that is not the component's own props cannot be read",
+        `${RN} const A = () => <Modal {...flags} />;`,
+        1,
+    ],
+    [
+        'a spread of a value built in the component cannot be read',
+        `${RN} const A = () => { const flags = pick(); return <Modal {...flags} />; };`,
+        1,
+    ],
+    ['a forwarding adapter: the props it was given', `${RN} const A = (props) => <Modal {...props} />;`, 0],
+    [
+        'a forwarding adapter: the rest of its destructured props',
+        `${RN} const A = ({ onRequestClose, ...rest }) => <Modal {...rest} supportedOrientations={[]} />;`,
+        0,
+    ],
+    [
+        'a forwarding OverlayHost adapter',
+        `const A = ({ onDismissRequest, ...modalProps }) => <OverlayHost {...modalProps} />;`,
+        0,
+    ],
+    [
+        'an adapter call site that sets the flag and never reads the inset fails',
+        `import { Modal } from '@commise/ui/modal'; const A = () => <Modal navigationBarTranslucent onRequestClose={close} />;`,
+        1,
+    ],
+    [
+        'an adapter call site that sets the flag and reads the inset passes',
+        `import { Modal } from '@commise/ui/modal'; ${SA} const A = () => { const { bottom } = useSafeAreaInsets(); return <Modal navigationBarTranslucent><V pb={bottom} /></Modal>; };`,
+        0,
+    ],
+    [
+        'an OverlayHost call site that sets the flag and never reads the inset fails',
+        `import { OverlayHost } from '@commise/ui/overlay'; const A = () => <OverlayHost navigationBarTranslucent onDismissRequest={close} />;`,
+        1,
+    ],
     ['a spread on an ordinary element is not a window', `const A = (props) => <View {...props} />;`, 0],
     [
         'two windows in one module with no read are two findings',
@@ -104,5 +140,17 @@ describe('translucentWindowSites — the reader finds the real windows', () => {
 
     it.each(REAL_WINDOWS)('reads the window in %s', (file) => {
         expect(translucentWindowSites(readFileSync(path.join(repoRoot, file), 'utf8'), file)).toBeGreaterThan(0);
+    });
+});
+
+describe('the tree — every window under the navigation bar reads the bottom inset', () => {
+    it('has no window that does not, and no spread this reader cannot place', () => {
+        const findings = nativeSources().flatMap((file) =>
+            windowsWithoutBottomInset(readFileSync(path.join(repoRoot, file), 'utf8'), file).map(
+                (finding) => `${file}:${finding}`,
+            ),
+        );
+
+        expect(findings).toEqual([]);
     });
 });

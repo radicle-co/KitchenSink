@@ -14,8 +14,10 @@
  * MODULE, not by flow: a read that never reaches the window is not seen.
  *
  * ⚠️ A shape this reader cannot see is a finding, never a pass: a spread attribute on a `Modal`, `NativeModal` or
- * `OverlayHost` element, which may carry `navigationBarTranslucent`. The design-system adapters that forward props
- * (`Modal`, `OverlayHost`) therefore show up, and the lead decides how they are recorded.
+ * `OverlayHost` element, which may carry `navigationBarTranslucent`. The one spread it can place is a FORWARDING
+ * ADAPTER: the spread of the props the component itself was given (a parameter, or the rest of its destructuring), as
+ * the house `Modal` and `OverlayHost` do. Such an adapter sets no flag; the flag is read at every call site that sets
+ * it on an element, in any module, so nothing is exempt by name.
  *
  * @pattern Specification — a pure predicate over a parsed source file
  */
@@ -54,6 +56,45 @@ function setsTranslucent(attribute: ts.JsxAttribute): boolean {
         value.expression !== undefined &&
         unwrap(value.expression).kind === ts.SyntaxKind.FalseKeyword
     );
+}
+
+/**
+ * Whether a spread passes on the props a component was given: its identifier is a parameter, or the rest element of a
+ * parameter's destructuring, of an enclosing function. That is a forwarding adapter (the house `Modal` and
+ * `OverlayHost`): it adds no flag of its own, so the flag is read where a caller sets it.
+ */
+function forwardsItsProps(spread: ts.JsxSpreadAttribute): boolean {
+    const expression = unwrap(spread.expression);
+
+    if (!ts.isIdentifier(expression)) {
+        return false;
+    }
+
+    for (let node: ts.Node | undefined = spread.parent; node !== undefined; node = node.parent) {
+        if (!ts.isFunctionLike(node)) {
+            continue;
+        }
+
+        for (const parameter of node.parameters) {
+            if (ts.isIdentifier(parameter.name) && parameter.name.text === expression.text) {
+                return true;
+            }
+
+            if (
+                ts.isObjectBindingPattern(parameter.name) &&
+                parameter.name.elements.some(
+                    (element) =>
+                        element.dotDotDotToken !== undefined &&
+                        ts.isIdentifier(element.name) &&
+                        element.name.text === expression.text,
+                )
+            ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 /** Whether a module reads the bottom inset of `useSafeAreaInsets()`. */
@@ -132,7 +173,10 @@ export function windowsWithoutBottomInset(source: string, fileName: string): rea
                         `${where}: a window under the navigation bar, and the module never reads the bottom inset`,
                     );
                 }
-            } else if (WINDOW_TAG.test(node.tagName.getText()) && attributes.some(ts.isJsxSpreadAttribute)) {
+            } else if (
+                WINDOW_TAG.test(node.tagName.getText()) &&
+                attributes.some((attribute) => ts.isJsxSpreadAttribute(attribute) && !forwardsItsProps(attribute))
+            ) {
                 findings.push(
                     `${where}: a spread on ${node.tagName.getText()} may carry navigationBarTranslucent, so it cannot be checked`,
                 );

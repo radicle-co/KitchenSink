@@ -6,9 +6,8 @@
  * slots until it is remounted. The Recipes grid shipped that defect and a device found it. The rows below are the
  * shapes the tree has, the shapes that fix them, and the shapes the reader cannot see (which must be findings).
  *
- * The real tree is NOT asserted here yet: its findings are reported to the lead first (job `preDevice`), and a
- * baseline is recorded only after that decision. The row `reads the real lists` pins that the reader finds them, so a
- * later tree assertion cannot pass vacuously.
+ * The tree is asserted at the end, and the rows `reads the real lists` pin that the reader finds them, so that assertion
+ * cannot pass vacuously.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -16,6 +15,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { flashListSites, unkeyedFlashLists } from './nativeFlashListKeys.js';
+import { nativeSources } from './nativeSources.js';
 import { repoRoot } from './serviceSources.js';
 
 const FL = `import { FlashList } from '@shopify/flash-list';`;
@@ -147,5 +147,17 @@ describe('flashListSites — the reader finds the real lists', () => {
 
     it.each(REAL_LISTS)('reads the list in %s', (file) => {
         expect(flashListSites(readFileSync(path.join(repoRoot, file), 'utf8'), file)).toBeGreaterThan(0);
+    });
+});
+
+describe('the tree — every FlashList that can change layout is keyed by it', () => {
+    it('has no list without such a key, and no spread this reader cannot place', () => {
+        const findings = nativeSources().flatMap((file) =>
+            unkeyedFlashLists(readFileSync(path.join(repoRoot, file), 'utf8'), file).map(
+                (finding) => `${file}:${finding}`,
+            ),
+        );
+
+        expect(findings).toEqual([]);
     });
 });

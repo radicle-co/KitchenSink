@@ -2,6 +2,30 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-01: TextLink (asked by Thing 1)
+
+- **Leaving the app:** every link that opens outside the app draws a trailing ↗, as `DataSourceCard` does, hidden from
+  screen readers. Its accessible name says it opens in the browser. That includes the recipe source host. The detail
+  mockup's own source line is "Adapted from <recipe>", which stays inside the app and takes no ↗.
+- **RecipeVisibilityField's text action:** `label` (14 px, weight 600) in `$actionText`. That is the web's semibold
+  `meta` exactly, so web and native match.
+- **Press feedback:** a link that stands alone as a control press-scales like a button (0.98, or opacity 0.85 under
+  reduced motion). A link inside running text uses the opacity feedback only, because scaling it moves the words
+  around it. Use PressScale's closed feedback option for that.
+
+## 2026-11-01: the Google button label on iOS, corrected (asked by Thing 1)
+
+Thing 1 measured Apple's button at all twelve iOS text sizes. Its label does not grow, and its font comes from the
+button's height (about 21 pt SF Pro), so it is larger than any role on our scale.
+
+- Do not chase Apple's size. A 20 or 21 pt label breaks the type scale (14, 16, 18, 28), and it would make the
+  Google label larger than our own Sign in button below it.
+- The Google label uses the same type role as our own `Button` labels, so both of our sign-in buttons read alike. On
+  iOS it stays at that size and does not grow, like Apple's. On Android it follows the 1.5x chrome cap.
+- The pair matches in height, width, corner radius, outline and centred icon and label. A difference in letter size
+  between Apple's system font and ours is accepted.
+- This replaces M-1 in `reviews/deviceShots2.md`.
+
 ## 2026-11-01: Home error actions and the wrapped "See all" (asked by kitchensink-5f)
 
 - **A failed widget offers Try again.** Every error state needs a way forward. When a widget's code or render fails,
@@ -12,6 +36,9 @@ Each answer is the design ruling a port builds to. Newest first.
   loading state through the block's live region, and focus moves to the block's heading so it is not lost.
 - **"See all" under its title:** when the row wraps, the link's text lines up with the title's left edge. Its touch
   target stays at least 48 pt tall. Any side padding sits on the right, not the left.
+- **Web "See all":** its target stays 44 px tall, the web shell's floor; 48 is the native figure. The text lines up
+  with the title, but the hover fill and focus ring extend 12 px past the text on both sides (a negative start margin
+  of 12 with 12 padding), so they never hug the text.
 - **The floating button over scrolling content** is expected. The 88 pt end room only guarantees that the end of the
   content can scroll clear of it.
 - **Recipes tab:** its error and empty states get the same 88 pt end room as its cards.

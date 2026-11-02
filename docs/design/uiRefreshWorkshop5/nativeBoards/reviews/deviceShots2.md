@@ -9,7 +9,7 @@ screenshots. Earlier screenshot folders were lost in a restart, so this covers o
 
 ### Medium
 
-**M-1. iOS sign-in: the Google label is now smaller than the Apple label beside it.** Shot V
+**M-1 (replaced; see designAnswers.md, the Google button label on iOS). iOS sign-in: the Google label is now smaller than the Apple label beside it.** Shot V
 (`ios_signIn_axXL.png`).
 
 - Apple's own button does grow a little at accessibility sizes. Our Google label is fixed at 1x, so it is clearly

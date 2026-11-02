@@ -319,6 +319,28 @@ describe('parseIngredientLine', () => {
             expect(result.needsReview).toBe(false);
         });
 
+        /** The top of a range must survive the join: a mixed number is only the LOW bound here. */
+        it.each([
+            ['1-1/2 to 2 cups flour', 1.5, 2],
+            ['1-1/2-2 cups flour', 1.5, 2],
+        ])('keeps the upper bound when a hyphenated mixed number opens a range: %j', (raw, low, high) => {
+            const result = parseIngredientLine(raw);
+
+            expect(result.quantity).toEqual(statedQuantity(low, high));
+            expect(result.needsReview).toBe(false);
+        });
+
+        /** A hyphen that goes on into a word is a compound modifier ("2-3/4-ounce can"), not a mixed number. */
+        it.each([['2-3/4-ounce can tomatoes'], ['10-1/2-inch pan']])(
+            'does not join %j, so it stays flagged for review as before',
+            (raw) => {
+                const result = parseIngredientLine(raw);
+
+                expect(result.quantity).toEqual(ABSENT_QUANTITY);
+                expect(result.reviewReasons).toContain('quantity_bounds_inverted');
+            },
+        );
+
         it('keeps 1/2-1 a range, because the fraction comes first', () => {
             expect(parseIngredientLine('1/2-1 cup flour').quantity).toEqual(statedQuantity(0.5, 1));
         });

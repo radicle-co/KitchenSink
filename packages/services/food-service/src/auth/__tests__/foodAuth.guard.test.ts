@@ -11,7 +11,7 @@
  * - FR-038        → "forged x-debug-sub / x-authorizer-context is ignored"
  * - FR-047        → "an azp-allowlisted M2M token is accepted"
  */
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { NextFunction, Response } from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,7 +21,7 @@ vi.mock('@kitchensink/clerk-verify', async () => {
     return { ...actual, verifyClerkToken: vi.fn() };
 });
 
-import { ClerkVerificationError, verifyClerkToken } from '@kitchensink/clerk-verify';
+import { ClerkAccountSuspendedError, ClerkVerificationError, verifyClerkToken } from '@kitchensink/clerk-verify';
 
 import { FoodAuthGuard } from '../foodAuth.guard.js';
 import type { AuthenticatedRequest } from '../authenticatedPrincipal.js';
@@ -70,6 +70,47 @@ describe('FoodAuthGuard', () => {
             UnauthorizedException,
         );
         expect(next).not.toHaveBeenCalled();
+    });
+
+    // ADR-0081: a genuine token for a suspended account is a 403, and it is NOT an auth failure: it must never feed the
+    // per-source 401-rate cap, or one suspended person behind a shared address could get that address shed.
+    it('⛔ maps a suspended account to 403 ACCOUNT_SUSPENDED, without feeding the 401-rate cap', async () => {
+        mockVerify.mockRejectedValue(new ClerkAccountSuspendedError());
+        const shedder = {
+            sourceKey: vi.fn().mockReturnValue('src'),
+            shouldShed: vi.fn().mockReturnValue(false),
+            tryAcquire: vi.fn().mockReturnValue(true),
+            release: vi.fn(),
+            recordFailure: vi.fn(),
+        };
+        const guard = new FoodAuthGuard(shedder as never);
+        const next = vi.fn() as unknown as NextFunction;
+
+        const error: unknown = await guard
+            .use(makeReq({ authorization: 'Bearer suspended' }), {} as Response, next)
+            .catch((thrown: unknown) => thrown);
+
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'ACCOUNT_SUSPENDED' });
+        expect(shedder.recordFailure).not.toHaveBeenCalled();
+        expect(shedder.release).toHaveBeenCalledTimes(1);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('names the request to the verifier (food exempts no route for a suspended account)', async () => {
+        mockVerify.mockResolvedValue({ sub: 'u', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        const req = {
+            ...makeReq({ authorization: 'Bearer good' }),
+            method: 'GET',
+            originalUrl: '/api/v1/foods/search?q=a',
+        };
+
+        await new FoodAuthGuard().use(req as never, {} as Response, vi.fn() as unknown as NextFunction);
+
+        expect(mockVerify).toHaveBeenCalledWith('good', expect.anything(), {
+            method: 'GET',
+            path: '/api/v1/foods/search?q=a',
+        });
     });
 
     it('sets req.user from the verified sub and calls next once on success', async () => {

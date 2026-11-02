@@ -112,7 +112,10 @@ describe('RecipeInstructionsFields (web) — the list', () => {
         const numeral = within(screen.getAllByRole('listitem')[0] ?? document.body).getByText('1');
         expect(numeral.className).toContain('bg-selected-fill');
         expect(numeral.className).toContain('text-ink');
-        expect(numeral.className).toContain('size-8');
+        // REWRITTEN (designer ruling 2026-11-03): at least 2rem, growing with the numeral, never a fixed size-8.
+        expect(numeral.className).toContain('min-h-8');
+        expect(numeral.className).toContain('min-w-8');
+        expect(numeral.className).not.toContain('size-8');
     });
 
     it('each field is multi-line, two rows at least, the full column width', () => {

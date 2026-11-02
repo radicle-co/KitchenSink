@@ -370,18 +370,31 @@ fi
 while IFS=$'\t' read -r s envtag; do
     [ -n "$s" ] || continue
     echo "[stack] delete $s (Environment=$envtag)"
-    aws cloudformation delete-stack --region "$REGION" --stack-name "$s"
-    aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s" 2>/dev/null ||
-        echo "::warning::stack $s did not finish deleting in time — check it"
+    if ! aws cloudformation delete-stack --region "$REGION" --stack-name "$s"; then
+        echo "::error::could not start deleting stack $s — it is still running and billed"
+        teardown_failed=1
+        continue
+    fi
+    if ! aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s"; then
+        echo "::error::stack $s did not finish deleting (DELETE_FAILED or timed out) — it is still running and billed"
+        teardown_failed=1
+    fi
 done <<<"$PR_STACKS"
 
 ## 3. Tag sweep — anything else carrying one of this PR's Environment values that the stacks did not own.
 ##    The `Values=` list is an OR of EXACT values (the API matches no prefixes), and it is printed by
 ##    `prScope.sh` rather than spelled here: a literal `Values=$PR` is what silently matched nothing the
 ##    moment the CDK apps started emitting `pr-{N}-sandbox`, and a sweep that matches nothing reports success.
-for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
+# A listing that FAILS is an error, never "nothing matched": the sweep would report success over resources it
+# never saw. The per-resource deletes below stay `|| true` so one refused delete cannot hide the rest.
+if ! tagged_arns=$(aws resourcegroupstaggingapi get-resources --region "$REGION" \
     --tag-filters "Key=Environment,Values=$ENVIRONMENT_TAG_VALUES" \
-    --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null); do
+    --query 'ResourceTagMappingList[].ResourceARN' --output text); then
+    echo "::error::aws resourcegroupstaggingapi get-resources failed — $PR's tagged resources were not swept"
+    tagged_arns=''
+    teardown_failed=1
+fi
+for arn in $tagged_arns; do
     case "$arn" in
         *:log-group:*)
             lg="${arn##*:log-group:}"
@@ -399,15 +412,25 @@ for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
 done
 
 ## 4. Name-prefix sweep — auto-created resources that could not be tagged.
-for lg in $(aws logs describe-log-groups --region "$REGION" \
-    --query 'logGroups[].logGroupName' --output text 2>/dev/null); do
+if ! log_groups=$(aws logs describe-log-groups --region "$REGION" \
+    --query 'logGroups[].logGroupName' --output text); then
+    echo "::error::aws logs describe-log-groups failed — $PR's log groups were not swept"
+    log_groups=''
+    teardown_failed=1
+fi
+for lg in $log_groups; do
     if path_belongs "$lg"; then
         echo "[logs/name] delete $lg"
         aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
     fi
 done
-for repo in $(aws ecr describe-repositories --region "$REGION" \
-    --query 'repositories[].repositoryName' --output text 2>/dev/null); do
+if ! ecr_repos=$(aws ecr describe-repositories --region "$REGION" \
+    --query 'repositories[].repositoryName' --output text); then
+    echo "::error::aws ecr describe-repositories failed — $PR's ECR repositories were not swept"
+    ecr_repos=''
+    teardown_failed=1
+fi
+for repo in $ecr_repos; do
     if belongs "$repo"; then
         echo "[ecr/name] delete $repo (force)"
         aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true

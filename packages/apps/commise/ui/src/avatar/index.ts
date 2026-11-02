@@ -4,4 +4,4 @@
  */
 export { Avatar } from './Avatar.js';
 export { AvatarDisc } from './AvatarDisc.js';
-export type { AvatarDiscProps, AvatarProps, AvatarStatus } from './props.js';
+export type { AvatarDiscProps, AvatarProps, AvatarSize, AvatarStatus } from './props.js';

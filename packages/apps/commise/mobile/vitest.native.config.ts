@@ -57,6 +57,10 @@ export default defineConfig({
         dedupe: ['react-native-web'],
         alias: {
             'react-native': 'react-native-web',
+            // The device driver throws on Tamagui's web build, which this lane runs.
+            '@tamagui/animations-react-native': fileURLToPath(
+                import.meta.resolve('@commise/ui/testing/animations-shim'),
+            ),
             // `expo-image` (used by the B11 native card/detail leaves) imports `expo-modules-core`'s native
             // module, absent under jsdom — stub it to react-native-web's Image (same approach as
             // features-recipes' own native config).

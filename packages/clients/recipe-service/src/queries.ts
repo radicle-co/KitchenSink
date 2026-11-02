@@ -165,6 +165,11 @@ export const recipeServiceKeys = {
      * invalidation stales them all.
      */
     ingredientSearches: ['recipe-service', 'search', 'ingredients'] as const,
+    /**
+     * One typed name's suggestions (`GET /api/v1/ingredients/by-name/proposals`). Under `ingredients`, not `search`: it
+     * is not the bound-foods typeahead, so an ingredient write that stales every search leaves it alone.
+     */
+    ingredientNameProposals: (name: string) => ['recipe-service', 'ingredients', 'name-proposals', name] as const,
     ingredientSearch: (query: string, limit?: number) =>
         ['recipe-service', 'search', 'ingredients', query, limit ?? null] as const,
     /**
@@ -570,6 +575,18 @@ export function ingredientQueries(client: RecipeServiceClient) {
                 retry: shouldRetryNutritionBatch,
                 // The service refuses an empty list, so asking would be a guaranteed 400.
                 enabled: refs.length > 0,
+            }),
+        /**
+         * `GET /api/v1/ingredients/by-name/proposals` — what the settled sources remember for a typed name. A hint: the
+         * add field has its own list to fall back on, so it retries as the typeahead does and a keystroke cancels it.
+         */
+        nameProposals: (name: string) =>
+            queryOptions({
+                queryKey: recipeServiceKeys.ingredientNameProposals(name),
+                queryFn: ({ signal }) => client.getIngredientNameProposals(name, { signal }),
+                staleTime: INGREDIENT_SEARCH_STALE_TIME_MS,
+                // The typeahead's rule: a keystroke is the retry, and a food outage is never retried.
+                retry: shouldRetryIngredientSearch,
             }),
         /** `GET /api/v1/ingredients/search` — the bound foods matching a query (the recipe-search filter's read). */
         search: (query: string, limit?: number) =>

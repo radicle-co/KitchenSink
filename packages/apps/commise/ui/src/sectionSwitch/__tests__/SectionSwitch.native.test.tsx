@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { fireEvent } from '@testing-library/dom';
 import { Text, View } from 'react-native';
 

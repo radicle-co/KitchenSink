@@ -21,27 +21,28 @@
  *     body and actions as the step
  */
 import { useState, type FC } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import type { TamaguiTextElement } from 'tamagui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Modal } from '../modal/Modal.native.js';
+import { OverlayHost } from '../overlay/OverlayHost.native.js';
+import { OverlayView } from '../overlay/OverlayView.native.js';
 import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
-import { surfaceFill } from '../surfaceTone/surfaceFill.js';
-import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
+import { Text } from '../text/Text.native.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import { nativeTokens } from '../tokens/native.js';
-import { DIALOG_CARD_MAX_WIDTH_DP, dialogAnimationType, dialogScrimPadding } from './dialogFrameLayout.js';
+import { DialogEngine } from './DialogEngine.native.js';
+import { dialogAnimationType, dialogScrimPadding } from './dialogFrameLayout.js';
 import type { DialogFrameProps } from './props.js';
 
 /** The centred dialog frame. */
 export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title, role, children }) => {
     const insets = useSafeAreaInsets();
     const [shown, setShown] = useState(0);
-    const titleRef = useScreenReaderFocusOnSignal<Text>(shown);
-    const theme = useTheme();
-    const { colors } = theme;
+    const titleRef = useScreenReaderFocusOnSignal<TamaguiTextElement>(shown);
+    const { colors } = useTheme();
     const reduceMotion = useReduceMotion();
 
     if (!open) {
@@ -49,16 +50,16 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
     }
 
     return (
-        <Modal
+        <OverlayHost
             visible
             transparent
             animationType={dialogAnimationType(reduceMotion)}
             statusBarTranslucent
             navigationBarTranslucent
-            onRequestClose={onRequestClose}
+            onDismissRequest={() => onRequestClose()}
             onShow={() => setShown((count) => count + 1)}
         >
-            <View
+            <OverlayView
                 style={[
                     styles.scrim,
                     {
@@ -71,55 +72,26 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
                 ]}
             >
                 <KeyboardAvoider style={styles.avoider}>
-                    <SurfaceToneScope tone="paperOverlay">
-                        <View
+                    <ToneScope tone="paperOverlay">
+                        <DialogEngine
                             role={role}
-                            aria-modal
-                            accessibilityViewIsModal
-                            style={[
-                                styles.card,
-                                {
-                                    backgroundColor: surfaceFill(theme, 'paperOverlay'),
-                                    borderColor: colors.lineDivider,
-                                },
-                            ]}
-                        >
-                            <ScrollView
-                                keyboardShouldPersistTaps="handled"
-                                style={styles.scroller}
-                                contentContainerStyle={styles.content}
-                            >
-                                <Text
-                                    ref={titleRef}
-                                    accessibilityRole="header"
-                                    style={[styles.title, { color: colors.ink }]}
-                                >
+                            onEngineClose={onRequestClose}
+                            heading={
+                                <Text ref={titleRef} role="heading" typeRole="sectionTitle">
                                     {title}
                                 </Text>
-                                {children}
-                            </ScrollView>
-                        </View>
-                    </SurfaceToneScope>
+                            }
+                        >
+                            {children}
+                        </DialogEngine>
+                    </ToneScope>
                 </KeyboardAvoider>
-            </View>
-        </Modal>
+            </OverlayView>
+        </OverlayHost>
     );
 };
 
 const styles = StyleSheet.create({
     scrim: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     avoider: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
-    card: {
-        width: '100%',
-        maxWidth: DIALOG_CARD_MAX_WIDTH_DP,
-        maxHeight: '100%',
-        borderRadius: nativeTokens.radius.xl,
-        borderWidth: 1,
-        overflow: 'hidden',
-    },
-    // `flexGrow: 0`: the card is as tall as its content until the avoided box caps it, and then the content scrolls.
-    scroller: { flexGrow: 0 },
-    content: { padding: nativeTokens.spacing[5], gap: nativeTokens.spacing[3] },
-    // `sectionTitle`, the web dialog's title role (`buildSpec.md` §1.5): Manrope sets names only (F8).
-    title: { ...nativeTokens.type.sectionTitle },
 });

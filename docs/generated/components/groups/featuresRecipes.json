@@ -6,11 +6,11 @@
     "coverage": {
         "components": 183,
         "implementations": 316,
-        "props": 1656,
+        "props": 1666,
         "documentedComponents": 183,
         "implementationsWithModuleDoc": 316,
         "implementationsWithComponentDoc": 207,
-        "documentedProps": 1378,
+        "documentedProps": 1383,
         "classifiedComponents": 163,
         "componentsWithPatternTag": 84,
         "crossPlatformComponents": 133
@@ -1352,6 +1352,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
+                            "name": "menuFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The host asks the ⋯ trigger to take focus (the rename sheet closed); the header acknowledges via `onMenuFocusHandled`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
                             "name": "name",
                             "type": "string",
                             "typeDetail": null,
@@ -1383,6 +1392,15 @@
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onMenuFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
@@ -1585,6 +1603,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
                         },
                         {
+                            "name": "menuFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The host asks the ⋯ trigger to take focus (the rename sheet closed); the header acknowledges via `onMenuFocusHandled`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
                             "name": "name",
                             "type": "string",
                             "typeDetail": null,
@@ -1616,6 +1643,15 @@
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onMenuFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
@@ -1794,6 +1830,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
+                            "name": "createFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The floating button takes focus (native): raised when the new-collection sheet closes without creating one, so\nfocus returns to the control that opened it. The frame passes it to the button, which acknowledges it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        },
+                        {
                             "name": "headerAction",
                             "type": "HeaderAction",
                             "typeDetail": null,
@@ -1818,6 +1863,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Invoked when the create-collection action is activated (it opens the new-collection sheet).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        },
+                        {
+                            "name": "onCreateFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
@@ -1873,6 +1927,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
+                            "name": "createFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The floating button takes focus (native): raised when the new-collection sheet closes without creating one, so\nfocus returns to the control that opened it. The frame passes it to the button, which acknowledges it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        },
+                        {
                             "name": "headerAction",
                             "type": "HeaderAction",
                             "typeDetail": null,
@@ -1897,6 +1960,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Invoked when the create-collection action is activated (it opens the new-collection sheet).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
+                        },
+                        {
+                            "name": "onCreateFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
@@ -3002,6 +3074,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The host asks the trigger to take focus (the rename sheet closed); passed to `ActionMenu`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
                             "name": "isCopy",
                             "type": "boolean",
                             "typeDetail": null,
@@ -3024,6 +3105,15 @@
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
+                        },
+                        {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/detailModel.ts"
@@ -4757,11 +4847,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/components/RecentRecipeGrid.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/components",
-                    "moduleDoc": "@commise/features-recipes — the native \"Recent recipes\" grid: Home's 2 × 2 below a 600 container and one row\nof four from 600 (`HOME_COLUMNS`), of cards in the variant the host decided (owner ruling D8). Pure `props → JSX`.",
+                    "moduleDoc": "@commise/features-recipes — the native \"Recent recipes\" grid: below a 600 container two columns while the\ncontent width over the capped text scale is at least 320 pt and one column below (`compactColumnsOf`, the one phone\ngrid rule, designer 2026-11-02), and one row of four from 600 (`HOME_COLUMNS`), of cards in the variant the host\ndecided (owner ruling D8). Pure `props → JSX`.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — the native \"Recent recipes\" grid: Home's 2 × 2 below a 600 container and one row"
+                            "text": "@commise/features-recipes — the native \"Recent recipes\" grid: below a 600 container two columns while the"
                         },
                         {
                             "name": "pattern",

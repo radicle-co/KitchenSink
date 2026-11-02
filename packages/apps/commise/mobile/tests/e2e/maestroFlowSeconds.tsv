@@ -80,6 +80,7 @@ android	recipes/versions	289	4
 android	recipes/viewSetting	58	5
 android	recipes/visibility	85	6
 android	sessionHandoff	170	3
+android	shell/overlaySwipeDismiss	108	0
 android	shell/tabBar	74	6
 ios	*	161	0
 ios	accountDangerZone	78	3
@@ -146,3 +147,4 @@ ios	recipes/versions	353	2
 ios	recipes/viewSetting	182	3
 ios	recipes/visibility	103	3
 ios	sessionHandoff	242	1
+ios	shell/overlaySwipeDismiss	161	0

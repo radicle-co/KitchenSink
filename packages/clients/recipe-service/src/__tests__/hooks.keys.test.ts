@@ -235,6 +235,15 @@ describe('recipeServiceKeys — key distinctness (no accidental cache sharing)',
         ]);
     });
 
+    it('keys an ingredient name-proposals read by the typed name, outside the search prefix', () => {
+        expect(recipeServiceKeys.ingredientNameProposals('milk')).toEqual([
+            'recipe-service',
+            'ingredients',
+            'name-proposals',
+            'milk',
+        ]);
+    });
+
     it('gives the same ingredient query at different limits distinct keys', () => {
         expect(recipeServiceKeys.ingredientSearch('tom', 5)).not.toEqual([
             ...recipeServiceKeys.ingredientSearch('tom', 10),

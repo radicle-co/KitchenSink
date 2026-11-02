@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "generatedBy": "@kitchensink/docgen-components",
     "totals": {
-        "components": 412,
-        "implementations": 612,
-        "props": 2797,
-        "documentedComponents": 408,
-        "implementationsWithModuleDoc": 591,
-        "implementationsWithComponentDoc": 451,
-        "documentedProps": 2419,
-        "classifiedComponents": 320,
-        "componentsWithPatternTag": 227,
+        "components": 419,
+        "implementations": 619,
+        "props": 2862,
+        "documentedComponents": 415,
+        "implementationsWithModuleDoc": 598,
+        "implementationsWithComponentDoc": 455,
+        "documentedProps": 2470,
+        "classifiedComponents": 328,
+        "componentsWithPatternTag": 234,
         "crossPlatformComponents": 200
     },
     "groups": [
@@ -21,15 +21,15 @@
             "layer": "design-system",
             "catalogue": "docs/generated/components/groups/designSystem.json",
             "coverage": {
-                "components": 83,
-                "implementations": 142,
-                "props": 795,
-                "documentedComponents": 83,
-                "implementationsWithModuleDoc": 142,
-                "implementationsWithComponentDoc": 131,
-                "documentedProps": 756,
-                "classifiedComponents": 76,
-                "componentsWithPatternTag": 83,
+                "components": 90,
+                "implementations": 149,
+                "props": 848,
+                "documentedComponents": 90,
+                "implementationsWithModuleDoc": 149,
+                "implementationsWithComponentDoc": 135,
+                "documentedProps": 800,
+                "classifiedComponents": 83,
+                "componentsWithPatternTag": 90,
                 "crossPlatformComponents": 59
             }
         },
@@ -42,11 +42,11 @@
             "coverage": {
                 "components": 183,
                 "implementations": 316,
-                "props": 1656,
+                "props": 1666,
                 "documentedComponents": 183,
                 "implementationsWithModuleDoc": 316,
                 "implementationsWithComponentDoc": 207,
-                "documentedProps": 1378,
+                "documentedProps": 1383,
                 "classifiedComponents": 163,
                 "componentsWithPatternTag": 84,
                 "crossPlatformComponents": 133
@@ -80,11 +80,11 @@
             "coverage": {
                 "components": 82,
                 "implementations": 82,
-                "props": 98,
+                "props": 99,
                 "documentedComponents": 79,
                 "implementationsWithModuleDoc": 63,
                 "implementationsWithComponentDoc": 58,
-                "documentedProps": 65,
+                "documentedProps": 66,
                 "classifiedComponents": 35,
                 "componentsWithPatternTag": 30,
                 "crossPlatformComponents": 0
@@ -99,12 +99,12 @@
             "coverage": {
                 "components": 55,
                 "implementations": 55,
-                "props": 154,
+                "props": 155,
                 "documentedComponents": 54,
                 "implementationsWithModuleDoc": 53,
                 "implementationsWithComponentDoc": 40,
-                "documentedProps": 148,
-                "classifiedComponents": 39,
+                "documentedProps": 149,
+                "classifiedComponents": 40,
                 "componentsWithPatternTag": 26,
                 "crossPlatformComponents": 0
             }

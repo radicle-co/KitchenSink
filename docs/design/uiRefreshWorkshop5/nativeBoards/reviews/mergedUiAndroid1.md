@@ -15,7 +15,8 @@ the old layout, so most of each screen differs from its board. Matching the boar
 - **a. "Private" truncates.** A badge label never truncates. Fix it once in the shared `StatusBadge`
   (`@commise/ui`): no width limit that cuts the word. When the row has no room, the row wraps and the badge moves to
   the next line whole.
-- **b. A badge covers the cover letter.** Match the board: a recipe card's cover carries no badge. Status badges
+- **b. A badge covers the cover letter.** (Scope corrected 2026-11-02: list row only. Tiles keep the cover chip.
+  See `designAnswers.md`.) Match the board: a recipe card's cover carries no badge. Status badges
   (Private, Draft, Pro) sit in the card's meta row, before "Edited 2d ago". This replaces the 1x cover mark in M-1
   option A. "Pro" is a meta-row badge like the others.
 - **c. Titles truncate.** A recipe title never truncates. It wraps to as many lines as it needs, as the boards show.

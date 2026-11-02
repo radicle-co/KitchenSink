@@ -3,9 +3,10 @@
  *
  * The bindings the snapshot names are read once, `decideRestoreLine` decides each line, and only then does any
  * write happen: a line that cannot be restored refuses the whole restore before a single binding is created.
- * A name is resolved once however many lines carry it.
+ * A name is declared once however many lines carry it. A restore binds what the version defined and resolves nothing:
+ * a food or binding that is gone comes back as its declared name (owner ruling 2026-11-03).
  *
- * ⛔ It runs OUTSIDE any transaction: resolving a name asks food.
+ * ⛔ It runs OUTSIDE any transaction.
  *
  * @pattern Imperative Shell — the reads and writes around the pure `decideRestoreLine` policy
  */
@@ -35,15 +36,12 @@ export class VersionLineRestorer {
      * The lines a restore writes, in snapshot order.
      *
      * @param caller - The restoring cook's credential, forwarded to food.
-     * @param userId - The restoring cook, whose own corrections the name resolution may consult.
-     * @param lines - The snapshot's lines.
      * @returns The request lines for the recipe update.
      * @throws {RecipeDomainError} `VERSION_LINE_UNRESTORABLE` naming every line that has no binding and no name.
      * @sideEffect One bindings read and one food request; at most one binding written per distinct name.
      */
     public async restoreLines(
         caller: CallerToken | undefined,
-        userId: string,
         lines: readonly RecipeIngredient[],
     ): Promise<RecipeIngredientInput[]> {
         const identities = await this.identities.identify(
@@ -60,14 +58,13 @@ export class VersionLineRestorer {
             throw versionLineUnrestorable(unrestorable);
         }
 
-        const byName = await this.resolveNames(caller, userId, decisions, 'byName');
-        const declared = await this.resolveNames(caller, userId, decisions, 'declare');
+        const declared = await this.declareNames(decisions);
 
         return lines.map((line, position) => {
             const decision = decisions[position];
 
             return {
-                ingredientId: lookupIdOf(decision, byName, declared),
+                ingredientId: lookupIdOf(decision, declared),
                 quantity: line.quantity,
                 unit: line.unit,
                 ...(line.displayText !== undefined ? { notes: line.displayText } : {}),
@@ -84,32 +81,21 @@ export class VersionLineRestorer {
     }
 
     /**
-     * The binding for each distinct name the decisions of one kind carry.
+     * The declared binding for each distinct name the decisions carry: the line comes back unbound under its frozen
+     * name, and the cook picks a food through the lookup. Nothing is resolved.
      *
-     * @sideEffect One resolution or declaration per distinct name.
+     * @sideEffect One declaration per distinct name.
      */
-    private async resolveNames(
-        caller: CallerToken | undefined,
-        userId: string,
-        decisions: readonly RestoreLineDecision[],
-        kind: 'byName' | 'declare',
-    ): Promise<ReadonlyMap<string, string>> {
+    private async declareNames(decisions: readonly RestoreLineDecision[]): Promise<ReadonlyMap<string, string>> {
         const names = [
             ...new Set(
                 decisions.flatMap((decision): CanonicalIngredientName[] =>
-                    decision.kind === kind ? [decision.name] : [],
+                    decision.kind === 'declare' ? [decision.name] : [],
                 ),
             ),
         ];
         const bound = await Promise.all(
-            names.map(async (name) => {
-                const ingredient =
-                    kind === 'byName'
-                        ? await this.ingredients.addByName(caller, name, userId)
-                        : await this.ingredients.createFreeform(name);
-
-                return [name, ingredient.id] as const;
-            }),
+            names.map(async (name) => [name, (await this.ingredients.createFreeform(name)).id] as const),
         );
 
         return new Map(bound);
@@ -121,17 +107,10 @@ export class VersionLineRestorer {
  *
  * @throws {Error} when a name has no resolved binding — a defect in {@link VersionLineRestorer.restoreLines}. Pure.
  */
-function lookupIdOf(
-    decision: RestoreLineDecision | undefined,
-    byName: ReadonlyMap<string, string>,
-    declared: ReadonlyMap<string, string>,
-): string {
+function lookupIdOf(decision: RestoreLineDecision | undefined, declared: ReadonlyMap<string, string>): string {
     switch (decision?.kind) {
         case 'reuse':
             return decision.lookupId;
-
-        case 'byName':
-            return boundIdOf(byName, decision.name);
 
         case 'declare':
             return boundIdOf(declared, decision.name);

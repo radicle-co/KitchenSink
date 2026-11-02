@@ -3,7 +3,8 @@
  * its web twin takes from `--cm-press`: `theme.press.<tone>`, never `colors.surfaceMuted`. react-native-web's `Pressable`
  * does not toggle `pressed` from jsdom events, so it is stood in for by one that renders its `pressed` branch.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

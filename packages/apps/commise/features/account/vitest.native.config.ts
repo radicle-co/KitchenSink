@@ -24,6 +24,10 @@ export default defineConfig({
     resolve: {
         alias: {
             'react-native': 'react-native-web',
+            // The device driver throws on Tamagui's web build, which this lane runs.
+            '@tamagui/animations-react-native': fileURLToPath(
+                import.meta.resolve('@commise/ui/testing/animations-shim'),
+            ),
             // `react-native-safe-area-context` reports the device's window insets from a native module with no jsdom
             // runtime; the erase dialog reads them through `@commise/ui/dialog-frame`. The design system's stub serves
             // fixed NON-ZERO insets, so an inset assertion stays falsifiable.

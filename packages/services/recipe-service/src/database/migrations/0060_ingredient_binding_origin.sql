@@ -19,6 +19,12 @@
 -- Additive and expand-only (ADR-0035): two nullable columns with no default, so no rewrite and no backfill. Code from the
 -- previous release neither reads nor writes them.
 
+-- ⚠️ `lock_timeout`: ALTER TABLE takes ACCESS EXCLUSIVE, and the runner's own lock_timeout covers only its advisory lock.
+--   A deploy that cannot take the table lock in 5 s fails and a re-run retries it, instead of stalling every query
+--   queued behind it (food 0025 to 0027 do the same; `migrationLockTimeout.test.ts` holds the rule).
+
+SET LOCAL lock_timeout = '5s';
+
 ALTER TABLE ingredients
     ADD COLUMN bound_by text,
     ADD COLUMN import_line_id uuid REFERENCES recipe_import_lines (id) ON DELETE SET NULL,

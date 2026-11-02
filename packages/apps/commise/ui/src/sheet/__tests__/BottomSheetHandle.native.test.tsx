@@ -9,7 +9,7 @@
  * The swipe hook is stood in for by one that hands the zone a DOM touch handler, so "inside the swipe zone" is
  * observable: a touch that starts on the handle must reach the same element the title row's touches reach.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -30,6 +30,7 @@ vi.mock('../useSwipeToDismiss.native.js', async () => {
     };
 });
 
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 import { radius } from '../../tokens/scale.js';
 import { BottomSheetPanel } from '../BottomSheetPanel.native.js';
@@ -48,6 +49,9 @@ function renderPanel(): void {
             focusSignal={0}
             reduceMotion={false}
             onClose={vi.fn()}
+            onSwipeDismiss={vi.fn()}
+            restoreScrollY={0}
+            onScrollSettled={vi.fn()}
         >
             <Text>Body</Text>
         </BottomSheetPanel>,

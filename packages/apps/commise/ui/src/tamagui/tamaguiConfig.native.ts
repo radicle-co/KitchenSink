@@ -15,11 +15,12 @@
  * cannot live in the pure token map. A control outline stays a plain 1 pt.
  *
  * No `media`: native layout reads its container class (`layout/containerClass.ts`), not the window. Tamagui 3 adds
- * its own shorthands whatever the config says; the style guards read the long names. No animation driver yet: motion
- * moves in its own slice.
+ * its own shorthands whatever the config says; the style guards read the long names. One animation, `sheet`; the only motion
+ * the design system has, built through `motionPropsOf`.
  *
  * @pattern Registry — the single registration of tokens, themes and fonts with Tamagui
  */
+import { createAnimations } from '@tamagui/animations-react-native';
 import { StyleSheet } from 'react-native';
 import { createFont, createTamagui, createTokens } from 'tamagui';
 
@@ -33,6 +34,8 @@ export const tamaguiConfig = createTamagui({
         // NATIVE-STYLE-ADAPTER: the hairline is a density-dependent React Native value with no Tamagui source of its own.
         borderWidth: { hairline: StyleSheet.hairlineWidth },
     }),
+    // One named spring, for the Sheet. The driver runs on a device; the test lanes alias it to `@commise/ui/testing/animations-shim`.
+    animations: createAnimations({ sheet: { type: 'spring', damping: 24, mass: 1, stiffness: 280 } }),
     themes: tamaguiThemes,
     fonts: {
         body: createFont(tamaguiFonts.body),

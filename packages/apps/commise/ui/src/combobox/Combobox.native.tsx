@@ -73,7 +73,7 @@ import { FieldLabel } from '../input/FieldLabel.native.js';
 import { fieldAccessibilityHint } from '../input/props.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { surfaceFill } from '../surfaceTone/surfaceFill.js';
-import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -119,10 +119,12 @@ const StatusLine: FC<{ readonly line: ComboboxStatus; readonly loadingIcon: Reac
  * One option of the open list. A component of its own so it reads the press fill from INSIDE the list's surface: the list
  * states `paperOverlay`, and a hook called in `Combobox` itself would read what the field sits on instead.
  */
-const OptionRow: FC<{ readonly option: ComboboxOption; readonly onChoose: (option: ComboboxOption) => void }> = ({
-    option,
-    onChoose,
-}) => {
+const OptionRow: FC<{
+    readonly option: ComboboxOption;
+    readonly onChoose: (option: ComboboxOption) => void;
+    /** The touch began on this option: the list it began on is recorded. */
+    readonly onPressStart: () => void;
+}> = ({ option, onChoose, onPressStart }) => {
     const wash = usePressFill();
 
     return (
@@ -133,6 +135,7 @@ const OptionRow: FC<{ readonly option: ComboboxOption; readonly onChoose: (optio
             // React Native's own busy control is `disabled` (`@commise/ui/button`): it reads disabled, keeps its place,
             // and stays reachable by the screen reader.
             disabled={option.busy === true}
+            onPressIn={onPressStart}
             onPress={() => {
                 onChoose(option);
             }}
@@ -301,8 +304,18 @@ export const Combobox: FC<ComboboxProps> = ({
         };
     }, [typedIsValue, focused]);
 
+    // The list a press began on, from touch start to release. A content update between the two can put a different
+    // option under the finger, so a press that ends on another list picks nothing (shared by every caller). It is
+    // cleared with the pick and when the list closes; a press that slid off leaves it until the next touch overwrites it.
+    const optionsSignature = groups.flatMap((group) => group.options.map((option) => option.key)).join('\u0000');
+    const [pressedOn, setPressedOn] = useState<string | undefined>(undefined);
+
     const choose = (option: ComboboxOption): void => {
-        if (option.busy === true) {
+        const listChanged = pressedOn !== undefined && pressedOn !== optionsSignature;
+
+        setPressedOn(undefined);
+
+        if (option.busy === true || listChanged) {
             return;
         }
 
@@ -318,7 +331,14 @@ export const Combobox: FC<ComboboxProps> = ({
         onSelect(option.key);
     };
 
-    const renderOption = (option: ComboboxOption) => <OptionRow key={option.key} option={option} onChoose={choose} />;
+    const renderOption = (option: ComboboxOption) => (
+        <OptionRow
+            key={option.key}
+            option={option}
+            onChoose={choose}
+            onPressStart={() => setPressedOn(optionsSignature)}
+        />
+    );
 
     const renderGroups = () =>
         groups.map((group) => (
@@ -445,7 +465,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 {alertAnnouncement}
             </LiveRegion>
             {popupShown && (
-                <SurfaceToneScope tone="paperOverlay">
+                <ToneScope tone="paperOverlay">
                     <View
                         collapsable={false}
                         accessibilityLabel={listLabel}
@@ -475,7 +495,7 @@ export const Combobox: FC<ComboboxProps> = ({
                             <StatusLine key={index} line={line} loadingIcon={loadingIcon} />
                         ))}
                     </View>
-                </SurfaceToneScope>
+                </ToneScope>
             )}
         </View>
     );

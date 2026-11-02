@@ -11,11 +11,12 @@
  * ⚠️ The on-device proof is the Maestro landscape flow, which types into the filter sheet with the keyboard up.
  */
 import { resizeObserver as observer } from '../../testing/resizeObserver.js';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { createElement, type ComponentProps, type JSX } from 'react';
 import { Text, type ScrollView as ScrollViewType } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { render } from '../../testing/tamaguiTesting.native.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.native.js';
 

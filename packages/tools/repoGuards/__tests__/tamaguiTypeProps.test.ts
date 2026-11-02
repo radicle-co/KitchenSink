@@ -146,6 +146,9 @@ describe('typePropFindings', () => {
         it.each([
             ['the tab bar', 'packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx', 0],
             ['the view-switch control', 'packages/apps/commise/ui/src/segmentedControl/SegmentedControl.native.tsx', 0],
+            // Designer ruling d, 2026-11-02: the floating button's label follows the same 1.5x chrome cap.
+            ['the floating create button', 'packages/apps/commise/ui/src/createFab/FabFace.native.tsx', 0],
+            ['a sibling of the floating button', 'packages/apps/commise/ui/src/createFab/CreateFab.native.tsx', 1],
             ['any other screen', 'packages/apps/commise/features/recipes/src/x/X.native.tsx', 1],
         ] as const)('on an element in %s → %i', (_where, file, expected) => {
             expect(typePropFindings(head + label, file, none)).toHaveLength(expected);

@@ -7,7 +7,7 @@
 import ts from 'typescript';
 
 import { lineOf, parseModule } from './appSources.js';
-import { reExportsOf, specifiersOf, valueBindingsOf } from './moduleBindings.js';
+import { localsOf, reExportsOf, specifiersOf, valueBindingsOf } from './moduleBindings.js';
 import { isClassifiedElementExport, TAMAGUI_MODULE } from './tamaguiElements.js';
 
 const CONFIG_EXPORT = '@commise/ui/tamagui-config';
@@ -100,8 +100,9 @@ export function tamaguiThemeHookFindings(source: string, fileName: string): read
 
 /**
  * The Tamagui value exports that are not elements, and that app code may import: `styled` (a definition the guards
- * read), the provider, the builders of the one config, and `createStyledContext`, which carries a value to variants and
- * resolvers the guards already read (its Provider draws no box).
+ * read), the provider, the builders of the one config (tokens, fonts, animations), and `createStyledContext`, which carries a value to variants and
+ * resolvers the guards already read (its Provider draws no box), and `Sheet` and `Dialog`, the overlay parts whose own guards are
+ * named beside it (`overlayHostBoundary`, and `tamaguiMotionProps` for the Sheet).
  */
 const NON_ELEMENT_EXPORTS = new Set([
     'styled',
@@ -109,7 +110,13 @@ const NON_ELEMENT_EXPORTS = new Set([
     'createTamagui',
     'createTokens',
     'createFont',
+    'createAnimations',
     'createStyledContext',
+    // The animated overlay: its window, motion and open state are held by `overlayHostBoundary` and `tamaguiMotionProps`.
+    'Sheet',
+    'Dialog',
+    // `<Theme name>` selects a sub-theme and draws no box; `tamaguiThemeElementFindings` holds its props to `name`.
+    'Theme',
 ]);
 
 function isAllowedExport(name: string): boolean {
@@ -165,4 +172,50 @@ export function tamaguiUnclassifiedImportFindings(source: string, fileName: stri
     return [...unclassifiedImports, ...unclassifiedReExports, ...reExports.everything, ...defaults, ...members].map(
         report,
     );
+}
+
+/**
+ * G1c: every `<Theme>` from Tamagui that carries a prop other than `name`, or a spread. `inverse` flips light and dark,
+ * `reset` drops the parent chain and `forceClassName` changes how the theme is applied: each would re-colour a subtree by
+ * a rule no tone table states. The one admitted prop is `name`, typed as a tone. Pure.
+ *
+ * @param source - The module's text.
+ * @param fileName - Its repo-relative path.
+ * @returns One `file:line text` entry per stray prop.
+ */
+export function tamaguiThemeElementFindings(source: string, fileName: string): readonly string[] {
+    const file = parseModule(fileName, source);
+    const bindings = valueBindingsOf(file, (specifier) => TAMAGUI_MODULE.test(specifier));
+    const locals = localsOf(bindings, 'Theme');
+    const { namespaces } = bindings;
+    const findings: string[] = [];
+
+    if (locals.size === 0 && namespaces.size === 0) {
+        return findings;
+    }
+
+    const isTheme = (tag: ts.JsxTagNameExpression): boolean =>
+        (ts.isIdentifier(tag) && locals.has(tag.text)) ||
+        (ts.isPropertyAccessExpression(tag) &&
+            ts.isIdentifier(tag.expression) &&
+            namespaces.has(tag.expression.text) &&
+            tag.name.text === 'Theme');
+
+    const visit = (node: ts.Node): void => {
+        if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && isTheme(node.tagName)) {
+            for (const attribute of node.attributes.properties) {
+                if (ts.isJsxSpreadAttribute(attribute) || attribute.name.getText(file) !== 'name') {
+                    findings.push(
+                        `${fileName}:${lineOf(file, attribute)} ${attribute.getText(file)} on <Theme> (only \`name\` is admitted)`,
+                    );
+                }
+            }
+        }
+
+        ts.forEachChild(node, visit);
+    };
+
+    visit(file);
+
+    return findings;
 }

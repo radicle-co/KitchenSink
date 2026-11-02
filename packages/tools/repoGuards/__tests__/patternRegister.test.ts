@@ -148,6 +148,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the trigger, for `.focus()` on a host focus request and before a held item runs, so a dialog that item opens records the trigger as its return target. `.focus()` has no declarative form, and Radix owns every other focus move.',
     },
+    'designSystem/sheet/BottomSheetPanel': {
+        verdict: 'sanctioned',
+        why: "One node handle, the panel's scroller, for `scrollTo`: a sheet that was set aside under a question (the discard dialog) puts the cook's scroll position back when it returns. Scrolling to an offset has no declarative form. The handle is used once, from the mount effect, and never written during render.",
+    },
     'designSystem/scrollHost/ScrollHost': {
         verdict: 'sanctioned-adjacent',
         why: "`last` is a previous-value latch (the last y and the scroll spy's last section), read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API) and what lets the handler raise a section change as an event, once per change. The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
@@ -164,6 +168,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf holds the input node in state through a callback ref (as floating-ui holds its reference node) rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal. The same node is the screen-reader cursor's target when the screen names the field (`moveScreenReaderFocus`).",
     },
+    'designSystem/createFab/CreateFab': {
+        verdict: 'sanctioned',
+        why: 'One node handle, the button, for a host focus request: a sheet it opened gives focus back to it when it closes. `.focus()` on web and `View.focus()` on native have no declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take.',
+    },
     'designSystem/input/Input': {
         verdict: 'sanctioned',
         why: "One node handle, the field, for a host focus request (a field the host has just shown, such as an ingredient group's name): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Button and Combobox take. On native the same node is also the one the field reveal host measures to hold the field in view, and the one the screen-reader cursor moves to when the screen names the field.",
@@ -175,6 +183,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',
         why: "One node handle, the read row's open control (\"Edit {amount} {food}\"), for a host focus request: after a Remove the next row's open control takes focus, and after Done or a cancelled food search the row's own does (build spec §7.5.1, §7.5.2). `.focus()` on web and `moveScreenReaderFocus` on native have no declarative form; the request is a level the row view clears on acknowledgement.",
+    },
+    'designSystem/keyboardAvoider/KeyboardLift': {
+        verdict: 'sanctioned',
+        why: "One node handle, the lift's box, for `measureInWindow`: where the box's bottom edge is in the window, to be set against the keyboard's top on the screen. A measurement of a host node's place has no declarative form (`onLayout` reports a place relative to the parent, which is exactly the arithmetic that fell short on a device). The result goes to state and is read only to pad, never written during render.",
     },
     'designSystem/popover/Popover': {
         verdict: 'sanctioned',
@@ -390,8 +402,11 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * ⚠️ It went 93 → 92 with the pinned back bar. `RecipeVersionsScreen`, which stated no layer, now says it is the
  * orchestration of its three framed branches; the two components the change added (`PushedPageFrame`,
  * `CollectionMoreMenu`) state theirs in their own docblocks.
+ *
+ * ⚠️ It went 92 → 91 with the Home header. `AvatarDisc.native.tsx` was rebuilt on Tamagui and now states that it is
+ * presentational.
  */
-const LAYER_UNSTATED_CENSUS = 92;
+const LAYER_UNSTATED_CENSUS = 91;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

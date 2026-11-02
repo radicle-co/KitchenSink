@@ -62,7 +62,14 @@ import { FoodLookupsDal } from './dal/foodLookups.dal.js';
 import { FoodRefsGateway } from './foodRefs.gateway.js';
 import { IngredientNutritionReader } from './ingredientNutrition.reader.js';
 import { LineIdentityReader } from './lineIdentity.reader.js';
-import { createBindingRegistry, createProposalRegistry, PROPOSAL_TIERS } from './resolution/resolutionRegistry.js';
+import type { ResolutionTier } from './resolution/resolutionCascade.js';
+import {
+    BINDING_TIERS,
+    createBindingRegistry,
+    createProposalRegistry,
+    PROPOSAL_TIERS,
+} from './resolution/resolutionRegistry.js';
+import { NameProposalsService } from './nameProposals.service.js';
 import { MappingPromotionAudit } from './resolution/mappingPromotionAudit.js';
 import { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
 import { ResolutionMappingsDal } from './resolution/resolutionMappings.dal.js';
@@ -210,13 +217,19 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
                 createProposalRegistry(mappings, catalog, unrankedHitsReporter()),
         },
         {
+            // The settled-evidence chain `[curated, memo]`: read by the restorer's door and by the name proposals.
+            provide: BINDING_TIERS,
+            inject: [ResolutionMappingsDal],
+            useFactory: (mappings: ResolutionMappingsDal) => createBindingRegistry(mappings),
+        },
+        {
             provide: IngredientsService,
             inject: [
                 FoodLookupsDal,
                 FoodServiceClients,
                 FoodCatalogGateway,
                 FoodRefsGateway,
-                ResolutionMappingsDal,
+                BINDING_TIERS,
                 IngredientResolutionsDal,
             ],
             useFactory: (
@@ -224,18 +237,18 @@ function unrankedHitsReporter(): UnrankedHitsReporter {
                 clients: FoodServiceClients,
                 catalog: FoodCatalogGateway,
                 refs: FoodRefsGateway,
-                mappings: ResolutionMappingsDal,
+                bindingTiers: readonly ResolutionTier[],
                 resolutions: IngredientResolutionsDal,
             ): IngredientsService =>
-                new IngredientsService(
-                    lookups,
-                    clients,
-                    catalog,
-                    refs,
-                    // ADR-0071: by-name BINDS, so it runs the settled-evidence chain only.
-                    createBindingRegistry(mappings),
-                    resolutions,
-                ),
+                // The typed name no longer consults the tiers (owner rulings 2026-11-03); only the restorer's door does.
+                new IngredientsService(lookups, clients, catalog, refs, bindingTiers, resolutions),
+        },
+        {
+            // What the add-by-name field SUGGESTS: the settled tiers' memory, read, never bound.
+            provide: NameProposalsService,
+            inject: [BINDING_TIERS, FoodRefsGateway],
+            useFactory: (tiers: readonly ResolutionTier[], refs: FoodRefsGateway): NameProposalsService =>
+                new NameProposalsService(tiers, refs),
         },
     ],
     exports: [

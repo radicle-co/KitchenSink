@@ -3,7 +3,7 @@
  * trimmed name and description, refuse an empty name with an inline error, cap the name with its counter, say a server
  * failure, and confirm before discarding a typed name.
  */
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -154,6 +154,70 @@ describe('CollectionSheet (native)', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
 
+        expect(props.onOpenChange).toHaveBeenCalledWith(false);
+    });
+});
+
+/**
+ * Designer ruling 2026-11-03: the sheet stays hidden under the discard question (RN shows one window at a time on iOS), and
+ * Keep editing brings it back as it was: the text, the scroll position (the design-system Sheet's `held`), and focus on
+ * the field that had it (here).
+ */
+describe('CollectionSheet (native) — the discard question', () => {
+    const descriptionField = () => screen.getByLabelText('Description (optional)');
+
+    /** The cook focuses `field` (a real focus event), types a name, and asks to close. */
+    function typesThenCloses(field: () => HTMLElement): CollectionCreateSheetProps {
+        const props = sheet();
+
+        act(() => nameField().focus());
+        fireEvent.change(nameField(), { target: { value: 'Picnics' } });
+        act(() => field().focus());
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+        return props;
+    }
+
+    it('hides the sheet under the question, and brings it back with the text when the cook keeps editing', () => {
+        typesThenCloses(nameField);
+
+        expect(screen.queryByLabelText('Name')).toBeNull();
+        expect(screen.getByText('Discard this collection?')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+        expect((nameField() as HTMLInputElement).value).toBe('Picnics');
+    });
+
+    it.each([
+        ['name', nameField],
+        ['description', () => screen.getByLabelText('Description (optional)')],
+    ] as const)('gives focus back to the %s field when the cook keeps editing, the one that had it', (_name, field) => {
+        typesThenCloses(field);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+        expect(document.activeElement).toBe(field());
+    });
+
+    it('does not report the sheet as dismissed while it is only set aside', () => {
+        const onDismissed = vi.fn();
+        sheet({ onDismissed });
+
+        act(() => nameField().focus());
+        fireEvent.change(nameField(), { target: { value: 'Picnics' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+        expect(onDismissed).not.toHaveBeenCalled();
+    });
+
+    it('asks the host to close, once, when the cook discards', () => {
+        const props = typesThenCloses(descriptionField);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+
+        expect(props.onOpenChange).toHaveBeenCalledTimes(1);
         expect(props.onOpenChange).toHaveBeenCalledWith(false);
     });
 });

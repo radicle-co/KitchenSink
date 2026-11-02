@@ -3,8 +3,8 @@
  *
  * ## ⛔ TWO CHAINS, because binding and proposing are different acts (ADR-0071)
  *
- *  - {@link createBindingRegistry} = `[curated, memo]` — what `POST /api/v1/ingredients/by-name` runs. That path
- *    BINDS, so only SETTLED evidence may answer: a person's ruling or a gate-agreed memo. The lexical tier left it
+ *  - {@link createBindingRegistry} = `[curated, memo]` — the settled-evidence chain. Its reader is the editor's name proposals, which OFFER what it remembers
+ *    (`NameProposalsService`, owner rulings 2026-11-03: a typed name never binds a remembered answer; a version restore binds what the version defined and does not consult it). The cascade BINDS, so only SETTLED evidence may answer: a person's ruling or a gate-agreed memo. The lexical tier left it
  *    after a production paste bound "milk" to milk crackers (ADR-0071 records why). A phrase neither tier knows falls
  *    through to food's own add-by-name, as it always has.
  *  - {@link createProposalRegistry} = `[curated, memo, lexical]` — what the paste-job matcher runs. It never binds:
@@ -109,7 +109,7 @@
  *
  * ## ⛔ THE CASCADE'S REACH IS THE WRITE PATH AND THE PASTE MATCHER, AND NOTHING ELSE
  *
- * The binding chain has exactly one caller, `IngredientsService.addByName`; the proposal chain has one,
+ * The binding chain has one production reader, `NameProposalsService`; the proposal chain has one,
  * `MatchProposalService`. The cascade is deliberately
  * NOT wired into `GET /api/v1/ingredients/search`. R13 is explicit that only the lexical tier runs synchronously on the
  * search-ahead, and `/search` is the filter's read of bound foods. Reordering the tiers changes nothing about that; do
@@ -124,6 +124,9 @@ import type { ResolutionTier } from './resolutionCascade.js';
 
 /** DI token for the proposal chain, which `IngredientsModule` provides and the paste matcher consumes. */
 export const PROPOSAL_TIERS = 'RESOLUTION_PROPOSAL_TIERS';
+
+/** DI token for the settled-evidence chain, which `IngredientsModule` provides to the restorer's door and the name proposals. */
+export const BINDING_TIERS = 'RESOLUTION_BINDING_TIERS';
 
 /**
  * Build the BINDING chain: settled evidence only, in precedence order (ADR-0071).

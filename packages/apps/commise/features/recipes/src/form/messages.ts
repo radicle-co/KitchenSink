@@ -372,6 +372,14 @@ export interface RecipeFormMessages {
     readonly ingredientSuggestionsMoreHeading: string;
     /** The `name` pick (contains `{query}`; item 1). */
     readonly ingredientEntryFindByName: string;
+    /**
+     * The quiet tag after a food the field SUGGESTS from an answer it remembers (a cook's earlier correction, a staff
+     * ruling), drawn as the option's `tag` (designer answer N2: "Suggested"). A suggestion is only offered: it is never
+     * the active option when the list opens, and nothing is chosen until the cook picks it.
+     */
+    readonly ingredientSuggestedTag: string;
+    /** A Suggested option's accessible name (contains `{name}`): the food, then the tag's word (WCAG 2.5.3). */
+    readonly ingredientSuggestedName: string;
     /** The `declared` pick (contains `{query}`; item 1). */
     readonly ingredientEntryUseAsWritten: string;
     /** A pick on a row that names no food failed (contains `{query}`; item 1). Assertive. */
@@ -780,6 +788,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         createOwnFoodOptionName: 'Create my own food, opens a form',
         ingredientSuggestionsMoreHeading: 'Not listed?',
         ingredientEntryFindByName: 'Find nutrition for “{query}”',
+        ingredientSuggestedTag: 'Suggested',
+        ingredientSuggestedName: '{name}, suggested',
         ingredientEntryUseAsWritten: 'Use “{query}” as written, without nutrition',
         ingredientEntryFindByNameFailed: 'We couldn’t add “{query}”. Try again, or use it as written.',
         ingredientAddedNeedsChoice:

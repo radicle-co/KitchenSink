@@ -143,6 +143,16 @@ describe('Sheet (web)', () => {
         expect(onOpenChange).toHaveBeenLastCalledWith(false);
     });
 
+    describe('onShown', () => {
+        it('is called once when the sheet opens, so a host can move focus into it', async () => {
+            const onShown = vi.fn();
+
+            await openHost(<Host overrides={{ onShown }} />);
+
+            expect(onShown).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('onDismissed', () => {
         it('is called once after each close, by any route, off screen and with focus back on the opener', async () => {
             const dialogsSeen: (HTMLElement | null)[] = [];
@@ -361,16 +371,17 @@ describe('Sheet (web)', () => {
         expect(title.className).not.toContain('font-display');
     });
 
-    // W-23 (bs §5.1 "sheet header truncate:1"): a long title (a 60-character collection name in "Add to {name}") never
-    // wraps to a second line. The full string stays the heading's text, so it is still the dialog's accessible name.
-    it('keeps a long title on one line, ending in an ellipsis, with the full text still its name', async () => {
+    // REWRITTEN from W-23 ("sheet header truncate:1"): the designer ruled that a sheet title wraps and is never clipped, so
+    // a cook at a large text size reads all of it. The full string is the heading's text and the dialog's accessible name.
+    it('wraps a long title in full instead of clipping it, with the full text still its name', async () => {
         const long = 'Add to Weeknight dinners for the whole family and any guests who drop by';
 
         await openHost(<Host overrides={{ title: long }} />);
 
         const title = screen.getByRole('heading', { name: long });
 
-        expect(title.className.split(/\s+/u)).toContain('truncate');
+        expect(title.className.split(/\s+/u)).not.toContain('truncate');
+        expect(title.className.split(/\s+/u)).toContain('break-words');
         expect(screen.getByRole('dialog', { name: long })).toBeTruthy();
     });
 

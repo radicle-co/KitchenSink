@@ -41,6 +41,23 @@ describe('CollectionListFrame (native)', () => {
         expect(screen.getByText('boundary content')).toBeTruthy();
     });
 
+    it('hands the create button focus when asked, and reports once it has', () => {
+        const handled = vi.fn();
+        render(
+            <CollectionListFrame
+                onCreate={noop}
+                headingFocusSignal={0}
+                createFocusRequested
+                onCreateFocusHandled={handled}
+            >
+                {null}
+            </CollectionListFrame>,
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'New collection' }));
+        expect(handled).toHaveBeenCalledOnce();
+    });
+
     it('reports create requests upward', () => {
         const onCreate = vi.fn();
         render(

@@ -1,16 +1,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
-import { createElement, type ComponentProps } from 'react';
+import { createElement, type ComponentProps, type ComponentType } from 'react';
 import { AccessibilityInfo } from 'react-native';
-import type {
-    KeyboardAvoidingView as KeyboardAvoidingViewType,
-    Modal as ModalType,
-    ScrollView as ScrollViewType,
-} from 'react-native';
+import type { KeyboardAvoidingView as KeyboardAvoidingViewType, Modal as ModalType } from 'react-native';
 
 import { ConfirmDialog } from '../ConfirmDialog.js';
 import type { ConfirmDialogProps } from '../props.js';
-import { pressFrameOf, render } from '../../testing/tamaguiTesting.native.js';
+import { rgb, rolesFor } from '../../testing/systemColorScheme.js';
+import { nativeTokens } from '../../tokens/native.js';
+import { pressFrameOf, render, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * ConfirmDialog (native) — the house B6 confirmation modal (RN `Modal`), mirroring
@@ -34,15 +32,18 @@ vi.mock('react-native', async (importOriginal) => {
 
             return createElement(actual.Modal, props);
         },
-        ScrollView: (props: ComponentProps<typeof ScrollViewType>) =>
-            createElement(
-                'div',
-                { 'data-scroll-region': props.keyboardShouldPersistTaps ?? 'never' },
-                createElement(actual.ScrollView, props),
-            ),
         KeyboardAvoidingView: (props: ComponentProps<typeof KeyboardAvoidingViewType>) =>
             createElement('div', { 'data-keyboard-avoider': true }, createElement(actual.KeyboardAvoidingView, props)),
     };
+});
+
+// REWRITTEN for the Tamagui card: the dialog's scroller is Tamagui's `ScrollView`, marked the same way.
+vi.mock('tamagui', async (importOriginal) => {
+    const { withMarkedScrollView } = await import('../../testing/markedScrollView.native.js');
+
+    return withMarkedScrollView(
+        await importOriginal<{ ScrollView: ComponentType<{ keyboardShouldPersistTaps?: string }> }>(),
+    );
 });
 
 afterEach(cleanup);
@@ -61,6 +62,20 @@ function baseProps(overrides: Partial<ConfirmDialogProps> = {}): ConfirmDialogPr
 }
 
 describe('ConfirmDialog (native)', () => {
+    // The two polite status lines are the typed LiveRegion: a type role and a colour role, not a hand-picked style, so
+    // they grow with the system text size and follow the scheme.
+    it.each([
+        ['busy', { busy: true, busyLabel: 'Discarding…' }, 'Discarding…'],
+        ['unavailable', { unavailable: 'Offline. Try again online.' }, 'Offline. Try again online.'],
+    ] as const)('says its %s status line in the meta role, in inkMuted', (_state, overrides, text) => {
+        render(<ConfirmDialog {...baseProps(overrides)} />);
+
+        const line = screen.getByText(text);
+
+        expect(resolvedColour(line, 'color')).toBe(rgb(rolesFor('light').inkMuted));
+        expect(resolvedStyle(line, 'fontSize')).toBe(`${String(nativeTokens.type.meta.fontSize)}px`);
+    });
+
     it('renders nothing while closed', () => {
         render(<ConfirmDialog {...baseProps({ open: false })} />);
 
@@ -170,14 +185,16 @@ describe('ConfirmDialog (native) — N1: the alert’s name is said once, by its
 
 /** Slice 2 of the UI overhaul (blueprint Part B, ConfirmDialog; spec §6.5) — the native half of the web leaf's cases. */
 describe('ConfirmDialog (native) — the overhaul contract', () => {
-    it('draws the confirm as the filled destructive tone with its glyph, and Keep as secondary with an x', () => {
+    // REWRITTEN: Keep used to default to an x. An x reads as close or discard, the opposite of "keep my work", so Keep is text
+    // only unless a caller names a glyph that means something (the designer's ruling 2026-11-03).
+    it('draws the confirm as the filled destructive tone with its glyph, and Keep as secondary with no glyph', () => {
         render(<ConfirmDialog {...baseProps()} />);
 
         const confirm = screen.getByRole('button', { name: 'Discard changes' });
         const keep = screen.getByRole('button', { name: 'Keep editing' });
 
         expect(confirm.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe('trash');
-        expect(keep.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe('x');
+        expect(keep.querySelector('[data-commise-stub="icon"]')).toBeNull();
     });
 
     it('puts Keep first, so a stacked pair reads destructive on top only through its layout', () => {

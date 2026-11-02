@@ -51,6 +51,14 @@
 -- here: the runner applies as the owner and `ALTER DEFAULT PRIVILEGES` gives the service role DML on every table the owner
 -- creates (ADR-0039), as 0058 did. The grant is proven by the LOCAL e2e suite writing as the service role.
 
+-- ⚠️ `lock_timeout`: recipe_import_items points at recipe_parse_jobs and recipes, and a foreign key takes SHARE ROW
+--   EXCLUSIVE on the table it points to. That blocks the table's writes and waits behind any open transaction on it, and
+--   `recipes` is the hottest table in the database. The runner's own lock_timeout covers only its advisory lock. A deploy
+--   that cannot take the lock in 5 s fails and a re-run retries it, instead of stalling every write queued behind it
+--   (food 0025 to 0027 do the same; `migrationLockTimeout.test.ts` holds the rule).
+
+SET LOCAL lock_timeout = '5s';
+
 CREATE TABLE recipe_imports (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     -- The app-user ULID from the verified token, never a request body field.

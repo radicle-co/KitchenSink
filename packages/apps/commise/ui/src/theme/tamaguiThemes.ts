@@ -12,10 +12,13 @@
  */
 import {
     chipFillRoleOf,
+    DEFAULT_SURFACE_TONE,
     pressFillsOf,
+    quietInkOf,
     SURFACE_TONE_NAMES,
     SURFACE_TONES,
     type PressScheme,
+    type SurfaceTone,
 } from '../surfaceTone/surfaceTone.js';
 import { role, roleDark, type Role } from '../tokens/colors.js';
 import { COVER_TINT_NAMES, coverTint, coverTintDark, type CoverTintName } from '../tokens/covers.js';
@@ -27,14 +30,20 @@ export type SurfaceToneThemeKey = `${(typeof SURFACE_TONE_NAMES)[number]}${'Fill
 /** The PRO badge's pair, from its own tone (`tones.ts`). */
 export const proThemeKeys = ['proFill', 'proInk'] as const;
 
+/**
+ * The keys Tamagui's own Sheet skin reads by bare name: its overlay is `shadow-color`. Supplied so the engine's default is
+ * our scrim, and a device logs no unknown-colour warning.
+ */
+export const engineThemeKeys = ['shadow-color'] as const;
+
+/** A theme key for the engine. */
+export type EngineThemeKey = (typeof engineThemeKeys)[number];
+
 /** A theme key for the PRO pair. */
 export type ProThemeKey = (typeof proThemeKeys)[number];
 
 /** A theme key for a cover tint. */
 export type CoverThemeKey = `cover${Capitalize<CoverTintName>}`;
-
-/** One scheme's theme: every role, each tone's fill, press and chip fill, the PRO pair, and the cover tints. */
-export type TamaguiTheme = Readonly<Record<Role | SurfaceToneThemeKey | ProThemeKey | CoverThemeKey, string>>;
 
 const coverKeyOf = (name: CoverTintName): CoverThemeKey =>
     `cover${name.charAt(0).toUpperCase()}${name.slice(1)}` as CoverThemeKey;
@@ -42,12 +51,69 @@ const coverKeyOf = (name: CoverTintName): CoverThemeKey =>
 /** Every cover-tint key, in table order. */
 export const coverThemeKeys: readonly CoverThemeKey[] = COVER_TINT_NAMES.map(coverKeyOf);
 
+/**
+ * The keys a surface tone sets: the ink a bare `Text` takes, its muted form and the divider, and the four a Tamagui part reads. `color` is `ink` under
+ * the name Tamagui reads; `ink` is also a role, so the parent already holds it.
+ */
+export const TONE_THEME_KEYS = [
+    'ink',
+    'color',
+    'background',
+    'backgroundPress',
+    'borderColor',
+    'inkMuted',
+    'lineDivider',
+] as const;
+
+/** A key a surface tone sets. */
+export type ToneThemeKey = (typeof TONE_THEME_KEYS)[number];
+
+/** A sub-theme: only the keys that differ by tone. Tamagui merges the rest from the parent. */
+export type ToneTheme = Readonly<Record<ToneThemeKey, string>>;
+
+/** One scheme's theme: every role, each tone's fill, press and chip fill, the PRO pair, the engine and tone keys, and the cover tints. */
+export type TamaguiTheme = Readonly<
+    Record<Role | SurfaceToneThemeKey | ProThemeKey | EngineThemeKey | ToneThemeKey | CoverThemeKey, string>
+>;
+
+/** A sub-theme's name: the scheme, an underscore, the tone. The one place the name is built. */
+export type ToneThemeName = `${PressScheme}_${SurfaceTone}`;
+
+/**
+ * The name of one scheme's sub-theme for a tone. Pure.
+ *
+ * @param scheme - The colour scheme.
+ * @param tone - The surface tone.
+ */
+export function toneThemeName(scheme: PressScheme, tone: SurfaceTone): ToneThemeName {
+    return `${scheme}_${tone}`;
+}
+
+/** Every sub-theme name, both schemes, in table order. */
+export const toneThemeNames: readonly ToneThemeName[] = (['light', 'dark'] as const).flatMap((scheme) =>
+    SURFACE_TONE_NAMES.map((tone) => toneThemeName(scheme, tone)),
+);
+
 /** Every surface-tone key, in table order. */
 export const surfaceToneThemeKeys: readonly SurfaceToneThemeKey[] = SURFACE_TONE_NAMES.flatMap((tone) => [
     `${tone}Fill` as const,
     `${tone}Press` as const,
     `${tone}ChipFill` as const,
 ]);
+
+function toneThemeOf(colors: Readonly<Record<Role, string>>, scheme: PressScheme, tone: SurfaceTone): ToneTheme {
+    const row = SURFACE_TONES[tone];
+    const ink = colors[row.ink];
+
+    return {
+        ink,
+        color: ink,
+        background: colors[row.fill],
+        backgroundPress: pressFillsOf(colors, scheme)[tone],
+        borderColor: colors.lineControl,
+        ...quietInkOf(colors, tone),
+    };
+}
 
 function themeOf(
     colors: Readonly<Record<Role, string>>,
@@ -70,10 +136,27 @@ function themeOf(
         ...Object.fromEntries(coverEntries),
         proFill: pro.fill,
         proInk: pro.text,
+        'shadow-color': colors.scrim,
+        // The parent holds the tone keys at the canvas, so a Tamagui part outside every surface reads the page.
+        ...toneThemeOf(colors, scheme, DEFAULT_SURFACE_TONE),
     } as TamaguiTheme;
 }
 
-export const tamaguiThemes: Readonly<Record<PressScheme, TamaguiTheme>> = {
-    light: themeOf(role, 'light', proTone, coverTint),
-    dark: themeOf(roleDark, 'dark', proToneDark, coverTintDark),
+const light = themeOf(role, 'light', proTone, coverTint);
+
+const dark = themeOf(roleDark, 'dark', proToneDark, coverTintDark);
+
+const sources = { light: role, dark: roleDark } as const;
+
+/** The themes: `light`, `dark`, and a partial `${scheme}_${tone}` sub-theme for each tone. */
+export const tamaguiThemes: Readonly<Record<PressScheme, TamaguiTheme> & Record<ToneThemeName, ToneTheme>> = {
+    light,
+    dark,
+    ...(Object.fromEntries(
+        toneThemeNames.map((name) => {
+            const [scheme, tone] = name.split('_') as [PressScheme, SurfaceTone];
+
+            return [name, toneThemeOf(sources[scheme], scheme, tone)];
+        }),
+    ) as Record<ToneThemeName, ToneTheme>),
 };

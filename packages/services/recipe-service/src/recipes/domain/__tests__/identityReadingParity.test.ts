@@ -90,6 +90,7 @@ describe('one classifier, two stated mappings', () => {
                 proposal: { matchedBy: 'lexical', rung: 'head' },
                 candidateCount: 2,
                 defaultApplies: false,
+                proposalIsDefault: false,
                 verdict,
                 review: 'asked',
             }).state,

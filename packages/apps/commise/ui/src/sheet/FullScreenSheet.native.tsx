@@ -17,17 +17,18 @@
  * when the platform has said reduce motion is off, by the `Sheet`'s rule (`sheetAnimationType`, curated D10, WCAG
  * 2.3.3).
  *
- * @pattern Decorator over the design-system `Modal` — it adds the window insets and the reduce-motion rule, nothing
+ * @pattern Decorator over the design-system `OverlayHost` — it adds the window insets and the reduce-motion rule, nothing
  *     else
  */
 import type { FC, ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Modal } from '../modal/Modal.native.js';
+import { OverlayHost } from '../overlay/OverlayHost.native.js';
+import { OverlayView } from '../overlay/OverlayView.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { surfaceFill } from '../surfaceTone/surfaceFill.js';
-import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { sheetAnimationType } from './sheetPresentation.js';
 
@@ -70,15 +71,15 @@ export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClos
     const theme = useTheme();
 
     return (
-        <Modal
+        <OverlayHost
             visible
-            onRequestClose={onRequestClose}
+            onDismissRequest={() => onRequestClose()}
             onShow={onShow}
             animationType={sheetAnimationType(reduceMotion)}
             presentationStyle="fullScreen"
         >
-            <SurfaceToneScope tone="paper">
-                <View
+            <ToneScope tone="paper">
+                <OverlayView
                     collapsable={false}
                     accessibilityLabel={label}
                     style={[
@@ -94,9 +95,9 @@ export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClos
                     ]}
                 >
                     {children}
-                </View>
-            </SurfaceToneScope>
-        </Modal>
+                </OverlayView>
+            </ToneScope>
+        </OverlayHost>
     );
 };
 

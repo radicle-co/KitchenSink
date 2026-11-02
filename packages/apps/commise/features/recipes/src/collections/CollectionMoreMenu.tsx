@@ -30,6 +30,8 @@ export const CollectionMoreMenu: FC<CollectionMoreMenuProps> = ({
     onSaveCopy,
     onPullUpdates,
     onDelete,
+    focusRequested = false,
+    onFocusRequestHandled,
 }) => {
     const { menu: copy } = useMessages(collectionMessages);
     const items = collectionMenuItems({
@@ -50,6 +52,8 @@ export const CollectionMoreMenu: FC<CollectionMoreMenuProps> = ({
             title={name}
             closeLabel={copy.close}
             items={items}
+            focusRequested={focusRequested}
+            {...(onFocusRequestHandled === undefined ? {} : { onFocusRequestHandled })}
             destructiveItem={{ id: 'delete', label: copy.delete, icon: 'trash', onSelect: onDelete }}
         />
     );

@@ -13,11 +13,14 @@
  * keyboard and window.
  *
  * @pattern Policy — `createFabPolicy` decides, the leaf draws
+ * @pattern Adapter over `View.focus()` — a level-triggered focus request, acknowledged once taken. It is the one reason
+ *     this leaf holds a ref: focusing a control has no declarative form.
  */
-import { useContext, useState, type FC } from 'react';
-import { I18nManager, Pressable, StyleSheet } from 'react-native';
+import { useContext, useRef, useState, type FC } from 'react';
+import { I18nManager, Pressable, StyleSheet, type View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { viewportClassOf } from '../layout/containerClass.js';
 import { SnackbarClearanceContext } from '../snackbar/snackbarClearanceContext.js';
 import { useWindowWidth } from '../screenEnvironment/useWindowWidth.native.js';
@@ -29,7 +32,16 @@ import type { CreateFabProps } from './props.js';
 import { useFabPresentation } from './useFabPresentation.native.js';
 
 /** The native design-system floating create button. */
-export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = false }) => {
+export const CreateFab: FC<CreateFabProps> = ({
+    label,
+    icon,
+    onPress,
+    yielded = false,
+    focusRequested = false,
+    onFocusRequestHandled,
+}) => {
+    const node = useRef<View>(null);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
     const [focused, setFocused] = useState(false);
     const [labelWidthPx, setLabelWidthPx] = useState(0);
     const presentation = useFabPresentation({ yielded, focused, labelWidthPx });
@@ -45,6 +57,7 @@ export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = 
 
     return (
         <Pressable
+            ref={node}
             accessibilityRole="button"
             accessibilityLabel={label}
             onPress={onPress}

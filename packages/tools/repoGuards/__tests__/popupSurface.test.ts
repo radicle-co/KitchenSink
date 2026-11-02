@@ -8,7 +8,7 @@
  * The rule, read with the TypeScript parser: an app module that imports a Radix dialog, alert dialog, popover or dropdown
  * menu, or the `Modal` adapter (`@commise/ui/modal`, the one door to React Native's `Modal`, itself held by
  * `modalAdapterImports.test.ts`), must also use the surface recipe: `surfaceToneClass`, `SURFACE_TONE_CLASS`, `Surface`,
- * `SurfaceToneScope`, `surfaceFill` or `BottomSheetPanel` (the sheet root, which states `paperOverlay` itself, so
+ * `SurfaceToneScope`, `ToneScope`, `surfaceFill` or `BottomSheetPanel` (the sheet root, which states `paperOverlay` itself, so
  * a module that only composes it states it by delegation); or, for a popup with no surface of its own (a lightbox, whose controls float over a
  * scrim), `FOCUS_RING_CLASS.floating`. A tooltip is not a surface (it is inverse and holds no control), so
  * `@radix-ui/react-tooltip` is not in the rule.
@@ -29,8 +29,18 @@ import { repoRoot } from './serviceSources.js';
 /** The popup libraries whose content leaves the tree or opens in its own window. */
 const RADIX_POPUPS = /^@radix-ui\/react-(?:dialog|alert-dialog|popover|dropdown-menu)$/u;
 
-/** The adapter every native modal opens through: a relative path to it, or the package export. */
-const MODAL_ADAPTER = /(?:^|\/)modal\/Modal(?:\.native)?\.js$|^@commise\/ui\/modal$/u;
+/**
+ * The doors every native modal window opens through: the `Modal` adapter, and `OverlayHost` over it (a relative path, or
+ * the package export).
+ */
+const MODAL_ADAPTER =
+    /(?:^|\/)modal\/Modal(?:\.native)?\.js$|^@commise\/ui\/modal$|(?:^|\/)overlay\/OverlayHost(?:\.native)?\.js$|^@commise\/ui\/overlay$/u;
+
+/**
+ * The window adapter itself. It wraps `Modal` and draws nothing: its children state the surface, as the `Modal` adapter's
+ * do. Exempt for the same reason `Modal.native.tsx` is (that file imports React Native, so it never matches).
+ */
+const WINDOW_HOST = 'packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx';
 
 /** The names that state a surface. */
 const STATES_SURFACE = new Set([
@@ -38,6 +48,7 @@ const STATES_SURFACE = new Set([
     'SURFACE_TONE_CLASS',
     'Surface',
     'SurfaceToneScope',
+    'ToneScope',
     'surfaceFill',
     'BottomSheetPanel',
 ]);
@@ -65,7 +76,9 @@ function opensPopup(file: ts.SourceFile): boolean {
             MODAL_ADAPTER.test(specifier) &&
             bindings !== undefined &&
             ts.isNamedImports(bindings) &&
-            bindings.elements.some((element) => (element.propertyName ?? element.name).text === 'Modal')
+            bindings.elements.some((element) =>
+                ['Modal', 'OverlayHost'].includes((element.propertyName ?? element.name).text),
+            )
         );
     });
 }
@@ -100,11 +113,16 @@ function statesSurface(file: ts.SourceFile): boolean {
 export function popupWithoutSurface(fileName: string, source: string): boolean {
     const file = parseModule(fileName, source);
 
-    return opensPopup(file) && !statesSurface(file);
+    return fileName !== WINDOW_HOST && opensPopup(file) && !statesSurface(file);
 }
 
 describe('the popup surface reader', () => {
-    const cases: readonly { readonly shape: string; readonly source: string; readonly flagged: boolean }[] = [
+    const cases: readonly {
+        readonly shape: string;
+        readonly source: string;
+        readonly flagged: boolean;
+        readonly file?: string;
+    }[] = [
         {
             shape: 'a Radix dialog with no surface',
             source: `import * as Dialog from '@radix-ui/react-dialog';\nexport const A = () => <Dialog.Content className="bg-white" />;`,
@@ -124,6 +142,22 @@ describe('the popup surface reader', () => {
             shape: 'a renamed Modal from the package export with no surface',
             source: `import { Modal as Window } from '@commise/ui/modal';\nexport const A = 1;`,
             flagged: true,
+        },
+        {
+            shape: 'an OverlayHost user with no surface',
+            source: `import { OverlayHost } from '../overlay/OverlayHost.native.js';\nexport const A = 1;`,
+            flagged: true,
+        },
+        {
+            shape: 'an OverlayHost user from the package export that states its tone',
+            source: `import { OverlayHost } from '@commise/ui/overlay';\nexport const A = () => <OverlayHost><SurfaceToneScope tone="paper" /></OverlayHost>;`,
+            flagged: false,
+        },
+        {
+            shape: 'the window host itself, which draws no surface',
+            source: `import { Modal } from '../modal/Modal.native.js';\nexport const A = 1;`,
+            flagged: false,
+            file: WINDOW_HOST,
         },
         {
             shape: 'the adapter itself, which wraps React Native’s Modal and is held by another guard',
@@ -151,6 +185,11 @@ describe('the popup surface reader', () => {
             flagged: false,
         },
         {
+            shape: 'a Modal that states its tone with ToneScope, the one door to SurfaceToneScope',
+            source: `import { Modal } from '@commise/ui/modal';\nexport const A = () => <Modal><ToneScope tone="paper" /></Modal>;`,
+            flagged: false,
+        },
+        {
             shape: 'a sheet that composes the sheet root, which states its own tone',
             source: `import { Modal } from '../modal/Modal.native.js';\nexport const A = () => <Modal><BottomSheetPanel /></Modal>;`,
             flagged: false,
@@ -172,9 +211,9 @@ describe('the popup surface reader', () => {
         },
     ];
 
-    for (const { shape, source, flagged } of cases) {
+    for (const { shape, source, flagged, file } of cases) {
         it(`reads ${shape}`, () => {
-            expect(popupWithoutSurface('fixture.tsx', source)).toBe(flagged);
+            expect(popupWithoutSurface(file ?? 'fixture.tsx', source)).toBe(flagged);
         });
     }
 });

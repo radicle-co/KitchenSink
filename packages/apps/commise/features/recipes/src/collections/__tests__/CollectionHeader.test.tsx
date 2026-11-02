@@ -57,6 +57,24 @@ function renderHeader(over: Partial<CollectionHeaderProps> = {}) {
     return props;
 }
 
+describe('CollectionHeader (web) — focus back on the menu', () => {
+    it('gives the ⋯ trigger focus when asked and says so once, which is how the rename sheet returns focus', () => {
+        const onMenuFocusHandled = vi.fn();
+        renderHeader({ menuFocusRequested: true, onMenuFocusHandled });
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }));
+        expect(onMenuFocusHandled).toHaveBeenCalledOnce();
+    });
+
+    it('leaves focus alone unless asked', () => {
+        renderHeader();
+
+        expect(document.activeElement).not.toBe(
+            screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }),
+        );
+    });
+});
+
 describe('CollectionHeader (web) — what it says', () => {
     it('is the name as the page’s one H1', () => {
         renderHeader();

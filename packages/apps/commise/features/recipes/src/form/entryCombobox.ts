@@ -3,7 +3,9 @@
  * ONE progressive answer (`useIngredientEntry`'s view). The authority is `docs/design/rowEditorOpenDecisions.md`,
  * "S7 list contract" P1 to P7, with items 1, 2, 5 and 10 and rulings R1 to R3; L1 to L4 govern the database part.
  *
- * Top to bottom (P1): the database line before the listbox when our database found no food; `Your foods`, `Food
+ * Top to bottom (P1): the database line before the listbox when our database found no food; the foods the entry
+ * SUGGESTS from a remembered answer, one unnamed group tagged `Suggested` (designer answer N2; known before the list
+ * is shown, so nothing moves, and never the active option); `Your foods`, `Food
  * catalog`; `Not listed?` with Find nutrition and Use as written; one `From {source}` group per remote source, in
  * arrival order; on the trailing row, Create my own food once the answer ends. After the listbox, the trailing lines:
  * the database line when our database found a food (`docs/design/v3Evaluation.md` V3-M2a), each source's note in
@@ -19,6 +21,7 @@
  * @pattern Visitor — exhaustive switches over the search view and the remote parts
  */
 import type { ComboboxGroup, ComboboxOption, ComboboxStatus } from '@commise/ui/combobox';
+import type { IngredientNameProposal } from '@kitchensink/schema-recipe';
 
 import { variantPartTexts } from '../detail/lineName.js';
 import type {
@@ -53,6 +56,8 @@ export interface EntryComboboxCopy {
         | 'ingredientSuggestionsMoreHeading'
         | 'ingredientSuggestionsCreateHeading'
         | 'ingredientEntryFindByName'
+        | 'ingredientSuggestedTag'
+        | 'ingredientSuggestedName'
         | 'ingredientEntryUseAsWritten'
         | 'ingredientSuggestionsAuthoredHeading'
         | 'ingredientSuggestionsCatalogHeading'
@@ -90,11 +95,19 @@ export interface EntryComboboxInput extends SourceNaming {
      * `docs/design/rowEditorOpenDecisions.md` O3). A row's list does not: a line reaches it through its `⋮`.
      */
     readonly offersCreateOwnFood: boolean;
+    /**
+     * The foods the entry remembers an answer for, for the text the list is served for (`IngredientEntry.suggestions`).
+     * They lead the list as ONE unnamed group, tagged, and are listed only while the served answer is (P2: nothing
+     * already shown moves).
+     */
+    readonly suggestions: readonly IngredientNameProposal[];
 }
 
 /** The pick an option stands for. */
 export type EntryOption =
     | { readonly kind: 'food'; readonly food: FoodOption }
+    /** A food offered from a remembered answer; picking it binds that food like any listed one. */
+    | { readonly kind: 'suggestedFood'; readonly proposal: IngredientNameProposal }
     | { readonly kind: 'remoteFood'; readonly food: RemoteFoodOption }
     | { readonly kind: 'findByName' }
     | { readonly kind: 'useAsWritten' }
@@ -156,28 +169,46 @@ const countOf = (count: number, copy: EntryComboboxCopy): string | undefined =>
 
 /**
  * The database line (L3, P6): what could not be searched, else, with both groups answered and no food, that nothing
- * matches. ⛔ Only an answer from BOTH groups may say no food matches. It never changes after the settle (P2). Pure.
+ * matches. ⛔ Only an answer from BOTH groups may say no food matches, and never beside a Suggested option: the list
+ * shows a food then (designer ruling, designAnswers.md 70a41c3b4). It never changes after the settle (P2). Pure.
  */
-const databaseLineOf = (database: DatabasePart, query: string, copy: EntryComboboxCopy): string | undefined =>
+const databaseLineOf = (
+    database: DatabasePart,
+    query: string,
+    foodsShown: number,
+    copy: EntryComboboxCopy,
+): string | undefined =>
     unsearchedSentenceOf(database, copy) ??
-    (foodsOf(database.authored).length + foodsOf(database.catalog).length === 0
-        ? fillTemplate(copy.form.ingredientNoSuggestions, { query })
-        : undefined);
+    (foodsShown === 0 ? fillTemplate(copy.form.ingredientNoSuggestions, { query }) : undefined);
 
 /** The remote foods a source added. Pure. */
 const addedBy = (part: RemotePart): readonly RemoteFoodOption[] => (part.kind === 'answered' ? part.foods : []);
+
+/** The Suggested options a served list leads with: how many, and which picks they are (for the catalog to skip). */
+interface SuggestedFoods {
+    readonly count: number;
+    /** `${kind}:${id}` of each proposal: the pick it makes. */
+    readonly picks: ReadonlySet<string>;
+}
+
+/** The pick a catalog row makes, in a proposal's terms: the variant it matched, else the root (`pickOfOption`). Pure. */
+const catalogPickOf = (option: CatalogFoodOption): string =>
+    option.hit.variant === undefined ? `root:${option.hit.id}` : `variant:${option.hit.variant.id}`;
 
 /** A served answer's part of the view (P1 to P7). Pure. */
 const servedSpeechOf = (
     view: Extract<EntrySearchView, { kind: 'served' }>,
     query: string,
+    suggested: SuggestedFoods,
     input: EntryComboboxInput,
     copy: EntryComboboxCopy,
 ): StateSpeech => {
     const { database, remote, progress } = view;
+    const suggestedCount = suggested.count;
     const authored = foodsOf(database.authored);
-    const catalog = foodsOf(database.catalog);
-    const databaseLine = databaseLineOf(database, query, copy);
+    // The Suggested option IS the food, so its catalog row would be the same food twice (designer review): by id.
+    const catalog = foodsOf(database.catalog).filter((option) => !suggested.picks.has(catalogPickOf(option)));
+    const databaseLine = databaseLineOf(database, query, authored.length + catalog.length + suggestedCount, copy);
     const unavailableSentence = unsearchedSentenceOf(database, copy);
     const ended = progress !== 'running';
     const notes = sourceNotesOf(remote, input, copy);
@@ -205,7 +236,7 @@ const servedSpeechOf = (
 
     const remoteCount = remote.reduce((count, part) => count + addedBy(part).length, 0);
     const noMatch =
-        database.authored.kind === 'answered' && database.catalog.kind === 'answered'
+        database.authored.kind === 'answered' && database.catalog.kind === 'answered' && suggestedCount === 0
             ? fillTemplate(copy.form.ingredientNoSuggestions, { query })
             : undefined;
 
@@ -217,7 +248,11 @@ const servedSpeechOf = (
         if (!ended) {
             // Between the settle and the guard it stays `searching`, which is silent because it does not change (P7).
             return input.databaseSaidEarly
-                ? sentences(countOf(databaseCount, copy) ?? noMatch, unavailableSentence, copy.remote.stillSearching)
+                ? sentences(
+                      countOf(databaseCount + suggestedCount, copy) ?? noMatch,
+                      unavailableSentence,
+                      copy.remote.stillSearching,
+                  )
                 : copy.pickerSearch.searching;
         }
 
@@ -241,7 +276,11 @@ const servedSpeechOf = (
             return more.length === 0 && endNotes.length === 0 ? copy.remote.noMore : sentences(...more, ...endNotes);
         }
 
-        return sentences(countOf(databaseCount + remoteCount, copy) ?? noMatch, unavailableSentence, ...endNotes);
+        return sentences(
+            countOf(databaseCount + suggestedCount + remoteCount, copy) ?? noMatch,
+            unavailableSentence,
+            ...endNotes,
+        );
     })();
 
     return {
@@ -274,6 +313,7 @@ const NOTHING: StateSpeech = {
 const speechOf = (
     view: EntrySearchView,
     query: string,
+    suggested: SuggestedFoods,
     input: EntryComboboxInput,
     copy: EntryComboboxCopy,
 ): StateSpeech => {
@@ -313,7 +353,7 @@ const speechOf = (
                 assertive: copy.pickerSearch.failed,
             };
         case 'served':
-            return servedSpeechOf(view, query, input, copy);
+            return servedSpeechOf(view, query, suggested, input, copy);
 
         default: {
             const unhandled: never = view;
@@ -361,6 +401,14 @@ const remoteOptionOf = (option: RemoteFoodOption, source: string, copy: EntryCom
     accessibleName: fillTemplate(copy.remote.hitName, { name: option.hit.name, source }),
 });
 
+/** A Suggested food, as an option: the tag is drawing, and the accessible name says it (WCAG 2.5.3). Pure. */
+const suggestedOptionOf = (proposal: IngredientNameProposal, copy: EntryComboboxCopy): ComboboxOption => ({
+    key: `suggested:${proposal.kind}:${proposal.id}`,
+    label: proposal.name,
+    tag: copy.form.ingredientSuggestedTag,
+    accessibleName: fillTemplate(copy.form.ingredientSuggestedName, { name: proposal.name }),
+});
+
 /**
  * The picker's default hint (`editor.foodSearch.defaultHint`, staff-ux U16): a note under the list while it shows a
  * default — an option carrying the Default tag — and nothing otherwise. The search wire carries no `isDefault` yet
@@ -391,7 +439,32 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
     }
 
     const query = input.text.trim();
-    const speech = speechOf(input.view, query, input, copy);
+    // First, unnamed, and only beside a served list: a suggestion for a text the list is not served for would move.
+    const suggested = new Map<string, ComboboxOption>();
+
+    if (input.view.kind === 'served') {
+        for (const proposal of input.suggestions) {
+            const option = suggestedOptionOf(proposal, copy);
+
+            // A repeated proposal is one option: keys stay unique.
+            if (!suggested.has(option.key)) {
+                suggested.set(option.key, option);
+                options.set(option.key, { kind: 'suggestedFood', proposal });
+            }
+        }
+    }
+
+    // The count and "Nothing matches" read the foods the list SHOWS, so a Suggested option is one of them.
+    const speech = speechOf(
+        input.view,
+        query,
+        {
+            count: suggested.size,
+            picks: new Set(input.suggestions.map((proposal) => `${proposal.kind}:${proposal.id}`)),
+        },
+        input,
+        copy,
+    );
     const groups: ComboboxGroup[] = [];
     const createOption: ComboboxOption = {
         key: 'createOwnFood',
@@ -420,6 +493,10 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
             });
         }
     };
+
+    if (suggested.size > 0) {
+        groups.push({ key: 'suggested', options: [...suggested.values()] });
+    }
 
     grouped('authored', copy.form.ingredientSuggestionsAuthoredHeading, speech.authored, (food) =>
         authoredOptionOf(food, copy),
@@ -471,7 +548,11 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
         options.set(createOption.key, { kind: 'createOwnFood' });
     }
 
-    const hint = defaultHintOf(groups, copy.form.foodSearch.defaultHint);
+    // The hint is about the Default tag; a Suggested tag must not raise it.
+    const hint = defaultHintOf(
+        groups.filter((group) => group.key !== 'suggested'),
+        copy.form.foodSearch.defaultHint,
+    );
 
     return {
         groups,

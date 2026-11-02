@@ -747,10 +747,45 @@ describe('entryComboboxOf — Suggested foods (owner ruling 2026-11-03; designer
         expect(linesOf(view.trailingStatus)).not.toContain(form.foodSearch.defaultHint);
     });
 
-    it('does not change what the count says (it counts foods found, item 5)', () => {
-        const without = entryComboboxOf(input({ suggestions: [] }), COPY);
-        const withSuggestions = entryComboboxOf(input({ suggestions: [ROOT] }), COPY);
+    // Designer ruling (designAnswers.md, commit 70a41c3b4): REVERSES the earlier "a Suggested food does not change the
+    // count" test. The polite count includes the Suggested options (every food option shown, never "Search for another
+    // food"), and "Nothing matches" speaks only when the list shows no food at all.
+    describe('the count and "Nothing matches" (designer ruling, same on web and mobile)', () => {
+        const NO_DATABASE_ROWS = (): EntryComboboxInput => input({ view: viewOf([databaseFrame(), COMPLETE_FRAME]) });
 
-        expect(withSuggestions.countAnnouncement).toBe(without.countAnnouncement);
+        it('a suggestion with no database match: counts the suggestion and never says nothing matches', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [ROOT] }, COPY);
+
+            expect(view.countAnnouncement).toBe('1 food found');
+            expect(view.status).toBeUndefined();
+            expect(linesOf(view.trailingStatus)).not.toContain(NO_MATCH);
+            expect(view.countAnnouncement).not.toContain('Nothing in your foods');
+        });
+
+        it('a suggestion with database rows: the count is the suggestions plus the database foods', () => {
+            const view = entryComboboxOf(input({ suggestions: [ROOT, VARIANT] }), COPY);
+
+            expect(view.countAnnouncement).toBe('4 foods found');
+        });
+
+        it('a repeated proposal is counted once, as it is shown once', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [ROOT, ROOT] }, COPY);
+
+            expect(view.countAnnouncement).toBe('1 food found');
+        });
+
+        it('the plain no-match state is unchanged: nothing listed, so it still says nothing matches', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [] }, COPY);
+
+            expect(view.countAnnouncement).toBe(NO_MATCH);
+            expect(view.status).toEqual({ kind: 'note', text: NO_MATCH });
+        });
+
+        it('does not count "Search for another food", which is not a food', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [ROOT] }, COPY);
+
+            expect(view.groups.some((group) => group.key === 'more')).toBe(true);
+            expect(view.countAnnouncement).toBe('1 food found');
+        });
     });
 });

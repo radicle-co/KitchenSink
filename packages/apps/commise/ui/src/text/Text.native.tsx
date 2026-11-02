@@ -96,6 +96,9 @@ const TextFrame = styled(TamaguiText, {
         pictorial: {
             true: {},
         },
+        // Initials in a disc (a guard admits it in the avatar disc and the discovery footer's avatar): a size in px that does
+        // not scale, 40% of the disc's diameter (designer ruling 2026-11-03).
+        fixedPx: styled.dynamic<number>(),
     } as const,
 
     defaultVariants: {
@@ -112,6 +115,7 @@ interface ScaledTextProps {
     readonly textScale?: number;
     readonly chromeCap?: ChromeCap;
     readonly pictorial?: boolean;
+    readonly fixedPx?: number;
 }
 
 /**
@@ -119,6 +123,6 @@ interface ScaledTextProps {
  * role's ceiling (`scaledTypeMetrics`, ADR-0080 §8). The scale comes from `TextScaleContext`, which `DesignSystemTheme`
  * provides. `figureInline` gets no size of its own and keeps its line's. A `styled(Text)` inherits the resolver.
  */
-export const Text = TextFrame.resolve(({ typeRole, textScale, chromeCap, pictorial }: ScaledTextProps) =>
-    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap, pictorial),
+export const Text = TextFrame.resolve(({ typeRole, textScale, chromeCap, pictorial, fixedPx }: ScaledTextProps) =>
+    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap, pictorial, fixedPx),
 );

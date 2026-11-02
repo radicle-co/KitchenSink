@@ -139,3 +139,19 @@ describe('scaledTypeMetrics for a mark on a picture', () => {
         expect(scaledTypeMetrics('caption', 3.1, undefined, false)).toMatchObject({ fontSize: fontSize * 2 });
     });
 });
+
+// Designer ruling c10ecadbf (2026-11-03): initials in a disc are drawn at 40% of the disc's diameter and do not scale, so
+// two letters fit at every size. The size is the caller's, in px; the leading is the size plus 4.
+describe('scaledTypeMetrics for a fixed size', () => {
+    it.each([1, 1.5, 2, 3.1])('draws the given px at system scale %f, whatever the role says', (scale) => {
+        expect(scaledTypeMetrics('label', scale, undefined, false, 12)).toEqual({ fontSize: 12, lineHeight: '16px' });
+    });
+
+    it('wins over a chrome cap and over a picture mark', () => {
+        expect(scaledTypeMetrics('label', 2, '1.5', true, 8)).toEqual({ fontSize: 8, lineHeight: '12px' });
+    });
+
+    it('leaves a role without a fixed size to scale as before', () => {
+        expect(scaledTypeMetrics('label', 2)).toMatchObject({ fontSize: 28 });
+    });
+});

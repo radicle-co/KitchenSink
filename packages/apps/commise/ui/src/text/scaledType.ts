@@ -82,6 +82,8 @@ export function scaledTypeSize(
  * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
  * @param pictorial - A mark drawn on a picture (PRO on a card cover), which keeps the role's own size at every scale
  *     (designer ruling 2026-11-01, M-1); the text around the picture states the same word at the scaled size.
+ * @param fixedPx - A size in px that does not scale (initials in a disc, drawn at 40% of its diameter: designer ruling
+ *     2026-11-03). It wins over the role's size, the cap and `pictorial`; the leading is the size plus 4.
  * @returns The scaled size and leading, or nothing for `figureInline`, which keeps its line's.
  */
 export function scaledTypeMetrics(
@@ -89,7 +91,12 @@ export function scaledTypeMetrics(
     systemScale: number,
     chromeCap?: ChromeCap,
     pictorial = false,
+    fixedPx?: number,
 ): ScaledTypeMetrics | Record<string, never> {
+    if (fixedPx !== undefined) {
+        return { fontSize: fixedPx, lineHeight: `${fixedPx + 4}px` };
+    }
+
     if (role === 'figureInline') {
         return {};
     }

@@ -17,8 +17,9 @@
  * `components` is typed, so referencing a component that does not exist is a `typecheck` failure, and the generator
  * prints every response left without a body schema on each run.
  */
-import { buildOpenApiDocument } from '@kitchensink/contract-gen';
-import type { OpenApiBuildResult } from '@kitchensink/contract-gen';
+import { buildOpenApiDocument, withResponseOnOperations } from '@kitchensink/contract-gen';
+import type { OpenApiBuildResult, OpenApiSpec } from '@kitchensink/contract-gen';
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import { z } from 'zod';
 
 import { apiErrorSchema } from '../src/common/apiError.schema.js';
@@ -120,7 +121,7 @@ const adminAction = (
     }) as const;
 
 /** The derived document plus its response-schema coverage report. */
-export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
+const identityOpenApiSpec: OpenApiSpec<typeof components> = {
     title: 'Commise Identity API',
     version: '1.0.0',
     description:
@@ -386,4 +387,23 @@ export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument(
             },
         },
     },
+};
+
+/**
+ * The identity OpenAPI document and its coverage report.
+ *
+ * The suspended-account `403` is added here to every operation a Clerk session reaches, rather than written on each
+ * route: the auth middleware answers it before any handler runs (ADR-0081). Erasure is exempt in the verifier and not
+ * in this document. A route's own `403` keeps its meaning and gains this one.
+ */
+export const identityOpenApiDocument: OpenApiBuildResult = buildOpenApiDocument({
+    ...identityOpenApiSpec,
+    paths: withResponseOnOperations<keyof typeof components & string>(identityOpenApiSpec.paths, {
+        status: '403',
+        response: {
+            description: `The token is genuine but its account is suspended: \`code: ${ACCOUNT_SUSPENDED_CODE}\` (ADR-0081). Answered before the route runs; the erasure route alone is exempt.`,
+            schema: 'ApiError',
+        },
+        appliesTo: (operation) => operation.security === undefined || operation.security.includes('clerkSession'),
+    }),
 });

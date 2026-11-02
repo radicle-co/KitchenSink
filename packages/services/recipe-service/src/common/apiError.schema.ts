@@ -159,6 +159,11 @@ export const recipeErrorCodeSchema = z.enum([
      * contained my test write, as designed" from a scope gate it should treat as a failure.
      */
     'TEST_PRINCIPAL_CONTAINED',
+    /**
+     * ADR-0081 — the token is genuine but its account is SUSPENDED: a `403` the shared verifier raises before any handler
+     * runs. Its own code so a client tells it from a missing ownership or scope; no retry or sign-in lifts it.
+     */
+    'ACCOUNT_SUSPENDED',
     /** The caller's account has already been erased — a `410` on the erasure route. */
     'ACCOUNT_ALREADY_ERASED',
 
@@ -324,6 +329,7 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('IDENTITY_SYNC_PENDING'),
     bare('FORBIDDEN'),
     bare('TEST_PRINCIPAL_CONTAINED'),
+    bare('ACCOUNT_SUSPENDED'),
     bare('ACCOUNT_ALREADY_ERASED'),
     bare('NOT_FOUND'),
     bare('PAYLOAD_TOO_LARGE'),

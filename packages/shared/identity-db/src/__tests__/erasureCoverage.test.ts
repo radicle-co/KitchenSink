@@ -47,7 +47,7 @@ async function tablesTouchedByErasure(): Promise<ReadonlySet<string>> {
         update: (table: Table) => {
             touched.add(getTableName(table));
 
-            return { set: () => ({ where: () => Promise.resolve() }) };
+            return { set: () => ({ where: () => ({ returning: () => Promise.resolve([{ id: 'u' }]) }) }) };
         },
         delete: (table: Table) => {
             touched.add(getTableName(table));

@@ -1,5 +1,6 @@
 export {
     PROVISION_LOCK_NAMESPACE,
+    isEmailUniqueViolation,
     isNonRevivable,
     provisionCompleteUser,
     type CreatedByline,

@@ -7,7 +7,6 @@ import { getConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
 
 import { enqueueErasure } from '../common/erasureEnqueue.js';
-import { deleteUser, isAlreadyDeleted } from '../common/identityClient.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
 
 /**
@@ -39,15 +38,14 @@ interface ExpiredTombstone {
 interface SweepResult {
     scanned: number;
     erased: number;
-    failed: number;
 }
 
 /**
  * The scheduled 12-month tombstone → erasure sweep (KTD-3). Idempotent: it only selects `tombstoned` rows past
  * the retention cutoff; once erased (`status='erased'`) a row is never re-selected. Per user, ordered for
- * convergence: Clerk `deleteUser` FIRST (tolerating an already-deleted 404), THEN the DB scrub + audit, THEN
- * the recipe/food erasure legs (U3/U4 seam). A Clerk failure for one user is logged and skips only that user
- * (retried next run) — it never aborts the batch.
+ * convergence: the status-guarded DB scrub + audit FIRST (a row no longer tombstoned is skipped), THEN the
+ * `erasure` message, whose worker deletes the Clerk account, confirms it, and fans out the recipe/food legs. A
+ * failed enqueue is logged and left to erasure reconciliation; it never aborts the batch.
  *
  * @implements CR-002 KTD-3 R3 R8
  */
@@ -62,35 +60,30 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
         .where(and(eq(users.status, 'tombstoned'), lte(users.deletedAt, cutoff)))) satisfies ExpiredTombstone[];
 
     let erased = 0;
-    let failed = 0;
 
     for (const tombstone of expired) {
-        // Clerk delete FIRST (the irreversible external action), tolerating an already-deleted 404 so a
-        // crash-after-delete retry still converges. Any other failure skips THIS user (left tombstoned,
-        // retried next run) without aborting the batch — never leaving the DB erased while Clerk survives.
-        try {
-            await deleteUser(tombstone.identityId);
-        } catch (err) {
-            if (!isAlreadyDeleted(err)) {
-                failed += 1;
-                // Dimensionless — both ids are on the log line below (see the cardinality gate).
-                emitMetric('TombstoneErasureClerkDeleteFailed', 1);
-                logger.error('tombstone-sweep: Clerk deleteUser failed; leaving tombstone for next run', {
-                    identityId: tombstone.identityId,
-                    userId: tombstone.id,
-                    error: err instanceof Error ? err.message : String(err),
-                });
-                continue;
-            }
-        }
-
-        // Clerk was deleted (or already gone) just above, so the provider deletion is confirmed in the SAME update
-        // as the scrub — this path never leaves reconciliation anything to re-enqueue.
-        await eraseIdentityRow(
+        // CLAIM THE ROW FIRST, with the status-guarded write. The Clerk delete is irreversible, so it may only follow
+        // a claim: a tombstone an admin reactivated since the select is skipped below, with its Clerk account intact.
+        // The deletion worker (`erasure` event) owns the Clerk delete and writes `provider_deleted_at`, and erasure
+        // reconciliation re-enqueues until that is written, so the provider leg stays at-least-once.
+        const wasErased = await eraseIdentityRow(
             db,
-            { userId: tombstone.id, triggerSource: 'sweep', actor: null, providerDeletedAt: now },
+            {
+                userId: tombstone.id,
+                triggerSource: 'sweep',
+                actor: null,
+                providerDeletedAt: null,
+                expectedStatus: 'tombstoned',
+            },
             now,
         );
+
+        // Reactivated (or erased by another path) since the select above: nothing was scrubbed, so there is no
+        // audit row to match and no downstream erasure to enqueue.
+        if (!wasErased) {
+            logger.warn('tombstone-sweep: row is no longer tombstoned; skipped', { userId: tombstone.id });
+            continue;
+        }
 
         // Enqueue the recipe/food erasure legs via the existing deletion path (U3/U4 seam). Best-effort: a
         // failed enqueue leaves the identity erased but the downstream legs unqueued — a gap the nightly
@@ -105,7 +98,7 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
                 });
             }
         } else {
-            logger.warn('tombstone-sweep: DELETION_QUEUE_URL unset; recipe/food erasure legs NOT enqueued', {
+            logger.error('tombstone-sweep: DELETION_QUEUE_URL unset; Clerk delete and erasure legs NOT enqueued', {
                 userId: tombstone.id,
             });
         }
@@ -115,9 +108,9 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
     }
 
     emitMetric('TombstoneErasureSwept', erased);
-    logger.info('tombstone-sweep complete', { scanned: expired.length, erased, failed });
+    logger.info('tombstone-sweep complete', { scanned: expired.length, erased });
 
-    return { scanned: expired.length, erased, failed };
+    return { scanned: expired.length, erased };
 };
 
 /** @implements CR-002 KTD-3 R3 R8 */

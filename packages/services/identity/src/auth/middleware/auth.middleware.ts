@@ -117,7 +117,7 @@ export class AuthMiddleware implements NestMiddleware {
             throw new UnauthorizedException('Missing bearer token');
         }
 
-        const claims = await this.clerkAuth.verify(bearer);
+        const claims = await this.clerkAuth.verify(bearer, { method: req.method, path });
         traceAuth('token.verified', { sub: claims.sub, path });
 
         try {

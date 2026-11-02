@@ -116,4 +116,41 @@ describe('ClerkAuthService (recipe-service)', () => {
             await expect((await makeService()).verify('t')).resolves.toMatchObject({ sub: 'u' });
         });
     });
+
+    // ADR-0081: the shared verifier refuses a suspended account's token; this adapter names the request and answers 403.
+    describe('suspended accounts', () => {
+        const suspendedPayload = {
+            sub: 'user_s',
+            azp: 'https://commise.app',
+            external_id: '01HZY0OWNERULID0000000000',
+            public_metadata: { suspended: true },
+        };
+
+        beforeEach(() => {
+            process.env['CLERK_AUTHORIZED_PARTIES'] = 'https://commise.app';
+        });
+
+        it('⛔ answers 403 ACCOUNT_SUSPENDED, not 401', async () => {
+            mockVerifyToken.mockResolvedValueOnce(suspendedPayload);
+
+            const error: unknown = await (
+                await makeService()
+            )
+                .verify('t', { method: 'POST', path: '/api/v1/recipes' })
+                .catch((thrown: unknown) => thrown);
+
+            expect(error).toMatchObject({ status: 403 });
+            expect((error as { getResponse(): unknown }).getResponse()).toMatchObject({ code: 'ACCOUNT_SUSPENDED' });
+        });
+
+        it.each([
+            ['POST', '/api/v1/account/erasure'],
+            ['GET', '/api/v1/account/export'],
+            ['GET', '/api/v1/recipes'],
+        ])('lets a suspended account through %s %s (data rights and the erase screen read)', async (method, path) => {
+            mockVerifyToken.mockResolvedValueOnce(suspendedPayload);
+
+            await expect((await makeService()).verify('t', { method, path })).resolves.toMatchObject({ sub: 'user_s' });
+        });
+    });
 });

@@ -15,6 +15,7 @@ const {
     mockRunErasureFanout,
     mockSettleStatusVersion,
     mockConfirmProviderDeleted,
+    mockSetSuspendedMark,
 } = vi.hoisted(() => ({
     mockFindByIdentityId: vi.fn(),
     mockEraseIdentityRow: vi.fn(),
@@ -23,6 +24,8 @@ const {
     mockSettleStatusVersion: vi.fn().mockResolvedValue(true),
     // P1 #5: the durable "Clerk confirmed this account is gone" stamp.
     mockConfirmProviderDeleted: vi.fn(),
+    // ADR-0081: the Clerk `public_metadata.suspended` mark the convergence writes and clears.
+    mockSetSuspendedMark: vi.fn(),
 }));
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
@@ -51,6 +54,8 @@ vi.mock('../../common/identityClient.js', async (importOriginal) => ({
     // `isAlreadyDeleted` is left REAL: it is a pure 404 predicate, and doubling it would let a test pass
     // while the actual convergence rule was wrong.
 }));
+
+vi.mock('../../common/accountStandingClient.js', () => ({ setSuspendedMark: mockSetSuspendedMark }));
 
 vi.mock('../../common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
 
@@ -108,6 +113,8 @@ beforeEach(() => {
     mockEraseIdentityRow.mockResolvedValue(undefined);
     mockRunErasureFanout.mockResolvedValue(bothLegsOk);
     mockConfirmProviderDeleted.mockResolvedValue(undefined);
+    mockSetSuspendedMark.mockResolvedValue('written');
+    mockSettleStatusVersion.mockResolvedValue(true);
     process.env['DB_HOST'] = 'db.internal';
     process.env['DB_PORT'] = '5432';
     process.env['DB_NAME'] = 'kitchensink_identity';
@@ -186,6 +193,66 @@ describe('deletion-worker handler', () => {
         });
 
         /**
+         * ⛔ ADR-0081. The same convergence also brings the token mark to the stored status: `suspended` writes it,
+         * anything else clears it. The mark is written BEFORE the settle, so a suspend/unsuspend interleave is caught
+         * by the same compare-and-set that protects the ban: a stale worker's settle fails, it throws, and the
+         * redelivery applies the newer status.
+         */
+        it.each([
+            ['suspended', true],
+            ['active', false],
+            ['tombstoned', false],
+        ] as const)('a %s row sets the suspended mark to %s, before it settles', async (status, mark) => {
+            mockFindByIdentityId.mockResolvedValue({ id: 'usr_01', identityId: 'user_abc', status, statusVersion: 3 });
+
+            await handler(
+                makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'reactivation' }),
+                makeContext(),
+            );
+
+            expect(mockSetSuspendedMark).toHaveBeenCalledWith('user_abc', mark);
+            expect(mockSetSuspendedMark.mock.invocationCallOrder[0]).toBeLessThan(
+                mockSettleStatusVersion.mock.invocationCallOrder[0] as number,
+            );
+            expect(mockSettleStatusVersion).toHaveBeenCalledWith('usr_01', 3);
+        });
+
+        it('⛔ does NOT settle when the mark cannot be written, so the redelivery tries again', async () => {
+            mockFindByIdentityId.mockResolvedValue({
+                id: 'usr_01',
+                identityId: 'user_abc',
+                status: 'suspended',
+                statusVersion: 3,
+            });
+            mockSetSuspendedMark.mockRejectedValue(new Error('clerk 500'));
+
+            await expect(
+                handler(
+                    makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'reactivation' }),
+                    makeContext(),
+                ),
+            ).rejects.toThrow('clerk 500');
+            expect(mockSettleStatusVersion).not.toHaveBeenCalled();
+        });
+
+        it('settles when Clerk no longer holds the user (nothing to mark)', async () => {
+            mockFindByIdentityId.mockResolvedValue({
+                id: 'usr_01',
+                identityId: 'user_abc',
+                status: 'active',
+                statusVersion: 3,
+            });
+            mockSetSuspendedMark.mockResolvedValue('absent');
+
+            await handler(
+                makeSqsEvent({ identityId: 'user_abc', userId: 'usr_01', event: 'reactivation' }),
+                makeContext(),
+            );
+
+            expect(mockSettleStatusVersion).toHaveBeenCalledWith('usr_01', 3);
+        });
+
+        /**
          * ⛔ A version that moved during the provider call means a NEWER intent was recorded while we were
          * away, so this result is already stale. Acknowledging would mark the account converged at a state
          * it is no longer in — the divergence the whole function exists to prevent, arriving by another
@@ -222,6 +289,7 @@ describe('deletion-worker handler', () => {
 
             expect(mockBanUser).not.toHaveBeenCalled();
             expect(mockUnbanUser).not.toHaveBeenCalled();
+            expect(mockSetSuspendedMark).not.toHaveBeenCalled();
             expect(mockSettleStatusVersion).not.toHaveBeenCalled();
         });
     });

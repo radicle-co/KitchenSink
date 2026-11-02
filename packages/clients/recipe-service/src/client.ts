@@ -1745,6 +1745,7 @@ export class RecipeServiceClient {
             case 'CANNOT_RATE_OWN_RECIPE':
             case 'FORBIDDEN':
             case 'TEST_PRINCIPAL_CONTAINED': // ADR-0040: a contained test write — its code tells it from a scope gate.
+            case 'ACCOUNT_SUSPENDED': // ADR-0081: a suspended account — a 403 whose code tells it from an ownership gate.
                 return new ForbiddenError(body.message, body.code);
             case 'UNAUTHORIZED':
             case 'IDENTITY_SYNC_PENDING':

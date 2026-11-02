@@ -15,7 +15,9 @@
  *    dead queue are indistinguishable from owed rows and a busy one.
  *
  * ⛔ READ-ONLY, and ESCALATE-ONLY. It never bans, unbans, re-enqueues or repairs — every guarantee lives in
- * the producer and the worker, and a backstop that repairs is a second writer nobody designed for.
+ * the producer and the worker, and a backstop that repairs is a second writer nobody designed for. The RE-SEND of a
+ * lost convergence trigger is a separate job (`common/convergenceRedrive.ts`, run by the erasure reconciliation),
+ * so this role keeps no send permission.
  *
  * @implements R29 R30 R32 R34 R36
  */

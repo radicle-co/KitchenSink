@@ -20,7 +20,7 @@
  * `status IN ('tombstoned','erased')`, so an `active`+soft-deleted row (the OLD legacy purge) was NOT
  * protected — an erased one is.
  */
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { IdentityWriter } from './identityWriter.js';
 import type { UserId } from './ulid.js';
 
@@ -49,6 +49,12 @@ export interface EraseIdentityInput {
      * observable as erased with a confirmation that was decided later.
      */
     readonly providerDeletedAt: Date | null;
+    /**
+     * The status the caller read before deciding to erase. When given it goes in the UPDATE's WHERE, so a row another
+     * path moved since the read (an admin reactivation, say) is left alone. Omit it for an erasure that is valid from
+     * any state (the user's own request, the `user.deleted` webhook).
+     */
+    readonly expectedStatus?: typeof users.$inferSelect.status;
 }
 
 /**
@@ -71,16 +77,27 @@ export interface EraseIdentityInput {
  * @param db - Any Postgres Drizzle handle (`node-postgres` or `postgres-js`).
  * @param input - The target user, trigger source, actor, and the provider-deletion confirmation (or `null`).
  * @param now - The transaction instant (stamped on `updatedAt` and `occurredAt`).
+ * @returns `true` when the row was erased; `false` when `expectedStatus` was given and the row no longer had it,
+ * in which case nothing was changed.
  * @sideEffect Updates the `users` row, deletes the `accounts`/`profiles`/`settings` rows, inserts a `lifecycle_events` row.
  */
-export async function eraseIdentityRow(db: IdentityWriter, input: EraseIdentityInput, now: Date): Promise<void> {
+export async function eraseIdentityRow(db: IdentityWriter, input: EraseIdentityInput, now: Date): Promise<boolean> {
     const directive = computeProfileScrub('erasure', input.userId);
 
-    await db.transaction(async (tx) => {
-        await tx
+    return db.transaction(async (tx) => {
+        const updated = await tx
             .update(users)
             .set({ ...directive.userColumns, updatedAt: now, providerDeletedAt: input.providerDeletedAt })
-            .where(eq(users.id, input.userId));
+            .where(
+                input.expectedStatus === undefined
+                    ? eq(users.id, input.userId)
+                    : and(eq(users.id, input.userId), eq(users.status, input.expectedStatus)),
+            )
+            .returning({ id: users.id });
+
+        if (updated.length === 0) {
+            return false;
+        }
 
         if (directive.purgeCompanionRows) {
             await tx.delete(accounts).where(eq(accounts.userId, input.userId));
@@ -96,5 +113,7 @@ export async function eraseIdentityRow(db: IdentityWriter, input: EraseIdentityI
             actor: input.actor,
             occurredAt: now,
         });
+
+        return true;
     });
 }

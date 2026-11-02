@@ -54,6 +54,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
       description: Local fuzzy / barcode-crosswalk search. NEVER calls an upstream source, so a miss is an empty result set
         rather than a fetch (FR-008).
       parameters:
@@ -89,6 +96,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -151,6 +165,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "429":
           description: "This caller reached its per-minute limit on this search route — `code: SEARCH_RATE_LIMITED`, with the same
             seconds in `details.retryAfterSeconds` and in `Retry-After`. Never `REQUESTER_LIMIT_REACHED`: the search
@@ -207,7 +228,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: A service (`svc_*`) principal — authored foods belong to user accounts.
+          description: "A service (`svc_*`) principal — authored foods belong to user accounts. Or: The token is genuine but its
+            account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it belongs to
+            every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -246,6 +269,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -289,6 +319,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
       description: Deduplicates against the existing catalog and enqueues a source fetch on a miss. Always `202` — resolution
         is asynchronous (FR-005).
       requestBody:
@@ -325,6 +362,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
       description: "Per-item partial result: inline hits come back `RESOLVED`, misses `PENDING`. The maximum name count is the
         service-configured `FOOD_MAX_BATCH_NAMES` and is reported in the `400` body when exceeded, so it is discoverable
         at runtime rather than pinned in this document (FR-045)."
@@ -351,6 +395,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -382,6 +433,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -422,6 +480,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
       description: "The authenticated, per-caller half of the nutrition read: private authored foods are excluded from the
         edge-cached `/nutrition` route by construction, so their author reads them here. Same shape; an id the caller
         does not own lands in `unknownIds`. Never cached."
@@ -454,6 +519,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -495,6 +567,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -555,6 +634,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -632,7 +718,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: A stranger deleting a PROMOTED food, or a `svc_*` principal.
+          description: "A stranger deleting a PROMOTED food, or a `svc_*` principal. Or: The token is genuine but its account is
+            suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it belongs to every
+            operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -693,7 +781,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: A stranger writing a PROMOTED food, or a `svc_*` principal.
+          description: "A stranger writing a PROMOTED food, or a `svc_*` principal. Or: The token is genuine but its account is
+            suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it belongs to every
+            operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -759,6 +849,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: "No such food, or NOT_FOUND / FAILED — `code: FOOD_NOT_FOUND`, with the terminal status in `details.status`
             (absent when there is no row at all)."
@@ -798,6 +895,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -888,6 +992,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: "No such food, a food mid-erasure, or a PRIVATE authored food the caller does not own — one
             indistinguishable `code: FOOD_NOT_FOUND`, as on `GET /{id}`."
@@ -929,6 +1040,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: "No such food, a food mid-erasure, or a PRIVATE authored food the caller does not own — one
             indistinguishable `code: FOOD_NOT_FOUND`, as on `GET /{id}`."
@@ -966,6 +1084,13 @@ paths:
         "401":
           description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
             valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs, so it belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -1014,7 +1139,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it
+            belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -1062,7 +1189,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it
+            belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -1089,7 +1218,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it
+            belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -1122,7 +1253,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039)."
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it
+            belongs to every operation a Clerk session reaches."
           content:
             application/json:
               schema:
@@ -1356,6 +1489,18 @@ components:
               type: string
               enum:
                 - FORBIDDEN
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - ACCOUNT_SUSPENDED
             message:
               type: string
           required:

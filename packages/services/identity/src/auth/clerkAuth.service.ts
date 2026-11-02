@@ -1,5 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { resolveAzpEnforcement, verifyClerkToken, type VerifiedClerkClaims } from '@kitchensink/clerk-verify';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+    ACCOUNT_SUSPENDED_CODE,
+    ACCOUNT_SUSPENDED_MESSAGE,
+    isClerkAccountSuspendedError,
+    resolveAzpEnforcement,
+    verifyClerkToken,
+    type RequestTarget,
+    type VerifiedClerkClaims,
+} from '@kitchensink/clerk-verify';
 
 /**
  * Re-export the shared verified-claims shape so identity's consumers (notably
@@ -51,11 +59,23 @@ export class ClerkAuthService {
      * Verify a Clerk session JWT networklessly and return the verified claims. Any verification failure
      * — missing key, bad signature, expiry, wrong `azp`, malformed token, or missing `sub` — maps to a
      * 401 with a generic message so the underlying reason is never surfaced to the caller.
+     *
+     * A genuine token for a SUSPENDED account is refused by the shared verifier (ADR-0081) and answered `403
+     * ACCOUNT_SUSPENDED` here, except on the routes the verifier's allow-list names (erasure), which is why the
+     * request is passed along.
+     *
+     * @param token - The raw bearer token.
+     * @param request - The method and path it arrived on.
+     * @throws UnauthorizedException on any verification failure; ForbiddenException for a suspended account.
      */
-    async verify(token: string): Promise<VerifiedClerkClaims> {
+    async verify(token: string, request?: RequestTarget): Promise<VerifiedClerkClaims> {
         try {
-            return await verifyClerkToken(token, { jwtKey: this.jwtKey, ...this.azp });
-        } catch {
+            return await verifyClerkToken(token, { jwtKey: this.jwtKey, ...this.azp }, request);
+        } catch (error) {
+            if (isClerkAccountSuspendedError(error)) {
+                throw new ForbiddenException({ code: ACCOUNT_SUSPENDED_CODE, message: ACCOUNT_SUSPENDED_MESSAGE });
+            }
+
             throw new UnauthorizedException();
         }
     }

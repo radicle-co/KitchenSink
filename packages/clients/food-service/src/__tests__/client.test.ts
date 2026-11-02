@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import {
+    AccountSuspendedError,
     BadRequestError,
     CandidateMismatchError,
     ConflictError,
@@ -31,6 +32,7 @@ import {
     SearchRateLimitedError,
     SourceBusyError,
     UnauthorizedError,
+    isAccountSuspendedError,
     isCandidateMismatchError,
     isConflictError,
     isFetchUnavailableError,
@@ -2130,5 +2132,36 @@ describe('the narrowed 429 errors keep their window', () => {
 
         expect(error.retryAfterSeconds).toBe(37);
         expect(Object.getOwnPropertyDescriptor(error, 'retryAfterSeconds')?.value).toBe(37);
+    });
+});
+
+describe('FoodServiceClient — a suspended account (ADR-0081)', () => {
+    // The service answers a suspended account's token with `403 ACCOUNT_SUSPENDED`. The client must read the PUBLISHED
+    // code into its own typed error, not fall back to the generic 403 mapping: a suspended cook is told something
+    // different from "you lack a scope", and a retry or a sign-in can never fix it.
+    it('maps 403 ACCOUNT_SUSPENDED to AccountSuspendedError, which is still a ForbiddenError', async () => {
+        const fetchMock = stubFetch(403, { code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended' });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock });
+
+        const error: unknown = await client.addByName('Broccoli').catch((thrown: unknown) => thrown);
+
+        expect(error).toBeInstanceOf(AccountSuspendedError);
+        expect(isAccountSuspendedError(error)).toBe(true);
+        expect(error).toBeInstanceOf(ForbiddenError);
+        expect((error as AccountSuspendedError).status).toBe(403);
+        expect((error as AccountSuspendedError).message).toBe('Account is suspended');
+    });
+
+    it('does not read an ordinary 403 FORBIDDEN as a suspension', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 't',
+            fetch: stubFetch(403, { code: 'FORBIDDEN', message: 'no scope' }),
+        });
+
+        const error: unknown = await client.addByName('Broccoli').catch((thrown: unknown) => thrown);
+
+        expect(isAccountSuspendedError(error)).toBe(false);
+        expect(error).toBeInstanceOf(ForbiddenError);
     });
 });

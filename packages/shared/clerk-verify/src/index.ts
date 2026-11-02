@@ -6,6 +6,16 @@
  * project's convention.
  */
 export {
+    ACCOUNT_SUSPENDED_CODE,
+    ACCOUNT_SUSPENDED_MESSAGE,
+    ClerkAccountSuspendedError,
+    SUSPENDED_METADATA_KEY,
+    isClerkAccountSuspendedError,
+    isSuspendedAllowedRoute,
+    isSuspendedMark,
+} from './accountSuspension.js';
+export type { RequestTarget } from './accountSuspension.js';
+export {
     verifyClerkToken,
     buildPreviewAzpPattern,
     buildTransitionAzpPattern,

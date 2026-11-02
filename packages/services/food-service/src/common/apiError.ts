@@ -40,6 +40,7 @@ export const FOOD_ERROR_STATUS: Readonly<Record<FoodErrorCode, number>> = {
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,
     IDENTITY_SYNC_PENDING: HttpStatus.UNAUTHORIZED,
     FORBIDDEN: HttpStatus.FORBIDDEN,
+    ACCOUNT_SUSPENDED: HttpStatus.FORBIDDEN,
     FOOD_PENDING: HttpStatus.ACCEPTED,
     FOOD_NOT_FOUND: HttpStatus.NOT_FOUND,
     CANDIDATE_MISMATCH: HttpStatus.CONFLICT,

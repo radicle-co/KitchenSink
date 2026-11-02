@@ -10145,6 +10145,23 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "ACCOUNT_SUSPENDED",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "ACCOUNT_ALREADY_ERASED",
                             "type": "string"
                         },
@@ -10841,6 +10858,7 @@
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
                 "TEST_PRINCIPAL_CONTAINED",
+                "ACCOUNT_SUSPENDED",
                 "ACCOUNT_ALREADY_ERASED",
                 "VALIDATION_FAILED",
                 "NOT_FOUND",

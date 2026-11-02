@@ -6,6 +6,7 @@ import { users, type UserId } from '@kitchensink/identity-db';
 
 import { getConfig, getErasureFanoutConfig } from '../config/env.js';
 import { withDb, type DbContext } from '../common/handlerPipeline.js';
+import { redriveUnappliedConvergence } from '../common/convergenceRedrive.js';
 import { enqueueErasure } from '../common/erasureEnqueue.js';
 import { runErasureFanout, type ErasureFanoutResult } from '../common/erasureFanout.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
@@ -238,6 +239,20 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
     // clears once the backlog drains.
     emitMetric('ErasureIncomplete', incomplete);
     logger.info('erasure-reconciliation complete', { scanned: erased.length, incomplete });
+
+    // ADR-0081 §4: a second, independent job that rides this run because it already holds the permission to send to
+    // the deletion queue. Wake the worker again for any account whose suspend, unsuspend, closure or reactivation was
+    // committed but never applied at the provider (an SQS outage swallowed the one message). It runs AFTER the
+    // aggregate above, and its failure is logged and swallowed: it must never fail, or change the signal of, the
+    // erasure reconciliation.
+    try {
+        const redrive = await redriveUnappliedConvergence(db, DELETION_QUEUE_URL, new Date());
+        logger.info('convergence-redrive complete', { ...redrive });
+    } catch (err) {
+        logger.error('convergence-redrive threw; erasure reconciliation is unaffected', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
 
     return { scanned: erased.length, incomplete };
 };

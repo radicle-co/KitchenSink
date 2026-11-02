@@ -16,7 +16,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
 import { RecipeListResults } from '../RecipeListResults.native.js';
 import type { RecipeListResultsProps } from '../model.js';
-import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render, renderWithTamagui } from '@commise/ui/testing/tamagui';
 
 /** The frame's collapse (compact height AND a keyboard open), served by the test: jsdom has neither. */
 const layout = vi.hoisted(() => ({ collapsed: false }));
@@ -221,11 +221,11 @@ describe('RecipeListResults (native) — the foot reserved for the floating crea
  * by `FAB_RESERVED_BOTTOM_PX` AND is the direct child of an element that scrolls. Room on a view that does not scroll
  * moves nothing, so the room alone is not enough.
  */
-function endsInScrollerWithFabRoom(element: HTMLElement): boolean {
+function endsInScrollerWithFabRoom(element: HTMLElement, room = FAB_RESERVED_BOTTOM_PX): boolean {
     for (let node = element.parentElement; node?.parentElement; node = node.parentElement) {
         const scrolls = ['auto', 'scroll'].includes(getComputedStyle(node.parentElement).overflowY);
 
-        if (scrolls && getComputedStyle(node).paddingBottom === `${String(FAB_RESERVED_BOTTOM_PX)}px`) {
+        if (scrolls && getComputedStyle(node).paddingBottom === `${String(room)}px`) {
             return true;
         }
     }
@@ -266,6 +266,23 @@ describe('RecipeListResults (native) — the empty states scroll, and end with t
         );
 
         expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    });
+});
+
+// Designer rulings d and e (2026-11-02): the end room is the button's DRAWN height at the current text scale plus its
+// margin plus 16 (98 at the 1.5x chrome cap, not 88), for the cards AND for the first-run and no-match bodies, so
+// "Clear search" is never under the button at a large text size.
+describe('RecipeListResults (native) — the end room follows the font scale', () => {
+    it.each([
+        ['the cards', {}, 'Gourmet Garden Salad'],
+        ['the first run', { recipes: [], state: 'firstRun' }, 'Your recipe box is empty'],
+        ['a search no-match', { recipes: [], state: 'noMatchQuery', searchValue: 'zzz' }, 'Nothing matches “zzz”.'],
+        ['a chips no-match', { recipes: [], state: 'noMatchFilters' }, 'No recipes match these filters.'],
+    ] as const)('%s end 98 px clear at 1.5x, and 88 is no longer enough', (_name, over, text) => {
+        renderWithTamagui(results(over), 'light', 1.5);
+
+        expect(endsInScrollerWithFabRoom(screen.getByText(text), 98)).toBe(true);
+        expect(endsInScrollerWithFabRoom(screen.getByText(text), 88)).toBe(false);
     });
 });
 

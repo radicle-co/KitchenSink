@@ -4,7 +4,7 @@
  * with the keyboard and while it yields.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { Pressable, Text } from 'react-native';
 
@@ -38,6 +38,7 @@ vi.mock('../../screenEnvironment/useWindowWidth.native.js', () => ({ useWindowWi
 vi.mock('../../screenEnvironment/useKeyboardOpen.native.js', () => ({ useKeyboardOpen: () => env.keyboard }));
 
 import type { ScrollBind } from '../../scrollHost/props.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
 import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
@@ -135,9 +136,11 @@ describe('CreateFab (native)', () => {
 
     it('stays a disc when its label is wider than half the window (a long translation, a large text size)', () => {
         renderFab();
-        // react-native-web stores `onLayout` on the node as `__reactLayoutHandler`; the twin is the aria-hidden label.
-        const twin = screen.getAllByText('New recipe').find((node) => node.getAttribute('aria-hidden') === 'true') as
-            (HTMLElement & { __reactLayoutHandler?: (event: unknown) => void }) | undefined;
+        // react-native-web stores `onLayout` on the node as `__reactLayoutHandler`. The twin's measuring node is the View
+        // around the aria-hidden label: the design-system Text (Tamagui) does not keep the handler on its own node, and
+        // the View's width is the label's natural width at the capped size (ruling d).
+        const label = screen.getAllByText('New recipe').find((node) => node.getAttribute('aria-hidden') === 'true');
+        const twin = label?.parentElement as (HTMLElement & { __reactLayoutHandler?: (event: unknown) => void }) | null;
 
         act(() => twin?.__reactLayoutHandler?.({ nativeEvent: { layout: { width: 200, height: 20 } } }));
 

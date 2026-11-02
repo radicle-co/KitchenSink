@@ -36,7 +36,7 @@ import postcss from 'postcss';
 import tailwind from '@tailwindcss/postcss';
 import { describe, expect, it } from 'vitest';
 
-import { FAB_BOTTOM_MARGIN_PX, FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { FAB_BOTTOM_MARGIN_PX, FAB_FLOATS_FROM_HEIGHT_PX, FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { role, roleDark } from '@commise/ui/colors';
 import { PRESS_FILL_CLASS, SURFACE_TONE_CLASS } from '@commise/ui/surface-tone';
@@ -202,6 +202,34 @@ describe('the room under the floating create button, compiled', () => {
         const css = (await compileAppCss()).replace(/\s+/gu, ' ');
 
         expect(css).toContain(`--fab-bottom-margin: ${String(FAB_BOTTOM_MARGIN_PX / 16)}rem;`);
+    });
+});
+
+/**
+ * Web only (designAnswers.md, 2026-11-02): below `FAB_FLOATS_FROM_HEIGHT_PX` of viewport height the New recipe button is
+ * in the page flow and the room under it is nothing, so `<main>`'s foot, the document's scroll padding and "Back to top",
+ * which all read `--fab-reserved-bottom`, follow without a rule of their own. From that height up nothing changes.
+ */
+describe('the short viewport, compiled', () => {
+    const floatsFrom = `${String(FAB_FLOATS_FROM_HEIGHT_PX)}px`;
+
+    it('zeroes the reserved room below the threshold, after the theme declares it', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+        const rule = css.indexOf(`@media (height < ${floatsFrom}) { :root { --fab-reserved-bottom: 0px; } }`);
+
+        expect(rule).toBeGreaterThan(-1);
+        expect(css.indexOf('--fab-reserved-bottom: 5.5rem;')).toBeLessThan(rule);
+    });
+
+    it('lets the button float only inside a media query for that height', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+
+        expect(css).toMatch(
+            new RegExp(
+                `@media \\(height >= ${floatsFrom}\\) \\{[^@]*\\.fab-floats\\\\:fixed \\{ position: fixed;`,
+                'u',
+            ),
+        );
     });
 });
 

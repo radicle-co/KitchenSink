@@ -25,6 +25,7 @@ import {
     RecipeWidgetLoadError,
     RecipeWidgetLoadingCard,
 } from '@commise/features-recipes';
+import { LocaleProvider } from '@commise/i18n/react';
 import { renderWithProviders, sideInsetOf } from '@commise/test-utils';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
@@ -431,6 +432,35 @@ describe('HomeWidgetSurface (mobile) — the foot under the floating create butt
         expect(feet).toContain(`${String(FAB_RESERVED_BOTTOM_PX)}px`);
     });
 
+    // Designer ruling d (2026-11-02): the room is the button's drawn height at the current text scale, plus its margin
+    // and 16: 98 at the 1.5x chrome cap, not the 88 of scale 1.
+    it('ends the scroller’s content with 98 px at a 1.5x text scale', () => {
+        renderWithTamagui(
+            <LocaleProvider locale="en">
+                <HomeWidgetSurface
+                    onSeeAllRecipes={noop}
+                    onSelectRecipe={noop}
+                    container={containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID))}
+                    renderers={{ [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget }}
+                />
+            </LocaleProvider>,
+            'light',
+            1.5,
+        );
+        const feet: string[] = [];
+
+        for (
+            let node = screen.getByText('fake-recipe-widget').parentElement;
+            node !== null;
+            node = node.parentElement
+        ) {
+            feet.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(feet).toContain('98px');
+        expect(feet).not.toContain(`${String(FAB_RESERVED_BOTTOM_PX)}px`);
+    });
+
     /**
      * Design review 2026-11-01 (`deviceShots2.md`, Low): the floating button sat over "We couldn't load your recent
      * recipes.". The foot is the SCROLLER's, so every state the recent block can be in — and the host's own failure
@@ -441,6 +471,7 @@ describe('HomeWidgetSurface (mobile) — the foot under the floating create butt
     const Throws: FC = () => {
         throw new Error('slot failed');
     };
+
     const STATES: readonly (readonly [string, FC, () => HTMLElement])[] = [
         [
             'the read failed (Try again)',

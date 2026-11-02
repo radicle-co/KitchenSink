@@ -22,10 +22,11 @@ const TYPE_PARTS = new Set([
 const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
 /**
  * The navigation chrome, the only modules that may lower a label's ceiling with `chromeCap` (designer ruling
- * 2026-11-01, ADR-0080 §8): the tab bar, which draws every tab label, and the view-switch control.
+ * 2026-11-01, ADR-0080 §8): the tab bar, which draws every tab label, the view-switch control, and the floating create button's face
+ * (ruling d, 2026-11-02).
  */
 const CHROME_MODULES =
-    /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx)$/u;
+    /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx|ui\/src\/createFab\/FabFace\.native\.tsx)$/u;
 
 /** The status badge, the only module that draws a mark on a picture with `pictorial` (designer ruling 2026-11-01, M-1). */
 const PICTURE_MODULES = /(?:^|\/)packages\/apps\/commise\/ui\/src\/statusBadge\/StatusBadge\.native\.tsx$/u;

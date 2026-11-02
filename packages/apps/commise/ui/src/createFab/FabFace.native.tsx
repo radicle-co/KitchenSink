@@ -14,38 +14,38 @@
  */
 import { GlassView } from 'expo-glass-effect';
 import type { FC, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { hasLiquidGlass } from '../chromeSurface/liquidGlass.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
+import { Text } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { FAB_HEIGHT_PX } from './createFabPolicy.js';
+import { FAB_HEIGHT_PX, fabHeightAt } from './createFabPolicy.js';
+import { useFabTextScale } from './useFabTextScale.native.js';
 import type { FabFaceProps } from './props.js';
 
 /** The native face of a floating create control. */
 export const FabFace: FC<FabFaceProps> = ({ label, icon, presentation, onLabelWidth }) => {
     const { colors } = useTheme();
     const glass = hasLiquidGlass();
-    const ink = glass ? colors.ink : colors.onAction;
-    const shape = presentation === 'icon' ? styles.disc : styles.pill;
+    // The pill grows with its label up to the 1.5x chrome cap; the collapsed disc stays 56 (designer, 2026-11-02).
+    const pillHeight = fabHeightAt(useFabTextScale());
+    const shape = presentation === 'icon' ? styles.disc : [styles.pill, { height: pillHeight }];
 
     const content: ReactNode = (
         <>
             <Icon name={icon} size={24} tone={glass ? 'ink' : 'onAction'} />
             {presentation === 'extended' ? (
-                <Text numberOfLines={1} style={[styles.label, { color: ink }]}>
+                <Text typeRole="label" chromeCap="1.5" numberOfLines={1} color={glass ? '$ink' : '$onAction'}>
                     {label}
                 </Text>
             ) : null}
-            <Text
-                aria-hidden
-                numberOfLines={1}
-                onLayout={(event) => onLabelWidth(event.nativeEvent.layout.width)}
-                style={[styles.label, styles.twin]}
-            >
-                {label}
-            </Text>
+            <View aria-hidden onLayout={(event) => onLabelWidth(event.nativeEvent.layout.width)} style={styles.twin}>
+                <Text typeRole="label" chromeCap="1.5" aria-hidden numberOfLines={1}>
+                    {label}
+                </Text>
+            </View>
         </>
     );
 
@@ -79,7 +79,6 @@ const styles = StyleSheet.create({
     },
     disc: { width: FAB_HEIGHT_PX, justifyContent: 'center' },
     pill: { gap: nativeTokens.spacing[2], paddingStart: nativeTokens.spacing[4], paddingEnd: nativeTokens.spacing[6] },
-    label: { ...nativeTokens.type.label },
     // Out of flow and invisible: it only reports the label's natural width.
     twin: { position: 'absolute', opacity: 0, start: 0, top: 0 },
 });

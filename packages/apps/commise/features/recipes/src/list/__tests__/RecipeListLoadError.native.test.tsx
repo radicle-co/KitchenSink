@@ -8,7 +8,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui } from '@commise/ui/testing/tamagui';
 
 import { RecipeListLoadError } from '../RecipeListLoadError.native.js';
 
@@ -21,11 +21,11 @@ const noop = () => undefined;
  * by `FAB_RESERVED_BOTTOM_PX` AND is the direct child of an element that scrolls. Room on a view that does not scroll
  * moves nothing, so the room alone is not enough.
  */
-function endsInScrollerWithFabRoom(element: HTMLElement): boolean {
+function endsInScrollerWithFabRoom(element: HTMLElement, room = FAB_RESERVED_BOTTOM_PX): boolean {
     for (let node = element.parentElement; node?.parentElement; node = node.parentElement) {
         const scrolls = ['auto', 'scroll'].includes(getComputedStyle(node.parentElement).overflowY);
 
-        if (scrolls && getComputedStyle(node).paddingBottom === `${String(FAB_RESERVED_BOTTOM_PX)}px`) {
+        if (scrolls && getComputedStyle(node).paddingBottom === `${String(room)}px`) {
             return true;
         }
     }
@@ -69,5 +69,17 @@ describe('RecipeListLoadError (native)', () => {
         render(<RecipeListLoadError onRetry={noop} />);
 
         expect(endsInScrollerWithFabRoom(screen.getByText('We couldn’t load your recipes.'))).toBe(true);
+    });
+});
+
+// Designer ruling e (2026-11-02): the error body ends with the room the floating button needs at the current text
+// scale (98 at the 1.5x chrome cap), so its retry action is never under the button.
+describe('RecipeListLoadError (native) — the end room follows the font scale', () => {
+    it('ends 98 px clear at 1.5x, and 88 is no longer enough', () => {
+        renderWithTamagui(<RecipeListLoadError onRetry={noop} />, 'light', 1.5);
+        const retry = screen.getByRole('button', { name: 'Try again' });
+
+        expect(endsInScrollerWithFabRoom(retry, 98)).toBe(true);
+        expect(endsInScrollerWithFabRoom(retry, 88)).toBe(false);
     });
 });

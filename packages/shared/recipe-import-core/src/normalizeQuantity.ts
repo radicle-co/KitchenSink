@@ -366,6 +366,19 @@ export function normalizeQuantityRange(line: string): NormalizedQuantityRange {
         return { line: first.line, low: first.quantity, high: null, rest: first.rest };
     }
 
+    // `1-1/2` is the mixed number 1 1/2, not a range from 1 to 1/2: an unspaced hyphen joins a whole
+    // number to a smaller proper fraction. `1-2` and `1/2-1` stay ranges.
+    if (
+        separator[0] === '-' &&
+        /^\d+$/.test(first.phrase) &&
+        /^\d+\/\d+$/.test(second.phrase) &&
+        second.quantity.compare(1) < 0
+    ) {
+        const sum = first.quantity.add(second.quantity);
+
+        return { line: `${sum.toFraction(true)}${second.rest}`, low: sum, high: null, rest: second.rest };
+    }
+
     return {
         line: `${first.quantity.toFraction(true)}${separator[0]}${second.quantity.toFraction(true)}${second.rest}`,
         low: first.quantity,

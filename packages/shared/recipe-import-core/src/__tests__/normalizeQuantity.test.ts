@@ -17,7 +17,7 @@
 import Fraction from 'fraction.js';
 import { describe, it, expect } from 'vitest';
 
-import { normalizeQuantity } from '../normalizeQuantity.js';
+import { normalizeQuantity, normalizeQuantityRange } from '../normalizeQuantity.js';
 
 /** Renders the result's rational as `n/d` so a failure message shows the exact value, not `0.666…`. */
 function exact(quantity: Fraction | null): string | null {
@@ -212,5 +212,29 @@ describe('normalizeQuantity', () => {
             expect(exact(result.quantity)).toBe('2/1');
             expect(result.line).toBe('2 eggs');
         });
+    });
+});
+
+describe('normalizeQuantityRange — an unspaced hyphen between a whole number and a proper fraction', () => {
+    it.each([
+        ['1-1/2 cups flour', '3/2', '1 1/2 cups flour'],
+        ['2-1/4 teaspoons salt', '9/4', '2 1/4 teaspoons salt'],
+    ])('adds them in %j', (input, sum, line) => {
+        const result = normalizeQuantityRange(input);
+
+        expect(exact(result.low)).toBe(sum);
+        expect(result.high).toBeNull();
+        expect(result.line).toBe(line);
+    });
+
+    it.each([
+        ['1-2 cups', '1/1', '2/1'],
+        ['1/2-1 cup', '1/2', '1/1'],
+        ['1-3/2 cups', '1/1', '3/2'],
+    ])('keeps %j a range', (input, low, high) => {
+        const result = normalizeQuantityRange(input);
+
+        expect(exact(result.low)).toBe(low);
+        expect(exact(result.high)).toBe(high);
     });
 });

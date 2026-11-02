@@ -2,6 +2,24 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-02: card, Home header and Recipe detail build questions (asked by Nova Squad)
+
+- **Card padding and thumb:** the board's 10 and 84 are off the spacing scale, so the board is wrong. Build 12 and
+  80 with the existing tokens. The thumb uses the existing `md` radius. I fix the boards.
+- **No-photo cover:** change the shared `RecipeCover`, so every place without a photo shows the same sky-to-cream
+  gradient with the photo disc. One placeholder, not two. Reviews check each place that uses it.
+- **Night greeting:** keep "Still up?" and "Still up, {name}?" for 00:00 to 04:59. The board draws only the morning.
+- **Greeting role:** `cardTitle` as it stands, with no override. I fix the board's 16/24 at 500 to the role.
+- **Condensed bar on Home:** remove it. Home is a top-level page, its title is small, and the tab bar already says
+  where you are.
+- **Profile button on web Home:** show it at every width, as `HomeWeb1280` draws it.
+- **"8 comments" row:** leave it and its divider out until comments ship.
+- **"Start cooking":** this branch has no cooking mode, so leave the button out until it ships. The text actions
+  stay: "Edit recipe" on your own recipe, "Save a copy" on someone else's.
+- **Rating:** the rating card holds all of it. Your own recipe: the summary and "Only other cooks can rate your
+  recipe." Someone else's: the summary and "Rate this recipe" with its stars. Remove the lower rating section.
+- **Fact tiles:** all three use `cover-steel`, as the board draws them.
+
 ## 2026-11-02: recipe card status, fields and the floating button (asked by Nova Squad)
 
 - **Where status goes (corrects ruling b in `reviews/mergedUiAndroid1.md`):** ruling b covers the list row only

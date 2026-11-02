@@ -318,3 +318,5 @@ Differences where the board, not the app, is wrong. Fix each in the board source
   Found reviewing Thing 1's Google label (925e3bffe), 2026-11-01.
 - No recipe board draws the Pro pill or the Pro cover chip. Add one Pro recipe to the Recipes list and grid boards,
   per `designAnswers.md` 2026-11-02. Asked by Nova Squad, 2026-11-02.
+- Recipes list row boards: padding 10 and thumb 84 are off the scale. Draw 12 and 80.
+- Home boards: the greeting is 16/24 at 500. Draw it in `cardTitle`.

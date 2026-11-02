@@ -158,14 +158,20 @@ export function nativeStylingUses(source: string, fileName: string): NativeStyli
 }
 
 /**
- * Whether a file may record a new adapter exemption: it is in the design system, and no committed baseline ever counted
- * a use in it, so the marker cannot turn styling the ratchet still owes a migration into an exemption. Pure.
+ * Whether a file may record a new adapter exemption: it is in the design system, ADR-0080 section 5 lists it (the ADR is
+ * the single register, so an unlisted path is never admitted), and no committed baseline ever counted a use in it, so the
+ * marker cannot turn styling the ratchet still owes a migration into an exemption. Pure.
  *
  * @param countedHistory - The counted-use map of every committed baseline version.
+ * @param registered - The paths ADR-0080 section 5 lists.
  * @returns The admission rule for the exemption map.
  */
 export function admitsAdapterExemption(
     countedHistory: readonly Readonly<Record<string, number>>[],
+    registered: ReadonlySet<string>,
 ): (file: string) => boolean {
-    return (file) => file.startsWith(DESIGN_SYSTEM) && countedHistory.every((counts) => (counts[file] ?? 0) === 0);
+    return (file) =>
+        file.startsWith(DESIGN_SYSTEM) &&
+        registered.has(file) &&
+        countedHistory.every((counts) => (counts[file] ?? 0) === 0);
 }

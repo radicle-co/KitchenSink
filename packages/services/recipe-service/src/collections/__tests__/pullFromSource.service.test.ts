@@ -314,6 +314,48 @@ describe('CollectionsService.pullFromSource', () => {
     });
 });
 
+describe('a source that has since gone private (audit finding 3)', () => {
+    /** The clone, whose source is another cook's collection that was public and is now private. */
+    function wirePrivateForeignSource(dal: DalMock): void {
+        dal.findById.mockImplementation(async (id: string) => {
+            if (id === CLONE_ID) {
+                return clone();
+            }
+
+            return id === SOURCE_ID
+                ? makeCollectionRow({ id: SOURCE_ID, ownerId: SOURCE_OWNER, visibility: 'private' })
+                : undefined;
+        });
+    }
+
+    it('pullFromSource answers 404 like clone does, and reads and writes nothing', async () => {
+        const dal = makeDal();
+        wirePrivateForeignSource(dal);
+
+        await expect(makeService(dal).pullFromSource(CLONER, CLONE_ID)).rejects.toBeInstanceOf(NotFoundException);
+        expect(dal.previewMembershipIds).not.toHaveBeenCalled();
+        expect(dal.addRecipes).not.toHaveBeenCalled();
+    });
+
+    it('previewPull answers 404 like clone does, and reads nothing', async () => {
+        const dal = makeDal();
+        wirePrivateForeignSource(dal);
+
+        await expect(makeService(dal).previewPull(CLONER, CLONE_ID)).rejects.toBeInstanceOf(NotFoundException);
+        expect(dal.previewMembershipIds).not.toHaveBeenCalled();
+    });
+
+    it("still pulls from the caller's OWN private source (the same rule clone uses)", async () => {
+        const dal = makeDal();
+        dal.findById.mockImplementation(async (id: string) =>
+            id === CLONE_ID ? clone() : makeCollectionRow({ id: SOURCE_ID, ownerId: CLONER, visibility: 'private' }),
+        );
+        wireListRecipes(dal, [], []);
+
+        await expect(makeService(dal).previewPull(CLONER, CLONE_ID)).resolves.toBeDefined();
+    });
+});
+
 describe('CollectionsService.previewPull (W8-a.8 — read-only preview)', () => {
     it('returns the added/removed/unchanged diff WITHOUT mutating', async () => {
         const dal = makeDal();

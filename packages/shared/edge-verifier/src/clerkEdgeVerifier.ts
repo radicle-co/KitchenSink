@@ -67,7 +67,9 @@ export function createClerkEdgeVerifier({
         verify: async (token: string): Promise<EdgePrincipal> => {
             // `authorizedParties: []` is how the shared verifier is told to skip the SDK's `azp` check (it is
             // never passed an empty array — Clerk reads that as "reject everything"). See the module doc.
-            const claims = await verifyClerkToken(token, { jwtKey, authorizedParties: [] });
+            // `allowSuspended`: the edge takes no authorization decision (ADR-0081). A suspended account's genuine token
+            // goes on to the origin, which answers 403 and lets erasure through; refusing here would 401 both.
+            const claims = await verifyClerkToken(token, { jwtKey, authorizedParties: [], allowSuspended: true });
 
             return { sub: claims.sub, userId: claims.userId };
         },

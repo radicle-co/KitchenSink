@@ -5,13 +5,15 @@
  * edge resolved, read off the headers of its `401`. Real tokens through the same wiring are the integration tier's
  * (`packages/infra/global/tests/edgeVerifier.integration.test.ts`).
  */
+import crypto from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 import type { CloudFrontRequestEvent, CloudFrontResultResponse } from 'aws-lambda';
 
 import { createClerkEdgeVerifier } from '../clerkEdgeVerifier.js';
 
-/** A tokenless viewer request from `origin`. */
-function tokenless(origin: string): CloudFrontRequestEvent {
+/** A viewer request from `origin`, carrying `authorization` when given. */
+function tokenless(origin: string, authorization?: string): CloudFrontRequestEvent {
     return {
         Records: [
             {
@@ -24,7 +26,12 @@ function tokenless(origin: string): CloudFrontRequestEvent {
                     },
                     request: {
                         clientIp: '203.0.113.1',
-                        headers: { origin: [{ key: 'Origin', value: origin }] },
+                        headers: {
+                            origin: [{ key: 'Origin', value: origin }],
+                            ...(authorization === undefined
+                                ? {}
+                                : { authorization: [{ key: 'Authorization', value: authorization }] }),
+                        },
                         method: 'GET',
                         querystring: '',
                         uri: '/api/v1/users/me',
@@ -80,4 +87,38 @@ describe('createClerkEdgeVerifier resolves the shared policy for a deployed, pro
             expect(response.headers?.['vary']?.[0]?.value).toBe('Origin');
         },
     );
+});
+
+describe('createClerkEdgeVerifier and a suspended account (ADR-0081)', () => {
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    /** A really signed Clerk-shaped token for `user_suspended`, carrying the suspended mark. */
+    function suspendedBearer(): string {
+        const now = Math.floor(Date.now() / 1000);
+        const encode = (value: unknown): string => Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+        const input = `${encode({ alg: 'RS256', typ: 'JWT', kid: 'local' })}.${encode({
+            sub: 'user_suspended',
+            external_id: '01J9ZK8N7QF3B2X4M6T0V5C1AB',
+            public_metadata: { suspended: true },
+            iat: now,
+            nbf: now - 5,
+            exp: now + 600,
+        })}`;
+
+        return `Bearer ${input}.${crypto.sign('RSA-SHA256', Buffer.from(input), privateKey).toString('base64url')}`;
+    }
+
+    // The edge takes no authorization decision: the origin answers the 403, and must be able to let erasure through.
+    // An edge that refused here would 401 the erasure route in front of identity.
+    it('⛔ passes a genuine suspended token through to the origin instead of answering 401', async () => {
+        const handler = createClerkEdgeVerifier({ jwtKey: publicKey, authorizedPartiesRaw: 'https://commise.app' });
+
+        const result = await handler(tokenless('https://commise.app', suspendedBearer()));
+
+        expect(result).not.toHaveProperty('status');
+    });
 });

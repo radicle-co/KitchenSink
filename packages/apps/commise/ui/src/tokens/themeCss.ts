@@ -33,7 +33,11 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
-import { FAB_BOTTOM_MARGIN_PX, FAB_RESERVED_BOTTOM_PX } from '../createFab/createFabPolicy.js';
+import {
+    FAB_BOTTOM_MARGIN_PX,
+    FAB_FLOATS_FROM_HEIGHT_PX,
+    FAB_RESERVED_BOTTOM_PX,
+} from '../createFab/createFabPolicy.js';
 import {
     chipFillRoleOf,
     chipFillVarOf,
@@ -159,6 +163,30 @@ function fabDeclarations(): readonly string[] {
 }
 
 /**
+ * The web floating button below `FAB_FLOATS_FROM_HEIGHT_PX` of viewport height (designer ruling 2026-11-02), generated
+ * from that one constant:
+ *
+ *  - the `fab-floats` variant, which the button's classes put on everything that makes it float (`fab-floats:fixed`), so
+ *    a shorter viewport leaves it an inline control in the page header;
+ *  - a media rule that sets `--fab-reserved-bottom` to nothing there, after the theme has declared it. `<main>`'s foot,
+ *    the document's `scroll-padding-bottom` and "Back to top" all read that property, so they follow with no rule of
+ *    their own. Plain CSS, not `@theme`: a theme variable cannot be redefined inside a media query.
+ */
+function fabShortViewportRules(): readonly string[] {
+    const from = `${String(FAB_FLOATS_FROM_HEIGHT_PX)}px`;
+
+    return [
+        `@custom-variant fab-floats (@media (height >= ${from}));`,
+        '',
+        `@media (height < ${from}) {`,
+        '    :root {',
+        '        --fab-reserved-bottom: 0px;',
+        '    }',
+        '}',
+    ];
+}
+
+/**
  * Each surface's press fill as `--color-press-<tone>` (`surfaceTone.ts`): the surface with the theme's ink laid over it,
  * derived there from the same table native reads, so the two platforms cannot disagree. Not a colour ROLE (a designer
  * does not choose a press), so it is emitted beside the roles, not as one of them. Pure.
@@ -273,6 +301,8 @@ export function themeCss(): string {
         // The floating create button's room, appended last for the same reason.
         ...fabDeclarations(),
         '}',
+        '',
+        ...fabShortViewportRules(),
         '',
         ...motionKeyframes(),
         ...darkThemeLines(),

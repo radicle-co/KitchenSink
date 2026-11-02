@@ -4,7 +4,8 @@
  * with the keyboard and while it yields.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import type { ReactElement } from 'react';
 import { Pressable, Text } from 'react-native';
 
@@ -271,5 +272,29 @@ describe('CreateFab (native) — clear of a showing snackbar', () => {
         measureSnackbar(56);
 
         expect(fab().style.bottom).toBe('16px');
+    });
+});
+
+describe('CreateFab (native) — a focus request', () => {
+    it('takes focus when asked and says so once, which is how a sheet gives focus back to its opener', () => {
+        const handled = vi.fn();
+        render(
+            <CreateFab
+                label="New recipe"
+                icon="plus"
+                onPress={vi.fn()}
+                focusRequested
+                onFocusRequestHandled={handled}
+            />,
+        );
+
+        expect(document.activeElement).toBe(fab());
+        expect(handled).toHaveBeenCalledOnce();
+    });
+
+    it('does not take focus unless asked', () => {
+        render(<CreateFab label="New recipe" icon="plus" onPress={vi.fn()} />);
+
+        expect(document.activeElement).not.toBe(fab());
     });
 });

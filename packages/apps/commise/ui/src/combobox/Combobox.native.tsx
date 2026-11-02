@@ -73,7 +73,7 @@ import { FieldLabel } from '../input/FieldLabel.native.js';
 import { fieldAccessibilityHint } from '../input/props.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { surfaceFill } from '../surfaceTone/surfaceFill.js';
-import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -445,7 +445,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 {alertAnnouncement}
             </LiveRegion>
             {popupShown && (
-                <SurfaceToneScope tone="paperOverlay">
+                <ToneScope tone="paperOverlay">
                     <View
                         collapsable={false}
                         accessibilityLabel={listLabel}
@@ -475,7 +475,7 @@ export const Combobox: FC<ComboboxProps> = ({
                             <StatusLine key={index} line={line} loadingIcon={loadingIcon} />
                         ))}
                     </View>
-                </SurfaceToneScope>
+                </ToneScope>
             )}
         </View>
     );

@@ -14,7 +14,7 @@
  * ⚠️ The Modal's `onDismiss` is held back so a test fires it itself, standing in for iOS, where React Native reports
  * the end of the slide-out that way.
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
 import { AccessibilityInfo, type Modal as ModalType, type Pressable as PressableType } from 'react-native';
 
@@ -22,6 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formatRgb } from 'culori';
 
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 import { ActionMenu } from '../ActionMenu.native.js';
 import type { ActionMenuItem, ActionMenuProps } from '../props.js';

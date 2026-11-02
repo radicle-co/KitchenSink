@@ -8,7 +8,7 @@
  * The rule, read with the TypeScript parser: an app module that imports a Radix dialog, alert dialog, popover or dropdown
  * menu, or the `Modal` adapter (`@commise/ui/modal`, the one door to React Native's `Modal`, itself held by
  * `modalAdapterImports.test.ts`), must also use the surface recipe: `surfaceToneClass`, `SURFACE_TONE_CLASS`, `Surface`,
- * `SurfaceToneScope`, `surfaceFill` or `BottomSheetPanel` (the sheet root, which states `paperOverlay` itself, so
+ * `SurfaceToneScope`, `ToneScope`, `surfaceFill` or `BottomSheetPanel` (the sheet root, which states `paperOverlay` itself, so
  * a module that only composes it states it by delegation); or, for a popup with no surface of its own (a lightbox, whose controls float over a
  * scrim), `FOCUS_RING_CLASS.floating`. A tooltip is not a surface (it is inverse and holds no control), so
  * `@radix-ui/react-tooltip` is not in the rule.
@@ -48,6 +48,7 @@ const STATES_SURFACE = new Set([
     'SURFACE_TONE_CLASS',
     'Surface',
     'SurfaceToneScope',
+    'ToneScope',
     'surfaceFill',
     'BottomSheetPanel',
 ]);
@@ -181,6 +182,11 @@ describe('the popup surface reader', () => {
         {
             shape: 'a Modal that states its tone with the scope',
             source: `import { Modal } from '@commise/ui/modal';\nexport const A = () => <Modal><SurfaceToneScope tone="paper" /></Modal>;`,
+            flagged: false,
+        },
+        {
+            shape: 'a Modal that states its tone with ToneScope, the one door to SurfaceToneScope',
+            source: `import { Modal } from '@commise/ui/modal';\nexport const A = () => <Modal><ToneScope tone="paper" /></Modal>;`,
             flagged: false,
         },
         {

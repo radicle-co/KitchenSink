@@ -11,8 +11,12 @@
  * keyboard and window.
  *
  * @pattern Policy — `createFabPolicy` decides, the leaf draws
+ * @pattern Adapter over `HTMLElement.focus()` — a level-triggered focus request, acknowledged once taken. It is the one
+ *     reason this leaf holds a ref: focusing a control has no declarative form.
  */
-import { useContext, useState, type FC } from 'react';
+import { useContext, useRef, useState, type FC } from 'react';
+
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
 import { SnackbarClearanceContext } from '../snackbar/snackbarClearanceContext.js';
 import type { CreateFabProps } from './props.js';
@@ -22,7 +26,16 @@ import { fabBottomOf, fabSurfaceClass } from './fabSurfaceClass.js';
 import { useFabPresentation } from './useFabPresentation.js';
 
 /** The web design-system floating create button. */
-export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = false }) => {
+export const CreateFab: FC<CreateFabProps> = ({
+    label,
+    icon,
+    onPress,
+    yielded = false,
+    focusRequested = false,
+    onFocusRequestHandled,
+}) => {
+    const node = useRef<HTMLButtonElement>(null);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
     const [focused, setFocused] = useState(false);
     const [labelWidthPx, setLabelWidthPx] = useState(0);
     const presentation = useFabPresentation({ yielded, focused, labelWidthPx });
@@ -35,6 +48,7 @@ export const CreateFab: FC<CreateFabProps> = ({ label, icon, onPress, yielded = 
 
     return (
         <button
+            ref={node}
             type="button"
             onClick={onPress}
             onFocus={() => setFocused(true)}

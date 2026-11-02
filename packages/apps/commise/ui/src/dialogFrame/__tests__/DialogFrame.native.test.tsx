@@ -8,7 +8,7 @@
  * has no keyboard, no window flags and no tap persistence to observe. `sendAccessibilityEvent` is mocked because
  * react-native-web does not implement it, and `useReduceMotion` because its platform setting does not exist under jsdom.
  */
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { createElement, type ComponentProps } from 'react';
 import {
     AccessibilityInfo,
@@ -19,9 +19,11 @@ import {
 } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { bodyFontFace, radius } from '../../tokens/scale.js';
+import { scaledTypeSize } from '../../text/scaledType.js';
 import { DialogFrame } from '../DialogFrame.native.js';
 import { DIALOG_CARD_MAX_WIDTH_DP } from '../dialogFrameLayout.js';
 import type { DialogFrameProps } from '../props.js';
@@ -120,17 +122,34 @@ function renderFrame(overrides: Partial<DialogFrameProps> = {}): { readonly onRe
  */
 const card = (role: 'alert' | 'dialog' = 'dialog'): HTMLElement =>
     screen.getByRole('heading', { name: 'Erase your account?' }).closest(`[role="${role}"]`) as HTMLElement;
-/** The scrim: the card sits in the keyboard avoider, inside it. */
-const scrim = (role: 'alert' | 'dialog' = 'dialog'): HTMLElement =>
-    card(role).parentElement?.parentElement as HTMLElement;
+
+/**
+ * The scrim: the window's root view, the nearest ancestor of the card that pads by a safe-area inset. The keyboard
+ * avoider and the tone scope sit between the two.
+ */
+const scrim = (role: 'alert' | 'dialog' = 'dialog'): HTMLElement => {
+    for (let node = card(role).parentElement; node !== null; node = node.parentElement) {
+        if (appliedStyle(node, 'padding-top') === '24px') {
+            return node;
+        }
+    }
+
+    throw new Error('no ancestor of the card pads by the top inset');
+};
 
 // Parity item 8: a dialog is the largest surface step (`radius.xl`, 24); `lg` (18) is a notice's.
 describe('DialogFrame (native) — the corner radius', () => {
     it('rounds the card at radius.xl on every corner', () => {
         renderFrame();
 
-        for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
-            expect(appliedStyle(card(), `border-${corner}-radius`), corner).toBe(`${String(radius.xl)}px`);
+        // REWRITTEN for the Tamagui card: its radius is the `$xl` token, read from the class rules Tamagui emits.
+        for (const corner of [
+            'borderTopLeftRadius',
+            'borderTopRightRadius',
+            'borderBottomLeftRadius',
+            'borderBottomRightRadius',
+        ] as const) {
+            expect(resolvedStyle(card(), corner), corner).toBe(`${String(radius.xl)}px`);
         }
     });
 });
@@ -155,9 +174,47 @@ describe('DialogFrame (native)', () => {
     it('sets its title in the sectionTitle role, as the web dialog does', () => {
         renderFrame();
 
-        expect(appliedStyle(screen.getByRole('heading', { name: 'Erase your account?' }), 'font-family')).toBe(
-            bodyFontFace.semibold,
+        // REWRITTEN for the design-system `Text`: the role is read from the class rules Tamagui emits.
+        const title = screen.getByRole('heading', { name: 'Erase your account?' });
+
+        expect(resolvedStyle(title, 'fontFamily')).toContain(bodyFontFace.semibold);
+        expect(resolvedStyle(title, 'fontSize')).toBe(`${String(nativeTokens.type.sectionTitle.fontSize)}px`);
+    });
+
+    // The designer ruled that titles wrap and are never clipped (the Sort sheet read "Sort recip…" at the iOS cap).
+    it('wraps a long title in full at the largest text scale, with no line limit and no ellipsis', () => {
+        const long = 'Erase your account and every recipe, collection and photo you have saved in it?';
+
+        renderWithTamagui(
+            <DialogFrame open onRequestClose={vi.fn()} title={long} role="dialog">
+                <Text>Everything goes.</Text>
+            </DialogFrame>,
+            'light',
+            3.1,
         );
+
+        const title = screen.getByRole('heading', { name: long });
+
+        expect(title.textContent).toBe(long);
+        expect(resolvedStyle(title, 'whiteSpace')).not.toBe('nowrap');
+        expect(resolvedStyle(title, 'textOverflow')).not.toBe('ellipsis');
+    });
+
+    it('draws the title at the scaled sectionTitle size at the largest text scale', () => {
+        renderWithTamagui(
+            <DialogFrame open onRequestClose={vi.fn()} title="Erase your account?" role="dialog">
+                <Text>Everything goes.</Text>
+            </DialogFrame>,
+            'light',
+            3.1,
+        );
+
+        const scaled = scaledTypeSize('sectionTitle', 3.1);
+
+        expect(resolvedStyle(screen.getByRole('heading', { name: 'Erase your account?' }), 'fontSize')).toBe(
+            `${String(scaled.fontSize)}px`,
+        );
+        expect(scaled.fontSize).toBeGreaterThan(nativeTokens.type.sectionTitle.fontSize);
     });
 
     it('passes the role through: an interrupting confirmation is an alert', () => {
@@ -216,25 +273,20 @@ describe('DialogFrame (native)', () => {
         renderFrame();
 
         expect(state.avoider).toBeDefined();
-        expect(card().parentElement?.parentElement).toBe(scrim());
+        expect(scrim().contains(card())).toBe(true);
     });
 
     it('caps the card at 480 dp wide and at the height the keyboard leaves, and scrolls its content', () => {
         renderFrame();
 
         expect(DIALOG_CARD_MAX_WIDTH_DP).toBe(480);
-        expect(appliedStyle(card(), 'max-width')).toBe('480px');
-        expect(appliedStyle(card(), 'max-height')).toBe('100%');
+        expect(resolvedStyle(card(), 'maxWidth')).toBe('480px');
+        expect(resolvedStyle(card(), 'maxHeight')).toBe('100%');
         expect(card().contains(screen.getByText('Everything goes.'))).toBe(true);
     });
 
-    // With the keyboard up, the first tap on Erase must press Erase, not only close the keyboard.
-    it('lets the first tap with the keyboard up reach a control', () => {
-        renderFrame();
-
-        expect(state.scroll?.keyboardShouldPersistTaps).toBe('handled');
-    });
-
+    // REWRITTEN: the scroller is Tamagui's `ScrollView` now, so its `keyboardShouldPersistTaps` is asserted on the props the
+    // frame hands it, in `DialogEngine.native.test.tsx`.
     it('moves screen-reader focus to the title each time the window shows', () => {
         renderFrame();
 

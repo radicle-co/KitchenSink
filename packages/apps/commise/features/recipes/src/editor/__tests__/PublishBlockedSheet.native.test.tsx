@@ -154,12 +154,17 @@ describe('PublishBlockedSheet (native)', () => {
         expect(onPublishPublic).not.toHaveBeenCalled();
     });
 
+    // REWRITTEN for the Tamagui Sheet: the scrim is the catcher that stands right behind the panel (and the tone scope around
+    // it), found by walking up from the dialog to the first ancestor that has a previous sibling.
     it('⛔ a tap on the scrim means Keep as draft and never publishes', () => {
         const { onKeepDraft, onPublishPublic } = renderSheet();
-        const dialog = screen.getByRole('heading', { name: TITLE }).closest('[role="dialog"]');
-        const scrim = dialog?.parentElement?.parentElement?.firstElementChild;
+        let frame = screen.getByRole('heading', { name: TITLE }).closest('[role="dialog"]');
 
-        fireEvent.click(scrim as Element);
+        while (frame !== null && frame.previousElementSibling === null) {
+            frame = frame.parentElement;
+        }
+
+        fireEvent.click(frame?.previousElementSibling as Element);
 
         expect(onKeepDraft).toHaveBeenCalledTimes(1);
         expect(onPublishPublic).not.toHaveBeenCalled();

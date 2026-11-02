@@ -18,13 +18,9 @@ const INSTANT = { type: 'timing', duration: 0 } as const;
 /** The props to spread onto the Sheet and onto its overlay. */
 export interface MotionProps {
     readonly sheet: { readonly transition: typeof SPRING } | { readonly transitionConfig: typeof INSTANT };
+    /** A fade: Tamagui 3 writes it as an opacity clause, `value enter:start exit:end`. Instant: nothing to fade. */
     readonly overlay:
-        | {
-              readonly transition: typeof SPRING;
-              readonly enterStyle: { opacity: 0 };
-              readonly exitStyle: { opacity: 0 };
-          }
-        | Record<never, never>;
+        { readonly transition: typeof SPRING; readonly opacity: '1 enter:0 exit:0' } | Record<never, never>;
 }
 
 /**
@@ -37,7 +33,7 @@ export function motionPropsOf(reduceMotion: boolean | undefined): MotionProps {
     return reduceMotion === false
         ? {
               sheet: { transition: SPRING },
-              overlay: { transition: SPRING, enterStyle: { opacity: 0 }, exitStyle: { opacity: 0 } },
+              overlay: { transition: SPRING, opacity: '1 enter:0 exit:0' },
           }
         : { sheet: { transitionConfig: INSTANT }, overlay: {} };
 }

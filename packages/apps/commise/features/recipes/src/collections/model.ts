@@ -76,6 +76,12 @@ export interface CollectionListFrameProps {
      * its place. Offline or failed it shows.
      */
     readonly createEntryYields?: boolean;
+    /**
+     * The floating button takes focus (native): raised when the new-collection sheet closes without creating one, so
+     * focus returns to the control that opened it. The frame passes it to the button, which acknowledges it.
+     */
+    readonly createFocusRequested?: boolean;
+    readonly onCreateFocusHandled?: () => void;
     /** The read boundary: its loading or error fallback, or the settled results. */
     readonly children: ReactNode;
 }

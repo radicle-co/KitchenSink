@@ -6,7 +6,8 @@
  * must act, and a dismiss would hide a condition that is still true. ⛔ AND NO LIVE REGION: the module explains why
  * native announces nothing rather than announcing rudely, so the region is named but never live.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SyncNotice } from '../SyncNotice.native.js';

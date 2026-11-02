@@ -14,7 +14,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { surfaceFill } from '../surfaceTone/surfaceFill.js';
-import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SyncNoticeProps } from './props.js';
@@ -29,7 +29,7 @@ export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel }) => {
     }
 
     return (
-        <SurfaceToneScope tone="muted">
+        <ToneScope tone="muted">
             <View
                 collapsable={false}
                 accessibilityLabel={regionLabel}
@@ -38,7 +38,7 @@ export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel }) => {
                 <Text style={[styles.title, { color: colors.ink }]}>{state.title}</Text>
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{state.body}</Text>
             </View>
-        </SurfaceToneScope>
+        </ToneScope>
     );
 };
 

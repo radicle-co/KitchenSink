@@ -1,12 +1,17 @@
 appId: ${APP_ID}
 ---
-# iOS ONLY (iOS has no Back key). Swiping a sheet down is a dismiss request the host may veto, like Back
-# (OverlayHost, `route: 'swipe'`). Needs the iOS Simulator, so it is NOT under `config.yaml`'s discovery and runs by
-# name on a Mac: `maestro test .maestro/shell/overlaySwipeDismiss.yaml`, like `iosSwipeBack.yaml`.
+# BOTH PLATFORMS. Swiping a sheet down by its handle or title row is a dismiss request the host may veto, like Back
+# (OverlayHost, `route: 'swipe'`). It is not in `FLOW_PLAN`: it is recorded in `KNOWN_UNRUN_FLOWS`
+# (`packages/tools/repoGuards/__tests__/maestroFlowSelection.test.ts`), so the planned suites on both platforms skip it and
+# a guard keeps that list honest. Run it by name on a device or simulator:
+# `maestro test .maestro/shell/overlaySwipeDismiss.yaml -e APP_ID=$(bash tests/e2e/runMaestroFlows.sh app-id ios|android)`.
 #
 # The swipe zone is the handle and the title row (designer ruling 2026-11-02); a drag in the content never moves the sheet.
-# Coordinates are measured on an iPhone 390 (iOS 26.5 simulator), passing twice:
-# - the handle/title swipe starts at 59% height (the title row; 40% is the backdrop, which is a tap target, not a swipe zone);
+# Every swipe starts ON AN ELEMENT, never at a screen percentage: the panel moves with the keyboard, the text size and the
+# screen, so a coordinate that hit the title row once lands in the content on the next layout change.
+# - the handle/title swipe starts from the sheet's title. The title text is also the list's create button, so the selector is
+#   "the 'New collection' that sits above the Name label": the button is below the sheet's content on both platforms;
+# - the content drag starts from the 'Description (optional)' label, which is content on both platforms;
 # - the sheet is not asserted while the discard dialog is up (the dialog is modal and hides the sheet from the tree);
 # - the negative leg reopens a CLEAN sheet first, because Discard has closed the earlier one, and drags in the content;
 # - no hideKeyboard on a dirty sheet: it taps the backdrop, and a backdrop tap on a dirty sheet raises the discard question
@@ -22,14 +27,18 @@ appId: ${APP_ID}
 
 # DIRTY sheet: swipe from the title row raises the discard question.
 - tapOn: 'New collection'
-- assertVisible: 'Description \(optional\)'
+- extendedWaitUntil:
+      visible: 'Description \(optional\)'
+      timeout: 20000
 - runFlow:
       file: ../recipes/common/typeCollectionName.yaml
       env:
           NAME: 'Overlay Swipe Name'
 - swipe:
-      start: 50%, 59%
-      end: 50%, 99%
+      from:
+          text: 'New collection'
+          above: 'Name'
+      direction: DOWN
       duration: 400
 - assertVisible: 'Discard this collection\?'
 - tapOn: 'Keep editing'
@@ -37,8 +46,10 @@ appId: ${APP_ID}
 - assertVisible: 'Description \(optional\)'
 - assertVisible: 'Overlay Swipe Name'
 - swipe:
-      start: 50%, 59%
-      end: 50%, 99%
+      from:
+          text: 'New collection'
+          above: 'Name'
+      direction: DOWN
       duration: 400
 - assertVisible: 'Discard this collection\?'
 - tapOn: 'Discard'
@@ -46,18 +57,22 @@ appId: ${APP_ID}
 
 # NEGATIVE: a drag that starts in the content does not move a clean sheet.
 - tapOn: 'New collection'
-- assertVisible: 'Description \(optional\)'
+- extendedWaitUntil:
+      visible: 'Description \(optional\)'
+      timeout: 20000
 - swipe:
-      start: 50%, 86%
-      end: 50%, 99%
+      from: 'Description \(optional\)'
+      direction: DOWN
       duration: 400
 - assertNotVisible: 'Discard this collection\?'
 - assertVisible: 'Description \(optional\)'
 
 # CLEAN sheet closes on a title-row swipe, no question.
 - swipe:
-      start: 50%, 59%
-      end: 50%, 99%
+      from:
+          text: 'New collection'
+          above: 'Name'
+      direction: DOWN
       duration: 400
 - assertNotVisible: 'Discard this collection\?'
 - assertNotVisible: 'Description \(optional\)'

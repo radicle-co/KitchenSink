@@ -84,6 +84,7 @@ export const Sheet: FC<SheetProps> = ({
     open,
     onOpenChange,
     onDismissed,
+    onShown,
     title,
     labelledBy = [],
     describedBy = [],
@@ -116,6 +117,7 @@ export const Sheet: FC<SheetProps> = ({
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
                         document.getElementById(titleId)?.focus();
+                        onShown?.();
                     }}
                     onCloseAutoFocus={(event) => {
                         returnFocus(event);

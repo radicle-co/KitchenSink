@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 84,
-        "implementations": 143,
-        "props": 796,
-        "documentedComponents": 84,
-        "implementationsWithModuleDoc": 143,
-        "implementationsWithComponentDoc": 132,
-        "documentedProps": 757,
-        "classifiedComponents": 77,
-        "componentsWithPatternTag": 84,
+        "components": 89,
+        "implementations": 148,
+        "props": 820,
+        "documentedComponents": 89,
+        "implementationsWithModuleDoc": 148,
+        "implementationsWithComponentDoc": 134,
+        "documentedProps": 778,
+        "classifiedComponents": 82,
+        "componentsWithPatternTag": 89,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -3315,6 +3315,8 @@
             "dir": "packages/apps/commise/ui/src/createFab",
             "kind": "presentational",
             "patterns": [
+                "Adapter over `HTMLElement.focus()` — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: focusing a control has no declarative form.",
+                "Adapter over `View.focus()` — a level-triggered focus request, acknowledged once taken. It is the one reason\n    this leaf holds a ref: focusing a control has no declarative form.",
                 "Policy — `createFabPolicy` decides, the leaf draws"
             ],
             "platforms": [
@@ -3339,6 +3341,10 @@
                         {
                             "name": "pattern",
                             "text": "Policy — `createFabPolicy` decides, the leaf draws"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `HTMLElement.focus()` — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: focusing a control has no declarative form."
                         }
                     ],
                     "description": "The web design-system floating create button.",
@@ -3346,6 +3352,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A level-triggered request for the button to take focus (the same pattern as `Input`): a sheet raises it when it\ncloses, so focus returns to the control that opened it. The button acknowledges with `onFocusRequestHandled`.",
+                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
+                        },
                         {
                             "name": "icon",
                             "type": "enum",
@@ -3417,6 +3432,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         },
                         {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
+                        },
+                        {
                             "name": "onPress",
                             "type": "() => void",
                             "typeDetail": null,
@@ -3435,7 +3459,9 @@
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -3456,6 +3482,10 @@
                         {
                             "name": "pattern",
                             "text": "Policy — `createFabPolicy` decides, the leaf draws"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `View.focus()` — a level-triggered focus request, acknowledged once taken. It is the one reason\n    this leaf holds a ref: focusing a control has no declarative form."
                         }
                     ],
                     "description": "The native design-system floating create button.",
@@ -3463,6 +3493,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A level-triggered request for the button to take focus (the same pattern as `Input`): a sheet raises it when it\ncloses, so focus returns to the control that opened it. The button acknowledges with `onFocusRequestHandled`.",
+                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
+                        },
                         {
                             "name": "icon",
                             "type": "enum",
@@ -3534,6 +3573,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         },
                         {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
+                        },
+                        {
                             "name": "onPress",
                             "type": "() => void",
                             "typeDetail": null,
@@ -3552,7 +3600,9 @@
                             "declaredIn": "packages/apps/commise/ui/src/createFab/props.ts"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -3936,6 +3986,85 @@
                             "defaultValue": null,
                             "description": "The row's own width from which the actions sit side by side. Required: a default puts a number on labels nobody measured.",
                             "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/dialogFrame/DialogEngine",
+            "name": "DialogEngine",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/dialogFrame",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over Tamagui's `Dialog` — its engine props and close, in this design system's terms"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "DialogEngine",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/dialogFrame",
+                    "moduleDoc": "@commise/ui/dialog-frame — the centred dialog's card: Tamagui's own `Dialog`, kept inside the window the host\nopens. It holds the card's look and nothing React Native styles, so the file that opens the window keeps the scrim and\nthe safe area and this one stays all Tamagui.\n\n- `modal={false}`: no portal and no window of its own; `OverlayHost` is the window, and Back, Close and the\n  screen-reader escape all reach the host through it. On a device Tamagui's content is then a plain frame in place,\n  with the dialog role and `aria-modal`; the outside-press and focus-trap layers are web-only.\n- Controlled `open`, no state of its own: the engine's own close (`onOpenChange(false)`) asks the host once, and the host\n  answers by changing `open` or not. A dialog that vetoes (a form that is submitting) simply stays.\n- The scrim is not a dismiss route, so the frame hands the engine no overlay.\n- The card paints the tone the frame states around it (`ToneScope` `paperOverlay`): its fill is the theme's `background`.\n- It has no motion of its own, so it takes no motion props: the window's fade is React Native's.\n\nIt uses the behaviour package (`@tamagui/dialog`), not `tamagui`'s Dialog: that one is skinned, and its defaults (a\n`border-color` key, a `borderRadius` of `'4'`, `elevate`) log warnings on a device that this card's own styling overrides\ntoo late to prevent.\n\nA presentational component: controlled by `open`, it holds no state and fetches nothing.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/dialog-frame — the centred dialog's card: Tamagui's own `Dialog`, kept inside the window the host"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over Tamagui's `Dialog` — its engine props and close, in this design system's terms"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "heading",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The heading, first in the card. The frame draws it, because the screen-reader cursor moves onto it by a React Native\nnode, which the frame owns.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx"
+                        },
+                        {
+                            "name": "onEngineClose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The engine closed itself.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx"
+                        },
+                        {
+                            "name": "role",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"alert\"",
+                                "\"dialog\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "`alert` for a confirmation that interrupts; `dialog` otherwise. Only the role changes.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -5661,6 +5790,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "onFocus",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called each time the field takes focus, by the cook or by a request. A host that sets the field aside reads it to give focus back.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "onFocusRequestHandled",
                             "type": "(() => void)",
                             "typeDetail": null,
@@ -5901,6 +6039,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the new value on each edit.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "onFocus",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called each time the field takes focus, by the cook or by a request. A host that sets the field aside reads it to give focus back.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -6403,6 +6550,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
+                            "name": "onFocus",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called each time the field takes focus, by the cook or by a request. A host that sets the field aside reads it to give focus back.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
                             "name": "onFocusRequestHandled",
                             "type": "(() => void)",
                             "typeDetail": null,
@@ -6574,6 +6730,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the new value on each edit.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
+                        },
+                        {
+                            "name": "onFocus",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called each time the field takes focus, by the cook or by a request. A host that sets the field aside reads it to give focus back.",
                             "declaredIn": "packages/apps/commise/ui/src/input/props.ts"
                         },
                         {
@@ -6822,6 +6987,75 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/keyboardAvoider/KeyboardLift",
+            "name": "KeyboardLift",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/keyboardAvoider",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over React Native's `Keyboard` and `measureInWindow` — the overlap is the one rule, owned here"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "KeyboardLift",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/keyboardAvoider",
+                    "moduleDoc": "@commise/ui/keyboard-lift — lifts a window-high frame's content above the keyboard, for the Sheet's engine frame.\n\n`KeyboardAvoidingView` reads its frame relative to its PARENT and the keyboard relative to the screen, which holds only\nin \"a box that starts at the top of the window\" (`KeyboardAvoider`). The Sheet's engine places its frame with a\ntransform inside a padded backdrop, so that arithmetic fell short on a device: the panel rose, but its action stayed\nbehind the keyboard. This measures instead: where the box's BOTTOM EDGE is in the window, and where the keyboard's TOP is\non the screen, and pads by the overlap. An edge-to-edge window has the same origin as the screen on both platforms, so\nno offset between the two can leave the foot behind the keyboard. The padding does not change the box's own size, so\nthe measure holds.\n\nThe box fills its parent and stands the content at its foot, centred across: the frame the Sheet's panel sits in. It must\nstart at the window's top, because a box that starts lower ends below the screen, and the lift would then measure an\noverlap larger than the keyboard is tall (Pixel 6: a window-high box padded down by the status bar ended 48.76 dp off the\nscreen). The status bar's room is `topInset`, taken inside the box.\n\n⚠️ A box that moves (the engine's transform while it slides in) measures where it is NOW; the lift re-measures when the\nkeyboard shows, hides or moves, and when the box lays out. It is owed a device check while a field opens the keyboard\nbefore the slide ends.\n\nAn orchestration component: it decides how far the content rises, and draws nothing of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/keyboard-lift — lifts a window-high frame's content above the keyboard, for the Sheet's engine frame."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Native's `Keyboard` and `measureInWindow` — the overlap is the one rule, owned here"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "bottomInset",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The bottom system bar's room, in dp. The window is edge to edge, so the box extends under the navigation bar, and\nAndroid's keyboard `height` EXCLUDES that bar: the foot must rise by the height plus this (Pixel 6: 288.38 + 48). It is\nalso the most the lift may ever rise past the keyboard's reported height, which bounds a bad measurement.",
+                            "declaredIn": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx"
+                        },
+                        {
+                            "name": "topInset",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The room the status bar takes at the head of the box, in dp. The box is as tall as the window and starts at its top, so\nits foot IS the screen's foot and the keyboard's overlap is the keyboard's own height at most. The panel stands in what is\nleft between this and the lift.",
+                            "declaredIn": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -8554,6 +8788,54 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/overlay/OverlayView",
+            "name": "OverlayView",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/overlay",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator over React Native's `View` — it adds the escape route and nothing else"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "OverlayView",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayView.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/overlay",
+                    "moduleDoc": "@commise/ui/overlay — the root view of a window overlay, which hears the screen-reader escape gesture.\n\nVoiceOver's two-finger escape (`onAccessibilityEscape`, iOS) is delivered to the view under the reading cursor or the\nnearest ancestor that answers it, so it has to sit on a view inside the window. Each overlay's root is this view, with\nits own props and style, and the gesture becomes the host's `escape` request: the same one door Back, a scrim press and\nClose use, which the host may refuse. It styles nothing, so the styling stays with the overlay that renders it.\n\nA presentational component: it renders its props and holds no state.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/overlay — the root view of a window overlay, which hears the screen-reader escape gesture."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator over React Native's `View` — it adds the escape route and nothing else"
+                        }
+                    ],
+                    "description": "A `View` inside an `OverlayHost` whose escape gesture asks the host to close.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]
@@ -11714,15 +11996,33 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "",
+                            "description": "The Close control.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
+                        },
+                        {
+                            "name": "onScrollSettled",
+                            "type": "(y: number) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook let go of the scroll region at `y`.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
+                        },
+                        {
+                            "name": "onSwipeDismiss",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A swipe down on the handle and the title row went past its threshold.",
                             "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
                         },
                         {
                             "name": "presentation",
                             "type": "enum",
                             "typeDetail": [
-                                "\"dialog\"",
-                                "\"sheet\""
+                                "\"sheet\"",
+                                "\"dialog\""
                             ],
                             "required": false,
                             "defaultValue": "sheet",
@@ -11736,6 +12036,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The platform's reduce-motion answer, for the swipe's snap-back.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
+                        },
+                        {
+                            "name": "restoreScrollY",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where the scroll region starts, in dp: the position the cook left it at when the sheet was set aside. 0: the top.",
                             "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
                         },
                         {
@@ -11770,7 +12079,9 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -11874,7 +12185,7 @@
             "kind": "presentational",
             "patterns": [
                 "Adapter over `@radix-ui/react-dialog` — the skeleton and the collapse are `SheetPanel`'s Template Method.",
-                "Adapter over the design-system `OverlayHost`, the `Modal` in every orientation — the skeleton and the\n    collapse are `BottomSheetPanel`'s Template Method."
+                "Adapter over the design-system `OverlayHost` and Tamagui's `Sheet` — the skeleton and the collapse are\n    `BottomSheetPanel`'s Template Method."
             ],
             "platforms": [
                 "web",
@@ -11942,6 +12253,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
                         },
                         {
+                            "name": "held",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The host has set the sheet aside for a moment (a question is up) and will bring it back as it was. `open` stays true.\nThe window leaves at once, with no exit and no scrim fade; nothing is reported as dismissed; and the opening is not a\nnew one, so the panel's scroll position is put back when it returns. What the cook typed is the host's, and so is\nfocus on the field that had it. Native only: React Native shows one window at a time on iOS. Absent: not held.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "labelledBy",
                             "type": "readonly string[]",
                             "typeDetail": null,
@@ -11969,6 +12289,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
                         },
                         {
+                            "name": "onShown",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called each time the sheet is on screen, once its window is shown: on native after the window's own `onShow`, on web\nwhen it opens. The moment a host can move focus into a field of a sheet that has just come back: before it, the field\nis not attached to a window yet and the focus is lost.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "open",
                             "type": "boolean",
                             "typeDetail": null,
@@ -11981,8 +12310,8 @@
                             "name": "presentation",
                             "type": "enum",
                             "typeDetail": [
-                                "\"dialog\"",
-                                "\"sheet\""
+                                "\"sheet\"",
+                                "\"dialog\""
                             ],
                             "required": false,
                             "defaultValue": "sheet",
@@ -12033,7 +12362,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/sheet/Sheet.native.tsx",
                     "dir": "packages/apps/commise/ui/src/sheet",
-                    "moduleDoc": "@commise/ui/sheet — the native design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nA bottom-anchored React Native `Modal` over a dimmed scrim, drawn edge to edge so the sheet can clear the status\nand navigation bars by their insets. Every close route calls `onOpenChange(false)`: Close, a tap on the scrim, a\nswipe down, and Android back, which an open `Modal` delivers to `onRequestClose` itself (so\n`@commise/ui/back-intercept` never sees it): `OverlayHost` turns it into the same close request.\n\n- The title takes screen-reader focus when the Modal SHOWS, every time. A mount effect runs before the Modal is on\n  screen, and a parent's effect after its children's, so `onShow` is the moment that works.\n- Focus back to the opener belongs to the host: React Native cannot read where the reading cursor was.\n- The keyboard: `KeyboardAvoider`, shared with the centred dialog frame, lifts the sheet above it. A tap in the sheet\n  with the keyboard up also needs every scroller AROUND it, the host screen's included, to persist taps: React\n  Native gives a touch to the outermost scroller that captures it, across the Modal's window\n  (`packages/tools/repoGuards/__tests__/nativeScrollerTapPersistence.test.ts`).\n- It slides in only when reduce motion is known to be off. The answer is read even while closed, so it is ready\n  before the first open.\n- The `Modal` stays mounted with `visible={open}`, because React Native plays the iOS slide-out only for a Modal\n  still mounted with `visible={false}` and reports `onDismiss` only then, on iOS only (React Native 0.86\n  `Modal.js`). So `onDismissed` comes from that `onDismiss` on iOS, and from an effect after the close elsewhere,\n  where the Modal leaves at once (`docs/design/rowEditorBlueprint.md` decision 5). A report that lands while the\n  sheet is open makes the next close unreported on iOS too, so the sheet reports that close itself. ⚠️ The iOS\n  slide-out is owed a device check (`docs/design/rowEditorOpenDecisions.md` item 8).\n- The panel is keyed on the opening, so each open starts it fresh, a reopen during an iOS slide-out included.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
+                    "moduleDoc": "@commise/ui/sheet — the native design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nA bottom-anchored sheet on Tamagui's own `Sheet` (`SheetEngine`), inside the window `OverlayHost` opens, over a dimmed\nscrim, drawn edge to edge so the sheet can clear the status and navigation bars by their insets. Every close route asks\nthe host once and the host answers by changing `open`: Close, the overlay, a drag to the bottom, and Android back, which\nan open `Modal` delivers to `onRequestClose` itself (so `@commise/ui/back-intercept` never sees it).\n\n- The title takes screen-reader focus when the Modal SHOWS, every time. A mount effect runs before the Modal is on\n  screen, and a parent's effect after its children's, so `onShow` is the moment that works.\n- Focus back to the opener belongs to the host: React Native cannot read where the reading cursor was.\n- The keyboard: `KeyboardAvoider`, shared with the centred dialog frame, owns it. Tamagui's own keyboard movement is\n  off. ⚠️ The engine places the sheet from the window, not from the avoided box, so whether `KeyboardAvoider` lifts it is\n  owed a device check (a field in the collection sheet, and the Unit combobox).\n- The window stays up until the engine has finished the exit (`isFinishedClose`), with no animation of its own, so\n  the slide-out shows on both platforms; a fallback timer lets go if the engine never reports the end. An engine that has\n  reported no transition at all is not animating, so there is no exit to wait for. A Back during the exit\n  asks nothing: `open` is already false.\n- While the exit plays the sheet is hidden from the screen reader, so reading and focus can return to the opener at\n  once rather than when the animation ends. With reduce motion on or unknown there is no exit: the window leaves at\n  once, which also leaves no chance of an invisible window catching touches.\n- Every route has a caller: Back (the host), the scrim of a centred dialog, Close, the engine's own close, and the\n  screen-reader escape (`OverlayView`).\n- A centred dialog (`presentation=\"dialog\"` from the tablet width) has no bottom to drag to, so it keeps the window's own\n  fade, with no engine. It slides in only when reduce motion is known to be off.\n- The Modal stays mounted with `visible` false after the exit, because React Native plays the iOS slide-out only for a\n  Modal still mounted with `visible={false}` and reports `onDismiss` only then, on iOS only (React Native 0.86\n  `Modal.js`). So `onDismissed` comes from that `onDismiss` on iOS, and from an effect after the window leaves elsewhere\n  (`docs/design/rowEditorBlueprint.md` decision 5). A report that lands while the window is up makes the next close\n  unreported on iOS too, so the sheet reports that close itself. ⚠️ The iOS slide-out is owed a device check\n  (`docs/design/rowEditorOpenDecisions.md` item 8).\n- The panel is keyed on the sheet's opening, so each opening starts it fresh.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12041,7 +12370,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over the design-system `OverlayHost`, the `Modal` in every orientation — the skeleton and the\n    collapse are `BottomSheetPanel`'s Template Method."
+                            "text": "Adapter over the design-system `OverlayHost` and Tamagui's `Sheet` — the skeleton and the collapse are\n    `BottomSheetPanel`'s Template Method."
                         }
                     ],
                     "description": "",
@@ -12086,6 +12415,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
                         },
                         {
+                            "name": "held",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The host has set the sheet aside for a moment (a question is up) and will bring it back as it was. `open` stays true.\nThe window leaves at once, with no exit and no scrim fade; nothing is reported as dismissed; and the opening is not a\nnew one, so the panel's scroll position is put back when it returns. What the cook typed is the host's, and so is\nfocus on the field that had it. Native only: React Native shows one window at a time on iOS. Absent: not held.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "labelledBy",
                             "type": "readonly string[]",
                             "typeDetail": null,
@@ -12113,6 +12451,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
                         },
                         {
+                            "name": "onShown",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called each time the sheet is on screen, once its window is shown: on native after the window's own `onShow`, on web\nwhen it opens. The moment a host can move focus into a field of a sheet that has just come back: before it, the field\nis not attached to a window yet and the focus is lost.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        },
+                        {
                             "name": "open",
                             "type": "boolean",
                             "typeDetail": null,
@@ -12125,8 +12472,8 @@
                             "name": "presentation",
                             "type": "enum",
                             "typeDetail": [
-                                "\"dialog\"",
-                                "\"sheet\""
+                                "\"sheet\"",
+                                "\"dialog\""
                             ],
                             "required": false,
                             "defaultValue": "sheet",
@@ -12163,6 +12510,82 @@
                             "defaultValue": null,
                             "description": "Pinned under the title, outside the scroll region. ⛔ With a toolbar, `children` holds no text input.",
                             "declaredIn": "packages/apps/commise/ui/src/sheet/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/sheet/SheetEngine",
+            "name": "SheetEngine",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/sheet",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over Tamagui's `Sheet` — its engine props and reports, in this design system's terms"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SheetEngine",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/sheet",
+                    "moduleDoc": "@commise/ui/sheet — the native sheet's engine: Tamagui's own `Sheet`, kept inside the window the host opens. It\nmoves ONE thing, a frame as tall as the window, in from the foot and out again; the panel stands at the foot of that frame\n(the Container's `justifyContent`).\n\nWhy a full-height frame and not `fit`: in `fit` mode the engine places the sheet from the height it measures for its\ncontent, and on a device the first gate showed the sheet collapsed, with only its handle and the top of its title above\nthe foot of the screen. A frame as tall as the window is measured against a size the parent gives it, so its position\ncannot depend on when the content lays out. The panel is content-sized inside it, and the screen above the panel is the\nscrim's (`SheetScrim`, which asks the host to close).\n\n- `modal={false}`: no portal and no window of its own; `OverlayHost` is the window, and Back, the scrim, Close and the\n  screen-reader escape all reach the host through it.\n- `disableDrag`: the engine drags a frame from anywhere on it. The designer's rule is a drag from the handle and the title\n  row only, so the panel owns the swipe (`useSwipeToDismiss`) and asks the host to close; the engine only animates the\n  open and the exit.\n- Controlled `open`, no state of its own: the host answers a close by changing `open` or not.\n- `moveOnKeyboardChange={false}`: our `KeyboardAvoider` owns the keyboard, so there is one avoider, not two.\n- Motion props come only from `motionPropsOf`, which treats an unread reduce-motion answer as instant.\n- The scrim is the engine's overlay, drawn in the `$scrim` role at full strength (the engine's own skin dims it again).\n\n`onTransition` hands every report to the sheet, which reads the end of a close as the moment the window may leave.\n\nA presentational component: controlled by `open`, it holds no state and fetches nothing.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/sheet — the native sheet's engine: Tamagui's own `Sheet`, kept inside the window the host opens. It"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over Tamagui's `Sheet` — its engine props and reports, in this design system's terms"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onTransition",
+                            "type": "(event: EngineTransition) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every transition the engine reports: an open, a snap, or a close, at its start and its end.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx"
+                        },
+                        {
+                            "name": "reduceMotion",
+                            "type": "boolean | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -13566,6 +13989,71 @@
                             "defaultValue": null,
                             "description": "The surface it paints, and so the surface every control inside it reads.",
                             "declaredIn": "packages/apps/commise/ui/src/surfaceTone/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/surfaceTone/ToneScope",
+            "name": "ToneScope",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/surfaceTone",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter — pairs Tamagui's theme context with the JS tone context behind one component"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ToneScope",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/surfaceTone/ToneScope.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/surfaceTone",
+                    "moduleDoc": "@commise/ui/surface-tone — {@link ToneScope}: states a surface's tone ONCE, to both readers of it. Tamagui's\n`<Theme name={tone}>` makes a bare `Text` and every Tamagui part inside take the tone's ink, background and border\n(the sub-themes of `theme/tamaguiThemes.ts`); `SurfaceToneScope` makes `useSurfaceTone` and `usePressFill` read the same\ntone. Two separate statements of one fact can drift, so `Surface` and every root that paints itself state it through\nhere, and a guard (`surfaceToneScopeOwnership`) lets nothing else import the raw scope.\n\nThe raw scope retires consumer by consumer as the readers move to Tamagui theme keys.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/surface-tone — {@link ToneScope}: states a surface's tone ONCE, to both readers of it. Tamagui's"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — pairs Tamagui's theme context with the JS tone context behind one component"
+                        }
+                    ],
+                    "description": "States a tone to everything inside, painting nothing.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"canvas\"",
+                                "\"paper\"",
+                                "\"paperRaised\"",
+                                "\"paperOverlay\"",
+                                "\"inverse\"",
+                                "\"muted\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The surface's tone.",
+                            "declaredIn": "packages/apps/commise/ui/src/surfaceTone/ToneScope.native.tsx"
                         }
                     ],
                     "usesRefApi": [],

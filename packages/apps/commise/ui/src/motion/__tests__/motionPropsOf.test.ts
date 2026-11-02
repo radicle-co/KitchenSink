@@ -20,7 +20,9 @@ describe('motionPropsOf', () => {
     it('fades the overlay in and out when reduce motion is known to be off', () => {
         const { overlay } = motionPropsOf(false);
 
-        expect(overlay).toEqual({ transition: 'sheet', enterStyle: { opacity: 0 }, exitStyle: { opacity: 0 } });
+        // Tamagui 3 removed `enterStyle` and `exitStyle` (a device logs `prop "enterStyle" was removed in v3`); a fade is the
+        // opacity clause `value enter:start exit:end`.
+        expect(overlay).toEqual({ transition: 'sheet', opacity: '1 enter:0 exit:0' });
     });
 
     it.each([

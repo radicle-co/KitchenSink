@@ -78,6 +78,7 @@ export const TextArea: FC<TextAreaProps> = ({
     maxRows,
     focusRequested = false,
     onFocusRequestHandled,
+    onFocus,
 }) => {
     const [content, setContent] = useState<number | null>(null);
     const theme = useTheme();
@@ -92,7 +93,10 @@ export const TextArea: FC<TextAreaProps> = ({
         <TextInput
             ref={node}
             nativeID={id}
-            onFocus={() => setFocused(true)}
+            onFocus={() => {
+                setFocused(true);
+                onFocus?.();
+            }}
             onBlur={() => setFocused(false)}
             multiline
             value={value}

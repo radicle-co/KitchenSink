@@ -16,6 +16,9 @@ import type { CollectionSheetProps } from './sheetModel.js';
 /** What a sheet opened to create starts from. */
 const NOTHING: { readonly name: string; readonly description?: string } = { name: '' };
 
+/** A field of the sheet that can hold focus. */
+export type SheetField = 'name' | 'description';
+
 /** The draft and what the leaves do with it. */
 export interface CollectionSheetDraft {
     /** The sheet is renaming, not creating. */
@@ -30,7 +33,13 @@ export interface CollectionSheetDraft {
     readonly nameError: boolean;
     /** The discard question is showing. */
     readonly confirming: boolean;
+    /** Cancel the discard question and ask the field the cook was in to take focus back. */
     readonly keepEditing: () => void;
+    /** Note which field has focus, so Keep editing can return to it. */
+    readonly rememberField: (field: SheetField) => void;
+    /** The field asked to take focus after Keep editing, until it reports it has. The leaf decides WHEN (native waits for its window). */
+    readonly refocus: SheetField | undefined;
+    readonly onRefocused: () => void;
     /** Close without asking (the discard question's answer). */
     readonly close: () => void;
     /** Close, asking first when there is something to lose. */
@@ -59,6 +68,8 @@ export function useCollectionSheetDraft(props: CollectionSheetProps): Collection
     const [nameError, setNameError] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [wasOpen, setWasOpen] = useState(open);
+    const [lastField, setLastField] = useState<SheetField | undefined>(undefined);
+    const [refocus, setRefocus] = useState<SheetField | undefined>(undefined);
 
     const reset = (): void => {
         setName(seed.name);
@@ -98,7 +109,13 @@ export function useCollectionSheetDraft(props: CollectionSheetProps): Collection
         typeDescription: (text) => setDescription(text.slice(0, COLLECTION_DESCRIPTION_MAX_LENGTH)),
         nameError,
         confirming,
-        keepEditing: () => setConfirming(false),
+        keepEditing: () => {
+            setConfirming(false);
+            setRefocus(lastField);
+        },
+        rememberField: setLastField,
+        refocus,
+        onRefocused: () => setRefocus(undefined),
         close,
         requestClose: () => {
             if (dirty && !submitting) {

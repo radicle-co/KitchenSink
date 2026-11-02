@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { placeholderContrast } from '@commise/test-utils';
@@ -24,6 +24,37 @@ import { nativeTokens } from '../../tokens/native.js';
  */
 
 afterEach(cleanup);
+
+// A host that sets a field aside while it asks a question needs to know which field had focus, to give it back.
+describe('Input and TextArea (native) — onFocus', () => {
+    it.each([
+        [
+            'Input',
+            (onFocus: () => void) => <Input id="f" value="" onChangeText={vi.fn()} label="Name" onFocus={onFocus} />,
+        ],
+        [
+            'TextArea',
+            (onFocus: () => void) => (
+                <TextArea
+                    id="f"
+                    value=""
+                    onChangeText={vi.fn()}
+                    label="Name"
+                    minRows={1}
+                    maxRows={2}
+                    onFocus={onFocus}
+                />
+            ),
+        ],
+    ] as const)('%s tells the host when it takes focus', (_name, field) => {
+        const onFocus = vi.fn();
+        render(field(onFocus));
+
+        act(() => screen.getByLabelText('Name').focus());
+
+        expect(onFocus).toHaveBeenCalledTimes(1);
+    });
+});
 
 /** `#RRGGBB` → jsdom's `rgb(r, g, b)`. */
 function rgb(hex: string): string {

@@ -42,6 +42,13 @@ function renderMenu(over: Partial<CollectionMoreMenuProps> = {}) {
 }
 
 describe('CollectionMoreMenu (native)', () => {
+    it('takes a requested focus on its trigger and says so, which is how the rename sheet gives focus back', () => {
+        const onFocusRequestHandled = vi.fn();
+        renderMenu({ focusRequested: true, onFocusRequestHandled });
+
+        expect(onFocusRequestHandled).toHaveBeenCalledOnce();
+    });
+
     function open() {
         fireEvent.click(screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }));
 

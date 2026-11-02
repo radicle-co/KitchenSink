@@ -297,6 +297,13 @@ describe('Button (web)', () => {
         expect(screen.getByRole('button', { name: 'Show all' })).toBeTruthy();
     });
 
+    it('lets a secondary button have no glyph, keeping its surface, and still be a named button', () => {
+        const { container } = render(<Button variant="secondary">Keep editing</Button>);
+
+        expect(glyphIn(container)).toBeNull();
+        expect(screen.getByRole('button', { name: 'Keep editing' })).toBeTruthy();
+    });
+
     it('draws a ghost button’s glyph when it is given one', () => {
         const { container } = render(
             <Button variant="ghost" icon="x">

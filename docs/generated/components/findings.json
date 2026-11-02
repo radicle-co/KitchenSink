@@ -4,12 +4,12 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 20,
-        "missing-component-doc": 161,
+        "missing-component-doc": 164,
         "missing-module-doc": 21,
-        "platform-singleton": 76,
-        "ref-api": 15,
+        "platform-singleton": 80,
+        "ref-api": 19,
         "unclassified-layer": 91,
-        "undocumented-prop": 182
+        "undocumented-prop": 186
     },
     "findings": [
         {
@@ -247,6 +247,46 @@
             "evidence": []
         },
         {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onFocusRequestHandled"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onFocusRequestHandled"
+            ]
+        },
+        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "designSystem/createFab/FabFace",
@@ -283,6 +323,24 @@
             "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/dialogFrame/DialogEngine",
+            "sourcePath": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/dialogFrame/DialogEngine",
+            "sourcePath": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
         },
         {
             "rule": "platform-singleton",
@@ -416,6 +474,34 @@
             ]
         },
         {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/keyboardAvoider/KeyboardLift",
+            "sourcePath": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/keyboardAvoider/KeyboardLift",
+            "sourcePath": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/keyboardAvoider/KeyboardLift",
+            "sourcePath": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
             "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "designSystem/largeTitleHeader/CondensedTitleBar",
@@ -499,6 +585,16 @@
             "severity": "review",
             "component": "designSystem/overlay/OverlayHost",
             "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/overlay/OverlayView",
+            "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayView.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
@@ -655,13 +751,13 @@
             ]
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
+            "rule": "ref-api",
+            "severity": "violation",
             "component": "designSystem/sheet/BottomSheetPanel",
             "sourcePath": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx",
-            "message": "props carry no JSDoc description",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
             "evidence": [
-                "onClose"
+                "useRef"
             ]
         },
         {
@@ -716,6 +812,35 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "open"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/sheet/SheetEngine",
+            "sourcePath": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/sheet/SheetEngine",
+            "sourcePath": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/sheet/SheetEngine",
+            "sourcePath": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "open",
+                "reduceMotion"
             ]
         },
         {
@@ -1108,6 +1233,7 @@
                 "name",
                 "onAddRecipes",
                 "onDelete",
+                "onMenuFocusHandled",
                 "onRename",
                 "onSaveCopy",
                 "recipeCount",
@@ -1126,6 +1252,7 @@
                 "name",
                 "onAddRecipes",
                 "onDelete",
+                "onMenuFocusHandled",
                 "onRename",
                 "onSaveCopy",
                 "recipeCount",
@@ -1147,6 +1274,26 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionListFrame",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onCreateFocusHandled"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionListFrame",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onCreateFocusHandled"
+            ]
         },
         {
             "rule": "missing-component-doc",
@@ -1316,6 +1463,7 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "onDelete",
+                "onFocusRequestHandled",
                 "onRename",
                 "onSaveCopy",
                 "visibility"

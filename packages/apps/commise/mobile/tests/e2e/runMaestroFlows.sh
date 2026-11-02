@@ -252,6 +252,7 @@ collections:recipes/collectionsVisibility
 collections:recipes/collectionsSaveCopy
 collections:recipes/collectionsPull
 collections:recipes/newCollectionSheet
+collections:shell/overlaySwipeDismiss
 recipes:recipes/createEntry
 recipes:recipes/systemBackGuard
 recipes:recipes/editorSections

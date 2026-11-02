@@ -15,4 +15,18 @@ describe('ButtonProps', () => {
         expectTypeOf<HasOver<ButtonProps>>().toEqualTypeOf<false>();
         expect(true).toBe(true);
     });
+
+    // Designer ruling 2026-11-03: a neutral safe choice ("Keep editing") is a `secondary` button with its border and NO glyph,
+    // because an `x` on it reads as close or discard. The glyph stays required where it carries the action itself.
+    it('requires a glyph for primary and destructive, and lets secondary, ghost and quiet go without one', () => {
+        type Bare<V extends string> = { readonly variant: V; readonly children: string };
+
+        expectTypeOf<Bare<'secondary'>>().toExtend<ButtonProps>();
+        expectTypeOf<Bare<'ghost'>>().toExtend<ButtonProps>();
+        expectTypeOf<Bare<'quiet'>>().toExtend<ButtonProps>();
+        expectTypeOf<Bare<'primary'>>().not.toExtend<ButtonProps>();
+        expectTypeOf<Bare<'destructive'>>().not.toExtend<ButtonProps>();
+        expectTypeOf<{ readonly children: string }>().not.toExtend<ButtonProps>();
+        expect(true).toBe(true);
+    });
 });

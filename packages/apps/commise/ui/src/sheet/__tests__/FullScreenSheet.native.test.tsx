@@ -8,13 +8,14 @@
  * UNDER the navigation bar. Owning the inset math once is what stops a fourth leaf repeating it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
 import { AccessibilityInfo, Text, type Modal as ModalType } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { FullScreenSheet, SHEET_PADDING } from '../FullScreenSheet.native.js';
 
 // A DISTINCT value per edge, so an assertion cannot pass on a leaf that adds the wrong inset to the wrong

@@ -106,6 +106,10 @@ export interface CollectionDetail {
         readonly failed: boolean;
         readonly onStart: () => void;
         readonly onSubmit: (request: CreateCollectionRequest) => void;
+        /** The rename sheet is off screen, by any route. */
+        readonly onDismissed: () => void;
+        /** The ⋯ menu's trigger takes focus back: Rename was chosen there, so the sheet's close returns to it. */
+        readonly focusMenu: { readonly requested: boolean; readonly onHandled: () => void };
     };
     readonly deletion: {
         readonly open: boolean;
@@ -170,6 +174,7 @@ export function useCollectionDetail({
     const variant = cardVariantOf(container, viewMode, 'library');
 
     const [renameOpen, setRenameOpen] = useState(false);
+    const [refocusMenu, setRefocusMenu] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [pickerQuery, setPickerQuery] = useState('');
@@ -215,6 +220,8 @@ export function useCollectionDetail({
                 setRenameOpen(true);
             },
             onSubmit: (request) => updateCollection.mutate({ id, request }, { onSuccess: () => setRenameOpen(false) }),
+            onDismissed: () => setRefocusMenu(true),
+            focusMenu: { requested: refocusMenu, onHandled: () => setRefocusMenu(false) },
         },
         deletion: {
             open: deleteOpen,

@@ -108,6 +108,8 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
                 onViewSource={onViewSource}
                 {...(detail.refreshNotice === undefined ? {} : { refreshNotice: detail.refreshNotice })}
                 onRename={rename.onStart}
+                menuFocusRequested={rename.focusMenu.requested}
+                onMenuFocusHandled={rename.focusMenu.onHandled}
                 {...(detail.onToggleVisibility === undefined ? {} : { onToggleVisibility: detail.onToggleVisibility })}
                 onSaveCopy={detail.saveCopy.onSave}
                 onPullUpdates={pull.start}
@@ -146,6 +148,7 @@ export const CollectionDetailBody: FC<CollectionDetailBodyProps> = ({
                 submitting={rename.submitting}
                 failed={rename.failed}
                 onRename={rename.onSubmit}
+                onDismissed={rename.onDismissed}
             />
 
             <CollectionDeleteDialog

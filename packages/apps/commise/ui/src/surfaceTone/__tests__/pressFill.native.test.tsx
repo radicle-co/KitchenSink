@@ -169,6 +169,9 @@ describe.each(['light', 'dark'] as const)('a pressed control in the %s theme', (
                     focusSignal={0}
                     reduceMotion
                     onClose={vi.fn()}
+                    onSwipeDismiss={vi.fn()}
+                    restoreScrollY={0}
+                    onScrollSettled={vi.fn()}
                 >
                     <Button variant="quiet">In the sheet</Button>
                 </BottomSheetPanel>

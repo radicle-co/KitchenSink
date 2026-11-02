@@ -39,6 +39,8 @@ export interface CollectionsList {
      * failed with nothing cached, it shows.
      */
     readonly createEntryYields: boolean;
+    /** Focus goes back to the floating button: the sheet closed without creating a collection. */
+    readonly createFocus: { readonly requested: boolean; readonly onHandled: () => void };
     readonly sheet: {
         readonly open: boolean;
         readonly onOpenChange: (open: boolean) => void;
@@ -66,6 +68,8 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
     // The collection the sheet created, held until the sheet is GONE: native keeps its window up for the slide-out, so
     // navigating from the mutation's success would open the collection over a sheet that is still on screen.
     const [createdId, setCreatedId] = useState<string | undefined>(undefined);
+    // The sheet was dismissed with nothing created: focus returns to the button that opened it.
+    const [refocusCreate, setRefocusCreate] = useState(false);
     const createCollection = useCreateCollection();
     // One recipe is enough to know; while it is unknown the first run offers New collection, the common case.
     const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
@@ -80,6 +84,7 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
         search: { value: searchValue, onChange: setSearchValue },
         hasRecipes: (anyRecipe.data?.total ?? 1) > 0,
         createEntryYields: createEntryYieldsNow,
+        createFocus: { requested: refocusCreate, onHandled: () => setRefocusCreate(false) },
         sheet: {
             open: sheetOpen,
             onOpenChange: setSheetOpen,
@@ -98,10 +103,14 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
                     },
                 }),
             onDismissed: () => {
-                if (createdId !== undefined) {
-                    setCreatedId(undefined);
-                    onCreated(createdId);
+                if (createdId === undefined) {
+                    setRefocusCreate(true);
+
+                    return;
                 }
+
+                setCreatedId(undefined);
+                onCreated(createdId);
             },
         },
     };

@@ -5,7 +5,12 @@ import { eq } from 'drizzle-orm';
 
 import { recordOnce, hasProcessedWebhookEvent, UserDAO, users } from '@kitchensink/identity-db';
 import type { UserRow } from '@kitchensink/identity-db';
-import { isEmailUniqueViolation, isNonRevivable, provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
+import {
+    isEmailUniqueViolation,
+    isNonRevivable,
+    provisionCompleteUser,
+    type ProvisionResult,
+} from '@kitchensink/identity-utils';
 import {
     createSnsHandleSyncPublisher,
     noopHandleSyncPublisher,
@@ -33,8 +38,10 @@ type IdentityUserData = ValidatedIdentityUserData;
 
 // The entry Clerk names as primary (the one reconciliation reads), else the first: both paths must agree on "the" email.
 const getPrimaryEmail = (data: IdentityUserData): string | undefined =>
-    (data.email_addresses.find((e) => e.id !== undefined && e.id === data.primary_email_address_id) ??
-        data.email_addresses[0])?.email_address;
+    (
+        data.email_addresses.find((e) => e.id !== undefined && e.id === data.primary_email_address_id) ??
+        data.email_addresses[0]
+    )?.email_address;
 
 const buildDisplayName = (data: IdentityUserData): string => `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim();
 

@@ -24,7 +24,7 @@ import { AdminService } from '../../src/admin/admin.service.js';
 import { noopHandleSyncPublisher } from '../../src/users/handleSync.publisher.js';
 import { UsersService } from '../../src/users/users.service.js';
 import { identityDb } from '../support/roleDb.js';
-import type { AuthorizerContext } from '../../src/types/index.js';
+import type { AuthorizerContext, UserId } from '../../src/types/index.js';
 
 const roleDb = identityDb();
 
@@ -85,7 +85,7 @@ describe('status races (LOCAL e2e — real Postgres)', () => {
         });
     };
 
-    const statusOf = async (userId: string): Promise<string | undefined> => {
+    const statusOf = async (userId: UserId): Promise<string | undefined> => {
         const [row] = await db.select({ status: users.status }).from(users).where(eq(users.id, userId));
 
         return row?.status;

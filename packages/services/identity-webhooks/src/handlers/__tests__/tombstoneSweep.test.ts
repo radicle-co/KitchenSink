@@ -132,15 +132,14 @@ describe('tombstone-sweep handler', () => {
         // Identity scrubbed to the erased state: name destroyed, email → placeholder, status erased.
         expect(userSets[0]).toMatchObject({ status: 'erased', name: null, picture: null });
         expect(userSets[0]!.email).toContain('@erased.invalid');
-        // The sweep deletes at Clerk BEFORE it scrubs, so the same UPDATE records that the provider account is
-        // gone (P1 #5) — with the sweep's own instant, not a second clock reading.
-        expect(userSets[0]!.providerDeletedAt).toBeInstanceOf(Date);
-        expect(userSets[0]!.providerDeletedAt).toBe(userSets[0]!.updatedAt);
+        // The sweep CLAIMS the row first and leaves the Clerk delete to the deletion worker, so the provider
+        // deletion is still owed (null) when the row is scrubbed; the worker confirms it.
+        expect(userSets[0]!.providerDeletedAt).toBeNull();
         // Companion rows purged (accounts + profiles) and the user's settings (ADR-0059). This mock cannot name the
         // table; `eraseIdentityRow.test.ts` pins which three, and the real-database spec pins the bystander.
         expect(deletedTables).toHaveLength(3);
-        // Clerk identity DELETED (erasure deletes; closure only bans).
-        expect(mockDeleteUser).toHaveBeenCalledWith('user_a');
+        // The sweep never calls Clerk itself: a reactivated tombstone must not lose its Clerk account.
+        expect(mockDeleteUser).not.toHaveBeenCalled();
         // R8 audit row for the automated sweep.
         expect(auditRows[0]).toMatchObject({ event: 'erasure', triggerSource: 'sweep', userId: 'usr_01' });
         // Recipe/food erasure legs enqueued via the existing deletion path (U3/U4 seam consumer).
@@ -148,17 +147,6 @@ describe('tombstone-sweep handler', () => {
         expect(body).toMatchObject({ identityId: 'user_a', userId: 'usr_01', event: 'erasure' });
 
         expect(result).toMatchObject({ scanned: 1, erased: 1 });
-    });
-
-    it('a Clerk 404 (account already gone) still records the provider deletion as confirmed', async () => {
-        const { db, userSets } = buildMockDb([{ id: 'usr_01', identityId: 'user_a' }]);
-        mockGetDb.mockResolvedValue(db as never);
-        mockDeleteUser.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }));
-
-        const result = await handler(makeEvent(), makeContext());
-
-        expect(result).toMatchObject({ erased: 1 });
-        expect(userSets[0]!.providerDeletedAt).toBeInstanceOf(Date);
     });
 
     it('no expired tombstones → no Clerk delete, no enqueue (idempotent no-op)', async () => {
@@ -172,21 +160,17 @@ describe('tombstone-sweep handler', () => {
         expect(result).toMatchObject({ scanned: 0, erased: 0 });
     });
 
-    it('a Clerk delete failure for one user does NOT abort the run (the DB scrub is skipped, retried next run)', async () => {
+    it('a failed enqueue for one user does NOT abort the run (reconciliation re-drives the owed erasure)', async () => {
         const { db, auditRows } = buildMockDb([
             { id: 'usr_01', identityId: 'user_a' },
             { id: 'usr_02', identityId: 'user_b' },
         ]);
         mockGetDb.mockResolvedValue(db as never);
-        mockDeleteUser.mockImplementation((id: string) =>
-            id === 'user_a' ? Promise.reject(new Error('clerk 500')) : Promise.resolve(),
-        );
+        sqsSend.mockRejectedValueOnce(new Error('sqs down')).mockResolvedValue({});
 
         const result = await handler(makeEvent(), makeContext());
 
-        // user_b still erased despite user_a's Clerk failure; user_a left for the next run (not scrubbed).
-        expect(result).toMatchObject({ scanned: 2, erased: 1 });
-        expect(auditRows).toHaveLength(1);
-        expect(auditRows[0]).toMatchObject({ userId: 'usr_02' });
+        expect(result).toMatchObject({ scanned: 2, erased: 2 });
+        expect(auditRows).toHaveLength(2);
     });
 });

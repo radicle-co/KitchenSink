@@ -22,17 +22,18 @@
  *
  * @pattern Template Method — the fixed chrome, with host-supplied steps (heading, controls, children, footer)
  */
-import type { FC, ReactNode } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, type FC, type ReactNode } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import type { TamaguiTextElement } from 'tamagui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
+import { Text } from '../text/Text.native.js';
 import { surfaceFill } from '../surfaceTone/surfaceFill.js';
-import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import { nativeTokens } from '../tokens/native.js';
 import { radius, spacing } from '../tokens/scale.js';
 import { isToolbarCollapsed } from './onScreenKeyboard.js';
 import type { SheetProps } from './props.js';
@@ -56,7 +57,14 @@ export interface BottomSheetPanelProps extends Pick<
     readonly focusSignal: number;
     /** The platform's reduce-motion answer, for the swipe's snap-back. */
     readonly reduceMotion: boolean | undefined;
+    /** Where the scroll region starts, in dp: the position the cook left it at when the sheet was set aside. 0: the top. */
+    readonly restoreScrollY: number;
+    /** The cook let go of the scroll region at `y`. */
+    readonly onScrollSettled: (y: number) => void;
+    /** The Close control. */
     readonly onClose: () => void;
+    /** A swipe down on the handle and the title row went past its threshold. */
+    readonly onSwipeDismiss: () => void;
 }
 
 export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
@@ -69,7 +77,10 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     children,
     focusSignal,
     reduceMotion,
+    restoreScrollY,
+    onScrollSettled,
     onClose,
+    onSwipeDismiss,
 }) => {
     const insets = useSafeAreaInsets();
     const theme = useTheme();
@@ -77,9 +88,20 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     const { width } = useWindowDimensions();
     const keyboardShown = useKeyboardShown();
     const collapsed = toolbar !== undefined && isToolbarCollapsed(keyboardShown, true);
-    const titleRef = useScreenReaderFocusOnSignal<Text>(focusSignal);
-    const { panHandlers, translateY } = useSwipeToDismiss(onClose, reduceMotion);
+    const titleRef = useScreenReaderFocusOnSignal<TamaguiTextElement>(focusSignal);
+    const { panHandlers, translateY } = useSwipeToDismiss(onSwipeDismiss, reduceMotion);
     const pinning = usePinnedFooter();
+    // The one node handle: putting a scroll position back has no declarative form.
+    const scroller = useRef<ScrollView>(null);
+
+    // @sideEffect Puts the scroll region back where the cook left it, once, when the panel appears.
+    useEffect(() => {
+        if (restoreScrollY > 0) {
+            scroller.current?.scrollTo({ y: restoreScrollY, animated: false });
+        }
+        // Once per appearance: a later change is the cook's own scrolling, which must not be fought.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+    }, []);
     // With a keyboard open, the keyboard, not the navigation bar, sits under the sheet: its inset is wasted space.
     const endPadding = { paddingBottom: SHEET_EDGE_PADDING_DP + (keyboardShown ? 0 : insets.bottom) };
     // ONE footer view, placed below the scroll region while pinned and as its last child once unpinned. It carries the
@@ -95,7 +117,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
         );
 
     return (
-        <SurfaceToneScope tone="paperOverlay">
+        <ToneScope tone="paperOverlay">
             <Animated.View
                 role="dialog"
                 aria-modal
@@ -126,9 +148,9 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                         <View style={styles.titleBox}>
                             <Text
                                 ref={titleRef}
-                                accessibilityRole="header"
-                                numberOfLines={1}
-                                style={collapsed ? visuallyHidden : [styles.title, { color: colors.ink }]}
+                                role="heading"
+                                typeRole="barTitle"
+                                {...(collapsed ? { style: visuallyHidden } : {})}
                             >
                                 {title}
                             </Text>
@@ -150,13 +172,18 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                         {toolbar.controls}
                     </View>
                 )}
-                <ScrollView keyboardShouldPersistTaps="handled">
+                <ScrollView
+                    ref={scroller}
+                    keyboardShouldPersistTaps="handled"
+                    onScrollEndDrag={(event) => onScrollSettled(event.nativeEvent.contentOffset.y)}
+                    onMomentumScrollEnd={(event) => onScrollSettled(event.nativeEvent.contentOffset.y)}
+                >
                     <View style={[styles.scrollContent, footer === undefined ? endPadding : null]}>{children}</View>
                     {pinning.unpinned ? footerView : null}
                 </ScrollView>
                 {pinning.unpinned ? null : footerView}
             </Animated.View>
-        </SurfaceToneScope>
+        </ToneScope>
     );
 };
 
@@ -179,8 +206,6 @@ const styles = StyleSheet.create({
         paddingRight: spacing[1],
     },
     titleBox: { flex: 1, minWidth: 0, paddingTop: spacing[3] },
-    // `barTitle`, Inter 17/600 (`buildSpec.md` §1.5): Manrope sets names only, never a sheet's title (F8).
-    title: { ...nativeTokens.type.barTitle },
     close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
     toolbar: { paddingHorizontal: SHEET_EDGE_PADDING_DP, paddingTop: spacing[2], gap: spacing[2] },
     scrollContent: {

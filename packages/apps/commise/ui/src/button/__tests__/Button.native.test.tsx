@@ -280,6 +280,13 @@ describe('Button (native)', () => {
         expect(resolvedColour(screen.getByText('Show all'), 'color')).toBe(rgb(role.actionText));
     });
 
+    it('lets a secondary button have no glyph, keeping its surface, and still be a named button', () => {
+        const { container } = render(<Button variant="secondary">Keep editing</Button>);
+
+        expect(glyphIn(container)).toBeNull();
+        expect(screen.getByRole('button', { name: 'Keep editing' })).toBeTruthy();
+    });
+
     it('lets a ghost button have no glyph, and shows the spinner there when busy', () => {
         const { container, rerender } = render(<Button variant="ghost">Load more</Button>);
 

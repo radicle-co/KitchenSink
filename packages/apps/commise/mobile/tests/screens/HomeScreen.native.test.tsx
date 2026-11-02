@@ -100,8 +100,7 @@ function renderHome(
 
 /**
  * Slice 3 (`buildSpec.md` §4.2, §3.3, §3.4): Home's large title is the greeting with the cook's name, its action the
- * avatar (Profile, pushed); the floating "New recipe" sits over the screen's foot; the condensed bar shows only once the
- * title scrolls under the top.
+ * avatar (Profile, pushed); the floating "New recipe" sits over the screen's foot. There is no condensed bar.
  */
 describe('HomeScreen (mobile) — the large title, the avatar and the create button', () => {
     it('greets the cook by name in the screen’s one header, on the canvas', () => {
@@ -243,13 +242,17 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
         });
     });
 
-    it('keeps the condensed title bar hidden at the top', () => {
-        renderHome();
+    // Rewritten for the Home header board (designer, 2026-11-02): Home has NO condensed title bar. The old test pinned the
+    // bar as hidden at the top; the contract is now that no second copy of the greeting ever exists, scrolled or not.
+    it('has no condensed title bar: the greeting exists once, even after the page scrolls past it', () => {
+        const { scroll } = renderHome();
 
-        const bar = screen.getAllByText(/, Jane Doe\??$/u).find((node) => node.getAttribute('aria-hidden') === 'true');
-
-        expect(bar?.closest('[aria-hidden="true"][style*="position"]') ?? bar).toBeTruthy();
-        expect(getComputedStyle(bar as Element).opacity).toBe('0');
+        expect(screen.getAllByText(/, Jane Doe\??$/u)).toHaveLength(1);
+        scroll(600);
+        expect(screen.getAllByText(/, Jane Doe\??$/u)).toHaveLength(1);
+        expect(screen.queryAllByText(/, Jane Doe\??$/u).some((n) => n.getAttribute('aria-hidden') === 'true')).toBe(
+            false,
+        );
     });
 
     it('still renders the roadmap placeholders under the recent recipes', async () => {

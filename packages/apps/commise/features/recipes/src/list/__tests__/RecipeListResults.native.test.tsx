@@ -14,12 +14,30 @@ import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { LocaleProvider } from '@commise/i18n/react';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import { RecipeListResults } from '../RecipeListResults.native.js';
 import type { RecipeListResultsProps } from '../model.js';
-import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
+import { nativeTokens } from '@commise/ui/native';
+import { pressFrameOf, render, renderWithTamagui, resolvedStyle } from '@commise/ui/testing/tamagui';
 
 /** The frame's collapse (compact height AND a keyboard open), served by the test: jsdom has neither. */
 const layout = vi.hoisted(() => ({ collapsed: false }));
+
+/** The window's width and text scale, when a test sets them: jsdom has a 1024 px window and a scale of 1. */
+const dims = vi.hoisted(() => ({ width: undefined as number | undefined, fontScale: undefined as number | undefined }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => {
+            const real = actual.useWindowDimensions();
+
+            return { ...real, width: dims.width ?? real.width, fontScale: dims.fontScale ?? real.fontScale };
+        },
+    };
+});
 
 vi.mock('@commise/ui/layout', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@commise/ui/layout')>()),
@@ -29,6 +47,8 @@ vi.mock('@commise/ui/layout', async (importOriginal) => ({
 afterEach(() => {
     cleanup();
     layout.collapsed = false;
+    dims.width = undefined;
+    dims.fontScale = undefined;
 });
 
 const noop = () => undefined;
@@ -86,6 +106,30 @@ describe('RecipeListResults (native) — W-22: Clear filters brings the chip row
         rerender(results({ clearCount: 2, searchValue: 'lamb' }));
 
         expect(screen.getByRole('group', { name: 'Quick filters' })).toBe(before);
+    });
+});
+
+// C-2: the list is full width so its header can scroll with it; every row carries the 16 the content used to have. The
+// gutter is a Tamagui token (`$4`), which the test lane resolves through `resolvedStyle`, not `getComputedStyle`.
+describe('RecipeListResults (native) — the rows inset themselves', () => {
+    it('gives a row card, the empty body and the result bar the 16 pt gutter', () => {
+        const gutterAround = (element: HTMLElement): string | undefined => {
+            for (let node = element.parentElement; node !== null; node = node.parentElement) {
+                if (resolvedStyle(node, 'paddingLeft') === '16px') {
+                    return resolvedStyle(node, 'paddingRight');
+                }
+            }
+
+            return undefined;
+        };
+
+        render(results());
+
+        expect(gutterAround(screen.getByRole('link', { name: 'Gourmet Garden Salad' }))).toBe('16px');
+        expect(gutterAround(screen.getByText('3 recipes'))).toBe('16px');
+        cleanup();
+        render(results({ recipes: [], state: 'noMatchFilters' }));
+        expect(gutterAround(screen.getByText('No recipes match these filters.'))).toBe('16px');
     });
 });
 
@@ -221,11 +265,11 @@ describe('RecipeListResults (native) — the foot reserved for the floating crea
  * by `FAB_RESERVED_BOTTOM_PX` AND is the direct child of an element that scrolls. Room on a view that does not scroll
  * moves nothing, so the room alone is not enough.
  */
-function endsInScrollerWithFabRoom(element: HTMLElement): boolean {
+function endsInScrollerWithFabRoom(element: HTMLElement, room = FAB_RESERVED_BOTTOM_PX): boolean {
     for (let node = element.parentElement; node?.parentElement; node = node.parentElement) {
         const scrolls = ['auto', 'scroll'].includes(getComputedStyle(node.parentElement).overflowY);
 
-        if (scrolls && getComputedStyle(node).paddingBottom === `${String(FAB_RESERVED_BOTTOM_PX)}px`) {
+        if (scrolls && getComputedStyle(node).paddingBottom === `${String(room)}px`) {
             return true;
         }
     }
@@ -266,6 +310,23 @@ describe('RecipeListResults (native) — the empty states scroll, and end with t
         );
 
         expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+    });
+});
+
+// Designer rulings d and e (2026-11-02): the end room is the button's DRAWN height at the current text scale plus its
+// margin plus 16 (98 at the 1.5x chrome cap, not 88), for the cards AND for the first-run and no-match bodies, so
+// "Clear search" is never under the button at a large text size.
+describe('RecipeListResults (native) — the end room follows the font scale', () => {
+    it.each([
+        ['the cards', {}, 'Gourmet Garden Salad'],
+        ['the first run', { recipes: [], state: 'firstRun' }, 'Your recipe box is empty'],
+        ['a search no-match', { recipes: [], state: 'noMatchQuery', searchValue: 'zzz' }, 'Nothing matches “zzz”.'],
+        ['a chips no-match', { recipes: [], state: 'noMatchFilters' }, 'No recipes match these filters.'],
+    ] as const)('%s end 98 px clear at 1.5x, and 88 is no longer enough', (_name, over, text) => {
+        renderWithTamagui(results(over), 'light', 1.5);
+
+        expect(endsInScrollerWithFabRoom(screen.getByText(text), 98)).toBe(true);
+        expect(endsInScrollerWithFabRoom(screen.getByText(text), 88)).toBe(false);
     });
 });
 
@@ -367,5 +428,193 @@ describe("RecipeListResults (native) — the scroll host's bind", () => {
         fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
+    });
+});
+
+// Designer finding C-1 (`reviews/mergedUiIos1.md`): a plain React Native Text has no cap on iOS and grows to about 3x.
+// Every text here is the design-system Text, so it follows its role's ceiling: the display roles stop at 1.5x and the
+// others at 2x. 3.1 is the iOS accessibility maximum.
+describe('RecipeListResults (native) — C-1: the text follows its role’s cap at the iOS maximum (fontScale 3.1)', () => {
+    const sizeOf = (element: HTMLElement): number => parseFloat(getComputedStyle(element).fontSize);
+
+    it('stops the count at the label role’s 2x', () => {
+        renderWithTamagui(results(), 'light', 3.1);
+
+        expect(sizeOf(screen.getByText('3 recipes'))).toBe(nativeTokens.type.label.fontSize * 2);
+    });
+
+    it('stops the first-run title at the display ceiling of 1.5x and its body at 2x', () => {
+        renderWithTamagui(results({ recipes: [], state: 'firstRun' }), 'light', 3.1);
+
+        expect(sizeOf(screen.getByText('Your recipe box is empty'))).toBe(
+            nativeTokens.type.sectionTitle.fontSize * 1.5,
+        );
+        expect(sizeOf(screen.getByText(recipeMessages.en.list.emptyBody))).toBe(nativeTokens.type.body.fontSize * 2);
+    });
+
+    it('stops a no-match explanation at 2x and its title at 1.5x', () => {
+        renderWithTamagui(results({ recipes: [], state: 'noMatchQuery', searchValue: 'zzz' }), 'light', 3.1);
+
+        expect(sizeOf(screen.getByText('Nothing matches “zzz”.'))).toBe(nativeTokens.type.body.fontSize * 2);
+        expect(sizeOf(screen.getByRole('heading', { name: recipeMessages.en.list.noMatchTitle }))).toBe(
+            nativeTokens.type.sectionTitle.fontSize * 1.5,
+        );
+    });
+});
+
+// Designer ruling (2026-11-02): on a phone the Recipes grid is the compact tile, two to a row, and it KEEPS the "Edited"
+// line (a Recipes sort may not be by recency). Home's tile drops it, so this is the Recipes list asking for it.
+describe('RecipeListResults (native) — the phone grid is the compact tile with its Edited line', () => {
+    const editedRecipes = [
+        makeRecipeListItem({
+            id: 'rec_1',
+            title: 'Mediterranean Grilled Lamb',
+            createdAt: '2020-01-01T00:00:00.000Z',
+            updatedAt: '2020-01-02T00:00:00.000Z',
+        }),
+        makeRecipeListItem({
+            id: 'rec_2',
+            title: 'Asparagus with Green Sauce',
+            createdAt: '2020-01-01T00:00:00.000Z',
+            updatedAt: '2020-01-03T00:00:00.000Z',
+        }),
+    ];
+
+    it('draws every compact tile with its Edited line', () => {
+        render(results({ variant: 'compact', recipes: editedRecipes }));
+
+        expect(screen.getAllByText(/^Edited /u)).toHaveLength(2);
+    });
+    // The 'two columns of padded cells' case moved to the capped-scale describe below ("is two columns at 1x on a phone"),
+    // which sets the width and the scale the rule reads instead of leaning on jsdom's window.
+});
+
+// Designer rule (2026-11-02): the phone grid shows two columns only while the container width over the capped text scale is
+// at least 320 pt. The list stub is display-inert for `numColumns`, so what shows is the cell: a grid cell carries the gap's
+// side padding, a single column does not.
+describe('RecipeListResults (native) — the compact grid’s columns follow the capped text scale', () => {
+    /** The side padding of the wrapper around a card: 8 in a grid cell, none in a single column. */
+    const cellPad = (title: string): string[] => {
+        const out: string[] = [];
+
+        for (
+            let node = screen.getAllByText(title)[0]?.parentElement ?? null;
+            node !== null;
+            node = node.parentElement
+        ) {
+            out.push(getComputedStyle(node).paddingLeft);
+        }
+
+        return out;
+    };
+
+    it('is two columns at 1x on a phone', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        render(results({ variant: 'compact' }));
+
+        expect(cellPad('Mediterranean Grilled Lamb')).toContain('8px');
+    });
+
+    it('is one column at 2x on the same phone', () => {
+        dims.width = 390;
+        dims.fontScale = 2;
+        render(results({ variant: 'compact' }));
+
+        expect(cellPad('Mediterranean Grilled Lamb')).not.toContain('8px');
+    });
+
+    it('reads the CAPPED scale: a 3.1x system scale is the 2x cap, no further', () => {
+        dims.width = 700;
+        dims.fontScale = 3.1;
+        render(results({ variant: 'compact' }));
+
+        // 700 / 2 = 350 pt a column, so still two; a raw 3.1 would have said one.
+        expect(cellPad('Mediterranean Grilled Lamb')).toContain('8px');
+    });
+});
+
+// Blank slot while scrolling (qa-ios, SearchPinnedScrolled_kbClosed_light_1x): ~100 pt of empty canvas between two rows of
+// tiles. The grid cell was `flex: 1`; inside the recycler's cell, whose height is its first ESTIMATE until it is measured, a
+// vertically growing child fills that estimate, so the cell is measured at the estimate and never shrinks to its tile.
+// Only a device lays the recycler out; what jsdom can pin is that the cell no longer grows vertically.
+describe('RecipeListResults (native) — a grid cell takes its tile’s height, never the recycler’s estimate', () => {
+    it.each(['grid', 'compact'] as const)('the %s cell does not grow vertically', (variant) => {
+        dims.width = variant === 'compact' ? 390 : 1000;
+        dims.fontScale = 1;
+        render(results({ variant }));
+        const cell = ((): HTMLElement | undefined => {
+            for (
+                let node = screen.getAllByText('Mediterranean Grilled Lamb')[0]?.parentElement ?? null;
+                node !== null;
+                node = node.parentElement
+            ) {
+                if (getComputedStyle(node).paddingLeft === '8px') {
+                    return node;
+                }
+            }
+
+            return undefined;
+        })();
+
+        expect(cell).toBeDefined();
+        expect(getComputedStyle(cell as HTMLElement).flexGrow).not.toBe('1');
+    });
+});
+
+// qa-ios (r4): the gap reproduces only after a Grid -> List switch. The app opens in Grid, the cells measure at 199, the tap on
+// "List view" re-measures them at 104.67, and FlashList keeps one stale slot (a 111 pt gap). A new layout is a new list: keyed on
+// the variant and the column count, FlashList starts with an empty size cache (Discover's results do the same). The column count
+// matters on its own because the 320 pt rule moves it when the text scale changes.
+describe('RecipeListResults (native) — a new layout is a new list', () => {
+    /** The element that scrolls around a card, or `null`. */
+    const scrollerOf = (): HTMLElement | null => {
+        for (
+            let node = screen.getAllByText('Mediterranean Grilled Lamb')[0]?.parentElement ?? null;
+            node !== null;
+            node = node.parentElement
+        ) {
+            if (['auto', 'scroll'].includes(getComputedStyle(node).overflowY)) {
+                return node;
+            }
+        }
+
+        return null;
+    };
+
+    it('mounts a new list when the cook switches Grid to List, and keeps the same data', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        const { rerender } = render(results({ variant: 'compact' }));
+        const grid = scrollerOf();
+
+        rerender(results({ variant: 'row' }));
+
+        expect(grid).not.toBeNull();
+        expect(scrollerOf()).not.toBe(grid);
+        expect(screen.getAllByText('Mediterranean Grilled Lamb')).toHaveLength(1);
+    });
+
+    it('mounts a new list when the text scale moves the compact grid from 2 columns to 1', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        const { rerender } = render(results({ variant: 'compact' }));
+        const twoUp = scrollerOf();
+
+        dims.fontScale = 2;
+        rerender(results({ variant: 'compact' }));
+
+        expect(scrollerOf()).not.toBe(twoUp);
+    });
+
+    it('keeps the same list for a re-render that changes neither (typing, a new page, a refresh)', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        const { rerender } = render(results({ variant: 'compact' }));
+        const before = scrollerOf();
+
+        rerender(results({ variant: 'compact', searchValue: 'lam' }));
+
+        expect(scrollerOf()).toBe(before);
     });
 });

@@ -76,7 +76,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                             type="button"
                             className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
                         >
-                            <Icon name={keep.icon ?? 'x'} size={20} />
+                            {keep.icon === undefined ? null : <Icon name={keep.icon} size={20} />}
                             <span>{keep.label}</span>
                         </AlertDialog.Cancel>
                         <Button

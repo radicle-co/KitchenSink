@@ -152,6 +152,9 @@ export interface CollectionMoreMenuProps extends CollectionMenuActions {
     readonly visibility: RecipeVisibility;
     /** Whether the collection is a copy, which adds Pull updates. */
     readonly isCopy: boolean;
+    /** The host asks the trigger to take focus (the rename sheet closed); passed to `ActionMenu`. */
+    readonly focusRequested?: boolean;
+    readonly onFocusRequestHandled?: () => void;
 }
 
 /** The parts of a settled collection detail's session the ⋯ menu reads. Structural, so a test needs no full session. */
@@ -163,7 +166,10 @@ export interface CollectionMenuSource {
         readonly sourceCollectionId?: string | undefined;
     };
     readonly onToggleVisibility: (() => void) | undefined;
-    readonly rename: { readonly onStart: () => void };
+    readonly rename: {
+        readonly onStart: () => void;
+        readonly focusMenu: { readonly requested: boolean; readonly onHandled: () => void };
+    };
     readonly saveCopy: { readonly onSave: () => void };
     readonly pull: { readonly start: () => void };
     readonly deletion: { readonly onStart: () => void };
@@ -185,6 +191,8 @@ export function collectionMenuPropsOf(detail: CollectionMenuSource): CollectionM
         visibility: collection.visibility,
         isCopy: isCollectionCopy(collection),
         onRename: detail.rename.onStart,
+        focusRequested: detail.rename.focusMenu.requested,
+        onFocusRequestHandled: detail.rename.focusMenu.onHandled,
         ...(onToggleVisibility === undefined ? {} : { onToggleVisibility }),
         onSaveCopy: detail.saveCopy.onSave,
         onPullUpdates: detail.pull.start,
@@ -200,6 +208,9 @@ export function collectionMenuPropsOf(detail: CollectionMenuSource): CollectionM
  * decides (`actionsPlacement`) from the container class. Presentational: it sends nothing.
  */
 export interface CollectionHeaderProps extends CollectionMenuActions {
+    /** The host asks the ⋯ trigger to take focus (the rename sheet closed); the header acknowledges via `onMenuFocusHandled`. */
+    readonly menuFocusRequested?: boolean;
+    readonly onMenuFocusHandled?: () => void;
     readonly name: string;
     readonly description?: string;
     readonly visibility: RecipeVisibility;

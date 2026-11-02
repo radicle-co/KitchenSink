@@ -33,6 +33,8 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
     headingFocusSignal,
     headerAction,
     createEntryYields = false,
+    createFocusRequested = false,
+    onCreateFocusHandled,
     children,
 }) => {
     const { list } = useMessages(collectionMessages);
@@ -79,7 +81,14 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
             <RecipeListHeaderContext.Provider value={header}>
                 <View style={styles.content}>{children}</View>
             </RecipeListHeaderContext.Provider>
-            <CreateFab label={list.createCta} icon="plus" onPress={onCreate} yielded={createEntryYields} />
+            <CreateFab
+                label={list.createCta}
+                icon="plus"
+                onPress={onCreate}
+                yielded={createEntryYields}
+                focusRequested={createFocusRequested}
+                {...(onCreateFocusHandled === undefined ? {} : { onFocusRequestHandled: onCreateFocusHandled })}
+            />
         </View>
     );
 };

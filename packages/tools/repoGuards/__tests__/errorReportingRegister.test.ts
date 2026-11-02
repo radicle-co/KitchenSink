@@ -158,6 +158,11 @@ const DELIBERATE_SILENCE: ReadonlyMap<string, string> = new Map([
             'own record; the cascade then continues to the next tier by design',
     ],
     [
+        'packages/services/recipe-service/src/ingredients/resolution/resolutionCascade.ts#consultEveryTier',
+        'a failed tier is marked UNAVAILABLE and handed to the observers, which is this module’s own record; ' +
+            'the name proposals then ask the next tier by design, because a hint that cannot be read is simply absent',
+    ],
+    [
         'packages/services/recipe-service/src/ingredients/resolution/resolutionCascade.ts#report',
         'notifies observers; an observer that throws must not take down the resolution it is observing',
     ],

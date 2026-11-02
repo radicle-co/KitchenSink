@@ -9,6 +9,7 @@ import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+import type { ReactElement } from 'react';
 
 import { makeCollection } from '@kitchensink/recipe-core/testing';
 
@@ -51,17 +52,11 @@ function renderList(overrides: Partial<CollectionListResultsProps> = {}, textSca
         firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
         ...overrides,
     };
-    const ui = (
+    (textScale === undefined ? render : (ui: ReactElement) => renderWithTamagui(ui, 'light', textScale))(
         <LocaleProvider locale="en">
             <CollectionListResults {...props} />
-        </LocaleProvider>
+        </LocaleProvider>,
     );
-
-    if (textScale === undefined) {
-        render(ui);
-    } else {
-        renderWithTamagui(ui, 'light', textScale);
-    }
 
     return props;
 }
@@ -99,6 +94,22 @@ describe('CollectionListResults (native) — the foot reserved for the floating 
         }
 
         expect(foot).toContain(`${FAB_RESERVED_BOTTOM_PX}px`);
+    });
+});
+
+// Designer rulings d and e (2026-11-02): the room follows the button's drawn height at the current text scale.
+describe('CollectionListResults (native) — the end room follows the font scale', () => {
+    it('reserves 98 px under the last row at 1.5x', () => {
+        renderList({ collections: threeCollections }, 1.5);
+        const row = screen.getByRole('link', { name: 'Meal Prep, Private' });
+        const foot: string[] = [];
+
+        for (let node = row.parentElement; node !== null; node = node.parentElement) {
+            foot.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(foot).toContain('98px');
+        expect(foot).not.toContain(`${FAB_RESERVED_BOTTOM_PX}px`);
     });
 });
 
@@ -170,7 +181,9 @@ describe('CollectionListResults (native) — the first run scrolls at the larges
             }
         }
 
-        expect(foot).toContain(`${String(FAB_RESERVED_BOTTOM_PX)}px`);
+        // REWRITTEN: the room follows the button's drawn height at the current text scale (designer rulings d and e), and the
+        // button's label stops at 1.5x, so at the iOS maximum the room is the 1.5x one (98 px), not the 1x constant.
+        expect(foot).toContain('98px');
     });
 
     it('stops the title at the display ceiling of 1.5x and the body at 2x at the iOS maximum (fontScale 3.1)', () => {

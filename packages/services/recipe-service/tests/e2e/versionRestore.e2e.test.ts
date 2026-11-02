@@ -7,10 +7,10 @@
  * saves version 1, changes the world, then restores version 1 and reads what the line became:
  *
  * - a binding that still stands, on a live food or a declared name → restored exactly;
- * - a withdrawn or gone food with a frozen name → found again by that name;
+ * - a withdrawn or gone food with a frozen name → comes back UNBOUND under that name (declared), never re-resolved;
  * - a gone food with no frozen name → kept, and shown as removed;
- * - an unresolved line → its name is resolved again, which may succeed now;
- * - a binding that is gone → by its frozen name (a declared line is declared again);
+ * - an unresolved line → restored as it was, still unresolved, even if food knows the name now;
+ * - a binding that is gone → declared again under its frozen name;
  * - a binding that is gone with no name → the whole restore is refused (409), and nothing changes.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -140,7 +140,7 @@ describe('restoring a version (e2e, assembled app + food fake)', () => {
         expect(restored.ingredients[0]).toMatchObject({ ingredientId: lookup, name: `${SCOPE} Live food` });
     });
 
-    it('finds a WITHDRAWN food’s replacement by the frozen name', async () => {
+    it('⛔ declares a WITHDRAWN food’s frozen name and picks no replacement food', async () => {
         food.foods.set(`${SCOPE}-old-oats`, { name: `${SCOPE} Oats`, status: 'RESOLVED' });
         const lookup = await byFood(`${SCOPE}-old-oats`);
         const recipe = await savedThenMoved('withdrawn', lookup);
@@ -151,7 +151,8 @@ describe('restoring a version (e2e, assembled app + food fake)', () => {
 
         const restored = await restoreVersionOne(recipe);
 
-        expect(restored.ingredients[0]).toMatchObject({ foodId: `${SCOPE}-new-oats`, name: `${SCOPE} Oats` });
+        expect(restored.ingredients[0]).toMatchObject({ name: `${SCOPE} Oats`, isUserEntered: true });
+        expect(restored.ingredients[0]).not.toHaveProperty('foodId');
     });
 
     it('keeps a gone food’s binding when nothing was frozen to find it by, and shows it removed', async () => {
@@ -177,7 +178,7 @@ describe('restoring a version (e2e, assembled app + food fake)', () => {
         expect(restored.ingredients[0]).toMatchObject({ ingredientId: lookup, isUserEntered: true });
     });
 
-    it('resolves an unresolved line’s name again — and binds it when food has it now', async () => {
+    it('⛔ restores an unresolved line as it was, even when food knows the name now', async () => {
         const lookup = (
             await json<{ id: string }>('POST', '/api/v1/ingredients/by-name', 202, { name: `${SCOPE} Yuzu` })
         ).id;
@@ -188,7 +189,8 @@ describe('restoring a version (e2e, assembled app + food fake)', () => {
 
         const restored = await restoreVersionOne(recipe);
 
-        expect(restored.ingredients[0]).toMatchObject({ foodId: `${SCOPE}-yuzu`, name: `${SCOPE} Yuzu` });
+        expect(restored.ingredients[0]).toMatchObject({ ingredientId: lookup });
+        expect(restored.ingredients[0]).not.toHaveProperty('foodId');
     });
 
     it('declares a gone declared line again under its frozen name', async () => {

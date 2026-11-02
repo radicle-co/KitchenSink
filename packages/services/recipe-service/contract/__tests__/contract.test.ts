@@ -525,10 +525,10 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
      * query could have been tightened to `strictObject` (a breaking change for any caller with a tracking tag)
      * with no test to notice.
      *
-     * So both directions are now asserted: the exempt set is exactly these six names, and every one of them is
-     * genuinely non-strict. Adding a fifth is a visible, reviewable edit.
+     * So both directions are now asserted: the exempt set is exactly these seven names, and every one of them is
+     * genuinely non-strict. Adding another is a visible, reviewable edit.
      */
-    it('exempts EXACTLY the six read queries from strictness, and each of them really is open', async () => {
+    it('exempts EXACTLY the seven read queries from strictness, and each of them really is open', async () => {
         const modules = await Promise.all(
             authored.map(
                 async (schema) =>
@@ -547,6 +547,8 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
             'getImportQuerySchema',
             // ADR-0072: the page of lines `GET …/flagged` and `GET …/to-check` return — the same kind of read query.
             'importListQuerySchema',
+            // The add-by-name field's suggestions: a READ query like the others, open for the same reason.
+            'ingredientNameProposalsQuerySchema',
             'ingredientSearchQuerySchema',
             'listCollectionsQuerySchema',
             'listRecipesQuerySchema',
@@ -685,6 +687,7 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         IngredientFoodNutritionRequest: 'ingredientFoodNutritionRequestSchema',
         IngredientFoodNutritionEntry: 'ingredientFoodNutritionEntrySchema',
         IngredientFoodNutritionResponse: 'ingredientFoodNutritionResponseSchema',
+        IngredientNameProposalsResponse: 'ingredientNameProposalsResponseSchema',
         FoodReferences: 'foodReferencesResponseSchema',
         ServiceFoodReferencesRequest: 'serviceFoodReferencesRequestSchema',
         ServiceFoodReferencesResponse: 'serviceFoodReferencesResponseSchema',

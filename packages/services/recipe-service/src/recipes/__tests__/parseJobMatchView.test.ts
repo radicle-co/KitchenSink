@@ -222,6 +222,63 @@ describe('ParseJobMatchView.decorate', () => {
         ]);
     });
 
+    describe('owner ruling 5: a default shows only when no match was found (the M2 loop stays closed)', () => {
+        const withDefault = [
+            { kind: 'root', id: 'F-whole', rung: 'head' },
+            { kind: 'root', id: 'F-default', rung: 'default' },
+        ] as const;
+
+        it('a memo of ANOTHER food is a match and wins over the default: confident, and proposed', async () => {
+            const { view } = setup({
+                matches: [
+                    matchOf({
+                        proposal: { matchedBy: 'memo', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
+                        candidates: [...withDefault],
+                    }),
+                ],
+            });
+
+            const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+            expect(match).toMatchObject({
+                state: 'confident',
+                reason: 'rememberedMatch',
+                proposed: { kind: 'root', id: 'F-whole' },
+            });
+        });
+
+        it('⛔ a memo of the DEFAULT food stays a default and proposes nothing: a kept default must not teach itself', async () => {
+            const { view } = setup({
+                matches: [
+                    matchOf({
+                        proposal: { matchedBy: 'memo', food: { kind: 'root', id: 'F-default' }, rung: null, margin: null },
+                        candidates: [...withDefault],
+                    }),
+                ],
+            });
+
+            const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+            expect(match).toMatchObject({ state: 'default', reason: 'defaultApplies', proposed: null });
+        });
+
+        it('a curated mapping beats the default, even when it names the default food', async () => {
+            const { view } = setup({
+                matches: [
+                    matchOf({
+                        proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-default' }, rung: null, margin: null },
+                        candidates: [...withDefault],
+                    }),
+                ],
+            });
+
+            expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
+                state: 'confident',
+                reason: 'curatedMapping',
+            });
+        });
+    });
+
     it('reads `confident` once the gate verified identity', async () => {
         const { view } = setup({
             verdicts: new Map([

@@ -371,6 +371,7 @@ interface ArrangementSlots {
     readonly footer?: ReactNode;
     readonly note?: ReactNode;
     readonly trailing?: ReactNode;
+    readonly showEdited?: boolean;
 }
 
 /**
@@ -436,12 +437,16 @@ const RowArrangement: FC<ArrangementSlots> = ({ note, trailing }) => (
     </div>
 );
 
-/** The compact card: the cover with its chips, then the title and the footer, if there is one. */
-const CompactArrangement: FC<ArrangementSlots> = ({ footer }) => (
+/**
+ * The compact card: the cover with its chips, then the title, the own-recipe footer when the surface asks for it
+ * (`showEdited`) and its own footer, if there is one.
+ */
+const CompactArrangement: FC<ArrangementSlots> = ({ footer, showEdited }) => (
     <>
         <CardCover />
         <div className="p-3">
             <CardTitle />
+            {footer === undefined && showEdited === true ? <CardFooter /> : null}
         </div>
         {footer === undefined ? null : (
             <SlotBox kind="footer" className="px-3 pb-3">
@@ -504,7 +509,12 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
                             {Arrangement === null ? (
                                 props.children
                             ) : (
-                                <Arrangement footer={props.footer} note={props.note} trailing={props.trailing} />
+                                <Arrangement
+                                    footer={props.footer}
+                                    note={props.note}
+                                    trailing={props.trailing}
+                                    showEdited={props.showEdited}
+                                />
                             )}
                         </article>
                     </HeadingLevelContext.Provider>

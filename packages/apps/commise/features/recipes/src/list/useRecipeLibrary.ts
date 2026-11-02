@@ -25,12 +25,16 @@ import { toRecipeListItem, type RecipeListItem } from './model.js';
 
 /** The part of the library's infinite query this hook reads; the real query result satisfies it. */
 export interface LibraryQuery {
-    readonly data: { readonly pages: readonly { readonly data: readonly Recipe[] }[] };
+    /** Absent until the first page arrives: the model is then an empty library. */
+    readonly data: { readonly pages: readonly { readonly data: readonly Recipe[] }[] } | undefined;
     readonly hasNextPage: boolean;
     readonly isFetchingNextPage: boolean;
     readonly isFetchNextPageError: boolean;
     readonly fetchNextPage: () => Promise<unknown>;
 }
+
+/** One stable empty list, so an unloaded read does not recompute the memos below on every render. */
+const NO_PAGES: readonly { readonly data: readonly Recipe[] }[] = [];
 
 /** What {@link useRecipeLibrary} reads. */
 export interface RecipeLibraryInput {
@@ -83,7 +87,7 @@ export function useRecipeLibrary({
 }: RecipeLibraryInput): RecipeLibraryModel {
     const { list } = useMessages(recipeMessages);
     const [clearCount, setClearCount] = useState(0);
-    const pages = query.data.pages;
+    const pages = query.data?.pages ?? NO_PAGES;
     const library = useMemo(() => pages.flatMap((chunk) => chunk.data), [pages]);
     const facets = useMemo(
         () => libraryFacetsOf(library, searchValue, activeFacets, list.filterQuick, locale),

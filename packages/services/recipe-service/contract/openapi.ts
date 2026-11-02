@@ -102,6 +102,7 @@ import {
     ingredientFoodNutritionEntrySchema,
     ingredientFoodNutritionRequestSchema,
     ingredientFoodNutritionResponseSchema,
+    ingredientNameProposalsResponseSchema,
 } from '../src/ingredients/ingredients.schema.js';
 import {
     confirmPhotoRequestSchema,
@@ -209,6 +210,7 @@ export const openApiComponents = {
     // Its own component, so a generated client gets one named type for the three-outcome union.
     IngredientFoodNutritionEntry: ingredientFoodNutritionEntrySchema,
     IngredientFoodNutritionResponse: ingredientFoodNutritionResponseSchema,
+    IngredientNameProposalsResponse: ingredientNameProposalsResponseSchema,
     RecipeVersion: recipeVersionSchema,
     RecipeVersionList: z.array(recipeVersionSchema),
     RestoreVersionResponse: restoreVersionResponseSchema,
@@ -1010,6 +1012,33 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '202': { description: 'Accepted; resolution continues in the background.', schema: 'Ingredient' },
                 '502': SOURCE_UNAVAILABLE,
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/ingredients/by-name/proposals': {
+        get: {
+            operationId: 'getIngredientNameProposals',
+            summary: 'The foods the add-by-name field suggests for a typed name. Nothing is bound.',
+            description: [
+                'What the settled sources remember for the phrase: the cook’s own earlier correction, a staff ruling,',
+                'two cooks agreeing, and a memo another cook’s save taught. Each is a PROPOSAL, strongest source first.',
+                'The cook binds one by picking it, through `by-food` or `by-food-variant`. Nothing is preselected.',
+                'Always `200`: a food food will not show to the caller, or a source that could not be read, is absent',
+                'from the list and nothing says why, so another cook’s private food is never revealed.',
+                '`source` is an open key, so a new kind of source can ship without breaking an installed client.',
+            ].join(' '),
+            parameters: [
+                {
+                    name: 'name',
+                    in: 'query',
+                    required: true,
+                    description: 'The name the cook typed. Trimmed; at most 120 characters.',
+                    schema: z.string().min(1).max(120),
+                },
+            ],
+            responses: {
+                '200': { description: 'The phrase and the proposals.', schema: 'IngredientNameProposalsResponse' },
                 ...sharedErrorResponses(),
             },
         },

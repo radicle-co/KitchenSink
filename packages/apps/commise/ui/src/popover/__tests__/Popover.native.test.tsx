@@ -9,10 +9,11 @@
  * ⚠️ `sendAccessibilityEvent` is mocked because react-native-web does not implement it; the safe-area insets and the
  * keyboard listener are mocked because their platforms do not exist under jsdom (the `Sheet.native` suite's reasons).
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { AccessibilityInfo, Text } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { Popover } from '../Popover.native.js';
 
 vi.mock('react-native', async (importOriginal) => {

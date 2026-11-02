@@ -265,6 +265,11 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // draft of an imported public-web recipe, held public, with a device draft saying Private, for a cook who is not entitled,
     // and the e2e seed does not mint that. Promote it to FLOW_PLAN once the seed carries it and an emulator run has passed it.
     'recipes/publishBlockedAsk',
+    // The Suggested option in the add field (owner rulings 2026-11-03; designer ruling N2): a remembered answer is the first
+    // option, tagged, never active, and only a tap binds it. Written test-first with the slice and NOT run (built without a
+    // device); it needs the deployed stage's catalog and a food the cook has corrected before. Promote it to FLOW_PLAN, in the
+    // sandbox-only list, once an emulator run has passed it.
+    'recipes/ingredientSuggested',
     // The matched paste (ADR-0071; owner rulings 2026-10-25): confident, choosing a food, a line still being checked, and
     // publishing with open choices. Written with the slice and NOT run (it was built without a device); each depends on
     // what the stage's catalog and review gate answer (a foundation food by exact name, the seeded milk and salt defaults,
@@ -292,11 +297,10 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.
     'shell/iosSwipeBack',
-    // The window overlay dismiss routes (OverlayHost). Back order is Android and swipe-dismiss is iOS; neither has run on a
-    // device yet, so neither is planned. Run by name; the QA engineer's device run decides whether the Android one joins
-    // FLOW_PLAN.
+    // The window overlay dismiss routes (OverlayHost). Back order is Android only; swipe-dismiss runs on BOTH platforms. Neither
+    // is planned, so no planned suite runs them on either platform; run by name. The QA engineer's device run decides whether
+    // either joins FLOW_PLAN.
     'shell/overlayBackOrder',
-    'shell/overlaySwipeDismiss',
     'recipes/sourceTabs',
     // Plan 012: the native Google sign-in's cancel (iOS) / no-Play-services error (Android) path. It must start signed
     // OUT, so planning it costs one more Clerk email-code sign-in per platform per run (to restore the session the next
@@ -848,8 +852,9 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
     });
 
     // Slice 4 of the UI overhaul added `recipes/newCollectionSheet` to the collections vertical, and slice 5 added
-    // `recipes/collectionAddRemoveUndo` (seven flows), and the Collections pin added `recipes/collectionsSearchPinned` (eight).
-    it('selects the spine plus the eight collections flows — the 22%-of-flow-time cluster', () => {
+    // `recipes/collectionAddRemoveUndo`, the sheet-swipe flow made it eight, and the Collections pin added
+    // `recipes/collectionsSearchPinned` (nine).
+    it('selects the spine plus the nine collections flows — the 22%-of-flow-time cluster', () => {
         const selection = select('full=false', 'collections=true');
 
         expect(selection.flows).toEqual([
@@ -862,6 +867,7 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'recipes/collectionsPull',
             'recipes/collectionsSearchPinned',
             'recipes/newCollectionSheet',
+            'shell/overlaySwipeDismiss',
         ]);
     });
 

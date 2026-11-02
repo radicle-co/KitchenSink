@@ -19,7 +19,7 @@ export const CollectionListLoadError: FC<CollectionListLoadErrorProps> = ({ onRe
     const header = useContext(RecipeListHeaderContext);
 
     return (
-        <ScrollView>
+        <ScrollView keyboardShouldPersistTaps="handled">
             {header}
             <YStack paddingHorizontal="$4">
                 <View collapsable={false} accessibilityRole="alert">

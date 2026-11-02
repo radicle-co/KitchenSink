@@ -1,7 +1,7 @@
 /**
  * Who imports `SurfaceToneScope` (ADR-0080 §1, H3). See `surfaceToneScopeOwnership.test.ts` for why only `ToneScope` may.
  *
- * @pattern Specification — one predicate over a parsed module, and the closed list of files still owed a move
+ * @pattern Specification — one predicate over a parsed module
  */
 import ts from 'typescript';
 
@@ -12,13 +12,6 @@ const UI = 'packages/apps/commise/ui/src/';
 
 /** The one module that states a surface's tone to both halves. */
 export const SURFACE_TONE_SCOPE_OWNER = `${UI}surfaceTone/ToneScope.native.tsx`;
-
-/** The overlay roots that still state the JS half alone. Each moves to `ToneScope` with its port, and leaves this list. */
-export const SURFACE_TONE_SCOPE_PENDING: readonly string[] = [
-    `${UI}dialogFrame/DialogFrame.native.tsx`,
-    `${UI}sheet/BottomSheetPanel.native.tsx`,
-    `${UI}sheet/FullScreenSheet.native.tsx`,
-];
 
 const SCOPE = 'SurfaceToneScope';
 

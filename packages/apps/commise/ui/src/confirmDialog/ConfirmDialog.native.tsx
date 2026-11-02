@@ -55,19 +55,19 @@ const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
                 </Text>
             )}
             {busy && busyLabel !== undefined ? (
-                <LiveRegion politeness="polite" style={[styles.status, { color: colors.inkMuted }]}>
+                <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                     {busyLabel}
                 </LiveRegion>
             ) : null}
             {unavailable !== undefined && !busy ? (
-                <LiveRegion politeness="polite" style={[styles.status, { color: colors.inkMuted }]}>
+                <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                     {unavailable}
                 </LiveRegion>
             ) : null}
             <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
                 <Button
                     variant="secondary"
-                    icon={keep.icon ?? 'x'}
+                    {...(keep.icon === undefined ? {} : { icon: keep.icon })}
                     width="fill"
                     onPress={onKeep}
                     focusRequested={keepFocusAsked}
@@ -101,5 +101,4 @@ const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[4] },
     body: nativeTokens.type.body,
     error: nativeTokens.type.body,
-    status: nativeTokens.type.meta,
 });

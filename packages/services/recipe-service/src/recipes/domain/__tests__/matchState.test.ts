@@ -5,7 +5,9 @@
  * Every row is a rule from the owner's rulings of 2026-10-25 or the coordinator's decisions, and the order of the rows
  * is the precedence:
  *
- *  1. A default applies to the phrase: `default`, WHATEVER answered (or nothing did) and whatever the gate said.
+ *  1. A default applies to the phrase: `default`, whatever the gate said, UNLESS a curated mapping or a memo of ANOTHER
+ *     food answered: that is a match, and a default shows only when no match was found (owner ruling 5, 2026-11-03). A memo
+ *     of the DEFAULT food stays `default`: that memo is how a default is smuggled in as confident (the M2 loop below).
  *  2. Nothing proposed: `noMatch` with no candidates, `needsChoice` with some. A default is shown,
  *     never selected (ruling 2), and a curated or memo answer for a default noun must not smuggle it in as confident.
  *  3. A curated mapping: `confident`. A gate contradiction keeps it confident (a person decided; the model has an
@@ -30,6 +32,7 @@ const facts = (overrides: Partial<MatchFacts> = {}): MatchFacts => ({
     proposal: LEXICAL,
     candidateCount: 3,
     defaultApplies: false,
+    proposalIsDefault: false,
     verdict: undefined,
     review: 'asked',
     ...overrides,
@@ -101,7 +104,7 @@ describe('matchStateOf: a spent AI budget surfaces every food', () => {
         ],
         [
             'a default stays a default',
-            facts({ ...SPENT, defaultApplies: true, proposal: { matchedBy: 'curated', rung: null } }),
+            facts({ ...SPENT, defaultApplies: true, proposal: { matchedBy: 'lexical', rung: 'default' } }),
             { state: 'default', reason: 'defaultApplies' },
         ],
         [
@@ -158,13 +161,23 @@ describe('matchStateOf — the truth table', () => {
             { state: 'default', reason: 'defaultApplies' },
         ],
         [
-            '⛔ a default applies though a CURATED mapping answered',
+            'a CURATED mapping is a match, so it wins over the default (owner ruling 5)',
             facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true }),
-            { state: 'default', reason: 'defaultApplies' },
+            { state: 'confident', reason: 'curatedMapping' },
         ],
         [
-            '⛔ a default applies though a MEMO answered',
-            facts({ proposal: { matchedBy: 'memo', rung: null }, defaultApplies: true }),
+            'a CURATED mapping that names the default food is still a person\'s decision',
+            facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true, proposalIsDefault: true }),
+            { state: 'confident', reason: 'curatedMapping' },
+        ],
+        [
+            'a MEMO of another food is a match, so it wins over the default (owner ruling 5)',
+            facts({ proposal: { matchedBy: 'memo', rung: null }, defaultApplies: true, proposalIsDefault: false }),
+            { state: 'confident', reason: 'rememberedMatch' },
+        ],
+        [
+            '⛔ THE M2 LOOP: a memo of the DEFAULT food stays a default, never a confident match',
+            facts({ proposal: { matchedBy: 'memo', rung: null }, defaultApplies: true, proposalIsDefault: true }),
             { state: 'default', reason: 'defaultApplies' },
         ],
         [

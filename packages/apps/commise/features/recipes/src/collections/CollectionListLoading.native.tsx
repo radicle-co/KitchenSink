@@ -26,7 +26,7 @@ export const CollectionListLoading: FC = () => {
     const header = useContext(RecipeListHeaderContext);
 
     return (
-        <ScrollView>
+        <ScrollView keyboardShouldPersistTaps="handled">
             {header}
             <View collapsable={false} accessibilityLabel={list.loadingLabel} style={styles.cards}>
                 {Array.from({ length: SKELETON_COUNT }, (_value, index) => (

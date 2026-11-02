@@ -114,3 +114,9 @@ export function FlashList<TItem>({
         </ScrollView>
     );
 }
+
+/**
+ * `@shopify/flash-list` also exports `AnimatedFlashList`, the same list wrapped in `Animated.createAnimatedComponent` so a
+ * native-driven `Animated.event` can attach to its scroller. jsdom has no native driver, so the stand-in is the same list.
+ */
+export const AnimatedFlashList = FlashList;

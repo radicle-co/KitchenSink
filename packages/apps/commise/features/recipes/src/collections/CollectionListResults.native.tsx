@@ -7,7 +7,7 @@
  * auto-measures — no `estimatedItemSize`), pull-to-refresh is wired through the recycler, and the styles derive from
  * the shared design scale (`nativeTokens`).
  */
-import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -57,6 +57,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     const searchId = useId();
     // The frame's large title and segments, which this list draws as its first child so they scroll away with it.
     const header = useContext(RecipeListHeaderContext);
+    const fabRoom = useFabReservedBottom();
     const { width, fontScale } = useWindowDimensions();
     const contentWidth = contentWidthOf(width);
     // On a phone, two columns while a column keeps 320 pt at the capped text scale, else one (designer rule, 2026-11-02); from
@@ -70,7 +71,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
         // A scroller, not a bare View: at the largest text size the block is taller than the screen, and "New collection"
         // must stay reachable. It ends with the room the floating button needs (`cards`), as the populated list does.
         return (
-            <ScrollView contentContainerStyle={styles.cards} keyboardShouldPersistTaps="handled">
+            <ScrollView contentContainerStyle={{ paddingBottom: fabRoom }} keyboardShouldPersistTaps="handled">
                 {header}
                 <View style={styles.firstRun}>
                     <DesignText role="heading" aria-level={2} typeRole="sectionTitle">
@@ -160,7 +161,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                 )
             }
             style={styles.cardsScroll}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={{ paddingBottom: fabRoom, paddingHorizontal: nativeTokens.spacing[4] }}
             refreshControl={
                 refresh !== undefined ? (
                     <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
@@ -288,9 +289,6 @@ const styles = StyleSheet.create({
     body: { ...nativeTokens.type.body },
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
-    // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state.
-    cards: { paddingBottom: FAB_RESERVED_BOTTOM_PX },
-    listContent: { paddingBottom: FAB_RESERVED_BOTTOM_PX, paddingHorizontal: nativeTokens.spacing[4] },
     // The frame's header insets its own sides, so under the list's 16 pt side padding it steps back out by that much.
     listHead: { gap: nativeTokens.spacing[4], marginHorizontal: -nativeTokens.spacing[4] },
     cardSeparator: { height: nativeTokens.spacing[4] },

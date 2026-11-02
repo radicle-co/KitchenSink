@@ -224,6 +224,7 @@ FLOW_PLAN="spine:auth/loginFlow
 home:home
 recipes:recipes/rating
 recipes:recipes/listDetail
+recipes:recipes/headerScrollsAway
 recipes:recipes/viewSetting
 recipes:shell/tabBar
 recipes:recipes/landscape
@@ -253,6 +254,7 @@ collections:recipes/collectionsSaveCopy
 collections:recipes/collectionsPull
 collections:recipes/collectionsSearchPinned
 collections:recipes/newCollectionSheet
+collections:shell/overlaySwipeDismiss
 recipes:recipes/createEntry
 recipes:recipes/systemBackGuard
 recipes:recipes/editorSections

@@ -284,22 +284,49 @@ export class IngredientsService {
     }
 
     /**
-     * `POST /api/v1/ingredients/by-name` — the picker's and the cookbook importer's add path.
+     * `POST /api/v1/ingredients/by-name` and a rebind by name — ask food to add the typed name, and nothing else.
      *
-     * The cascade is consulted first (plan U10); a hit binds the mapped food through the same admission as a
-     * pick, and a mapping whose food is no longer bindable falls through rather than failing. On a miss, food is
-     * asked to add the phrase: a `RESOLVED` answer is bound (and frees the failure this phrase converged on),
-     * any other answer — or no answer — is recorded as a failure with its reason. A phrase whose failure a settle
-     * already freed is answered with the settle's target.
+     * ⛔ THE SETTLED TIERS ARE NOT CONSULTED. A remembered answer (the cook's own correction, a staff ruling, two cooks
+     * agreeing, a memo another cook's save taught) is offered by `GET /ingredients/by-name/proposals` and bound only when
+     * the cook picks it (owner rulings 2026-11-03; ADR-0071 as amended). Here, food is asked to add the phrase: a
+     * `RESOLVED` answer is bound (and frees the failure this phrase converged on), any other answer, or no answer, is
+     * recorded as a failure with its reason. A phrase whose failure a settle already freed is answered with the settle's
+     * target. The press of "Find nutrition for X" is the cook's own act, so food's exact-name answer may bind.
      *
      * @param caller - The caller's credential.
      * @param name - The display name, already canonical.
-     * @param userId - The caller, or `undefined` for an unattended import (R22).
+     * @param userId - The caller, or `undefined` for an unattended call (R22).
+     * @returns The binding the line should hold.
+     * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food resolved the phrase but its bind check cannot ask food.
+     * @sideEffect Calls food, and writes a binding or a failure record.
+     */
+    public async addByName(
+        caller: CallerToken | undefined,
+        name: CanonicalIngredientName,
+        userId?: string,
+    ): Promise<Ingredient> {
+        return this.askFoodByName(caller, name, keyOf(name), { kind: 'notRun' }, userId);
+    }
+
+    /**
+     * Add a name through the settled tiers first, then food: the old by-name behaviour, kept for ONE caller, the version
+     * restorer, which re-binds the names a restored version froze with no cook present.
+     *
+     * The cascade is consulted first (plan U10); a hit binds the mapped food through the same admission as a pick, and a
+     * mapping whose food is no longer bindable falls through rather than failing. On a miss, food is asked to add the
+     * phrase, as {@link IngredientsService.addByName} does.
+     *
+     * ⛔ NOT for a cook adding a line: it binds a remembered answer with no choice. The editor uses
+     * {@link IngredientsService.addByName} and the proposals route.
+     *
+     * @param caller - The caller's credential.
+     * @param name - The display name, already canonical.
+     * @param userId - The caller, or `undefined` for an unattended call (R22).
      * @returns The binding the line should hold.
      * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food resolved the phrase but its bind check cannot ask food.
      * @sideEffect Runs the cascade, calls food, and writes a binding or a failure record.
      */
-    public async addByName(
+    public async addByNameThroughCascade(
         caller: CallerToken | undefined,
         name: CanonicalIngredientName,
         userId?: string,

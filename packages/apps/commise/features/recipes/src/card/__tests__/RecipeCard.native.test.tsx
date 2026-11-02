@@ -472,3 +472,54 @@ describe('RecipeCard (native, grid) — W-08: the cuisine never sits under the t
         expect(getComputedStyle(chip.parentElement as HTMLElement).maxWidth).toBe('50%');
     });
 });
+
+// Designer ruling (2026-11-02): the Recipes phone grid is the compact tile in size, but it KEEPS the "Edited" footer line,
+// because a Recipes sort may not be by recency. Only Home drops it. So the compact tile carries the line when it is asked
+// for (`showEdited`), and Home, which does not ask, stays the cover and the title.
+describe("RecipeCard (native, compact) — the Edited line is the surface's choice", () => {
+    const edited = {
+        currentVersion: 1,
+        createdAt: '2020-01-01T00:00:00.000Z',
+        updatedAt: '2020-01-02T00:00:00.000Z',
+    } as const;
+
+    it('shows "Edited …" under the title when the surface asks for it (a Recipes tile)', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="compact" showEdited recipe={model(edited)} />);
+
+        expect(screen.getByText(/^Edited /u)).toBeTruthy();
+    });
+
+    it('shows no Edited line when it does not (a Home tile)', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="compact" recipe={model(edited)} />);
+
+        expect(screen.queryByText(/Edited/u)).toBeNull();
+    });
+
+    it('says "Created …" for a recipe never edited, and still on one line', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="compact"
+                showEdited
+                recipe={model({ createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z' })}
+            />,
+        );
+
+        expect(screen.getByText(/^Created /u)).toBeTruthy();
+    });
+
+    it('lets a surface footer replace it, as in the grid (a card has one last line)', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="compact"
+                showEdited
+                recipe={model(edited)}
+                footer={<span>@braise.club</span>}
+            />,
+        );
+
+        expect(screen.queryByText(/Edited/u)).toBeNull();
+        expect(screen.getByText('@braise.club')).toBeTruthy();
+    });
+});

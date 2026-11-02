@@ -102,3 +102,18 @@ describe('createCuratedTier — the adapter', () => {
         );
     });
 });
+
+describe('decideCuratedTier — the mapping that answered', () => {
+    it.each([
+        ['author', 'author'],
+        ['global', 'curator'],
+        ['global', 'corroboration'],
+    ] as const)(
+        'carries scope %s and origin %s as structured fields, so no caller parses the evidence string',
+        (scope, origin) => {
+            const outcome = decideCuratedTier(inForce({ scope, origin }));
+
+            expect(outcome).toMatchObject({ kind: 'resolved', mapping: { scope, origin } });
+        },
+    );
+});

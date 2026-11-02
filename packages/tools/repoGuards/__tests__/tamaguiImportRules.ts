@@ -100,8 +100,9 @@ export function tamaguiThemeHookFindings(source: string, fileName: string): read
 
 /**
  * The Tamagui value exports that are not elements, and that app code may import: `styled` (a definition the guards
- * read), the provider, the builders of the one config, and `createStyledContext`, which carries a value to variants and
- * resolvers the guards already read (its Provider draws no box).
+ * read), the provider, the builders of the one config (tokens, fonts, animations), and `createStyledContext`, which carries a value to variants and
+ * resolvers the guards already read (its Provider draws no box), and `Sheet` and `Dialog`, the overlay parts whose own guards are
+ * named beside it (`overlayHostBoundary`, and `tamaguiMotionProps` for the Sheet).
  */
 const NON_ELEMENT_EXPORTS = new Set([
     'styled',
@@ -109,7 +110,11 @@ const NON_ELEMENT_EXPORTS = new Set([
     'createTamagui',
     'createTokens',
     'createFont',
+    'createAnimations',
     'createStyledContext',
+    // The animated overlay: its window, motion and open state are held by `overlayHostBoundary` and `tamaguiMotionProps`.
+    'Sheet',
+    'Dialog',
     // `<Theme name>` selects a sub-theme and draws no box; `tamaguiThemeElementFindings` holds its props to `name`.
     'Theme',
 ]);

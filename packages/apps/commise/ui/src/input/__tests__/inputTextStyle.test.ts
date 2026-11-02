@@ -8,13 +8,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { scaledTypeSize } from '../../text/scaledType.js';
-import {
-    IOS_INK_DROP_EM,
-    IOS_LEADING_DROP,
-    inputBoxPadding,
-    inputTextStyle,
-    type InputBoxPadding,
-} from '../inputTextStyle.js';
+import { IOS_LEADING_DROP, inputBoxPadding, inputTextStyle, type InputBoxPadding } from '../inputTextStyle.js';
 
 describe('inputTextStyle', () => {
     it.each([1, 1.5, 2, 3.1])('sets the capped body size and NO line height on iOS at scale %s', (scale) => {
@@ -45,103 +39,62 @@ describe('inputTextStyle', () => {
     });
 });
 
-/** The vertical centre of the text area a padding leaves, relative to the box: lower is higher up. */
-const centreOf = (box: number, { paddingTop, paddingBottom }: InputBoxPadding): number =>
-    (paddingTop + box - paddingBottom) / 2;
-
-describe('the measured iOS offsets, each stated once', () => {
-    // qa-ios measured the single-line ink 2 pt below the centre at 16 pt and 3.5 pt at 32 pt: about 0.11 em.
-    it('names the single-line ink drop as a fraction of the font size', () => {
-        expect(IOS_INK_DROP_EM).toBe(0.11);
+/*
+ * THE CAP-BAND RULE (designer ruling (b), 2026-11-03): an input's text is centred by its cap band, from the top of a
+ * capital to the baseline, and descenders hang below. Typed text, placeholders and digits follow the same rule. The
+ * platform's own single-line placement already does it: with no shift at all, qa-ios's probe read "Hxg" 1.5 pt low at 16 pt
+ * and 3.15 pt low at 32 pt, which is half the descender, so the cap band was centred and the descender hangs. So a
+ * single-line input is left exactly as the caller styled it, on both platforms, and numeric inputs need no case of their
+ * own. (REWRITTEN: this file used to pin a 0.11 em lift of single-line text and a numeric exemption from it; the lift
+ * centred the descender-inclusive ink, which the designer ruled out, and the exemption lost its reason with it.)
+ */
+describe('inputBoxPadding — a single-line input is left to the platform (the cap band is already centred)', () => {
+    it.each(['ios', 'android'] as const)('changes nothing on %s, whatever the size or the caller padding', (os) => {
+        expect(inputBoxPadding({ paddingVertical: 12 }, os, false, 1)).toBeUndefined();
+        expect(inputBoxPadding({ paddingVertical: 12 }, os, false, 3.1)).toBeUndefined();
+        expect(inputBoxPadding({}, os, false, 1)).toBeUndefined();
     });
 
-    // The designer measured the first line of a multi-line field about 4 pt low under a 24 pt leading, and the first-line
-    // check (qaChecks, 2026-11-03) wants its gap above within 2 pt of a single-line field's: qa-ios's Title read 3.4 pt
-    // more at 1x. Together 7.5 pt at the 24 pt body leading, which is 5/16 of it and 15 pt at the cap.
-    it('names the multi-line first-line drop as a fraction of the leading, 7.5 pt at the 24 pt body leading', () => {
-        expect(IOS_LEADING_DROP * 24).toBe(7.5);
-    });
-});
-
-describe('inputBoxPadding — a numeric input', () => {
-    // Digits have no descenders, so their ink is centred on the line's own middle: the lift that centres "Hxg" would put
-    // them high. A numeric input is not offset on any platform.
-    it.each([true, false])('is left as the caller styled it on iOS (multi-line %s)', (multiline) => {
-        expect(inputBoxPadding({ paddingVertical: 12 }, 'ios', multiline, 1, true)).toBeUndefined();
+    it('exports no single-line lift constant', async () => {
+        expect(Object.keys(await import('../inputTextStyle.js'))).not.toContain('IOS_INK_DROP_EM');
     });
 });
 
-describe('inputBoxPadding', () => {
-    const box = 48;
-
-    it('raises a single-line ink by the drop on iOS without changing the field height', () => {
-        const drop = 16 * IOS_INK_DROP_EM;
-        const padded = inputBoxPadding({ paddingVertical: 12 }, 'ios', false, 1, false);
-
-        expect(padded).toBeDefined();
-        expect(centreOf(box, padded as InputBoxPadding)).toBeCloseTo(box / 2 - drop, 5);
-        expect((padded as InputBoxPadding).paddingTop + (padded as InputBoxPadding).paddingBottom).toBeCloseTo(24, 5);
+describe('the multi-line first-line drop', () => {
+    // The first line's CAP BAND must sit as far from the box top as a single-line field's. qa-ios, iOS, 1x: the Title's
+    // cap top is 19.7 pt below its box top with the old 4 pt drop; the unlifted single-line Name's is 18.0, so the drop
+    // wants 1.7 pt more, 5.7 pt of the 24 pt leading. At the cap the single line's is about 20.7 and the Title's 25.0 with
+    // an 8 pt drop, so 12.3 pt of 48. Both are a quarter of the leading (6 pt at 1x, 12 pt at the cap).
+    it('is a quarter of the leading', () => {
+        expect(IOS_LEADING_DROP).toBe(1 / 4);
+        expect(IOS_LEADING_DROP * 24).toBe(6);
     });
 
-    it('scales the drop with the capped size, so the ink is centred at the cap too', () => {
-        const drop = 32 * IOS_INK_DROP_EM;
-        const padded = inputBoxPadding({ paddingVertical: 12 }, 'ios', false, 3.1, false) as InputBoxPadding;
-
-        expect(centreOf(box, padded)).toBeCloseTo(box / 2 - drop, 5);
+    it('is taken off the top padding on iOS and leaves the bottom, 6 pt at 1x and 12 pt at the cap', () => {
+        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 1)).toEqual({ paddingTop: 10, paddingBottom: 16 });
+        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 2)).toEqual({ paddingTop: 4, paddingBottom: 16 });
     });
 
-    it('takes it from the bottom when there is no top padding to give, which grows the field by the drop twice', () => {
-        const padded = inputBoxPadding({}, 'ios', false, 1, false) as InputBoxPadding;
-        const drop = 16 * IOS_INK_DROP_EM;
-
-        expect(padded.paddingTop).toBe(0);
-        expect(padded.paddingBottom).toBeCloseTo(2 * drop, 5);
-    });
-
-    it('reads the most specific padding the caller gave', () => {
-        const padded = inputBoxPadding(
-            { padding: 20, paddingVertical: 12, paddingTop: 8 },
-            'ios',
-            false,
-            1,
-        ) as InputBoxPadding;
-        const drop = 16 * IOS_INK_DROP_EM;
-
-        expect(padded.paddingTop).toBeCloseTo(8 - drop, 5);
-        expect(padded.paddingBottom).toBeCloseTo(12 + drop, 5);
-    });
-
-    it('leaves a multi-line field its bottom and takes the leading drop off the top, 7.5 pt at 1x and 15 pt at the cap', () => {
-        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 1, false)).toEqual({
-            paddingTop: 8.5,
+    it('reads the most specific padding the caller gave, and a style array', () => {
+        expect(inputBoxPadding({ padding: 20, paddingVertical: 16, paddingTop: 18 }, 'ios', true, 1)).toEqual({
+            paddingTop: 12,
             paddingBottom: 16,
         });
-        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 2, false)).toEqual({
-            paddingTop: 1,
-            paddingBottom: 16,
+        expect(
+            inputBoxPadding([null, false, { paddingVertical: 16 }, undefined, { paddingBottom: 14 }], 'ios', true, 1),
+        ).toEqual({
+            paddingTop: 10,
+            paddingBottom: 14,
         });
     });
 
     it('never goes below zero', () => {
         expect(
-            (inputBoxPadding({ paddingTop: 1, paddingBottom: 0 }, 'ios', true, 3.1, false) as InputBoxPadding)
-                .paddingTop,
+            (inputBoxPadding({ paddingTop: 1, paddingBottom: 0 }, 'ios', true, 3.1) as InputBoxPadding).paddingTop,
         ).toBe(0);
     });
 
-    it('changes nothing on Android', () => {
-        expect(inputBoxPadding({ paddingVertical: 12 }, 'android', false, 1, false)).toBeUndefined();
-        expect(inputBoxPadding({ paddingVertical: 16 }, 'android', true, 1, false)).toBeUndefined();
-    });
-
-    it('reads a style array and skips what is not a style', () => {
-        const padded = inputBoxPadding(
-            [null, false, { paddingVertical: 12 }, undefined, { paddingBottom: 14 }],
-            'ios',
-            false,
-            1,
-        );
-
-        expect((padded as InputBoxPadding).paddingBottom).toBeCloseTo(14 + 16 * IOS_INK_DROP_EM, 5);
+    it('is held on Android (its first line is measured next)', () => {
+        expect(inputBoxPadding({ paddingVertical: 16 }, 'android', true, 1)).toBeUndefined();
     });
 });

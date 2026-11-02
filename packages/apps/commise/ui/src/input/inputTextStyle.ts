@@ -12,13 +12,15 @@
  *   scale past the cap.
  * - **A multi-line input keeps its leading on both**, since lines need a rhythm.
  *
- * ## Centring on iOS (designer ruling 2026-11-03)
+ * ## Centring: the cap band (designer ruling (b), 2026-11-03)
  *
- * Even with no leading, iOS draws the ink of a single line a little below the middle of its line box (the font's ascent
- * carries internal leading): qa-ios measured 2 pt at 16 pt and 3.5 pt at 32 pt, about {@link IOS_INK_DROP_EM} of the size.
- * A multi-line field keeps its leading, and its first line sits about 4 pt low under the 24 pt body leading, one sixth
- * of it ({@link IOS_LEADING_DROP}). Both are taken out through the field's padding by {@link inputBoxPadding}, on iOS
- * only, from these two constants and nowhere else.
+ * An input's text is centred by its CAP BAND, from the top of a capital to the baseline, and descenders hang below it.
+ * Typed text, placeholders and digits follow the same rule. The platform's own single-line placement already does it
+ * (qa-ios's probe, with no shift: "Hxg" 1.5 pt low at 16 pt and 3.15 pt low at 32 pt, half the descender, so the cap band
+ * is centred), so a single-line input is left exactly as the caller styled it, on both platforms. Only a multi-line
+ * field's first line needs help on iOS, where it sits low under the leading: {@link IOS_LEADING_DROP} of the leading
+ * comes off the top padding, through {@link inputBoxPadding}, so its cap band sits as far from the box top as a single
+ * line's. Android's multi-line first line is held.
  *
  * ⛔ Nothing may spread a `nativeTokens.type.<role>` into a text input's style: it brings the fixed `lineHeight` back.
  * `nativeInputLineHeight.test.ts` refuses it.
@@ -52,17 +54,12 @@ export function inputTextStyle(systemScale: number, os: 'ios' | 'android', multi
 }
 
 /**
- * How far iOS draws a single line's ink below the middle of its line box, as a fraction of the font size. Measured by
- * qa-ios on the search field: 2 pt at 16 pt, 3.5 pt at 32 pt.
+ * How far to lift a multi-line field's first line on iOS, as a fraction of the leading, so its cap band sits as far from the
+ * box top as a single line's. qa-ios, 1x: the Title's cap top is 19.7 pt below its box top with a 4 pt drop, the unlifted
+ * single-line Name's 18.0, so the drop wants 5.7 pt of the 24 pt leading; at the cap about 12.3 pt of 48. A quarter of the
+ * leading fits both: 6 pt at 1x, 12 pt at the cap.
  */
-export const IOS_INK_DROP_EM = 0.11;
-
-/**
- * How far to lift a multi-line field's first line, as a fraction of the leading. iOS draws it about 4 pt low under the 24 pt
- * body leading (designer), and 3.4 pt lower again than a single-line field's first line sits (qa-ios's Title at 1x; the
- * `firstLine` check wants them within 2 pt): 7.5 pt at 24 pt, 15 pt at the 48 pt cap.
- */
-export const IOS_LEADING_DROP = 5 / 16;
+export const IOS_LEADING_DROP = 1 / 4;
 
 /** The vertical padding of an input, in points. */
 export interface InputBoxPadding {
@@ -105,39 +102,29 @@ function verticalPaddingOf(style: unknown): InputBoxPadding {
 }
 
 /**
- * The vertical padding that puts an input's ink in the middle of its box on iOS. Pure.
+ * The vertical padding that puts a multi-line input's first-line cap band where a single line's sits. Pure.
  *
- * A single line moves its padding from the top to the bottom, so the field keeps its height; with no top padding to
- * give, the bottom takes twice the drop. A multi-line field takes the leading drop off its top padding only. Neither
- * goes below zero. Android and a numeric input are not offset.
+ * Only a multi-line input on iOS is offset: {@link IOS_LEADING_DROP} of the leading comes off its top padding, never below
+ * zero. A single-line input is the platform's own (its cap band is already centred), and Android's multi-line is held.
  *
  * @param style - The caller's style for the input (an object, or an array of them).
  * @param os - The platform.
  * @param multiline - Whether the input has more than one line.
  * @param systemScale - The system font scale.
- * @param numeric - Whether the input takes digits only: they have no descenders, so they need no lift.
- * @returns The two paddings to lay over the caller's style, or nothing where the platform is not offset.
+ * @returns The two paddings to lay over the caller's style, or nothing where the input is not offset.
  */
 export function inputBoxPadding(
     style: unknown,
     os: 'ios' | 'android',
     multiline: boolean,
     systemScale: number,
-    numeric = false,
 ): InputBoxPadding | undefined {
-    if (os !== 'ios' || numeric) {
+    if (!multiline || os !== 'ios') {
         return undefined;
     }
 
     const { paddingTop, paddingBottom } = verticalPaddingOf(style);
-    const { fontSize, lineHeight } = scaledTypeSize('body', systemScale);
+    const { lineHeight } = scaledTypeSize('body', systemScale);
 
-    if (multiline) {
-        return { paddingTop: Math.max(0, paddingTop - lineHeight * IOS_LEADING_DROP), paddingBottom };
-    }
-
-    const drop = fontSize * IOS_INK_DROP_EM;
-    const top = Math.max(0, paddingTop - drop);
-
-    return { paddingTop: top, paddingBottom: paddingBottom + 2 * drop - (paddingTop - top) };
+    return { paddingTop: Math.max(0, paddingTop - lineHeight * IOS_LEADING_DROP), paddingBottom };
 }

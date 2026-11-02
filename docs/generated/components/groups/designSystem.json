@@ -6,11 +6,11 @@
     "coverage": {
         "components": 83,
         "implementations": 142,
-        "props": 795,
+        "props": 799,
         "documentedComponents": 83,
         "implementationsWithModuleDoc": 142,
         "implementationsWithComponentDoc": 131,
-        "documentedProps": 756,
+        "documentedProps": 760,
         "classifiedComponents": 76,
         "componentsWithPatternTag": 83,
         "crossPlatformComponents": 59
@@ -353,6 +353,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
                             "name": "status",
                             "type": "enum",
                             "typeDetail": [
@@ -378,7 +390,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/Avatar.native.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the native design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8).\nA `Pressable` button in a 44 pt target around the 32 pt disc. The disc is `AvatarDisc`.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the native design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8).\nA `Pressable` button in a 44 pt target around the disc, which is `AvatarDisc` at either size.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -431,6 +443,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
                             "name": "status",
                             "type": "enum",
                             "typeDetail": [
@@ -462,6 +486,8 @@
             "dir": "packages/apps/commise/ui/src/avatar",
             "kind": "presentational",
             "patterns": [
+                "Variant — the disc's form is a closed `Record` over `AvatarSize`, the discriminated-union render map",
+                "Variant — the face and the size are Tamagui variants, the discriminated-union render map",
                 "Visitor — an exhaustive switch over the disc's three faces"
             ],
             "platforms": [
@@ -477,18 +503,22 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/AvatarDisc.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the web avatar's 32 px disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile\nloads, initials on `action` with a name, the `user` glyph without one or after a failed read. Decorative: the control\nit sits in — the avatar, or the sidebar's profile row — carries the name.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the web avatar's disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile\nloads, initials on `action` with a name, the `user` glyph without one or after a failed read. Decorative: the control\nit sits in — the avatar, or the sidebar's profile row — carries the name.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/avatar — the web avatar's 32 px disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile"
+                            "text": "@commise/ui/avatar — the web avatar's disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile"
                         },
                         {
                             "name": "pattern",
                             "text": "Visitor — an exhaustive switch over the disc's three faces"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the disc's form is a closed `Record` over `AvatarSize`, the discriminated-union render map"
                         }
                     ],
-                    "description": "The 32 px disc, decorative: the control it sits in carries the name.",
+                    "description": "The disc, decorative: the control it sits in carries the name.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -500,6 +530,18 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's initials, or empty when there is no name. Read only when `status` is `ready`.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": "default",
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
@@ -528,18 +570,22 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the native avatar's 32 pt disc, alone (`buildSpec.md` §3.3, §3.8). Decorative: the\ncontrol it sits in carries the name. Colours come from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the native avatar's disc, alone (`buildSpec.md` §3.3, §3.8): 32 pt, or the Home header's\n`large` 36 pt disc with the small shadow and a 1 pt divider ring. Decorative: the control it sits in carries the name.\nColours are theme keys, so the disc follows the scheme with no hook.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/avatar — the native avatar's 32 pt disc, alone (`buildSpec.md` §3.3, §3.8). Decorative: the"
+                            "text": "@commise/ui/avatar — the native avatar's disc, alone (`buildSpec.md` §3.3, §3.8): 32 pt, or the Home header's"
                         },
                         {
                             "name": "pattern",
                             "text": "Visitor — an exhaustive switch over the disc's three faces"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the face and the size are Tamagui variants, the discriminated-union render map"
                         }
                     ],
-                    "description": "The 32 pt disc, decorative: the control it sits in carries the name.",
+                    "description": "The disc, decorative: the control it sits in carries the name.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -551,6 +597,18 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's initials, or empty when there is no name. Read only when `status` is `ready`.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": "default",
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {

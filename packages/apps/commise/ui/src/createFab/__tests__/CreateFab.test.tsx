@@ -171,4 +171,15 @@ describe('CreateFab (web) — clear of a showing snackbar', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
         expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 0px)');
     });
+
+    // Below 400 px of window height the button is an ordinary control in the page header (designer ruling, web only). The
+    // jsdom window has no media queries, so what can be pinned is that no unconditional class takes it out of the flow.
+    it('is in normal flow with no shadow until the fab-floats variant applies', () => {
+        renderFab();
+        const classes = fab().className.split(' ');
+
+        for (const out of ['fixed', 'absolute', 'sticky', 'shadow-lg']) {
+            expect(classes).not.toContain(out);
+        }
+    });
 });

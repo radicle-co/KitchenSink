@@ -19,6 +19,7 @@ import { renderToString } from 'react-dom/server';
 import { homeMessages } from '@commise/features-core/home';
 import { LocaleProvider } from '@commise/i18n/react';
 import { renderWithProviders } from '@commise/test-utils';
+import { CreateFab } from '@commise/ui/create-fab';
 
 import { HomeGreeting } from '../HomeGreeting';
 
@@ -37,6 +38,55 @@ const renderAt = (year: number, monthIndex: number, day: number, hour: number, l
 
 /** Every greeting string the dictionary can produce — used to assert that NO bucket leaks into the SSR pass. */
 const EVERY_GREETING: readonly string[] = Object.values(homeMessages.en.greetings);
+
+/**
+ * Designer ruling, web only (`nativeBoards/designAnswers.md`, 438f7e542): below 400 px of window height the New recipe
+ * button stops floating and takes its own row under the header, after the greeting and the date, 16 below the date,
+ * start-aligned, in flow, with no shadow. The profile button holds the end of the H1 row, so the button never goes there.
+ * jsdom has no media queries: the floating-only classes sit behind the `fab-floats` variant, so what is pinned here is the
+ * order in the page and the classes that put it on its own row.
+ */
+describe('HomeGreeting (web) — the New recipe button below 400 px of height', () => {
+    const renderHeader = (): HTMLElement => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
+        renderWithProviders(
+            <HomeGreeting
+                name="Eliza"
+                action={{ kind: 'avatar', avatar: <button type="button">Profile, Eliza</button> }}
+                afterTitle={<CreateFab label="New recipe" icon="plus" onPress={() => undefined} />}
+            />,
+            { locale: 'en' },
+        );
+
+        return screen.getByRole('button', { name: 'New recipe' });
+    };
+    const follows = (first: Element, second: Element): boolean =>
+        Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    it('comes after the greeting and the date in the page, so it can never overlap them', () => {
+        const create = renderHeader();
+
+        expect(follows(screen.getByRole('heading', { level: 1 }), create)).toBe(true);
+        expect(follows(screen.getByText(/^Sunday, May 31/u), create)).toBe(true);
+    });
+
+    it('is not the profile button’s neighbour at the end of the H1 row: it spans the row beneath', () => {
+        const classes = renderHeader().className.split(' ');
+
+        expect(classes).toEqual(expect.arrayContaining(['col-span-3', 'justify-self-start', 'mt-4']));
+        expect(classes).not.toContain('justify-self-end');
+    });
+
+    it('is in normal flow with no shadow until the window is tall enough to float it', () => {
+        const classes = renderHeader().className.split(' ');
+
+        for (const out of ['fixed', 'absolute', 'sticky', 'shadow-lg']) {
+            expect(classes).not.toContain(out);
+        }
+        expect(classes).toEqual(expect.arrayContaining(['fab-floats:fixed', 'fab-floats:shadow-lg']));
+    });
+});
 
 describe('HomeGreeting (web) — time-of-day bucket', () => {
     // Each row is [hour, expected greeting]. The boundary hours (5, 12, 17, 22) are chosen on purpose: they

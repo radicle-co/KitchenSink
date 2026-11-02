@@ -36,6 +36,7 @@ interface Measures {
     readonly x: number;
 }
 
+/** Widths are kept in whole pixels: Android re-sends a layout for float noise, and an unchanged width costs no commit. */
 const UNMEASURED: Measures = { viewport: 0, outer: 0, content: 0, x: 0 };
 
 /**
@@ -70,16 +71,18 @@ export function useScrollHint(onPosition: ((extent: ScrollExtent) => void) | und
 
     return {
         onLayout: (event) => {
-            const width = event.nativeEvent.layout.width;
+            const width = Math.round(event.nativeEvent.layout.width);
 
             setMeasures((current) => (current.viewport === width ? current : { ...current, viewport: width }));
         },
         onBoxLayout: (event) => {
-            const width = event.nativeEvent.layout.width;
+            const width = Math.round(event.nativeEvent.layout.width);
 
             setMeasures((current) => (current.outer === width ? current : { ...current, outer: width }));
         },
-        onContentSizeChange: (width) => {
+        onContentSizeChange: (reported) => {
+            const width = Math.round(reported);
+
             setMeasures((current) => (current.content === width ? current : { ...current, content: width }));
         },
         onScroll: (event) => {

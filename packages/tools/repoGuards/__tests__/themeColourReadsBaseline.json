@@ -126,7 +126,6 @@
         "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx": 1,
         "packages/apps/commise/mobile/src/navigation/RootNavigator.tsx": 7,
         "packages/apps/commise/ui/src/actionMenu/ActionMenu.native.tsx": 3,
-        "packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx": 2,
         "packages/apps/commise/ui/src/button/Button.native.tsx": 2,
         "packages/apps/commise/ui/src/checkBoxGlyph/CheckBoxGlyph.native.tsx": 3,
         "packages/apps/commise/ui/src/chip/Chip.native.tsx": 5,

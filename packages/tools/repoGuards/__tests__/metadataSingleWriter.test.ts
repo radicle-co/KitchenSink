@@ -1,7 +1,14 @@
 // @vitest-environment node
 /**
- * Repo-wide guard: exactly TWO modules write a Clerk user's `public_metadata` — `poolAdmin`, and the sign-up role writer
- * in the identity webhook — and the second writes nothing but the `roles` key, by merge.
+ * Repo-wide guard: exactly THREE modules write a Clerk user's `public_metadata` — `poolAdmin`, the sign-up role writer
+ * in the identity webhook, and the suspended-mark writer beside it — and the second and third each write nothing but
+ * one key, by merge.
+ *
+ * ⛔ AMENDED again by ADR-0081 (`docs/architecture/decisions/0081-account-suspension-is-enforced-from-a-signed-token-mark.md`):
+ * `suspended` is written by the deletion worker's convergence (`accountStandingClient.ts`) and cleared the same way. A
+ * third writer, by design, on the same three conditions as the second: it merges (`updateUserMetadata`), it writes
+ * only `suspended`, and it is the only metadata write in its module. Its value is derived from the stored status, never
+ * from a message, and is unit-tested beside it (`accountStandingClient.test.ts`).
  *
  * ⛔ AMENDED by owner ruling 2026-10-13 (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D10/D11):
  * `default` is WRITTEN at sign-up by the Clerk webhook, never inferred from an absent `roles` key. That is a second
@@ -44,8 +51,11 @@ const POOL_WRITER = 'packages/tools/e2e-fixtures/src/poolAdmin.ts';
 /** The sign-up role writer: `roles: ['default']`, by merge, only where no `roles` key exists. */
 const ROLE_WRITER = 'packages/services/identity-webhooks/src/common/identityClient.ts';
 
+/** The suspended-mark writer (ADR-0081): `suspended: true`, or `null` to clear, by merge. */
+const SUSPENDED_WRITER = 'packages/services/identity-webhooks/src/common/accountStandingClient.ts';
+
 /** Every admitted writer. */
-const WRITERS: ReadonlySet<string> = new Set([POOL_WRITER, ROLE_WRITER]);
+const WRITERS: ReadonlySet<string> = new Set([POOL_WRITER, ROLE_WRITER, SUSPENDED_WRITER]);
 
 /** This guard names every pattern it hunts for, so it is not itself a writer. */
 const SELF = 'packages/tools/repoGuards/__tests__/metadataSingleWriter.test.ts';
@@ -100,9 +110,10 @@ function writers(): ReadonlyMap<string, readonly string[]> {
 describe('Clerk public_metadata has a single writer', () => {
     const found = writers();
 
-    it('finds both writers (non-vacuity)', () => {
+    it('finds all three writers (non-vacuity)', () => {
         expect(found.has(POOL_WRITER)).toBe(true);
         expect(found.has(ROLE_WRITER)).toBe(true);
+        expect(found.has(SUSPENDED_WRITER)).toBe(true);
     });
 
     it('⛔ no other module writes public_metadata', () => {
@@ -125,6 +136,17 @@ describe('Clerk public_metadata has a single writer', () => {
         // `roles` holding one array literal, and NOTHING after it before the object closes: a second key fails.
         expect(source).toMatch(
             /\.updateUserMetadata\(\s*userId,\s*\{\s*publicMetadata:\s*\{\s*roles:\s*\[[^\]]*\]\s*\}\s*\}\s*\)/u,
+        );
+    });
+
+    it('⛔ the suspended-mark writer only MERGES, and only the `suspended` key', () => {
+        const source = code(readFileSync(path.join(repoRoot, SUSPENDED_WRITER), 'utf8'), SUSPENDED_WRITER);
+
+        expect(found.get(SUSPENDED_WRITER)).toStrictEqual(['SDK metadata update']);
+        expect(source.match(/\.(?:update|replace)UserMetadata\(/gu)).toStrictEqual(['.updateUserMetadata(']);
+        // One computed key, the shared constant, and NOTHING after it before the object closes: a second key fails.
+        expect(source).toMatch(
+            /\.updateUserMetadata\(\s*userId,\s*\{\s*publicMetadata:\s*\{\s*\[SUSPENDED_METADATA_KEY\]:\s*suspended \? true : null\s*\},?\s*\}\s*\)/u,
         );
     });
 

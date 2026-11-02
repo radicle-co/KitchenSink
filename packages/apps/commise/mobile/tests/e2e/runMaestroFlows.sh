@@ -224,6 +224,7 @@ FLOW_PLAN="spine:auth/loginFlow
 home:home
 recipes:recipes/rating
 recipes:recipes/listDetail
+recipes:recipes/headerScrollsAway
 recipes:recipes/viewSetting
 recipes:shell/tabBar
 recipes:recipes/landscape

@@ -60,6 +60,7 @@ android	recipes/ingredientRowVariant	137	5
 android	recipes/ingredientUnmatched	104	5
 android	recipes/ingredientVariantSearch	132	4
 android	recipes/landscape	233	5
+android	recipes/headerScrollsAway	108	0
 android	recipes/listDetail	81	5
 android	recipes/makePublicConfirm	181	4
 android	recipes/newCollectionSheet	69	5
@@ -128,6 +129,7 @@ ios	recipes/ingredientRowVariant	224	3
 ios	recipes/ingredientUnmatched	127	2
 ios	recipes/ingredientVariantSearch	122	3
 ios	recipes/landscape	314	2
+ios	recipes/headerScrollsAway	161	0
 ios	recipes/listDetail	188	4
 ios	recipes/makePublicConfirm	277	3
 ios	recipes/newCollectionSheet	86	3

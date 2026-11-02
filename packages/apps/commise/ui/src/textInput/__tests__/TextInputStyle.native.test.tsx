@@ -8,7 +8,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
-import { IOS_INK_DROP_EM } from '../../input/inputTextStyle.js';
 import { scaledTypeSize } from '../../text/scaledType.js';
 import { TextInput } from '../TextInput.native.js';
 
@@ -53,43 +52,16 @@ describe('TextInput (native) — the input text style', () => {
         expect(screen.getByRole('textbox', { name: 'Name' }).style.minHeight).toBe('48px');
     });
 
-    it("lifts a single-line field's ink on iOS by moving padding from top to bottom, the height unchanged", () => {
-        const input = field('ios', 1);
-        const drop = scaledTypeSize('body', 1).fontSize * 0.11;
-
-        expect(Number.parseFloat(input.style.paddingTop)).toBeCloseTo(12 - drop, 3);
-        expect(Number.parseFloat(input.style.paddingBottom)).toBeCloseTo(12 + drop, 3);
-    });
-
-    it("takes the leading drop off a multi-line field's top padding on iOS", () => {
-        const input = field('ios', 1, true, { paddingVertical: 16 });
-
-        expect(input.style.paddingTop).toBe('8.5px');
-        expect(input.style.paddingBottom).toBe('16px');
-    });
-
-    it('lifts a single-line field on Android by the same padding move', () => {
-        const input = field('android', 1);
-        const drop = scaledTypeSize('body', 1).fontSize * IOS_INK_DROP_EM;
-
-        expect(Number.parseFloat(input.style.paddingTop)).toBeCloseTo(12 - drop, 3);
-        expect(Number.parseFloat(input.style.paddingBottom)).toBeCloseTo(12 + drop, 3);
-    });
-
-    it('leaves a multi-line field on Android its padding', () => {
-        const input = field('android', 1, true, { paddingVertical: 16 });
-
-        expect(input.style.paddingTop).toBe('16px');
-        expect(input.style.paddingBottom).toBe('16px');
-    });
-
+    // REWRITTEN (designer ruling (b), the cap band): the primitive used to move a single-line field's padding by 0.11 em
+    // to centre the descender-inclusive ink, and exempted numeric inputs from it. The platform already centres the cap
+    // band and lets descenders hang, so the primitive changes nothing, for text and for digits alike.
     it.each([
-        { inputMode: 'numeric' },
-        { inputMode: 'decimal' },
-        { keyboardType: 'number-pad' },
-        { keyboardType: 'decimal-pad' },
-    ] as const)('leaves a numeric input (%o) its padding on iOS: digits sit level with the line', (props) => {
-        withPlatformOs('ios', () =>
+        ['ios', {}],
+        ['android', {}],
+        ['ios', { inputMode: 'numeric' }],
+        ['android', { keyboardType: 'decimal-pad' }],
+    ] as const)('leaves a single-line field its padding on %s (%o)', (os, props) => {
+        withPlatformOs(os, () =>
             renderWithTamagui(
                 <TextInput accessibilityLabel="Name" style={{ paddingVertical: 12 }} {...props} />,
                 'light',
@@ -100,5 +72,20 @@ describe('TextInput (native) — the input text style', () => {
 
         expect(input.style.paddingTop).toBe('12px');
         expect(input.style.paddingBottom).toBe('12px');
+    });
+
+    // The first line's cap band against a single-line field's: a quarter of the leading comes off the top padding (6 pt).
+    it("takes the leading drop off a multi-line field's top padding on iOS", () => {
+        const input = field('ios', 1, true, { paddingVertical: 16 });
+
+        expect(input.style.paddingTop).toBe('10px');
+        expect(input.style.paddingBottom).toBe('16px');
+    });
+
+    it('leaves a multi-line field on Android its padding', () => {
+        const input = field('android', 1, true, { paddingVertical: 16 });
+
+        expect(input.style.paddingTop).toBe('16px');
+        expect(input.style.paddingBottom).toBe('16px');
     });
 });

@@ -23,10 +23,18 @@ const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
 /**
  * The navigation chrome, the only modules that may lower a label's ceiling with `chromeCap` (designer ruling
  * 2026-11-01, ADR-0080 §8): the tab bar, which draws every tab label, the view-switch control, and the floating create button's face
- * (ruling d, 2026-11-02).
+ * (ruling d, 2026-11-02). Also, per designer ruling c10ecadbf (2026-11-03), a step numeral (the cook's and the editor's) and the
+ * pinned bar's title and parent name, which cap at 1.5x like chrome.
  */
 const CHROME_MODULES =
-    /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx|ui\/src\/createFab\/FabFace\.native\.tsx)$/u;
+    /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx|ui\/src\/createFab\/FabFace\.native\.tsx|ui\/src\/largeTitleHeader\/CondensedTitleBar\.native\.tsx|features\/recipes\/src\/detail\/StepRow\.native\.tsx|features\/recipes\/src\/form\/RecipeInstructionsFields\.native\.tsx)$/u;
+
+/**
+ * The two avatar discs, the only modules that draw initials at a size that does not scale, with `fixedPx` (designer ruling
+ * c10ecadbf, 2026-11-03): 40% of the disc's diameter, so two letters fit at every size.
+ */
+const INITIALS_MODULES =
+    /(?:^|\/)packages\/apps\/commise\/(?:ui\/src\/avatar\/AvatarDisc\.native\.tsx|features\/recipes\/src\/discovery\/DiscoveryFooter\.native\.tsx)$/u;
 
 /** The status badge, the only module that draws a mark on a picture with `pictorial` (designer ruling 2026-11-01, M-1). */
 const PICTURE_MODULES = /(?:^|\/)packages\/apps\/commise\/ui\/src\/statusBadge\/StatusBadge\.native\.tsx$/u;
@@ -60,7 +68,8 @@ export function typePropFindings(
             ts.isJsxAttribute(attribute)
                 ? TYPE_PARTS.has(attribute.name.getText(file)) ||
                   (attribute.name.getText(file) === 'chromeCap' && !CHROME_MODULES.test(file.fileName)) ||
-                  (attribute.name.getText(file) === 'pictorial' && !PICTURE_MODULES.test(file.fileName))
+                  (attribute.name.getText(file) === 'pictorial' && !PICTURE_MODULES.test(file.fileName)) ||
+                  (attribute.name.getText(file) === 'fixedPx' && !INITIALS_MODULES.test(file.fileName))
                 : OLD_TYPE_STYLES.test(attribute.expression.getText(file)),
         // `textScale` is the design-system Text's context value (ADR-0080 §8); as a default it would hold every instance at
         // one scale, whatever the cook's setting (GATE SCQ-2).
@@ -68,6 +77,7 @@ export function typePropFindings(
             key === 'textScale' ||
             key === 'chromeCap' ||
             key === 'pictorial' ||
+            key === 'fixedPx' ||
             (key === 'lineHeight' && !isPxLineHeight(value)),
     });
 }

@@ -148,6 +148,14 @@ describe('typePropFindings', () => {
             ['the view-switch control', 'packages/apps/commise/ui/src/segmentedControl/SegmentedControl.native.tsx', 0],
             // Designer ruling d, 2026-11-02: the floating button's label follows the same 1.5x chrome cap.
             ['the floating create button', 'packages/apps/commise/ui/src/createFab/FabFace.native.tsx', 0],
+            // Designer ruling c10ecadbf, 2026-11-03: a step numeral and the pinned bar's title and parent name cap at 1.5x too.
+            ["the cook's step numeral", 'packages/apps/commise/features/recipes/src/detail/StepRow.native.tsx', 0],
+            [
+                "the editor's step numeral",
+                'packages/apps/commise/features/recipes/src/form/RecipeInstructionsFields.native.tsx',
+                0,
+            ],
+            ['the pinned bar', 'packages/apps/commise/ui/src/largeTitleHeader/CondensedTitleBar.native.tsx', 0],
             ['a sibling of the floating button', 'packages/apps/commise/ui/src/createFab/CreateFab.native.tsx', 1],
             ['any other screen', 'packages/apps/commise/features/recipes/src/x/X.native.tsx', 1],
         ] as const)('on an element in %s → %i', (_where, file, expected) => {
@@ -182,6 +190,34 @@ describe('typePropFindings', () => {
                 typePropFindings(
                     `${head}const T = styled(Text, { pictorial: true });`,
                     'packages/apps/commise/ui/src/statusBadge/StatusBadge.native.tsx',
+                    none,
+                ),
+            ).toHaveLength(1);
+        });
+    });
+
+    // Designer ruling c10ecadbf (2026-11-03): initials in a disc do not scale; they are 40% of the disc. `fixedPx` is
+    // admitted in the two avatar discs alone, on an element, and never as a styled() default.
+    describe('fixedPx', () => {
+        const initials = '<Text typeRole="label" fixedPx={12} />';
+
+        it.each([
+            ['the avatar disc', 'packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx', 0],
+            [
+                "the discovery footer's avatar",
+                'packages/apps/commise/features/recipes/src/discovery/DiscoveryFooter.native.tsx',
+                0,
+            ],
+            ['any other module', 'packages/apps/commise/features/recipes/src/card/RecipeCard.native.tsx', 1],
+        ] as const)('on an element in %s', (_where, file, expected) => {
+            expect(typePropFindings(head + initials, file, none)).toHaveLength(expected);
+        });
+
+        it('is refused as a styled() default, even in the avatar disc', () => {
+            expect(
+                typePropFindings(
+                    `${head}const T = styled(Text, { fixedPx: 12 });`,
+                    'packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx',
                     none,
                 ),
             ).toHaveLength(1);

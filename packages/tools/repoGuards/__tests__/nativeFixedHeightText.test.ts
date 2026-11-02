@@ -161,7 +161,7 @@ describe('fixedHeightTextFrames — fixture rows', () => {
 describe('fixedHeightFrameSites — the reader finds the real frames', () => {
     const REAL_FRAMES = [
         'packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx',
-        'packages/apps/commise/features/recipes/src/detail/StepRow.native.tsx',
+        'packages/apps/commise/ui/src/heroButton/HeroButton.native.tsx',
         'packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.native.tsx',
     ] as const;
 
@@ -289,39 +289,16 @@ const EXEMPTIONS: readonly Exemption[] = [
         reason: "Its only height is `'100%'` (L199) or the content's own; the reader cannot read the width call.",
     },
     {
-        file: `${APPS}features/recipes/src/detail/StepRow.native.tsx`,
-        frame: '<View style={[styles.numeral,',
-        kind: 'owed',
-        reason: 'A two-digit step number in the 32 pt disc (L72-73) measures 35.3 pt at 2x, and the Text is an uncapped React Native Text (in nativeTextScaleCapBaseline).',
-        fix: 'Draw the numeral with the design-system Text (capped) and size the disc to the cap, or cap the numeral at 1.5x. Changes the look at large text sizes.',
-    },
-    {
-        file: `${APPS}features/recipes/src/form/RecipeInstructionsFields.native.tsx`,
-        frame: '<View style={[styles.numeral,',
-        kind: 'owed',
-        reason: 'A two-digit step number in the 32 pt disc (NUMERAL, L30) measures 35.8 pt at 2x, and the Text is an uncapped React Native Text (in nativeTextScaleCapBaseline).',
-        fix: 'As StepRow: the design-system Text with a cap that fits the disc. Changes the look at large text sizes.',
-    },
-    {
         file: `${APPS}features/recipes/src/discovery/DiscoveryFooter.native.tsx`,
         frame: '<View style={[styles.avatar,',
-        kind: 'owed',
-        reason: 'The initial is a `label` Text (14/20, uncapped) in a 20 pt disc (L99-100, L106): at 1.5x it is 30 pt tall and "M" is 19.4 pt wide; at 2x 40 pt and 25.8 pt.',
-        fix: 'The design-system Text with chromeCap 1.5, or size the disc from the scale. Changes the look at large text sizes.',
+        kind: 'allowed',
+        reason: 'The initial does not scale: it is 40% of the 20 pt disc, 8 pt, at every size (designer ruling c10ecadbf, 2026-11-03; DesignText fixedPx={initialsPxOf(FOOTER_AVATAR_PT)}), and the name beside it carries the meaning.',
     },
     {
         file: `${APPS}ui/src/avatar/AvatarDisc.native.tsx`,
         frame: '<Disc>',
-        kind: 'owed',
-        reason: 'The initials are the design-system Text, role label, capped at 2x; "MW" measures 40.8 pt at 1.5x and 54.4 pt at 2x in a 32 pt disc (AVATAR_DISC_PT, 36 pt large).',
-        fix: 'Cap the initials at a scale that fits the disc (1.2x for two letters), or grow the disc with the scale. Changes the look at large text sizes.',
-    },
-    {
-        file: `${APPS}ui/src/largeTitleHeader/CondensedTitleBar.native.tsx`,
-        frame: '<View style={[styles.bar,',
-        kind: 'owed',
-        reason: 'The 56 pt bar (PINNED_BAR_HEIGHT, L103) holds the title (L81-86) and the parent name (L66-73) as uncapped React Native Texts (in nativeTextScaleCapBaseline): barTitle 20 pt grows past 56 pt above 2.8x.',
-        fix: 'The design-system Text with chromeCap 1.5. Changes the look at large text sizes.',
+        kind: 'allowed',
+        reason: 'The initials do not scale: they are 40% of the disc (12 pt in 32, 14 pt in 36), so two letters fit at every size (designer ruling c10ecadbf, 2026-11-03; Text fixedPx={initialsPxOf(…)}); proven on real font metrics by discGeometry.fit.test.ts.',
     },
 ];
 

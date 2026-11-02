@@ -3,7 +3,7 @@
  * tile with its glyph and label and its value (`RecipeDetailAndroid384`, `designAnswers.md` D5). A missing time hides its
  * tile; with no tile to show nothing is drawn. A tile is one group, so a screen reader says "Total: 1 h 50 min".
  *
- * Three go across only while each tile has 100 pt per unit of text scale (`factTilesAcross`, designer iosBatch2); below that
+ * Three go across only while each tile has 100 pt per unit of text scale (`columnsKeepingMinOf`, designer iosBatch2); below that
  * each takes a row, the label at the start and the value at the end, so no word is ever broken. Difficulty is plain text in
  * the same value style as the others, as on the board and the cards.
  *
@@ -11,12 +11,24 @@
  */
 import { Icon } from '@commise/ui/icon';
 import type { IconName } from '@commise/ui/icon';
+import { spacing } from '@commise/ui/scale';
 import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
 import { styled, XStack, YStack } from 'tamagui';
 
-import { factTilesAcross, type DetailStatCell } from './detailFacts.js';
+import { columnsKeepingMinOf, type ColumnMinimum } from '../card/cardGridLayout.js';
+import type { DetailStatCell } from './detailFacts.js';
 import type { DetailNativeLayout } from './model.js';
+
+/** The room a tile needs per unit of text scale to hold a label and a value on two lines without breaking a word. */
+const TILE_MIN_PER_SCALE = 100;
+
+/** All the tiles across, each keeping its minimum, with space-2 between them. */
+const TILES_ACROSS = (count: number): ColumnMinimum => ({
+    columns: count,
+    minPerColumn: TILE_MIN_PER_SCALE,
+    gap: spacing[2],
+});
 
 const GLYPH: Readonly<Record<DetailStatCell['id'], IconName>> = {
     total: 'clock',
@@ -77,7 +89,7 @@ export const DetailFactTiles: FC<DetailFactTilesProps> = ({ tiles, layout }) => 
         return null;
     }
 
-    const stacked = factTilesAcross(layout.bodyWidth, tiles.length, layout.textScale) < tiles.length;
+    const stacked = columnsKeepingMinOf(layout.bodyWidth, layout.textScale, TILES_ACROSS(tiles.length)) < tiles.length;
 
     return (
         <Tiles stacked={stacked}>

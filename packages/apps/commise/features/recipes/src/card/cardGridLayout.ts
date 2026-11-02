@@ -30,21 +30,56 @@ export function libraryGridColumnsOf(contentPx: number): number {
     return Math.max(1, Math.floor((contentPx + GRID_GAP) / (GRID_CARD_MIN_WIDTH + GRID_GAP)));
 }
 
+/** The rule {@link columnsKeepingMinOf} applies. */
+export interface ColumnMinimum {
+    /** How many columns to keep. */
+    readonly columns: number;
+    /** The narrowest one column may be, in points per unit of text scale. */
+    readonly minPerColumn: number;
+    /** The gap between columns, in points. Defaults to 0. */
+    readonly gap?: number;
+}
+
+/**
+ * The one "this many columns while each keeps its minimum, else one" rule: the container's width less the gaps, shared
+ * between the columns, must give each at least `minPerColumn` points per unit of text scale. A column below its minimum
+ * breaks a word, so the fallback is a single column, never a number in between.
+ *
+ * @param contentPx - The container's width.
+ * @param textScale - The scale capped text is drawn at (`cappedFontScale`, not the raw system scale). Zero or less reads as 1.
+ * @param rule - The columns to keep, their minimum and the gap.
+ * @returns `rule.columns` while it fits, else 1; 0 when there are no columns to lay out.
+ */
+export function columnsKeepingMinOf(contentPx: number, textScale: number, rule: ColumnMinimum): number {
+    const { columns, minPerColumn, gap = 0 } = rule;
+
+    if (columns <= 0) {
+        return 0;
+    }
+
+    const scale = textScale > 0 ? textScale : 1;
+    const columnWidth = (contentPx - (columns - 1) * gap) / columns;
+
+    return columnWidth / scale >= minPerColumn ? columns : 1;
+}
+
 /** The narrowest a compact tile's column may be, at the capped text scale (designer rule, 2026-11-02): below it a tile title breaks inside a word. */
 export const COMPACT_COLUMN_MIN_WIDTH = 320;
 
 /**
  * How many columns the compact tile gets: two while the container width divided by the capped text scale is at least
- * {@link COMPACT_COLUMN_MIN_WIDTH}, one below. At 1x on a 343 pt container that is two; at 2x it is one.
+ * {@link COMPACT_COLUMN_MIN_WIDTH}, one below. At 1x on a 343 pt container that is two; at 2x it is one. The 320 pt case
+ * of {@link columnsKeepingMinOf}: two columns of half of it each, no gap.
  *
  * @param contentPx - The container's width.
  * @param textScale - The scale capped text is drawn at (`cappedFontScale`, not the raw system scale). Zero or less reads as 1.
  * @returns 2 or 1.
  */
 export function compactColumnsOf(contentPx: number, textScale: number): number {
-    const scale = textScale > 0 ? textScale : 1;
-
-    return contentPx / scale >= COMPACT_COLUMN_MIN_WIDTH ? HOME_COLUMNS.narrow : 1;
+    return columnsKeepingMinOf(contentPx, textScale, {
+        columns: HOME_COLUMNS.narrow,
+        minPerColumn: COMPACT_COLUMN_MIN_WIDTH / HOME_COLUMNS.narrow,
+    });
 }
 
 /**

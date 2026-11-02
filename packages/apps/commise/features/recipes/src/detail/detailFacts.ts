@@ -6,7 +6,6 @@
  * checkable row is named. Every function here is pure.
  */
 import type { Locale } from '@commise/i18n';
-import { spacing } from '@commise/ui/scale';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
@@ -393,29 +392,4 @@ const TWO_COLUMN_BODY = 720;
  */
 export function detailNativeLayoutOf(bodyWidth: number, textScale: number): DetailNativeLayout {
     return { columns: bodyWidth >= TWO_COLUMN_BODY ? 'two' : 'one', bodyWidth, textScale };
-}
-
-/** The gap between fact tiles: space-2. */
-const TILE_GAP = spacing[2];
-
-/** The room a tile needs per unit of text scale before it holds a label and a value on two lines without breaking a word. */
-const TILE_MIN_PER_SCALE = 100;
-
-/**
- * How many fact tiles go across a row (designer, iosBatch2): all of them while each is at least 100 pt wide per unit of
- * text scale, else one to a row. A tile that would break a word ("Difficu / lty", "55 / min") is never drawn. Pure.
- *
- * @param bodyWidth - The width the tiles share, in points.
- * @param count - How many tiles there are.
- * @param textScale - The scale the text is drawn at.
- * @returns Tiles per row: `count` or `1`, and `0` for no tiles.
- */
-export function factTilesAcross(bodyWidth: number, count: number, textScale: number): number {
-    if (count <= 0) {
-        return 0;
-    }
-
-    const tileWidth = (bodyWidth - (count - 1) * TILE_GAP) / count;
-
-    return tileWidth / textScale >= TILE_MIN_PER_SCALE ? count : 1;
 }

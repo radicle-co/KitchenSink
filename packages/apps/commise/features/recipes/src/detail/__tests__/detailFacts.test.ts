@@ -22,7 +22,6 @@ import {
     detailByline,
     detailEyebrow,
     detailNativeLayoutOf,
-    factTilesAcross,
     detailStatusLine,
     detailStatCells,
     ingredientRowName,
@@ -224,7 +223,7 @@ describe('isLongDescription', () => {
 });
 
 // REWRITTEN IN SLICE 1: the page no longer has a stat strip whose cells go two to a row below 360 pt, so the layout is the
-// column count, plus the room the fact tiles are drawn in (the body's width and the text scale), which `factTilesAcross` reads.
+// column count, plus the room the fact tiles are drawn in (the body's width and the text scale), which the fact tiles read (`DetailFactTiles.native.test.tsx`).
 describe('detailNativeLayoutOf', () => {
     it.each([
         { width: 288, columns: 'one' },
@@ -232,29 +231,6 @@ describe('detailNativeLayoutOf', () => {
         { width: 720, columns: 'two' },
     ])('a $width pt body → $columns column(s)', ({ width, columns }) => {
         expect(detailNativeLayoutOf(width, 1)).toEqual({ columns, bodyWidth: width, textScale: 1 });
-    });
-});
-
-// Designer, iosBatch2: three tiles across only while each tile, per unit of text scale, is at least 100 pt wide; below
-// that, one tile to a row. A table over the space of widths, scales and counts, including a width that is exactly the line.
-describe('factTilesAcross', () => {
-    it.each([
-        { width: 358, scale: 1, count: 3, across: 3 },
-        { width: 358, scale: 1.1, count: 3, across: 3 },
-        { width: 358, scale: 2, count: 3, across: 1 },
-        { width: 316, scale: 1, count: 3, across: 3 },
-        { width: 315, scale: 1, count: 3, across: 1 },
-        { width: 320, scale: 1, count: 3, across: 3 },
-        { width: 288, scale: 1, count: 3, across: 1 },
-        { width: 358, scale: 1.5, count: 3, across: 1 },
-        { width: 358, scale: 1.5, count: 2, across: 2 },
-        { width: 358, scale: 2, count: 2, across: 1 },
-        { width: 358, scale: 2, count: 1, across: 1 },
-        { width: 120, scale: 1, count: 1, across: 1 },
-        { width: 200, scale: 1, count: 2, across: 1 },
-        { width: 358, scale: 1, count: 0, across: 0 },
-    ])('$count tiles in $width pt at scale $scale → $across across', ({ width, scale, count, across }) => {
-        expect(factTilesAcross(width, count, scale)).toBe(across);
     });
 });
 

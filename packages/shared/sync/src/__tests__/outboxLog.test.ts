@@ -408,6 +408,23 @@ describe('recoverInterrupted', () => {
         expect(after?.lastStatus).toBe(expected === state ? 409 : undefined);
     });
 
+    /**
+     * ⛔ A CREATE ALREADY PARKED WITH A STATUS THE DRAINER RE-SENDS (401, 429, 503) IS SENT BY BOTH TABS. The copy must
+     * strip the status too, so the drainer reads it as an unknown outcome and waits for the cook.
+     */
+    it.each([[401], [429], [503]])('⛔ in a copied log, a create parked with %i loses its status', (status) => {
+        const parked = settle(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })),
+            { seq: 1, outcome: 'parked', status },
+        );
+
+        const [after] = recoverInterrupted(parked, { copied: true }).records;
+
+        expect(after?.state).toBe('parked');
+        expect(after?.lastStatus).toBeUndefined();
+        expect(recoverInterrupted(parked).records[0]?.lastStatus).toBe(status);
+    });
+
     it('⛔ in a copied log, still parks a record a dead process left sending', () => {
         const queued = markSending(
             appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),

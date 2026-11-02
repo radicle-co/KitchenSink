@@ -658,8 +658,9 @@ const MINTS_A_ROW: ReadonlySet<IntentKind> = new Set<IntentKind>(['create', 'cre
  *
  * - A record a previous process left `sending`: the server may hold it, so re-sending it would be the blind retry the
  *   drainer forbids. A record THIS process marked `sending` is a live request and is never touched.
- * - In a copied log, also every queued record of a kind that {@link MINTS_A_ROW}: the other owner of the log may send
- *   it too, which is a second recipe. The cook decides. Records of other kinds stay queued.
+ * - In a copied log, also every queued or parked record of a kind that {@link MINTS_A_ROW}: the other owner of the log
+ *   may send it too, which is a second recipe. A parked one loses its status, or the drainer would re-send it (401,
+ *   429, 503). The cook decides. Records of other kinds stay as they are.
  *
  * @param log - The log as storage holds it.
  * @param options - Whether the log is a copy.
@@ -669,7 +670,7 @@ export function recoverInterrupted(log: OutboxLog, options: RecoveryOptions = {}
     const parks = (record: OutboxRecord): boolean =>
         record.state === 'sending' ||
         (options.copied === true &&
-            (record.state === 'pending' || record.state === 'blocked') &&
+            (record.state === 'pending' || record.state === 'blocked' || record.state === 'parked') &&
             MINTS_A_ROW.has(record.intentKind));
 
     return withdrawMoot({

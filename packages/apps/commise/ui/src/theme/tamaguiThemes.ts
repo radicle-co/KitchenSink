@@ -12,6 +12,7 @@ import {
     chipFillRoleOf,
     DEFAULT_SURFACE_TONE,
     pressFillsOf,
+    quietInkOf,
     SURFACE_TONE_NAMES,
     SURFACE_TONES,
     type PressScheme,
@@ -30,10 +31,18 @@ export const proThemeKeys = ['proFill', 'proInk'] as const;
 export type ProThemeKey = (typeof proThemeKeys)[number];
 
 /**
- * The keys a surface tone sets: the ink a bare `Text` takes, and the four a Tamagui part reads. `color` is `ink` under
+ * The keys a surface tone sets: the ink a bare `Text` takes, its muted form and the divider, and the four a Tamagui part reads. `color` is `ink` under
  * the name Tamagui reads; `ink` is also a role, so the parent already holds it.
  */
-export const TONE_THEME_KEYS = ['ink', 'color', 'background', 'backgroundPress', 'borderColor'] as const;
+export const TONE_THEME_KEYS = [
+    'ink',
+    'color',
+    'background',
+    'backgroundPress',
+    'borderColor',
+    'inkMuted',
+    'lineDivider',
+] as const;
 
 /** A key a surface tone sets. */
 export type ToneThemeKey = (typeof TONE_THEME_KEYS)[number];
@@ -79,6 +88,7 @@ function toneThemeOf(colors: Readonly<Record<Role, string>>, scheme: PressScheme
         background: colors[row.fill],
         backgroundPress: pressFillsOf(colors, scheme)[tone],
         borderColor: colors.lineControl,
+        ...quietInkOf(colors, tone),
     };
 }
 

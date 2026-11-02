@@ -86,6 +86,15 @@ export const CHIP_PRESS_VAR = '--cm-chip-press';
  */
 export const PRESS_INK_ALPHA = { light: 0.1, dark: 0.12 } as const;
 
+/**
+ * How much of a surface's own ink a quiet part keeps on a surface whose ink is not the page's (today the inverse one):
+ * muted text, and the divider. The page has roles for both (`inkMuted`, `lineDivider`); an inverse surface has none, so
+ * it derives them from its ink over its fill, as the press is derived. Muted text at 0.7 holds 4.5:1 on the inverse
+ * surface in both themes (the tests hold it); the divider at 0.2 clears the 1.2:1 line floor. The only place either
+ * number is written.
+ */
+export const INVERSE_INK_ALPHA = { inkMuted: 0.7, lineDivider: 0.2 } as const;
+
 /** A colour scheme's name, as the press alpha is keyed. */
 export type PressScheme = keyof typeof PRESS_INK_ALPHA;
 
@@ -152,4 +161,25 @@ export function chipFillVarOf(tone: SurfaceTone): string {
 /** The custom property a tone's chip press fill is emitted under (`themeCss.ts`): `--color-chip-press-paper-raised`. */
 export function chipPressVarOf(tone: SurfaceTone): string {
     return `--color-chip-press-${kebab(tone)}`;
+}
+
+/**
+ * The muted text colour and the divider colour on one surface. On a surface whose ink is the page's they are the page's
+ * roles. On any other they are that ink laid over the fill at {@link INVERSE_INK_ALPHA}. Pure.
+ *
+ * @param colors - The theme's role colours.
+ * @param tone - The surface.
+ */
+export function quietInkOf(
+    colors: Readonly<Record<Role, string>>,
+    tone: SurfaceTone,
+): { readonly inkMuted: string; readonly lineDivider: string } {
+    const { ink, fill } = SURFACE_TONES[tone];
+
+    return ink === 'ink'
+        ? { inkMuted: colors.inkMuted, lineDivider: colors.lineDivider }
+        : {
+              inkMuted: mixOver(colors[ink], colors[fill], INVERSE_INK_ALPHA.inkMuted),
+              lineDivider: mixOver(colors[ink], colors[fill], INVERSE_INK_ALPHA.lineDivider),
+          };
 }

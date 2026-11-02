@@ -189,6 +189,20 @@ describe('a line longer than the engine accepts', () => {
     });
 });
 
+describe('the engine answers a different number of lines than it was sent', () => {
+    it('⛔ is a contract error, not silent absence for the missing lines', async () => {
+        const { engine, emitted } = build(payloadOf(responseOf([okResult(LINE)])));
+
+        const error = await engine.parse([LINE, LINE]).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(isCrfEngineUnavailableError(error) && error.reason).toBe('contract');
+        expect(availability(emitted).map((metric) => metric.value)).toEqual([1]);
+    });
+});
+
 describe('the CRF leg was UNREACHABLE — not a per-line outcome at all', () => {
     /** Each of these is "no engine answer was produced", and each must reject rather than degrade. */
     const unreachable: readonly [string, unknown | (() => never)][] = [

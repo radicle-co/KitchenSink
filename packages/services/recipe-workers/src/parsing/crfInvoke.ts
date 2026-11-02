@@ -253,10 +253,11 @@ export function createCrfInvokeEngine(options: CrfInvokeOptions): ParseEnginePor
                     return { unavailable: true };
                 }
 
+                // `invokeChunk` guarantees one answer per line it sent, so this index is always filled.
                 const answer = parsed[next];
                 next += 1;
 
-                return answer ?? { unavailable: true };
+                return answer;
             });
         },
     };
@@ -365,6 +366,16 @@ async function invokeChunk(
         // deploy SKEW between two CDK apps nothing orders (ADR-0022's residual risk) — the engine being
         // unusable, not the corpus being difficult.
         return abandon(options, 'contract', `pinned ${pin.version}, engine reported ${parsed.data.engineVersion}`);
+    }
+
+    // ⛔ One answer per line sent. A short or long response cannot be lined up with its lines: reading it would
+    // give some line another line's parse, or drop one. The engine broke its contract.
+    if (parsed.data.results.length !== lines.length) {
+        return abandon(
+            options,
+            'contract',
+            `sent ${lines.length} lines, engine answered ${parsed.data.results.length}`,
+        );
     }
 
     publishAvailability(options, false);

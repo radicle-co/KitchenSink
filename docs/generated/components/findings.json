@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 164,
         "missing-module-doc": 21,
-        "platform-singleton": 87,
+        "platform-singleton": 88,
         "ref-api": 19,
         "unclassified-layer": 91,
-        "undocumented-prop": 192
+        "undocumented-prop": 193
     },
     "findings": [
         {
@@ -2714,6 +2714,72 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/RailLinkBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailHeadingLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/discovery/RailLinkBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailHeadingLayout.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
             ]
         },
         {

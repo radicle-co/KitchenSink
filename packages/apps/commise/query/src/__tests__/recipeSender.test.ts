@@ -286,6 +286,27 @@ describe('recipeSender', () => {
     });
 });
 
+describe('recipeSender — Retry-After', () => {
+    /** ⛔ The wait the client read off the header must reach the drain, or its deferral never runs. */
+    it('copies the stated wait of a throttled answer into the result', async () => {
+        const error = Object.assign(new RecipeServiceClientError('slow', 429, 'TOO_MANY_REQUESTS'), {
+            retryAfterSeconds: 60,
+        });
+        const send = recipeSender(() => ({ updateRecipe: vi.fn().mockRejectedValue(error) }) as never);
+
+        const result = await send(record('update', { id: 'r1', input: {} }));
+
+        expect(result).toStrictEqual({ outcome: 'failed', status: 429, retryAfterSeconds: 60 });
+    });
+
+    it('adds no wait when the client read none', async () => {
+        const error = new RecipeServiceClientError('slow', 429, 'TOO_MANY_REQUESTS');
+        const send = recipeSender(() => ({ updateRecipe: vi.fn().mockRejectedValue(error) }) as never);
+
+        expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 429 });
+    });
+});
+
 /**
  * ⛔ A GATEWAY'S 502 AND THE SERVICE'S OWN 502 ARE DIFFERENT FACTS. A 502/504 from the load balancer may arrive after the
  * service committed the write (statusless in `classifyFailure`'s eyes: unknown). `502 SOURCE_UNAVAILABLE` is the

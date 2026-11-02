@@ -28,6 +28,11 @@ export class RecipeServiceClientError extends Error {
     public readonly status: number | undefined;
     /** The recipe-domain error code from the response body (`ErrorResponse.code`), when present. */
     public readonly code: string | undefined;
+    /**
+     * The seconds the response's `Retry-After` asked for, when it carried one this client could read. Set by the
+     * transport after the error is built, because only the transport holds the headers.
+     */
+    public retryAfterSeconds: number | undefined;
 
     public constructor(message: string, status?: number, code?: string) {
         super(message);

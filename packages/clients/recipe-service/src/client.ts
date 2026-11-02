@@ -37,6 +37,7 @@ import type {
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 import type { AnalyticsEventBatch } from '@kitchensink/recipe-core/analytics/event-payload';
+import { retryAfterSeconds } from '@kitchensink/retry-after';
 import {
     resolveBearer,
     withBearerReplay,
@@ -231,6 +232,8 @@ export interface RecipeServiceClientOptions extends IdentitySyncBackoffOptions {
 interface RawResponse {
     readonly status: number;
     readonly body: unknown;
+    /** The seconds a refusal's `Retry-After` header asked for, already parsed. Absent when it carried none. */
+    readonly retryAfterSeconds?: number;
 }
 
 /** A JSON-serializable query-parameter bag (scalars, or arrays for repeated params). */
@@ -1530,7 +1533,13 @@ export class RecipeServiceClient {
                 // ⚠️ `data` is ALREADY PARSED: JSON when the content-type says so, plain text otherwise,
                 // and `undefined` when the body is empty or unparseable — which is exactly the three-way
                 // distinction `normalizeResponse` was making by hand, so nothing is lost by not re-reading.
-                return { status: error.response.status, body: readErrorData(error.data) };
+                const waitSeconds = retryAfterSeconds(error.response.headers.get('retry-after'), Date.now());
+
+                return {
+                    status: error.response.status,
+                    body: readErrorData(error.data),
+                    ...(waitSeconds === undefined ? {} : { retryAfterSeconds: waitSeconds }),
+                };
             }
 
             // A timeout is NOT a response — there is no status to map — so it cannot be folded into a
@@ -1685,6 +1694,15 @@ export class RecipeServiceClient {
      * @returns The typed error to throw.
      */
     private toError(res: RawResponse): RecipeServiceClientError {
+        const error = this.mapError(res);
+
+        error.retryAfterSeconds = res.retryAfterSeconds;
+
+        return error;
+    }
+
+    /** The typed error for `res`, before the transport adds what only it holds (the `Retry-After` wait). Pure. */
+    private mapError(res: RawResponse): RecipeServiceClientError {
         const known = recipeApiErrorSchema.safeParse(res.body);
 
         if (known.success) {

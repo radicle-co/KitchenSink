@@ -525,6 +525,38 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
         expect(error).toMatchObject({ status, code, message: 'refused' });
     });
 
+    /**
+     * ⛔ THE SERVER'S `Retry-After` MUST REACH THE CALLER. The client parses it (`@kitchensink/retry-after`) and puts
+     * the seconds on the error, so the outbox can wait the stated time instead of retrying at once.
+     */
+    it.each([
+        [429, '60', 60],
+        [503, '2', 2],
+    ])('%i with Retry-After %s → error.retryAfterSeconds %i', async (status, header, seconds) => {
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(status, { code: 'TOO_MANY_REQUESTS', message: 'slow' }, { 'retry-after': header }),
+        });
+
+        const error = await client.getRecipeById('rec_1').catch((caught: unknown) => caught);
+
+        expect(error).toMatchObject({ status, retryAfterSeconds: seconds });
+    });
+
+    it('leaves retryAfterSeconds unset when the header is absent or unreadable', async () => {
+        const absent = new RecipeServiceClient({ baseUrl: BASE, fetch: stubFetch(429, { code: 'TOO_MANY_REQUESTS' }) });
+        const junk = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(429, { code: 'TOO_MANY_REQUESTS' }, { 'retry-after': 'soon' }),
+        });
+
+        const a = await absent.getRecipeById('rec_1').catch((caught: unknown) => caught);
+        const b = await junk.getRecipeById('rec_1').catch((caught: unknown) => caught);
+
+        expect((a as { retryAfterSeconds?: number }).retryAfterSeconds).toBeUndefined();
+        expect((b as { retryAfterSeconds?: number }).retryAfterSeconds).toBeUndefined();
+    });
+
     it('PATCH update sends the body and returns the updated recipe on 200', async () => {
         const updated = makeRecipeDetail({ id: 'rec_1', title: 'New', currentVersion: 6 });
         const fetchMock = stubFetch(200, updated);

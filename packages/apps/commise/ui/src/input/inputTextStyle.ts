@@ -12,6 +12,14 @@
  *   scale past the cap.
  * - **A multi-line input keeps its leading on both**, since lines need a rhythm.
  *
+ * ## Centring on iOS (designer ruling 2026-11-03)
+ *
+ * Even with no leading, iOS draws the ink of a single line a little below the middle of its line box (the font's ascent
+ * carries internal leading): qa-ios measured 2 pt at 16 pt and 3.5 pt at 32 pt, about {@link IOS_INK_DROP_EM} of the size.
+ * A multi-line field keeps its leading, and its first line sits about 4 pt low under the 24 pt body leading, one sixth
+ * of it ({@link IOS_LEADING_DROP}). Both are taken out through the field's padding by {@link inputBoxPadding}, on iOS
+ * only, from these two constants and nowhere else.
+ *
  * ⛔ Nothing may spread a `nativeTokens.type.<role>` into a text input's style: it brings the fixed `lineHeight` back.
  * `nativeInputLineHeight.test.ts` refuses it.
  *
@@ -41,4 +49,92 @@ export function inputTextStyle(systemScale: number, os: 'ios' | 'android', multi
         fontSize,
         ...(os === 'ios' && !multiline ? {} : { lineHeight }),
     };
+}
+
+/**
+ * How far iOS draws a single line's ink below the middle of its line box, as a fraction of the font size. Measured by
+ * qa-ios on the search field: 2 pt at 16 pt, 3.5 pt at 32 pt.
+ */
+export const IOS_INK_DROP_EM = 0.11;
+
+/**
+ * How far iOS draws a multi-line field's first line below the top of its box, as a fraction of the leading: the 4 pt the
+ * designer measured under the 24 pt body leading.
+ */
+export const IOS_LEADING_DROP = 1 / 6;
+
+/** The vertical padding of an input, in points. */
+export interface InputBoxPadding {
+    readonly paddingTop: number;
+    readonly paddingBottom: number;
+}
+
+/** The style objects in a style value, in order: an array is read through, and what is not an object is skipped. */
+function stylePartsOf(style: unknown): readonly object[] {
+    if (Array.isArray(style)) {
+        return style.flatMap(stylePartsOf);
+    }
+
+    return typeof style === 'object' && style !== null ? [style] : [];
+}
+
+/** A style's vertical paddings, each from the most specific key; a later style object wins for the same key. */
+function verticalPaddingOf(style: unknown): InputBoxPadding {
+    const parts = stylePartsOf(style);
+
+    const read = (...keys: readonly string[]): number => {
+        for (const key of keys) {
+            const value = [...parts]
+                .reverse()
+                .map((part) => (Object.hasOwn(part, key) ? (part as Record<string, unknown>)[key] : undefined))
+                .find((candidate) => typeof candidate === 'number');
+
+            if (typeof value === 'number') {
+                return value;
+            }
+        }
+
+        return 0;
+    };
+
+    return {
+        paddingTop: read('paddingTop', 'paddingVertical', 'padding'),
+        paddingBottom: read('paddingBottom', 'paddingVertical', 'padding'),
+    };
+}
+
+/**
+ * The vertical padding that puts an input's ink in the middle of its box on iOS. Pure.
+ *
+ * A single line moves its padding from the top to the bottom, so the field keeps its height; with no top padding to
+ * give, the bottom takes twice the drop. A multi-line field takes the leading drop off its top padding only. Neither
+ * goes below zero. Android is not offset.
+ *
+ * @param style - The caller's style for the input (an object, or an array of them).
+ * @param os - The platform.
+ * @param multiline - Whether the input has more than one line.
+ * @param systemScale - The system font scale.
+ * @returns The two paddings to lay over the caller's style, or nothing where the platform is not offset.
+ */
+export function inputBoxPadding(
+    style: unknown,
+    os: 'ios' | 'android',
+    multiline: boolean,
+    systemScale: number,
+): InputBoxPadding | undefined {
+    if (os !== 'ios') {
+        return undefined;
+    }
+
+    const { paddingTop, paddingBottom } = verticalPaddingOf(style);
+    const { fontSize, lineHeight } = scaledTypeSize('body', systemScale);
+
+    if (multiline) {
+        return { paddingTop: Math.max(0, paddingTop - lineHeight * IOS_LEADING_DROP), paddingBottom };
+    }
+
+    const drop = fontSize * IOS_INK_DROP_EM;
+    const top = Math.max(0, paddingTop - drop);
+
+    return { paddingTop: top, paddingBottom: paddingBottom + 2 * drop - (paddingTop - top) };
 }

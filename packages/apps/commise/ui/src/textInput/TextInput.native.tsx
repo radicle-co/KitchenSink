@@ -28,7 +28,7 @@ import { useCallback, type ComponentPropsWithRef, type FC } from 'react';
 import { Platform, TextInput as NativeTextInput } from 'react-native';
 
 import { registerLabelledField } from './labelFocus.native.js';
-import { inputTextStyle } from '../input/inputTextStyle.js';
+import { inputBoxPadding, inputTextStyle } from '../input/inputTextStyle.js';
 import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
 import { TextScaleContext } from '../text/textScaleContext.native.js';
 
@@ -46,6 +46,8 @@ export type TextInputProps = Omit<
 export const TextInput: FC<TextInputProps> = ({ ref, style, ...props }) => {
     const { nativeID } = props;
     const scale = TextScaleContext.useStyledContext().textScale;
+    const os = Platform.OS === 'ios' ? 'ios' : 'android';
+    const multiline = props.multiline === true;
     const labelTarget = useCallback(
         (node: NativeTextInput | null) =>
             node === null || nativeID === undefined ? undefined : registerLabelledField(nativeID, node),
@@ -62,7 +64,12 @@ export const TextInput: FC<TextInputProps> = ({ ref, style, ...props }) => {
             disableFullscreenUI
             maxFontSizeMultiplier={FONT_SCALE_CAP}
             // NATIVE-STYLE-ADAPTER: the one place the app styles React Native's input; its text style is computed per platform and scale.
-            style={[inputTextStyle(scale, Platform.OS === 'ios' ? 'ios' : 'android', props.multiline === true), style]}
+            style={[
+                inputTextStyle(scale, os, multiline),
+                style,
+                // The ink centred in the box, on iOS (see `inputTextStyle`).
+                inputBoxPadding(style, os, multiline, scale),
+            ]}
         />
     );
 };

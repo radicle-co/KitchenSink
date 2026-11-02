@@ -26,14 +26,12 @@ import { Platform, StyleSheet, type TextInput as NativeTextInput } from 'react-n
 import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native.js';
 import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { scaledTypeSize } from '../text/scaledType.js';
+import { TextScaleContext } from '../text/textScaleContext.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import { nativeTokens } from '../tokens/native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { FIELD_EDGE, FIELD_PADDING, fieldDisabled, fieldGeometry, fieldPaint } from './fieldStyle.js';
 import { fieldAccessibilityHint, fieldLabelId, type TextAreaProps } from './props.js';
-
-/** One body line, in points. */
-const LINE = nativeTokens.type.body.lineHeight ?? 24;
 
 /**
  * The text's own height from a reported content height. Pure.
@@ -53,11 +51,18 @@ export function textContentHeight(reported: number, platform: string): number {
  * @param content - The content height React Native last reported, or `null` before the first report.
  * @param minRows - The fewest lines it shows.
  * @param maxRows - The most lines it grows to, if bounded.
+ * @param line - One line, in points: the body leading at the capped system scale (`inputTextStyle`), since a row at the
+ *     cap is taller than at 1x.
  * @returns The height in points, padding and edge included.
  */
-export function textAreaHeight(content: number | null, minRows: number, maxRows: number | undefined): number {
-    const floor = minRows * LINE;
-    const ceiling = maxRows === undefined ? Number.POSITIVE_INFINITY : maxRows * LINE;
+export function textAreaHeight(
+    content: number | null,
+    minRows: number,
+    maxRows: number | undefined,
+    line: number,
+): number {
+    const floor = minRows * line;
+    const ceiling = maxRows === undefined ? Number.POSITIVE_INFINITY : maxRows * line;
 
     return Math.min(Math.max(content ?? floor, floor), ceiling) + 2 * FIELD_PADDING + 2 * FIELD_EDGE;
 }
@@ -81,6 +86,7 @@ export const TextArea: FC<TextAreaProps> = ({
     onFocus,
 }) => {
     const [content, setContent] = useState<number | null>(null);
+    const scale = TextScaleContext.useStyledContext().textScale;
     const theme = useTheme();
     const node = useRef<NativeTextInput>(null);
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
@@ -113,7 +119,7 @@ export const TextArea: FC<TextAreaProps> = ({
             editable={!disabled}
             style={[
                 styles.field,
-                { height: textAreaHeight(content, minRows, maxRows) },
+                { height: textAreaHeight(content, minRows, maxRows, scaledTypeSize('body', scale).lineHeight) },
                 fieldPaint(theme, invalid || error !== undefined),
                 disabled ? styles.disabled : null,
             ]}

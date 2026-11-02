@@ -94,11 +94,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: nativeTokens.spacing[2],
         minHeight: PILL_HEIGHT,
+        // The pill GROWS with the text at the system cap, and keeps this much above and below it (designer, 2026-11-03).
+        paddingVertical: nativeTokens.spacing[2],
         borderRadius: PILL_HEIGHT / 2,
         borderWidth: 1,
         paddingStart: nativeTokens.spacing[4],
         paddingEnd: nativeTokens.spacing[1],
     },
-    input: { flex: 1, minHeight: PILL_HEIGHT - 2 },
+    input: { flex: 1 },
     clear: { alignItems: 'center', justifyContent: 'center', borderRadius: nativeTokens.radius.full },
 });

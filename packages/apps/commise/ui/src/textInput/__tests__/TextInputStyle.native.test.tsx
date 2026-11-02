@@ -13,9 +13,14 @@ import { TextInput } from '../TextInput.native.js';
 
 afterEach(cleanup);
 
-const field = (os: 'ios' | 'android', scale: number, multiline = false): HTMLElement => {
+const field = (
+    os: 'ios' | 'android',
+    scale: number,
+    multiline = false,
+    style: object = { paddingVertical: 12 },
+): HTMLElement => {
     withPlatformOs(os, () =>
-        renderWithTamagui(<TextInput accessibilityLabel="Name" multiline={multiline} />, 'light', scale),
+        renderWithTamagui(<TextInput accessibilityLabel="Name" multiline={multiline} style={style} />, 'light', scale),
     );
 
     return screen.getByRole('textbox', { name: 'Name' });
@@ -45,5 +50,27 @@ describe('TextInput (native) — the input text style', () => {
         );
 
         expect(screen.getByRole('textbox', { name: 'Name' }).style.minHeight).toBe('48px');
+    });
+
+    it("lifts a single-line field's ink on iOS by moving padding from top to bottom, the height unchanged", () => {
+        const input = field('ios', 1);
+        const drop = scaledTypeSize('body', 1).fontSize * 0.11;
+
+        expect(Number.parseFloat(input.style.paddingTop)).toBeCloseTo(12 - drop, 3);
+        expect(Number.parseFloat(input.style.paddingBottom)).toBeCloseTo(12 + drop, 3);
+    });
+
+    it("takes the leading drop off a multi-line field's top padding on iOS", () => {
+        const input = field('ios', 1, true, { paddingVertical: 16 });
+
+        expect(input.style.paddingTop).toBe('12px');
+        expect(input.style.paddingBottom).toBe('16px');
+    });
+
+    it('leaves the padding alone on Android', () => {
+        const input = field('android', 1);
+
+        expect(input.style.paddingTop).toBe('12px');
+        expect(input.style.paddingBottom).toBe('12px');
     });
 });

@@ -302,6 +302,17 @@ describe('UsersService', () => {
         expect(mockSqs.enqueueDeletion).not.toHaveBeenCalled();
     });
 
+    // The same rule `resolveUser` applies: only an active account can be closed, so a tombstoned or erased one is
+    // never re-tombstoned (which would also restart its 12-month erasure clock).
+    it.each(['tombstoned', 'erased'])('deleteUserMe refuses a %s account and changes nothing', async (status) => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([{ ...mockUser, status }]));
+
+        await expect(usersService.deleteUserMe(userCtx)).rejects.toThrow('Account is closed');
+
+        expect(mockDb.transaction).not.toHaveBeenCalled();
+        expect(mockSqs.enqueueDeletion).not.toHaveBeenCalled();
+    });
+
     it('patchUserMe refuses a suspended account and writes nothing', async () => {
         mockResolver.resolveUser.mockRejectedValue(new Error('User is suspended'));
 

@@ -460,10 +460,11 @@ export class UsersService {
             throw new NotFoundException('User not found');
         }
 
-        // A suspension is a moderation hold, and closing the account would let a later reactivation lift it.
-        // Refused here, not in the auth middleware: a suspended user must still be able to ERASE (GDPR).
-        if (existing.status === 'suspended') {
-            throw new ForbiddenException('User is suspended');
+        // Only an active account can be closed, the rule `resolveUser` applies. A suspension is a moderation hold
+        // that a later reactivation would lift; a closed or erased row must not be re-tombstoned. Refused here, not
+        // in the auth middleware: a suspended user must still be able to ERASE (GDPR).
+        if (existing.status !== 'active') {
+            throw new ForbiddenException(existing.status === 'suspended' ? 'User is suspended' : 'Account is closed');
         }
 
         const now = new Date();

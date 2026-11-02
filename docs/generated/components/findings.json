@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 161,
         "missing-module-doc": 21,
-        "platform-singleton": 74,
+        "platform-singleton": 75,
         "ref-api": 15,
         "unclassified-layer": 92,
         "undocumented-prop": 181
@@ -755,6 +755,16 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/surfaceTone/ToneScope",
+            "sourcePath": "packages/apps/commise/ui/src/surfaceTone/ToneScope.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {

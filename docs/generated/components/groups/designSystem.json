@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 84,
-        "implementations": 143,
-        "props": 796,
-        "documentedComponents": 84,
-        "implementationsWithModuleDoc": 143,
-        "implementationsWithComponentDoc": 132,
-        "documentedProps": 757,
-        "classifiedComponents": 77,
-        "componentsWithPatternTag": 84,
+        "components": 85,
+        "implementations": 144,
+        "props": 797,
+        "documentedComponents": 85,
+        "implementationsWithModuleDoc": 144,
+        "implementationsWithComponentDoc": 133,
+        "documentedProps": 758,
+        "classifiedComponents": 78,
+        "componentsWithPatternTag": 85,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -13566,6 +13566,71 @@
                             "defaultValue": null,
                             "description": "The surface it paints, and so the surface every control inside it reads.",
                             "declaredIn": "packages/apps/commise/ui/src/surfaceTone/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/surfaceTone/ToneScope",
+            "name": "ToneScope",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/surfaceTone",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter — pairs Tamagui's theme context with the JS tone context behind one component"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ToneScope",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/surfaceTone/ToneScope.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/surfaceTone",
+                    "moduleDoc": "@commise/ui/surface-tone — {@link ToneScope}: states a surface's tone ONCE, to both readers of it. Tamagui's\n`<Theme name={tone}>` makes a bare `Text` and every Tamagui part inside take the tone's ink, background and border\n(the sub-themes of `theme/tamaguiThemes.ts`); `SurfaceToneScope` makes `useSurfaceTone` and `usePressFill` read the same\ntone. Two separate statements of one fact can drift, so `Surface` and every root that paints itself state it through\nhere, and a guard (`surfaceToneScopeOwnership`) lets nothing else import the raw scope.\n\nThe raw scope retires consumer by consumer as the readers move to Tamagui theme keys.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/surface-tone — {@link ToneScope}: states a surface's tone ONCE, to both readers of it. Tamagui's"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — pairs Tamagui's theme context with the JS tone context behind one component"
+                        }
+                    ],
+                    "description": "States a tone to everything inside, painting nothing.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"canvas\"",
+                                "\"paper\"",
+                                "\"paperRaised\"",
+                                "\"paperOverlay\"",
+                                "\"inverse\"",
+                                "\"muted\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The surface's tone.",
+                            "declaredIn": "packages/apps/commise/ui/src/surfaceTone/ToneScope.native.tsx"
                         }
                     ],
                     "usesRefApi": [],

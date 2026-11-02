@@ -146,12 +146,19 @@ export function renderWithTamagui(ui: ReactElement, scheme: ColorSchemeName, tex
     );
 }
 
-function schemeOf(element: Element): ColorSchemeName {
+/**
+ * The theme names an element is under, most specific first: its nearest Tamagui theme class and that theme's parents
+ * (`t_light_inverse` is `['light_inverse', 'light']`). A sub-theme states only the keys it changes, so a variable is
+ * looked up down this chain, as Tamagui's own merge does.
+ */
+function themeChainOf(element: Element): readonly string[] {
     for (let node: Element | null = element; node !== null; node = node.parentElement) {
-        const match = /\bt_(light|dark)\b/u.exec(node.className);
+        const match = /(?:^|\s)t_((?:light|dark)(?:_[A-Za-z0-9]+)*)(?=\s|$)/u.exec(node.className);
 
-        if (match?.[1] === 'light' || match?.[1] === 'dark') {
-            return match[1];
+        if (match?.[1] !== undefined) {
+            const parts = match[1].split('_');
+
+            return parts.map((_part, index) => parts.slice(0, parts.length - index).join('_'));
         }
     }
 
@@ -164,17 +171,27 @@ function styleRules(): readonly CSSStyleRule[] {
     );
 }
 
-/** The value a variable has under one scheme: the theme's own rule first, then a rule at the root. */
-function variableValue(name: string, scheme: ColorSchemeName): string {
+/** Whether a selector is a theme's own rule: Tamagui writes a sub-theme's with a `:not(#t_theme_full_name)` guard. */
+const ownsTheme = (selector: string, theme: string): boolean =>
+    selector === `:root .t_${theme}` || selector === `:root .t_${theme}:not(#t_theme_full_name)`;
+
+/** The value a variable has under an element's themes: the nearest theme's own rule first, then its parents, then the root. */
+function variableValue(name: string, themes: readonly string[]): string {
     const selectors = (rule: CSSStyleRule): readonly string[] => rule.selectorText.split(',').map((s) => s.trim());
     const declared = (rule: CSSStyleRule): string => rule.style.getPropertyValue(`--${name}`).trim();
     const rules = styleRules();
-    const inTheme = rules.find((rule) => selectors(rule).includes(`:root .t_${scheme}`) && declared(rule) !== '');
+    const inTheme = themes
+        .map((theme) =>
+            rules.find(
+                (rule) => selectors(rule).some((selector) => ownsTheme(selector, theme)) && declared(rule) !== '',
+            ),
+        )
+        .find((rule) => rule !== undefined);
     const atRoot = rules.find((rule) => selectors(rule).includes(':root') && declared(rule) !== '');
     const found = inTheme ?? atRoot;
 
     if (found === undefined) {
-        throw new Error(`No Tamagui theme defines --${name} in the ${scheme} scheme.`);
+        throw new Error(`No Tamagui theme defines --${name} under ${themes.join(', ')}.`);
     }
 
     return declared(found);
@@ -238,7 +255,7 @@ function declaredOnClasses(element: Element, property: StyleProperty): string | 
  * @throws Error when a variable is defined by no theme, so a misspelt token cannot read as a value.
  */
 export function resolvedStyle(element: Element, property: StyleProperty): string {
-    const scheme = schemeOf(element);
+    const themes = themeChainOf(element);
     const computed = getComputedStyle(element)[property];
     let value =
         declaredInline(element, property) ??
@@ -254,7 +271,7 @@ export function resolvedStyle(element: Element, property: StyleProperty): string
             return value;
         }
 
-        value = variableValue(variable[1], scheme);
+        value = variableValue(variable[1], themes);
     }
 
     throw new Error(`The ${property} variables of the element do not end in a value.`);

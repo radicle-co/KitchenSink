@@ -7,7 +7,8 @@
  * wrapped to record it. `useContainerClass` is replaced so a test chooses the width, and `useColorScheme` so it chooses
  * the theme. The jump goes through the screen's `ScrollHost`, injected through its context with a spy.
  */
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { formatRgb } from 'culori';
 import { createRef, type ComponentProps } from 'react';
 import type { Pressable as PressableType } from 'react-native';

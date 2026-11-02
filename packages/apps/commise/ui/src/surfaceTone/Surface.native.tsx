@@ -15,7 +15,7 @@ import { View } from 'react-native';
 import { useTheme } from '../theme/useTheme.native.js';
 import type { SurfaceProps } from './props.js';
 import { surfaceFill } from './surfaceFill.js';
-import { SurfaceToneScope } from './surfaceToneContext.js';
+import { ToneScope } from './ToneScope.native.js';
 
 /** A native surface: painted, and stated. */
 export const Surface: FC<SurfaceProps> = ({
@@ -30,7 +30,7 @@ export const Surface: FC<SurfaceProps> = ({
     const theme = useTheme();
 
     return (
-        <SurfaceToneScope tone={tone}>
+        <ToneScope tone={tone}>
             <View
                 style={[{ backgroundColor: surfaceFill(theme, tone) }, style]}
                 aria-label={ariaLabel}
@@ -42,6 +42,6 @@ export const Surface: FC<SurfaceProps> = ({
             >
                 {children}
             </View>
-        </SurfaceToneScope>
+        </ToneScope>
     );
 };

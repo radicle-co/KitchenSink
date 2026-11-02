@@ -18,6 +18,7 @@ import { appSourceModules } from './appSources.js';
 import { repoRoot } from './serviceSources.js';
 import {
     tamaguiImportFindings,
+    tamaguiThemeElementFindings,
     tamaguiThemeHookFindings,
     tamaguiUnclassifiedImportFindings,
 } from './tamaguiImportRules.js';
@@ -77,6 +78,8 @@ describe('G1: the closed allow-list of Tamagui value imports', () => {
         // H-1: a styled context carries a value to variants and resolvers the guards already read; its Provider draws no box.
         ['a styled context', `import { createStyledContext } from 'tamagui';`, 0],
         ['a renamed allowed name', `import { View as Box } from 'tamagui';`, 0],
+        // H3: a sub-theme is selected by `<Theme name>`, which draws no box; the props it may carry are G1c's.
+        ['Theme, which draws nothing', `import { Theme } from 'tamagui';`, 0],
         ['a renamed unclassified name', `import { Sheet as Drawer } from 'tamagui';`, 1],
         ['a default import, whose members no guard can classify', `import T from 'tamagui';`, 1],
         ['an export of everything', `export * from 'tamagui';`, 1],
@@ -109,6 +112,50 @@ describe('G2: tamaguiThemeHookFindings', () => {
     it('finds none in the tree', () => {
         const findings = appSourceModules().flatMap((file) =>
             tamaguiThemeHookFindings(readFileSync(path.join(repoRoot, file), 'utf8'), file),
+        );
+
+        expect(findings).toEqual([]);
+    });
+});
+
+describe('G1c: tamaguiThemeElementFindings — <Theme> carries a tone name and nothing else', () => {
+    const imported = `import { Theme } from 'tamagui';\n`;
+
+    it.each([
+        ['a name', `<Theme name="inverse"><X /></Theme>`, 0],
+        ['a name from an expression', `<Theme name={tone}><X /></Theme>`, 0],
+        ['the inverse prop, which flips light and dark', `<Theme name="paper" inverse><X /></Theme>`, 1],
+        ['reset, which drops the parent chain', `<Theme reset><X /></Theme>`, 1],
+        ['forceClassName', `<Theme name="paper" forceClassName><X /></Theme>`, 1],
+        ['any other prop', `<Theme name="paper" debug><X /></Theme>`, 1],
+        ['a spread, which no guard can read', `<Theme {...props}><X /></Theme>`, 1],
+        ['a self-closing element with a stray prop', `<Theme name="paper" disable />`, 1],
+        ['each stray prop on its own', `<Theme name="paper" inverse reset />`, 2],
+    ] as const)('%s', (_shape, jsx, expected) => {
+        expect(tamaguiThemeElementFindings(`${imported}const x = ${jsx};`, NATIVE_LEAF)).toHaveLength(expected);
+    });
+
+    it('follows a renamed import and a namespace member', () => {
+        expect(
+            tamaguiThemeElementFindings(
+                `import { Theme as Tone } from 'tamagui';\nconst x = <Tone reset />;`,
+                NATIVE_LEAF,
+            ),
+        ).toHaveLength(1);
+        expect(
+            tamaguiThemeElementFindings(`import * as T from 'tamagui';\nconst x = <T.Theme inverse />;`, NATIVE_LEAF),
+        ).toHaveLength(1);
+    });
+
+    it('ignores a Theme that does not come from Tamagui', () => {
+        expect(
+            tamaguiThemeElementFindings(`import { Theme } from './Theme.js';\nconst x = <Theme reset />;`, NATIVE_LEAF),
+        ).toHaveLength(0);
+    });
+
+    it('finds none in the tree', () => {
+        const findings = appSourceModules().flatMap((file) =>
+            tamaguiThemeElementFindings(readFileSync(path.join(repoRoot, file), 'utf8'), file),
         );
 
         expect(findings).toEqual([]);

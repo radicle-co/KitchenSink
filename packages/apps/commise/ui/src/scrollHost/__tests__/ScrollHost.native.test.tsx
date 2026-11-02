@@ -5,8 +5,9 @@
  * outside one is a loud wiring error.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render } from '@testing-library/react';
-import { Text } from 'react-native';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { Animated, ScrollView, Text } from 'react-native';
 
 const motion = vi.hoisted(() => ({ reduce: false }));
 
@@ -454,3 +455,110 @@ describe('ScrollHost (native)', () => {
         expect(getByText('plain')).toBeTruthy();
     });
 });
+
+describe('ScrollHost (native) — a plain ScrollView takes bind as it always did', () => {
+    // The 2026-11-02 crash: a native-driven Animated.event is an OBJECT, and a plain ScrollView calls `props.onScroll(e)`.
+    it('survives a scroll event through a real ScrollView and still updates the host', () => {
+        // On a device `Animated.event` with the native driver returns an event OBJECT, which cannot be called. The web
+        // build the tests run on returns a function, so make it answer as the device does.
+        const event = vi.spyOn(Animated, 'event').mockImplementation(() => ({}) as never);
+
+        const seen: { api?: ScrollHostApi } = {};
+
+        const Probe = (): null => {
+            seen.api = useScrollHost();
+
+            return null;
+        };
+
+        render(
+            <ScrollHost>
+                {(bind) => (
+                    <ScrollView {...bind} testID="scroller">
+                        <Probe />
+                    </ScrollView>
+                )}
+            </ScrollHost>,
+        );
+
+        expect(seen.api?.atTop).toBe(true);
+
+        const scroller = screen.getByTestId('scroller');
+        Object.defineProperty(scroller, 'scrollTop', { value: 300, configurable: true });
+
+        expect(() => fireEvent.scroll(scroller)).not.toThrow();
+        expect(seen.api?.atTop).toBe(false);
+        event.mockRestore();
+    });
+});
+
+describe('ScrollHost (native) — the opt-in for an Animated scroller', () => {
+    it('publishes one Animated.Value that stays the same object across renders and scrolls', () => {
+        const { bind, api } = renderHost();
+        const first = api().scrollY;
+
+        act(() => bind().onScroll(report(120)));
+
+        expect(first).toBeInstanceOf(Animated.Value);
+        expect(api().scrollY).toBe(first);
+    });
+
+    it('keeps bind.onScroll a function and leaves the animated event off bind', () => {
+        const { bind, api } = renderHost();
+
+        expect(typeof bind().onScroll).toBe('function');
+        expect('animatedOnScroll' in bind()).toBe(false);
+        expect(api().animatedOnScroll).toBeDefined();
+        expect(api().animatedOnScroll).not.toBe(bind().onScroll);
+    });
+
+    it('keeps both handlers the same across scrolls that change no layout input', () => {
+        // A list re-attaches a native event whenever this identity changes.
+        const { bind, api } = renderHost();
+        const plain = bind().onScroll;
+        const animated = api().animatedOnScroll;
+
+        act(() => bind().onScroll(report(120)));
+
+        expect(bind().onScroll).toBe(plain);
+        expect(api().animatedOnScroll).toBe(animated);
+    });
+
+    it('feeds an Animated scroller offset into scrollY and still runs the host handler', () => {
+        const seen: { api?: ScrollHostApi } = {};
+
+        const Probe = (): null => {
+            seen.api = useScrollHost();
+
+            return null;
+        };
+
+        render(
+            <ScrollHost>
+                {() => (
+                    <>
+                        <Probe />
+                        <AnimatedScroller />
+                    </>
+                )}
+            </ScrollHost>,
+        );
+
+        const offsets: number[] = [];
+        seen.api?.scrollY?.addListener(({ value }) => offsets.push(value));
+        const scroller = screen.getByTestId('animated');
+        Object.defineProperty(scroller, 'scrollTop', { value: 300, configurable: true });
+
+        fireEvent.scroll(scroller);
+
+        expect(offsets).toEqual([300]);
+        expect(seen.api?.atTop).toBe(false);
+    });
+});
+
+/** An Animated scroller that takes the opt-in handler from the host, as the Recipes list will. */
+const AnimatedScroller = (): ReactElement => {
+    const { animatedOnScroll } = useScrollHost();
+
+    return <Animated.ScrollView testID="animated" onScroll={animatedOnScroll} scrollEventThrottle={16} />;
+};

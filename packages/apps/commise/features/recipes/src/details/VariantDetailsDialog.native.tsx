@@ -292,7 +292,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: nativeTokens.radius.md,
         paddingHorizontal: nativeTokens.spacing[3],
-        ...nativeTokens.type.body,
     },
     clear: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     block: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },

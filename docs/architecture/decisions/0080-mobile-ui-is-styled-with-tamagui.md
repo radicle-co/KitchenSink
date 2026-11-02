@@ -135,6 +135,9 @@ styling ratchet asserts this list and the ledger match in both directions:
   `Animated.Value` with no Tamagui animation driver. One use, and no `tamagui` import in the file.
 - `packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx`: the scroll hint's `expo-linear-gradient` fill,
   which takes a React Native style. One use, and no `tamagui` import in the file.
+- `packages/apps/commise/ui/src/textInput/TextInput.native.tsx`: the `style` of React Native's text input, the one place the
+  app renders it. The text size and leading are computed per platform and system scale (`inputTextStyle`: no line height
+  on iOS, where one sits the text low), which a static Tamagui style cannot express.
 
 The first recording was proven once, by hand. Every file in the styling baseline existed at `5979abcd5` with at least
 its recorded count.

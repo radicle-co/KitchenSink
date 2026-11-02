@@ -276,6 +276,10 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: "`node` holds a DOM element whose sole use is the imperative `.focus()` (through `focusIfLost`), which has no declarative form, and it never leaves the module except through the ref the caller attaches. `seen` is a previous-value latch compared and advanced INSIDE the effect, the shape a previous-value latch takes: a discarded render can neither consume the signal's change nor advance the latch, and a remount with a non-zero signal moves nothing. A `focusSignal` epoch prop was once rejected because correctness depended on observing one render exactly once; comparing the value inside a committed effect is what removes that dependency.",
     },
+    'packages/apps/commise/ui/src/fieldReveal/useRevealedField.native.ts': {
+        verdict: 'sanctioned',
+        why: "ONE `useRef`, the text input's node, handed back for the caller to spread onto the input. The field reveal host measures that native node (`measureLayout`), which has no declarative form, and it never leaves the module except through the ref the caller attaches. The focus state beside it is plain state: the request follows it (sent on focus, released on blur or unmount) in `useFocusReveal`.",
+    },
     'packages/apps/commise/ui/src/screenReaderFocus/useScreenReaderFocusOnSignal.native.ts': {
         verdict: 'sanctioned',
         why: "The native twin: `node` is a host node whose sole use is `AccessibilityInfo.sendAccessibilityEvent(node, 'focus')` (through `moveScreenReaderFocus`), the imperative screen-reader API with no declarative form, moving the reading cursor only. `seen` is the same in-effect previous-value latch as the web hook.",

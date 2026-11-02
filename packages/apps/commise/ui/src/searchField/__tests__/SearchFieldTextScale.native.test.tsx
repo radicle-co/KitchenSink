@@ -61,4 +61,22 @@ describe('SearchField (native) — the input at the system text scale', () => {
     it('keeps the capped line height on Android, which has no such offset and otherwise grows its leading uncapped', () => {
         expect(resolvedStyle(field(3.1, 'android'), 'lineHeight')).toBe(`${scaledTypeSize('body', 3.1).lineHeight}px`);
     });
+
+    // The designer's ruling (2026-11-03): at the cap the pill GROWS with the text and keeps at least 8 pt of padding above
+    // and below. A fixed height would pin it at 48 pt, and the cap text would sit a few points from the bottom edge.
+    it('lets the pill grow: a minimum height, at least 8 pt of padding above and below, and no fixed height', () => {
+        const pill = field(3.1).parentElement as HTMLElement;
+
+        expect(resolvedStyle(pill, 'minHeight')).toBe('48px');
+        expect(['', 'auto']).toContain(resolvedStyle(pill, 'height'));
+        expect(Number.parseFloat(resolvedStyle(pill, 'paddingTop'))).toBeGreaterThanOrEqual(8);
+        expect(Number.parseFloat(resolvedStyle(pill, 'paddingBottom'))).toBeGreaterThanOrEqual(8);
+    });
+
+    it('fixes no height on the input either, so the line box sets the pill at the cap', () => {
+        const input = field(3.1);
+
+        expect(input.style.height).toBe('');
+        expect(input.style.maxHeight).toBe('');
+    });
 });

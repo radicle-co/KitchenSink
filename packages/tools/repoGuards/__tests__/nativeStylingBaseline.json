@@ -228,6 +228,7 @@
     "adapterExemptions": {
         "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx": 1,
         "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx": 1,
-        "packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts": 1
+        "packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts": 1,
+        "packages/apps/commise/ui/src/textInput/TextInput.native.tsx": 1
     }
 }

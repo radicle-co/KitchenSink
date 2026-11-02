@@ -90,3 +90,15 @@ export function libraryStateOf(family: readonly ReadSnapshot[], own: ReadSnapsho
 export function createEntryYields(state: LibraryCacheState): boolean {
     return state === 'loading' || state === 'empty';
 }
+
+/**
+ * Whether the floating create button yields only while the first fetch is in flight (so it cannot mount and then vanish).
+ * Collections uses this, not {@link createEntryYields}: its first run floats "New collection" the same as "New recipe"
+ * (designer ruling 2026-11-03), so a list that settles empty keeps the button. Pure.
+ *
+ * @param state - The library's state.
+ * @returns `true` for `loading` only.
+ */
+export function createEntryYieldsWhileLoading(state: LibraryCacheState): boolean {
+    return state === 'loading';
+}

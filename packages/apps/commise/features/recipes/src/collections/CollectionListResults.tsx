@@ -181,11 +181,9 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
             <section className="mx-auto flex w-full max-w-[28rem] flex-col items-center gap-3 py-8 text-center">
                 <h2 className="text-section-title text-ink">{list.emptyTitle}</h2>
                 <p className="text-body text-ink-muted">{list.emptyBody}</p>
-                {firstRun.hasRecipes ? (
-                    <Button icon="plus" size="lg" onPress={firstRun.onCreate}>
-                        {list.createCta}
-                    </Button>
-                ) : (
+                {/* "New collection" is the frame's floating button (shared with New recipe), so only the no-recipes case needs
+                    a start button of its own: a collection needs recipes first. */}
+                {firstRun.hasRecipes ? null : (
                     <>
                         <p className="text-body text-ink-muted">{list.needRecipes}</p>
                         <Button icon="pencilLine" size="lg" onPress={firstRun.onAddRecipe}>

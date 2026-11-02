@@ -77,7 +77,9 @@ describe('CollectionListContainer', () => {
         expect(await screen.findByText('Group recipes your way')).toBeInTheDocument();
     });
 
-    it("hides the floating New collection on the first run, leaving the first run's button and the wide header's", async () => {
+    // REWRITTEN (designer, 2026-11-03): the floating button stays in the first run, the same as New recipe, and the empty state
+    // draws no create button of its own. So the first run has the wide header's button and the floating one, not a third.
+    it("floats New collection on the first run too: the wide header's button and the floating one, no button in the empty state", async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionsPage([]));
 
@@ -85,6 +87,12 @@ describe('CollectionListContainer', () => {
 
         await screen.findByText('Group recipes your way');
         expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(2);
+        expect(
+            screen
+                .getByRole('heading', { name: 'Group recipes your way' })
+                .closest('section')
+                ?.querySelectorAll('button'),
+        ).toHaveLength(0);
     });
 
     // The floating "New collection" (§3.4, §5.1) in its six states. The wide header's secondary button is always present
@@ -149,7 +157,8 @@ describe('CollectionListContainer', () => {
             await waitFor(() => expect(floating()).toBe(1));
         });
 
-        it('a focused floating button stays when the list turns empty, and goes once focus leaves it', async () => {
+        // REWRITTEN (designer, 2026-11-03): the floating button also stays once the list turns empty, focused or not.
+        it('the floating button stays, as the same node, when the list turns empty', async () => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listCollections').mockReturnValue(new Promise(() => {}));
             const queryClient = new QueryClient();
@@ -168,14 +177,9 @@ describe('CollectionListContainer', () => {
                 // TanStack tells subscribers on a 0 ms timer; let it fire, or the assertion below runs before the screen has heard.
                 await new Promise((resolve) => setTimeout(resolve, 0));
             });
+
             expect(screen.getAllByRole('button', { name: 'New collection' }).includes(button)).toBe(true);
-            expect(floating()).toBeGreaterThanOrEqual(1);
-
-            act(() => button.blur());
-
-            await waitFor(() =>
-                expect(screen.queryAllByRole('button', { name: 'New collection' }).includes(button)).toBe(false),
-            );
+            expect(floating()).toBe(1);
         });
 
         it('a refetch of a warm list does not take it away', async () => {

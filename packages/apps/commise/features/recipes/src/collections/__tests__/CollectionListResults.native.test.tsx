@@ -49,7 +49,7 @@ function renderList(overrides: Partial<CollectionListResultsProps> = {}, textSca
         total: overrides.collections?.length ?? 0,
         onSelect: noop,
         search: { value: '', onChange: noop },
-        firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
+        firstRun: { hasRecipes: true, onAddRecipe: noop },
         ...overrides,
     };
     (textScale === undefined ? render : (ui: ReactElement) => renderWithTamagui(ui, 'light', textScale))(
@@ -114,19 +114,17 @@ describe('CollectionListResults (native) — the end room follows the font scale
 });
 
 describe('CollectionListResults (native) — the first run (slice 4, `buildSpec.md` §5.1)', () => {
-    it('invites the first collection, with New collection', () => {
-        const onCreate = vi.fn();
-        renderList({ firstRun: { hasRecipes: true, onCreate, onAddRecipe: noop } });
+    // REWRITTEN (designer, 2026-11-03): see the web twin. The first run draws no create button of its own; the frame floats it.
+    it('invites the first collection in words and draws no create button of its own (the frame floats it)', () => {
+        renderList();
 
         expect(screen.getByText('Group recipes your way')).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
-
-        expect(onCreate).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
     });
 
     it('with no recipes yet, offers Add a recipe instead', () => {
         const onAddRecipe = vi.fn();
-        renderList({ firstRun: { hasRecipes: false, onCreate: noop, onAddRecipe } });
+        renderList({ firstRun: { hasRecipes: false, onAddRecipe } });
 
         expect(screen.getByText('Add a few recipes first.')).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
@@ -151,21 +149,22 @@ describe('CollectionListResults (native) — the first run scrolls at the larges
         return null;
     }
 
-    it('puts "New collection" inside a scroller, so it can be scrolled to', () => {
-        renderList({ firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop } }, 3.1);
+    it('puts the heading and the body inside a scroller, so they can be scrolled at the largest size', () => {
+        renderList({ firstRun: { hasRecipes: true, onAddRecipe: noop } }, 3.1);
 
-        expect(scrollerOf(screen.getByRole('button', { name: 'New collection' }))).not.toBeNull();
+        expect(scrollerOf(screen.getByText('Group recipes your way'))).not.toBeNull();
+        expect(scrollerOf(screen.getByText(collectionMessages.en.list.emptyBody))).not.toBeNull();
     });
 
     it('puts "Add a recipe" inside a scroller too, when there are no recipes yet', () => {
-        renderList({ firstRun: { hasRecipes: false, onCreate: noop, onAddRecipe: noop } }, 3.1);
+        renderList({ firstRun: { hasRecipes: false, onAddRecipe: noop } }, 3.1);
 
         expect(scrollerOf(screen.getByRole('button', { name: 'Add a recipe' }))).not.toBeNull();
     });
 
     it('ends the scroller with the room the floating New collection button needs', () => {
-        renderList({ firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop } }, 3.1);
-        const scroller = scrollerOf(screen.getByRole('button', { name: 'New collection' }));
+        renderList({ firstRun: { hasRecipes: true, onAddRecipe: noop } }, 3.1);
+        const scroller = scrollerOf(screen.getByText('Group recipes your way'));
         const foot: string[] = [];
 
         // The scroller's content container is the child of the element that scrolls.
@@ -187,7 +186,7 @@ describe('CollectionListResults (native) — the first run scrolls at the larges
     });
 
     it('stops the title at the display ceiling of 1.5x and the body at 2x at the iOS maximum (fontScale 3.1)', () => {
-        renderList({ firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop } }, 3.1);
+        renderList({ firstRun: { hasRecipes: true, onAddRecipe: noop } }, 3.1);
         const sizeOf = (element: HTMLElement): number => parseFloat(getComputedStyle(element).fontSize);
 
         expect(sizeOf(screen.getByRole('heading', { name: 'Group recipes your way' }))).toBe(
@@ -329,7 +328,7 @@ describe('CollectionListResults (native) — a failed refresh of the rows on scr
                 total={threeCollections.length}
                 onSelect={noop}
                 search={{ value: '', onChange: noop }}
-                firstRun={{ hasRecipes: true, onCreate: noop, onAddRecipe: noop }}
+                firstRun={{ hasRecipes: true, onAddRecipe: noop }}
                 refreshNotice={refreshNotice}
             />
         );
@@ -541,7 +540,7 @@ describe('CollectionListResults (native) — a new column count is a new list', 
                 total={3}
                 onSelect={noop}
                 search={{ value: searchValue, onChange: noop }}
-                firstRun={{ hasRecipes: true, onCreate: noop, onAddRecipe: noop }}
+                firstRun={{ hasRecipes: true, onAddRecipe: noop }}
             />
         </LocaleProvider>
     );

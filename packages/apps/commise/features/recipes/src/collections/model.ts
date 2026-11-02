@@ -139,8 +139,6 @@ export interface CollectionListResultsProps {
     /** The first run's action, which depends on whether the cook has recipes to group yet (§5.1 States). */
     readonly firstRun: {
         readonly hasRecipes: boolean;
-        /** Open the new-collection sheet. */
-        readonly onCreate: () => void;
         /** Open the editor: a collection needs recipes first. */
         readonly onAddRecipe: () => void;
     };

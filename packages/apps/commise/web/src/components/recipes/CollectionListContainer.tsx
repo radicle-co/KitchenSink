@@ -100,7 +100,6 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
                     searchValue={list.search.value}
                     onSearchChange={list.search.onChange}
                     hasRecipes={list.hasRecipes}
-                    onCreate={list.sheet.onOpen}
                     onAddRecipe={() => router.push(`/${locale}/recipes/new` as Route)}
                     onSelect={(id) => router.push(`/${locale}/collections/${id}` as Route)}
                     onRecovered={recovery.onRecovered}
@@ -118,7 +117,6 @@ interface SettledCollectionListProps {
     readonly searchValue: string;
     readonly onSearchChange: (value: string) => void;
     readonly hasRecipes: boolean;
-    readonly onCreate: () => void;
     readonly onAddRecipe: () => void;
     /** Invoked with a collection id when a row is activated. */
     readonly onSelect: (id: string) => void;
@@ -138,7 +136,6 @@ const SettledCollectionList: FC<SettledCollectionListProps> = ({
     searchValue,
     onSearchChange,
     hasRecipes,
-    onCreate,
     onAddRecipe,
     onSelect,
     onRecovered,
@@ -154,7 +151,7 @@ const SettledCollectionList: FC<SettledCollectionListProps> = ({
             collections={rows.collections}
             total={rows.total}
             search={{ value: searchValue, onChange: onSearchChange }}
-            firstRun={{ hasRecipes, onCreate, onAddRecipe }}
+            firstRun={{ hasRecipes, onAddRecipe }}
             hrefOf={(id) => `/${locale}/collections/${id}`}
             onSelect={onSelect}
             refreshNotice={refreshNotice}

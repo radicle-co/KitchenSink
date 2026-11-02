@@ -53,7 +53,7 @@ function screenTree(overrides: Partial<CollectionListResultsProps> = {}) {
         total: overrides.collections?.length ?? 0,
         onSelect: noop,
         search: { value: '', onChange: noop },
-        firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
+        firstRun: { hasRecipes: true, onAddRecipe: noop },
         ...overrides,
     };
 
@@ -96,11 +96,7 @@ describe('Collections — the whole header scrolls with the content', () => {
     });
 
     it('first run with no recipes yet: the same, around "Add a recipe"', () => {
-        renderWithTamagui(
-            screenTree({ firstRun: { hasRecipes: false, onCreate: noop, onAddRecipe: noop } }),
-            'light',
-            3.1,
-        );
+        renderWithTamagui(screenTree({ firstRun: { hasRecipes: false, onAddRecipe: noop } }), 'light', 3.1);
         const body = scrollerOf(screen.getByRole('button', { name: 'Add a recipe' }));
 
         expect(body).not.toBeNull();
@@ -151,13 +147,35 @@ describe('Collections — the whole header scrolls with the content', () => {
         );
     });
 
-    it('keeps its own jobs: New collection still reaches onCreate from the first run', () => {
+    // Designer ruling (2026-11-03): "New collection" floats in the first run too, the same as "New recipe": exactly ONE button,
+    // the frame's, outside the scroller so it never scrolls away; the empty state's heading and body are what scroll, and
+    // they follow the text caps. (qa-ios: at the largest size the in-flow button sat below a page that did not scroll.)
+    it("first run: one New collection button, the frame's floating one, outside the scroller", () => {
         const onCreate = vi.fn();
-        render(screenTree({ firstRun: { hasRecipes: true, onCreate, onAddRecipe: noop } }));
+        renderWithTamagui(
+            <LocaleProvider locale="en">
+                <CollectionListFrame onCreate={onCreate} headingFocusSignal={0}>
+                    <CollectionListResults
+                        collections={[]}
+                        total={0}
+                        onSelect={noop}
+                        search={{ value: '', onChange: noop }}
+                        firstRun={{ hasRecipes: true, onAddRecipe: noop }}
+                    />
+                </CollectionListFrame>
+            </LocaleProvider>,
+            'light',
+            3.1,
+        );
+        const buttons = screen.getAllByRole('button', { name: 'New collection' });
 
-        fireEvent.click(screen.getAllByRole('button', { name: 'New collection' })[0] as HTMLElement);
+        expect(buttons).toHaveLength(1);
+        expect(scrollerOf(buttons[0] as HTMLElement)).toBeNull();
+        expect(scrollerOf(screen.getByText('Group recipes your way'))).not.toBeNull();
 
-        expect(onCreate).toHaveBeenCalled();
+        fireEvent.click(buttons[0] as HTMLElement);
+
+        expect(onCreate).toHaveBeenCalledTimes(1);
     });
 });
 

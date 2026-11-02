@@ -78,7 +78,7 @@ export function CollectionsScreen({
                     read={list.read}
                     searchValue={list.search.value}
                     onSearchChange={list.search.onChange}
-                    firstRun={{ hasRecipes: list.hasRecipes, onCreate: list.sheet.onOpen, onAddRecipe: onCreateRecipe }}
+                    firstRun={{ hasRecipes: list.hasRecipes, onAddRecipe: onCreateRecipe }}
                     onSelect={onSelect}
                     onRecovered={recovery.onRecovered}
                     scrollBind={scrollBind}
@@ -117,7 +117,6 @@ function SettledCollections({
     readonly onSearchChange: (value: string) => void;
     readonly firstRun: {
         readonly hasRecipes: boolean;
-        readonly onCreate: () => void;
         readonly onAddRecipe: () => void;
     };
     readonly onSelect: (collectionId: string) => void;

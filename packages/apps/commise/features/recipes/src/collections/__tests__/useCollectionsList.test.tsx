@@ -60,7 +60,8 @@ describe('useCollectionsList — the first run', () => {
     // ⚠️ REWRITTEN from "is a first run only once the collection list has settled empty": that boolean was false while
     // the list loaded, so the floating button mounted and then vanished under the cook's finger. It now yields while
     // loading as well, and shows when the list is unreachable (offline or failed) with nothing cached.
-    it('yields the floating create button while the list loads and once it settles empty, not once it holds one', async () => {
+    // REWRITTEN (designer, 2026-11-03): the floating button also stays in the first run, so it yields only while the list loads.
+    it('yields the floating create button only while the list loads, not once it settles empty or holds one', async () => {
         const { queryClient, result } = setup();
 
         expect(result.current.createEntryYields).toBe(true);
@@ -71,7 +72,7 @@ describe('useCollectionsList — the first run', () => {
                 pageParams: [1],
             });
         });
-        await waitFor(() => expect(result.current.createEntryYields).toBe(true));
+        await waitFor(() => expect(result.current.createEntryYields).toBe(false));
 
         act(() => {
             queryClient.setQueryData(result.current.read.queryKey, {

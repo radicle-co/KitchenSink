@@ -80,11 +80,9 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                     <DesignText typeRole="body" color="$inkMuted" textAlign="center">
                         {list.emptyBody}
                     </DesignText>
-                    {firstRun.hasRecipes ? (
-                        <Button icon="plus" size="lg" width="fill" onPress={firstRun.onCreate}>
-                            {list.createCta}
-                        </Button>
-                    ) : (
+                    {/* "New collection" is the frame's floating button (shared with New recipe), so only the no-recipes case
+                        needs a start button of its own: a collection needs recipes first. */}
+                    {firstRun.hasRecipes ? null : (
                         <>
                             <DesignText typeRole="body" color="$inkMuted">
                                 {list.needRecipes}

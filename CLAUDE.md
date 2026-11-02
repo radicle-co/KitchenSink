@@ -187,10 +187,25 @@ significant smell, the root cause it is a symptom of (LOCAL / PATTERN / STRUCTUR
 scanners (type-aware ESLint + SonarJS + React Hooks, Semgrep, CodeQL, dependency-cruiser, jscpd, knip,
 ruff/mypy, zizmor, sherif, Turborepo checks) from outside the work tree. It is read-only.
 
-- **GATE** — before every commit or push of a non-trivial change: the working diff against `origin/main`. ⛔ A
-  user-level hook DENIES `git push` until the files being pushed match a GATE PASS stamp (GATE records it as its last
-  step). A push that genuinely needs no GATE is re-run as `SCQ_GATE_WAIVED='<reason>' git push …` — the reason is the
-  point, and an empty one is refused.
+- **GATE** — once per pull request, when it is ready for review (owner ruling 2026-11-02). It runs over the PR's whole
+  diff against `origin/main`, and it MUST pass before the PR is marked ready or merged. Do not run it on every commit,
+  on every work branch, or before a work branch merges into a feature branch. ⛔ A user-level hook DENIES `git push`
+  until the files being pushed match a GATE PASS stamp (GATE records it as its last step). A work-in-progress push
+  before the PR is ready is re-run as `SCQ_GATE_WAIVED='<reason>' git push …` — the reason is the point, and an empty
+  one is refused.
+- **Every agent writes GATE-clean code from the start**, because GATE runs late and a late finding is expensive. Know
+  what it blocks, and do not make a decision that violates it:
+    - escape hatches without a stated reason: refs, effects, casts (`as never`, `as unknown as`), `any`, lint and
+      type suppressions;
+    - a hand-rolled copy of a house helper or a library, and duplicated knowledge (two sources for one rule or
+      constant);
+    - logic in the wrong layer: data work in a render component, or a mode prop that switches behaviour;
+    - complexity, tight coupling, cycles, dead code and dead exports;
+    - test theatre: a test or guard that still passes when the code is wrong, and casts on test doubles;
+    - prose that goes stale: hand-kept counts or lists, and comments that make claims about other files;
+    - a docblock that is not directly above its subject, and monorepo hygiene (undeclared dependencies, boundary
+      breaks).
+      The full list is in `~/.claude/agents/staff-code-quality.md` and its `code-quality-corpus` skill.
 - **REVIEW** — alongside `code-reviewer` on every PR or branch review.
 - **INSPECT** — on demand, for a module, package or hotspot sweep.
 
@@ -201,7 +216,8 @@ and the reason is measured: invoked as it is used, `code-reviewer` does notice s
 contract files a smell as Medium ("small smell — fix now or in follow-up") under a "fix Critical/High first"
 verdict — so the render-time ref writes it found on real history were deferrable, reported at one site of
 six, and left behind. This agent treats that class as blocking, finds every site of a pattern, names the
-structural root cause, and is enforced at push. GATE costs ≈ 6 minutes on a 200-line diff. Its
+structural root cause, and is enforced at push. GATE costs ≈ 6 minutes on a 200-line diff and grows with the
+diff, which is why it runs once per PR. Its
 definition is `~/.claude/agents/staff-code-quality.md` (user-scoped); the evaluation record and the
 defects it surfaced in this tree are in `docs/engineering/CodeQualityAgentDesignReferences.md`.
 
@@ -471,6 +487,13 @@ When a change makes an existing test wrong, you may not quietly edit it until it
 ⛔ **Editing a test just enough to COMPILE is the worst outcome available** — it leaves a test that is
 counted, runs green, and proves nothing. If you find yourself deleting assertions to make a suite build,
 stop: that suite is telling you the behaviour changed, and you owe it a decision.
+
+### During development, run only the Playwright specs and Maestro flows for the screens you change
+
+Owner ruling 2026-11-02. While you build, run only the Playwright specs and Maestro flows that cover the screens you
+are changing and testing. Do not run the whole suite or the whole flow set to check a single screen. Run the full
+Playwright suite and the full Maestro suite on both platforms once, on the final head, before the PR is marked ready.
+That full run is still a precondition for the push and the merge.
 
 ### A feature is NOT DONE until every required tier is written AND passing
 

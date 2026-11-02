@@ -4,8 +4,8 @@
  * so the native leaves that adopt it for disk-cached remote images (B11) would otherwise fail to import under
  * the native component tests. This stub bridges the props those leaves use onto react-native-web's `Image` —
  * `source`/`style`/`accessibilityLabel` pass straight through, and expo-image's `contentFit` maps back to RN's
- * `resizeMode` — so the rendered `<img alt>` node stays identical for the tests. `cachePolicy` is display-inert
- * and dropped.
+ * `resizeMode` — so the rendered `<img alt>` node stays identical for the tests. `contentFit` and `cachePolicy` are also
+ * written as `data-content-fit` and `data-cache-policy`, so a test can see they arrived.
  *
  * ## Why the accessibility-hiding props are TRANSLATED, not passed through
  *
@@ -36,7 +36,7 @@ interface ExpoImageStubProps {
     readonly importantForAccessibility?: RNImageProps['importantForAccessibility'];
     /** expo-image's replacement for `resizeMode`; mapped back to RN for the stub. */
     readonly contentFit?: RNImageProps['resizeMode'];
-    /** Disk/memory cache selector on the real component — no visual effect, so dropped here. */
+    /** Disk/memory cache selector on the real component — no visual effect, so shown only as `data-cache-policy`. */
     readonly cachePolicy?: string;
 }
 
@@ -48,10 +48,19 @@ export const Image: FC<ExpoImageStubProps> = ({
     accessibilityElementsHidden,
     importantForAccessibility,
     contentFit,
+    cachePolicy,
 }) => {
     // Hidden on EVERY platform (iOS prop AND Android prop) — the DOM spelling of which is `aria-hidden`, the
     // one form react-native-web actually honours.
     const hidden = accessibilityElementsHidden === true && importantForAccessibility === 'no-hide-descendants';
+
+    // react-native-web reads `dataSet` into `data-*` attributes, but React Native's own types do not declare it.
+    const observed: { readonly dataSet: Readonly<Record<string, string>> } = {
+        dataSet: {
+            ...(contentFit === undefined ? {} : { contentFit }),
+            ...(cachePolicy === undefined ? {} : { cachePolicy }),
+        },
+    };
 
     return (
         <RNImage
@@ -61,6 +70,7 @@ export const Image: FC<ExpoImageStubProps> = ({
             {...(accessible !== undefined ? { accessible } : {})}
             {...(hidden ? { 'aria-hidden': true } : {})}
             {...(contentFit !== undefined ? { resizeMode: contentFit } : {})}
+            {...observed}
         />
     );
 };

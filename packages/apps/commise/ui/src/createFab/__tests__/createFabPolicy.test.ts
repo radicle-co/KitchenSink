@@ -7,9 +7,12 @@ import { describe, expect, it } from 'vitest';
 import { spacing } from '../../tokens/scale.js';
 import {
     FAB_BOTTOM_MARGIN_PX,
+    FAB_FLOATS_FROM_HEIGHT_PX,
     FAB_HEIGHT_PX,
     FAB_RESERVED_BOTTOM_PX,
     fabPresentationOf,
+    fabHeightAt,
+    fabReservedBottomOf,
     type FabInputs,
 } from '../createFabPolicy.js';
 
@@ -79,5 +82,48 @@ describe('FAB_RESERVED_BOTTOM_PX', () => {
         expect(FAB_HEIGHT_PX).toBe(56);
         expect(FAB_RESERVED_BOTTOM_PX).toBe(FAB_HEIGHT_PX + FAB_BOTTOM_MARGIN_PX + spacing[4]);
         expect(FAB_RESERVED_BOTTOM_PX).toBe(88);
+    });
+});
+
+// Designer ruling d (mergedUiAndroid1.md): the end room is computed from the button's DRAWN height. The height rule
+// (how the pill grows with the text scale) is pending the designer; the formula takes the height as an input.
+describe('fabReservedBottomOf', () => {
+    it('is the drawn height, the resting margin and 16', () => {
+        expect(fabReservedBottomOf(56)).toBe(88);
+        expect(fabReservedBottomOf(66)).toBe(98);
+    });
+
+    it('moves one for one with the height', () => {
+        expect(fabReservedBottomOf(80) - fabReservedBottomOf(60)).toBe(20);
+    });
+
+    it('is the scale-1 constant at the 56 floor', () => {
+        expect(FAB_RESERVED_BOTTOM_PX).toBe(fabReservedBottomOf(FAB_HEIGHT_PX));
+    });
+});
+
+describe('fabHeightAt (designer rulings d and Q1/Q2, 2026-11-02)', () => {
+    it('is the 56 floor at scale 1 and below', () => {
+        expect(fabHeightAt(1)).toBe(56);
+        expect(fabHeightAt(0.8)).toBe(56);
+    });
+
+    it('grows with the label: 56 + 20 x (scale - 1), so 66 at 1.5x and a 98 end room', () => {
+        expect(fabHeightAt(1.25)).toBe(61);
+        expect(fabHeightAt(1.5)).toBe(66);
+        expect(fabReservedBottomOf(fabHeightAt(1.5))).toBe(98);
+    });
+
+    it('stops at the 1.5x chrome cap while the system scale goes on to 2x', () => {
+        expect(fabHeightAt(2)).toBe(fabHeightAt(1.5));
+    });
+});
+
+// Designer ruling, web only (designAnswers.md, 2026-11-02): below 400 CSS px of viewport height the New recipe button
+// stops floating, because at 200 px the floating button and the tab bar leave 48 px of page. ONE constant names the
+// threshold; the theme generates the media query and the variant from it, and nothing else spells 400.
+describe('FAB_FLOATS_FROM_HEIGHT_PX', () => {
+    it('is the 400 CSS px of viewport height from which the web button floats', () => {
+        expect(FAB_FLOATS_FROM_HEIGHT_PX).toBe(400);
     });
 });

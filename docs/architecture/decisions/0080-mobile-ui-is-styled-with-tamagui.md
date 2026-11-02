@@ -48,9 +48,11 @@ export is the precedent. Pure projections feed one `createTamagui` call.
   never a palette swatch. The zero radius step is `0`, because Tamagui reserves CSS-wide keywords such as `none`.
   The stacking group holds only `0` until a ported component names a step on the scale.
 - **Themes** are `light`, `dark`, and `${scheme}_${tone}` for each surface tone (`light_inverse`). In `light` and `dark`,
-  each key is a colour role, or a surface tone's `${tone}Fill`, `${tone}Press` or `${tone}ChipFill`, plus the five
-  tone keys `ink`, `color`, `background`, `backgroundPress` and `borderColor` at the canvas tone. A sub-theme is
-  partial: it holds only those five keys, and Tamagui merges the rest from its parent. A bare `Text` and Tamagui's own
+  each key is a colour role, or a surface tone's `${tone}Fill`, `${tone}Press` or `${tone}ChipFill`, plus the seven
+  tone keys `ink`, `inkMuted`, `lineDivider`, `color`, `background`, `backgroundPress` and `borderColor` at the canvas
+  tone. On a surface whose ink is not the page's (the inverse one), `inkMuted` and `lineDivider` are that ink laid over
+  the fill at a fixed alpha, and muted text holds 4.5:1 there. A sub-theme is
+  partial: it holds only those seven keys, and Tamagui merges the rest from its parent. A bare `Text` and Tamagui's own
   parts inside `<Theme name={tone}>` therefore read the surface they sit on. Everything is generated from the
   surface-tone table, never listed by hand. The names are fixed: a tone name holds no `_`, and is not `light`, `dark`
   or a component word (`primary`, `secondary`, `quiet`, `danger`, `selected`). A misspelt name finds no theme and keeps
@@ -211,6 +213,15 @@ label and hint, the live region, and the input adapter, which is the one place t
 On Android that caps their size but not their leading, so each moves onto the design-system `Text`. A
 box sized around capped text reads `cappedFontScale`, so it stops growing where its text does. The text-scale ratchet
 (§4) holds the count of uncapped native text, so it only falls.
+
+React Native's own `Text` is not capped by any of this. On iOS it takes the whole Dynamic Type multiplier (about 3.1× at
+accessibility-xxx-large), because it neither turns system scaling off nor sets `maxFontSizeMultiplier`. That was the
+cause of the designer's iOS finding C-1 (2026-11-02): the large title and the chips drew at about 3× and broke inside
+their words. The design-system `Text` is not at fault: React Native's iOS code returns a size multiplier of 1 when
+`allowFontScaling` is false (`RCTEffectiveFontSizeMultiplierFromTextAttributes`), so it stops at its ceiling at any
+system scale. Every React Native `Text` still in the text-scale ratchet is uncapped on both platforms until it moves onto
+the design-system `Text`; a global default cap is rejected, because it would cap display titles at 2× not 1.5×, leave
+the Android line height uncapped, and hide the ratchet.
 
 ### 9. The migration moves in slices
 

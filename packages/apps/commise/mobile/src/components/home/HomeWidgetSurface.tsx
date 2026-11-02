@@ -30,7 +30,7 @@ import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
-import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
 import type { HeaderAction } from '@commise/ui/large-title-header';
@@ -92,6 +92,7 @@ export function HomeWidgetSurface({
     renderers,
 }: HomeWidgetSurfaceProps): JSX.Element {
     const home = useMessages(homeMessages);
+    const fabRoom = useFabReservedBottom();
     const profile = useUserProfile();
 
     // Plan 2026-10-14-009 D13: the viewer's paid features alone decide the widget tier and whether the upsell nudge is
@@ -188,7 +189,7 @@ export function HomeWidgetSurface({
                         {...scrollBind}
                         accessibilityLabel={home.regionLabel}
                         style={styles.region}
-                        contentContainerStyle={styles.regionContent}
+                        contentContainerStyle={[styles.regionContent, { paddingBottom: fabRoom }]}
                     >
                         {/* The large title is the scroller's FIRST child, so its host knows when it has scrolled under the
                         top (`LargeTitleHeader`); it sits on the app canvas, never in a card (§1.6). */}
@@ -233,7 +234,7 @@ const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
     // The foot clears the floating create button, which floats over it: its height, its margin and 16 (§3.4).
-    regionContent: { paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
+    regionContent: { paddingTop: 8, gap: 16 },
     widgets: { paddingHorizontal: 16, gap: 16 },
     comingSoon: { gap: nativeTokens.spacing[4] },
     comingSoonHeader: { gap: nativeTokens.spacing[1] },

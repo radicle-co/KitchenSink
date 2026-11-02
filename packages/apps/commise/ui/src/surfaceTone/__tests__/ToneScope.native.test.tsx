@@ -12,7 +12,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { rgb, rolesFor } from '../../testing/systemColorScheme.js';
 import { renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import { Text } from '../../text/Text.native.js';
-import { SURFACE_TONE_NAMES, SURFACE_TONES, type SurfaceTone } from '../surfaceTone.js';
+import { mixOver } from '../../tokens/colors.js';
+import { INVERSE_INK_ALPHA, SURFACE_TONE_NAMES, SURFACE_TONES, type SurfaceTone } from '../surfaceTone.js';
 import { useSurfaceTone } from '../surfaceToneContext.js';
 import { Surface } from '../Surface.native.js';
 import { ToneScope } from '../ToneScope.native.js';
@@ -64,6 +65,23 @@ describe.each(['light', 'dark'] as const)('ToneScope (%s)', (scheme) => {
         );
 
         expect(resolvedColour(getByText('on inverse'), 'color')).toBe(rgb(roles.inverseInk));
+    });
+
+    it('a muted Text on an inverse surface takes the derived muted ink, and on the page the page’s', () => {
+        const { getByText } = renderWithTamagui(
+            <>
+                <ToneScope tone="inverse">
+                    <Text color="$inkMuted">on inverse</Text>
+                </ToneScope>
+                <Text color="$inkMuted">on the page</Text>
+            </>,
+            scheme,
+        );
+
+        expect(resolvedColour(getByText('on inverse'), 'color')).toBe(
+            rgb(mixOver(roles.inverseInk, roles.inverse, INVERSE_INK_ALPHA.inkMuted)),
+        );
+        expect(resolvedColour(getByText('on the page'), 'color')).toBe(rgb(roles.inkMuted));
     });
 
     it.each(SURFACE_TONE_NAMES)('%s: the ink clears 4.5:1 on its own fill', (tone: SurfaceTone) => {

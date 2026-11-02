@@ -6,6 +6,9 @@
  * A package-export entry (the one kind of barrel this repo keeps). The list's render leaves stay on the package root;
  * this entry carries only the hooks, which both platforms' containers share.
  */
+export { libraryReadingOf } from './libraryReading.js';
+export type { LibraryReading, LibraryReadingSource } from './libraryReading.js';
+export { useLibraryReading } from './useLibraryReading.js';
 export { useRecipeLibrary } from './useRecipeLibrary.js';
 export type { LibraryQuery, RecipeLibraryInput, RecipeLibraryModel } from './useRecipeLibrary.js';
 export { useRecipeLibraryControls } from './useRecipeLibraryControls.js';

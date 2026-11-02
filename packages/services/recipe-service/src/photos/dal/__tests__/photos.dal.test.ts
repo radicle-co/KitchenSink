@@ -111,6 +111,42 @@ describe('PhotosDal.create — a retried confirm of the same object (audit findi
         expect(control.calls.some((call) => call.method === 'insert')).toBe(false);
     });
 
+    /** The thumbnail key is the original's key plus a suffix, so a retry writes the SAME object. If the first
+     * confirm degraded to no thumbnail, the retry's rendition must be recorded or it is an orphan. */
+    it("records the retry's thumbnail on the existing row when the first confirm had none", async () => {
+        const existing = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: KEY, thumbnailKey: null });
+        const healed = makeRecipePhotoRow({ ...existing, thumbnailKey: `${KEY}.thumb` });
+        const control = createFakeDb();
+        control.enqueue([existing], [healed]);
+
+        const result = await new PhotosDal(control.db).create({
+            recipeId: RECIPE_ID,
+            s3Key: KEY,
+            thumbnailKey: `${KEY}.thumb`,
+            contentType: 'image/png',
+            sizeBytes: 10,
+        });
+
+        expect(result).toEqual(healed);
+        expect(setPayloads(control)).toEqual([{ thumbnailKey: `${KEY}.thumb`, updatedAt: expect.any(Date) }]);
+    });
+
+    it('leaves an existing thumbnail alone', async () => {
+        const existing = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: KEY, thumbnailKey: `${KEY}.thumb` });
+        const control = createFakeDb();
+        control.enqueue([existing]);
+
+        await new PhotosDal(control.db).create({
+            recipeId: RECIPE_ID,
+            s3Key: KEY,
+            thumbnailKey: `${KEY}.thumb`,
+            contentType: 'image/png',
+            sizeBytes: 10,
+        });
+
+        expect(setPayloads(control)).toEqual([]);
+    });
+
     it('answers the retry even when the recipe is already at the cap, because it adds no photo', async () => {
         const existing = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: KEY });
         const control = createFakeDb();

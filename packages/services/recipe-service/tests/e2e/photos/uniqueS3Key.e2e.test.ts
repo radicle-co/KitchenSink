@@ -86,6 +86,31 @@ describe('recipe_photos.s3_key is unique (integration)', () => {
         expect(await db.select().from(recipePhotos).where(eq(recipePhotos.recipeId, recipeId))).toHaveLength(1);
     });
 
+    it('a retry records the thumbnail when the first confirm stored none, and never changes an existing one', async () => {
+        const s3Key = `recipes/${OWNER}/${recipeId}/photos/degraded`;
+        const first = await dal.create({ recipeId, s3Key, contentType: 'image/png', sizeBytes: 10 });
+        expect(first.thumbnailKey).toBeNull();
+
+        const retry = await dal.create({
+            recipeId,
+            s3Key,
+            thumbnailKey: `${s3Key}.thumb`,
+            contentType: 'image/png',
+            sizeBytes: 10,
+        });
+        const third = await dal.create({
+            recipeId,
+            s3Key,
+            thumbnailKey: `${s3Key}.other`,
+            contentType: 'image/png',
+            sizeBytes: 10,
+        });
+
+        expect(retry.id).toBe(first.id);
+        expect(retry.thumbnailKey).toBe(`${s3Key}.thumb`);
+        expect(third.thumbnailKey).toBe(`${s3Key}.thumb`);
+    });
+
     it('a retry at the 10-photo cap still answers, instead of failing as over the cap', async () => {
         const keys = Array.from({ length: 10 }, (_k, i) => `recipes/${OWNER}/${recipeId}/photos/cap${i}`);
         for (const s3Key of keys) {

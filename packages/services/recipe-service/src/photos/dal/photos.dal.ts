@@ -68,6 +68,18 @@ export class PhotosDal {
             const [existing] = await tx.select().from(recipePhotos).where(eq(recipePhotos.s3Key, input.s3Key)).limit(1);
 
             if (existing) {
+                // The thumbnail key is the original's key plus a suffix, so a retry rewrites the SAME object. If the
+                // first confirm stored no thumbnail, record this one, or the object is orphaned from its row.
+                if (existing.thumbnailKey === null && input.thumbnailKey !== undefined) {
+                    const [healed] = await tx
+                        .update(recipePhotos)
+                        .set({ thumbnailKey: input.thumbnailKey, updatedAt: new Date() })
+                        .where(eq(recipePhotos.id, existing.id))
+                        .returning();
+
+                    return healed ?? existing;
+                }
+
                 return existing;
             }
 

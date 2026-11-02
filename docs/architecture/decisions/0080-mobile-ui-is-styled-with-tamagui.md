@@ -214,6 +214,15 @@ On Android that caps their size but not their leading, so each moves onto the de
 box sized around capped text reads `cappedFontScale`, so it stops growing where its text does. The text-scale ratchet
 (§4) holds the count of uncapped native text, so it only falls.
 
+React Native's own `Text` is not capped by any of this. On iOS it takes the whole Dynamic Type multiplier (about 3.1× at
+accessibility-xxx-large), because it neither turns system scaling off nor sets `maxFontSizeMultiplier`. That was the
+cause of the designer's iOS finding C-1 (2026-11-02): the large title and the chips drew at about 3× and broke inside
+their words. The design-system `Text` is not at fault: React Native's iOS code returns a size multiplier of 1 when
+`allowFontScaling` is false (`RCTEffectiveFontSizeMultiplierFromTextAttributes`), so it stops at its ceiling at any
+system scale. Every React Native `Text` still in the text-scale ratchet is uncapped on both platforms until it moves onto
+the design-system `Text`; a global default cap is rejected, because it would cap display titles at 2× not 1.5×, leave
+the Android line height uncapped, and hide the ratchet.
+
 ### 9. The migration moves in slices
 
 Slice 0 is this config, the scheme hook and the guards. Each later slice ports components onto Tamagui and lowers the

@@ -200,6 +200,12 @@ const EXEMPTIONS: readonly Exemption[] = [
     },
     {
         file: `${APPS}features/recipes/src/card/RecipeCard.native.tsx`,
+        frame: '<View style={[ styles.coverChip,',
+        kind: 'allowed',
+        reason: "The status chip is exactly one line (height = metaLineHeightOf(fontScale) + its padding, CoverChip) and clips what wraps by design, so its glyph drops and its word stays (designer ruling 2026-11-03); the height follows the same OS font scale as the text, as the card's other one-line rows do.",
+    },
+    {
+        file: `${APPS}features/recipes/src/card/RecipeCard.native.tsx`,
         frame: '<View style={thumbnail ? styles.thumbnail : styles.cover}>',
         kind: 'allowed',
         reason: 'The 80 pt thumbnail holds the RecipeCover monogram, sized to the box (RecipeCover.native.tsx L59-65), and the PRO badge, which keeps its size at every scale (pictorial, designer M-1).',

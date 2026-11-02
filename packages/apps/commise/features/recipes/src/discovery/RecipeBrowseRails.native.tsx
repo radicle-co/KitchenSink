@@ -28,6 +28,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
 import { RailContext } from './railContext.js';
+import { RailLinkBox } from './RailHeadingLayout.native.js';
 
 /**
  * Milliseconds each successive browse section is held back, so the surface assembles itself rather than
@@ -69,14 +70,18 @@ const Rail: FC<{
                 <Text ref={headingRef} accessibilityRole="header" style={[styles.railTitle, { color: colors.ink }]}>
                     {title}
                 </Text>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    accessibilityLabel={fillTemplate(discovery.seeAllLabel, { rail: title })}
-                    onPress={rail.onSeeAll}
-                >
-                    {discovery.seeAll}
-                </Button>
+                {/* The link wraps under the title when the two do not fit; it never shrinks or truncates, and its box
+                    is pulled back by the button's padding so its text sits on the title's start edge. */}
+                <RailLinkBox>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        accessibilityLabel={fillTemplate(discovery.seeAllLabel, { rail: title })}
+                        onPress={rail.onSeeAll}
+                    >
+                        {discovery.seeAll}
+                    </Button>
+                </RailLinkBox>
             </View>
             <RailContext value={{ title }}>{rail.body}</RailContext>
         </View>
@@ -157,6 +162,12 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     container: { gap: nativeTokens.spacing[7], paddingBottom: nativeTokens.spacing[5] },
     rail: { gap: nativeTokens.spacing[3] },
-    railHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    railTitle: { ...nativeTokens.type.sectionTitle },
+    railHeader: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        columnGap: nativeTokens.spacing[2],
+    },
+    railTitle: { ...nativeTokens.type.sectionTitle, flexShrink: 1 },
 });

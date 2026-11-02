@@ -27,7 +27,7 @@
  * @pattern Observer — the scroll spy, through the one `currentSectionOf` algorithm
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
-import { Animated, type NativeSyntheticEvent } from 'react-native';
+import { Animated } from 'react-native';
 
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import type { LayoutReport, ScrollBind, ScrollHostApi, ScrollHostProps, ScrollReport, ScrollTarget } from './props.js';
@@ -70,47 +70,13 @@ const BoundScreen: FC<{ readonly render: (bind: ScrollBind) => ReactNode; readon
     bind,
 }) => render(bind);
 
-/**
- * Publishes the host's API with the opt-in for an ANIMATED scroller added: `scrollY`, and `animatedOnScroll`, a native
- * scroll event that writes the offset into `scrollY` on the native thread with the host's own handler as its listener.
- *
- * ⛔ `animatedOnScroll` is an `AnimatedEvent` OBJECT, not a function, so only a component made by `Animated` can take it
- * (`AnimatedFlashList`). A plain `ScrollView` calls `props.onScroll(e)` and crashes on an object (iOS: "Object is not a
- * function"; Android: an update loop), which is why `bind.onScroll` stays a plain function for every scroller.
- *
- * A CHILD, for the same reason as {@link BoundScreen}: `onScroll` is a prop here, so the host's render does not pass a
- * function that closes over the `last` latch. The event is rebuilt only when the handler changes (a layout input),
- * because a list re-attaches a native event whenever its identity changes.
- */
-const AnimatedScrollProvider: FC<{
-    readonly api: ScrollHostApi;
-    readonly onScroll: (event: ScrollReport) => void;
-    readonly scrollY: Animated.Value;
-    readonly children: ReactNode;
-}> = ({ api, onScroll, scrollY, children }) => {
-    // Apart from the API, which changes whenever a fact flips: the event's identity must not follow it.
-    const animatedOnScroll = useMemo(
-        () =>
-            Animated.event<ScrollReport['nativeEvent']>([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-                useNativeDriver: true,
-                listener: (event: NativeSyntheticEvent<ScrollReport['nativeEvent']>) => onScroll(event),
-            }),
-        [onScroll, scrollY],
-    );
-    const value = useMemo<ScrollHostApi>(
-        () => ({ ...api, scrollY, animatedOnScroll }),
-        [api, animatedOnScroll, scrollY],
-    );
-
-    return <ScrollHostContext.Provider value={value}>{children}</ScrollHostContext.Provider>;
-};
-
 /** The native design-system scroll host. */
 export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activationOffset = 0, children }) => {
     const [scroller, setScroller] = useState<ScrollTarget | null>(null);
     const last = useRef<{ y: number; current: string | undefined }>({ y: 0, current: undefined });
     const [changes] = useState(createCurrentChangeSubject);
-    // One value for the host's life: an Animated chrome interpolates from it on the native thread (the search pin).
+    // One value for the host's life. The host only owns it: a list that attaches a native scroll event writes the offset
+    // into it, and a chrome interpolates from it on the native thread (the search pin).
     const [scrollY] = useState(() => new Animated.Value(0));
     const reduceMotion = useReduceMotion() === true;
     const [state, setState] = useState(INITIAL_SCROLL_STATE);
@@ -175,6 +141,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
         () => ({
             ...state,
             current: held?.id ?? state.current,
+            scrollY,
             onCurrentChange: changes.subscribe,
             scrollToTop: () => {
                 setHeld(undefined);
@@ -208,10 +175,14 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
             revealSpan: () => false,
             headingLayout: (event: LayoutReport) => {
                 const { y, height } = event.nativeEvent.layout;
-                setHeadingBottom(y + height);
+                const bottom = Math.round(y + height);
+
+                // Android re-sends a layout for float noise; a rounded, unchanged value must not cost a commit.
+                setHeadingBottom((previous) => (previous === bottom ? previous : bottom));
             },
             sectionLayout: (id) => (event: LayoutReport) => {
-                const { y } = event.nativeEvent.layout;
+                const y = Math.round(event.nativeEvent.layout.y);
+
                 setTops((previous) => (previous[id] === y ? previous : { ...previous, [id]: y }));
 
                 if (pendingJump === id && scroller !== null) {
@@ -221,7 +192,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
             },
             handle: { current: scroller },
         }),
-        [activationOffset, changes, held, pendingJump, reduceMotion, scroller, state, tops],
+        [activationOffset, changes, held, pendingJump, reduceMotion, scrollY, scroller, state, tops],
     );
 
     const bind = useMemo<ScrollBind>(
@@ -236,10 +207,10 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
     );
 
     return (
-        <AnimatedScrollProvider api={api} onScroll={onScroll} scrollY={scrollY}>
+        <ScrollHostContext.Provider value={api}>
             <FieldTargetContext.Provider value={targets}>
                 {typeof children === 'function' ? <BoundScreen render={children} bind={bind} /> : children}
             </FieldTargetContext.Provider>
-        </AnimatedScrollProvider>
+        </ScrollHostContext.Provider>
     );
 };

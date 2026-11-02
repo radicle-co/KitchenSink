@@ -8,11 +8,13 @@ import { cleanup, screen } from '@testing-library/react';
 import { formatRgb } from 'culori';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role, roleDark } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
 import { DesignSystemTheme } from '../../tamagui/DesignSystemTheme.native.js';
+import { scaledTypeSize } from '../scaledType.js';
 import { Text } from '../Text.native.js';
 
 const SIZED_ROLES = [
@@ -219,4 +221,59 @@ describe('Text (native)', () => {
             );
         },
     );
+});
+
+/**
+ * C-1 (designer's iOS review, 2026-11-02): at accessibility-xxx-large, about 3.1×, text grew to about 3× on iOS. The
+ * design-system Text is not the cause, and this pins why. It draws its own size and leading from the capped scale, and it
+ * turns system scaling OFF (`allowFontScaling: false`), which React Native's iOS code honours by returning a size
+ * multiplier of 1 (`RCTEffectiveFontSizeMultiplierFromTextAttributes`, `RCTAttributedTextUtils.mm`). So on iOS, at 3.1 or
+ * far above, every role stops at its ceiling. The text that grew was React Native `Text` with no cap, in leaves that have
+ * not moved onto this one.
+ */
+describe('Text (native) — iOS above the cap', () => {
+    const SIZED_ROLES = (Object.keys(nativeTokens.type) as readonly TypeRole[]).filter(
+        (role): role is Exclude<TypeRole, 'figureInline'> => role !== 'figureInline',
+    );
+
+    it.each([3.1, 5] as const)('draws every role at its ceiling at system scale %s', (scale) => {
+        for (const typeRole of SIZED_ROLES) {
+            const { container, unmount } = withPlatformOs('ios', () =>
+                renderWithTamagui(<Text typeRole={typeRole}>Peruvian</Text>, 'light', scale),
+            );
+            const { fontSize, lineHeight } = scaledTypeSize(typeRole, scale);
+            const node = container.querySelector('[name="CommiseText"]') as HTMLElement;
+
+            expect(resolvedStyle(node, 'fontSize'), typeRole).toBe(`${fontSize}px`);
+            expect(node.style.lineHeight || resolvedStyle(node, 'lineHeight'), typeRole).toBe(`${lineHeight}px`);
+            // The ceiling itself: far above the system scale it is the same size, so nothing grows past it.
+            expect(scaledTypeSize(typeRole, 100).fontSize, typeRole).toBe(fontSize);
+            unmount();
+        }
+    });
+
+    it('turns system scaling off, which is what makes iOS draw it at the size above and no larger', () => {
+        expect(Text.staticConfig.defaultProps?.['allowFontScaling']).toBe(false);
+    });
+
+    it('keeps a chrome label at its 1.5× cap, and a display title at 1.5×, far above the system scale', () => {
+        const { container } = withPlatformOs('ios', () =>
+            renderWithTamagui(
+                <>
+                    <Text typeRole="label" chromeCap="1.5">
+                        Recipes
+                    </Text>
+                    <Text typeRole="largeTitle">Good morning</Text>
+                </>,
+                'light',
+                5,
+            ),
+        );
+        const [chrome, title] = [...container.querySelectorAll('[name="CommiseText"]')] as HTMLElement[];
+
+        expect(resolvedStyle(chrome as HTMLElement, 'fontSize')).toBe(`${nativeTokens.type.label.fontSize * 1.5}px`);
+        expect(resolvedStyle(title as HTMLElement, 'fontSize')).toBe(
+            `${nativeTokens.type.largeTitle.regular.fontSize * 1.5}px`,
+        );
+    });
 });

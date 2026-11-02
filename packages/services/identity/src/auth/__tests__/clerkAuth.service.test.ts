@@ -7,8 +7,8 @@
  * and ANY verifier failure maps to an opaque 401 that leaks nothing about the reason.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { UnauthorizedException } from '@nestjs/common';
-import { verifyClerkToken } from '@kitchensink/clerk-verify';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ClerkAccountSuspendedError, verifyClerkToken } from '@kitchensink/clerk-verify';
 
 import { ClerkAuthService } from '../clerkAuth.service.js';
 
@@ -40,10 +40,14 @@ describe('ClerkAuthService', () => {
 
         const claims = await new ClerkAuthService().verify('the-token');
 
-        expect(mockVerify).toHaveBeenCalledWith('the-token', {
-            jwtKey: 'pem-public-key',
-            authorizedParties: ['https://a.example.com', 'https://b.example.com'],
-        });
+        expect(mockVerify).toHaveBeenCalledWith(
+            'the-token',
+            {
+                jwtKey: 'pem-public-key',
+                authorizedParties: ['https://a.example.com', 'https://b.example.com'],
+            },
+            undefined,
+        );
         expect(claims.sub).toBe('user_1');
     });
 
@@ -53,7 +57,7 @@ describe('ClerkAuthService', () => {
 
         await new ClerkAuthService().verify('t');
 
-        expect(mockVerify).toHaveBeenCalledWith('t', { jwtKey: 'pem-public-key', authorizedParties: [] });
+        expect(mockVerify).toHaveBeenCalledWith('t', { jwtKey: 'pem-public-key', authorizedParties: [] }, undefined);
     });
 
     it('maps ANY verifier failure to an opaque 401 without leaking the reason', async () => {
@@ -64,5 +68,24 @@ describe('ClerkAuthService', () => {
         await expect(service.verify('t')).rejects.toBeInstanceOf(UnauthorizedException);
         // The 401 carries no detail from the underlying verification error.
         await expect(service.verify('t')).rejects.not.toThrow(/signature|fingerprint|key/);
+    });
+
+    // ADR-0081: the shared verifier decides; this adapter only names the request and maps the outcome to HTTP.
+    it('names the request to the verifier, so a suspended account can still reach the erasure route', async () => {
+        mockVerify.mockResolvedValue({ sub: 'user_3', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        const request = { method: 'POST', path: '/api/v1/users/me/erasure' };
+
+        await new ClerkAuthService().verify('t', request);
+
+        expect(mockVerify).toHaveBeenCalledWith('t', expect.anything(), request);
+    });
+
+    it('maps a suspended account to 403 ACCOUNT_SUSPENDED, not 401', async () => {
+        mockVerify.mockRejectedValue(new ClerkAccountSuspendedError());
+
+        const error = await new ClerkAuthService().verify('t').catch((thrown: unknown) => thrown);
+
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'ACCOUNT_SUSPENDED' });
     });
 });

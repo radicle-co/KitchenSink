@@ -56,6 +56,15 @@ describe('useRecipeLibrary', () => {
         expect(render().result.current.recipes.map((recipe) => recipe.id)).toEqual(['a', 'b', 'c']);
     });
 
+    // The Recipes screen runs this hook in EVERY read state so the list never changes shape; before the read settles there
+    // is no data, and the model is an empty library.
+    it('is an empty library while the read has no data yet', () => {
+        const { result } = render({ query: queryOf({ data: undefined }) });
+
+        expect(result.current.recipes).toEqual([]);
+        expect(result.current.chunkIds).toEqual([]);
+    });
+
     it('narrows by the search term and reports the state it leaves', () => {
         const { result } = render({ searchValue: 'lamb' });
 

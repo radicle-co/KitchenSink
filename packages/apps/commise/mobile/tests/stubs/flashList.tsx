@@ -99,3 +99,6 @@ export function FlashList<TItem>({
         </ScrollView>
     );
 }
+
+/** `AnimatedFlashList`: the same list under an Animated wrapper on device; jsdom has no native driver, so it is the same stub. */
+export const AnimatedFlashList = FlashList;

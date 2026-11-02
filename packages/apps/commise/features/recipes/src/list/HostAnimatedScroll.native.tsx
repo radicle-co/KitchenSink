@@ -21,6 +21,9 @@ import { useMemo, type ReactElement } from 'react';
 import { Animated, type ScrollViewProps } from 'react-native';
 
 /**
+ * Orchestration: reads the host's scroll offset and builds the one native-driven `Animated.event` over it (a hook and an Animated
+ * node), then hands the Animated scroll view its props. It holds no ref.
+ *
  * @param props - What FlashList hands its scroller: its `onScroll` handler, its ref and the host's other scroll props.
  * @returns The Animated scroll view, with the host's offset attached when a `ScrollHost` is above.
  */

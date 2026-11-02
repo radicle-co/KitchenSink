@@ -1,5 +1,6 @@
 import { createConfig } from '@kitchensink/eslint';
 
-// Two projects: the check project, and the Node scripts with Node's types (`tsconfig.scripts.json` says why).
-const base = createConfig(['./tsconfig.json', './tsconfig.scripts.json'], import.meta.dirname);
+// Three projects: the check project, and two with Node's types: the Node scripts and the font-measuring fit tests
+// (`tsconfig.scripts.json` and `tsconfig.fit.json` say why).
+const base = createConfig(['./tsconfig.json', './tsconfig.scripts.json', './tsconfig.fit.json'], import.meta.dirname);
 export default [...base];

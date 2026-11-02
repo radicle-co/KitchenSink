@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveMessages, SUPPORTED_LOCALES } from '@commise/i18n';
 import { nativeTokens } from '@commise/ui/native';
 import { scaledTypeSize } from '@commise/ui/scaled-type';
-import { segmentLabelRoom } from '@commise/ui/segmented-control/geometry';
+import { SEGMENT_CHROME_CAP, SEGMENT_LABEL_ROLE, segmentLabelRoom } from '@commise/ui/segmented-control/geometry';
 import { asLoadedFace, measureTextWidth } from '@commise/ui/testing/measure-text';
 
 import { recipeMessages } from '../../messages.js';
@@ -20,13 +20,9 @@ import { recipeMessages } from '../../messages.js';
 /** The narrowest phone the boards draw, less its two 16 pt gutters. */
 const TRACK_WIDTH = 360 - 2 * nativeTokens.spacing[4];
 
-/** The control's label role at the chrome cap the control sets, above every system scale. */
-const LABEL_ROLE = 'label';
-const CHROME_CAP = '1.5';
-
 describe('the Recipes route control fits at the chrome cap', () => {
-    const { fontSize } = scaledTypeSize(LABEL_ROLE, Number.POSITIVE_INFINITY, CHROME_CAP);
-    const face = asLoadedFace(nativeTokens.type[LABEL_ROLE].fontFamily);
+    const { fontSize } = scaledTypeSize(SEGMENT_LABEL_ROLE, Number.POSITIVE_INFINITY, SEGMENT_CHROME_CAP);
+    const face = asLoadedFace(nativeTokens.type[SEGMENT_LABEL_ROLE].fontFamily);
     const room = segmentLabelRoom({ trackWidth: TRACK_WIDTH, count: 2, withIcon: false });
 
     it.each(

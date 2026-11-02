@@ -5,7 +5,15 @@
  *
  * @pattern Specification — one pure rule for a segment's label room, read by the control and by the fit test
  */
+import type { ChromeCap } from '../text/scaledType.js';
 import { spacing } from '../tokens/scale.js';
+import type { TypeRole } from '../tokens/typography.js';
+
+/** The role a segment's label is drawn in. */
+export const SEGMENT_LABEL_ROLE = 'label' satisfies TypeRole;
+
+/** The chrome cap a segment's label grows to: navigation chrome, so 1.5× (ADR-0080 §8). */
+export const SEGMENT_CHROME_CAP = '1.5' satisfies ChromeCap;
 
 /** The track's padding on every side, in dp. */
 export const TRACK_INSET = spacing[1];

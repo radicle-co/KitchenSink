@@ -23,6 +23,8 @@ import {
     SEGMENT_GAP,
     SEGMENT_ICON,
     SEGMENT_ICON_GAP,
+    SEGMENT_CHROME_CAP,
+    SEGMENT_LABEL_ROLE,
     SEGMENT_PADDING_X,
     TRACK_INSET,
 } from './nativeSegmentGeometry.js';
@@ -100,7 +102,11 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                         <Icon name={face.icon} size={SEGMENT_ICON} tone={face.selected ? 'ink' : 'inkMuted'} />
                     )}
                     {props.form === 'view' && props.labelVisibility === 'hidden' ? null : (
-                        <Text typeRole="label" chromeCap="1.5" color={face.selected ? '$ink' : '$inkMuted'}>
+                        <Text
+                            typeRole={SEGMENT_LABEL_ROLE}
+                            chromeCap={SEGMENT_CHROME_CAP}
+                            color={face.selected ? '$ink' : '$inkMuted'}
+                        >
                             {face.label}
                         </Text>
                     )}

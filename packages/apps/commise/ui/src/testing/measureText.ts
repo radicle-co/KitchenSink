@@ -9,8 +9,6 @@
  *
  * @pattern Adapter over opentype.js — a registered face name in, the font's own advance widths out
  */
-// Test-only and reads files from disk, so it names Node's types itself: the app packages compile with `types: []`.
-/// <reference types="node" />
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';

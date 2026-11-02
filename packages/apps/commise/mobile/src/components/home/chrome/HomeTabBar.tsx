@@ -31,6 +31,8 @@ import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { TAB_BAR_CHROME_CAP, TAB_BAR_SIDE_PADDING, TAB_LABEL_ROLE } from './homeTabBarGeometry.js';
+
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
     /** The chrome copy, resolved for the active locale. */
@@ -81,8 +83,8 @@ export function HomeTabBar({
                 styles.bar,
                 {
                     paddingBottom: bottomInset,
-                    paddingLeft: SIDE_PADDING + leftInset,
-                    paddingRight: SIDE_PADDING + rightInset,
+                    paddingLeft: TAB_BAR_SIDE_PADDING + leftInset,
+                    paddingRight: TAB_BAR_SIDE_PADDING + rightInset,
                 },
             ]}
         >
@@ -105,8 +107,8 @@ export function HomeTabBar({
                         <View style={[styles.hereBar, selected ? { backgroundColor: colors.hereBar } : null]} />
                         <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} tone={selected ? 'ink' : 'inkMuted'} />
                         <Text
-                            typeRole={selected ? 'label' : 'caption'}
-                            chromeCap="1.5"
+                            typeRole={selected ? TAB_LABEL_ROLE.active : TAB_LABEL_ROLE.inactive}
+                            chromeCap={TAB_BAR_CHROME_CAP}
                             color={selected ? '$ink' : '$inkMuted'}
                         >
                             {label}
@@ -117,9 +119,6 @@ export function HomeTabBar({
         </View>
     );
 }
-
-/** The bar's own side padding; the safe-area inset is added to it. */
-const SIDE_PADDING = nativeTokens.spacing[1];
 
 const styles = StyleSheet.create({
     bar: { flexDirection: 'row', justifyContent: 'space-around' },

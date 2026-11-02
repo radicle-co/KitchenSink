@@ -183,6 +183,10 @@ explicit pick. The review gate checks every paste match, whatever its measured e
     - `POST /api/v1/ingredients/by-name` asks food alone and consults no tier. It still binds a food that food itself
       answers `RESOLVED`, because pressing "Find nutrition for X" is the cook's own act.
     - The version restorer calls `IngredientsService.addByNameThroughCascade`. That method is for the restorer only.
+    - On the paste path (`matchStateOf`) a default shows only when no match was found (owner ruling 5). A curated
+      mapping, or a memo of another food, is a match and wins over the default. A memo of the default food itself
+      stays a default, because a cook who keeps the default and saves would otherwise teach it as confident to the
+      next cook. A test pins that loop.
     - The proposals are not the paste matcher's: they run the settled chain alone (two local reads), so the field adds no
       catalog search. The field's own list already shows the catalog's hits for the typed text.
 

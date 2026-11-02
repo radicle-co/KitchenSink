@@ -353,6 +353,11 @@ export class ParseJobMatchView {
                     : { matchedBy: match.proposal.matchedBy, rung: match.proposal.rung },
             candidateCount: candidates.length,
             defaultApplies: candidates.some((candidate) => candidate.isDefault),
+            proposalIsDefault:
+                proposed !== null &&
+                candidates.some(
+                    (candidate) => candidate.isDefault && candidate.kind === proposed.kind && candidate.id === proposed.id,
+                ),
             verdict:
                 verdict === undefined
                     ? undefined

@@ -8,6 +8,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./boundary": "./src/QueryBoundary.tsx",
+        "./pending-slot": "./src/pendingSlot.tsx",
         "./refresh-notice": "./src/useRefreshNotice.ts",
         "./recovery-signal": "./src/useRecoverySignal.ts",
         "./offline": "./src/offlineReadNotice.tsx",

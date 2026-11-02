@@ -130,8 +130,10 @@ REQUESTER_LIMIT_REACHED` with `retryAfterSeconds`, because they call food direct
     list. If no other host passes one, the placeholder rows go from both leaves.
 12. **The web popup holds still** (S7 list contract P9). As it opens on a text, it picks its side, once. It picks
     inside the space that the host's fixed and sticky chrome leaves. The host passes those insets, and floating-ui's
-    collision padding applies them. The chrome stacks above the popup. A popup that opens above its field takes its
-    full height at once, so content that arrives later fills it from the top down.
+    collision padding applies them. The chrome stacks above the popup. A popup that opens above its field sizes to its
+    content. Its bottom edge stays against the field, so it grows upward as content arrives. This replaces "takes its
+    full height at once", which left a blank area (amended 2026-11-02). The rows nearest the field stay put. If the
+    list changes while a row is pressed, that press is cancelled.
 13. **Four needs on S7's wire** (ADR-0055 point 9). The architect names the shapes.
     - The database frame says, for each of its two groups, answered or unavailable. So each group can fail alone.
     - Every remote frame names its source by register id. The apps read the display name from the register through

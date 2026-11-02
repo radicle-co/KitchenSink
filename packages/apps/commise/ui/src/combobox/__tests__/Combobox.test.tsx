@@ -1579,26 +1579,79 @@ describe('Combobox (web) — where the list is placed (2.4.11, §8e; `docs/desig
 
     // P9: "A popup above its field takes its full height at once", so content that arrives fills it from the top down
     // and its top edge never moves.
-    it('takes its full height at once when it opens above its field, and only grows to fit when below', async () => {
+    // P9 REVERSED by the designer (NoMatch and Loading retakes): a popup above its field no longer takes a fixed full
+    // height, loader or not. A short loading popup must be short, so both sides size to their content, up to the maximum.
+    it.each([
+        { name: 'with a loader', trailingStatus: [{ kind: 'loading', label: 'Still searching' }] },
+        { name: 'with a note', trailingStatus: [{ kind: 'note', text: 'Nothing else matches.' }] },
+        { name: 'with no status line', trailingStatus: [] },
+    ] as const)('sizes to its content, capped at the maximum, above its field $name and below it', async (host) => {
         const user = userEvent.setup();
-        layOut(640);
-        render(<Host />);
+        const capped = 'max-h-[min(20rem,var(--combobox-available-height,20rem))]';
 
+        layOut(640);
+        render(<Host trailingStatus={[...host.trailingStatus]} />);
         await user.type(field(), 'f');
         await waitFor(() => {
-            expect(popup().className.split(/\s+/)).toContain('h-[min(20rem,var(--combobox-available-height,20rem))]');
+            expect(popup().className.split(/\s+/)).toContain(capped);
         });
+        expect(popup().className.split(/\s+/)).not.toContain('h-[min(20rem,var(--combobox-available-height,20rem))]');
 
         cleanup();
         layOut(300);
-        render(<Host />);
+        render(<Host trailingStatus={[...host.trailingStatus]} />);
         await user.type(field(), 'f');
-
         await waitFor(() => {
-            expect(popup().className.split(/\s+/)).toContain(
-                'max-h-[min(20rem,var(--combobox-available-height,20rem))]',
-            );
+            expect(popup().className.split(/\s+/)).toContain(capped);
         });
+    });
+});
+
+describe('Combobox (web) — a press whose list changed under the finger picks nothing', () => {
+    const A = { key: 'a', label: 'Aubergine' } as const;
+    const B = { key: 'b', label: 'Basil' } as const;
+    const listOf = (...options: readonly (typeof A | typeof B)[]): readonly ComboboxGroup[] => [{ key: 'g', options }];
+
+    it('pressing A, then the list changes so B sits there, and releasing on B picks nothing', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const { rerender } = render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+
+        await user.type(field(), 'x');
+        fireEvent.pointerDown(option('Aubergine'));
+        // A content update lands while the press is down: A is gone, B takes its place.
+        rerender(<Host groups={listOf(B)} onSelect={onSelect} />);
+        fireEvent.pointerUp(option('Basil'));
+        fireEvent.click(option('Basil'));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('a press with no list change still picks', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+
+        render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+        await user.type(field(), 'x');
+        fireEvent.pointerDown(option('Aubergine'));
+        fireEvent.pointerUp(option('Aubergine'));
+        fireEvent.click(option('Aubergine'));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('a');
+    });
+
+    it('a later press, after the cancelled one, picks normally', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const { rerender } = render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+
+        await user.type(field(), 'x');
+        fireEvent.pointerDown(option('Aubergine'));
+        rerender(<Host groups={listOf(B)} onSelect={onSelect} />);
+        fireEvent.click(option('Basil'));
+        await user.click(option('Basil'));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('b');
     });
 });
 

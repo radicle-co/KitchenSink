@@ -176,7 +176,7 @@ describe('cascade precedence against a real knowledge base', () => {
 
     /** Add the phrase by name, as {@link AUTHOR}. */
     async function addByName(phrase: string) {
-        return ingredients.addByName(CALLER, makeCanonicalName(`${PREFIX} ${phrase}`), AUTHOR);
+        return ingredients.addByNameThroughCascade(CALLER, makeCanonicalName(`${PREFIX} ${phrase}`), AUTHOR);
     }
 
     it('a gate-agreed MEMO outranks a catalog hit for the same phrase', async () => {

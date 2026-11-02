@@ -69,12 +69,14 @@ import { apiError } from '../common/apiError.js';
 import { canonicalIngredientName, type CanonicalIngredientName } from './domain/ingredientName.js';
 import { IngredientsService } from './ingredients.service.js';
 import type { FoodReferencesResponse } from './ingredients.schema.js';
-import type { IngredientFoodNutritionResponse } from './ingredients.schema.js';
+import type { IngredientFoodNutritionResponse, IngredientNameProposalsResponse } from './ingredients.schema.js';
 import { AddIngredientByFoodDto } from './dto/addIngredientByFood.dto.js';
 import { AddIngredientByFoodVariantDto } from './dto/addIngredientByFoodVariant.dto.js';
 import { CreateIngredientDto } from './dto/createIngredient.dto.js';
 import { IngredientFoodNutritionDto } from './dto/ingredientFoodNutrition.dto.js';
 import { IngredientNutritionReader } from './ingredientNutrition.reader.js';
+import { IngredientNameProposalsQueryDto } from './dto/ingredientNameProposalsQuery.dto.js';
+import { NameProposalsService } from './nameProposals.service.js';
 import { SearchRateLimit, WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 /** Parse the optional `limit` query param into a number (the DAL clamps it into `[1, 50]`, default 10). */
@@ -103,6 +105,8 @@ export class IngredientsController {
         private readonly ingredients: IngredientsService,
         /** The batch food nutrition read (plan 002 U9): a read, beside the catalog it reads about. */
         @Inject(IngredientNutritionReader) private readonly foodNutrition: Pick<IngredientNutritionReader, 'read'>,
+        /** The add field's suggestions (owner rulings 2026-11-03): what the settled tiers remember, offered, never bound. */
+        @Inject(NameProposalsService) private readonly nameProposalsService: Pick<NameProposalsService, 'propose'>,
     ) {}
 
     /**
@@ -133,6 +137,38 @@ export class IngredientsController {
 
         // R20 (plan U11): the caller's identity scopes private-food bindings into (only) their own results.
         return this.ingredients.search(caller, query, ownerId, parseLimit(limit));
+    }
+
+    /**
+     * `GET /api/v1/ingredients/by-name/proposals?name=` — the foods the add-by-name field SUGGESTS for what the cook typed.
+     *
+     * What the settled tiers remember for the phrase: the cook's own earlier correction, a staff ruling, two cooks
+     * agreeing, a memo another cook's save taught. Each is offered and none is bound. The cook picks one in the field's
+     * list, and the pick binds through `by-food` or `by-food-variant` (owner rulings 2026-11-03; ADR-0071 as amended).
+     *
+     * A safe read, so GET: no write, no erasure lock, and a client can cancel and dedupe it. The answer varies by caller
+     * (their own corrections, their own private foods), so no shared cache may keep it. Always `200`: a food food will
+     * not show, or a source that could not be read, is absent from the list and nothing says why.
+     *
+     * Its own read bucket (`@SearchRateLimit`, 60 a minute), not the write bucket: the field asks as the cook types.
+     *
+     * ⚠️ Declared BEFORE the `:id/*` routes — Nest matches in declaration order.
+     *
+     * @param ownerId - The verified caller ULID; the cook whose own corrections and private foods may appear.
+     * @param caller - The caller's own bearer, forwarded so food names each food as this user.
+     * @param query - `{ name }`, validated by {@link IngredientNameProposalsQueryDto}.
+     * @returns The phrase and the proposals, strongest source first.
+     * @throws {BadRequestException} (→ 400) when the name has no visible content.
+     */
+    @Get('by-name/proposals')
+    @SearchRateLimit()
+    @Header('Cache-Control', 'private, no-store')
+    public async nameProposals(
+        @OwnerId() ownerId: string,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Query() query: IngredientNameProposalsQueryDto,
+    ): Promise<IngredientNameProposalsResponse> {
+        return this.nameProposalsService.propose(caller, this.visibleName(query.name), ownerId);
     }
 
     /**

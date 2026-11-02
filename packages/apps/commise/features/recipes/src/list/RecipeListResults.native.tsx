@@ -14,7 +14,7 @@ import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
 import { contentWidthOf } from '@commise/ui/container-class';
 import { useFrameCollapsed } from '@commise/ui/layout';
-import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { nativeTokens } from '@commise/ui/native';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
@@ -119,6 +119,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
     scrollBind,
 }) => {
     const { width } = useWindowDimensions();
+    const fabRoom = useFabReservedBottom();
     const collapsed = useFrameCollapsed();
     const { list } = useMessages(recipeMessages);
     const { colors } = useTheme();
@@ -180,7 +181,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
             ListEmptyComponent={emptyBody}
             ListFooterComponent={showingRows ? loadMoreControl : null}
             style={styles.cardsScroll}
-            contentContainerStyle={styles.cards}
+            contentContainerStyle={{ paddingBottom: fabRoom }}
             keyboardShouldPersistTaps="handled"
             refreshControl={
                 !showingRows || refresh === undefined ? undefined : (
@@ -295,7 +296,6 @@ const styles = StyleSheet.create({
     cardsScroll: { flex: 1 },
     // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state, the empty ones
     // too (they are the list's empty body).
-    cards: { paddingBottom: FAB_RESERVED_BOTTOM_PX },
     gridCell: { flex: 1, paddingHorizontal: GRID_GAP / 2 },
     rowSeparator: { height: nativeTokens.spacing[2] },
     gridSeparator: { height: GRID_GAP },

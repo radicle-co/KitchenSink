@@ -88,6 +88,7 @@ export const trailingEntryFieldOf = (
             active: entry.isActive(TRAILING),
             text,
             view: entry.view,
+            suggestions: entry.suggestions,
             databaseSaidEarly: entry.databaseSaidEarly,
             pickFailure: input.pickFailure,
             offersCreateOwnFood: true,

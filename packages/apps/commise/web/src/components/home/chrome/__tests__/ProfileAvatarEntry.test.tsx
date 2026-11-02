@@ -69,4 +69,13 @@ describe('ProfileAvatarEntry (web)', () => {
 
         expect(screen.getByRole('link', { name: 'Profile' }).querySelector('svg')).not.toBeNull();
     });
+
+    it('draws the 32 px disc by default and the large 36 px disc when asked (Home’s header)', () => {
+        renderWithProviders(<ProfileAvatarEntry />);
+
+        expect(screen.getByRole('link').firstElementChild?.className).toContain('size-8');
+        cleanup();
+        renderWithProviders(<ProfileAvatarEntry size="large" />);
+        expect(screen.getByRole('link').firstElementChild?.className).toContain('size-9');
+    });
 });

@@ -45,6 +45,8 @@ describe('useHomeGreeting', () => {
 
         const { result } = renderHook(() => useHomeGreeting(undefined), { wrapper });
 
-        expect(result.current.subtitle).toBe(formatHomeDate(now, 'en'));
+        // The date is "today", so it never carries the year (board: "Sunday 25 October").
+        expect(result.current.subtitle).toBe(formatHomeDate(now, 'en', now));
+        expect(result.current.subtitle).not.toContain('2026');
     });
 });

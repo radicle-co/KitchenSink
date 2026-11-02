@@ -7,10 +7,11 @@
  *
  * ## The precedence, from the owner's rulings of 2026-10-25 and the coordinator's decisions
  *
- *  1. **A default applies to the phrase**: `default`, whatever answered (or nothing did) and whatever the gate said. A
- *     default is shown first, never selected (ruling 2). It outranks a curated or memo answer on purpose: a cook who
- *     keeps the default and saves can teach the memo tier "salt → table salt", and a confident memo would then select it
- *     for the next cook.
+ *  1. **A default applies to the phrase and no match beat it**: `default`, whatever the gate said. A default is shown
+ *     first, never selected (ruling 2). A curated mapping, or a memo of ANOTHER food, is a match and wins (owner ruling 5,
+ *     2026-11-03: defaults show when no match was found). A memo of the DEFAULT food stays `default`, on purpose: a cook
+ *     who keeps the default and saves can teach the memo tier "salt → table salt", and a confident memo would then select
+ *     it for the next cook (the M2 loop, pinned in `matchState.test.ts`).
  *  2. **Nothing proposed**: `noMatch` with no candidates, `needsChoice` with some.
  *  2b. **A spent AI budget** (owner ruling 2026-10-26): `needsChoice` with reason `reviewBudgetSpent`, ahead of
  *     everything below, unless a verdict that asked identity is on record. Curated, remembered and exact-name
@@ -100,6 +101,12 @@ export interface MatchFacts {
     readonly candidateCount: number;
     /** Whether the shortlist holds a candidate on the default rung. */
     readonly defaultApplies: boolean;
+    /**
+     * Whether the proposed food IS the shortlist's default food. A memo of the default is the M2 loop: a cook who keeps
+     * the default and saves teaches the memo tier that default, and the next cook's memo would then select it. `false`
+     * when nothing was proposed.
+     */
+    readonly proposalIsDefault: boolean;
     /** The gate's verdict on the proposal, or `undefined` when there is none yet. */
     readonly verdict: MatchVerdict | undefined;
     /**
@@ -127,7 +134,14 @@ export interface MatchStateAnswer {
 export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
     const { proposal, verdict } = facts;
 
-    if (facts.defaultApplies) {
+    // A default shows only when no MATCH was found (owner ruling 5, 2026-11-03). A curated mapping is a person's decision
+    // and a memo of ANOTHER food is a match, so both win. A memo of the DEFAULT food is not a match: it is the default
+    // remembered, and letting it through would let a cook who kept the default teach it as confident to the next cook.
+    const matchedBeyondTheDefault =
+        proposal !== undefined &&
+        (proposal.matchedBy === 'curated' || (proposal.matchedBy === 'memo' && !facts.proposalIsDefault));
+
+    if (facts.defaultApplies && !matchedBeyondTheDefault) {
         return { state: 'default', reason: 'defaultApplies' };
     }
 

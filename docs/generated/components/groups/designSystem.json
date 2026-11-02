@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 89,
-        "implementations": 148,
-        "props": 820,
-        "documentedComponents": 89,
-        "implementationsWithModuleDoc": 148,
-        "implementationsWithComponentDoc": 134,
-        "documentedProps": 778,
-        "classifiedComponents": 82,
-        "componentsWithPatternTag": 89,
+        "components": 90,
+        "implementations": 149,
+        "props": 848,
+        "documentedComponents": 90,
+        "implementationsWithModuleDoc": 149,
+        "implementationsWithComponentDoc": 135,
+        "documentedProps": 800,
+        "classifiedComponents": 83,
+        "componentsWithPatternTag": 90,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -353,6 +353,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
                             "name": "status",
                             "type": "enum",
                             "typeDetail": [
@@ -378,7 +390,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/Avatar.native.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the native design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8).\nA `Pressable` button in a 44 pt target around the 32 pt disc. The disc is `AvatarDisc`.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the native design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8).\nA `Pressable` button in a 44 pt target around the disc, which is `AvatarDisc` at either size.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -431,6 +443,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
                             "name": "status",
                             "type": "enum",
                             "typeDetail": [
@@ -462,6 +486,8 @@
             "dir": "packages/apps/commise/ui/src/avatar",
             "kind": "presentational",
             "patterns": [
+                "Variant — the disc's form is a closed `Record` over `AvatarSize`, the discriminated-union render map",
+                "Variant — the face and the size are Tamagui variants, the discriminated-union render map",
                 "Visitor — an exhaustive switch over the disc's three faces"
             ],
             "platforms": [
@@ -477,18 +503,22 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/AvatarDisc.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the web avatar's 32 px disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile\nloads, initials on `action` with a name, the `user` glyph without one or after a failed read. Decorative: the control\nit sits in — the avatar, or the sidebar's profile row — carries the name.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the web avatar's disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile\nloads, initials on `action` with a name, the `user` glyph without one or after a failed read. Decorative: the control\nit sits in — the avatar, or the sidebar's profile row — carries the name.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/avatar — the web avatar's 32 px disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile"
+                            "text": "@commise/ui/avatar — the web avatar's disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile"
                         },
                         {
                             "name": "pattern",
                             "text": "Visitor — an exhaustive switch over the disc's three faces"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the disc's form is a closed `Record` over `AvatarSize`, the discriminated-union render map"
                         }
                     ],
-                    "description": "The 32 px disc, decorative: the control it sits in carries the name.",
+                    "description": "The disc, decorative: the control it sits in carries the name.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -500,6 +530,18 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's initials, or empty when there is no name. Read only when `status` is `ready`.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": "default",
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
@@ -528,18 +570,22 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the native avatar's 32 pt disc, alone (`buildSpec.md` §3.3, §3.8). Decorative: the\ncontrol it sits in carries the name. Colours come from the theme at render.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the native avatar's disc, alone (`buildSpec.md` §3.3, §3.8): 32 pt, or the Home header's\n`large` 36 pt disc with the small shadow and a 1 pt divider ring. Decorative: the control it sits in carries the name.\nColours are theme keys, so the disc follows the scheme with no hook.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/avatar — the native avatar's 32 pt disc, alone (`buildSpec.md` §3.3, §3.8). Decorative: the"
+                            "text": "@commise/ui/avatar — the native avatar's disc, alone (`buildSpec.md` §3.3, §3.8): 32 pt, or the Home header's"
                         },
                         {
                             "name": "pattern",
                             "text": "Visitor — an exhaustive switch over the disc's three faces"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the face and the size are Tamagui variants, the discriminated-union render map"
                         }
                     ],
-                    "description": "The 32 pt disc, decorative: the control it sits in carries the name.",
+                    "description": "The disc, decorative: the control it sits in carries the name.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -551,6 +597,18 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's initials, or empty when there is no name. Read only when `status` is `ready`.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": "default",
+                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
@@ -2313,7 +2371,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/combobox/Combobox.tsx",
                     "dir": "packages/apps/commise/ui/src/combobox",
-                    "moduleDoc": "@commise/ui/combobox — the web `Combobox`: a text field with a list of suggestions below it, chosen\nexplicitly (`docs/design/ingredientStatusExplanation.md` §2a, §3, §8d). A presentational design-system primitive:\nthe host owns the text and the suggestions, and this leaf holds only whether the list shows and which option is\nactive.\n\ndownshift `useCombobox` owns the APG behaviour (roles and states, the keys, the active descendant, scrolling the\nactive option into view, an outside press), and `@floating-ui/react-dom` places the list\n(`docs/design/rowEditorOpenDecisions.md` V3-1, V3-2): below the field, or above it when its full height fits only\nthere, or on the side with more room when it fits on neither; as wide as the field, or 20rem when the field is\nnarrower (the width `@commise/ui/popover` takes); sliding along the viewport's edge rather than narrowing; and never\nover the page's own fixed or sticky chrome, which the page reports through `@commise/ui/popup-insets`. Where this\nleaf departs from downshift's defaults (`docs/design/rowEditorBlueprint.md` decision 3):\n\n- ⛔ Only a press, or Enter on the active option, chooses (3.2.2): never Tab or leaving the field, never Enter with\n  nothing active, never a busy option, and never while an input method is composing.\n- ⛔ The text is the host's alone: the field forwards what the cook types in the change event itself, and downshift\n  never rewrites it, so a selection or an Escape never changes it behind the host and the caret stays where the\n  cook is typing.\n- Enter with nothing active is reported to the host (`onSubmitWithoutChoice`). Under `typedText=\"isValue\"` it also\n  closes the list, because the typed text is the value (`docs/design/uiOverhaul/cuisineField.md` §4 P1).\n- Enter never submits the form around the field; Escape on a closed list abandons the entry through the host, or is\n  left to the page when the host takes no abandon; Home and End move the caret (§3e); a press in the field moves the\n  caret and leaves the list as it is.\n- The active option is held by its KEY, so a list that changes under the cook keeps it or drops it, and never moves\n  the highlight onto another option.\n- One polite and one assertive region, both mounted before their text changes (4.1.3). The polite one speaks only\n  while the popup shows (`ComboboxProps.countAnnouncement`); the assertive one is never held back. The status lines\n  are shown and never live, so nothing is spoken twice.\n- The popup reads the status line, then the listbox, then the trailing lines in the host's order (1.3.2;\n  `docs/design/rowEditorOpenDecisions.md` R1, system change 11). The lines sit outside the listbox, whose children\n  may only be options and groups, and the listbox is never `aria-busy` (S7 list contract P2). A search in flight is\n  one still line, a glyph and its label, never placeholder rows (P3).\n- The popup chooses its side once per text, from a first render at a fixed full height that is invisible, and keeps\n  it while that text's list grows; above its field it takes its full height at once, so arriving content never moves\n  an option (P9, V3-1).\n- The status lines never squeeze the list: the listbox keeps a floor of up to three option rows, and the popup's card\n  scrolls when the lines and that floor are taller than it (1.4.4, V3-3). The active option scrolls into view in the\n  card as well as in the listbox.\n- An option shows its label and its variant's parts, all presentation: an option holds no control (APG). The active\n  option takes the `surfaceMuted` fill (linen since D11; it was pearl) and the `selectedEdge` ring the details\n  dialog's active row takes (V3-4).\n- The web field has no clear button: Escape on a closed list clears it, through the host.\n- A touch drag on the page outside the open list closes it; a drag inside it scrolls the list, whose card contains its\n  own scroll, so the page under it stays put.\n- ⛔ No transition classes, so `prefers-reduced-motion` has nothing to suppress.\n\nThe field is the house text field (`docs/design/uiOverhaul/buildSpec.md` §7.4): a visible `FieldLabel` above it with\nthe hint under that label, and the `FIELD_CLASS` rectangle, not an underline. The list is anchored to a box around the\ninput and the line the host draws under it (`belowField`), so it opens below that line and never covers it (E14).\n\nA host's focus request needs the input's node, for `.focus()` and the caret, which have no declarative form. It is\nheld in state through a callback ref, as floating-ui holds its reference node, so this leaf holds no `useRef`.",
+                    "moduleDoc": "@commise/ui/combobox — the web `Combobox`: a text field with a list of suggestions below it, chosen\nexplicitly (`docs/design/ingredientStatusExplanation.md` §2a, §3, §8d). A presentational design-system primitive:\nthe host owns the text and the suggestions, and this leaf holds only whether the list shows and which option is\nactive.\n\ndownshift `useCombobox` owns the APG behaviour (roles and states, the keys, the active descendant, scrolling the\nactive option into view, an outside press), and `@floating-ui/react-dom` places the list\n(`docs/design/rowEditorOpenDecisions.md` V3-1, V3-2): below the field, or above it when its full height fits only\nthere, or on the side with more room when it fits on neither; as wide as the field, or 20rem when the field is\nnarrower (the width `@commise/ui/popover` takes); sliding along the viewport's edge rather than narrowing; and never\nover the page's own fixed or sticky chrome, which the page reports through `@commise/ui/popup-insets`. Where this\nleaf departs from downshift's defaults (`docs/design/rowEditorBlueprint.md` decision 3):\n\n- ⛔ Only a press, or Enter on the active option, chooses (3.2.2): never Tab or leaving the field, never Enter with\n  nothing active, never a busy option, and never while an input method is composing.\n- ⛔ The text is the host's alone: the field forwards what the cook types in the change event itself, and downshift\n  never rewrites it, so a selection or an Escape never changes it behind the host and the caret stays where the\n  cook is typing.\n- Enter with nothing active is reported to the host (`onSubmitWithoutChoice`). Under `typedText=\"isValue\"` it also\n  closes the list, because the typed text is the value (`docs/design/uiOverhaul/cuisineField.md` §4 P1).\n- Enter never submits the form around the field; Escape on a closed list abandons the entry through the host, or is\n  left to the page when the host takes no abandon; Home and End move the caret (§3e); a press in the field moves the\n  caret and leaves the list as it is.\n- The active option is held by its KEY, so a list that changes under the cook keeps it or drops it, and never moves\n  the highlight onto another option.\n- One polite and one assertive region, both mounted before their text changes (4.1.3). The polite one speaks only\n  while the popup shows (`ComboboxProps.countAnnouncement`); the assertive one is never held back. The status lines\n  are shown and never live, so nothing is spoken twice.\n- The popup reads the status line, then the listbox, then the trailing lines in the host's order (1.3.2;\n  `docs/design/rowEditorOpenDecisions.md` R1, system change 11). The lines sit outside the listbox, whose children\n  may only be options and groups, and the listbox is never `aria-busy` (S7 list contract P2). A search in flight is\n  one still line, a glyph and its label, never placeholder rows (P3).\n- The popup chooses its side once per text, from a first render at a fixed full height that is invisible, and keeps\n  it while that text's list grows. Both sides then size to their content, up to a maximum, so a short or empty\n  popup leaves no blank area (the designer's review reversed P9's fixed height above the field; V3-1). Because a\n  popup above its field grows upward, a press that begins on one list and ends on another picks nothing.\n- The status lines never squeeze the list: the listbox keeps a floor of up to three option rows, and the popup's card\n  scrolls when the lines and that floor are taller than it (1.4.4, V3-3). The active option scrolls into view in the\n  card as well as in the listbox.\n- An option shows its label and its variant's parts, all presentation: an option holds no control (APG). The active\n  option takes the `surfaceMuted` fill (linen since D11; it was pearl) and the `selectedEdge` ring the details\n  dialog's active row takes (V3-4).\n- The web field has no clear button: Escape on a closed list clears it, through the host.\n- A touch drag on the page outside the open list closes it; a drag inside it scrolls the list, whose card contains its\n  own scroll, so the page under it stays put.\n- ⛔ No transition classes, so `prefers-reduced-motion` has nothing to suppress.\n\nThe field is the house text field (`docs/design/uiOverhaul/buildSpec.md` §7.4): a visible `FieldLabel` above it with\nthe hint under that label, and the `FIELD_CLASS` rectangle, not an underline. The list is anchored to a box around the\ninput and the line the host draws under it (`belowField`), so it opens below that line and never covers it (E14).\n\nA host's focus request needs the input's node, for `.focus()` and the caret, which have no declarative form. It is\nheld in state through a callback ref, as floating-ui holds its reference node, so this leaf holds no `useRef`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8926,6 +8984,354 @@
                             "defaultValue": null,
                             "description": "Whether newer results are pending while older ones stay on screen. The bar appears once this has held for\n`PENDING_BAR_DELAY_MS`, and goes as soon as it clears.",
                             "declaredIn": "packages/apps/commise/ui/src/pendingBar/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/photo/Photo",
+            "name": "Photo",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/photo",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over expo-image's Image — a disk-cached native image behind Tamagui's style system",
+                "Variant — the boolean `fill`, as a Tamagui variant, not a branch"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "Photo",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/photo",
+                    "moduleDoc": "@commise/ui/photo — the native design-system {@link Photo}: Tamagui's `styled()` over expo-image's `Image`, so a\nphoto is sized with tokens and variants and not a React Native `style` (ADR-0080). expo-image's own props pass through\nby type and untouched: `source`, `contentFit`, `contentPosition`, `cachePolicy`, `accessibilityLabel` and the platform\npair that hides it from assistive tech (`accessibilityElementsHidden`, `importantForAccessibility`).\n\n`fill` makes the photo exactly as wide and as tall as its parent. A caller's own size prop still wins.\n\nNative only, like the text and the modal: the web leaves draw their photos through `<img>`.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/photo — the native design-system {@link Photo}: Tamagui's `styled()` over expo-image's `Image`, so a"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over expo-image's Image — a disk-cached native image behind Tamagui's style system"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the boolean `fill`, as a Tamagui variant, not a branch"
+                        }
+                    ],
+                    "description": "A photo. `fill` stretches it across its parent.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "animatedBy",
+                            "type": "\"default\" | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Select which animation driver to use for this component.\nPass a string key matching a driver registered in the `animations` config.\nExample: `<View animatedBy=\"spring\">` when config has `animations: { default: css, spring: moti }`",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "asChild",
+                            "type": "boolean | \"web\" | \"except-style\" | \"except-style-web\"",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When truthy passes through all props to a single child element, and avoids rendering its own element.\nMust pass just one child React element that will receive all the props.\n\nThe option \"except-style\" will avoid passing any style related props.\n\nThe option \"web\" will map all React Native style props to web props (onPress becomes onClick).\n\nThe option \"except-style-web\" combines the except-style and web options.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web className property, useful for applying styles from CSS on web only",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "container",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as an inline-size query container. A string names the\ncontainer for matching `@sm/name:` clauses.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "dangerouslySetInnerHTML",
+                            "type": "{ __html: string; }",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "debug",
+                            "type": "DebugProp",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableClassName",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disables className output of styles, instead using only inline styles",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableNativeStyle",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Opt this component out of the experimental native style fast path\n(setNativeStyleEngine); it re-renders through React on theme/media\nchanges like normal",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableOptimization",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disable all compiler optimization",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "forceStyle",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hover\"",
+                                "\"press\"",
+                                "\"focus\"",
+                                "\"focusVisible\"",
+                                "\"focusWithin\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Forces the pseudo style state to be on",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "group",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as a group for use in styling children based on parents named group\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "hitSlop",
+                            "type": "((number | Insets) & (number | Insets)) | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Adds some area outside the typical bounds of the component for touch actions to register.\nTamagui uses Pressable internally so it supports `number | Insets` rather than just `Insets`\nThis defines how far a touch event can start away from the view.\nTypical interface guidelines recommend touch targets that are at least\n30 - 40 points/density-independent pixels. If a Touchable view has\na height of 20 the touchable height can be extended to 40 with\nhitSlop={{top: 10, bottom: 10, left: 0, right: 0}}\nNOTE The touch area never extends past the parent view bounds and\nthe Z-index of sibling views always takes precedence if a touch\nhits two overlapping views.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "htmlFor",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "id",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web id property for setting a uid on an element\nUsed to reference react managed views from native code.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "web: forwards to the HTML name attribute.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "ref",
+                            "type": "Ref<Image>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "render",
+                            "type": "ReactElement<unknown, string | JSXElementConstructor<any>> | keyof HTMLElementTagNameMap | (string & {}) | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Controls the rendered element on web.\n- String: renders as that HTML element (e.g., `render=\"button\"`)\n- JSX Element: clones element with merged props (e.g., `render={<a href=\"/\" />}`)\n- Function: full control with props and state (e.g., `render={(props) => <Custom {...props} />}`)\n@example render=\"button\"\n@example render={<a href=\"/\" />}\n@example render={(props, state) => <MyComponent {...props} isPressed={state.press} />}",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "role",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"status\"",
+                                "\"timer\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"button\"",
+                                "\"link\"",
+                                "\"heading\"",
+                                "\"group\"",
+                                "\"alert\"",
+                                "\"dialog\"",
+                                "\"none\"",
+                                "\"alertdialog\"",
+                                "\"application\"",
+                                "\"article\"",
+                                "\"banner\"",
+                                "\"cell\"",
+                                "\"checkbox\"",
+                                "\"columnheader\"",
+                                "\"combobox\"",
+                                "\"complementary\"",
+                                "\"contentinfo\"",
+                                "\"definition\"",
+                                "\"directory\"",
+                                "\"document\"",
+                                "\"feed\"",
+                                "\"figure\"",
+                                "\"form\"",
+                                "\"grid\"",
+                                "\"img\"",
+                                "\"listitem\"",
+                                "\"log\"",
+                                "\"main\"",
+                                "\"marquee\"",
+                                "\"math\"",
+                                "\"menubar\"",
+                                "\"menuitem\"",
+                                "\"meter\"",
+                                "\"navigation\"",
+                                "\"note\"",
+                                "\"option\"",
+                                "\"presentation\"",
+                                "\"progressbar\"",
+                                "\"radio\"",
+                                "\"radiogroup\"",
+                                "\"region\"",
+                                "\"row\"",
+                                "\"rowgroup\"",
+                                "\"rowheader\"",
+                                "\"scrollbar\"",
+                                "\"searchbox\"",
+                                "\"separator\"",
+                                "\"slider\"",
+                                "\"spinbutton\"",
+                                "\"summary\"",
+                                "\"switch\"",
+                                "\"tab\"",
+                                "\"table\"",
+                                "\"tablist\"",
+                                "\"tabpanel\"",
+                                "\"term\"",
+                                "\"toolbar\"",
+                                "\"tooltip\"",
+                                "\"tree\"",
+                                "\"treegrid\"",
+                                "\"treeitem\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Equivalent to role=\"\" attribute on web for accessibility\nIndicates to accessibility services to treat UI component like a specific role.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "tabIndex",
+                            "type": "enum",
+                            "typeDetail": [
+                                "0",
+                                "-1"
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Used for controlling the order of focus with keyboard or assistive device enavigation\nSee https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex\nIndicates whether this `View` should be focusable with a non-touch input device, eg. receive focus with a hardware keyboard.\nSee https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex\nfor more details.\n\nSupports the following values:\n-  0 (View is focusable)\n- -1 (View is not focusable)",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "target",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "theme",
+                            "type": "ThemeName | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Applies a theme to this element",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "themeShallow",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "If given a theme it will only apply to this element, instead of passing down to children",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "untilMeasured",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hide\"",
+                                "\"show\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Works alongside container. On native, children using container sizing can\nbe hidden until the parent is measured.\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],

@@ -66,6 +66,7 @@ export { useCollection } from './hooks/useCollection.js';
 export { useSearchRecipes } from './hooks/useSearchRecipes.js';
 export { useInfiniteSearchRecipes } from './hooks/useInfiniteSearchRecipes.js';
 export { useSearchIngredients } from './hooks/useSearchIngredients.js';
+export { useIngredientNameProposals } from './hooks/useIngredientNameProposals.js';
 export { useIngredientStatus } from './hooks/useIngredientStatus.js';
 export { useIngredientFoodNutrition } from './hooks/useIngredientFoodNutrition.js';
 export type { IngredientStatusOptions } from './hooks/useIngredientStatus.js';

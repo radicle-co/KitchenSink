@@ -42,6 +42,8 @@ const entry: IngredientRowView['entryField']['entry'] = {
     selectRemoteFood: noop,
     findByName: noop,
     declareAsWritten: noop,
+    suggestions: [],
+    selectSuggestion: noop,
 };
 
 /** The facts that differ from row to row; everything else is the quiet, healthy row. */

@@ -29,5 +29,5 @@ export function useHomeGreeting(name: string | undefined): HomeGreeting {
     const locale = useLocale();
     const now = new Date();
 
-    return { title: homeGreetingOf(copy, name, now.getHours()), subtitle: formatHomeDate(now, locale) };
+    return { title: homeGreetingOf(copy, name, now.getHours()), subtitle: formatHomeDate(now, locale, now) };
 }

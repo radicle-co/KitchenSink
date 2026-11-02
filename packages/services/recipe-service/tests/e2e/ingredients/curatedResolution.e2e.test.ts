@@ -148,7 +148,7 @@ describe('the curated-resolution learning loop', () => {
 
     /** Add the phrase by name, as the given user. */
     async function addByName(phrase: string, userId: string | undefined) {
-        return ingredients.addByName(CALLER, makeCanonicalName(`${PREFIX} ${phrase}`), userId);
+        return ingredients.addByNameThroughCascade(CALLER, makeCanonicalName(`${PREFIX} ${phrase}`), userId);
     }
 
     it('a CURATOR’s single correction resolves the phrase for a different user, with no food-service add', async () => {

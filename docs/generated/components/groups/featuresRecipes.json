@@ -4847,11 +4847,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/components/RecentRecipeGrid.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/components",
-                    "moduleDoc": "@commise/features-recipes — the native \"Recent recipes\" grid: Home's 2 × 2 below a 600 container and one row\nof four from 600 (`HOME_COLUMNS`), of cards in the variant the host decided (owner ruling D8). Pure `props → JSX`.",
+                    "moduleDoc": "@commise/features-recipes — the native \"Recent recipes\" grid: below a 600 container two columns while the\ncontent width over the capped text scale is at least 320 pt and one column below (`compactColumnsOf`, the one phone\ngrid rule, designer 2026-11-02), and one row of four from 600 (`HOME_COLUMNS`), of cards in the variant the host\ndecided (owner ruling D8). Pure `props → JSX`.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — the native \"Recent recipes\" grid: Home's 2 × 2 below a 600 container and one row"
+                            "text": "@commise/features-recipes — the native \"Recent recipes\" grid: below a 600 container two columns while the"
                         },
                         {
                             "name": "pattern",

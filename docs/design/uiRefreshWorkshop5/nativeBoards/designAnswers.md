@@ -2,6 +2,61 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-02: the floating button in a short web window (asked by Nova Squad)
+
+- Below 400 CSS px of viewport height (for example 1280 x 800 at 200% zoom or more), the New recipe button stops
+  floating. It sits in the page flow on its own row under the page header (after the greeting and the date, 16 below the date),
+  start-aligned, with no shadow, because a shadow says "floating". The page's end room under it drops to 0.
+  Above 400 px it floats as before. At 320 x 200 a fixed button and the tab bar leave 48 px of page, which is not a
+  usable reading area (WCAG 1.4.10).
+- Native is not affected. A phone in landscape is at least 320 pt tall, and its tab bar and button follow the
+  existing caps.
+
+## 2026-11-02: what stays fixed on the Recipes tab (asked by Nova Squad, corrects C-2 in `mergedUiIos1.md`)
+
+- **No condensed bar on Recipes.** It is a top-level page, like Home, and the tab bar already says where you are.
+- **Only the search field sticks**, as buildSpec §4.3 says and web does today. The title, avatar, segments, chips
+  and the count/sort/toggle row all scroll away with the list. The segments do not stick.
+- **Native guard:** the search field sticks only while its own height is under a third of the window height. The
+  keyboard does not count, so opening it never moves the pin (corrected 2026-11-02). Above that, it scrolls with the
+  rest.
+- **Web:** no change. The document already scrolls, and the sticky search stays.
+- **The pinned band (2026-11-02):** while pinned, the field sits on a full-width band of the canvas colour, from the
+  top safe area to 8 below the field, so no card shows around or above it. A `lineDivider` hairline marks the band's
+  bottom edge only while content is under it. No shadow.
+
+## 2026-11-02: calories, covers, sheets, buttons, shadows and the add field (asked by Nova Squad)
+
+- **Calories stay on cards (owner, 2026-11-02).** This replaces "nutrition" in the dropped-fields ruling above. Keep
+  the ADR-0079 calorie figure on every card, Home included. It is plain text at the end of the meta line, after
+  the rating: "35 min · Medium · ★ 4.8 (12) · 520 cal". On a compact Home tile it follows the time. Its loading and
+  unavailable forms stay as they are, in the meta line's style. I add it to the card boards.
+- **No-photo band on recipe detail:** the gradient only, with no photo disc. On a page-wide band, a picture glyph
+  reads as "image failed". Cards and thumbnails keep the disc.
+- **Byline:** "by {display name}" on other cooks' recipes only, until recipes carry a handle.
+- **Night greeting:** keep the code's 22:00 to 04:59. My 00:00 was a slip.
+- **Muted text and dividers on inverse surfaces:** derive them from `inverseInk` at alpha, like press fills. A test
+  must hold muted text at 4.5:1 or more on the inverse surface. No new roles.
+- **Home widget heading:** 24 above and 8 below. I fix the board's 28 and 10.
+- **Button radius tokens:** approved as named: `controlSm` 18, `controlMd` 22, `controlMdTouch` 24, `controlLg` 26.
+- **Pressed fill:** an instant change is fine. The press scale already gives the motion.
+- **Sheet drag:** only the handle and the title row drag the sheet. A drag that starts in the content scrolls it or
+  edits it, and never moves the sheet, so a cook cannot dismiss a form by accident. If Tamagui 3.1.9 cannot do
+  this, tell me before building.
+- **Sheet exit:** both platforms slide out with the one spring. Reduce motion makes it instant.
+- **Shadows in dark mode:** one set serves both schemes. In dark mode, depth comes from the lighter surface tone, not
+  the shadow. No scheme-aware tokens.
+- **Android 7 and 8:** the Material fallback is accepted, with `lg` 5 and `xl` 7.
+- **SectionIndex gaps:** 4 (`$1`) for all three.
+- **"Cannot restore" marker in the version preview:** use `cardTitle` (16 at 600), not `label`, so it keeps its size.
+  The Fields gap of 4 is accepted.
+- **Add by name with a shared memo:** no new step. The add field already makes the cook pick the food from the list
+  (buildSpec 7.5.3). Show the memo's food as the first option with a `caption` "Suggested". It is never the active
+  option when the list opens, so Enter alone does not pick it. Web and mobile alike.
+- **Add by name, the count and "Nothing matches" (2026-11-02):** count every food option the list shows,
+  suggestions included, and not "Search for another food". Show "Nothing matches …" only when the list shows no
+  food at all, so it never sits above a suggestion. Web and mobile alike.
+
 ## 2026-11-02: card, Home header and Recipe detail build questions (asked by Nova Squad)
 
 - **Card padding and thumb:** the board's 10 and 84 are off the spacing scale, so the board is wrong. Build 12 and
@@ -34,6 +89,13 @@ Each answer is the design ruling a port builds to. Newest first.
   chip. The time shows in the meta line instead.
 - **"Edited" on tiles:** Recipes tiles show it and Home tiles do not. This is intended. Home is already the recent
   list, so the time adds nothing there.
+- **Phone grid at large text (2026-11-02):** every phone grid (Recipes, Collections, collection detail, Home)
+  shows two columns while the container width divided by the
+  capped text scale is at least 320 pt. Below that it shows one column. At 1x on a 343 pt container that is two; at
+  2x it is one. This keeps tile titles from breaking inside words.
+- **Collection detail on phones (2026-11-02):** two columns of the compact tile, as `CollectionDetailIphone390`
+  draws it, and no "Edited". A collection is the cook's own grouping, not an edit-time list, and the board omits
+  it.
 - **Difficulty:** plain text in the meta line ("Medium"). Cards do not use `DifficultyBadge`.
 - **Neutral pill fill (replaces the neutral edge in `reviews/slice1b.md`):** the board wins. A neutral status pill is
   `surfaceMuted` with a transparent 1 pt edge, so every tone keeps one height. The word carries the meaning, so the

@@ -212,7 +212,7 @@ export class VersionsService {
 
         // Plan 002 R52 — each line's binding is decided BEFORE the recipe is touched, so a line that cannot be
         // restored refuses the whole restore (409) with nothing written. Outside any transaction: it asks food.
-        const ingredients = await this.lineRestorer.restoreLines(caller, ownerId, snapshot.ingredients);
+        const ingredients = await this.lineRestorer.restoreLines(caller, snapshot.ingredients);
 
         // ⛔ ONE update call, carrying what the restore's version row must say. The restore used to pass
         // `recordSnapshot: false` and then write its own version afterwards, best-effort — the single path

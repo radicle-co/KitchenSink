@@ -265,6 +265,11 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // draft of an imported public-web recipe, held public, with a device draft saying Private, for a cook who is not entitled,
     // and the e2e seed does not mint that. Promote it to FLOW_PLAN once the seed carries it and an emulator run has passed it.
     'recipes/publishBlockedAsk',
+    // The Suggested option in the add field (owner rulings 2026-11-03; designer ruling N2): a remembered answer is the first
+    // option, tagged, never active, and only a tap binds it. Written test-first with the slice and NOT run (built without a
+    // device); it needs the deployed stage's catalog and a food the cook has corrected before. Promote it to FLOW_PLAN, in the
+    // sandbox-only list, once an emulator run has passed it.
+    'recipes/ingredientSuggested',
     // The matched paste (ADR-0071; owner rulings 2026-10-25): confident, choosing a food, a line still being checked, and
     // publishing with open choices. Written with the slice and NOT run (it was built without a device); each depends on
     // what the stage's catalog and review gate answer (a foundation food by exact name, the seeded milk and salt defaults,

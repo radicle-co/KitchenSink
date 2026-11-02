@@ -11,7 +11,7 @@
 import { profileAvatarPropsOf } from '@commise/features-core/home';
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
-import { Avatar } from '@commise/ui/avatar';
+import { Avatar, type AvatarSize } from '@commise/ui/avatar';
 import type { JSX } from 'react';
 
 import { useUserProfile } from '../hooks/useUserProfile.js';
@@ -20,15 +20,23 @@ import { useUserProfile } from '../hooks/useUserProfile.js';
 export interface ProfileAvatarEntryProps {
     /** Push Profile onto the current tab's stack. */
     readonly onPress: () => void;
+    /** The disc's form; Home's header asks for `large`. Omitted, it is the 32 pt disc. */
+    readonly size?: AvatarSize;
 }
 
 /**
- * @param props - What a press does.
+ * @param props - What a press does, and the disc's form.
  * @returns The tab root's profile entry.
  */
-export function ProfileAvatarEntry({ onPress }: ProfileAvatarEntryProps): JSX.Element {
+export function ProfileAvatarEntry({ onPress, size }: ProfileAvatarEntryProps): JSX.Element {
     const home = useMessages(homeMessages);
     const profile = useUserProfile();
 
-    return <Avatar {...profileAvatarPropsOf(profile, home.chrome)} onPress={onPress} />;
+    return (
+        <Avatar
+            {...profileAvatarPropsOf(profile, home.chrome)}
+            {...(size === undefined ? {} : { size })}
+            onPress={onPress}
+        />
+    );
 }

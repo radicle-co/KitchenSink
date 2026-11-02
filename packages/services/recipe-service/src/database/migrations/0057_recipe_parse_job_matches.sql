@@ -36,6 +36,13 @@
 --
 -- Additive and expand-only (ADR-0035): one new table, read and written only by this release's code.
 
+-- ⚠️ `lock_timeout`: the foreign key below takes SHARE ROW EXCLUSIVE on recipe_parse_job_lines, which blocks that table's
+--   writes and waits behind any open transaction on it. The runner's own lock_timeout covers only its advisory lock. A
+--   deploy that cannot take the lock in 5 s fails and a re-run retries it, instead of stalling every write queued behind
+--   it (food 0025 to 0027 do the same; `migrationLockTimeout.test.ts` holds the rule).
+
+SET LOCAL lock_timeout = '5s';
+
 CREATE TABLE recipe_parse_job_matches (
     job_id uuid NOT NULL,
     line_index integer NOT NULL,

@@ -98,6 +98,26 @@ describe('RecipeListScreen — while the library loads', () => {
 
 // §3.4 (first fetch in flight: none; offline or load error: shown). The button is the FRAME's, outside the read boundary:
 // ⚠️ NEW, because it used to live inside the boundary, where a paused (offline) read never rendered it at all.
+// Plan `recipesScrollPlan.md`: the screen reads the library without suspending, so the search field is ONE node for the
+// whole life of the screen. The header will move into the list's scroller in a later step; this pins that the read
+// states never remount the field, because a remount drops the keyboard in the middle of a word.
+describe('RecipeListScreen — the search field survives every read state', () => {
+    it('is the same node while the library loads, settles and a retry fails', async () => {
+        vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('network down'));
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+        const field = screen.getByLabelText('Search your recipes');
+
+        await screen.findByRole('alert');
+        expect(screen.getByLabelText('Search your recipes')).toBe(field);
+
+        act(() => {
+            seedLibrary([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]);
+        });
+        await screen.findByText('Weeknight Pasta');
+        expect(screen.getByLabelText('Search your recipes')).toBe(field);
+    });
+});
+
 describe('RecipeListScreen — the floating create button, by the library`s state', () => {
     const create = () => screen.queryByRole('button', { name: 'New recipe' });
 

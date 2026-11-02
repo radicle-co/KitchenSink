@@ -73,9 +73,9 @@ import type {
     StatusResponse,
 } from '@kitchensink/schema-food';
 
+import { AccountSuspendedError } from './accountSuspendedError.js';
 import { reportContractSkewOnce } from './contractSkew.js';
 import {
-    AccountSuspendedError,
     BadRequestError,
     CandidateMismatchError,
     ConflictError,

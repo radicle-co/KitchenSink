@@ -18,8 +18,8 @@ export type { ProgressiveAnswer } from './progressiveAnswer.js';
 // failure can say whether repeating it is worth anything (`@commise/query` composes the halves).
 export { shouldRetryFoodServiceFailure } from './retryPolicy.js';
 
+export { AccountSuspendedError, isAccountSuspendedError } from './accountSuspendedError.js';
 export {
-    AccountSuspendedError,
     BadRequestError,
     CandidateMismatchError,
     ConflictError,
@@ -35,7 +35,6 @@ export {
     SourceBusyError,
     UnauthorizedError,
     UnexpectedResponseError,
-    isAccountSuspendedError,
     isBadRequestError,
     isCandidateMismatchError,
     isConflictError,

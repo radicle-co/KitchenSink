@@ -4497,7 +4497,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/durationField/DurationField.native.tsx",
                     "dir": "packages/apps/commise/ui/src/durationField",
-                    "moduleDoc": "@commise/ui/duration-field — the native `DurationField`: the React Native leaf of `DurationField.tsx`, with\nthe same contract (a duration stored in seconds, entered as hours and minutes in one labelled group, never showing\na \"0\"). The arithmetic is `./duration.ts`, shared with the web leaf.\n\nA caller's `error` is each box's `accessibilityHint` (React Native has no `aria-describedby` or `aria-invalid`) and\npaints the `danger` edge.\n\nPresentational and controlled: it owns no state; the caller holds the seconds.",
+                    "moduleDoc": "@commise/ui/duration-field — the native `DurationField`: the React Native leaf of `DurationField.tsx`, with\nthe same contract (a duration stored in seconds, entered as hours and minutes in one labelled group, never showing\na \"0\"). The arithmetic is `./duration.ts`, shared with the web leaf.\n\nA caller's `error` is each box's `accessibilityHint` (React Native has no `aria-describedby` or `aria-invalid`) and\npaints the `danger` edge.\n\nEach box asks the field reveal host to hold it in view while it has focus (`useRevealedField`), as `Input` does.\n\nControlled: the caller holds the seconds.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4589,7 +4589,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }

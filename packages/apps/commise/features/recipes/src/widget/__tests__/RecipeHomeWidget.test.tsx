@@ -258,6 +258,20 @@ describe('the Home recent block’s own fallbacks (web)', () => {
         expect(message.nextElementSibling?.contains(retry)).toBe(true);
     });
 
+    // Design review `mergedUiAndroid2.md` (Home load error): Try again was bare text; `buildSpec.md` §4.2 makes it the
+    // design system's secondary button, outlined, with its 44 px target and capped label.
+    it('load error: draws Try again as the secondary button, outlined', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeWidgetLoadError onRetry={vi.fn()} />
+            </LocaleProvider>,
+        );
+        const retry = screen.getByRole('button', { name: 'Try again' });
+
+        expect(retry.className).toContain('border-line-control');
+        expect(retry.className).toContain('bg-paper');
+    });
+
     it('load error with no retry: says so, with no dead button', () => {
         render(
             <LocaleProvider locale="en">

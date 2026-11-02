@@ -187,6 +187,23 @@ describe('the Home recent block’s own fallbacks (native)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
+    // Design review `mergedUiAndroid2.md` (Home load error): Try again was bare text; `buildSpec.md` §4.2 makes it the
+    // design system's secondary button, outlined, with a 44 pt target. The Button also caps its label at 2x.
+    it('load error: draws Try again as the secondary button, outlined, with a 44 pt target', () => {
+        render(
+            <LocaleProvider locale="en">
+                <RecipeWidgetLoadError onRetry={vi.fn()} />
+            </LocaleProvider>,
+        );
+        const surfaces = [
+            screen.getByRole('button', { name: 'Try again' }),
+            ...screen.getByRole('button', { name: 'Try again' }).querySelectorAll('*'),
+        ];
+
+        expect(surfaces.some((el) => getComputedStyle(el).borderTopWidth === '1px')).toBe(true);
+        expect(surfaces.some((el) => Number.parseFloat(getComputedStyle(el).minHeight) >= 44)).toBe(true);
+    });
+
     // Design review 2026-11-01 (`deviceShots2.md` M-3): an error state needs its action in view, so Try again is the
     // element straight after the message, in the same announced region — nothing may come between them.
     it('load error: puts Try again directly under the message, in the same status region', () => {

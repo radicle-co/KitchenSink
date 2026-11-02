@@ -6,11 +6,11 @@
     "coverage": {
         "components": 90,
         "implementations": 149,
-        "props": 848,
+        "props": 850,
         "documentedComponents": 90,
         "implementationsWithModuleDoc": 149,
         "implementationsWithComponentDoc": 135,
-        "documentedProps": 800,
+        "documentedProps": 802,
         "classifiedComponents": 83,
         "componentsWithPatternTag": 90,
         "crossPlatformComponents": 59
@@ -11248,7 +11248,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/scrollHost/ScrollHost.native.tsx",
                     "dir": "packages/apps/commise/ui/src/scrollHost",
-                    "moduleDoc": "@commise/ui/scroll-host — the native design-system {@link ScrollHost} (`docs/architecture/uiOverhaulBlueprint.md`\nA7). It holds the screen's ONE vertical scroller, hands the screen `bind` for it, and publishes the scroll state its\nchrome reads (see `props.ts`).\n\nThe scroller arrives through a callback ref into STATE (`bind.ref`), so the host holds its imperative handle without a\n`useRef`: `scrollTo`/`scrollToOffset` is the only way to move a React Native scroller (the precedent is\n`mobile/src/hooks/useScrollResetOnChange.ts`). `handle` wraps that same scroller for React Navigation's\n`useScrollToTop`, so the one scroller has one handle.\n\n⚠️ It holds ONE ref, sanctioned in `patternRegister.test.ts`'s `REF_MODULES`: `last`, a previous-value latch (the last\ny, and the scroll spy's last section) read and advanced ONLY inside the scroll handler, never during render. The\nsection half is what lets the handler raise a section change (`onCurrentChange`) as an event, once per change.\n\nA jump asked for before its section has reported its layout (a deep link, on mount) lands when that layout arrives.\nA jump holds `current` on the section it named, even when the page is too short for that section to reach the line,\nuntil the cook leaves it: a drag, `scrollToTop`, or any scroll once the jump's own scroll has ended. The jump's\nscroll ends at its momentum end (Android reports one for a programmatic `scrollTo`) or, for a jump that moved\nnothing, after {@link JUMP_SETTLE_MS} — the web host's rule, so a screen reader's scroll releases it too.\n\nState updates only when a derived fact flips (`nextScrollState` returns the same object otherwise), so a scroll does\nnot re-render the screen every frame.\n\nORCHESTRATION of the screen's scroll: it holds the state its chrome reads and moves the scroller.",
+                    "moduleDoc": "@commise/ui/scroll-host — the native design-system {@link ScrollHost} (`docs/architecture/uiOverhaulBlueprint.md`\nA7). It holds the screen's ONE vertical scroller, hands the screen `bind` for it, and publishes the scroll state its\nchrome reads (see `props.ts`).\n\nThe scroller arrives through a callback ref into STATE (`bind.ref`), so the host holds its imperative handle without a\n`useRef`: `scrollTo`/`scrollToOffset` is the only way to move a React Native scroller (the precedent is\n`mobile/src/hooks/useScrollResetOnChange.ts`). `handle` wraps that same scroller for React Navigation's\n`useScrollToTop`, so the one scroller has one handle.\n\n⚠️ It holds TWO refs, sanctioned in `patternRegister.test.ts`'s `REF_MODULES`. `last` is a previous-value latch (the last\ny, and the scroll spy's last section) read and advanced ONLY inside the scroll handler, never during render. The\nsection half is what lets the handler raise a section change (`onCurrentChange`) as an event, once per change.\n`lastScroller` is an identity latch, written ONLY in the `bind.ref` callback and never during render: it tells a DIFFERENT\nscroller replacing the old one (the screen's list remounted) from the same one re-attaching, and only the first resets the\noffset, the scroll state, a held section and a waiting jump.\n\nA jump asked for before its section has reported its layout (a deep link, on mount) lands when that layout arrives.\nA jump holds `current` on the section it named, even when the page is too short for that section to reach the line,\nuntil the cook leaves it: a drag, `scrollToTop`, or any scroll once the jump's own scroll has ended. The jump's\nscroll ends at its momentum end (Android reports one for a programmatic `scrollTo`) or, for a jump that moved\nnothing, after {@link JUMP_SETTLE_MS} — the web host's rule, so a screen reader's scroll releases it too.\n\nState updates only when a derived fact flips (`nextScrollState` returns the same object otherwise), so a scroll does\nnot re-render the screen every frame.\n\nORCHESTRATION of the screen's scroll: it holds the state its chrome reads and moves the scroller.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11367,6 +11367,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/searchField/props.ts"
                         },
                         {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native only: a counter the screen advances to give the field keyboard focus (a proxy elsewhere in the reading order\nhands the cook here). Inert on mount and while unchanged. Web ignores it.",
+                            "declaredIn": "packages/apps/commise/ui/src/searchField/props.ts"
+                        },
+                        {
                             "name": "id",
                             "type": "string",
                             "typeDetail": null,
@@ -11463,7 +11472,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/searchField/SearchField.native.tsx",
                     "dir": "packages/apps/commise/ui/src/searchField",
-                    "moduleDoc": "@commise/ui/search-field — the native design-system {@link SearchField}: the one pill input.\n\nA 48 pt pill on `paper` with a 1 pt `lineControl` edge, a leading `search` glyph (`inkMuted`, hidden), and while\nnon-empty a clear control (44 pt, 48 dp on Android) named by the caller's `clearLabel`. The OS's own clear button is\noff (`clearButtonMode=\"never\"`) and the return key says \"search\". Its label is the `FieldLabel` above it, or, hidden,\nthe field's own accessible name.\n\nClearing empties the field and returns the screen-reader cursor to it through `useScreenReaderFocusOnSignal` (the\nregistered Adapter — this leaf holds no ref of its own). The keyboard stays as the host's\n`keyboardShouldPersistTaps` leaves it.",
+                    "moduleDoc": "@commise/ui/search-field — the native design-system {@link SearchField}: the one pill input.\n\nA 48 pt pill on `paper` with a 1 pt `lineControl` edge, a leading `search` glyph (`inkMuted`, hidden), and while\nnon-empty a clear control (44 pt, 48 dp on Android) named by the caller's `clearLabel`. The OS's own clear button is\noff (`clearButtonMode=\"never\"`) and the return key says \"search\". Its label is the `FieldLabel` above it, or, hidden,\nthe field's own accessible name.\n\nClearing empties the field and returns the screen-reader cursor to it through `useScreenReaderFocusOnSignal` (the\nregistered Adapter — this leaf holds no ref of its own). The keyboard stays as the host's\n`keyboardShouldPersistTaps` leaves it.\n\n`focusSignal` hands the field KEYBOARD focus when a counter the screen owns advances (`useFocusInputOnSignal`), for a\nproxy elsewhere in the reading order.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11486,6 +11495,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The localised name of the clear control (e.g. \"Clear search\").",
+                            "declaredIn": "packages/apps/commise/ui/src/searchField/props.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native only: a counter the screen advances to give the field keyboard focus (a proxy elsewhere in the reading order\nhands the cook here). Inert on mount and while unchanged. Web ignores it.",
                             "declaredIn": "packages/apps/commise/ui/src/searchField/props.ts"
                         },
                         {

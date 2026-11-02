@@ -64,6 +64,11 @@ function render(ui: ReactElement) {
 
 const noop = (): void => undefined;
 
+/** The one text input: the header's stand-in for a screen reader carries the same name, so the name alone is two nodes. */
+function searchInput(): HTMLInputElement {
+    return screen.getByLabelText('Search your recipes', { selector: 'input' });
+}
+
 afterEach(() => {
     cleanup();
     onlineManager.setOnline(true);
@@ -83,7 +88,7 @@ describe('RecipeListScreen — while the library loads', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
-        expect(screen.getByLabelText('Search your recipes')).toBeTruthy();
+        expect(searchInput()).toBeTruthy();
         expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
         expect(screen.queryByLabelText('Quick filters')).toBeNull();
     });
@@ -98,6 +103,24 @@ describe('RecipeListScreen — while the library loads', () => {
 
 // §3.4 (first fetch in flight: none; offline or load error: shown). The button is the FRAME's, outside the read boundary:
 // ⚠️ NEW, because it used to live inside the boundary, where a paused (offline) read never rendered it at all.
+// Designer, 2026-11-02: while Try again (or a pull from the failed state) retries, the SAME loading state shows, never the
+// stale failure and never a blank list. The Suspense version did this by unmounting the failure; a failed query keeps
+// its error status while it refetches, so the read says it.
+describe('RecipeListScreen — Try again shows the loading state while it retries', () => {
+    it('swaps the failure for the loading skeleton until the retry answers', async () => {
+        vi.spyOn(client, 'listRecipes')
+            .mockRejectedValueOnce(new Error('network down'))
+            .mockReturnValue(new Promise(() => {}));
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+        await screen.findByRole('alert');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        await waitFor(() => expect(screen.getByLabelText('Loading recipes')).toBeTruthy());
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
 // Plan `recipesScrollPlan.md`: the screen reads the library without suspending, so the search field is ONE node for the
 // whole life of the screen. The header will move into the list's scroller in a later step; this pins that the read
 // states never remount the field, because a remount drops the keyboard in the middle of a word.
@@ -105,16 +128,16 @@ describe('RecipeListScreen — the search field survives every read state', () =
     it('is the same node while the library loads, settles and a retry fails', async () => {
         vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('network down'));
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
-        const field = screen.getByLabelText('Search your recipes');
+        const field = searchInput();
 
         await screen.findByRole('alert');
-        expect(screen.getByLabelText('Search your recipes')).toBe(field);
+        expect(searchInput()).toBe(field);
 
         act(() => {
             seedLibrary([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]);
         });
         await screen.findByText('Weeknight Pasta');
-        expect(screen.getByLabelText('Search your recipes')).toBe(field);
+        expect(searchInput()).toBe(field);
     });
 });
 
@@ -225,14 +248,14 @@ describe('RecipeListScreen — a failed load', () => {
 
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         await screen.findByRole('alert');
-        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
+        fireEvent.change(searchInput(), { target: { value: 'taco' } });
 
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
 
         expect(await screen.findByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
-        expect(screen.getByLabelText<HTMLInputElement>('Search your recipes').value).toBe('taco');
+        expect(searchInput().value).toBe('taco');
         expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).toBeNull();
     });
 });
@@ -333,7 +356,7 @@ describe('RecipeListScreen — a populated library', () => {
 
     it('filters the loaded recipes by title as the search value changes', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
-        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
+        fireEvent.change(searchInput(), { target: { value: 'taco' } });
 
         expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).toBeNull();
@@ -342,7 +365,7 @@ describe('RecipeListScreen — a populated library', () => {
 
     it('says NO MATCH — not first-run copy — when the search filters every row out, and keeps the dial', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
-        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'zzz' } });
+        fireEvent.change(searchInput(), { target: { value: 'zzz' } });
 
         expect(screen.getByText('No recipes match')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();

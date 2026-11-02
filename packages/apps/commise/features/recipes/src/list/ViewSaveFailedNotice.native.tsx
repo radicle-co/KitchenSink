@@ -18,7 +18,7 @@ export const ViewSaveFailedNotice: FC = () => {
     const { list } = useMessages(recipeMessages);
 
     return (
-        <Text role="alert" typeRole="meta" color="$dangerText">
+        <Text role="alert" typeRole="meta" color="$dangerText" paddingHorizontal="$4">
             {list.viewSaveFailed}
         </Text>
     );

@@ -27,9 +27,10 @@ describe('cardVariantOf', () => {
         ['home', 'regular', 'grid', 'compact'],
         ['home', 'wide', 'list', 'grid'],
         ['home', 'wide', 'grid', 'grid'],
-        // The library: the cook's list/grid choice, at every width.
+        // The library: the cook's list/grid choice. REWRITTEN (designer, 2026-11-02): below a 600 container the grid is the
+        // compact tile, two to a row as on Home and Discover; from 600 it is the full card.
         ['library', 'narrow', 'list', 'row'],
-        ['library', 'narrow', 'grid', 'grid'],
+        ['library', 'narrow', 'grid', 'compact'],
         ['library', 'regular', 'list', 'row'],
         ['library', 'regular', 'grid', 'grid'],
         ['library', 'wide', 'list', 'row'],

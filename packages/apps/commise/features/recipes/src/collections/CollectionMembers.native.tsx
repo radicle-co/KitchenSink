@@ -19,7 +19,8 @@ import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { GRID_GAP, libraryGridColumnsOf } from '../card/cardGridLayout.js';
+import { cappedFontScale } from '@commise/ui/font-scale-cap';
+import { GRID_GAP, columnsOfVariant } from '../card/cardGridLayout.js';
 import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -51,11 +52,11 @@ export const CollectionMembers: FC<CollectionMembersProps> = ({
     const { detail, member: copy } = useMessages(collectionMessages);
     const locale = useLocale();
     const { colors } = useTheme();
-    const { width } = useWindowDimensions();
+    const { width, fontScale } = useWindowDimensions();
     const [revealCount, setRevealCount] = useState(MEMBER_WINDOW_SIZE);
     const visible = members.slice(0, revealCount);
     const remaining = members.length - visible.length;
-    const columns = variant === 'row' ? 1 : variant === 'compact' ? 2 : libraryGridColumnsOf(contentWidthOf(width));
+    const columns = columnsOfVariant(variant, contentWidthOf(width), cappedFontScale(fontScale));
 
     return (
         <View collapsable={false} role="region" aria-label={detail.membersHeading} style={styles.section}>

@@ -151,3 +151,50 @@ describe('SearchField (native)', () => {
         expect(onBlur).toHaveBeenCalledOnce();
     });
 });
+
+describe('SearchField (native) — focusSignal', () => {
+    // A proxy elsewhere in the screen's reading order hands the cook to this field: the KEYBOARD focus, not only the
+    // screen-reader cursor. The counter is the same idea as the clear control's: advance it, the field takes focus.
+    it('takes focus when the signal advances', () => {
+        const { rerender } = render(<Search focusSignal={0} />);
+
+        expect(document.activeElement).not.toBe(field());
+
+        rerender(<Search focusSignal={1} />);
+
+        expect(document.activeElement).toBe(field());
+    });
+
+    it('takes focus again for each further advance', () => {
+        const { rerender } = render(<Search focusSignal={0} />);
+
+        rerender(<Search focusSignal={1} />);
+        field().blur();
+        rerender(<Search focusSignal={2} />);
+
+        expect(document.activeElement).toBe(field());
+    });
+
+    it('does not take focus on mount, even with a non-zero signal', () => {
+        render(<Search focusSignal={3} />);
+
+        expect(document.activeElement).not.toBe(field());
+    });
+
+    it('does not take focus again for a re-render that leaves the signal alone', () => {
+        const { rerender } = render(<Search focusSignal={1} />);
+        field().blur();
+
+        rerender(<Search focusSignal={1} initial="" placeholder="Soup" />);
+
+        expect(document.activeElement).not.toBe(field());
+    });
+
+    it('takes no focus when no signal is given', () => {
+        const { rerender } = render(<Search />);
+
+        rerender(<Search placeholder="Soup" />);
+
+        expect(document.activeElement).not.toBe(field());
+    });
+});

@@ -24,6 +24,7 @@ import {
     RecipeListLoadError,
     RecipeListLoading,
     RecipeListResults,
+    type RecipeListReading,
     nutritionSlotRenderer,
     ViewSaveFailedNotice,
     type ListViewMode,
@@ -35,7 +36,6 @@ import {
     useRecipeLibraryControls,
     useRecipeListPresentation,
     useSettledRecipeList,
-    type LibraryQuery,
     type RecipeLibraryControls,
     type RecipeListPresentation,
 } from '@commise/features-recipes/list';
@@ -129,57 +129,31 @@ interface LibraryBodyProps {
 }
 
 /**
- * What the library read draws, as a STATE rather than a Suspense boundary: loading while it is pending (the offline copy
- * when it is parked offline), the load error with a Try again that refetches, or the settled results. Nothing here
- * unmounts the frame.
+ * The Recipes list for whatever the library read is doing, as a STATE rather than a Suspense boundary. ONE list is drawn
+ * in every state, so the header the frame hands it (title, segments, search) never unmounts: a pending read draws the
+ * loading skeleton (the offline copy when it is parked offline) in the list's empty body, a failed one the load error
+ * with a Try again, and a settled one the results. Every hook runs in every state, over an empty library until data
+ * arrives.
+ *
+ * Try again and a pull to refresh both refetch; a failed query goes back to pending while it does, so the same loading
+ * shows for both (designer, 2026-11-02).
  *
  * @param props - The viewer's narrowing and presentation, and the intents to forward.
- * @returns The body under the frame's header.
+ * @returns The list under the frame's header.
  */
-function LibraryBody(props: LibraryBodyProps): JSX.Element {
-    const { reading, query } = useLibraryReading(props.controls.read);
-
-    switch (reading.kind) {
-        case 'pending':
-            return (
-                <PendingSlot>
-                    <RecipeListLoading variant={props.presentation.variant} />
-                </PendingSlot>
-            );
-        case 'failed':
-            return <RecipeListLoadError onRetry={() => void query.refetch()} />;
-        case 'settled':
-            return <SettledRecipeList {...props} query={query} data={reading.data} />;
-    }
-}
-
-/** Props for {@link SettledRecipeList}. */
-interface SettledRecipeListProps extends LibraryBodyProps {
-    readonly query: ReturnType<typeof useLibraryReading>['query'];
-    readonly data: LibraryQuery['data'];
-}
-
-/**
- * The library once it has settled: the shared results props over the whole library, plus the native-only pieces — the
- * failed-refresh notice, pull-to-refresh, the scroll bind and one calorie batch per chunk.
- *
- * @param props - The viewer's narrowing and presentation, the intents to forward, and the settled read.
- * @returns The results.
- */
-function SettledRecipeList({
+function LibraryBody({
     controls,
     onRecovered,
     scrollBind,
     onPasteIngredients,
-    query,
-    data,
     ...rest
-}: SettledRecipeListProps): JSX.Element {
+}: LibraryBodyProps): JSX.Element {
     const viewerLocale = useLocale();
+    const { reading, query } = useLibraryReading(controls.read);
     const refreshNotice = useRefreshNotice(query, { onRecovered });
     const { results, chunkIds } = useSettledRecipeList({
         query: {
-            data,
+            data: reading.kind === 'settled' ? reading.data : undefined,
             hasNextPage: query.hasNextPage,
             isFetchingNextPage: query.isFetchingNextPage,
             isFetchNextPageError: query.isFetchNextPageError,
@@ -198,10 +172,41 @@ function SettledRecipeList({
         <RecipeListResults
             {...(scrollBind === undefined ? {} : { scrollBind })}
             {...results}
+            reading={readingBodyOf(reading.kind, rest.presentation.variant, () => void query.refetch())}
             // ONE batch per chunk, N slots: `null` means no batch covers this recipe — render nothing.
             renderNutrition={nutritionSlotRenderer(nutritionFor)}
-            // Pull-to-refresh (L8): the spinner tracks the in-flight refetch; pulling re-runs the read.
+            // Pull to refresh in EVERY state, so a pull from the failed state is a retry.
             refresh={{ refreshing: query.isRefetching, onRefresh: () => void query.refetch() }}
         />
     );
+}
+
+/**
+ * What the list draws for a read that has not settled.
+ *
+ * @param kind - The reading's state.
+ * @param variant - The card variant the loading skeleton mirrors.
+ * @param onRetry - Refetch the library.
+ * @returns The list's reading. Pure.
+ */
+function readingBodyOf(
+    kind: 'pending' | 'failed' | 'settled',
+    variant: RecipeListPresentation['variant'],
+    onRetry: () => void,
+): RecipeListReading {
+    switch (kind) {
+        case 'pending':
+            return {
+                kind,
+                body: (
+                    <PendingSlot>
+                        <RecipeListLoading variant={variant} />
+                    </PendingSlot>
+                ),
+            };
+        case 'failed':
+            return { kind, body: <RecipeListLoadError onRetry={onRetry} /> };
+        case 'settled':
+            return { kind };
+    }
 }

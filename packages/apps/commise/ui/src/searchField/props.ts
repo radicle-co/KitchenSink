@@ -34,4 +34,9 @@ export interface SearchFieldProps {
     readonly onFocus?: () => void;
     /** Called when the field loses focus. */
     readonly onBlur?: () => void;
+    /**
+     * Native only: a counter the screen advances to give the field keyboard focus (a proxy elsewhere in the reading order
+     * hands the cook here). Inert on mount and while unchanged. Web ignores it.
+     */
+    readonly focusSignal?: number;
 }

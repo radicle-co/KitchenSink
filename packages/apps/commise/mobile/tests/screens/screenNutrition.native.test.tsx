@@ -216,6 +216,22 @@ function settledSearch(...pages: readonly (readonly string[])[]) {
     };
 }
 
+/**
+ * Render a screen and let its read settle. REWRITTEN for the Recipes screen's non-suspending read (plan
+ * `recipesScrollPlan.md`): a suspense read resolved inside the one `act` around the render, while a read the screen
+ * switches on lands one notification tick later (TanStack batches its notifications through a zero-delay timer). The
+ * second `act` waits that tick out. It is the file's own convention (`await act`, never `findBy`/`waitFor`), kept for
+ * every screen here, the suspending ones included, where it changes nothing.
+ */
+async function renderAndSettle(ui: ReactElement): Promise<void> {
+    await act(async () => {
+        render(ui);
+    });
+    await act(async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+}
+
 /** The four wired mobile surfaces, each rendered the way its navigator renders it. */
 const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
     ['RecipeListScreen', () => withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />)],
@@ -237,9 +253,7 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
     it('shows the calorie SKELETON while the batch is in flight', async () => {
         nutritionLookup({ status: 'pending' });
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.getAllByLabelText('Loading calories').length).toBeGreaterThan(0);
     });
@@ -247,9 +261,7 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
     it('shows the CHIP once the batch resolves', async () => {
         nutritionLookup(settled(KNOWN_RESPONSE));
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
@@ -258,9 +270,7 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
     it('shows NOTHING when the batch OMITS this recipe — and no lingering skeleton', async () => {
         nutritionLookup(settled(OMITTING_RESPONSE));
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
@@ -270,9 +280,7 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
     it('shows NOTHING, and no spinner, when the batch REJECTS', async () => {
         nutritionLookup({ status: 'failed' });
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.queryByLabelText('Loading calories'), 'a failed batch must not leave a spinner').toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
@@ -282,9 +290,7 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
     it('renders no nutrition line when no batch covers the recipe (the host branches on `null`)', async () => {
         nutritionLookup(null);
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
@@ -305,9 +311,7 @@ describe('which ids each screen batches', () => {
             ]),
         );
 
-        await act(async () => {
-            render(withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />));
-        });
+        await renderAndSettle(withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />));
         expect(useNutritionMock).toHaveBeenCalledWith([[RECIPE_ID, OTHER_ID]]);
 
         // ⛔ NOW NARROW IT. Without a search term, the filtered rows and the loaded page are the same array,
@@ -316,7 +320,7 @@ describe('which ids each screen batches', () => {
         // a new promise, a new request, and every figure on screen dropping back to a skeleton mid-typing.
         useNutritionMock.mockClear();
         await act(async () => {
-            fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'Chana' } });
+            fireEvent.change(screen.getByLabelText('Search your recipes', { selector: 'input' }), { target: { value: 'Chana' } });
         });
 
         expect(screen.queryByRole('link', { name: 'Weeknight Pasta' }), 'the row really was filtered out').toBeNull();

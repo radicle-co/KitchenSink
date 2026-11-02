@@ -316,6 +316,7 @@ interface ArrangementSlots {
     readonly footer?: ReactNode;
     readonly note?: ReactNode;
     readonly trailing?: ReactNode;
+    readonly showEdited?: boolean;
 }
 
 const GridArrangement: FC<ArrangementSlots> = ({ link, footer }) => (
@@ -357,13 +358,14 @@ const RowArrangement: FC<ArrangementSlots> = ({ link, note, trailing }) => (
     </View>
 );
 
-const CompactArrangement: FC<ArrangementSlots> = ({ link, footer }) => (
+const CompactArrangement: FC<ArrangementSlots> = ({ link, footer, showEdited }) => (
     <>
         {link(
             <>
                 <CardCover />
                 <View style={styles.compactBody}>
                     <CardTitle />
+                    {footer === undefined && showEdited === true ? <CardFooter /> : null}
                 </View>
             </>,
         )}
@@ -433,6 +435,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
                     footer={props.footer}
                     note={props.note}
                     trailing={props.trailing}
+                    showEdited={props.showEdited}
                 />
             )}
         </CardSurface>

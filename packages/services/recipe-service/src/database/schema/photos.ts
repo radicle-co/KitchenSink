@@ -14,7 +14,7 @@
  * `max_photos_per_recipe` is an advisory CHECK (true) only.
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
-import { check, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 import { recipes } from './recipes.js';
 
@@ -39,6 +39,8 @@ export const recipePhotos = pgTable(
         // Advisory only — the real cap is enforced in the service layer (COUNT + advisory lock).
         check('max_photos_per_recipe', sql`true`),
         index('idx_recipe_photos_recipe_id').on(table.recipeId),
+        // One S3 object, one row: a retried confirm must not make two rows that share (and delete) one object.
+        uniqueIndex('uq_recipe_photos_s3_key').on(table.s3Key),
         // CR-001 / FR-001c: serves the cover-photo LATERAL on the recipe LIST projection (lowest
         // sort_order, ties broken by created_at then id). The (recipe_id, sort_order, created_at, id)
         // ordering matches the LATERAL's ORDER BY so the LIMIT 1 is an index-only lookup.

@@ -95,6 +95,14 @@ function usernameOf(row: CollectionRow, usernames: ReadonlyMap<string, string>):
     return username === undefined ? {} : { sourceOwnerUsername: username };
 }
 
+/**
+ * Whether `viewerId` may see a collection as a clone or pull source: it is public, or the viewer's own.
+ * The one rule behind both `cloneCollection` and the pull path. Pure.
+ */
+function isCollectionVisibleTo(collection: CollectionRow, viewerId: string): boolean {
+    return collection.visibility === 'public' || collection.ownerId === viewerId;
+}
+
 @Injectable()
 export class CollectionsService {
     public constructor(
@@ -352,7 +360,7 @@ export class CollectionsService {
 
         // 404 (not 403) for someone else's private collection: FR-011 clones PUBLIC collections, and a
         // private one must not even be revealed to exist.
-        if (!source || (source.visibility !== 'public' && source.ownerId !== clonerId)) {
+        if (!source || !isCollectionVisibleTo(source, clonerId)) {
             throw new NotFoundException('Collection not found');
         }
 
@@ -504,6 +512,12 @@ export class CollectionsService {
 
         if (!source) {
             throw collectionNotClonedError(collectionId);
+        }
+
+        // The source may have gone private since the clone was made. Same rule and same 404 as `cloneCollection`:
+        // a pull must not hand out what a clone would not, and must not reveal that the private source exists.
+        if (!isCollectionVisibleTo(source, ownerId)) {
+            throw new NotFoundException('Collection not found');
         }
 
         return { collection, sourceCollectionId: collection.sourceCollectionId };

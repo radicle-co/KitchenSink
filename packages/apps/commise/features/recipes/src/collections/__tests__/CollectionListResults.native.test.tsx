@@ -209,7 +209,9 @@ describe('CollectionListResults (native) — populated state', () => {
         expect(onSelect).toHaveBeenCalledWith('col_2');
     });
 
-    it('credits a copy, and shows the search from six collections', () => {
+    // REWRITTEN (designer, 2026-11-02): the search field is the FRAME's pinned one (`CollectionListFrame.native.test.tsx`), so the
+    // results draw none of their own, whatever the count.
+    it('credits a copy, and draws no search field of its own from six collections', () => {
         const six = Array.from({ length: 6 }, (_unused, index) => ({
             ...makeCollection({ id: `c${index}`, name: `C ${index}` }),
             sourceOwnerUsername: 'clara',
@@ -218,7 +220,7 @@ describe('CollectionListResults (native) — populated state', () => {
         renderList({ collections: six });
 
         expect(screen.getAllByText('Copied from \u2068@clara\u2069 (\u2068Clara Oswald\u2069)')).toHaveLength(6);
-        expect(screen.getByLabelText('Search your collections')).toBeTruthy();
+        expect(screen.queryByLabelText('Search your collections')).toBeNull();
     });
 });
 

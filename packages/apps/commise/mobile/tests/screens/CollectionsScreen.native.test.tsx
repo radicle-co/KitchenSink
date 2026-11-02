@@ -295,3 +295,40 @@ describe('CollectionsScreen — a failed next page', () => {
         expect(list).toHaveBeenCalledTimes(2);
     });
 });
+
+// Designer ruling (2026-11-02): from six collections the Collections tab has a search field that pins; below six it has none.
+describe('CollectionsScreen — the pinned search', () => {
+    const named = (count: number) =>
+        Array.from({ length: count }, (_unused, index) =>
+            makeCollection({ id: `col_${String(index)}`, name: `Collection ${String(index)}` }),
+        );
+
+    it('draws the search from six collections, as the stand-in the screen reader reaches', async () => {
+        seedPages(makeCollectionPage(named(6)));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        expect(await screen.findByRole('search', { name: 'Search your collections' })).toBeTruthy();
+        expect(screen.getByLabelText('Search your collections', { selector: 'input' })).toBeTruthy();
+    });
+
+    it('draws no search below six collections', async () => {
+        seedPages(makeCollectionPage(named(3)));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        await screen.findByText('3 collections');
+        expect(screen.queryByLabelText('Search your collections')).toBeNull();
+    });
+
+    it('filters by title as the cook types, in the pinned field', async () => {
+        seedPages(makeCollectionPage(named(6)));
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+        const field = await screen.findByLabelText('Search your collections', { selector: 'input' });
+
+        fireEvent.change(field, { target: { value: 'Collection 3' } });
+
+        await waitFor(() => expect(screen.queryByRole('link', { name: /Collection 1/u })).toBeNull());
+        expect(screen.getByRole('link', { name: /Collection 3/u })).toBeTruthy();
+    });
+});

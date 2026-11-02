@@ -8,7 +8,7 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeCollection } from '@kitchensink/recipe-core/testing';
-import { render, renderWithTamagui } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import type { ReactNode } from 'react';
@@ -21,13 +21,27 @@ import { CollectionListResults } from '../CollectionListResults.native.js';
 import { collectionMessages } from '../messages.js';
 import type { CollectionListResultsProps } from '../model.js';
 
+/** The system text scale, served by the test: jsdom has none to turn. */
+const win = vi.hoisted(() => ({ fontScale: 1 }));
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
-    return { ...actual, useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: 390 }) };
+    return {
+        ...actual,
+        useWindowDimensions: () => ({
+            ...actual.useWindowDimensions(),
+            width: 390,
+            height: 800,
+            fontScale: win.fontScale,
+        }),
+    };
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    win.fontScale = 1;
+});
 
 const noop = () => undefined;
 
@@ -47,7 +61,7 @@ function framed(body: ReactNode) {
     );
 }
 
-function screenTree(overrides: Partial<CollectionListResultsProps> = {}) {
+function screenTree(overrides: Partial<CollectionListResultsProps> = {}, searchValue = '') {
     const props: CollectionListResultsProps = {
         collections: [],
         total: overrides.collections?.length ?? 0,
@@ -62,6 +76,8 @@ function screenTree(overrides: Partial<CollectionListResultsProps> = {}) {
             <CollectionListFrame
                 onCreate={noop}
                 headingFocusSignal={0}
+                // The host's rule: the pinned search shows from six collections, and while the cook has typed.
+                search={{ value: searchValue, onChange: noop, visible: props.total >= 6 || searchValue !== '' }}
                 segments={{
                     current: 'collections',
                     href: { mine: '/en/recipes', collections: '/en/collections' },
@@ -136,11 +152,11 @@ describe('Collections — the whole header scrolls with the content', () => {
             makeCollection({ id: `c${index}`, name: `C ${index}` }),
         );
         const { rerender } = render(screenTree({ collections: six, total: 6 }));
-        const field = screen.getByLabelText('Search your collections');
+        const field = screen.getByLabelText(collectionMessages.en.list.searchLabel, { selector: 'input' });
 
-        rerender(screenTree({ collections: [], total: 6, search: { value: 'zzz', onChange: noop } }));
+        rerender(screenTree({ collections: [], total: 6, search: { value: 'zzz', onChange: noop } }, 'zzz'));
 
-        expect(screen.getByLabelText('Search your collections')).toBe(field);
+        expect(screen.getByLabelText(collectionMessages.en.list.searchLabel, { selector: 'input' })).toBe(field);
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
         expect(scrollerOf(screen.getByRole('heading', { name: 'Recipes' }))).toBe(
             scrollerOf(screen.getByRole('status')),
@@ -196,5 +212,67 @@ describe('Collections — the header stays in the loading and failed states', ()
 
         expect(scrollerOf(screen.getByRole('heading', { name: 'Recipes' }))).toBe(scrollerOf(retry));
         expect(scrollerOf(retry)).not.toBeNull();
+    });
+});
+
+// Designer ruling (2026-11-02): the Collections search pins on a band, as Recipes'. The frame draws the field ONCE over a spacer the
+// header holds; the title, segments and count scroll away. These are the composed screen's cases; the frame's own are in
+// `CollectionListFrame.native.test.tsx`.
+describe('Collections — the search pins, the rest scrolls', () => {
+    const six = Array.from({ length: 6 }, (_unused, index) =>
+        makeCollection({ id: `c${index}`, name: `Collection ${String(index)}` }),
+    );
+    const NAME = collectionMessages.en.list.searchLabel;
+
+    it('draws the field outside the scroller, and its stand-in inside it, after the segments and before the count', () => {
+        render(screenTree({ collections: six, total: 6 }));
+        const cards = scrollerOf(screen.getByRole('link', { name: 'Collection 0, Private' }));
+        const stand = screen.getByRole('search', { name: NAME });
+        const field = screen.getByLabelText(NAME, { selector: 'input' });
+        const follows = (earlier: HTMLElement, later: HTMLElement): boolean =>
+            Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+        expect(scrollerOf(stand)).toBe(cards);
+        expect(scrollerOf(field)).not.toBe(cards);
+        expect(follows(screen.getByRole('tab', { name: 'My recipes' }), stand)).toBe(true);
+        expect(follows(stand, screen.getByText('6 collections'))).toBe(true);
+    });
+
+    it('draws no field below six collections', () => {
+        render(screenTree({ collections: rows }));
+
+        expect(screen.queryByLabelText(NAME)).toBeNull();
+        expect(screen.queryByRole('search', { name: NAME })).toBeNull();
+    });
+
+    // The designer's gap: the next row after the field is $4 (16 pt) below it, through the shared ListHeaderBox, no new number.
+    it('puts the count row 16 pt below the field, in the header box', () => {
+        render(screenTree({ collections: six, total: 6 }));
+        const stand = screen.getByRole('search', { name: NAME });
+        const box = (() => {
+            for (let node = stand.parentElement; node !== null; node = node.parentElement) {
+                if (resolvedStyle(node, 'paddingBottom') === '16px') {
+                    return node;
+                }
+            }
+
+            return null;
+        })();
+
+        expect(box).not.toBeNull();
+        expect(box?.contains(screen.getByText('6 collections'))).toBe(false);
+    });
+
+    // qa-ios (ScaleToCap): a change of text scale re-lays the list out and the host's offset kept its pinned value. The list is
+    // keyed on the capped scale (1.05 keeps two columns, so only the scale differs), so the scroller is replaced and the host resets.
+    it('mounts a new list when the text scale changes', () => {
+        win.fontScale = 1;
+        const { rerender } = render(screenTree({ collections: six, total: 6 }));
+        const before = scrollerOf(screen.getByRole('link', { name: 'Collection 0, Private' }));
+
+        win.fontScale = 1.05;
+        rerender(screenTree({ collections: six, total: 6 }));
+
+        expect(scrollerOf(screen.getByRole('link', { name: 'Collection 0, Private' }))).not.toBe(before);
     });
 });

@@ -3,16 +3,18 @@
  * the retired `CollectionList.native.test.tsx` ("chrome", and the notice's focus move, now the `headingFocusSignal`).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AccessibilityInfo, Text } from 'react-native';
+import { AccessibilityInfo, Animated, Text } from 'react-native';
 import { useContext } from 'react';
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { sideInsetOf } from '@commise/test-utils';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionListFrame } from '../CollectionListFrame.native.js';
 import { RecipeListHeaderContext } from '../../list/recipeListHeaderContext.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { ScrollHost, useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
@@ -22,7 +24,7 @@ vi.mock('react-native', async (importOriginal) => {
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
         // jsdom has no layout, so react-native-web reports a 0 dp window; the frame's segments read it (W-25).
-        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: 840 }),
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: 840, height: 800 }),
     };
 });
 
@@ -183,5 +185,160 @@ describe('CollectionListFrame (native) — one side inset (bug sweep, LargeTitle
 
         expect(sideInsetOf(screen.getByRole('heading', { name: 'Recipes' }))).toBe(16);
         expect(sideInsetOf(screen.getByText('boundary content'))).toBe(0);
+    });
+});
+
+// Designer ruling (2026-11-02): where the Collections tab has a search field ("Search your collections", from six collections) it
+// follows the Recipes rule. The field is drawn ONCE by the frame, over a spacer the list's header holds, and slides with the scroll
+// until it pins at the top on a canvas band; the title, segments and count scroll away. For a screen reader the spacer is the
+// field's stand-in, and exactly one of the two is exposed at a time. These are the Recipes frame's own cases, for this frame; the
+// pieces are shared (`searchPin`, the overlay, the band, `HostAnimatedScroll`), so a difference here is a bug in the sharing.
+describe('CollectionListFrame (native) — the pinned search', () => {
+    const NAME = 'Search your collections';
+
+    function pinnedFrame(props: { readonly searchValue?: string; readonly searchVisible?: boolean } = {}) {
+        return (
+            <CollectionListFrame
+                onCreate={noop}
+                headingFocusSignal={0}
+                search={{ value: props.searchValue ?? '', onChange: noop, visible: props.searchVisible ?? true }}
+                segments={{
+                    current: 'collections',
+                    href: { mine: '/en/recipes', collections: '/en/collections' },
+                    onSelect: noop,
+                }}
+            >
+                <HeaderOutlet />
+                <Text>a collection card</Text>
+            </CollectionListFrame>
+        );
+    }
+
+    const reachable = () => [
+        ...screen.queryAllByRole('search', { name: NAME }),
+        ...screen.queryAllByRole('textbox', { name: NAME }),
+    ];
+    const theInput = (): HTMLInputElement => screen.getByLabelText(NAME, { selector: 'input' });
+
+    it('idle: exactly one reachable element named for the search, and it is the stand-in', () => {
+        render(pinnedFrame());
+
+        expect(reachable()).toHaveLength(1);
+        expect(screen.getAllByRole('search', { name: NAME })).toHaveLength(1);
+    });
+
+    it('idle: the stand-in reads after the segments and before the cards', () => {
+        render(pinnedFrame());
+        const stand = screen.getByRole('search', { name: NAME });
+        const follows = (earlier: HTMLElement, later: HTMLElement): boolean =>
+            Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+        expect(follows(screen.getByRole('tab', { name: 'Collections' }), stand)).toBe(true);
+        expect(follows(stand, screen.getByText('a collection card'))).toBe(true);
+    });
+
+    it('pressing the stand-in gives the real field keyboard focus', () => {
+        render(pinnedFrame());
+
+        fireEvent.click(screen.getByRole('search', { name: NAME }));
+
+        expect(document.activeElement).toBe(theInput());
+    });
+
+    it('focused: the stand-in steps aside and the field is the one reachable element', () => {
+        render(pinnedFrame());
+
+        act(() => {
+            theInput().focus();
+        });
+
+        expect(screen.queryAllByRole('search', { name: NAME })).toHaveLength(0);
+        expect(screen.getAllByRole('textbox', { name: NAME })).toHaveLength(1);
+    });
+
+    it('a field holding a query stays reachable when it is not focused, with its clear control', () => {
+        render(pinnedFrame({ searchValue: 'dinner' }));
+
+        expect(screen.queryAllByRole('search', { name: NAME })).toHaveLength(0);
+        expect(screen.getAllByRole('textbox', { name: NAME })).toHaveLength(1);
+        expect(screen.getByRole('button', { name: 'Clear search' })).toBeTruthy();
+    });
+
+    it('draws no field and no stand-in when the host hides the search (fewer than six collections)', () => {
+        render(pinnedFrame({ searchVisible: false }));
+
+        expect(reachable()).toHaveLength(0);
+        expect(screen.queryByLabelText(NAME)).toBeNull();
+    });
+
+    describe('on a scroll host', () => {
+        function OffsetProbe({ onOffset }: { readonly onOffset: (scrollY: Animated.Value) => void }) {
+            const { scrollY } = useScrollHost();
+
+            if (scrollY !== undefined) {
+                onOffset(scrollY);
+            }
+
+            return null;
+        }
+
+        function renderOnHost(scheme: 'light' | 'dark' = 'light') {
+            const seen: { scrollY?: Animated.Value; bind?: ScrollBind } = {};
+            renderWithTamagui(
+                <ScrollHost>
+                    {(bind) => {
+                        seen.bind = bind;
+
+                        return (
+                            <>
+                                {pinnedFrame()}
+                                <OffsetProbe onOffset={(scrollY) => (seen.scrollY = scrollY)} />
+                            </>
+                        );
+                    }}
+                </ScrollHost>,
+                scheme,
+            );
+
+            return { seen, band: screen.getByTestId('searchBand') };
+        }
+
+        it('paints the band in the canvas colour, in both schemes', () => {
+            for (const scheme of ['light', 'dark'] as const) {
+                const { band } = renderOnHost(scheme);
+
+                expect(resolvedColour(band, 'backgroundColor')).toBe(rgb(rolesFor(scheme).canvas));
+                cleanup();
+            }
+        });
+
+        it('shows the band only once the field is pinned, and takes no touches', () => {
+            const { seen, band } = renderOnHost();
+            const box = band.parentElement as HTMLElement;
+
+            expect(Number(box.style.opacity)).toBe(0);
+            expect(getComputedStyle(box).pointerEvents).toBe('none');
+
+            act(() => seen.scrollY?.setValue(900));
+
+            expect(Number(box.style.opacity)).toBe(1);
+        });
+
+        it('swaps the exposed element when the page scrolls: the pinned field is the reachable one', () => {
+            const { seen } = renderOnHost();
+
+            act(() =>
+                seen.bind?.onScroll({
+                    nativeEvent: {
+                        contentOffset: { y: 400 },
+                        layoutMeasurement: { height: 800 },
+                        contentSize: { height: 4000 },
+                    },
+                }),
+            );
+
+            expect(screen.queryAllByRole('search', { name: NAME })).toHaveLength(0);
+            expect(screen.getAllByRole('textbox', { name: NAME })).toHaveLength(1);
+        });
     });
 });

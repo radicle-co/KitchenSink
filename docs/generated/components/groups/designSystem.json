@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 90,
-        "implementations": 149,
-        "props": 850,
-        "documentedComponents": 90,
-        "implementationsWithModuleDoc": 149,
-        "implementationsWithComponentDoc": 135,
-        "documentedProps": 802,
-        "classifiedComponents": 83,
-        "componentsWithPatternTag": 90,
+        "components": 92,
+        "implementations": 151,
+        "props": 855,
+        "documentedComponents": 92,
+        "implementationsWithModuleDoc": 151,
+        "implementationsWithComponentDoc": 137,
+        "documentedProps": 805,
+        "classifiedComponents": 85,
+        "componentsWithPatternTag": 92,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -9572,6 +9572,172 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/pinnedSearch/PinnedSearchOverlay",
+            "name": "PinnedSearchOverlay",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/pinnedSearch",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the host's `Animated.Value` scroll offset, hence the style exemptions below",
+                "Overlay — the field is drawn once above the list over a spacer the list holds"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PinnedSearchOverlay",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/pinnedSearch",
+                    "moduleDoc": "@commise/ui/pinned-search — the pinned field and its band, drawn once above a list (native).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/pinned-search — the pinned field and its band, drawn once above a list (native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Overlay — the field is drawn once above the list over a spacer the list holds"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the host's `Animated.Value` scroll offset, hence the style exemptions below"
+                        }
+                    ],
+                    "description": "The field and its band, a later sibling of the list so it draws above the cards, over the spacer the list holds for it. It slides\nwith the scroll on the native side and stops at the top; its parent never changes, so the field never remounts and keeps focus and\nthe keyboard. Hidden until the spacer has been measured.\n\nOrchestration: it owns the animated box that carries the slide and reports the field's height upward.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The pinned search and the field's props."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The overlay."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "field",
+                            "type": "Omit<SearchFieldProps, \"onFocus\" | \"onBlur\" | \"focusSignal\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field's props; focus is the pinned search's to wire.",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx"
+                        },
+                        {
+                            "name": "pin",
+                            "type": "PinnedSearch",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/pinnedSearch/PinnedSearchSpacer",
+            "name": "PinnedSearchSpacer",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/pinnedSearch",
+            "kind": "orchestration",
+            "patterns": [
+                "Overlay — the slot the list holds so the field can be drawn once above it"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PinnedSearchSpacer",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/pinnedSearch",
+                    "moduleDoc": "@commise/ui/pinned-search — the header's slot for the pinned field, and its screen-reader stand-in (native).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/pinned-search — the header's slot for the pinned field, and its screen-reader stand-in (native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Overlay — the slot the list holds so the field can be drawn once above it"
+                        }
+                    ],
+                    "description": "The header's slot for the pinned field, and the field's STAND-IN for a screen reader: the drawn field sits after the list, so a\nswipe would reach it behind every card, while this sits where the field shows. A press hands the cook to the real field.\n\nOrchestration: it reports its own layout upward and presses through to the hook's focus request.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The pinned search, the field's name and whether the header is compact."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "A blank pressable the field's size."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "compact",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "In compact height the spacer shares a wrapping row with the heading.",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field's accessible name, which the stand-in takes.",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx"
+                        },
+                        {
+                            "name": "pin",
+                            "type": "PinnedSearch",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

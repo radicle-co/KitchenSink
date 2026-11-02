@@ -852,8 +852,9 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
     });
 
     // Slice 4 of the UI overhaul added `recipes/newCollectionSheet` to the collections vertical, and slice 5 added
-    // `recipes/collectionAddRemoveUndo`, and the sheet-swipe flow made it eight.
-    it('selects the spine plus the eight collections flows — the 22%-of-flow-time cluster', () => {
+    // `recipes/collectionAddRemoveUndo`, the sheet-swipe flow made it eight, and the Collections pin added
+    // `recipes/collectionsSearchPinned` (nine), and the first-run large-text flow made it ten.
+    it('selects the spine plus the ten collections flows — the 22%-of-flow-time cluster', () => {
         const selection = select('full=false', 'collections=true');
 
         expect(selection.flows).toEqual([
@@ -864,6 +865,8 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'recipes/collectionsVisibility',
             'recipes/collectionsSaveCopy',
             'recipes/collectionsPull',
+            'recipes/collectionsSearchPinned',
+            'recipes/collectionsFirstRunLargeText',
             'recipes/newCollectionSheet',
             'shell/overlaySwipeDismiss',
         ]);

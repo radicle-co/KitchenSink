@@ -30,7 +30,7 @@ function renderList(overrides: Partial<CollectionListResultsProps> = {}) {
         total: overrides.collections?.length ?? 0,
         onSelect: noop,
         search: { value: '', onChange: noop },
-        firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
+        firstRun: { hasRecipes: true, onAddRecipe: noop },
         ...overrides,
     };
     render(
@@ -49,22 +49,20 @@ const threeCollections = [
 ];
 
 describe('CollectionListResults (web) — the first run', () => {
-    it('invites the first collection, with New collection', async () => {
-        const onCreate = vi.fn();
-        renderList({ firstRun: { hasRecipes: true, onCreate, onAddRecipe: noop } });
+    // REWRITTEN (designer, 2026-11-03): "New collection" is the frame's floating button in the first run too, the same as "New
+    // recipe", so the empty state no longer draws a create button of its own (that button scrolled away at the largest sizes).
+    it('invites the first collection in words and draws no create button of its own (the frame floats it)', () => {
+        renderList({ firstRun: { hasRecipes: true, onAddRecipe: noop } });
 
         expect(screen.getByRole('heading', { level: 2, name: 'Group recipes your way' })).toBeTruthy();
         expect(screen.getByText('Make a collection for weeknights, holidays or anything else.')).toBeTruthy();
         expect(screen.queryByRole('list')).toBeNull();
-
-        await userEvent.click(screen.getByRole('button', { name: 'New collection' }));
-
-        expect(onCreate).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
     });
 
     it('with no recipes yet, asks for a few first and offers Add a recipe instead', async () => {
         const onAddRecipe = vi.fn();
-        renderList({ firstRun: { hasRecipes: false, onCreate: noop, onAddRecipe } });
+        renderList({ firstRun: { hasRecipes: false, onAddRecipe } });
 
         expect(screen.getByText('Add a few recipes first.')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
@@ -233,7 +231,7 @@ describe('CollectionListResults (web) — a failed refresh of the rows on screen
                 total={threeCollections.length}
                 onSelect={noop}
                 search={{ value: '', onChange: noop }}
-                firstRun={{ hasRecipes: true, onCreate: noop, onAddRecipe: noop }}
+                firstRun={{ hasRecipes: true, onAddRecipe: noop }}
                 refreshNotice={refreshNotice}
             />
         );

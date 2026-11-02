@@ -4,7 +4,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { createEntryYields, libraryStateOf, type ReadSnapshot } from '../libraryState.js';
+import {
+    createEntryYields,
+    createEntryYieldsWhileLoading,
+    libraryStateOf,
+    type ReadSnapshot,
+} from '../libraryState.js';
 
 const chunk = (total: number) => ({ pages: [{ total }] });
 const page = (total: number) => ({ total });
@@ -80,5 +85,18 @@ describe('createEntryYields', () => {
         ['unreachable', false],
     ] as const)('%s -> %s', (state, expected) => {
         expect(createEntryYields(state)).toBe(expected);
+    });
+});
+
+// Designer ruling (2026-11-03): Collections floats "New collection" in its first run too, the same as "New recipe", so it
+// gives way only while the first fetch is in flight (it must not mount and then vanish) and never once the list has settled.
+describe('createEntryYieldsWhileLoading', () => {
+    it.each([
+        ['loading', true],
+        ['empty', false],
+        ['populated', false],
+        ['unreachable', false],
+    ] as const)('%s -> %s', (state, expected) => {
+        expect(createEntryYieldsWhileLoading(state)).toBe(expected);
     });
 });

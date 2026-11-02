@@ -17,7 +17,7 @@ import { useCreateCollection, useRecipeServiceClient } from '@kitchensink/recipe
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { createEntryYields } from '../hooks/libraryState.js';
+import { createEntryYieldsWhileLoading } from '../hooks/libraryState.js';
 import { useLibraryState } from '../hooks/useLibraryState.js';
 
 /** What {@link useCollectionsList} reads. */
@@ -75,7 +75,7 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
     const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
     // A cache-only read of the list's own key (its family is that one key: collection search is on the device and not in
     // it). It fetches nothing.
-    const createEntryYieldsNow = createEntryYields(
+    const createEntryYieldsNow = createEntryYieldsWhileLoading(
         useLibraryState([{ queryKey: read.queryKey, exact: true }], read.queryKey),
     );
 

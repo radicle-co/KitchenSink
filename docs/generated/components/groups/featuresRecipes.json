@@ -1914,7 +1914,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — native collection-list FRAME (presentational).\n\nThe React Native leaf of `CollectionListFrame`: the large title (slice 3) and the floating \"New collection\", around\nwhatever the list's suspense boundary renders as `children`, so a pending or failed read never unmounts them. It\nfetches nothing.\n\nWhen `headingFocusSignal` advances — a retry from the refresh notice inside the boundary succeeded and removed the\nbutton the viewer pressed — the screen-reader cursor moves to the heading.",
+                    "moduleDoc": "@commise/features-recipes — native collection-list FRAME (presentational).\n\nThe React Native leaf of `CollectionListFrame`: the large title (slice 3) and the floating \"New collection\", around\nwhatever the list's suspense boundary renders as `children`, so a pending or failed read never unmounts them. It\nfetches nothing.\n\nThe large title and the segments are not drawn here: the frame hands them to the one list below it through\n`RecipeListHeaderContext` (the same slot the Recipes frame uses), and the list draws them as its first child. Collections\nhas no pinned field, so the whole header scrolls away with the content (designer finding C-2) and never unmounts when\nthe read changes state.\n\nWhen `headingFocusSignal` advances — a retry from the refresh notice inside the boundary succeeded and removed the\nbutton the viewer pressed — the screen-reader cursor moves to the heading.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2064,7 +2064,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListLoadError.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — native collection-list LOAD-ERROR fallback (presentational): what the list's error boundary renders\nwhen the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.",
+                    "moduleDoc": "@commise/features-recipes — native collection-list LOAD-ERROR fallback (presentational): what the list's error boundary renders\nwhen the read failed with nothing loaded. Its retry is the boundary's reset, which refetches. The frame's header is drawn\nfirst, in the same scroller, so the title never vanishes with the failure.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2141,7 +2141,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListLoading.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — native collection-list LOADING fallback (presentational): what the list's `Suspense` renders while\nthe first page is pending.\n\nSkeleton cards (NOT a blank view — U4): inert, motion-free placeholders shaped like a collection row, so the surface\nhas structure while the first page loads. Motion-free ⇒ no reduce-motion gate.",
+                    "moduleDoc": "@commise/features-recipes — native collection-list LOADING fallback (presentational): what the list's `Suspense` renders while\nthe first page is pending.\n\nSkeleton cards (NOT a blank view — U4): inert, motion-free placeholders shaped like a collection row, so the surface\nhas structure while the first page loads. Motion-free ⇒ no reduce-motion gate. The frame's header is drawn first, in\nthe same scroller, so the title never vanishes while the page is pending.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2207,7 +2207,7 @@
                         },
                         {
                             "name": "firstRun",
-                            "type": "{ readonly hasRecipes: boolean; readonly onCreate: () => void; readonly onAddRecipe: () => void; }",
+                            "type": "{ readonly hasRecipes: boolean; readonly onAddRecipe: () => void; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2322,7 +2322,7 @@
                         },
                         {
                             "name": "firstRun",
-                            "type": "{ readonly hasRecipes: boolean; readonly onCreate: () => void; readonly onAddRecipe: () => void; }",
+                            "type": "{ readonly hasRecipes: boolean; readonly onAddRecipe: () => void; }",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

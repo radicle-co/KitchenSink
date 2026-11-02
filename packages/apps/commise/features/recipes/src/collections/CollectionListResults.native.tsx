@@ -18,13 +18,16 @@ import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { SearchField } from '@commise/ui/search-field';
+import { Text as DesignText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
-import { useId, type FC } from 'react';
-import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useContext, useId, type FC } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { libraryGridColumnsOf } from '../card/cardGridLayout.js';
+import { cappedFontScale } from '@commise/ui/font-scale-cap';
+import { compactColumnsOf, libraryGridColumnsOf } from '../card/cardGridLayout.js';
 import { formatRecipeCount } from '../list/model.js';
+import { RecipeListHeaderContext } from '../list/recipeListHeaderContext.js';
 import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
@@ -52,99 +55,117 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     const { colors } = useTheme();
     const locale = useLocale();
     const searchId = useId();
+    // The frame's large title and segments, which this list draws as its first child so they scroll away with it.
+    const header = useContext(RecipeListHeaderContext);
     const fabRoom = useFabReservedBottom();
-    const contentWidth = contentWidthOf(useWindowDimensions().width);
-    // Two columns on a phone; from a 600 container, as many columns of at least 240 as fit (§5.1).
-    const columns = containerClassOf(contentWidth) === 'narrow' ? 2 : libraryGridColumnsOf(contentWidth);
+    const { width, fontScale } = useWindowDimensions();
+    const contentWidth = contentWidthOf(width);
+    // On a phone, two columns while a column keeps 320 pt at the capped text scale, else one (designer rule, 2026-11-02); from
+    // a 600 container, as many columns of at least 240 as fit (§5.1).
+    const columns =
+        containerClassOf(contentWidth) === 'narrow'
+            ? compactColumnsOf(contentWidth, cappedFontScale(fontScale))
+            : libraryGridColumnsOf(contentWidth);
 
     if (total === 0) {
+        // A scroller, not a bare View: at the largest text size the block is taller than the screen, and "New collection"
+        // must stay reachable. It ends with the room the floating button needs (`cards`), as the populated list does.
         return (
-            <View style={styles.firstRun}>
-                <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
-                    {list.emptyTitle}
-                </Text>
-                <Text style={[styles.body, styles.centred, { color: colors.inkMuted }]}>{list.emptyBody}</Text>
-                {firstRun.hasRecipes ? (
-                    <Button icon="plus" size="lg" width="fill" onPress={firstRun.onCreate}>
-                        {list.createCta}
-                    </Button>
-                ) : (
-                    <>
-                        <Text style={[styles.body, { color: colors.inkMuted }]}>{list.needRecipes}</Text>
-                        <Button icon="pencilLine" size="lg" width="fill" onPress={firstRun.onAddRecipe}>
-                            {list.addRecipe}
-                        </Button>
-                    </>
-                )}
-            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: fabRoom }} keyboardShouldPersistTaps="handled">
+                {header}
+                <View style={styles.firstRun}>
+                    <DesignText role="heading" aria-level={2} typeRole="sectionTitle">
+                        {list.emptyTitle}
+                    </DesignText>
+                    <DesignText typeRole="body" color="$inkMuted" textAlign="center">
+                        {list.emptyBody}
+                    </DesignText>
+                    {/* "New collection" is the frame's floating button (shared with New recipe), so only the no-recipes case
+                        needs a start button of its own: a collection needs recipes first. */}
+                    {firstRun.hasRecipes ? null : (
+                        <>
+                            <DesignText typeRole="body" color="$inkMuted">
+                                {list.needRecipes}
+                            </DesignText>
+                            <Button icon="pencilLine" size="lg" width="fill" onPress={firstRun.onAddRecipe}>
+                                {list.addRecipe}
+                            </Button>
+                        </>
+                    )}
+                </View>
+            </ScrollView>
         );
     }
 
     return (
-        <>
-            {total >= COLLECTION_SEARCH_FROM && (
-                <SearchField
-                    id={searchId}
-                    label={list.searchLabel}
-                    labelVisibility="hidden"
-                    clearLabel={list.clearSearch}
-                    placeholder={list.searchLabel}
-                    value={search.value}
-                    onChangeText={search.onChange}
-                />
+        <FlashList
+            keyboardShouldPersistTaps="handled"
+            key={columns}
+            {...scrollBind}
+            data={collections}
+            numColumns={columns}
+            keyExtractor={(collection) => collection.id}
+            renderItem={({ item }) => (
+                <View style={columns > 1 ? styles.cell : null}>
+                    <CollectionCard collection={item} onSelect={onSelect} />
+                </View>
             )}
-            <Text style={[styles.count, { color: colors.ink }]}>
-                {formatRecipeCount(total, { one: list.countOne, other: list.countOther }, locale)}
-            </Text>
-            {refreshNotice !== undefined && (
-                <RefreshNotice
-                    failed={refreshNotice.failed}
-                    refreshing={refreshNotice.refreshing}
-                    onRetry={refreshNotice.onRetry}
-                    labels={{ failed: list.refreshError, retry: list.retry }}
-                />
-            )}
-            {collections.length === 0 ? (
+            ItemSeparatorComponent={CardSeparator}
+            // The whole header is the list's first child: the frame's title and segments, then the search, the count and
+            // the refresh notice. One list stays mounted whatever the search matches, so the field never loses focus.
+            ListHeaderComponent={
+                <View style={styles.listHead}>
+                    {header}
+                    {total >= COLLECTION_SEARCH_FROM && (
+                        <SearchField
+                            id={searchId}
+                            label={list.searchLabel}
+                            labelVisibility="hidden"
+                            clearLabel={list.clearSearch}
+                            placeholder={list.searchLabel}
+                            value={search.value}
+                            onChangeText={search.onChange}
+                        />
+                    )}
+                    <Text style={[styles.count, { color: colors.ink }]}>
+                        {formatRecipeCount(total, { one: list.countOne, other: list.countOther }, locale)}
+                    </Text>
+                    {refreshNotice !== undefined && (
+                        <RefreshNotice
+                            failed={refreshNotice.failed}
+                            refreshing={refreshNotice.refreshing}
+                            onRetry={refreshNotice.onRetry}
+                            labels={{ failed: list.refreshError, retry: list.retry }}
+                        />
+                    )}
+                </View>
+            }
+            ListEmptyComponent={
                 <Text role="status" style={[styles.body, { color: colors.inkMuted }]}>
                     {fillTemplate(list.noMatch, { query: search.value.trim() })}
                 </Text>
-            ) : (
-                <FlashList
-                    keyboardShouldPersistTaps="handled"
-                    key={columns}
-                    {...scrollBind}
-                    data={collections}
-                    numColumns={columns}
-                    keyExtractor={(collection) => collection.id}
-                    renderItem={({ item }) => (
-                        <View style={styles.cell}>
-                            <CollectionCard collection={item} onSelect={onSelect} />
-                        </View>
-                    )}
-                    ItemSeparatorComponent={CardSeparator}
-                    ListFooterComponent={
-                        loadMore === undefined ? null : (
-                            <LoadMoreControl
-                                {...loadMore}
-                                labels={{
-                                    loadMore: list.loadMore,
-                                    loadingMore: list.loadingMore,
-                                    retry: list.retry,
-                                    failed: list.loadMoreError,
-                                }}
-                            />
-                        )
-                    }
-                    style={styles.cardsScroll}
-                    contentContainerStyle={{ paddingBottom: fabRoom }}
-                    refreshControl={
-                        refresh !== undefined ? (
-                            <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
-                        ) : undefined
-                    }
-                />
-            )}
-        </>
+            }
+            ListFooterComponent={
+                loadMore === undefined ? null : (
+                    <LoadMoreControl
+                        {...loadMore}
+                        labels={{
+                            loadMore: list.loadMore,
+                            loadingMore: list.loadingMore,
+                            retry: list.retry,
+                            failed: list.loadMoreError,
+                        }}
+                    />
+                )
+            }
+            style={styles.cardsScroll}
+            contentContainerStyle={{ paddingBottom: fabRoom, paddingHorizontal: nativeTokens.spacing[4] }}
+            refreshControl={
+                refresh !== undefined ? (
+                    <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
+                ) : undefined
+            }
+        />
     );
 };
 
@@ -261,15 +282,17 @@ const styles = StyleSheet.create({
         maxWidth: 448,
         gap: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[8],
+        paddingHorizontal: nativeTokens.spacing[4],
     },
-    sectionTitle: { ...nativeTokens.type.sectionTitle },
     body: { ...nativeTokens.type.body },
-    centred: { textAlign: 'center' },
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
-    // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state.
+    // The frame's header insets its own sides, so under the list's 16 pt side padding it steps back out by that much.
+    listHead: { gap: nativeTokens.spacing[4], marginHorizontal: -nativeTokens.spacing[4] },
     cardSeparator: { height: nativeTokens.spacing[4] },
-    cell: { flex: 1, paddingHorizontal: nativeTokens.spacing[2] },
+    // No `flex: 1`: a cell that grows vertically fills the recycler's ESTIMATE and is measured at it, which left a blank slot
+    // between rows. The cell takes its card's height, and its width from the column.
+    cell: { paddingHorizontal: nativeTokens.spacing[2] },
     card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth, ...nativeTokens.elevation.sm },
     clip: { borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
     cardBody: { padding: nativeTokens.spacing[3], gap: nativeTokens.spacing[1] },

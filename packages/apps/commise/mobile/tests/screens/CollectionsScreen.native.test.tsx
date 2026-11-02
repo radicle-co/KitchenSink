@@ -134,18 +134,19 @@ describe('CollectionsScreen — loading, error, empty', () => {
         expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
     });
 
-    it('never mounts New collection for a list that turns out empty (the first run has its own buttons)', async () => {
+    // REWRITTEN (designer, 2026-11-03): the floating button stays in the first run, the same as "New recipe". It is absent
+    // while the first fetch is in flight and present once the list has settled empty, as the ONE "New collection".
+    it('floats New collection once a list that turns out empty settles, and not before', async () => {
         vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionPage([]));
 
         render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
 
         await screen.findByText('Group recipes your way');
-        // The first run's own button is the only "New collection" left.
         expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
     });
 
-    it('a focused floating button stays when the list turns empty, and goes once focus leaves it', async () => {
+    it('the floating button is the same node when the list turns empty', async () => {
         seedPages(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]));
         render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         const button = screen.getByRole('button', { name: 'New collection' });
@@ -155,12 +156,9 @@ describe('CollectionsScreen — loading, error, empty', () => {
             seedPages(makeCollectionPage([]));
         });
         await screen.findByText('Group recipes your way');
-        // The first run's own button is also named "New collection"; the focused floating one is still the same node.
+
         expect(button.isConnected).toBe(true);
-
-        act(() => button.blur());
-
-        await waitFor(() => expect(button.isConnected).toBe(false));
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
     });
 
     it('shows New collection once a populated list arrives', async () => {

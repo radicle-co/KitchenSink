@@ -4,12 +4,14 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo, Text } from 'react-native';
+import { useContext } from 'react';
 import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { sideInsetOf } from '@commise/test-utils';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { CollectionListFrame } from '../CollectionListFrame.native.js';
+import { RecipeListHeaderContext } from '../../list/recipeListHeaderContext.js';
 import { render } from '@commise/ui/testing/tamagui';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
@@ -28,10 +30,19 @@ afterEach(cleanup);
 
 const noop = () => undefined;
 
+/**
+ * The frame draws no header of its own: it hands it to the one list below it (`RecipeListHeaderContext`), which draws it as
+ * its first child. This stands in for that list, so every test here still sees the header the frame builds.
+ */
+function HeaderOutlet() {
+    return <>{useContext(RecipeListHeaderContext)}</>;
+}
+
 describe('CollectionListFrame (native)', () => {
     it('renders the heading, the create action and whatever the boundary below it renders', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
+                <HeaderOutlet />
                 <Text>boundary content</Text>
             </CollectionListFrame>,
         );
@@ -62,7 +73,7 @@ describe('CollectionListFrame (native)', () => {
         const onCreate = vi.fn();
         render(
             <CollectionListFrame onCreate={onCreate} headingFocusSignal={0}>
-                {null}
+                <HeaderOutlet />
             </CollectionListFrame>,
         );
 
@@ -74,7 +85,7 @@ describe('CollectionListFrame (native)', () => {
     it('⛔ moves the screen-reader cursor to the heading when the recovery signal advances, and not on mount', () => {
         const { rerender } = render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
-                {null}
+                <HeaderOutlet />
             </CollectionListFrame>,
         );
 
@@ -82,7 +93,7 @@ describe('CollectionListFrame (native)', () => {
 
         rerender(
             <CollectionListFrame onCreate={noop} headingFocusSignal={1}>
-                {null}
+                <HeaderOutlet />
             </CollectionListFrame>,
         );
 
@@ -102,7 +113,7 @@ describe('CollectionListFrame (native) — N1: the frame’s name is said once, 
     it('says "Recipes" through one header, and no node is labelled with it', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
-                {null}
+                <HeaderOutlet />
             </CollectionListFrame>,
         );
 
@@ -119,6 +130,7 @@ describe('CollectionListFrame (native) — the floating create button (UI overha
     it('offers exactly one "New collection" control, the floating button', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
+                <HeaderOutlet />
                 <Text>boundary content</Text>
             </CollectionListFrame>,
         );
@@ -137,6 +149,7 @@ describe('CollectionListFrame (native) — the floating create button (UI overha
                     onSelect: noop,
                 }}
             >
+                <HeaderOutlet />
                 <Text>boundary content</Text>
             </CollectionListFrame>,
         );
@@ -148,6 +161,7 @@ describe('CollectionListFrame (native) — the floating create button (UI overha
     it('hides it while the screen yields it (first load, or the first run whose own start buttons take its place) (buildSpec §3.4)', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0} createEntryYields>
+                <HeaderOutlet />
                 <Text>boundary content</Text>
             </CollectionListFrame>,
         );
@@ -157,14 +171,17 @@ describe('CollectionListFrame (native) — the floating create button (UI overha
 });
 
 describe('CollectionListFrame (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
-    it('insets the title once (its own 16) and pads the content under it by 16', () => {
+    // REWRITTEN: the header is the list's first child and the list is full width, so the frame no longer pads the content
+    // by 16. The title insets itself once; each row of the list carries its own 16 (`CollectionListResults.native.test`).
+    it('insets the title once (its own 16) and adds no side padding of its own under it', () => {
         render(
             <CollectionListFrame onCreate={noop} headingFocusSignal={0}>
+                <HeaderOutlet />
                 <Text>boundary content</Text>
             </CollectionListFrame>,
         );
 
         expect(sideInsetOf(screen.getByRole('heading', { name: 'Recipes' }))).toBe(16);
-        expect(sideInsetOf(screen.getByText('boundary content'))).toBe(16);
+        expect(sideInsetOf(screen.getByText('boundary content'))).toBe(0);
     });
 });

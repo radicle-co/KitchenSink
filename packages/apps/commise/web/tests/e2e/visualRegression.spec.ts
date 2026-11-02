@@ -113,7 +113,7 @@ const PINNED_GREETING = /^Good afternoon(, \S.*)?$/u;
  * The date subtitle the same pin must produce. 2026-05-31 is a SUNDAY — the wireframe's "Saturday" is fictional
  * copy, and `formatHomeDate` renders the real weekday.
  */
-const PINNED_GREETING_DATE = 'Sunday, May 31, 2026';
+const PINNED_GREETING_DATE = 'Sunday, May 31';
 
 /** A capture must be more than a trivially small PNG; a blank page still encodes to a valid image. */
 const MIN_PNG_BYTES = 5_000;

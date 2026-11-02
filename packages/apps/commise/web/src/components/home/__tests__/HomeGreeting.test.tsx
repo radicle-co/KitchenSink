@@ -81,12 +81,80 @@ describe('HomeGreeting (web) — the large title', () => {
     });
 });
 
+/**
+ * The Home header board (HomeWeb1280 / HomeIphone390): ONE row — the greeting and date stacked on the start side, the
+ * 44 px profile button on the end side — at every width. jsdom loads no stylesheet, so the row is pinned by structure
+ * and by the utilities that make it a row.
+ */
+describe('HomeGreeting (web) — the one-row header', () => {
+    const renderRow = (): HTMLElement => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
+        renderWithProviders(
+            <HomeGreeting
+                name="Eliza"
+                action={{ kind: 'avatar', avatar: <button type="button">Profile, Eliza</button> }}
+                afterTitle={<button type="button">New recipe</button>}
+            />,
+            { locale: 'en' },
+        );
+
+        return screen.getByRole('button', { name: 'Profile, Eliza' }).closest('header') as HTMLElement;
+    };
+
+    it('puts the text block and the profile button in the SAME row, the button on the end side', () => {
+        const header = renderRow();
+        const row = header.firstElementChild as HTMLElement;
+        const heading = screen.getByRole('heading', { level: 1 });
+
+        expect(row.className).toMatch(/\bflex\b/u);
+        expect(row.className).toMatch(/\bitems-center\b/u);
+        expect(row.children).toHaveLength(2);
+        expect(row.firstElementChild?.contains(heading)).toBe(true);
+        expect(row.lastElementChild?.contains(screen.getByRole('button', { name: 'Profile, Eliza' }))).toBe(true);
+    });
+
+    it('stacks the date directly under the greeting in the start block', () => {
+        const header = renderRow();
+        const text = (header.firstElementChild as HTMLElement).firstElementChild as HTMLElement;
+
+        expect(text.children[0]?.tagName).toBe('H1');
+        expect(text.children[1]?.textContent).toBe('Sunday, May 31');
+    });
+
+    it('gives the profile button a 44 px target and never hides it at a wide width', () => {
+        const header = renderRow();
+        const action = (header.firstElementChild as HTMLElement).lastElementChild as HTMLElement;
+
+        expect(action.className).toContain('min-h-11');
+        expect(action.className).toContain('min-w-11');
+        expect(action.className).not.toMatch(/(^|\s)(nav:)?hidden(\s|$)/u);
+    });
+
+    it('keeps the create button right after the H1 in DOM order', () => {
+        renderRow();
+        const heading = screen.getByRole('heading', { level: 1 });
+        const create = screen.getByRole('button', { name: 'New recipe' });
+
+        expect(heading.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('shows the greeting and no profile button when there is no action', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
+        renderWithProviders(<HomeGreeting />, { locale: 'en' });
+
+        expect(screen.getByRole('heading', { level: 1, name: 'Good afternoon' })).toBeTruthy();
+        expect(screen.queryByRole('button')).toBeNull();
+    });
+});
+
 describe('HomeGreeting (web) — date subtitle', () => {
-    it('renders the local calendar date in the mockup long form', () => {
-        // 2026-05-31 is a Sunday (the mockup label "Saturday" was fictional copy).
+    it('renders the local calendar date without the year (board: "Sunday 25 October")', () => {
+        // 2026-05-31 is a Sunday. Today is always in the current year, so the year is never shown.
         renderAt(2026, 4, 31, 14);
 
-        expect(screen.getByText('Sunday, May 31, 2026')).toBeTruthy();
+        expect(screen.getByText('Sunday, May 31')).toBeTruthy();
     });
 
     it('localizes the date for a non-English locale', () => {
@@ -126,7 +194,7 @@ describe('HomeGreeting (web) — the server-rendered pass commits to no clock re
     it('renders NO calendar date before hydration', () => {
         const html = serverHtml(new Date(2026, 4, 31, 14, 0, 0));
 
-        expect(html).not.toContain('May 31, 2026');
+        expect(html).not.toContain('May 31');
     });
 
     it('reserves the greeting block, hidden from assistive tech, so nothing shifts when the clock is read', () => {
@@ -235,8 +303,8 @@ describe('HomeGreeting (web) — the viewer’s clock wins over the server’s (
         // The server is still on May 31; the viewer's own clock has already turned over to June 1.
         const container = await hydrateAt(new Date(2026, 4, 31, 22, 0, 0), new Date(2026, 5, 1, 3, 0, 0));
 
-        expect(within(container).getByText('Monday, June 1, 2026')).toBeTruthy();
-        expect(within(container).queryByText('Sunday, May 31, 2026')).toBeNull();
+        expect(within(container).getByText('Monday, June 1')).toBeTruthy();
+        expect(within(container).queryByText('Sunday, May 31')).toBeNull();
     });
 
     it('hydrates with NO mismatch to recover from (the stale text is not traded for hydration errors)', async () => {

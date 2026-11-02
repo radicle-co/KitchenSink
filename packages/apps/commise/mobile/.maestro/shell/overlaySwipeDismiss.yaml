@@ -4,6 +4,14 @@ appId: ${APP_ID}
 # (OverlayHost, `route: 'swipe'`). Needs the iOS Simulator, so it is NOT under `config.yaml`'s discovery and runs by
 # name on a Mac: `maestro test .maestro/shell/overlaySwipeDismiss.yaml`, like `iosSwipeBack.yaml`.
 #
+# The swipe zone is the handle and the title row (designer ruling 2026-11-02); a drag in the content never moves the sheet.
+# Coordinates are measured on an iPhone 390 (iOS 26.5 simulator), passing twice:
+# - the handle/title swipe starts at 59% height (the title row; 40% is the backdrop, which is a tap target, not a swipe zone);
+# - the sheet is not asserted while the discard dialog is up (the dialog is modal and hides the sheet from the tree);
+# - the negative leg reopens a CLEAN sheet first, because Discard has closed the earlier one, and drags in the content;
+# - no hideKeyboard on a dirty sheet: it taps the backdrop, and a backdrop tap on a dirty sheet raises the discard question
+#   (every close route asks the host; the scrim tap is one of them, SC 2.5.7).
+#
 # OWED, not passed: the VoiceOver two-finger escape (route `escape`) cannot be driven by Maestro.
 - runFlow: ../auth/signin.yaml
 - assertVisible: 'My recipes'
@@ -12,7 +20,7 @@ appId: ${APP_ID}
       visible: 'New collection'
       timeout: 40000
 
-# A DIRTY sheet: swiping down raises the discard question and the sheet stays up.
+# DIRTY sheet: swipe from the title row raises the discard question.
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
 - runFlow:
@@ -20,33 +28,36 @@ appId: ${APP_ID}
       env:
           NAME: 'Overlay Swipe Name'
 - swipe:
-      start: 50%, 40%
-      end: 50%, 95%
+      start: 50%, 59%
+      end: 50%, 99%
       duration: 400
 - assertVisible: 'Discard this collection\?'
-- assertVisible: 'Description \(optional\)'
-
-# Keep editing: the sheet is back at rest with the text intact.
 - tapOn: 'Keep editing'
 - assertNotVisible: 'Discard this collection\?'
 - assertVisible: 'Description \(optional\)'
 - assertVisible: 'Overlay Swipe Name'
-
-# Discard, so the next leg starts clean.
 - swipe:
-      start: 50%, 40%
-      end: 50%, 95%
+      start: 50%, 59%
+      end: 50%, 99%
       duration: 400
 - assertVisible: 'Discard this collection\?'
 - tapOn: 'Discard'
 - assertNotVisible: 'Description \(optional\)'
 
-# A CLEAN sheet closes on swipe, with no question.
+# NEGATIVE: a drag that starts in the content does not move a clean sheet.
 - tapOn: 'New collection'
 - assertVisible: 'Description \(optional\)'
 - swipe:
-      start: 50%, 40%
-      end: 50%, 95%
+      start: 50%, 86%
+      end: 50%, 99%
+      duration: 400
+- assertNotVisible: 'Discard this collection\?'
+- assertVisible: 'Description \(optional\)'
+
+# CLEAN sheet closes on a title-row swipe, no question.
+- swipe:
+      start: 50%, 59%
+      end: 50%, 99%
       duration: 400
 - assertNotVisible: 'Discard this collection\?'
 - assertNotVisible: 'Description \(optional\)'

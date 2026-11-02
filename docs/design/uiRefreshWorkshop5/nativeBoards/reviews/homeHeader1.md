@@ -14,3 +14,10 @@ Not this lane: the heading text ("Recent recipes") and the tile titles that trun
 Tray..") belong to the card lane (ruling c). The debug toast covers the bottom strip and is a dev-build artifact.
 
 Still owed before merge: web, iOS (after C-1 in `mergedUiIos1.md`) and the night greeting.
+
+## Web (HomeTopWeb390 and 1280, 100% and 200%)
+
+Passes at 1280: one row, the greeting and the date at the start, the profile button at the end, no year.
+
+The 390 at 200% shot is a 195 CSS px viewport, below the 320 px reflow floor (WCAG 1.4.10), so it does not judge
+the header. Retake it as 1280 at 400% (320 CSS px). The card text in these shots belongs to the card lane.

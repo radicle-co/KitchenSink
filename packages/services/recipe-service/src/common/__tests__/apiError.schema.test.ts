@@ -19,6 +19,7 @@
  * are not on the wire, and `apiError.schema.ts` says why a union describing them is refused.
  */
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -365,5 +366,16 @@ describe('the bulk import codes (ADR-0072)', () => {
             expect(parse({ used: 50, limit: 0 })).toBe(false);
             expect(parse({ used: '50', limit: 50 })).toBe(false);
         });
+    });
+});
+
+describe('ACCOUNT_SUSPENDED is a published recipe error code (ADR-0081)', () => {
+    // The schema file may import only zod, so it SPELLS the code. This keeps the spelling equal to the one the shared
+    // verifier's adopters answer with.
+    it('spells the code the shared verifier answers with, and has a typed arm for it', () => {
+        expect(recipeErrorCodeSchema.enum.ACCOUNT_SUSPENDED).toBe(ACCOUNT_SUSPENDED_CODE);
+        expect(
+            recipeApiErrorSchema.safeParse({ code: ACCOUNT_SUSPENDED_CODE, message: 'Account is suspended' }).success,
+        ).toBe(true);
     });
 });

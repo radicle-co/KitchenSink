@@ -31,6 +31,7 @@
  * `(status, body)` pair is replayed verbatim as a `fetch` response, so the client sees bytes the server actually
  * produced rather than bytes a test author typed.
  */
+import { ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE } from '@kitchensink/clerk-verify';
 import { BadRequestException, HttpStatus, UnauthorizedException, type ArgumentsHost } from '@nestjs/common';
 import { ThrottlerException } from '@nestjs/throttler';
 import { RecipeErrorCode, type RecipeError } from '@kitchensink/recipe-core';
@@ -487,6 +488,18 @@ describe('the recipe error contract, end to end through both halves', () => {
         // Its OWN code, never collapsed into `FORBIDDEN`: a load or e2e harness distinguishes "the stage
         // contained my test write, as designed" from a scope gate it should treat as a failure.
         expect((error as ForbiddenError).code).toBe(CODE.TEST_PRINCIPAL_CONTAINED);
+    });
+
+    it('403 ACCOUNT_SUSPENDED → ForbiddenError carrying the suspension code, never a bare 403 (ADR-0081)', async () => {
+        const { wire, error } = await throughTheWire(
+            apiError(ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE),
+            (client) => client.setRecipeRating(RECIPE_ID, { stars: 5 }),
+        );
+
+        expect(wire.status).toBe(HttpStatus.FORBIDDEN);
+        expect(error).toBeInstanceOf(ForbiddenError);
+        // Its own code: a suspended cook is told something different from "you do not own this", and no retry fixes it.
+        expect((error as ForbiddenError).code).toBe(ACCOUNT_SUSPENDED_CODE);
     });
 
     /**

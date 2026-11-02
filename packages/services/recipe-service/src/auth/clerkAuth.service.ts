@@ -15,14 +15,18 @@
  * There is deliberately **no** `resolveOrCreateFromClaims`, no read-through user creation, and no
  * local `users` table — recipe ownership is keyed solely on the verified `userId` ULID.
  */
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import {
+    ACCOUNT_SUSPENDED_CODE,
+    ACCOUNT_SUSPENDED_MESSAGE,
     isClerkAccountSuspendedError,
     resolveAzpEnforcement,
     verifyClerkToken,
     type RequestTarget,
     type VerifiedClerkClaims,
 } from '@kitchensink/clerk-verify';
+
+import { apiError } from '../common/apiError.js';
 
 @Injectable()
 export class ClerkAuthService {
@@ -64,7 +68,7 @@ export class ClerkAuthService {
             return await verifyClerkToken(token, { jwtKey: this.jwtKey, ...this.azp }, request);
         } catch (error) {
             if (isClerkAccountSuspendedError(error)) {
-                throw new ForbiddenException({ code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended' });
+                throw apiError(ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE);
             }
 
             throw new UnauthorizedException();

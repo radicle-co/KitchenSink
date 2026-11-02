@@ -87,6 +87,8 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     FORBIDDEN: HttpStatus.FORBIDDEN,
     // ADR-0040: a 403, like `FORBIDDEN`, with a code of its own — see the schema's note.
     TEST_PRINCIPAL_CONTAINED: HttpStatus.FORBIDDEN,
+    // ADR-0081: a 403 like `FORBIDDEN`, with a code of its own so a client does not retry or re-sign-in.
+    ACCOUNT_SUSPENDED: HttpStatus.FORBIDDEN,
     ACCOUNT_ALREADY_ERASED: HttpStatus.GONE,
 
     // ── Transport / framework outcomes ──

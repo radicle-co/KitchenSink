@@ -989,3 +989,67 @@ describe('the alarm relay (ADR-0062)', () => {
         ).toEqual({});
     });
 });
+
+describe('WebhooksStack — the tombstone sweep holds no Clerk credential (ADR-0081 §4)', () => {
+    let template: Template;
+
+    beforeAll(() => {
+        template = synthWebhooks(false);
+    }, 120_000);
+
+    /** Every IAM action granted to a role (by construct id) across the synthesized policies. */
+    function actionsGrantedTo(roleId: string): readonly string[] {
+        const actions = new Set<string>();
+
+        for (const policy of Object.values(template.findResources('AWS::IAM::Policy'))) {
+            const roles: unknown = policy.Properties?.Roles;
+
+            if (!Array.isArray(roles) || !roles.some((role: unknown) => JSON.stringify(role).includes(roleId))) {
+                continue;
+            }
+
+            const statements: unknown = policy.Properties?.PolicyDocument?.Statement;
+
+            for (const statement of Array.isArray(statements) ? (statements as { Action?: unknown }[]) : []) {
+                for (const action of Array.isArray(statement.Action) ? statement.Action : [statement.Action]) {
+                    if (typeof action === 'string') {
+                        actions.add(action);
+                    }
+                }
+            }
+        }
+
+        return [...actions].sort();
+    }
+
+    // The sweep claims a tombstone and queues the erasure; the deletion worker holds the Clerk secret and deletes the
+    // account. A role or environment that still carried the secret would be a credential the function never uses.
+    it('⛔ the sweep role cannot read the auth secret', () => {
+        expect(actionsGrantedTo('TombstoneSweepLambdaRole')).not.toContain('secretsmanager:GetSecretValue');
+    });
+
+    it('⛔ the sweep function has no Clerk secret key in its environment', () => {
+        const sweep = Object.values(template.findResources('AWS::Lambda::Function')).find(
+            (fn) => fn.Properties?.Handler === 'handlers/tombstoneSweep.handler',
+        );
+        const variables = (sweep?.Properties?.Environment as { Variables?: Record<string, unknown> } | undefined)
+            ?.Variables;
+
+        expect(variables).toBeDefined();
+        expect(variables).not.toHaveProperty('IDP_SECRET_KEY');
+    });
+
+    it('the sweep still sends to the deletion queue, which is how it hands the Clerk delete to the worker', () => {
+        expect(sqsActionsGrantedTo(template, 'TombstoneSweepLambdaRole')).toContain('sqs:SendMessage');
+    });
+
+    it('the deletion worker still holds the Clerk credential', () => {
+        const worker = Object.values(template.findResources('AWS::Lambda::Function')).find(
+            (fn) => fn.Properties?.Handler === 'handlers/deletionWorker.handler',
+        );
+
+        expect(
+            (worker?.Properties?.Environment as { Variables?: Record<string, unknown> } | undefined)?.Variables,
+        ).toHaveProperty('IDP_SECRET_KEY');
+    });
+});

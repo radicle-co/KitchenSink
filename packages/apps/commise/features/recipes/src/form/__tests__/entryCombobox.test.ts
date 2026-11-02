@@ -747,6 +747,84 @@ describe('entryComboboxOf — Suggested foods (owner ruling 2026-11-03; designer
         expect(linesOf(view.trailingStatus)).not.toContain(form.foodSearch.defaultHint);
     });
 
+    describe('a food that is both Suggested and in the catalog group (designer review)', () => {
+        const SAME_AS_ROOT = catalogResult('food_chick', 'Chickpeas, dry');
+        const OTHER = catalogResult('food_other', 'Chickpeas, flour');
+        const withCatalog = (...catalog: ReturnType<typeof catalogResult>[]) =>
+            input({ view: viewOf([databaseFrame({ catalog }), COMPLETE_FRAME]), suggestions: [ROOT] });
+        const idsOf = (view: ReturnType<typeof entryComboboxOf>, key: string) =>
+            view.groups.find((group) => group.key === key)?.options.map((option) => option.key);
+
+        it('drops the catalog row for the Suggested food, by id, and keeps the others', () => {
+            const view = entryComboboxOf(withCatalog(SAME_AS_ROOT, OTHER), COPY);
+
+            expect(idsOf(view, 'suggested')).toEqual(['suggested:root:food_chick']);
+            expect(idsOf(view, 'catalog')).toEqual(['catalog:food_other']);
+        });
+
+        it('leaves no catalog group when the Suggested food was its only row, and still says a food shows', () => {
+            const view = entryComboboxOf(withCatalog(SAME_AS_ROOT), COPY);
+
+            expect(view.groups.some((group) => group.key === 'catalog')).toBe(false);
+            expect(view.status).toBeUndefined();
+            expect(view.countAnnouncement).toBe('1 food found');
+            expect(linesOf(view.trailingStatus)).not.toContain(NO_MATCH);
+        });
+
+        it('compares by id, never by name: a different food with the same name stays', () => {
+            const SAME_NAME = catalogResult('food_twin', 'Chickpeas, dry');
+            const view = entryComboboxOf(withCatalog(SAME_NAME), COPY);
+
+            expect(idsOf(view, 'catalog')).toEqual(['catalog:food_twin']);
+            expect(view.countAnnouncement).toBe('2 foods found');
+        });
+
+        it('a root Suggested food does not hide a catalog row that is a variant of it', () => {
+            const variantRow = {
+                ...catalogResult('food_chick', 'Chickpeas, canned'),
+                variant: { id: 'var_x', parts: [{ attribute: 'cut' as const, text: 'canned' }] },
+            };
+            const view = entryComboboxOf(withCatalog(variantRow), COPY);
+
+            expect(idsOf(view, 'catalog')).toEqual(['catalog:food_chick']);
+        });
+
+        it('keeps the Suggested row and drops the catalog row when the names differ but the id is the same (QA wire shape)', () => {
+            const pepperProposal: IngredientNameProposal = {
+                kind: 'root',
+                id: 'food_pepper',
+                name: 'Pepper, black, ground',
+                source: 'ownCorrection',
+            };
+            const view = entryComboboxOf(
+                input({
+                    view: viewOf([
+                        databaseFrame({
+                            catalog: [
+                                catalogResult('food_salt', 'Salt'),
+                                catalogResult('food_pepper', 'Pepper black ground'),
+                            ],
+                        }),
+                        COMPLETE_FRAME,
+                    ]),
+                    suggestions: [pepperProposal],
+                }),
+                COPY,
+            );
+
+            expect(view.groups.find((group) => group.key === 'suggested')?.options.map((o) => o.label)).toEqual([
+                'Pepper, black, ground',
+            ]);
+            expect(view.groups.find((group) => group.key === 'catalog')?.options.map((o) => o.label)).toEqual(['Salt']);
+        });
+
+        it('counts the shared food once', () => {
+            const view = entryComboboxOf(withCatalog(SAME_AS_ROOT, OTHER), COPY);
+
+            expect(view.countAnnouncement).toBe('2 foods found');
+        });
+    });
+
     // Designer ruling (designAnswers.md, commit 70a41c3b4): REVERSES the earlier "a Suggested food does not change the
     // count" test. The polite count includes the Suggested options (every food option shown, never "Search for another
     // food"), and "Nothing matches" speaks only when the list shows no food at all.

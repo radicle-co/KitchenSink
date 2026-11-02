@@ -175,29 +175,40 @@ const countOf = (count: number, copy: EntryComboboxCopy): string | undefined =>
 const databaseLineOf = (
     database: DatabasePart,
     query: string,
-    suggestedCount: number,
+    foodsShown: number,
     copy: EntryComboboxCopy,
 ): string | undefined =>
     unsearchedSentenceOf(database, copy) ??
-    (foodsOf(database.authored).length + foodsOf(database.catalog).length + suggestedCount === 0
-        ? fillTemplate(copy.form.ingredientNoSuggestions, { query })
-        : undefined);
+    (foodsShown === 0 ? fillTemplate(copy.form.ingredientNoSuggestions, { query }) : undefined);
 
 /** The remote foods a source added. Pure. */
 const addedBy = (part: RemotePart): readonly RemoteFoodOption[] => (part.kind === 'answered' ? part.foods : []);
+
+/** The Suggested options a served list leads with: how many, and which picks they are (for the catalog to skip). */
+interface SuggestedFoods {
+    readonly count: number;
+    /** `${kind}:${id}` of each proposal: the pick it makes. */
+    readonly picks: ReadonlySet<string>;
+}
+
+/** The pick a catalog row makes, in a proposal's terms: the variant it matched, else the root (`pickOfOption`). Pure. */
+const catalogPickOf = (option: CatalogFoodOption): string =>
+    option.hit.variant === undefined ? `root:${option.hit.id}` : `variant:${option.hit.variant.id}`;
 
 /** A served answer's part of the view (P1 to P7). Pure. */
 const servedSpeechOf = (
     view: Extract<EntrySearchView, { kind: 'served' }>,
     query: string,
-    suggestedCount: number,
+    suggested: SuggestedFoods,
     input: EntryComboboxInput,
     copy: EntryComboboxCopy,
 ): StateSpeech => {
     const { database, remote, progress } = view;
+    const suggestedCount = suggested.count;
     const authored = foodsOf(database.authored);
-    const catalog = foodsOf(database.catalog);
-    const databaseLine = databaseLineOf(database, query, suggestedCount, copy);
+    // The Suggested option IS the food, so its catalog row would be the same food twice (designer review): by id.
+    const catalog = foodsOf(database.catalog).filter((option) => !suggested.picks.has(catalogPickOf(option)));
+    const databaseLine = databaseLineOf(database, query, authored.length + catalog.length + suggestedCount, copy);
     const unavailableSentence = unsearchedSentenceOf(database, copy);
     const ended = progress !== 'running';
     const notes = sourceNotesOf(remote, input, copy);
@@ -302,7 +313,7 @@ const NOTHING: StateSpeech = {
 const speechOf = (
     view: EntrySearchView,
     query: string,
-    suggestedCount: number,
+    suggested: SuggestedFoods,
     input: EntryComboboxInput,
     copy: EntryComboboxCopy,
 ): StateSpeech => {
@@ -342,7 +353,7 @@ const speechOf = (
                 assertive: copy.pickerSearch.failed,
             };
         case 'served':
-            return servedSpeechOf(view, query, suggestedCount, input, copy);
+            return servedSpeechOf(view, query, suggested, input, copy);
 
         default: {
             const unhandled: never = view;
@@ -444,7 +455,16 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
     }
 
     // The count and "Nothing matches" read the foods the list SHOWS, so a Suggested option is one of them.
-    const speech = speechOf(input.view, query, suggested.size, input, copy);
+    const speech = speechOf(
+        input.view,
+        query,
+        {
+            count: suggested.size,
+            picks: new Set(input.suggestions.map((proposal) => `${proposal.kind}:${proposal.id}`)),
+        },
+        input,
+        copy,
+    );
     const groups: ComboboxGroup[] = [];
     const createOption: ComboboxOption = {
         key: 'createOwnFood',

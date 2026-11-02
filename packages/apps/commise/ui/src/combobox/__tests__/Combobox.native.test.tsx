@@ -31,6 +31,12 @@ const platform = vi.hoisted(() => ({ os: undefined as 'ios' | undefined }));
 /** The props the latest `ScrollView` was given: react-native-web never calls `onScrollEndDrag`, so a case calls it. */
 const scroller = vi.hoisted(() => ({ props: undefined as { onScrollEndDrag?: () => void } | undefined }));
 
+/**
+ * Each `Pressable`'s latest props by accessibility label: react-native-web fires no `onPressIn` from jsdom events (only
+ * a click reaches `onPress`), so a case calls the press-in handler itself, as a finger touching down would.
+ */
+const pressables = vi.hoisted(() => new Map<string, { onPressIn?: () => void }>());
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
@@ -38,6 +44,13 @@ vi.mock('react-native', async (importOriginal) => {
 
     return {
         ...actual,
+        Pressable: (props: { accessibilityLabel?: string; onPressIn?: () => void }) => {
+            if (props.accessibilityLabel !== undefined) {
+                pressables.set(props.accessibilityLabel, props);
+            }
+
+            return createElement(actual.Pressable, props);
+        },
         ScrollView: (props: { onScrollEndDrag?: () => void }) => {
             scroller.props = props;
 
@@ -307,6 +320,40 @@ describe('Combobox (native) — typing and choosing', () => {
         expect(busy.getAttribute('aria-busy')).toBe('true');
         expect(busy.getAttribute('aria-disabled')).toBe('true');
         expect(onSelect).not.toHaveBeenCalled();
+    });
+});
+
+describe('Combobox (native) — a press whose list changed under the finger picks nothing', () => {
+    const A = { key: 'a', label: 'Aubergine', accessibleName: 'Aubergine' } as const;
+    const B = { key: 'b', label: 'Basil', accessibleName: 'Basil' } as const;
+    const listOf = (...options: readonly (typeof A | typeof B)[]): readonly ComboboxGroup[] => [{ key: 'g', options }];
+    const choice = (name: string) => screen.getByRole('button', { name });
+
+    const touchDown = (name: string): void => {
+        act(() => pressables.get(name)?.onPressIn?.());
+    };
+
+    it('pressing A, then the list changes so B sits there, and releasing on B picks nothing', () => {
+        const onSelect = vi.fn();
+        const { rerender } = render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+
+        type('x');
+        touchDown('Aubergine');
+        rerender(<Host groups={listOf(B)} onSelect={onSelect} />);
+        fireEvent.click(choice('Basil'));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('a press with no list change still picks', () => {
+        const onSelect = vi.fn();
+
+        render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+        type('x');
+        touchDown('Aubergine');
+        fireEvent.click(choice('Aubergine'));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('a');
     });
 });
 

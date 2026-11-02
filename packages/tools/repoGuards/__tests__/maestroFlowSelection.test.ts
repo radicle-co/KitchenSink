@@ -848,8 +848,8 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
     });
 
     // Slice 4 of the UI overhaul added `recipes/newCollectionSheet` to the collections vertical, and slice 5 added
-    // `recipes/collectionAddRemoveUndo` (seven flows now).
-    it('selects the spine plus the seven collections flows — the 22%-of-flow-time cluster', () => {
+    // `recipes/collectionAddRemoveUndo` (seven flows), and the Collections pin added `recipes/collectionsSearchPinned` (eight).
+    it('selects the spine plus the eight collections flows — the 22%-of-flow-time cluster', () => {
         const selection = select('full=false', 'collections=true');
 
         expect(selection.flows).toEqual([
@@ -860,6 +860,7 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'recipes/collectionsVisibility',
             'recipes/collectionsSaveCopy',
             'recipes/collectionsPull',
+            'recipes/collectionsSearchPinned',
             'recipes/newCollectionSheet',
         ]);
     });

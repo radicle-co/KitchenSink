@@ -13,14 +13,36 @@ import { fireEvent } from '@testing-library/dom';
 import { makeCollection } from '@kitchensink/recipe-core/testing';
 
 import { CollectionListResults } from '../CollectionListResults.native.js';
+import { collectionMessages } from '../messages.js';
 import type { CollectionListResultsProps } from '../model.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { nativeTokens } from '@commise/ui/native';
+import { render, renderWithTamagui } from '@commise/ui/testing/tamagui';
 
-afterEach(cleanup);
+/** The window's width and text scale, when a test sets them: jsdom has a 1024 px window and a scale of 1. */
+const dims = vi.hoisted(() => ({ width: undefined as number | undefined, fontScale: undefined as number | undefined }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => {
+            const real = actual.useWindowDimensions();
+
+            return { ...real, width: dims.width ?? real.width, fontScale: dims.fontScale ?? real.fontScale };
+        },
+    };
+});
+
+afterEach(() => {
+    cleanup();
+    dims.width = undefined;
+    dims.fontScale = undefined;
+});
 
 const noop = () => undefined;
 
-function renderList(overrides: Partial<CollectionListResultsProps> = {}) {
+function renderList(overrides: Partial<CollectionListResultsProps> = {}, textScale?: number) {
     const props: CollectionListResultsProps = {
         collections: [],
         total: overrides.collections?.length ?? 0,
@@ -29,11 +51,17 @@ function renderList(overrides: Partial<CollectionListResultsProps> = {}) {
         firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop },
         ...overrides,
     };
-    render(
+    const ui = (
         <LocaleProvider locale="en">
             <CollectionListResults {...props} />
-        </LocaleProvider>,
+        </LocaleProvider>
     );
+
+    if (textScale === undefined) {
+        render(ui);
+    } else {
+        renderWithTamagui(ui, 'light', textScale);
+    }
 
     return props;
 }
@@ -93,6 +121,68 @@ describe('CollectionListResults (native) — the first run (slice 4, `buildSpec.
         fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
 
         expect(onAddRecipe).toHaveBeenCalledTimes(1);
+    });
+});
+
+// Designer finding (qa-ios, accessibility-xxx-large): the Collections empty state was a plain View, so at the largest
+// text size its 514 pt block filled the screen and "New collection" sat below the fold with no way to scroll to it. It
+// is now a scroller that ends with the room the floating button needs, and its text is the design-system Text, which
+// stops at its role's cap (C-1: a plain React Native Text has no cap on iOS and grows to about 3x).
+describe('CollectionListResults (native) — the first run scrolls at the largest text size', () => {
+    /** The nearest ancestor that scrolls vertically, or `null`. */
+    function scrollerOf(element: HTMLElement): HTMLElement | null {
+        for (let node = element.parentElement; node !== null; node = node.parentElement) {
+            if (['auto', 'scroll'].includes(getComputedStyle(node).overflowY)) {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
+    it('puts "New collection" inside a scroller, so it can be scrolled to', () => {
+        renderList({ firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop } }, 3.1);
+
+        expect(scrollerOf(screen.getByRole('button', { name: 'New collection' }))).not.toBeNull();
+    });
+
+    it('puts "Add a recipe" inside a scroller too, when there are no recipes yet', () => {
+        renderList({ firstRun: { hasRecipes: false, onCreate: noop, onAddRecipe: noop } }, 3.1);
+
+        expect(scrollerOf(screen.getByRole('button', { name: 'Add a recipe' }))).not.toBeNull();
+    });
+
+    it('ends the scroller with the room the floating New collection button needs', () => {
+        renderList({ firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop } }, 3.1);
+        const scroller = scrollerOf(screen.getByRole('button', { name: 'New collection' }));
+        const foot: string[] = [];
+
+        // The scroller's content container is the child of the element that scrolls.
+        for (
+            let node = screen.getByText('Group recipes your way').parentElement;
+            node !== null;
+            node = node.parentElement
+        ) {
+            foot.push(getComputedStyle(node).paddingBottom);
+
+            if (node.parentElement === scroller) {
+                break;
+            }
+        }
+
+        expect(foot).toContain(`${String(FAB_RESERVED_BOTTOM_PX)}px`);
+    });
+
+    it('stops the title at the display ceiling of 1.5x and the body at 2x at the iOS maximum (fontScale 3.1)', () => {
+        renderList({ firstRun: { hasRecipes: true, onCreate: noop, onAddRecipe: noop } }, 3.1);
+        const sizeOf = (element: HTMLElement): number => parseFloat(getComputedStyle(element).fontSize);
+
+        expect(sizeOf(screen.getByRole('heading', { name: 'Group recipes your way' }))).toBe(
+            nativeTokens.type.sectionTitle.fontSize * 1.5,
+        );
+        expect(sizeOf(screen.getByText(collectionMessages.en.list.emptyBody))).toBe(
+            nativeTokens.type.body.fontSize * 2,
+        );
     });
 });
 
@@ -341,5 +431,129 @@ describe('CollectionListResults (native) — W-11: the card says how many recipe
         renderList({ collections: [withCard(3, [])] });
 
         expect(photosIn(screen.getByRole('link'))).toEqual([]);
+    });
+});
+
+// Blank slot while scrolling (qa-ios, on the Recipes grid; the same cell pattern is here): a cell that grows vertically fills the
+// recycler's ESTIMATE and is measured at it, so the row never shrinks to its card and leaves empty canvas between rows. Only a device
+// lays the recycler out; what jsdom can pin is that the cell takes its card's height.
+describe('CollectionListResults (native) — a grid cell takes its card’s height, never the recycler’s estimate', () => {
+    it('the cell around a collection card does not grow vertically', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        renderList({ collections: threeCollections });
+        let cell: HTMLElement | undefined;
+
+        for (
+            let node = screen.getByRole('link', { name: 'Weeknight Dinners, Private' }).parentElement;
+            node !== null && cell === undefined;
+            node = node.parentElement
+        ) {
+            if (getComputedStyle(node).paddingLeft === '8px') {
+                cell = node;
+            }
+        }
+
+        expect(cell).toBeDefined();
+        expect(getComputedStyle(cell as HTMLElement).flexGrow).not.toBe('1');
+    });
+});
+
+// Designer rule (2026-11-02, `designAnswers.md`, widened to every phone grid): two columns only while the container width over the
+// CAPPED text scale is at least 320 pt, one column below. The list stub is display-inert for `numColumns`, so what shows is the
+// cell: a grid cell carries the gap's side padding, a single column does not.
+describe('CollectionListResults (native) — the grid’s columns follow the capped text scale', () => {
+    const cellPad = (): string[] => {
+        const out: string[] = [];
+
+        for (
+            let node = screen.getByRole('link', { name: 'Weeknight Dinners, Private' }).parentElement;
+            node !== null;
+            node = node.parentElement
+        ) {
+            out.push(getComputedStyle(node).paddingLeft);
+        }
+
+        return out;
+    };
+
+    it('is two columns at 1x on a 390 pt phone', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        renderList({ collections: threeCollections });
+
+        expect(cellPad()).toContain('8px');
+    });
+
+    it('is one column at 2x on the same phone', () => {
+        dims.width = 390;
+        dims.fontScale = 2;
+        renderList({ collections: threeCollections });
+
+        expect(cellPad()).not.toContain('8px');
+    });
+
+    it('reads the CAPPED scale: a 3.1x system scale is the 2x cap, no further', () => {
+        dims.width = 590;
+        dims.fontScale = 3.1;
+        renderList({ collections: threeCollections });
+
+        // 590 is a narrow container (under 600 before the gutter); 590 / 2 = 295 is under 320, so one column even at the cap.
+        expect(cellPad()).not.toContain('8px');
+    });
+});
+
+// qa-ios (r4, Recipes): a layout that changes in place leaves FlashList one stale slot. Collections keys its list on the column
+// count, so the 320 pt rule moving it (the text scale changed) gives a new list with a fresh size cache. Pinned here so the key
+// is not dropped.
+describe('CollectionListResults (native) — a new column count is a new list', () => {
+    const scrollerOf = (): HTMLElement | null => {
+        for (
+            let node = screen.getByRole('link', { name: 'Weeknight Dinners, Private' }).parentElement;
+            node !== null;
+            node = node.parentElement
+        ) {
+            if (['auto', 'scroll'].includes(getComputedStyle(node).overflowY)) {
+                return node;
+            }
+        }
+
+        return null;
+    };
+
+    const ui = (searchValue = '') => (
+        <LocaleProvider locale="en">
+            <CollectionListResults
+                collections={threeCollections}
+                total={3}
+                onSelect={noop}
+                search={{ value: searchValue, onChange: noop }}
+                firstRun={{ hasRecipes: true, onCreate: noop, onAddRecipe: noop }}
+            />
+        </LocaleProvider>
+    );
+
+    it('mounts a new list when the text scale moves the grid from 2 columns to 1', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        const { rerender } = render(ui());
+        const twoUp = scrollerOf();
+
+        dims.fontScale = 2;
+        rerender(ui());
+
+        expect(twoUp).not.toBeNull();
+        expect(scrollerOf()).not.toBe(twoUp);
+    });
+
+    it('keeps the same list for a re-render that changes nothing about the layout', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        const { rerender } = render(ui());
+        const before = scrollerOf();
+
+        rerender(ui('x'));
+
+        expect(scrollerOf()).toBe(before);
     });
 });

@@ -8,7 +8,7 @@
         "packages/apps/commise/features/recipes/src/card/RecipeCardGridSkeleton.native.tsx": 4,
         "packages/apps/commise/features/recipes/src/collections/CollectionHeader.native.tsx": 4,
         "packages/apps/commise/features/recipes/src/collections/CollectionListLoading.native.tsx": 1,
-        "packages/apps/commise/features/recipes/src/collections/CollectionListResults.native.tsx": 12,
+        "packages/apps/commise/features/recipes/src/collections/CollectionListResults.native.tsx": 9,
         "packages/apps/commise/features/recipes/src/collections/CollectionMemberRow.native.tsx": 1,
         "packages/apps/commise/features/recipes/src/collections/CollectionMembers.native.tsx": 4,
         "packages/apps/commise/features/recipes/src/collections/CollectionPickerRow.native.tsx": 5,

@@ -251,6 +251,7 @@ collections:recipes/collectionsPagination
 collections:recipes/collectionsVisibility
 collections:recipes/collectionsSaveCopy
 collections:recipes/collectionsPull
+collections:recipes/collectionsSearchPinned
 collections:recipes/newCollectionSheet
 recipes:recipes/createEntry
 recipes:recipes/systemBackGuard

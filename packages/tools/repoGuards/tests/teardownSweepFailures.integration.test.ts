@@ -53,7 +53,10 @@ case "$1 $2" in
         ;;
     'cloudformation describe-stacks')
         case "$*" in
-            *Tags*) echo pr-73 ;;
+            *Tags*)
+                fails describe && { echo 'Throttling' >&2; exit 254; }
+                echo pr-73
+                ;;
             *PerPrDatabaseReaperFunctionName*) echo kitchensink-data-sandbox-reaper ;;
         esac
         ;;
@@ -176,6 +179,13 @@ describe('teardown fails the run when a stack delete or a sweep listing fails', 
         const { status, stdout } = run(fail);
 
         expect(stdout).toMatch(new RegExp(`::error::[^\\n]*${call}`, 'u'));
+        expect(status).not.toBe(0);
+    });
+
+    it('a failed describe-stacks tag read fails the run and names the call', () => {
+        const { status, stdout } = run('describe');
+
+        expect(stdout).toMatch(/::error::[^\n]*cloudformation describe-stacks/u);
         expect(status).not.toBe(0);
     });
 

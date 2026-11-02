@@ -93,7 +93,7 @@ discover_pr_stacks() {
         --query 'StackSummaries[].StackName' --output text 2>/dev/null) || return 1
     for stack in $names; do
         envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
-            --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null)
+            --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null) || return 1
         if belongs "$stack" || environment_tag_belongs "$envtag"; then
             printf '%s\t%s\n' "$stack" "$envtag"
         fi
@@ -224,7 +224,7 @@ settle_timed_out=0
 settle_deadline=$((SECONDS + ${TEARDOWN_SETTLE_TIMEOUT_SECONDS:-1800}))
 while :; do
     if ! in_flight=$(discover_pr_stacks "${CFN_IN_PROGRESS_STATES[@]}"); then
-        echo "::error::could not list $PR's in-flight CloudFormation stacks — a deploy may still be creating its database, so the drop is deferred rather than attempted"
+        echo "::error::cloudformation list-stacks or describe-stacks failed for $PR's in-flight stacks — a deploy may still be creating its database, so the drop is deferred rather than attempted"
         settle_timed_out=1
         teardown_failed=1
         break
@@ -247,7 +247,7 @@ done
 # comment is explicit that nothing may be queued ahead of it. A bounded discovery call is not a stack delete,
 # but the ordering rule is about what may PRECEDE the DNS reclaim, not about how long each thing takes.
 if ! PR_STACKS=$(discover_pr_stacks "${CFN_RESTING_STATES[@]}"); then
-    echo "::error::could not list CloudFormation stacks — $PR's stacks cannot be found and will be left behind"
+    echo "::error::cloudformation list-stacks or cloudformation describe-stacks failed — $PR's stacks cannot be found and will be left behind"
     PR_STACKS=''
     teardown_failed=1
 fi

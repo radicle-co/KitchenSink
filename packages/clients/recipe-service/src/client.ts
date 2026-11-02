@@ -1694,15 +1694,6 @@ export class RecipeServiceClient {
      * @returns The typed error to throw.
      */
     private toError(res: RawResponse): RecipeServiceClientError {
-        const error = this.mapError(res);
-
-        error.retryAfterSeconds = res.retryAfterSeconds;
-
-        return error;
-    }
-
-    /** The typed error for `res`, before the transport adds what only it holds (the `Retry-After` wait). Pure. */
-    private mapError(res: RawResponse): RecipeServiceClientError {
         const known = recipeApiErrorSchema.safeParse(res.body);
 
         if (known.success) {
@@ -1815,7 +1806,7 @@ export class RecipeServiceClient {
             case 'TOO_MANY_REQUESTS':
             case 'NOT_READY':
             case 'INTERNAL_ERROR':
-                return new UnexpectedResponseError(res.status, body.message, body.code);
+                return new UnexpectedResponseError(res.status, body.message, body.code, res.retryAfterSeconds);
 
             default: {
                 // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the
@@ -1861,7 +1852,7 @@ export class RecipeServiceClient {
             case 410:
                 return new GoneError(message, code);
             default:
-                return new UnexpectedResponseError(res.status, message, code);
+                return new UnexpectedResponseError(res.status, message, code, res.retryAfterSeconds);
         }
     }
 }

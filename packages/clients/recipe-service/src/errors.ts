@@ -28,17 +28,15 @@ export class RecipeServiceClientError extends Error {
     public readonly status: number | undefined;
     /** The recipe-domain error code from the response body (`ErrorResponse.code`), when present. */
     public readonly code: string | undefined;
-    /**
-     * The seconds the response's `Retry-After` asked for, when it carried one this client could read. Set by the
-     * transport after the error is built, because only the transport holds the headers.
-     */
-    public retryAfterSeconds: number | undefined;
+    /** The seconds the response's `Retry-After` asked for, when it carried one this client could read. */
+    public readonly retryAfterSeconds: number | undefined;
 
-    public constructor(message: string, status?: number, code?: string) {
+    public constructor(message: string, status?: number, code?: string, retryAfterSeconds?: number) {
         super(message);
         this.name = 'RecipeServiceClientError';
         this.status = status;
         this.code = code;
+        this.retryAfterSeconds = retryAfterSeconds;
         Object.setPrototypeOf(this, RecipeServiceClientError.prototype);
     }
 }
@@ -472,9 +470,15 @@ export class UnexpectedResponseError extends RecipeServiceClientError {
      *   service converged onto one error envelope, a status this client has no dedicated error class for still
      *   arrives with a machine-readable code (`MAX_PHOTOS_EXCEEDED`, `TOO_MANY_REQUESTS`, `NOT_READY`, …), and
      *   dropping it here would discard the only actionable part of the body.
+     * @param retryAfterSeconds - The wait the response's `Retry-After` header asked for, when it carried one.
      */
-    public constructor(status: number, message = `Unexpected recipe-service response (${status})`, code?: string) {
-        super(message, status, code);
+    public constructor(
+        status: number,
+        message = `Unexpected recipe-service response (${status})`,
+        code?: string,
+        retryAfterSeconds?: number,
+    ) {
+        super(message, status, code, retryAfterSeconds);
         this.name = 'UnexpectedResponseError';
         Object.setPrototypeOf(this, UnexpectedResponseError.prototype);
     }

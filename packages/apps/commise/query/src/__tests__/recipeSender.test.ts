@@ -289,9 +289,7 @@ describe('recipeSender', () => {
 describe('recipeSender — Retry-After', () => {
     /** ⛔ The wait the client read off the header must reach the drain, or its deferral never runs. */
     it('copies the stated wait of a throttled answer into the result', async () => {
-        const error = Object.assign(new RecipeServiceClientError('slow', 429, 'TOO_MANY_REQUESTS'), {
-            retryAfterSeconds: 60,
-        });
+        const error = new RecipeServiceClientError('slow', 429, 'TOO_MANY_REQUESTS', 60);
         const send = recipeSender(() => ({ updateRecipe: vi.fn().mockRejectedValue(error) }) as never);
 
         const result = await send(record('update', { id: 'r1', input: {} }));

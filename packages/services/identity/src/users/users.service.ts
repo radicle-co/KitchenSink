@@ -354,28 +354,40 @@ export class UsersService {
         // The profile as THIS statement left it. ⛔ `RETURNING`, not a read-back: a second statement could see a
         // concurrent webhook's later write, and the snapshot published below must be exactly the state this write's
         // stamp keys (plan 2026-10-15-010 D6).
-        const [updatedProfile] =
-            input.displayName !== undefined || input.avatarKey !== undefined
-                ? await this.db
-                      .update(profiles)
-                      .set({
-                          // Trimmed: one name has one stored form, and the consumer would trim it anyway.
-                          ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
-                          // ⛔ BOTH columns, in the one statement: a profile holds a Clerk URL OR an uploaded key, never
-                          // both (`profiles_avatar_key_xor_url`), so choosing a key clears the URL and clearing the
-                          // avatar clears both.
-                          ...(input.avatarKey !== undefined ? { avatarKey: input.avatarKey, avatarUrl: null } : {}),
-                          // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement and on the
-                          // database's clock (`profileClock`). The publish below happens after the commit and is
-                          // best-effort, so without the marker a failed fan-out left nothing behind.
-                          //
-                          // ⚠️ Only on a NAME change: an avatar edit changes no byline, so it owes nothing.
-                          ...(renamed ? { handleSyncOwedAt: profileClock, handleSyncFailureCode: null } : {}),
-                          updatedAt: profileClock,
-                      })
-                      .where(eq(profiles.userId, userId))
-                      .returning()
-                : await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+        const writesProfile = input.displayName !== undefined || input.avatarKey !== undefined;
+        const [updatedProfile] = writesProfile
+            ? await this.db
+                  .update(profiles)
+                  .set({
+                      // Trimmed: one name has one stored form, and the consumer would trim it anyway.
+                      ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
+                      // ⛔ BOTH columns, in the one statement: a profile holds a Clerk URL OR an uploaded key, never
+                      // both (`profiles_avatar_key_xor_url`), so choosing a key clears the URL and clearing the
+                      // avatar clears both.
+                      ...(input.avatarKey !== undefined ? { avatarKey: input.avatarKey, avatarUrl: null } : {}),
+                      // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement and on the
+                      // database's clock (`profileClock`). The publish below happens after the commit and is
+                      // best-effort, so without the marker a failed fan-out left nothing behind.
+                      //
+                      // ⚠️ Only on a NAME change: an avatar edit changes no byline, so it owes nothing.
+                      ...(renamed ? { handleSyncOwedAt: profileClock, handleSyncFailureCode: null } : {}),
+                      updatedAt: profileClock,
+                  })
+                  // ⛔ The active-status test is part of THIS statement. `resolveUser` above checked it earlier, and a
+                  // suspension landing in between must still block the edit (and its republished byline).
+                  .where(
+                      and(
+                          eq(profiles.userId, userId),
+                          sql`exists (select 1 from ${users} where ${users.id} = ${userId} and ${users.status} = 'active')`,
+                      ),
+                  )
+                  .returning()
+            : await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+        // Nothing matched: either the status changed since the check (the gate answers it) or there is no profile row.
+        if (writesProfile && updatedProfile === undefined) {
+            await this.resolver.resolveUser(userId);
+        }
+
         const [updatedAccount] = await this.db.select().from(accounts).where(eq(accounts.userId, userId)).limit(1);
 
         // After the write committed: remove what the new avatar superseded (or everything, on a clear) and purge the

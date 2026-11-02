@@ -24,13 +24,11 @@
  *
  * @pattern Visitor — an exhaustive switch over the `HeaderAction` union
  */
-import { useContext, type FC, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useContext, type ComponentRef, type FC, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { useContainerClass } from '../layout/useContainerClass.native.js';
 import { ScrollHostContext } from '../scrollHost/scrollHostContext.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
-import { useTheme } from '../theme/useTheme.native.js';
 import { Text as DesignText } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
@@ -69,9 +67,7 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
     segments,
     focusSignal = 0,
 }) => {
-    const { colors } = useTheme();
-    const containerClass = useContainerClass();
-    const heading = useScreenReaderFocusOnSignal<Text>(focusSignal);
+    const heading = useScreenReaderFocusOnSignal<ComponentRef<typeof DesignText>>(focusSignal);
     // Read without throwing: a header outside a host (a sheet, a test) simply reports nowhere.
     const host = useContext(ScrollHostContext);
     const hasRow = action !== undefined;
@@ -79,13 +75,11 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
     return (
         <View style={styles.header}>
             <View onLayout={host?.headingLayout} style={[styles.titleBlock, hasRow ? styles.underRow : null]}>
-                <Text
-                    ref={heading}
-                    accessibilityRole="header"
-                    style={[nativeTokens.type.largeTitle[containerClass], { color: colors.ink }]}
-                >
+                {/* The design-system Text, so the title stops at 1.5x and wraps at word boundaries instead of drawing at
+                    about 3x and breaking inside its word (designer finding C-1, reviews/mergedUiIos1.md). */}
+                <DesignText ref={heading} role="heading" aria-level={1} typeRole="largeTitle" color="$ink">
                     {title}
-                </Text>
+                </DesignText>
                 {subtitle === undefined ? null : (
                     // Wraps, never cut off: Home's date is a fact the cook reads, at every text size. The design-system
                     // Text grows its leading with its size, so the wrapped lines never overlap on Android (ADR-0080 §8).

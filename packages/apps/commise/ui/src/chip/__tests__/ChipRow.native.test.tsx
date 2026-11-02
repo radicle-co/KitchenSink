@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.

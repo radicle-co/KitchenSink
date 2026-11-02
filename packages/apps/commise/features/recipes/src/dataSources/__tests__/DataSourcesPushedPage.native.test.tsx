@@ -14,7 +14,7 @@ import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourcesPushedPage } from '../DataSourcesPushedPage.native.js';
 import { dataSourcesMessages } from '../messages.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
@@ -140,7 +140,8 @@ describe.each(['light', 'dark'] as const)('DataSourcesPushedPage (native) — th
         );
         const m = dataSourcesMessages.en;
 
-        expect(getComputedStyle(screen.getByRole('heading', { name: m.title })).color).toBe(rgb(colours.ink));
+        // REWRITTEN: the title is the design-system Text, so its colour is a theme token, read resolved.
+        expect(resolvedColour(screen.getByRole('heading', { name: m.title }), 'color')).toBe(rgb(colours.ink));
         expect(getComputedStyle(screen.getByText(m.intro)).color).toBe(rgb(colours.ink));
         expect(getComputedStyle(screen.getByText(m.closeMatchNote)).color).toBe(rgb(colours.inkMuted));
     });

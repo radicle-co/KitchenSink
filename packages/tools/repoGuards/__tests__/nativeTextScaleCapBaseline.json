@@ -114,7 +114,7 @@
         "packages/apps/commise/ui/src/optionLabel/OptionLabel.native.tsx": 1,
         "packages/apps/commise/ui/src/popover/Popover.native.tsx": 1,
         "packages/apps/commise/ui/src/radioList/RadioList.native.tsx": 2,
-        "packages/apps/commise/ui/src/recipeCover/RecipeCover.native.tsx": 2,
+        "packages/apps/commise/ui/src/recipeCover/RecipeCover.native.tsx": 1,
         "packages/apps/commise/ui/src/refreshNotice/RefreshNotice.native.tsx": 1,
         "packages/apps/commise/ui/src/sectionIndex/SectionIndex.native.tsx": 7,
         "packages/apps/commise/ui/src/sectionSwitch/SectionSwitch.native.tsx": 1,

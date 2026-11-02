@@ -10,10 +10,25 @@ import { coverTint, coverTintDark } from '../../tokens/covers.js';
 /** The system colour scheme the next render sees. */
 const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
 
-vi.mock('react-native', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-native')>()),
-    useColorScheme: () => scheme.current,
-}));
+/** The props each `Text` was last given, by its text: react-native-web has no system text scale under jsdom to move. */
+const textProps = vi.hoisted(() => new Map<string, { allowFontScaling?: boolean }>());
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+    const { createElement } = await import('react');
+
+    return {
+        ...actual,
+        useColorScheme: () => scheme.current,
+        Text: (props: { children?: unknown; allowFontScaling?: boolean }) => {
+            if (typeof props.children === 'string') {
+                textProps.set(props.children, props);
+            }
+
+            return createElement(actual.Text, props);
+        },
+    };
+});
 import { nativeTokens } from '../../tokens/native.js';
 
 /**
@@ -69,6 +84,24 @@ describe('RecipeCover (native) — a monogram', () => {
 
         expect(letter.fontFamily).toBe(nativeTokens.fontFace.display.bold);
         expect(letter.fontSize).toBe('48px');
+    });
+
+    // Designer ruling c10ecadbf (2026-11-03): the cover letter is decoration like avatar initials, so it does not scale with
+    // the system text size; it stays at its fixed share of the cover's height, the same as at 1x, and never fills the cover
+    // behind the time chip (seen on iOS at the largest text size, Discover_light_cap_b1611).
+    it('turns system text scaling off for the letter, so it stays 40% of the cover at every text size', () => {
+        const { container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
+
+        layOut(container.firstElementChild as Element, 160, 120);
+
+        expect(textProps.get('L')?.allowFontScaling).toBe(false);
+        expect(getComputedStyle(screen.getByText('L')).fontSize).toBe('48px');
+    });
+
+    it('leaves the cuisine caption to scale with the text, as before', () => {
+        render(<RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="1:1" />);
+
+        expect(textProps.get('French')?.allowFontScaling).not.toBe(false);
     });
 
     it('shows the cuisine from 96pt tall, and not below', () => {

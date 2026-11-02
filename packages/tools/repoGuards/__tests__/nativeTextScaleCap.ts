@@ -30,6 +30,9 @@ import { isTamaguiStyledCall, tamaguiElementKinds, tamaguiStyledNames, type Styl
 export const FIXED_SCALE_SITES: Readonly<Record<string, string>> = {
     // Beside Apple's system button on iOS, which cannot scale; capped at 1.5× on Android (designer ruling 2026-11-01).
     'packages/apps/commise/mobile/src/components/auth/GoogleSignInButton.tsx': 'ADR-0080 §8',
+    // The monogram letter on a recipe cover is decoration like avatar initials, drawn at 40% of the cover's height at every
+    // text size (designer ruling c10ecadbf, 2026-11-03).
+    'packages/apps/commise/ui/src/recipeCover/RecipeCover.native.tsx': 'designer ruling c10ecadbf, 2026-11-03',
 };
 
 /** Whether a text turns system scaling off, in a file where that is a ruled fixed-scale site. */

@@ -57,6 +57,9 @@ export const RecipeCover: FC<RecipeCoverProps> = ({
             style={[styles.box, styles.monogram, ASPECT[aspect], { backgroundColor: covers[coverTintOf(recipeId)] }]}
         >
             <Text
+                // Decoration like avatar initials (designer ruling c10ecadbf, 2026-11-03): it does not scale with the system text
+                // size, so it stays at its share of the cover's height and never fills the cover behind the time chip.
+                allowFontScaling={false}
                 style={[
                     styles.letter,
                     { color: colors.ink },

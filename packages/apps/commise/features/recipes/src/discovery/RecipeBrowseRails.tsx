@@ -32,6 +32,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
 import { RailContext } from './railContext.js';
+import { RAIL_LINK_INSET, RAIL_LINK_MIN_HEIGHT } from './railHeading.js';
 import { useRailScroll } from './useRailScroll.js';
 
 /** Visible title for each rail (S). */
@@ -81,8 +82,8 @@ const Rail: FC<{
 
     return (
         <section className="flex flex-col gap-3">
-            <header className="flex items-center gap-2">
-                <h2 ref={headingRef} tabIndex={-1} className="min-w-0 flex-1 text-section-title text-ink">
+            <header className="flex flex-wrap items-center gap-2">
+                <h2 ref={headingRef} tabIndex={-1} className="min-w-0 flex-auto text-section-title text-ink">
                     {title}
                 </h2>
                 <button
@@ -111,14 +112,21 @@ const Rail: FC<{
                 >
                     <Icon name="chevronRight" size={20} />
                 </button>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    accessibilityLabel={fillTemplate(discovery.seeAllLabel, { rail: title })}
-                    onPress={rail.onSeeAll}
+                {/* The link wraps under the title when the two do not fit; it never shrinks or truncates, and its box is
+                    pulled back by the button's padding so its text sits on the title's start edge. */}
+                <span
+                    className="flex shrink-0 items-center"
+                    style={{ minHeight: RAIL_LINK_MIN_HEIGHT, marginInlineStart: -RAIL_LINK_INSET }}
                 >
-                    {discovery.seeAll}
-                </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        accessibilityLabel={fillTemplate(discovery.seeAllLabel, { rail: title })}
+                        onPress={rail.onSeeAll}
+                    >
+                        {discovery.seeAll}
+                    </Button>
+                </span>
             </header>
             <RailContext value={{ title, trackRef: setTrack, onPosition: setPosition }}>{rail.body}</RailContext>
         </section>

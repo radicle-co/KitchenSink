@@ -86,11 +86,24 @@ const innerHandler = async (_event: ScheduledEvent, _context: Context, { db }: D
 
         // Clerk was deleted (or already gone) just above, so the provider deletion is confirmed in the SAME update
         // as the scrub — this path never leaves reconciliation anything to re-enqueue.
-        await eraseIdentityRow(
+        const wasErased = await eraseIdentityRow(
             db,
-            { userId: tombstone.id, triggerSource: 'sweep', actor: null, providerDeletedAt: now },
+            {
+                userId: tombstone.id,
+                triggerSource: 'sweep',
+                actor: null,
+                providerDeletedAt: now,
+                expectedStatus: 'tombstoned',
+            },
             now,
         );
+
+        // Reactivated (or erased by another path) since the select above: nothing was scrubbed, so there is no
+        // audit row to match and no downstream erasure to enqueue.
+        if (!wasErased) {
+            logger.warn('tombstone-sweep: row is no longer tombstoned; skipped', { userId: tombstone.id });
+            continue;
+        }
 
         // Enqueue the recipe/food erasure legs via the existing deletion path (U3/U4 seam). Best-effort: a
         // failed enqueue leaves the identity erased but the downstream legs unqueued — a gap the nightly

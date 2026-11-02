@@ -48,7 +48,10 @@ const makeContext = (): Context => ({ awsRequestId: 'req' }) as unknown as Conte
 const makeEvent = (): ScheduledEvent => ({ id: 'sched', source: 'aws.events' }) as unknown as ScheduledEvent;
 
 /** A drizzle-shaped mock db whose `select…where` resolves the given expired-tombstone rows. */
-function buildMockDb(expired: Array<{ id: string; identityId: string }>) {
+function buildMockDb(
+    expired: Array<{ id: string; identityId: string }>,
+    updatedRows: Array<{ id: string }> = [{ id: 'u' }],
+) {
     const userSets: Array<Record<string, unknown>> = [];
     const deletedTables: string[] = [];
     const auditRows: Array<Record<string, unknown>> = [];
@@ -58,7 +61,7 @@ function buildMockDb(expired: Array<{ id: string; identityId: string }>) {
             set: (value: Record<string, unknown>) => {
                 userSets.push(value);
 
-                return { where: () => Promise.resolve() };
+                return { where: () => ({ returning: () => Promise.resolve(updatedRows) }) };
             },
         }),
         delete: (table: { __t?: string }) => {
@@ -106,6 +109,20 @@ describe('erasureCutoff', () => {
 });
 
 describe('tombstone-sweep handler', () => {
+    // The sweep selects a tombstone, then erases it. A reactivation in between must win: nothing is scrubbed,
+    // audited or enqueued for a row that is no longer tombstoned.
+    it('skips a row that is no longer tombstoned when the erasure runs', async () => {
+        const { db, deletedTables, auditRows } = buildMockDb([{ id: 'usr_01', identityId: 'user_a' }], []);
+        mockGetDb.mockResolvedValue(db as never);
+
+        const result = await handler(makeEvent(), makeContext());
+
+        expect(result).toMatchObject({ scanned: 1, erased: 0 });
+        expect(deletedTables).toEqual([]);
+        expect(auditRows).toEqual([]);
+        expect(vi.mocked(SendMessageCommand)).not.toHaveBeenCalled();
+    });
+
     it('erases each expired tombstone: scrub → {id}, Clerk delete, audit row, enqueue legs', async () => {
         const { db, userSets, deletedTables, auditRows } = buildMockDb([{ id: 'usr_01', identityId: 'user_a' }]);
         mockGetDb.mockResolvedValue(db as never);

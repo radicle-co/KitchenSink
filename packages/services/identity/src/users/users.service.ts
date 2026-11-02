@@ -1,6 +1,13 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    Inject,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { provisionCompleteUser, type CreatedByline, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 import {
     composeAvatarUrl,
@@ -465,7 +472,7 @@ export class UsersService {
         // Lock the users row FIRST (the UPDATE), then touch the profile — matching provisionCompleteUser's
         // lock order so a delete racing a concurrent provision of the same identity can't deadlock (d59e11c).
         await this.db.transaction(async (tx) => {
-            await tx
+            const closed = await tx
                 .update(users)
                 .set({
                     ...directive.userColumns,
@@ -477,7 +484,14 @@ export class UsersService {
                     // that outlived its intent" — which it cannot do from the event name alone.
                     statusVersion: sql`${users.statusVersion} + 1`,
                 })
-                .where(eq(users.id, userId));
+                // The status read above is in the WHERE: an erasure (or any other move) committing since the read
+                // must not be rewritten into a tombstone.
+                .where(and(eq(users.id, userId), eq(users.status, existing.status)))
+                .returning({ id: users.id });
+
+            if (closed.length === 0) {
+                throw new ConflictException('The account changed while it was being closed; try again');
+            }
 
             // Closure keeps the companion rows (displayName survives for recovery); scrub only the avatar.
             if (directive.profileScrub) {

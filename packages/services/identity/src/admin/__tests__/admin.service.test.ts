@@ -4,6 +4,7 @@
  * R8 audit row, and enqueues a `reactivation` event so the deletion-worker calls Clerk `unbanUser` (the
  * public-ALB service holds no Clerk secret). Only a `tombstoned` account is recoverable — `erased` is not.
  */
+import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotFoundException, ConflictException } from '@nestjs/common';
@@ -46,8 +47,21 @@ function makeSelectChain<T>(rows: T[]) {
     return { from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }) };
 }
 
-function buildMocks(existing: Record<string, unknown> | undefined) {
-    const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+/**
+ * The `where()` result of an UPDATE: awaitable (the callers that ignore the row) and with `.returning()` (the guarded
+ * transitions, which read whether the WHERE matched a row). `wheres` records each predicate.
+ */
+function updateWhere(updatedRows: Array<{ id: string }>, wheres: SQL[]) {
+    return (predicate: SQL) => {
+        wheres.push(predicate);
+
+        return Object.assign(Promise.resolve(), { returning: () => Promise.resolve(updatedRows) });
+    };
+}
+
+function buildMocks(existing: Record<string, unknown> | undefined, updatedRows: Array<{ id: string }> = [{ id: 'u' }]) {
+    const wheres: SQL[] = [];
+    const setMock = vi.fn().mockReturnValue({ where: updateWhere(updatedRows, wheres) });
     const insertValues = vi.fn().mockResolvedValue(undefined);
     const db: any = {
         select: vi.fn().mockReturnValue(makeSelectChain(existing ? [existing] : [])),
@@ -57,7 +71,7 @@ function buildMocks(existing: Record<string, unknown> | undefined) {
     };
     const sqs: any = { enqueueDeletion: vi.fn().mockResolvedValue(undefined) };
 
-    return { db, sqs, setMock, insertValues, service: new AdminService(db, sqs) };
+    return { db, sqs, setMock, wheres, insertValues, service: new AdminService(db, sqs) };
 }
 
 describe('AdminService.reactivateUser', () => {
@@ -159,6 +173,35 @@ describe('AdminService.suspendUser / unsuspendUser — no status intent, guarded
         await expect(service[method](TARGET, adminCtx)).rejects.toBeInstanceOf(ConflictException);
         expect(setMock).not.toHaveBeenCalled();
     });
+});
+
+// The status was read, then checked, then written by id alone: erasure could commit `erased` in between and the
+// write would turn it back into `suspended`/`active`. The expected prior status is in the WHERE; no row means 409.
+describe('AdminService.suspendUser / unsuspendUser — a lost race', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it.each([
+        ['suspendUser', 'active'],
+        ['unsuspendUser', 'suspended'],
+    ] as const)('%s writes only while the row is still %s', async (method, from) => {
+        const { service, wheres } = buildMocks({ id: TARGET, identityId: 'user_abc', status: from });
+
+        await service[method](TARGET, adminCtx);
+
+        const { sql, params } = new PgDialect().sqlToQuery(wheres[0]!);
+        expect(sql).toContain('"status" =');
+        expect(params).toContain(from);
+    });
+
+    it.each(['suspendUser', 'unsuspendUser'] as const)(
+        '%s answers 409 when the row changed under it',
+        async (method) => {
+            const status = method === 'suspendUser' ? 'active' : 'suspended';
+            const { service } = buildMocks({ id: TARGET, identityId: 'user_abc', status }, []);
+
+            await expect(service[method](TARGET, adminCtx)).rejects.toBeInstanceOf(ConflictException);
+        },
+    );
 });
 
 describe('AdminService — a target that is no user id', () => {

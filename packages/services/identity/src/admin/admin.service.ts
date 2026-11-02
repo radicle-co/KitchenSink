@@ -96,6 +96,31 @@ export class AdminService {
         return { users: rows, limit, offset };
     }
 
+    /**
+     * Move a user from `from` to a new status, only if the row still holds `from`.
+     *
+     * The status was read and checked before this write, so the check alone cannot stop an erasure that commits in
+     * between from being turned back into `suspended` or `active`. The expected prior status is in the WHERE.
+     *
+     * @throws ConflictException when no row held `from` any more.
+     * @sideEffect updates the `users` row.
+     */
+    private async transition(
+        id: UserId,
+        from: 'active' | 'suspended',
+        set: { status: 'active' | 'suspended'; updatedAt: Date },
+    ): Promise<void> {
+        const updated = await this.db
+            .update(users)
+            .set(set)
+            .where(and(eq(users.id, id), eq(users.status, from)))
+            .returning({ id: users.id });
+
+        if (updated.length === 0) {
+            throw new ConflictException(`User ${id} is no longer '${from}'; the status changed during the request`);
+        }
+    }
+
     async suspendUser(
         targetSub: string,
         adminCtx: AuthorizerContext,
@@ -113,7 +138,7 @@ export class AdminService {
         // No `status_version` bump on purpose: suspension is not a PROVIDER state. The deletion worker converges
         // `shouldBeBanned = tombstoned`, so active and suspended are both unbanned and nothing would ever settle
         // an advanced intent, which the queue check would then escalate as a lost trigger forever.
-        await this.db.update(users).set({ status: 'suspended', updatedAt: now }).where(eq(users.id, existing.id));
+        await this.transition(existing.id, 'active', { status: 'suspended', updatedAt: now });
 
         this.logger.warn('user suspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -134,7 +159,7 @@ export class AdminService {
 
         const now = new Date();
         // No `status_version` bump: see `suspendUser`.
-        await this.db.update(users).set({ status: 'active', updatedAt: now }).where(eq(users.id, existing.id));
+        await this.transition(existing.id, 'suspended', { status: 'active', updatedAt: now });
 
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 

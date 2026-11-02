@@ -153,9 +153,15 @@ function lowestCounts<T>(
 export type AdmitNewPath = (file: string) => boolean;
 
 /**
- * The history a map's lowest counts are read from. With an admission rule, each path's lowest is read only from the
- * versions since the OLDEST one that records it, so an admitted path is not held to the zero of the versions before
- * it existed; a path that fell out of a later version still reads 0 there and cannot come back. Pure.
+ * The history a map's lowest counts are read from. With an admission rule:
+ *
+ * - a path the rule ADMITS is read only from the versions that record it. A merge joins two lanes' histories in one
+ *   `git log` list, and a version from the other lane lacks the path without the path having fallen out; the rule
+ *   (ADR-0080's register) is what keeps an unregistered path out, not the history.
+ * - any other path is read from the versions since the OLDEST one that records it, so a path is not held to the zero of
+ *   the versions before it existed; a path that fell out of a later version still reads 0 there and cannot come back.
+ *
+ * Pure.
  */
 function sinceFirstRecorded<T>(
     history: readonly BaselineVersion<T>[],
@@ -165,6 +171,10 @@ function sinceFirstRecorded<T>(
     return (file) => {
         if (admit === undefined) {
             return history;
+        }
+
+        if (admit(file)) {
+            return history.filter(({ baseline }) => file in pick(baseline));
         }
 
         const oldest = history.findLastIndex(({ baseline }) => file in pick(baseline));

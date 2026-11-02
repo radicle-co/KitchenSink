@@ -9,9 +9,9 @@
         "props": 2378,
         "documentedComponents": 188,
         "implementationsWithModuleDoc": 321,
-        "implementationsWithComponentDoc": 211,
+        "implementationsWithComponentDoc": 212,
         "documentedProps": 1812,
-        "classifiedComponents": 161,
+        "classifiedComponents": 168,
         "componentsWithPatternTag": 90,
         "crossPlatformComponents": 133
     },
@@ -1914,7 +1914,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — native collection-list FRAME (presentational).\n\nThe React Native leaf of `CollectionListFrame`: the large title (slice 3) and the floating \"New collection\", around\nwhatever the list's suspense boundary renders as `children`, so a pending or failed read never unmounts them. It\nfetches nothing.\n\nWhen `headingFocusSignal` advances — a retry from the refresh notice inside the boundary succeeded and removed the\nbutton the viewer pressed — the screen-reader cursor moves to the heading.",
+                    "moduleDoc": "@commise/features-recipes — native collection-list FRAME (presentational).\n\nThe React Native leaf of `CollectionListFrame`: the large title (slice 3) and the floating \"New collection\", around\nwhatever the list's suspense boundary renders as `children`, so a pending or failed read never unmounts them. It\nfetches nothing.\n\nThe large title and the segments are not drawn here: the frame hands them to the one list below it through\n`RecipeListHeaderContext` (the same slot the Recipes frame uses), and the list draws them as its first child. Collections\nhas no pinned field, so the whole header scrolls away with the content (designer finding C-2) and never unmounts when\nthe read changes state.\n\nWhen `headingFocusSignal` advances — a retry from the refresh notice inside the boundary succeeded and removed the\nbutton the viewer pressed — the screen-reader cursor moves to the heading.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2064,7 +2064,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListLoadError.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — native collection-list LOAD-ERROR fallback (presentational): what the list's error boundary renders\nwhen the read failed with nothing loaded. Its retry is the boundary's reset, which refetches.",
+                    "moduleDoc": "@commise/features-recipes — native collection-list LOAD-ERROR fallback (presentational): what the list's error boundary renders\nwhen the read failed with nothing loaded. Its retry is the boundary's reset, which refetches. The frame's header is drawn\nfirst, in the same scroller, so the title never vanishes with the failure.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2141,7 +2141,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListLoading.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/collections",
-                    "moduleDoc": "@commise/features-recipes — native collection-list LOADING fallback (presentational): what the list's `Suspense` renders while\nthe first page is pending.\n\nSkeleton cards (NOT a blank view — U4): inert, motion-free placeholders shaped like a collection row, so the surface\nhas structure while the first page loads. Motion-free ⇒ no reduce-motion gate.",
+                    "moduleDoc": "@commise/features-recipes — native collection-list LOADING fallback (presentational): what the list's `Suspense` renders while\nthe first page is pending.\n\nSkeleton cards (NOT a blank view — U4): inert, motion-free placeholders shaped like a collection row, so the surface\nhas structure while the first page loads. Motion-free ⇒ no reduce-motion gate. The frame's header is drawn first, in\nthe same scroller, so the title never vanishes while the page is pending.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -23692,7 +23692,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -23719,7 +23719,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "A box that fills the room it is given: the Recipes frame and the content it holds.",
+                    "description": "Presentational: a box that fills the room it is given: the Recipes frame and the content it holds.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -24878,7 +24878,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -24891,7 +24891,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Adapter — a host-fed Animated scroll view behind FlashList's `renderScrollComponent` seam"
             ],
@@ -24918,7 +24918,7 @@
                             "text": "Adapter — a host-fed Animated scroll view behind FlashList's `renderScrollComponent` seam"
                         }
                     ],
-                    "description": "",
+                    "description": "Orchestration: reads the host's scroll offset and builds the one native-driven `Animated.event` over it (a hook and an Animated\nnode), then hands the Animated scroll view its props. It holds no ref.",
                     "tags": [
                         {
                             "name": "param",
@@ -24936,7 +24936,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -25090,7 +25090,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -25117,7 +25117,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "A box with the 16 pt side gutter every list child outside the header carries.",
+                    "description": "Presentational: a box with the 16 pt side gutter every list child outside the header carries.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -26276,7 +26276,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -26289,7 +26289,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -26316,7 +26316,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The header group's box: 8 above, and 16 below before the chips, or 8 in compact height (what the screen's top padding\nand gap gave it before the header became the list's first child).",
+                    "description": "Presentational: the header group's box: 8 above, and 16 below before the chips, or 8 in compact height (what the screen's\ntop padding and gap gave it before the header became the list's first child).",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -27475,7 +27475,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -27488,7 +27488,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -27515,7 +27515,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The header's group: title (or the compact heading) and the search field's spacer, in one box. In compact height, a phone\nheld sideways, the heading shares one wrapping row with the field and the box insets its own sides.",
+                    "description": "Presentational: the header's group: title (or the compact heading) and the search field's spacer, in one box. In compact height, a phone\nheld sideways, the heading shares one wrapping row with the field and the box insets its own sides.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -28674,7 +28674,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -29665,7 +29665,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -29692,7 +29692,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The band behind the pinned search field: the canvas colour with a lineDivider hairline on its bottom edge only, and no\nshadow. It fills the animated box the frame sizes and places, so the card text that scrolls under a pinned field does not\nshow above or beside it.",
+                    "description": "Presentational: the band behind the pinned search field: the canvas colour with a lineDivider hairline on its bottom edge only, and no\nshadow. It fills the animated box the frame sizes and places, so the card text that scrolls under a pinned field does not\nshow above or beside it.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -30851,7 +30851,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -30864,7 +30864,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/list",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Variant — a Tamagui `styled` frame with a closed `compact` variant"
             ],
@@ -30891,7 +30891,7 @@
                             "text": "Variant — a Tamagui `styled` frame with a closed `compact` variant"
                         }
                     ],
-                    "description": "The frame's layer above the list for the pinned search field. It takes no touches itself; the field inside does.",
+                    "description": "Presentational: the frame's layer above the list for the pinned search field. It takes no touches itself; the field inside does.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -32050,7 +32050,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

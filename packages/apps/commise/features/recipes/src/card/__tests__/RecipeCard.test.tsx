@@ -19,6 +19,7 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import type { CardVariant } from '../cardVariant.js';
 import { toRecipeCardModel } from '../model.js';
 import { RecipeCard } from '../RecipeCard.js';
+import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from '../coverChip.js';
 
 afterEach(cleanup);
 
@@ -553,6 +554,20 @@ describe('RecipeCard (web, grid) — W-08: the cuisine never sits under the time
                 expect.arrayContaining(['flex-row-reverse', 'flex-wrap', 'overflow-hidden']),
             );
             expect(chip.firstElementChild).toBe(screen.getByText('Draft'));
+        });
+
+        it('reads its insets and padding from coverChip.ts, not from classes that repeat the numbers', () => {
+            draftAndPro();
+            const chip = screen.getByText('Draft').parentElement as HTMLElement;
+            const row = chip.parentElement as HTMLElement;
+
+            expect(row.style.top).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(row.style.left).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(row.style.right).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(chip.style.paddingLeft).toBe(`${String(COVER_CHIP_PADDING)}px`);
+            expect(chip.style.paddingRight).toBe(`${String(COVER_CHIP_PADDING)}px`);
+            expect(classesOf(row)).not.toEqual(expect.arrayContaining(['inset-x-2']));
+            expect(classesOf(chip)).not.toContain('px-2');
         });
 
         it('keeps the status chip and PRO in one wrapping row, so the second moves whole to the next line', () => {

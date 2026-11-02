@@ -33,10 +33,11 @@ import { RecipeCover } from '@commise/ui/recipe-cover';
 import { isModifiedClick } from '@commise/ui/route-link';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
-import { createContext, useContext, type FC, type ReactNode } from 'react';
+import { createContext, useContext, type CSSProperties, type FC, type ReactNode } from 'react';
 
 import { GRID_CELL_CLASS } from './cardGridClass.js';
 import type { CardVariant } from './cardVariant.js';
+import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from './coverChip.js';
 import { STAR_COUNT } from './model.js';
 import {
     RecipeCardNutritionContext,
@@ -91,7 +92,13 @@ const COVER_CHIP =
  * that is exactly one line and clips what wraps, so a chip wider than the cover drops the GLYPH and keeps the word.
  */
 const STATUS_CHIP =
-    'inline-flex h-[max(1.5rem,1lh)] max-w-full flex-row-reverse flex-wrap content-start items-center gap-x-1 overflow-hidden rounded-sm bg-photo-chip px-2 text-caption font-medium leading-[max(1.5rem,1lh)] text-ink';
+    'inline-flex h-[max(1.5rem,1lh)] max-w-full flex-row-reverse flex-wrap content-start items-center gap-x-1 overflow-hidden rounded-sm bg-photo-chip text-caption font-medium leading-[max(1.5rem,1lh)] text-ink';
+
+/** The row the status chip and PRO share, placed by the same insets the native card and the fit harness use. */
+const COVER_TOP_STYLE: CSSProperties = { top: COVER_CHIP_INSET, left: COVER_CHIP_INSET, right: COVER_CHIP_INSET };
+
+/** The status chip's padding, from `coverChip.ts`, so the number is stated once. */
+const STATUS_CHIP_STYLE: CSSProperties = { paddingLeft: COVER_CHIP_PADDING, paddingRight: COVER_CHIP_PADDING };
 
 const Star: FC<{ readonly filled: boolean; readonly extra: boolean }> = ({ filled, extra }) => (
     <svg
@@ -132,9 +139,12 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
             {chips === 'all'
                 ? (cover.status !== undefined || cover.pro !== undefined) && (
                       // One wrapping row: a second chip that does not fit moves whole to the next line.
-                      <div className="absolute inset-x-2 top-2 flex flex-wrap items-start justify-between gap-1">
+                      <div
+                          className="absolute flex flex-wrap items-start justify-between gap-1"
+                          style={COVER_TOP_STYLE}
+                      >
                           {cover.status !== undefined && (
-                              <span className={STATUS_CHIP}>
+                              <span className={STATUS_CHIP} style={STATUS_CHIP_STYLE}>
                                   <span>{cover.status.text}</span>
                                   <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} />
                               </span>

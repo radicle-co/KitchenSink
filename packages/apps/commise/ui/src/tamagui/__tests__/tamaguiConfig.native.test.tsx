@@ -34,6 +34,10 @@ function valOf(group: TokenGroup, key: string): unknown {
 }
 
 describe('the built Tamagui config', () => {
+    it('names exactly one animation, so the test lane shim cannot drift from the names it fakes', () => {
+        expect(Object.keys(tamaguiConfig.animations.animations)).toEqual(['sheet']);
+    });
+
     it('lays out by React Native’s flex rules, not CSS’s', () => {
         expect(tamaguiConfig.settings.styleCompat).toBe('react-native');
     });

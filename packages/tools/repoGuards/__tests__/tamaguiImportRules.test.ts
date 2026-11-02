@@ -57,7 +57,10 @@ describe('G1: tamaguiImportFindings', () => {
 
 describe('G1: the closed allow-list of Tamagui value imports', () => {
     it.each([
-        ['a Sheet, which no guard classifies', `import { Sheet } from 'tamagui';`, 1],
+        ['a Dialog, which no guard classifies', `import { Dialog } from 'tamagui';`, 1],
+        // The one animated overlay part (ADR-0080 §7): its window, motion and open state are held by overlayHostBoundary and tamaguiMotionProps.
+        ['a Sheet, whose guards are overlayHostBoundary and tamaguiMotionProps', `import { Sheet } from 'tamagui';`, 0],
+        ['a Sheet through a namespace member', `import * as T from 'tamagui';\nconst d = <T.Sheet />;`, 0],
         ['a Paragraph from @tamagui/text', `import { Paragraph } from '@tamagui/text';`, 1],
         ['a Button, an Input and an Image', `import { Button, Input, Image } from 'tamagui';`, 3],
         ['a Dialog through a namespace member', `import * as T from 'tamagui';\nconst d = <T.Dialog />;`, 1],
@@ -75,9 +78,10 @@ describe('G1: the closed allow-list of Tamagui value imports', () => {
             0,
         ],
         // H-1: a styled context carries a value to variants and resolvers the guards already read; its Provider draws no box.
+        ['the animation driver builder', `import { createAnimations } from '@tamagui/animations-react-native';`, 0],
         ['a styled context', `import { createStyledContext } from 'tamagui';`, 0],
         ['a renamed allowed name', `import { View as Box } from 'tamagui';`, 0],
-        ['a renamed unclassified name', `import { Sheet as Drawer } from 'tamagui';`, 1],
+        ['a renamed unclassified name', `import { Dialog as Drawer } from 'tamagui';`, 1],
         ['a default import, whose members no guard can classify', `import T from 'tamagui';`, 1],
         ['an export of everything', `export * from 'tamagui';`, 1],
         ['a type-only re-export', `export type { GetProps } from 'tamagui';`, 0],

@@ -333,7 +333,7 @@ describe('VersionsService.restore', () => {
             // writer, so "two versions at the same number" is unreachable rather than avoided by a flag.
             { snapshot: { changeSummary: 'Restored from version 3', baseVersion: 3 } },
         );
-        expect(lineRestorer.restoreLines).toHaveBeenCalledWith(CALLER, OWNER, TARGET_SNAPSHOT.ingredients);
+        expect(lineRestorer.restoreLines).toHaveBeenCalledWith(CALLER, TARGET_SNAPSHOT.ingredients);
         // ⛔ ZERO, not one. The restore no longer writes its own version — `RecipesService.update` records
         // it inside the same transaction as the content write, from the directive above. Asserting the
         // absence is what stops the old second writer being reintroduced.

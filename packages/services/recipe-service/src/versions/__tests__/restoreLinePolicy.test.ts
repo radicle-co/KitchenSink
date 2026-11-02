@@ -4,6 +4,11 @@
  * A snapshot stores the line's binding id and the name the saving cook could share. At restore time the binding
  * may still stand, may point at a food that is gone or withdrawn, or may be gone itself. Every case is a row of
  * the table below, so a changed rule shows up as a changed row.
+ *
+ * ⛔ A restore binds what the version DEFINED (owner ruling 4, 2026-11-03). Where the food or the binding is gone it
+ * never asks the resolution cascade or food for a stand-in: that would pick another food for the cook with no choice.
+ * It declares the frozen name instead, so the line comes back unbound with its name and the cook picks through the
+ * lookup like any other unbound line.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -73,16 +78,16 @@ describe('decideRestoreLine — the binding still stands', () => {
             { kind: 'reuse', lookupId: 'l-variant' },
         ],
         [
-            'a withdrawn food goes by the frozen name, to find what stands in for it now',
+            '⛔ a withdrawn food comes back UNBOUND under its frozen name: no stand-in is picked for the cook',
             line({ ingredientName: 'Beef brisket' }),
             bound(ROOT, 'withdrawn', 'Beef brisket'),
-            { kind: 'byName', name: canonical('Beef brisket') },
+            { kind: 'declare', name: canonical('Beef brisket') },
         ],
         [
-            'a food food no longer shows goes by the frozen name',
+            '⛔ a food food no longer shows comes back UNBOUND under its frozen name',
             line({ ingredientName: 'Beef brisket' }),
             bound(ROOT, 'gone'),
-            { kind: 'byName', name: canonical('Beef brisket') },
+            { kind: 'declare', name: canonical('Beef brisket') },
         ],
         [
             '⛔ a gone food with NO frozen name keeps its binding, which renders honestly as removed',
@@ -103,10 +108,10 @@ describe('decideRestoreLine — the binding still stands', () => {
             { kind: 'reuse', lookupId: 'l-unresolved' },
         ],
         [
-            'any other unresolved line resolves its failure’s name again, which may succeed now',
+            'any other unresolved line is restored as it was: what the version defined, not a fresh resolution',
             line({ ingredientId: 'l-unresolved' }),
             bound(unresolved('no_source_has_it'), 'unbound', 'Yuzu kosho'),
-            { kind: 'byName', name: canonical('Yuzu kosho') },
+            { kind: 'reuse', lookupId: 'l-unresolved' },
         ],
     ])('%s', (_case, snapshotLine, identity, expected) => {
         expect(decideRestoreLine(snapshotLine, identity)).toStrictEqual(expected);
@@ -121,9 +126,9 @@ describe('decideRestoreLine — the binding is gone', () => {
             { kind: 'declare', name: canonical('Yuzu kosho') },
         ],
         [
-            'any other line goes by its frozen name',
+            '⛔ any other line comes back unbound under its frozen name, never resolved to another food',
             line({ ingredientName: 'Beef brisket' }),
-            { kind: 'byName', name: canonical('Beef brisket') },
+            { kind: 'declare', name: canonical('Beef brisket') },
         ],
         ['⛔ a line with no binding and no name cannot be restored', line(), { kind: 'unrestorable' }],
         [

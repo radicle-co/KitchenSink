@@ -157,11 +157,9 @@ export function shouldRetryMutation(failureCount: number, error: unknown): boole
  * stampede: every throttled caller returns at the same moment the window opens. When the error carries no
  * hint, fall back to capped exponential backoff — TanStack's own default shape.
  *
- * ⚠️ TODAY ONLY THE BUSY AND LIMIT REFUSALS CARRY `retryAfterSeconds`. The recipe client's throttler `429`
- * surfaces without one, so it takes the backoff path; teaching that client to read the `Retry-After` header is a
- * separate change in `@kitchensink/recipe-service-client`. A hint is finite whenever it is present (each client reads
- * its header with `@kitchensink/retry-after` or parses it from a JSON body), and {@link shouldRetryMutation} refuses a
- * wait above {@link MAX_MUTATION_RETRY_WAIT_SECONDS} before this delay is asked for.
+ * A hint is finite whenever it is present (each client reads its header with `@kitchensink/retry-after` or parses
+ * it from a JSON body), and {@link shouldRetryMutation} refuses a wait above {@link MAX_MUTATION_RETRY_WAIT_SECONDS}
+ * before this delay is asked for.
  *
  * Pure — arithmetic over a count and a value.
  *

@@ -509,6 +509,40 @@ describe('identity-webhook handler', () => {
             expect(syncProviderFields).not.toHaveBeenCalled();
             expect(mockRecordOnce).not.toHaveBeenCalled();
         });
+
+        // The webhook and the nightly reconciliation must read the same address as "the" email.
+        it('takes the email whose id is primary_email_address_id, not the first in the list', async () => {
+            const { db, setUser } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            const payload = {
+                ...userUpdatedPayload,
+                data: {
+                    ...userUpdatedPayload.data,
+                    primary_email_address_id: 'email_2',
+                    email_addresses: [
+                        { id: 'email_1', email_address: 'old@example.com' },
+                        { id: 'email_2', email_address: 'primary@example.com' },
+                    ],
+                },
+            };
+            mockVerifyWebhook.mockReturnValue(payload as never);
+            useDao(vi.fn().mockResolvedValue({}));
+
+            await handler(makeEvent(JSON.stringify(payload), { 'svix-id': 'msg_791' }), makeContext());
+
+            expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ email: 'primary@example.com' }));
+        });
+
+        it('falls back to the first email when no primary id is sent', async () => {
+            const { db, setUser } = buildMockDb();
+            mockGetDb.mockResolvedValue(db);
+            mockVerifyWebhook.mockReturnValue(userUpdatedPayload as never);
+            useDao(vi.fn().mockResolvedValue({}));
+
+            await handler(makeEvent(JSON.stringify(userUpdatedPayload), { 'svix-id': 'msg_792' }), makeContext());
+
+            expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ email: 'updated@example.com' }));
+        });
     });
 
     /**

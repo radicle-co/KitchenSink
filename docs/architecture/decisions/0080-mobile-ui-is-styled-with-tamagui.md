@@ -1,6 +1,6 @@
 # 0080 — Mobile UI is styled with Tamagui, configured by the design system and held there by guards
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-10-31
 - **Drivers**: Owner rulings, 2026-10-31. Tamagui styles the mobile app, the shared native components included. "Make
   sure all React Native styling is replaced by tamagui." Design patterns, a seam-and-module architecture and correct
@@ -153,11 +153,14 @@ results still look like our app. We should continue to use the @commise/ui packa
   native leaf (`Component.native.tsx`) is built from Tamagui's component of the same job: Button, Sheet, Dialog,
   Popover and the rest. A screen imports the export, never Tamagui's component.
 - G1 opens to each Tamagui component only after the guards are taught it, one component per slice.
-- ADR-0056 still binds. Back must reach an open sheet, dialog or popover through our `BackInterceptProvider`, which
-  sits outside the `NavigationContainer`. So a Tamagui overlay's open state is wired into our back-intercept seam by an
-  Adapter, and neither Tamagui nor React Navigation answers Back first. `staff-architect` blueprints that Adapter
-  before the first Sheet or Dialog port, and the port keeps ADR-0056's device check, because jsdom cannot see
-  back-handler order.
+- ADR-0056 still binds, and the way Back reaches an overlay depends on what hosts it. Back for an overlay in a `Modal`
+  window arrives through that window's `onRequestClose`, because React Native emits no `hardwareBackPress` while a
+  `Modal` is up. An `OverlayHost` (an Adapter over our `Modal`) turns every dismiss route (Back, scrim, swipe, close
+  control, screen-reader escape) into one `DismissRequest`. The screen that owns `open` answers it, and may refuse.
+  Interceptors registered inside a window use that window's own scope, so they fire. `BackInterceptProvider` serves
+  the surfaces that are not windows. Neither Tamagui nor React Navigation answers Back first. `staff-architect`
+  blueprints `OverlayHost` before the first Sheet or Dialog port, and the port keeps ADR-0056's device check, because
+  jsdom cannot see back-handler order.
 - Every sheet, dialog and popover is built from Tamagui's parts for everything the user sees (frame, handle, overlay,
   content and the rest), and React Native's `Modal` stays its host (owner ruling, 2026-10-31). Tamagui renders these
   in a Portal, which gives none of what the `Modal` gives today: Back reaching the overlay first, a screen reader kept

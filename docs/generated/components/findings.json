@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 161,
         "missing-module-doc": 21,
-        "platform-singleton": 75,
+        "platform-singleton": 76,
         "ref-api": 15,
         "unclassified-layer": 92,
-        "undocumented-prop": 181
+        "undocumented-prop": 182
     },
     "findings": [
         {
@@ -502,6 +502,31 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/photo/Photo",
+            "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/photo/Photo",
+            "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "ref",
+                "target"
             ]
         },
         {

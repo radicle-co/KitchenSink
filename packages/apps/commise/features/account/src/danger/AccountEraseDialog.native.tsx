@@ -162,7 +162,8 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.sm,
         paddingVertical: 8,
         paddingHorizontal: 12,
-        ...nativeTokens.type.body,
+        // The field's old height (a 24 pt line, 16 pt of padding, two edges); its text is the TextInput primitive's.
+        minHeight: 42,
     },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 4 },
     cancelButton: { borderRadius: nativeTokens.radius.full, paddingVertical: 8, paddingHorizontal: 16 },

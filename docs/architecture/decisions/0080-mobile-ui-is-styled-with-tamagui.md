@@ -124,6 +124,9 @@ styling ratchet asserts this list and the ledger match in both directions:
 
 - `packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts`: `StyleSheet.hairlineWidth` behind the `$hairline`
   border-width token, a density-dependent platform value with no Tamagui source.
+- `packages/apps/commise/ui/src/textInput/TextInput.native.tsx`: the `style` of React Native's text input, the one place the
+  app renders it. The text size and leading are computed per platform and system scale (`inputTextStyle`: no line height
+  on iOS, where one sits the text low), which a static Tamagui style cannot express.
 
 The first recording was proven once, by hand. Every file in the styling baseline existed at `5979abcd5` with at least
 its recorded count.

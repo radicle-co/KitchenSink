@@ -20,13 +20,12 @@ export const FIELD_PADDING = nativeTokens.spacing[4];
 /** The field's minimum height, in points. */
 export const FIELD_MIN_HEIGHT = 48;
 
-/** The resting field. */
 /**
- * The field's static geometry: the body face, the 48 pt minimum, the edge width, the radius and the padding. ⛔ No
+ * The field's static geometry: the 48 pt minimum, the edge width, the radius and the padding. ⛔ No
+ * text: its size and leading are `inputTextStyle`, which the `TextInput` primitive applies. ⛔ No
  * colour: a colour here would be baked into one theme at import (D15). Paint it at render with {@link fieldPaint}.
  */
 export const fieldGeometry = {
-    ...nativeTokens.type.body,
     minHeight: FIELD_MIN_HEIGHT,
     borderWidth: FIELD_EDGE,
     borderRadius: nativeTokens.radius.md,

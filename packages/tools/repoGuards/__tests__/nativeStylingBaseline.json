@@ -227,6 +227,7 @@
         "packages/apps/commise/ui/src/variantPartsLine/VariantPartsLine.native.tsx": 3
     },
     "adapterExemptions": {
-        "packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts": 1
+        "packages/apps/commise/ui/src/tamagui/tamaguiConfig.native.ts": 1,
+        "packages/apps/commise/ui/src/textInput/TextInput.native.tsx": 1
     }
 }

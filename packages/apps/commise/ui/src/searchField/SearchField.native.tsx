@@ -99,6 +99,6 @@ const styles = StyleSheet.create({
         paddingStart: nativeTokens.spacing[4],
         paddingEnd: nativeTokens.spacing[1],
     },
-    input: { ...nativeTokens.type.body, flex: 1, minHeight: PILL_HEIGHT - 2 },
+    input: { flex: 1, minHeight: PILL_HEIGHT - 2 },
     clear: { alignItems: 'center', justifyContent: 'center', borderRadius: nativeTokens.radius.full },
 });

@@ -24,13 +24,12 @@ The old layout. It is covered by the Home header and card lanes. Nothing new.
 
 ## Profile (`ProfileAndroid384`)
 
-The app is the old Profile. Build it to the board:
+Corrected 2026-11-02. The board puts the handle and the email in the header, which breaks owner rulings S2 and T8
+in `ownerFeedback.md`. So the board is wrong there, and the owner rulings win.
 
-1. Header: a 72 pt initials disc, then the display name (`cardTitle`), "@handle" and the email (`meta`, `inkMuted`)
-   stacked beside it. Today the app shows an empty disc with a camera badge and the handle in a large title.
-2. Remove the Username and Email rows. They live in the header now. Display name stays the first row.
-3. Groups in order: Display name; Subscription; Preferences (Food data sources, AI and connected apps); Privacy and
-   rules (Your data, Rules and policies); Sign out; Danger zone (Close account, Erase my data).
-4. Accepted differences: Subscription, AI and connected apps and Your data have no feature on this branch, so leave
-   them out until they ship. Build "Rules and policies" only if its page exists. Otherwise leave it out too.
-5. A long email wraps. It never truncates.
+1. Header: the 72 pt disc, then the display name in `cardTitle`. With no display name, it shows "@username" (T8).
+   The "Profile" large title stays above it. The disc stays the photo control (`AvatarField`) as it is today.
+2. Keep the Display name, Username and Email rows. They are the one place the username and the email appear (S2).
+3. Group order: the account rows, Preferences (Food data sources), Sign out, Danger zone. Leave out Subscription,
+   AI and connected apps and the Privacy and rules group until their pages ship.
+4. A long email wraps. It never truncates.

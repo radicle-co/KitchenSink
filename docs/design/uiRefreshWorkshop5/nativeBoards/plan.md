@@ -322,3 +322,5 @@ Differences where the board, not the app, is wrong. Fix each in the board source
 - Home boards: the greeting is 16/24 at 500. Draw it in `cardTitle`. The widget heading's 28 and 10 become 24
   and 8.
 - Card boards (list row and tiles, Home included): add the calorie figure to the meta line (owner, 2026-11-02).
+- Profile boards: the header shows the handle and the email, against owner rulings S2 and T8. Draw the name only
+  (or @username with no name), and keep the Username and Email rows.

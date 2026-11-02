@@ -6,6 +6,14 @@
  * project's convention.
  */
 export {
+    ClerkAccountSuspendedError,
+    SUSPENDED_METADATA_KEY,
+    isClerkAccountSuspendedError,
+    isSuspendedAllowedRoute,
+    isSuspendedMark,
+} from './accountSuspension.js';
+export type { RequestTarget } from './accountSuspension.js';
+export {
     verifyClerkToken,
     buildPreviewAzpPattern,
     buildTransitionAzpPattern,

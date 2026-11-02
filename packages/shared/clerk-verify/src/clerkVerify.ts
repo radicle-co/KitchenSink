@@ -16,6 +16,13 @@
  */
 import { verifyToken } from '@clerk/backend';
 
+import {
+    ClerkAccountSuspendedError,
+    SUSPENDED_METADATA_KEY,
+    isSuspendedAllowedRoute,
+    isSuspendedMark,
+    type RequestTarget,
+} from './accountSuspension.js';
 import { ROLES_METADATA_KEY, parseRoles, scopesForRoles, type Role } from './roles.js';
 
 /** The subset of Clerk session/M2M-token claims consumers read. */
@@ -91,6 +98,13 @@ export interface ClerkVerifyConfig {
      * `azp`-absence alone, or any client able to obtain an `azp`-less token bypasses the origin check.
      */
     readonly admitAzplessToken?: (payload: Readonly<Record<string, unknown>>) => boolean;
+    /**
+     * Admit a token whose `public_metadata` carries the suspended mark (ADR-0081). Absent means the token is refused
+     * with {@link ClerkAccountSuspendedError} unless the request is on the suspended allow-list. ONLY an adopter that
+     * takes no authorization decisions sets it (the edge, which passes the token on to the origin that decides); a
+     * repo guard holds that to one file.
+     */
+    readonly allowSuspended?: boolean;
 }
 
 /**
@@ -308,11 +322,18 @@ function assertAzpMatchesPattern(
  *
  * @param token - The raw bearer token.
  * @param config - The public PEM key + `azp` allowlist.
+ * @param request - The method and path the token was presented on; lets a suspended account through the few routes
+ *   on the allow-list. Omit it and a suspended account is always refused.
  * @returns The verified claims (`sub` guaranteed present).
  * @throws {ClerkVerificationError} on ANY failure (missing key, bad signature/expiry/azp, missing sub).
+ * @throws {ClerkAccountSuspendedError} when the token is genuine but its account is marked suspended (ADR-0081).
  * @sideEffect None beyond the in-process signature check — no network call (jwtKey, not secretKey).
  */
-export async function verifyClerkToken(token: string, config: ClerkVerifyConfig): Promise<VerifiedClerkClaims> {
+export async function verifyClerkToken(
+    token: string,
+    config: ClerkVerifyConfig,
+    request?: RequestTarget,
+): Promise<VerifiedClerkClaims> {
     if (!config.jwtKey) {
         // Fail closed: a missing public key cannot verify anything, and we never reach out for one.
         throw new ClerkVerificationError();
@@ -372,6 +393,18 @@ export async function verifyClerkToken(token: string, config: ClerkVerifyConfig)
     }
 
     const publicMetadata = asRecord(payload['public_metadata']);
+
+    // ⛔ ADR-0081: a validly signed token for a SUSPENDED account is refused here, once, for every adopter. After the
+    // signature, `act` and `azp` checks, so the 403 can never tell a caller anything about a token it could not sign.
+    // Read from the same signed `public_metadata` as `scopes`, never from a top-level claim or `unsafe_metadata`.
+    if (
+        isSuspendedMark(publicMetadata[SUSPENDED_METADATA_KEY]) &&
+        config.allowSuspended !== true &&
+        !(request !== undefined && isSuspendedAllowedRoute(request))
+    ) {
+        throw new ClerkAccountSuspendedError();
+    }
+
     const roles = parseRoles(publicMetadata[ROLES_METADATA_KEY]);
 
     return {

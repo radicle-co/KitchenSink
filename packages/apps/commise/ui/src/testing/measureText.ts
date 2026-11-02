@@ -9,6 +9,8 @@
  *
  * @pattern Adapter over opentype.js — a registered face name in, the font's own advance widths out
  */
+// Test-only and reads files from disk, so it names Node's types itself: the app packages compile with `types: []`.
+/// <reference types="node" />
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -29,6 +31,26 @@ const PACKAGE_OF: readonly { readonly faces: Readonly<Record<string, string>>; r
 ];
 
 const fonts = new Map<LoadedFace, opentype.Font>();
+
+/** Whether a face name is one the app loads. Pure. */
+function isLoadedFace(face: string): face is LoadedFace {
+    return PACKAGE_OF.some(({ faces }) => Object.values(faces).includes(face));
+}
+
+/**
+ * A face name the tokens type as a plain string, checked against the registry. Pure.
+ *
+ * @param face - A face name, for example a type role's `fontFamily`.
+ * @returns The same name, typed as a face the app loads.
+ * @throws Error when the app does not load that face.
+ */
+export function asLoadedFace(face: string): LoadedFace {
+    if (!isLoadedFace(face)) {
+        throw new Error(`"${face}" is not a face the app loads (tokens/scale.ts lists them).`);
+    }
+
+    return face;
+}
 
 /**
  * The parsed font for a registered face, read once.

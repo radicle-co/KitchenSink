@@ -38,7 +38,7 @@ the old layout, so most of each screen differs from its board. Matching the boar
 
 ### Home (`HomeAndroid384`)
 
-1. Header: the board puts "Good morning, Eliza" (section title) and the date on one row with the initials button on
+1. Header: the board puts "Good morning, Eliza" (`cardTitle`, corrected in `buildLists.md`) and the date on one row with the initials button on
    the right. The app shows a separate row with the button, then a 28 pt title "Still up?" with no name.
 2. Section title: the board says "Your recent recipes". The app says "Recent recipes".
 3. Date: the board shows "Sunday 25 October", with no year. The app shows "Sunday, November 1, 2026". Follow the

@@ -15,8 +15,14 @@
  * There is deliberately **no** `resolveOrCreateFromClaims`, no read-through user creation, and no
  * local `users` table — recipe ownership is keyed solely on the verified `userId` ULID.
  */
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { resolveAzpEnforcement, verifyClerkToken, type VerifiedClerkClaims } from '@kitchensink/clerk-verify';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+    isClerkAccountSuspendedError,
+    resolveAzpEnforcement,
+    verifyClerkToken,
+    type RequestTarget,
+    type VerifiedClerkClaims,
+} from '@kitchensink/clerk-verify';
 
 @Injectable()
 export class ClerkAuthService {
@@ -45,15 +51,22 @@ export class ClerkAuthService {
      * Verify a Clerk session JWT networklessly and return the verified claims.
      *
      * @param token - The raw bearer token.
+     * @param request - The method and path it arrived on; lets the shared verifier admit a suspended account on the
+     *   data-rights routes (ADR-0081).
      * @returns The verified claims (`userId` present only when the token carries `external_id`).
      * @throws {UnauthorizedException} (→ 401) on ANY verification failure — the underlying reason is
      *   never surfaced to the caller.
+     * @throws {ForbiddenException} (→ 403 `ACCOUNT_SUSPENDED`) for a genuine token whose account is suspended.
      * @sideEffect None beyond the in-process signature check — no network call (jwtKey, not secretKey).
      */
-    public async verify(token: string): Promise<VerifiedClerkClaims> {
+    public async verify(token: string, request?: RequestTarget): Promise<VerifiedClerkClaims> {
         try {
-            return await verifyClerkToken(token, { jwtKey: this.jwtKey, ...this.azp });
-        } catch {
+            return await verifyClerkToken(token, { jwtKey: this.jwtKey, ...this.azp }, request);
+        } catch (error) {
+            if (isClerkAccountSuspendedError(error)) {
+                throw new ForbiddenException({ code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended' });
+            }
+
             throw new UnauthorizedException();
         }
     }

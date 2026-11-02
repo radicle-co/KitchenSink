@@ -51,6 +51,11 @@ export interface MintTokenOptions {
      * of every ordinary session token; present, the shared verifier refuses the token (owner ruling 2026-10-15).
      */
     readonly act?: { readonly sub: string };
+    /**
+     * ADR-0081: when `true`, the SIGNED `public_metadata.suspended` mark identity writes for a suspended account.
+     * Omitted leaves the key out entirely — the shape of every active user's token.
+     */
+    readonly suspended?: boolean;
     /** Seconds until expiry (default 3600). Use a negative value to mint an already-expired token. */
     readonly expiresInSeconds?: number;
 }
@@ -102,6 +107,7 @@ export function mintToken(privateKeyPem: string, options: MintTokenOptions): str
             permissions: [...(options.permissions ?? [])],
             ...(options.roles !== undefined ? { roles: [...options.roles] } : {}),
             ...(options.testPrincipal !== undefined ? { testPrincipal: options.testPrincipal } : {}),
+            ...(options.suspended !== undefined ? { suspended: options.suspended } : {}),
         },
     };
 

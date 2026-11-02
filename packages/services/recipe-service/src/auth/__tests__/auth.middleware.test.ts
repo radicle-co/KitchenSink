@@ -60,6 +60,7 @@ const makeContext = (options: { authorization?: string; path?: string } = {}): M
 
     const req = {
         headers,
+        method: 'GET',
         path,
         originalUrl: path,
     } as unknown as AuthenticatedRequest;
@@ -114,7 +115,8 @@ describe('AuthMiddleware', () => {
 
         await middleware.use(req, res, next);
 
-        expect(verifySpy).toHaveBeenCalledExactlyOnceWith('good.session.token');
+        // The request is named so the shared verifier can admit a suspended account on the data-rights routes (ADR-0081).
+        expect(verifySpy).toHaveBeenCalledExactlyOnceWith('good.session.token', { method: 'GET', path: '/recipes' });
         expect(req.principal).toEqual({
             userId: claims.userId,
             sub: claims.sub,

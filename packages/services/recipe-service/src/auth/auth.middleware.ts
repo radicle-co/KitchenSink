@@ -148,7 +148,7 @@ export class AuthMiddleware implements NestMiddleware {
         }
 
         // Any verification failure (bad signature, expiry, wrong azp, missing key) → opaque 401.
-        const claims = await this.clerkAuth.verify(bearer);
+        const claims = await this.clerkAuth.verify(bearer, { method: req.method, path });
 
         // FAIL-CLOSED enforcement point (REQ-IF-007): the owner key is the app-user ULID from
         // `external_id`. When it is absent the shared verifier leaves `userId` undefined; we reject

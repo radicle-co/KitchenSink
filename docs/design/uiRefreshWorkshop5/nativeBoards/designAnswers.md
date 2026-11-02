@@ -2,14 +2,28 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-02: the floating button in a short web window (asked by Nova Squad)
+
+- Below 400 CSS px of viewport height (for example 1280 x 800 at 200% zoom or more), the New recipe button stops
+  floating. It sits in the page flow on its own row under the page header (after the greeting and the date, 16 below the date),
+  start-aligned, with no shadow, because a shadow says "floating". The page's end room under it drops to 0.
+  Above 400 px it floats as before. At 320 x 200 a fixed button and the tab bar leave 48 px of page, which is not a
+  usable reading area (WCAG 1.4.10).
+- Native is not affected. A phone in landscape is at least 320 pt tall, and its tab bar and button follow the
+  existing caps.
+
 ## 2026-11-02: what stays fixed on the Recipes tab (asked by Nova Squad, corrects C-2 in `mergedUiIos1.md`)
 
 - **No condensed bar on Recipes.** It is a top-level page, like Home, and the tab bar already says where you are.
 - **Only the search field sticks**, as buildSpec §4.3 says and web does today. The title, avatar, segments, chips
   and the count/sort/toggle row all scroll away with the list. The segments do not stick.
-- **Native guard:** the search field sticks only while its own height is under a third of the visible window. With
-  the keyboard open, the visible window is the part above the keyboard. Above that, it scrolls with the rest.
+- **Native guard:** the search field sticks only while its own height is under a third of the window height. The
+  keyboard does not count, so opening it never moves the pin (corrected 2026-11-02). Above that, it scrolls with the
+  rest.
 - **Web:** no change. The document already scrolls, and the sticky search stays.
+- **The pinned band (2026-11-02):** while pinned, the field sits on a full-width band of the canvas colour, from the
+  top safe area to 8 below the field, so no card shows around or above it. A `lineDivider` hairline marks the band's
+  bottom edge only while content is under it. No shadow.
 
 ## 2026-11-02: calories, covers, sheets, buttons, shadows and the add field (asked by Nova Squad)
 
@@ -39,6 +53,9 @@ Each answer is the design ruling a port builds to. Newest first.
 - **Add by name with a shared memo:** no new step. The add field already makes the cook pick the food from the list
   (buildSpec 7.5.3). Show the memo's food as the first option with a `caption` "Suggested". It is never the active
   option when the list opens, so Enter alone does not pick it. Web and mobile alike.
+- **Add by name, the count and "Nothing matches" (2026-11-02):** count every food option the list shows,
+  suggestions included, and not "Search for another food". Show "Nothing matches …" only when the list shows no
+  food at all, so it never sits above a suggestion. Web and mobile alike.
 
 ## 2026-11-02: card, Home header and Recipe detail build questions (asked by Nova Squad)
 
@@ -72,6 +89,13 @@ Each answer is the design ruling a port builds to. Newest first.
   chip. The time shows in the meta line instead.
 - **"Edited" on tiles:** Recipes tiles show it and Home tiles do not. This is intended. Home is already the recent
   list, so the time adds nothing there.
+- **Phone grid at large text (2026-11-02):** every phone grid (Recipes, Collections, collection detail, Home)
+  shows two columns while the container width divided by the
+  capped text scale is at least 320 pt. Below that it shows one column. At 1x on a 343 pt container that is two; at
+  2x it is one. This keeps tile titles from breaking inside words.
+- **Collection detail on phones (2026-11-02):** two columns of the compact tile, as `CollectionDetailIphone390`
+  draws it, and no "Edited". A collection is the cook's own grouping, not an edit-time list, and the board omits
+  it.
 - **Difficulty:** plain text in the meta line ("Medium"). Cards do not use `DifficultyBadge`.
 - **Neutral pill fill (replaces the neutral edge in `reviews/slice1b.md`):** the board wins. A neutral status pill is
   `surfaceMuted` with a transparent 1 pt edge, so every tone keeps one height. The word carries the meaning, so the

@@ -79,7 +79,7 @@ describe('answerWindowBack', () => {
 });
 
 describe('DISMISS_ROUTES', () => {
-    it('names the five routes the blueprint lists', () => {
-        expect([...DISMISS_ROUTES]).toEqual(['back', 'scrim', 'swipe', 'close', 'escape']);
+    it('names the six routes: the five a person raises, and the one the sheet engine raises', () => {
+        expect([...DISMISS_ROUTES]).toEqual(['back', 'scrim', 'swipe', 'close', 'escape', 'sheet']);
     });
 });

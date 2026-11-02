@@ -10,8 +10,12 @@
  */
 import type { BackInterceptRegistry } from '../backIntercept/backInterceptRegistry.js';
 
-/** The ways a window overlay is asked to close. `escape` is the VoiceOver two-finger gesture. */
-export const DISMISS_ROUTES = ['back', 'scrim', 'swipe', 'close', 'escape'] as const;
+/**
+ * The ways a window overlay is asked to close. `escape` is the VoiceOver two-finger gesture. `sheet` is a close the
+ * sheet engine reports without saying why (an overlay press or a drag cannot be told apart), so it is diagnostic only:
+ * a host must not branch on the route.
+ */
+export const DISMISS_ROUTES = ['back', 'scrim', 'swipe', 'close', 'escape', 'sheet'] as const;
 
 /** One of the {@link DISMISS_ROUTES}. */
 export type DismissRoute = (typeof DISMISS_ROUTES)[number];

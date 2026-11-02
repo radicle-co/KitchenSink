@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 161,
         "missing-module-doc": 21,
-        "platform-singleton": 73,
+        "platform-singleton": 74,
         "ref-api": 15,
         "unclassified-layer": 92,
         "undocumented-prop": 181
@@ -489,6 +489,16 @@
             "severity": "review",
             "component": "designSystem/modal/Modal",
             "sourcePath": "packages/apps/commise/ui/src/modal/Modal.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/overlay/OverlayHost",
+            "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"

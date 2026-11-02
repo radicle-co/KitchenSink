@@ -4,7 +4,7 @@
  * A bottom-anchored React Native `Modal` over a dimmed scrim, drawn edge to edge so the sheet can clear the status
  * and navigation bars by their insets. Every close route calls `onOpenChange(false)`: Close, a tap on the scrim, a
  * swipe down, and Android back, which an open `Modal` delivers to `onRequestClose` itself (so
- * `@commise/ui/back-intercept` never sees it).
+ * `@commise/ui/back-intercept` never sees it): `OverlayHost` turns it into the same close request.
  *
  * - The title takes screen-reader focus when the Modal SHOWS, every time. A mount effect runs before the Modal is on
  *   screen, and a parent's effect after its children's, so `onShow` is the moment that works.
@@ -25,14 +25,14 @@
  *
  * A presentational component: controlled by `open`, it fetches nothing and holds no domain state.
  *
- * @pattern Adapter over the design-system `Modal`, React Native's `Modal` in every orientation — the skeleton and the
+ * @pattern Adapter over the design-system `OverlayHost`, the `Modal` in every orientation — the skeleton and the
  *     collapse are `BottomSheetPanel`'s Template Method.
  */
 import { useEffect, useEffectEvent, useState, type FC } from 'react';
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Modal } from '../modal/Modal.native.js';
+import { OverlayHost } from '../overlay/OverlayHost.native.js';
 import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
@@ -85,16 +85,17 @@ export const Sheet: FC<SheetProps> = ({
         }
     }, [dismissed]);
 
+    // The one sink: every route (Back, scrim, Close, swipe) asks the host to close, and `open` is the host's to change.
     const close = (): void => onOpenChange(false);
 
     return (
-        <Modal
+        <OverlayHost
             visible={open}
             transparent
             statusBarTranslucent
             navigationBarTranslucent
             animationType={sheetAnimationType(reduceMotion)}
-            onRequestClose={close}
+            onDismissRequest={close}
             onShow={() => setShown((count) => count + 1)}
             // A dismissal that lands while the sheet is open belongs to an earlier close, and strands this opening.
             onDismiss={
@@ -134,7 +135,7 @@ export const Sheet: FC<SheetProps> = ({
                     </BottomSheetPanel>
                 </KeyboardAvoider>
             </View>
-        </Modal>
+        </OverlayHost>
     );
 };
 

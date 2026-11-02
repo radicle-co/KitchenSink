@@ -24,7 +24,7 @@ import { useState, type FC } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Modal } from '../modal/Modal.native.js';
+import { OverlayHost } from '../overlay/OverlayHost.native.js';
 import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
@@ -49,13 +49,13 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
     }
 
     return (
-        <Modal
+        <OverlayHost
             visible
             transparent
             animationType={dialogAnimationType(reduceMotion)}
             statusBarTranslucent
             navigationBarTranslucent
-            onRequestClose={onRequestClose}
+            onDismissRequest={() => onRequestClose()}
             onShow={() => setShown((count) => count + 1)}
         >
             <View
@@ -102,7 +102,7 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
                     </SurfaceToneScope>
                 </KeyboardAvoider>
             </View>
-        </Modal>
+        </OverlayHost>
     );
 };
 

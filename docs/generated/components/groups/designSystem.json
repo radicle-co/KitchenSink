@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 85,
-        "implementations": 144,
-        "props": 797,
-        "documentedComponents": 85,
-        "implementationsWithModuleDoc": 144,
-        "implementationsWithComponentDoc": 133,
-        "documentedProps": 758,
-        "classifiedComponents": 78,
-        "componentsWithPatternTag": 85,
+        "components": 86,
+        "implementations": 145,
+        "props": 821,
+        "documentedComponents": 86,
+        "implementationsWithModuleDoc": 145,
+        "implementationsWithComponentDoc": 134,
+        "documentedProps": 776,
+        "classifiedComponents": 79,
+        "componentsWithPatternTag": 86,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -8644,6 +8644,354 @@
                             "defaultValue": null,
                             "description": "Whether newer results are pending while older ones stay on screen. The bar appears once this has held for\n`PENDING_BAR_DELAY_MS`, and goes as soon as it clears.",
                             "declaredIn": "packages/apps/commise/ui/src/pendingBar/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/photo/Photo",
+            "name": "Photo",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/photo",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over expo-image's Image — a disk-cached native image behind Tamagui's style system",
+                "Variant — the boolean `fill`, as a Tamagui variant, not a branch"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "Photo",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/photo",
+                    "moduleDoc": "@commise/ui/photo — the native design-system {@link Photo}: Tamagui's `styled()` over expo-image's `Image`, so a\nphoto is sized with tokens and variants and not a React Native `style` (ADR-0080). expo-image's own props pass through\nby type and untouched: `source`, `contentFit`, `contentPosition`, `cachePolicy`, `accessibilityLabel` and the platform\npair that hides it from assistive tech (`accessibilityElementsHidden`, `importantForAccessibility`).\n\n`fill` makes the photo exactly as wide and as tall as its parent. A caller's own size prop still wins.\n\nNative only, like the text and the modal: the web leaves draw their photos through `<img>`.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/photo — the native design-system {@link Photo}: Tamagui's `styled()` over expo-image's `Image`, so a"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over expo-image's Image — a disk-cached native image behind Tamagui's style system"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the boolean `fill`, as a Tamagui variant, not a branch"
+                        }
+                    ],
+                    "description": "A photo. `fill` stretches it across its parent.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "animatedBy",
+                            "type": "\"default\" | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Select which animation driver to use for this component.\nPass a string key matching a driver registered in the `animations` config.\nExample: `<View animatedBy=\"spring\">` when config has `animations: { default: css, spring: moti }`",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "asChild",
+                            "type": "boolean | \"web\" | \"except-style\" | \"except-style-web\"",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When truthy passes through all props to a single child element, and avoids rendering its own element.\nMust pass just one child React element that will receive all the props.\n\nThe option \"except-style\" will avoid passing any style related props.\n\nThe option \"web\" will map all React Native style props to web props (onPress becomes onClick).\n\nThe option \"except-style-web\" combines the except-style and web options.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web className property, useful for applying styles from CSS on web only",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "container",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as an inline-size query container. A string names the\ncontainer for matching `@sm/name:` clauses.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "dangerouslySetInnerHTML",
+                            "type": "{ __html: string; }",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "debug",
+                            "type": "DebugProp",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableClassName",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disables className output of styles, instead using only inline styles",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableNativeStyle",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Opt this component out of the experimental native style fast path\n(setNativeStyleEngine); it re-renders through React on theme/media\nchanges like normal",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableOptimization",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disable all compiler optimization",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "forceStyle",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hover\"",
+                                "\"press\"",
+                                "\"focus\"",
+                                "\"focusVisible\"",
+                                "\"focusWithin\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Forces the pseudo style state to be on",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "group",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as a group for use in styling children based on parents named group\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "hitSlop",
+                            "type": "((number | Insets) & (number | Insets)) | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Adds some area outside the typical bounds of the component for touch actions to register.\nTamagui uses Pressable internally so it supports `number | Insets` rather than just `Insets`\nThis defines how far a touch event can start away from the view.\nTypical interface guidelines recommend touch targets that are at least\n30 - 40 points/density-independent pixels. If a Touchable view has\na height of 20 the touchable height can be extended to 40 with\nhitSlop={{top: 10, bottom: 10, left: 0, right: 0}}\nNOTE The touch area never extends past the parent view bounds and\nthe Z-index of sibling views always takes precedence if a touch\nhits two overlapping views.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "htmlFor",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "id",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web id property for setting a uid on an element\nUsed to reference react managed views from native code.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "web: forwards to the HTML name attribute.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "ref",
+                            "type": "Ref<Image>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "render",
+                            "type": "ReactElement<unknown, string | JSXElementConstructor<any>> | keyof HTMLElementTagNameMap | (string & {}) | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Controls the rendered element on web.\n- String: renders as that HTML element (e.g., `render=\"button\"`)\n- JSX Element: clones element with merged props (e.g., `render={<a href=\"/\" />}`)\n- Function: full control with props and state (e.g., `render={(props) => <Custom {...props} />}`)\n@example render=\"button\"\n@example render={<a href=\"/\" />}\n@example render={(props, state) => <MyComponent {...props} isPressed={state.press} />}",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "role",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"status\"",
+                                "\"timer\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"button\"",
+                                "\"link\"",
+                                "\"heading\"",
+                                "\"group\"",
+                                "\"alert\"",
+                                "\"dialog\"",
+                                "\"none\"",
+                                "\"alertdialog\"",
+                                "\"application\"",
+                                "\"article\"",
+                                "\"banner\"",
+                                "\"cell\"",
+                                "\"checkbox\"",
+                                "\"columnheader\"",
+                                "\"combobox\"",
+                                "\"complementary\"",
+                                "\"contentinfo\"",
+                                "\"definition\"",
+                                "\"directory\"",
+                                "\"document\"",
+                                "\"feed\"",
+                                "\"figure\"",
+                                "\"form\"",
+                                "\"grid\"",
+                                "\"img\"",
+                                "\"listitem\"",
+                                "\"log\"",
+                                "\"main\"",
+                                "\"marquee\"",
+                                "\"math\"",
+                                "\"menubar\"",
+                                "\"menuitem\"",
+                                "\"meter\"",
+                                "\"navigation\"",
+                                "\"note\"",
+                                "\"option\"",
+                                "\"presentation\"",
+                                "\"progressbar\"",
+                                "\"radio\"",
+                                "\"radiogroup\"",
+                                "\"region\"",
+                                "\"row\"",
+                                "\"rowgroup\"",
+                                "\"rowheader\"",
+                                "\"scrollbar\"",
+                                "\"searchbox\"",
+                                "\"separator\"",
+                                "\"slider\"",
+                                "\"spinbutton\"",
+                                "\"summary\"",
+                                "\"switch\"",
+                                "\"tab\"",
+                                "\"table\"",
+                                "\"tablist\"",
+                                "\"tabpanel\"",
+                                "\"term\"",
+                                "\"toolbar\"",
+                                "\"tooltip\"",
+                                "\"tree\"",
+                                "\"treegrid\"",
+                                "\"treeitem\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Equivalent to role=\"\" attribute on web for accessibility\nIndicates to accessibility services to treat UI component like a specific role.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "tabIndex",
+                            "type": "enum",
+                            "typeDetail": [
+                                "0",
+                                "-1"
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Used for controlling the order of focus with keyboard or assistive device enavigation\nSee https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex\nIndicates whether this `View` should be focusable with a non-touch input device, eg. receive focus with a hardware keyboard.\nSee https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex\nfor more details.\n\nSupports the following values:\n-  0 (View is focusable)\n- -1 (View is not focusable)",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "target",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "theme",
+                            "type": "ThemeName | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Applies a theme to this element",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "themeShallow",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "If given a theme it will only apply to this element, instead of passing down to children",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "untilMeasured",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hide\"",
+                                "\"show\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Works alongside container. On native, children using container sizing can\nbe hidden until the parent is measured.\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],

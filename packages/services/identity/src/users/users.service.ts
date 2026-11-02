@@ -335,11 +335,8 @@ export class UsersService {
             this.assertAvatarKeyOwned(userId, newAvatarKey);
         }
 
-        const [existing] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException('User not found');
-        }
+        // The same status gate `getUserMe` uses: a suspended or closed account must not change its profile.
+        const { user: existing } = await this.resolver.resolveUser(userId);
 
         // Verified BEFORE any write: a refused key must leave the profile untouched.
         if (newAvatarKey !== undefined) {
@@ -454,6 +451,12 @@ export class UsersService {
 
         if (!existing) {
             throw new NotFoundException('User not found');
+        }
+
+        // A suspension is a moderation hold, and closing the account would let a later reactivation lift it.
+        // Refused here, not in the auth middleware: a suspended user must still be able to ERASE (GDPR).
+        if (existing.status === 'suspended') {
+            throw new ForbiddenException('User is suspended');
         }
 
         const now = new Date();

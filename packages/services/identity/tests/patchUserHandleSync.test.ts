@@ -58,7 +58,7 @@ function makeService(db: NodePgDatabase, publisher: HandleSyncPublisher): UsersS
     return new UsersService(
         db,
         {} as unknown as SqsService,
-        {} as unknown as ResolveUserService,
+        { resolveUser: () => Promise.resolve({ user: EXISTING[0], account: ACCOUNT[0] }) } as unknown as ResolveUserService,
         publisher,
         {
             cdnUrl: 'https://media.commise.app',
@@ -77,7 +77,7 @@ const ACCOUNT = [{ id: 'acc-1', userId: USER_ID, createdAt: new Date(), updatedA
 describe('patchUserMe handle-sync publish', () => {
     it('publishes the snapshot the UPDATE returned, keyed by the database’s stamp', async () => {
         const publish = vi.fn().mockResolvedValue(undefined);
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile()]]);
+        const { db } = fakeDb([ACCOUNT], [[returnedProfile()]]);
 
         const result = await makeService(db, { publish }).patchUserMe(CTX, { displayName: 'Ada Lovelace' });
 
@@ -92,7 +92,7 @@ describe('patchUserMe handle-sync publish', () => {
     });
 
     it('stamps updated_at AND the owed marker with the database clock, never a process Date', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[returnedProfile()]]);
 
         await makeService(db, { publish: vi.fn().mockResolvedValue(undefined) }).patchUserMe(CTX, {
             displayName: 'Ada',
@@ -105,7 +105,7 @@ describe('patchUserMe handle-sync publish', () => {
     });
 
     it('stores the display name trimmed', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[returnedProfile()]]);
 
         await makeService(db, { publish: vi.fn().mockResolvedValue(undefined) }).patchUserMe(CTX, {
             displayName: '  Ada Lovelace  ',
@@ -117,7 +117,7 @@ describe('patchUserMe handle-sync publish', () => {
     it('does NOT publish, and owes nothing, on an avatar-only update', async () => {
         const publish = vi.fn().mockResolvedValue(undefined);
         const { db, sets } = fakeDb(
-            [EXISTING, ACCOUNT],
+            [ACCOUNT],
             [[returnedProfile({ avatarKey: `avatars/${USER_ID}/1.png` })]],
         );
 
@@ -130,7 +130,7 @@ describe('patchUserMe handle-sync publish', () => {
     it('A -> B -> A revert: publishes on BOTH transitions (no stale-baseline gate to skip the revert)', async () => {
         const publish = vi.fn().mockResolvedValue(undefined);
         const { db } = fakeDb(
-            [EXISTING, ACCOUNT, EXISTING, ACCOUNT],
+            [ACCOUNT, ACCOUNT],
             [[returnedProfile({ displayName: 'New Name' })], [returnedProfile({ displayName: 'Original Name' })]],
         );
         const service = makeService(db, { publish });
@@ -145,7 +145,7 @@ describe('patchUserMe handle-sync publish', () => {
     });
 
     it('swallows a publish failure — the rename still succeeds', async () => {
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile({ displayName: 'New Name' })]]);
+        const { db } = fakeDb([ACCOUNT], [[returnedProfile({ displayName: 'New Name' })]]);
 
         const result = await makeService(db, { publish: vi.fn().mockRejectedValue(new Error('sns down')) }).patchUserMe(
             CTX,

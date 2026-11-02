@@ -263,6 +263,28 @@ describe('UsersService', () => {
         await expect(usersService.deleteUserMe(userCtx)).rejects.toThrow('User not found');
     });
 
+    // A suspended account is a moderation hold: it must not change its profile (the byline would be republished) or
+    // close itself (a later reactivation would silently lift the suspension). Erasure stays open (GDPR).
+    it('deleteUserMe refuses a suspended account and changes nothing', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([{ ...mockUser, status: 'suspended' }]));
+
+        await expect(usersService.deleteUserMe(userCtx)).rejects.toThrow('User is suspended');
+
+        expect(mockDb.transaction).not.toHaveBeenCalled();
+        expect(mockSqs.enqueueDeletion).not.toHaveBeenCalled();
+    });
+
+    it('patchUserMe refuses a suspended account and writes nothing', async () => {
+        mockResolver.resolveUser.mockRejectedValue(new Error('User is suspended'));
+
+        await expect(usersService.patchUserMe(userCtx, { displayName: 'Abusive' })).rejects.toThrow(
+            'User is suspended',
+        );
+
+        expect(mockResolver.resolveUser).toHaveBeenCalledWith(userCtx.userId);
+        expect(mockDb.update).not.toHaveBeenCalled();
+    });
+
     it('patchUserMe updates profile fields', async () => {
         const updatedProfile = {
             id: 'p-1',
@@ -280,10 +302,7 @@ describe('UsersService', () => {
             updatedAt: new Date(),
         };
 
-        mockDb.select = vi
-            .fn()
-            .mockReturnValueOnce(makeChain([mockUser]))
-            .mockReturnValueOnce(makeChain([updatedAccount]));
+        mockDb.select = vi.fn().mockReturnValueOnce(makeChain([updatedAccount]));
 
         // The profile comes back from the UPDATE's own RETURNING (plan 2026-10-15-010 D6); the later settle of the
         // handle-sync debt is a plain UPDATE … WHERE.

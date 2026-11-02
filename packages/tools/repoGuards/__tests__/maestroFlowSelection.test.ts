@@ -292,6 +292,11 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.
     'shell/iosSwipeBack',
+    // The window overlay dismiss routes (OverlayHost). Back order is Android and swipe-dismiss is iOS; neither has run on a
+    // device yet, so neither is planned. Run by name; the QA engineer's device run decides whether the Android one joins
+    // FLOW_PLAN.
+    'shell/overlayBackOrder',
+    'shell/overlaySwipeDismiss',
     'recipes/sourceTabs',
     // Plan 012: the native Google sign-in's cancel (iOS) / no-Play-services error (Android) path. It must start signed
     // OUT, so planning it costs one more Clerk email-code sign-in per platform per run (to restore the session the next

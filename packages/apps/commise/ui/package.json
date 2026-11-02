@@ -87,6 +87,7 @@
         "./sheet": "./src/sheet/index.ts",
         "./full-screen-sheet": "./src/sheet/FullScreenSheet.native.tsx",
         "./modal": "./src/modal/Modal.native.tsx",
+        "./overlay": "./src/overlay/index.ts",
         "./layout": "./src/layout/index.ts",
         "./pinned-footer": "./src/layout/usePinnedFooter.ts",
         "./text-input": "./src/textInput/TextInput.native.tsx",

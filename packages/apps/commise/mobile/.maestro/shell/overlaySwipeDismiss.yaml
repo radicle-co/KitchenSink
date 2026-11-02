@@ -1,0 +1,53 @@
+appId: ${APP_ID}
+---
+# iOS ONLY (iOS has no Back key). Swiping a sheet down is a dismiss request the host may veto, like Back
+# (OverlayHost, `route: 'swipe'`). Needs the iOS Simulator, so it is NOT under `config.yaml`'s discovery and runs by
+# name on a Mac: `maestro test .maestro/shell/overlaySwipeDismiss.yaml`, like `iosSwipeBack.yaml`.
+#
+# OWED, not passed: the VoiceOver two-finger escape (route `escape`) cannot be driven by Maestro.
+- runFlow: ../auth/signin.yaml
+- assertVisible: 'My recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+# A DIRTY sheet: swiping down raises the discard question and the sheet stays up.
+- tapOn: 'New collection'
+- assertVisible: 'Description \(optional\)'
+- runFlow:
+      file: ../recipes/common/typeCollectionName.yaml
+      env:
+          NAME: 'Overlay Swipe Name'
+- swipe:
+      start: 50%, 40%
+      end: 50%, 95%
+      duration: 400
+- assertVisible: 'Discard this collection\?'
+- assertVisible: 'Description \(optional\)'
+
+# Keep editing: the sheet is back at rest with the text intact.
+- tapOn: 'Keep editing'
+- assertNotVisible: 'Discard this collection\?'
+- assertVisible: 'Description \(optional\)'
+- assertVisible: 'Overlay Swipe Name'
+
+# Discard, so the next leg starts clean.
+- swipe:
+      start: 50%, 40%
+      end: 50%, 95%
+      duration: 400
+- assertVisible: 'Discard this collection\?'
+- tapOn: 'Discard'
+- assertNotVisible: 'Description \(optional\)'
+
+# A CLEAN sheet closes on swipe, with no question.
+- tapOn: 'New collection'
+- assertVisible: 'Description \(optional\)'
+- swipe:
+      start: 50%, 40%
+      end: 50%, 95%
+      duration: 400
+- assertNotVisible: 'Discard this collection\?'
+- assertNotVisible: 'Description \(optional\)'
+- assertVisible: 'New collection'

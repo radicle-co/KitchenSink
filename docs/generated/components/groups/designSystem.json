@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 83,
-        "implementations": 142,
-        "props": 795,
-        "documentedComponents": 83,
-        "implementationsWithModuleDoc": 142,
-        "implementationsWithComponentDoc": 131,
-        "documentedProps": 756,
-        "classifiedComponents": 76,
-        "componentsWithPatternTag": 83,
+        "components": 84,
+        "implementations": 143,
+        "props": 796,
+        "documentedComponents": 84,
+        "implementationsWithModuleDoc": 143,
+        "implementationsWithComponentDoc": 132,
+        "documentedProps": 757,
+        "classifiedComponents": 77,
+        "componentsWithPatternTag": 84,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -8482,6 +8482,83 @@
             ]
         },
         {
+            "id": "designSystem/overlay/OverlayHost",
+            "name": "OverlayHost",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/overlay",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the design-system `Modal` — every platform dismissal becomes one `DismissRequest(route)`.",
+                "Chain of Responsibility — a per-window registry shadows the ancestor's, reusing `createBackInterceptRegistry`.",
+                "Controlled Component — React's controlled `open` satisfies the intent; the host's callback is the policy."
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "OverlayHost",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/overlay",
+                    "moduleDoc": "@commise/ui/overlay — the window every sheet and dialog opens in, and the one door their dismissals use.\n\nAn open `Modal` takes Android Back itself and calls `onRequestClose`; no `BackHandler` event is emitted while one is\nup. So a Back interceptor registered inside a window, on the provider's registry, is on a chain no press can reach.\nThe host fixes both halves: it turns Back into a `DismissRequest` after asking the window's OWN interceptors, and it\npublishes that sink so the scrim, the Close control and the swipe raise the same request.\n\n- The host owns `open`. It is a controlled component: the content never keeps its own open state, and a request the\n  host ignores leaves the overlay up (the discard guard, the `submitting` veto).\n- The scope is a registry of its own. It does NOT join the ancestor provider's chain, because the ancestor's\n  `BackHandler` is not live while this window is up.\n- `visible` passes through unchanged: a sheet keeps the Modal mounted, a dialog unmounts it. No mode prop.\n\nAn orchestration component: it renders no surface of its own and decides who answers a dismissal.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/overlay — the window every sheet and dialog opens in, and the one door their dismissals use."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Modal` — every platform dismissal becomes one `DismissRequest(route)`."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Chain of Responsibility — a per-window registry shadows the ancestor's, reusing `createBackInterceptRegistry`."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Controlled Component — React's controlled `open` satisfies the intent; the host's callback is the policy."
+                        }
+                    ],
+                    "description": "A `Modal` whose every dismissal is one {@link DismissRequest}.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The Modal props and the host's dismissal policy."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The Modal, with the window's back scope and dismiss sink published to its children."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onDismissRequest",
+                            "type": "DismissRequest",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The host's dismissal policy, called once per request with the route that raised it. Idempotent.",
+                            "declaredIn": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/pendingBar/PendingBar",
             "name": "PendingBar",
             "group": "designSystem",
@@ -11711,7 +11788,7 @@
             "dir": "packages/apps/commise/ui/src/sheet",
             "kind": "unclassified",
             "patterns": [
-                "Decorator over the design-system `Modal` — it adds the window insets and the reduce-motion rule, nothing\n    else"
+                "Decorator over the design-system `OverlayHost` — it adds the window insets and the reduce-motion rule, nothing\n    else"
             ],
             "platforms": [
                 "native"
@@ -11733,7 +11810,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Decorator over the design-system `Modal` — it adds the window insets and the reduce-motion rule, nothing\n    else"
+                            "text": "Decorator over the design-system `OverlayHost` — it adds the window insets and the reduce-motion rule, nothing\n    else"
                         }
                     ],
                     "description": "A full-screen modal sheet whose content clears the device's system bars.",
@@ -11797,7 +11874,7 @@
             "kind": "presentational",
             "patterns": [
                 "Adapter over `@radix-ui/react-dialog` — the skeleton and the collapse are `SheetPanel`'s Template Method.",
-                "Adapter over the design-system `Modal`, React Native's `Modal` in every orientation — the skeleton and the\n    collapse are `BottomSheetPanel`'s Template Method."
+                "Adapter over the design-system `OverlayHost`, the `Modal` in every orientation — the skeleton and the\n    collapse are `BottomSheetPanel`'s Template Method."
             ],
             "platforms": [
                 "web",
@@ -11956,7 +12033,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/sheet/Sheet.native.tsx",
                     "dir": "packages/apps/commise/ui/src/sheet",
-                    "moduleDoc": "@commise/ui/sheet — the native design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nA bottom-anchored React Native `Modal` over a dimmed scrim, drawn edge to edge so the sheet can clear the status\nand navigation bars by their insets. Every close route calls `onOpenChange(false)`: Close, a tap on the scrim, a\nswipe down, and Android back, which an open `Modal` delivers to `onRequestClose` itself (so\n`@commise/ui/back-intercept` never sees it).\n\n- The title takes screen-reader focus when the Modal SHOWS, every time. A mount effect runs before the Modal is on\n  screen, and a parent's effect after its children's, so `onShow` is the moment that works.\n- Focus back to the opener belongs to the host: React Native cannot read where the reading cursor was.\n- The keyboard: `KeyboardAvoider`, shared with the centred dialog frame, lifts the sheet above it. A tap in the sheet\n  with the keyboard up also needs every scroller AROUND it, the host screen's included, to persist taps: React\n  Native gives a touch to the outermost scroller that captures it, across the Modal's window\n  (`packages/tools/repoGuards/__tests__/nativeScrollerTapPersistence.test.ts`).\n- It slides in only when reduce motion is known to be off. The answer is read even while closed, so it is ready\n  before the first open.\n- The `Modal` stays mounted with `visible={open}`, because React Native plays the iOS slide-out only for a Modal\n  still mounted with `visible={false}` and reports `onDismiss` only then, on iOS only (React Native 0.86\n  `Modal.js`). So `onDismissed` comes from that `onDismiss` on iOS, and from an effect after the close elsewhere,\n  where the Modal leaves at once (`docs/design/rowEditorBlueprint.md` decision 5). A report that lands while the\n  sheet is open makes the next close unreported on iOS too, so the sheet reports that close itself. ⚠️ The iOS\n  slide-out is owed a device check (`docs/design/rowEditorOpenDecisions.md` item 8).\n- The panel is keyed on the opening, so each open starts it fresh, a reopen during an iOS slide-out included.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
+                    "moduleDoc": "@commise/ui/sheet — the native design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nA bottom-anchored React Native `Modal` over a dimmed scrim, drawn edge to edge so the sheet can clear the status\nand navigation bars by their insets. Every close route calls `onOpenChange(false)`: Close, a tap on the scrim, a\nswipe down, and Android back, which an open `Modal` delivers to `onRequestClose` itself (so\n`@commise/ui/back-intercept` never sees it): `OverlayHost` turns it into the same close request.\n\n- The title takes screen-reader focus when the Modal SHOWS, every time. A mount effect runs before the Modal is on\n  screen, and a parent's effect after its children's, so `onShow` is the moment that works.\n- Focus back to the opener belongs to the host: React Native cannot read where the reading cursor was.\n- The keyboard: `KeyboardAvoider`, shared with the centred dialog frame, lifts the sheet above it. A tap in the sheet\n  with the keyboard up also needs every scroller AROUND it, the host screen's included, to persist taps: React\n  Native gives a touch to the outermost scroller that captures it, across the Modal's window\n  (`packages/tools/repoGuards/__tests__/nativeScrollerTapPersistence.test.ts`).\n- It slides in only when reduce motion is known to be off. The answer is read even while closed, so it is ready\n  before the first open.\n- The `Modal` stays mounted with `visible={open}`, because React Native plays the iOS slide-out only for a Modal\n  still mounted with `visible={false}` and reports `onDismiss` only then, on iOS only (React Native 0.86\n  `Modal.js`). So `onDismissed` comes from that `onDismiss` on iOS, and from an effect after the close elsewhere,\n  where the Modal leaves at once (`docs/design/rowEditorBlueprint.md` decision 5). A report that lands while the\n  sheet is open makes the next close unreported on iOS too, so the sheet reports that close itself. ⚠️ The iOS\n  slide-out is owed a device check (`docs/design/rowEditorOpenDecisions.md` item 8).\n- The panel is keyed on the opening, so each open starts it fresh, a reopen during an iOS slide-out included.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11964,7 +12041,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over the design-system `Modal`, React Native's `Modal` in every orientation — the skeleton and the\n    collapse are `BottomSheetPanel`'s Template Method."
+                            "text": "Adapter over the design-system `OverlayHost`, the `Modal` in every orientation — the skeleton and the\n    collapse are `BottomSheetPanel`'s Template Method."
                         }
                     ],
                     "description": "",

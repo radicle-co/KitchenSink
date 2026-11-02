@@ -1,0 +1,129 @@
+appId: ${APP_ID}
+---
+# ANDROID ONLY. The system Back key goes to the TOP window first, one level per press (OverlayHost, ADR-0056 decision 5).
+# An open Modal takes Back itself, so jsdom cannot see this order; only a device can. Extends the order that leg 5 of
+# `../recipes/systemBackGuard.yaml` pins, and that flow must stay green beside this one.
+#
+# ⚠️ NEVER taps a node named `Back`: three-button Android publishes a system node with that exact name. Back is raised
+# with `pressKey: Back` only. A soft keyboard hands the FIRST Back to the IME, so each leg presses again while its sheet
+# still shows. The flow deletes the collection it makes.
+- runFlow: ../auth/signin.yaml
+- assertVisible: 'My recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+# ── LEG 1: a menu over a pushed detail. Back closes the menu and the detail stays. ──
+- tapOn: 'New collection'
+- assertVisible: 'Description \(optional\)'
+- runFlow:
+      file: ../recipes/common/typeCollectionName.yaml
+      env:
+          NAME: 'Overlay Back Order'
+- pressKey: Enter
+- extendedWaitUntil:
+      visible: 'More actions for Overlay Back Order'
+      timeout: 40000
+- tapOn: 'More actions for Overlay Back Order'
+- assertVisible: 'Rename'
+- pressKey: Back
+- assertNotVisible: 'Rename'
+- assertVisible: 'More actions for Overlay Back Order'
+
+# ── LEG 2: a dirty sheet, then the confirm dialog over it. ──
+# Back, Back (Keep editing), Back, Discard: each press closes one window, and the Collections root is never popped.
+- tapOn: 'Back to Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- tapOn: 'New collection'
+- assertVisible: 'Description \(optional\)'
+- runFlow:
+      file: ../recipes/common/typeCollectionName.yaml
+      env:
+          NAME: 'Overlay Dirty Name'
+# The keyboard is up after typing: this Back is meant for it, so the sheet and its question are not there yet.
+- pressKey: Back
+- runFlow:
+      when:
+          notVisible: 'Discard this collection\?'
+      commands:
+          - pressKey: Back
+# The confirm dialog is OVER the sheet: both are on screen.
+- assertVisible: 'Discard this collection\?'
+- assertVisible: 'Description \(optional\)'
+# Back on the dialog closes only the dialog (Keep editing). The sheet and the typed name remain.
+- pressKey: Back
+- assertNotVisible: 'Discard this collection\?'
+- assertVisible: 'Description \(optional\)'
+- assertVisible: 'Overlay Dirty Name'
+# Back, then Discard: both are gone and the Collections root is still showing.
+- pressKey: Back
+- assertVisible: 'Discard this collection\?'
+- tapOn: 'Discard'
+- assertNotVisible: 'Discard this collection\?'
+- assertNotVisible: 'Description \(optional\)'
+- assertVisible: 'New collection'
+
+# ── LEG 3: a row-editor sheet with the keyboard up. The first Back closes the keyboard (or the unit list), the second
+# closes the sheet, and the recipe editor stays. ──
+- tapOn: 'My recipes'
+- extendedWaitUntil:
+      visible: 'Search your recipes'
+      timeout: 20000
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: 'Flou'
+- extendedWaitUntil:
+      visible:
+          text: 'Your foods'
+      timeout: 30000
+- tapOn: 'Flour, your food'
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit Flour'
+          DIRECTION: UP
+          TIMEOUT: 30000
+- tapOn: 'Edit Flour'
+- tapOn: 'Unit'
+- inputText: 'cu'
+- pressKey: Back
+- runFlow:
+      when:
+          visible: 'Unit'
+      commands:
+          - pressKey: Back
+- assertNotVisible: 'Unit'
+- assertVisible: 'Close editor'
+
+# Leave the editor untitled: nothing is created.
+- pressKey: Back
+- assertNotVisible: 'Close editor'
+- assertVisible: 'My recipes'
+
+# Clean up the collection from leg 1.
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'Overlay Back Order'
+      timeout: 40000
+- tapOn: 'Overlay Back Order'
+- extendedWaitUntil:
+      visible: 'More actions for Overlay Back Order'
+      timeout: 40000
+- tapOn: 'More actions for Overlay Back Order'
+- tapOn: 'Delete collection'
+- assertVisible: 'Delete Overlay Back Order.*\?'
+- tapOn: 'Delete collection'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+- assertNotVisible: 'Overlay Back Order'

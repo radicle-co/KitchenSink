@@ -17,14 +17,14 @@
  * when the platform has said reduce motion is off, by the `Sheet`'s rule (`sheetAnimationType`, curated D10, WCAG
  * 2.3.3).
  *
- * @pattern Decorator over the design-system `Modal` — it adds the window insets and the reduce-motion rule, nothing
+ * @pattern Decorator over the design-system `OverlayHost` — it adds the window insets and the reduce-motion rule, nothing
  *     else
  */
 import type { FC, ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Modal } from '../modal/Modal.native.js';
+import { OverlayHost } from '../overlay/OverlayHost.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import { surfaceFill } from '../surfaceTone/surfaceFill.js';
 import { SurfaceToneScope } from '../surfaceTone/surfaceToneContext.js';
@@ -70,9 +70,9 @@ export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClos
     const theme = useTheme();
 
     return (
-        <Modal
+        <OverlayHost
             visible
-            onRequestClose={onRequestClose}
+            onDismissRequest={() => onRequestClose()}
             onShow={onShow}
             animationType={sheetAnimationType(reduceMotion)}
             presentationStyle="fullScreen"
@@ -96,7 +96,7 @@ export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClos
                     {children}
                 </View>
             </SurfaceToneScope>
-        </Modal>
+        </OverlayHost>
     );
 };
 

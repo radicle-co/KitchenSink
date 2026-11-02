@@ -4,15 +4,17 @@
  * @module @commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`
  * §6, the first slice of 008 FR-035).
  *
- * The PURE render half of the recipe page, in reading order: the hero, the back link, the meta line, the title, the
- * rating line, the stat strip, the action row, the description and the tags as text; then the body — the section
- * switch below a 720 px body, and from 720 two columns, ingredients (5/12, sticky with its own scroll) beside the steps
- * (7/12), with the nutrition, the rating, the review surface and the footer facts under the steps.
+ * The PURE render half of the recipe page, in reading order: the hero, the back link, the rating card, the cuisine eyebrow
+ * and the title, the status row, the source line and byline, the fact tiles, the actions, the Screen on row, the
+ * description and the tags; then the body — one column below a 720 px body, and from 720 two columns, ingredients (5/12,
+ * sticky with its own scroll) beside the steps (7/12), with the nutrition and the review surface under the steps.
+ *
+ * There is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features
+ * ship (`designAnswers.md` D1, D2): the comments row and "Start cooking".
  *
  * Every width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the
- * server render and the hydrated page are the same page. "Screen on" is therefore drawn in two places (the section
- * switch below 720, the action row from 720) from ONE state its shell holds, and the toggle itself renders nothing
- * where the browser cannot keep the screen awake.
+ * server render and the hydrated page are the same page. "Screen on" is a labelled row, and the toggle itself renders
+ * nothing where the browser cannot keep the screen awake.
  *
  * Its orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and
  * the description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).
@@ -21,15 +23,13 @@
  *     `RecipeDetailView.tsx`. It holds no fetch state and decides nothing.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
-import { DifficultyBadge } from '@commise/ui/difficulty-badge';
+import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LARGE_TITLE_CLASS } from '@commise/ui/large-title-header';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { SectionSwitch } from '@commise/ui/section-switch';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
 import { hasCatalogNutrition, hasUserEnteredIngredients } from '@kitchensink/recipe-core';
@@ -43,9 +43,10 @@ import { bylineMessages } from '../byline/messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
 import { DetailEmptySection } from './DetailEmptySection.js';
 import {
-    detailMetaItems,
-    detailRatingLine,
+    detailByline,
+    detailEyebrow,
     detailStatCells,
+    detailStatusLine,
     ingredientGroupRuns,
     isLongDescription,
     nutritionCells,
@@ -87,61 +88,14 @@ type Href = ComponentProps<typeof Link>['href'];
  * prefix concatenated at run time produces no CSS at all and the page silently stays one column.
  */
 
-/** Screen on in the action row: from a 720 px body only (below it, it is in the section switch). */
-const ACTION_ROW_SCREEN_ON = 'hidden @min-[45rem]/detail:ms-auto @min-[45rem]/detail:inline-flex';
+/** A section heading: `sectionTitle`, focusable so the owner's Edit and a recovery can move the cursor to it. */
+const SECTION_HEADING = 'text-section-title text-ink focus:outline-none';
 
-/**
- * The section switch: below a 720 px body only, where the two sections do not show side by side.
- *
- * ⛔ THE SLOT IS THE STICKY ELEMENT, not the bar inside it: a sticky element travels only within its parent, and this
- * slot used to be exactly as tall as the bar, so the bar scrolled away with it (D1). As a child of the article it
- * travels the whole page. On a phone it bleeds to the window edge (the main gutter is 16 there), so the three labels and
- * the toggle fit a 320 px window (D5).
- */
-const SECTION_SWITCH_SLOT = 'sticky top-0 z-20 @max-[35.5rem]/detail:-mx-4 @min-[45rem]/detail:hidden';
-
-/** The hint under the switch bar: below a 720 px body only, where it sits under the bar and not the action row. */
-const HINT_UNDER_SWITCH = 'text-caption text-ink-muted @min-[45rem]/detail:hidden';
-
-/** The hint under the action-row toggle: from a 720 px body only. */
-const HINT_UNDER_ACTION_ROW = 'hidden text-caption text-ink-muted @min-[45rem]/detail:block';
-
-/**
- * The stat strip's grid. Two cells to a row until the strip is wide enough for one row: 480 px for four cells (F7), 360
- * for three, which is why a three-cell strip no longer shows a hole. Written whole: Tailwind finds a class only when it
- * appears whole in the source.
- */
-const STAT_STRIP_BASE =
-    'grid grid-cols-2 gap-x-2 gap-y-1 rounded-lg border border-line-divider bg-paper px-1 py-1 shadow-sm';
-const STAT_STRIP_ONE_ROW_FROM_480 =
-    '@min-[30rem]/stats:auto-cols-fr @min-[30rem]/stats:grid-flow-col @min-[30rem]/stats:grid-cols-none';
-const STAT_STRIP_ONE_ROW_FROM_360 =
-    '@min-[22.5rem]/stats:auto-cols-fr @min-[22.5rem]/stats:grid-flow-col @min-[22.5rem]/stats:grid-cols-none';
-
-/** Where two cells share a row, the last of an odd count takes the row instead of leaving a hole beside it (D8). */
-const STAT_STRIP_ODD_LAST_SPANS_BELOW_480 = '@max-[30rem]/stats:[&>*:last-child:nth-child(odd)]:col-span-2';
-const STAT_STRIP_ODD_LAST_SPANS_BELOW_360 = '@max-[22.5rem]/stats:[&>*:last-child:nth-child(odd)]:col-span-2';
-
-/** The grid classes for a strip of `count` cells. Pure. */
-const statStripClass = (count: number): string => {
-    const oneRowFrom360 = count === 3;
-    const spansWhenOdd = oneRowFrom360 ? STAT_STRIP_ODD_LAST_SPANS_BELOW_360 : STAT_STRIP_ODD_LAST_SPANS_BELOW_480;
-
-    return [
-        STAT_STRIP_BASE,
-        oneRowFrom360 ? STAT_STRIP_ONE_ROW_FROM_360 : STAT_STRIP_ONE_ROW_FROM_480,
-        // An even count fills its rows; the rule would match nothing, so it is not emitted.
-        count % 2 === 1 ? spansWhenOdd : '',
-    ]
-        .filter((part) => part !== '')
-        .join(' ');
-};
-
-/** A section heading: `sectionTitle`, focusable for a jump, and clear of the sticky switch when jumped to. */
-const SECTION_HEADING = 'scroll-mt-28 text-section-title text-ink focus:outline-none';
-
-/** The owner's ghost Edit link on a section heading, and the footer's Version history: the ghost button surface. */
+/** The owner's ghost Edit link on a section heading: the ghost button surface. */
 const EDIT_LINK = buttonSurfaceClass('ghost', { size: 'sm' });
+
+/** The glyph on each fact tile: the native tiles draw the same ones. */
+const TILE_GLYPH = { total: 'clock', prep: 'timer', difficulty: 'chartColumn' } as const;
 
 /**
  * The pure `props → JSX` detail render: no state, no fetching, no ref of its own. Everything it shows for a chosen
@@ -169,7 +123,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     screenOn,
     descriptionExpanded,
     onToggleDescription,
-    currentSection,
 }) => {
     const { detail, duration, card } = useMessages(recipeMessages);
     const bylineCopy = useMessages(bylineMessages);
@@ -201,14 +154,15 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const allRemoved = allLinesFoodRemoved(recipe.ingredients);
     // ONE derivation of what the chosen serving count means; cook time and step timers stay as stored.
     const scaled = scaleRecipeForServings(recipe, servings);
-    const stats = detailStatCells(scaled, recipe.difficulty, { detail, duration, card });
-    const meta = detailMetaItems(recipe, owner, detail, bylineCopy);
+    const tiles = detailStatCells(scaled, recipe.difficulty, { detail, duration, card });
+    const eyebrow = detailEyebrow(recipe);
+    const byline = detailByline(recipe, owner, detail, bylineCopy);
     const nutrition = nutritionCells(recipe.nutrition, recipe.ingredients, detail, locale);
     const statusLine = nutritionStatusLine(
         { noneCounted: nutrition.noneCounted, isComplete: recipe.nutrition.isComplete, reviewNotice },
         detail,
     );
-    const ratingLine = detailRatingLine(recipe, owner, locale, { detail, card });
+    const status = detailStatusLine(recipe, owner, { detail, card });
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
     const editSectionHref = (section: string): Href | undefined =>
         owner && editHref !== undefined ? (`${editHref}#${section}` as Href) : undefined;
@@ -223,61 +177,40 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 {/* The hero IS the carousel, so the cover shows once (F2). From a 960 body it sits at the END, 7/12. */}
                 <div className={noPhoto ? HERO_BAND_CELL : HERO_PHOTO_CELL}>
                     <RecipeHero
-                        recipeId={recipe.id}
                         title={recipe.title}
-                        {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                         photos={recipe.photos}
                         {...(heroControls === undefined ? {} : { overlay: heroControls })}
                     />
                 </div>
                 <header className={`flex min-w-0 flex-col gap-3 ${noPhoto ? HEADER_UNDER_BAND : HEADER_BESIDE_PHOTO}`}>
                     {back}
-                    {meta.length > 0 && (
-                        <p className="flex flex-wrap gap-x-2 text-meta text-ink-muted">
-                            {meta.map((item, index) => (
-                                <span key={item}>
-                                    {index > 0 && <span aria-hidden="true">· </span>}
-                                    {item}
-                                </span>
-                            ))}
-                        </p>
-                    )}
-                    {/* `min-w-0`: a recipe title is user-authored and unbounded. Manrope `largeTitle`, the header primitive's
-                        class, so the title cannot lose its face again (F8). */}
-                    <h1
-                        ref={titleRef}
-                        tabIndex={-1}
-                        className={`line-clamp-3 min-w-0 focus:outline-none ${LARGE_TITLE_CLASS}`}
-                        title={recipe.title}
-                    >
+                    {/* The rating card leads the header: the whole rating, summary and input, lives in it (D3). */}
+                    {rating}
+                    {eyebrow !== undefined && <p className="text-label text-ink-muted">{eyebrow}</p>}
+                    {/* `min-w-0`: a recipe title is user-authored and unbounded, and it wraps; it is never clamped. Manrope
+                        `largeTitle`, the header primitive's class, so the title cannot lose its face again (F8). */}
+                    <h1 ref={titleRef} tabIndex={-1} className={`min-w-0 focus:outline-none ${LARGE_TITLE_CLASS}`}>
                         {recipe.title}
                     </h1>
-                    {(ratingLine.rating !== undefined || ratingLine.status !== undefined) && (
-                        <p className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-meta text-ink">
-                            {ratingLine.rating !== undefined && (
-                                <span className="inline-flex items-center gap-1">
-                                    <Icon name="star" size={16} tone="rating" filled />
-                                    <span className="tabular-nums lining-nums">{ratingLine.rating.text}</span>
-                                </span>
-                            )}
-                            {ratingLine.rating !== undefined && ratingLine.status !== undefined && (
-                                <span aria-hidden="true" className="text-ink-muted">
-                                    ·
-                                </span>
-                            )}
-                            {ratingLine.status?.kind === 'draft' && (
-                                <StatusBadge status="draft">{ratingLine.status.text}</StatusBadge>
-                            )}
-                            {ratingLine.status?.kind === 'visibility' && (
+                    {(status !== undefined || versionsHref !== undefined) && (
+                        <div className="flex flex-wrap items-center gap-x-2 text-meta text-ink-muted">
+                            {status?.kind === 'draft' && <StatusBadge status="draft">{status.text}</StatusBadge>}
+                            {status?.kind === 'visibility' && (
                                 <span className="inline-flex items-center gap-1 text-ink-muted">
-                                    <Icon
-                                        name={ratingLine.status.visibility === 'public' ? 'globe' : 'lock'}
-                                        size={16}
-                                    />
-                                    {ratingLine.status.text}
+                                    <Icon name={status.visibility === 'public' ? 'globe' : 'lock'} size={16} />
+                                    {status.text}
                                 </span>
                             )}
-                        </p>
+                            {versionsHref !== undefined && (
+                                // A separator never ends a line: it is joined to the link after it as one unit, so the two wrap together.
+                                <span className="inline-flex items-center gap-x-2">
+                                    {status !== undefined && <span aria-hidden="true">·</span>}
+                                    <Link href={versionsHref as Href} className={EDIT_LINK}>
+                                        {detail.versionHistory}
+                                    </Link>
+                                </span>
+                            )}
+                        </div>
                     )}
                     {/* The owner's visibility notice (§6.4): assertive, mounted empty and filled one render later by the host. */}
                     {owner && (
@@ -285,41 +218,41 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                             {visibilityNotice ?? ''}
                         </LiveRegion>
                     )}
-                    {stats.length > 0 && (
-                        <div className="@container/stats">
-                            {/* A container query styles a container's DESCENDANTS, never the container itself, so the strip's width is
-                            read from this wrapper: 2 × 2 below a 480 px strip (360 for three cells), one row of cells from it. At 360 a 435 px title
-                            column gave four ~100 px cells, which wrapped "5 h 30 / min" and cut "Medium" (F7). */}
-                            <dl className={statStripClass(stats.length)}>
-                                {stats.map((cell) => (
-                                    <div key={cell.id} className="flex flex-col-reverse gap-1 px-3 py-2">
-                                        <dt className="text-caption text-ink-muted">{cell.label}</dt>
-                                        <dd className="text-figure-stat text-ink">
-                                            {cell.id === 'difficulty' ? (
-                                                <DifficultyBadge level={cell.level}>{cell.value}</DifficultyBadge>
-                                            ) : (
-                                                cell.value
-                                            )}
-                                        </dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </div>
+                    {/* Provenance renders for EVERY viewer: it is a property of the recipe. */}
+                    <RecipeSourceLine
+                        {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
+                        {...(recipe.sourceAttribution === undefined
+                            ? {}
+                            : { sourceAttribution: recipe.sourceAttribution })}
+                    />
+                    {byline !== undefined && <p className="text-meta text-ink-muted">{byline}</p>}
+                    {tiles.length > 0 && (
+                        <dl className="flex flex-wrap gap-2">
+                            {tiles.map((tile) => (
+                                <div
+                                    key={tile.id}
+                                    className="flex min-w-[6.25rem] flex-1 flex-col-reverse justify-end gap-1 rounded-lg bg-cover-steel p-3"
+                                >
+                                    <dt className="flex items-center gap-1 text-caption text-ink-muted">
+                                        <Icon name={TILE_GLYPH[tile.id]} size={16} />
+                                        {tile.label}
+                                    </dt>
+                                    <dd className="text-figure-stat text-ink">{tile.value}</dd>
+                                </div>
+                            ))}
+                        </dl>
                     )}
-                    {headerActions !== undefined && (
-                        <div className="flex items-center gap-2 [&>*:first-child]:flex-1 @min-[37.5rem]/detail:[&>*:first-child]:flex-none">
-                            {headerActions}
-                            <span className={ACTION_ROW_SCREEN_ON}>
-                                <KeepAwakeToggle
-                                    on={screenOn.on}
-                                    onChange={screenOn.onChange}
-                                    label={detail.screenOn}
-                                    display="labelled"
-                                />
-                            </span>
-                        </div>
-                    )}
-                    {screenOn.hint === undefined ? null : <p className={HINT_UNDER_ACTION_ROW}>{screenOn.hint}</p>}
+                    {/* The action row: the host's text action (Edit recipe, Save a copy), then Screen on, a quiet action with the sun glyph
+                        (which renders nothing where the browser cannot keep the screen awake). */}
+                    <div className="flex flex-wrap items-center gap-2 empty:hidden">
+                        {headerActions}
+                        <KeepAwakeToggle
+                            on={screenOn.on}
+                            onChange={screenOn.onChange}
+                            label={detail.screenOn}
+                            hint={detail.screenOnHint}
+                        />
+                    </div>
                     {recipe.description !== '' && (
                         <div className="flex flex-col items-start gap-1">
                             <p
@@ -356,33 +289,10 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                 />
             )}
 
-            {/* Below a 720 body: one column under the sticky section switch, which holds Screen on as its glyph. */}
-            <div className={SECTION_SWITCH_SLOT}>
-                <SectionSwitch
-                    label={detail.sectionsLabel}
-                    {...(currentSection === undefined ? {} : { currentId: currentSection })}
-                    sections={[
-                        { id: 'ingredients', label: detail.ingredientsHeading },
-                        { id: 'steps', label: detail.instructionsHeading },
-                        { id: 'nutrition', label: detail.nutritionLink },
-                    ]}
-                    trailing={
-                        <KeepAwakeToggle
-                            on={screenOn.on}
-                            onChange={screenOn.onChange}
-                            label={detail.screenOn}
-                            display="icon"
-                        />
-                    }
-                />
-            </div>
-
-            {screenOn.hint === undefined ? null : <p className={HINT_UNDER_SWITCH}>{screenOn.hint}</p>}
-
             <div className={BODY_GRID}>
                 {/* From 720 the ingredients stay beside the steps, sticky, with their own scroll (§6.1). */}
                 <section aria-labelledby="ingredients" className={INGREDIENTS_COLUMN}>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2 pb-1 pe-3 ps-4 pt-3.5">
                         <h2
                             id="ingredients"
                             ref={ingredientsHeadingRef}
@@ -395,60 +305,59 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         <span className="me-auto text-meta text-ink-muted">
                             {fillTemplate(detail.ingredientsFor, { count: servings })}
                         </span>
-                        <div className="flex items-center gap-1">
-                            <ServingScaleControl
-                                servings={servings}
-                                baseServings={recipe.servings}
-                                onServingsChange={onServingsChange}
-                            />
-                            {ingredientsEdit !== undefined && recipe.ingredients.length > 0 && (
-                                <Link
-                                    href={ingredientsEdit}
-                                    aria-label={detail.editIngredientsLabel}
-                                    className={EDIT_LINK}
-                                >
-                                    <Icon name="pencilLine" size={16} />
-                                    {detail.editSection}
-                                </Link>
-                            )}
-                        </div>
+                        <ServingScaleControl
+                            servings={servings}
+                            baseServings={recipe.servings}
+                            onServingsChange={onServingsChange}
+                        />
                     </div>
-                    {/* The disclosure is part of the feature: a cook reading doubled amounts is told, in the same breath,
-                        that the cook times beside them did NOT double. */}
-                    {scaled.scaling.isScaled && (
-                        <div
-                            role="status"
-                            className={`flex flex-col items-start gap-1 rounded-lg ${surfaceToneClass('muted')} px-3 py-2`}
-                        >
-                            <p className="text-meta text-ink">
-                                {fillTemplate(detail.scaledFrom, { original: recipe.servings })}{' '}
-                                <Button variant="ghost" onPress={() => onServingsChange(recipe.servings)}>
-                                    {detail.resetScale}
-                                </Button>
-                            </p>
-                            <p className="text-meta font-medium text-ink">{detail.scaledTimingCaveat}</p>
+                    {/* The owner's Edit sits under the heading row, at the start (`RecipeDetailAndroid384`). */}
+                    {ingredientsEdit !== undefined && recipe.ingredients.length > 0 && (
+                        <div className="flex px-4 pb-1">
+                            <Link href={ingredientsEdit} aria-label={detail.editIngredientsLabel} className={EDIT_LINK}>
+                                <Icon name="pencilLine" size={16} />
+                                {detail.editSection}
+                            </Link>
                         </div>
                     )}
-                    {/* Plan 002 R2 — ALWAYS MOUNTED, hidden through `failed`: a live region inserted with its content
+                    <div className="flex flex-col gap-2 px-4 empty:hidden">
+                        {/* The disclosure is part of the feature: a cook reading doubled amounts is told, in the same breath,
+                        that the cook times beside them did NOT double. */}
+                        {scaled.scaling.isScaled && (
+                            <div
+                                role="status"
+                                className={`flex flex-col items-start gap-1 rounded-lg ${surfaceToneClass('muted')} px-3 py-2`}
+                            >
+                                <p className="text-meta text-ink">
+                                    {fillTemplate(detail.scaledFrom, { original: recipe.servings })}{' '}
+                                    <Button variant="ghost" onPress={() => onServingsChange(recipe.servings)}>
+                                        {detail.resetScale}
+                                    </Button>
+                                </p>
+                                <p className="text-caption text-ink">{detail.scaledTimingCaveat}</p>
+                            </div>
+                        )}
+                        {/* Plan 002 R2 — ALWAYS MOUNTED, hidden through `failed`: a live region inserted with its content
                         already inside is unreliable. No automatic polling during a food outage. */}
-                    <RefreshNotice
-                        failed={unreachable !== undefined}
-                        refreshing={unreachableRetry.refreshing}
-                        onRetry={unreachableRetry.onRetry}
-                        labels={{ failed: unreachable ?? '', retry: detail.refreshRetry }}
-                    />
-                    {saysRecovered && (
-                        <p id={recoveredDescriptionId} hidden>
-                            {detail.unreachableResolved}
-                        </p>
-                    )}
-                    {/* The withdrawn-food tile (owner ruling 4): head of THIS section, warning tint, `role="note"`, no
+                        <RefreshNotice
+                            failed={unreachable !== undefined}
+                            refreshing={unreachableRetry.refreshing}
+                            onRetry={unreachableRetry.onRetry}
+                            labels={{ failed: unreachable ?? '', retry: detail.refreshRetry }}
+                        />
+                        {saysRecovered && (
+                            <p id={recoveredDescriptionId} hidden>
+                                {detail.unreachableResolved}
+                            </p>
+                        )}
+                        {/* The withdrawn-food tile (owner ruling 4): head of THIS section, warning tint, `role="note"`, no
                         dismiss — the condition is permanent. */}
-                    {removedNotice !== undefined && (
-                        <p role="note" className="rounded-md bg-attention-tint px-4 py-3 text-meta text-ink">
-                            {removedNotice}
-                        </p>
-                    )}
+                        {removedNotice !== undefined && (
+                            <p role="note" className="rounded-md bg-attention-tint px-4 py-3 text-meta text-ink">
+                                {removedNotice}
+                            </p>
+                        )}
+                    </div>
                     {recipe.ingredients.length === 0 ? (
                         <DetailEmptySection
                             text={detail.noIngredients}
@@ -458,14 +367,15 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     ) : (
                         // A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list.
                         ingredientGroupRuns(scaled.ingredients).map((run, index) => (
-                            <div key={`${run.label ?? ''}-${String(index)}`} className="flex flex-col gap-1">
+                            <div key={`${run.label ?? ''}-${String(index)}`} className="flex flex-col">
                                 {run.label !== undefined && (
-                                    <h3 className="pt-4 text-label font-medium text-ink-muted">{run.label}</h3>
+                                    <h3 className="px-4 pb-1 pt-4 text-caption text-ink-muted">{run.label}</h3>
                                 )}
                                 <ul className="flex flex-col">
-                                    {run.lines.map((ingredient) => (
+                                    {run.lines.map((ingredient, lineIndex) => (
                                         <IngredientCheckRow
                                             key={ingredient.ingredientId}
+                                            divided={lineIndex > 0}
                                             ingredient={ingredient}
                                             checked={marks.checkedLines.has(ingredient.ingredientId)}
                                             allRemoved={allRemoved}
@@ -551,26 +461,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         </div>
                     </section>
 
-                    {rating}
-
                     {/* U13 — the ambiguity review surface + the one-time clone banner, from the STORED lines. */}
                     <AmbiguityReview recipe={recipe} viewerIsOwner={owner} />
-
-                    <footer className="flex flex-col items-start gap-1 text-meta text-ink-muted">
-                        {/* Provenance renders for EVERY viewer: it is a property of the recipe. */}
-                        <RecipeSourceLine
-                            {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
-                            {...(recipe.sourceAttribution === undefined
-                                ? {}
-                                : { sourceAttribution: recipe.sourceAttribution })}
-                        />
-                        {versionsHref !== undefined && (
-                            <Link href={versionsHref as Href} className={`${EDIT_LINK} ${GHOST_EDGE_CLASS}`}>
-                                <Icon name="clock" size={16} />
-                                {detail.versionHistory}
-                            </Link>
-                        )}
-                    </footer>
                 </div>
             </div>
         </article>

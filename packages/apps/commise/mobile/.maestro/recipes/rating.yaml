@@ -57,7 +57,10 @@ appId: ${APP_ID}
 
 # The community aggregate (read-only social proof) and the rate call-to-action render. The presence
 # of the rate radiogroup proves the recipe is RATEABLE — the own-recipe gate (Sc8) would replace it
-# with "You can’t rate your own recipe." instead.
+# with "Only other cooks can rate your recipe." instead.
+#
+# REWRITTEN IN SLICE 1: the rating is a card at the top of the page with no "Community rating" heading, so that assertion is
+# gone and the flow asserts the card's own call to action, "Rate this recipe".
 #
 # Scroll to the STAR CONTROL, not to the "Community rating" heading above it. The heading sits high
 # enough in the rating block to already be on screen when the detail opens, so `scrollUntilVisible`
@@ -69,7 +72,6 @@ appId: ${APP_ID}
       element: 'Rate 4 stars'
       direction: DOWN
       timeout: 20000
-- assertVisible: 'Community rating'
 - assertVisible: 'Rate this recipe'
 - assertVisible: 'Rate 4 stars'
 

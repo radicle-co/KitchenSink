@@ -6,6 +6,7 @@
  * checkable row is named. Every function here is pure.
  */
 import type { Locale } from '@commise/i18n';
+import { spacing } from '@commise/ui/scale';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
@@ -32,16 +33,15 @@ import type { BylineMessages } from '../byline/messages.js';
 /** A recipe's stated difficulty. */
 type DifficultyLevel = NonNullable<RecipeDetail['difficulty']>;
 
-/** One cell of the stat strip. A difficulty cell also carries its level, which the meter draws. */
+/** One fact tile. A difficulty tile also carries its level, which the meter draws. */
 export type DetailStatCell =
-    | { readonly id: 'total' | 'prep' | 'cook'; readonly label: string; readonly value: string }
-    | { readonly id: 'difficulty'; readonly label: string; readonly value: string; readonly level: DifficultyLevel };
+    | { readonly id: 'total' | 'prep'; readonly label: string; readonly value: string }
+    | { readonly id: 'difficulty'; readonly label: string; readonly value: string };
 
-/** The timings the strip reads: the scaled projection's, so prep and total follow the serving count. */
+/** The timings the tiles read: the scaled projection's, so prep and total follow the serving count. */
 interface StripTimings {
     readonly totalTimeMinutes: number;
     readonly prepTimeMinutes: number;
-    readonly cookTimeMinutes: number;
 }
 
 /** The words of each difficulty. */
@@ -53,7 +53,8 @@ const timeValue = (minutes: number, duration: RecipeDurationMessages): string | 
     minutes > 0 ? formatDuration(minutes * 60, duration) : undefined;
 
 /**
- * The stat strip: Total, Prep, Cook and Difficulty, in that order; a missing time or difficulty hides its cell.
+ * The fact tiles: Total, Prep and Difficulty, in that order; a missing time or difficulty hides its tile. There is no
+ * Cook tile (`RecipeDetailAndroid384`, `nativeBoards/buildLists.md` item 6).
  *
  * @param timings - The timings, in minutes.
  * @param difficulty - The stated difficulty, if any.
@@ -71,13 +72,12 @@ export function detailStatCells(
 ): readonly DetailStatCell[] {
     const { detail, duration, card } = messages;
     const times: readonly {
-        readonly id: 'total' | 'prep' | 'cook';
+        readonly id: 'total' | 'prep';
         readonly label: string;
         readonly minutes: number;
     }[] = [
         { id: 'total', label: detail.totalLabel, minutes: timings.totalTimeMinutes },
         { id: 'prep', label: detail.prepLabel, minutes: timings.prepTimeMinutes },
-        { id: 'cook', label: detail.cookLabel, minutes: timings.cookTimeMinutes },
     ];
     const cells: DetailStatCell[] = times.flatMap(({ id, label, minutes }) => {
         const value = timeValue(minutes, duration);
@@ -90,7 +90,6 @@ export function detailStatCells(
             id: 'difficulty',
             label: detail.difficultyLabel,
             value: difficultyWord(difficulty, card),
-            level: difficulty,
         });
     }
 
@@ -98,103 +97,86 @@ export function detailStatCells(
 }
 
 /**
- * The meta line above the title: the cuisine, then — on another cook's recipe — "by {byline}" (plan 2026-10-15-010
- * D11: "by @username (Display Name)", "by Display Name", or "by a former member"). An imported recipe with no author
- * gets no "by" item; its source line says where it came from.
+ * The eyebrow above the title: the cuisine, alone (`RecipeDetailAndroid384`). The byline is a line of its own.
  *
  * @param recipe - The recipe.
- * @param viewerIsOwner - Whether the viewer owns it; the viewer is never named as their own recipe's author.
+ * @returns The cuisine, or `undefined` when the recipe states none.
+ */
+export function detailEyebrow(recipe: Pick<RecipeDetail, 'cuisine'>): string | undefined {
+    return recipe.cuisine === undefined || recipe.cuisine === '' ? undefined : recipe.cuisine;
+}
+
+/**
+ * The byline of another cook's recipe — "by Display Name", or "by @username" for an author with no display name, or "by
+ * a former member" (designer, `designAnswers.md` 2026-11-02: the display name alone, until recipes carry a handle). The
+ * viewer is never named as their own recipe's author, and an imported recipe with no author gets none: its source line
+ * says where it came from.
+ *
+ * @param recipe - The recipe.
+ * @param viewerIsOwner - Whether the viewer owns it.
  * @param detail - The detail copy.
  * @param byline - The byline copy.
- * @returns The items, in order.
+ * @returns The line, or `undefined` when there is nobody to name.
  */
-export function detailMetaItems(
-    recipe: Pick<RecipeDetail, 'cuisine' | 'authorDisplayName' | 'authorUsername'>,
+export function detailByline(
+    recipe: Pick<RecipeDetail, 'authorDisplayName' | 'authorUsername'>,
     viewerIsOwner: boolean,
     detail: RecipeDetailMessages,
     byline: BylineMessages,
-): readonly string[] {
-    const items: string[] = [];
-
-    if (recipe.cuisine !== undefined && recipe.cuisine !== '') {
-        items.push(recipe.cuisine);
+): string | undefined {
+    if (viewerIsOwner) {
+        return undefined;
     }
 
-    const author = viewerIsOwner
-        ? undefined
-        : bylineText(
-              bylineOf({
-                  ...(recipe.authorUsername === undefined ? {} : { username: recipe.authorUsername }),
-                  ...(recipe.authorDisplayName === undefined ? {} : { displayName: recipe.authorDisplayName }),
-              }),
-              byline,
-              'sentence',
-          );
+    const who = bylineOf({
+        ...(recipe.authorUsername === undefined ? {} : { username: recipe.authorUsername }),
+        ...(recipe.authorDisplayName === undefined ? {} : { displayName: recipe.authorDisplayName }),
+    });
+    // A cook with both is shown by display name alone; the shared rule still decides who has no name to show.
+    const shown =
+        who.kind === 'person' && who.displayName !== undefined
+            ? { kind: 'name' as const, displayName: who.displayName }
+            : who;
+    const author = bylineText(shown, byline, 'sentence');
 
-    if (author !== undefined) {
-        items.push(fillTemplate(detail.byAuthor, { byline: author }));
-    }
-
-    return items;
+    return author === undefined ? undefined : fillTemplate(detail.byAuthor, { byline: author });
 }
 
-/** The status at the end of the rating line: the owner's visibility, or the owner's Draft badge. */
+/** The owner's status beside the version link: the visibility, or the Draft badge. */
 export type DetailStatus =
     | { readonly kind: 'visibility'; readonly visibility: 'public' | 'private'; readonly text: string }
     | { readonly kind: 'draft'; readonly text: string };
 
-/** The rating line under the title. */
-export interface DetailRatingLine {
-    /** The average and count; absent for a recipe nobody has rated. */
-    readonly rating: { readonly stars: number; readonly text: string } | undefined;
-    /** The owner's status; absent for another cook's viewer. */
-    readonly status: DetailStatus | undefined;
-}
-
 /**
- * The rating line: "4.8 (12)" and, for the owner, the visibility or the Draft badge.
+ * The owner's status: the visibility, or the Draft badge for a draft. Another cook's viewer sees none. The rating is
+ * NOT here: the rating card owns it.
  *
  * @param recipe - The recipe.
  * @param viewerIsOwner - Whether the viewer owns it.
- * @param locale - The active locale, for the average.
  * @param messages - The detail and card copy.
- * @returns The line's parts.
+ * @returns The status, or `undefined` for a viewer who is not the owner.
  */
-export function detailRatingLine(
-    recipe: Pick<RecipeDetail, 'averageRating' | 'ratingCount' | 'visibility' | 'status'>,
+export function detailStatusLine(
+    recipe: Pick<RecipeDetail, 'visibility' | 'status'>,
     viewerIsOwner: boolean,
-    locale: Locale,
     messages: { readonly detail: RecipeDetailMessages; readonly card: RecipeCardMessages },
-): DetailRatingLine {
+): DetailStatus | undefined {
     const { detail, card } = messages;
-    const rating =
-        recipe.averageRating === undefined || recipe.ratingCount === 0
-            ? undefined
-            : {
-                  stars: recipe.averageRating,
-                  text: fillTemplate(card.ratingShort, {
-                      average: new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(recipe.averageRating),
-                      count: recipe.ratingCount,
-                  }),
-              };
 
     if (!viewerIsOwner) {
-        return { rating, status: undefined };
+        return undefined;
     }
 
     if (recipe.status === RecipeStatus.DRAFT) {
-        return { rating, status: { kind: 'draft', text: card.draftBadge } };
+        return { kind: 'draft', text: card.draftBadge };
     }
 
     const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
 
     return {
-        rating,
-        status: {
-            kind: 'visibility',
-            visibility: isPublic ? 'public' : 'private',
-            text: isPublic ? detail.visibilityPublic : detail.visibilityPrivate,
-        },
+        kind: 'visibility',
+        visibility: isPublic ? 'public' : 'private',
+        text: isPublic ? detail.visibilityPublic : detail.visibilityPrivate,
     };
 }
 
@@ -400,24 +382,40 @@ export function isLongDescription(description: string): boolean {
 /** The body width from which the page shows two columns (§6.1). */
 const TWO_COLUMN_BODY = 720;
 
-/** The strip width below which the stat strip is two cells to a row (§6.1). */
-const TWO_BY_TWO_STRIP = 360;
-
 /**
- * The native page's layout for a body width — the thresholds the web leaf reads through container queries. Pure.
- *
- * The column count is in points. The stat strip's cells hold text, so the strip is judged by the width a cell has in
- * UNITS OF TEXT: the body width over the font scale (A-028 d). At font scale 2 a 360 pt strip is a 180-unit one.
+ * The native page's layout for a body width: one column, or two from a 720 pt body (§6.1) — the threshold the web leaf
+ * reads through container queries — and the room the fact tiles are drawn in. Pure, and in points: the font scale does not
+ * move the column rule.
  *
  * @param bodyWidth - The width the page's content gets, in points (the window less its gutters).
- * @param fontScale - The OS font scale (1 at the default size). Required: a default would silently assert "default
- *     text size" for a caller that had not thought about it.
- * @returns Its columns, and how many stat cells fit a row.
+ * @param textScale - The scale the text is drawn at (`cappedFontScale` of the system's), which the fact tiles read.
+ * @returns Its column count, and the body width and text scale the tiles lay out by.
  */
-export function detailNativeLayoutOf(bodyWidth: number, fontScale: number): DetailNativeLayout {
-    const columns = bodyWidth >= TWO_COLUMN_BODY ? 'two' : 'one';
-    // In two columns the strip sits in the full-width top, so only the one-column width can fall below 360.
-    const statsPerRow = bodyWidth / fontScale < TWO_BY_TWO_STRIP ? 2 : 4;
+export function detailNativeLayoutOf(bodyWidth: number, textScale: number): DetailNativeLayout {
+    return { columns: bodyWidth >= TWO_COLUMN_BODY ? 'two' : 'one', bodyWidth, textScale };
+}
 
-    return { columns, statsPerRow };
+/** The gap between fact tiles: space-2. */
+const TILE_GAP = spacing[2];
+
+/** The room a tile needs per unit of text scale before it holds a label and a value on two lines without breaking a word. */
+const TILE_MIN_PER_SCALE = 100;
+
+/**
+ * How many fact tiles go across a row (designer, iosBatch2): all of them while each is at least 100 pt wide per unit of
+ * text scale, else one to a row. A tile that would break a word ("Difficu / lty", "55 / min") is never drawn. Pure.
+ *
+ * @param bodyWidth - The width the tiles share, in points.
+ * @param count - How many tiles there are.
+ * @param textScale - The scale the text is drawn at.
+ * @returns Tiles per row: `count` or `1`, and `0` for no tiles.
+ */
+export function factTilesAcross(bodyWidth: number, count: number, textScale: number): number {
+    if (count <= 0) {
+        return 0;
+    }
+
+    const tileWidth = (bodyWidth - (count - 1) * TILE_GAP) / count;
+
+    return tileWidth / textScale >= TILE_MIN_PER_SCALE ? count : 1;
 }

@@ -6639,7 +6639,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/keepAwake/KeepAwakeToggle.tsx",
                     "dir": "packages/apps/commise/ui/src/keepAwake",
-                    "moduleDoc": "@commise/ui/keep-awake — the web design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with `aria-checked`, drawn as the secondary Button pill (`buttonToggleSurfaceClass`, 44 px, an outline,\nthe 16/20/600 `cardTitle`), NOT a chip: it sets a mode, it does not filter a list (`componentFixes` issue 6). While\non it takes the `selectedFill` with a `selectedEdge` outline of the same width, and the `sun` glyph is filled, so the\nstate never rests on colour alone. Icon-only it keeps \"Screen on\" as its name.\n\nIt presses as `Button` does: the same `PressScale` wrapper, and while off the secondary pill's own hover and pressed\nfill (`surface-muted`).\n\nPresentational apart from one capability read: with no Wake Lock API (an older browser, an insecure context) it\nrenders nothing at all. It is never shown disabled, because a control the cook can never use is noise.",
+                    "moduleDoc": "@commise/ui/keep-awake — the web design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with `aria-checked`, drawn as the QUIET Button surface (`buttonSurfaceClass('quiet')`): the `sun` glyph and the\nlabel, no fill and no outline, sitting in the action row after Edit recipe or Save a copy (designer, iosBatch1). It sets\na mode, it does not filter a list (`componentFixes` issue 6), and the glyph is filled while on, so the state never rests\non colour alone.\n\nIt presses as `Button` does: the same `PressScale` wrapper.\n\nPresentational apart from one capability read: with no Wake Lock API (an older browser, an insecure context) it\nrenders nothing at all. It is never shown disabled, because a control the cook can never use is noise.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6656,15 +6656,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "display",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"icon\"",
-                                "\"labelled\""
-                            ],
-                            "required": true,
+                            "name": "hint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Labelled (from a 720 body) or icon-only (in the section switch).",
+                            "description": "What the switch does, as its accessibility hint (web: its description): spoken after the name and the state, and never\ndrawn (designer, after iosBatch1).",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {
@@ -6673,7 +6670,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The localised name, \"Screen on\". It is the accessible name in both displays.",
+                            "description": "The localised name, \"Screen on\": the visible label and the accessible name.",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {
@@ -6707,7 +6704,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/keepAwake/KeepAwakeToggle.native.tsx",
                     "dir": "packages/apps/commise/ui/src/keepAwake",
-                    "moduleDoc": "@commise/ui/keep-awake — the native design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with `aria-checked`, drawn as the secondary Button pill and pressed through the same `PressScale` Button\nuses, NOT a chip: it sets a mode, it does not filter a\nlist (`componentFixes` issue 6). The pill is the touch floor tall (44 pt, 48 dp on Android) with a 1 pt outline: paper\nand `lineControl` while off, the `selectedFill` and `selectedEdge` while on, at the SAME edge width so turning it on\nmoves nothing around it. The label is the 16/20/600 `cardTitle` in `ink`, and the `sun` glyph is filled while on, so\nthe state never rests on colour alone. The name is always stated, because react-native-web joins a pressable's texts\nand the icon-only display has no text at all.\n\nNative always has the capability (`useKeepAwakeAvailable.native.ts`), so this leaf always renders; the Null Object\ncontract lives in the web leaf, where the capability can be missing.",
+                    "moduleDoc": "@commise/ui/keep-awake — the native design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with its checked state, drawn as a QUIET action: the `sun` glyph (in `actionText`, filled while on, so the\nstate never rests on colour alone) and the label in `ink`, with no fill and no outline, in the action row after Edit\nrecipe or Save a copy (designer, iosBatch1). It is pressed through the same `PressScale` Button uses, and is the touch\nfloor tall (44 pt, 48 dp on Android).\n\nNative always has the capability (`useKeepAwakeAvailable.native.ts`), so this leaf always renders; the Null Object\ncontract lives in the web leaf, where the capability can be missing.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6720,15 +6717,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "display",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"icon\"",
-                                "\"labelled\""
-                            ],
-                            "required": true,
+                            "name": "hint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Labelled (from a 720 body) or icon-only (in the section switch).",
+                            "description": "What the switch does, as its accessibility hint (web: its description): spoken after the name and the state, and never\ndrawn (designer, after iosBatch1).",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {
@@ -6737,7 +6731,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The localised name, \"Screen on\". It is the accessible name in both displays.",
+                            "description": "The localised name, \"Screen on\": the visible label and the accessible name.",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {

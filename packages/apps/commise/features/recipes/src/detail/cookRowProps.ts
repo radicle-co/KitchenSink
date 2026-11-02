@@ -15,6 +15,8 @@ export interface IngredientCheckRowProps {
     readonly allRemoved: boolean;
     /** Called with the line's key (`ingredientId`). */
     readonly onToggle: (line: string) => void;
+    /** Whether a hairline separates this row from the one above it: every row of a group but its first. */
+    readonly divided?: boolean;
 }
 
 /** Props for `StepRow` (web and native). */

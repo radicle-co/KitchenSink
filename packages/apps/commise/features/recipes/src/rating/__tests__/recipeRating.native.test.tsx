@@ -8,16 +8,22 @@
  *
  * Same two mutation-lens assertions as web: the read-only variant renders no input, and selecting a star
  * reports its EXACT value.
+ *
+ * REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md` item 2, `designAnswers.md` D3): the rating is a CARD at the top of
+ * the page, with no "Community rating" heading. It reads stars, the figure ("4.8") and the count ("12 ratings") on one
+ * row; the own-recipe reason is "Only other cooks can rate your recipe."; and the heading and column-edge tests now
+ * prove that the card draws no section heading of its own.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // Its leaves draw through the design system's Tamagui `Text` (ADR-0080), so the tree renders in its provider.
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { LocaleProvider } from '@commise/i18n/react';
-import { computedContrast } from '@commise/test-utils';
+import { contrastRatio } from '@commise/test-utils';
 import { palette } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -72,6 +78,27 @@ describe('RecipeRatingDisplay (native) — read-only own-recipe variant (Sc8)', 
         expect(screen.getByRole('img', { name: /out of 5/ })).toBeTruthy();
     });
 
+    it('reads the figure and the count beside the stars, as the board does', () => {
+        renderDisplay({ average: 4.8, ratingCount: 12 });
+
+        expect(screen.getByText('4.8')).toBeTruthy();
+        expect(screen.getByText('12 ratings')).toBeTruthy();
+    });
+
+    it('says one rating in the singular', () => {
+        renderDisplay({ average: 5, ratingCount: 1 });
+
+        expect(screen.getByText('1 rating')).toBeTruthy();
+    });
+
+    it('is a labelled card with no section heading of its own', () => {
+        renderDisplay({ average: 4.8, ratingCount: 12 });
+
+        expect(screen.getByLabelText('Recipe rating')).toBeTruthy();
+        expect(screen.queryByText('Community rating')).toBeNull();
+        expect(screen.queryByRole('heading')).toBeNull();
+    });
+
     it('shows an honest "not yet rated" summary when unrated', () => {
         renderDisplay({ average: undefined, ratingCount: 0 });
 
@@ -84,7 +111,7 @@ describe('RecipeRatingDisplay (native) — read-only own-recipe variant (Sc8)', 
 
         expect(screen.queryByRole('radiogroup')).toBeNull();
         expect(screen.queryByRole('radio')).toBeNull();
-        expect(screen.getByText('You can’t rate your own recipe.')).toBeTruthy();
+        expect(screen.getByText('Only other cooks can rate your recipe.')).toBeTruthy();
     });
 });
 
@@ -210,6 +237,13 @@ describe('RecipeRatingInput (native) — interactive variant', () => {
     });
 });
 
+/**
+ * REWRITTEN IN SLICE 2: a pip is the design system's `star` icon, not a '★' character, so a system text scale cannot grow it
+ * (a plain React Native Text has no cap on iOS). The pips are found by the glyph's name, and their colour is the icon's.
+ */
+const pipsOnScreen = (): Element[] => [...document.querySelectorAll('[data-icon-name="star"]')];
+const pipColour = (pip: Element): string => pip.getAttribute('data-icon-color') ?? '';
+
 describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
     /**
      * The U4 pass demoted the sibling leaf's empty pips to `slate` ("a mist empty star is 1.9:1 — slate (5:1)
@@ -228,13 +262,13 @@ describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
         // average 2 of 5 → pips 3, 4 and 5 render EMPTY, which is what the scale is read from.
         renderDisplay({ average: 2, ratingCount: 3 });
 
-        const pips = screen.getAllByText('★');
+        const pips = pipsOnScreen();
 
         expect(pips).toHaveLength(5);
 
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
-                computedContrast(pip, { surface: SCREEN }),
+                contrastRatio(pipColour(pip), SCREEN),
                 `empty community pip ${index + 3} of 5 on the fog screen background`,
             ).toBeGreaterThanOrEqual(4.5);
         }
@@ -245,13 +279,13 @@ describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
         // selectedStars 2 leaves the 3rd, 4th and 5th empty.
         renderInput({ selectedStars: 2 });
 
-        const pips = screen.getAllByText('★');
+        const pips = pipsOnScreen();
 
         expect(pips).toHaveLength(5);
 
         for (const [index, pip] of pips.slice(2).entries()) {
             expect(
-                computedContrast(pip, { surface: SCREEN }),
+                contrastRatio(pipColour(pip), SCREEN),
                 `empty rate-input pip ${index + 3} of 5 on the fog screen background`,
             ).toBeGreaterThanOrEqual(4.5);
         }
@@ -265,63 +299,50 @@ describe('recipe rating (native) — text contrast (WCAG 2.1 AA)', () => {
 describe.each(['light', 'dark'] as const)('recipe rating (native) — the %s scheme', (scheme) => {
     const colours = rolesFor(scheme);
 
-    it('fills the score pips with rating and the scale pips with inkMuted, under an ink heading', () => {
+    it('fills the score pips with rating and the scale pips with inkMuted, beside an ink figure and a muted count', () => {
         systemScheme.current = scheme;
-        renderDisplay({ average: 2, ratingCount: 3 });
-        const pips = screen.getAllByText('★');
+        renderDisplay({ average: 2.5, ratingCount: 3 });
+        const pips = pipsOnScreen();
 
-        expect(getComputedStyle(pips[0] as Element).color).toBe(rgb(colours.rating));
-        expect(getComputedStyle(pips[4] as Element).color).toBe(rgb(colours.inkMuted));
-        expect(getComputedStyle(screen.getByRole('heading')).color).toBe(rgb(colours.ink));
+        expect(pipColour(pips[0] as Element)).toBe(colours.rating);
+        expect(pipColour(pips[4] as Element)).toBe(colours.inkMuted);
+        expect(resolvedColour(screen.getByText('2.5'), 'color')).toBe(rgb(colours.ink));
+        expect(resolvedColour(screen.getByText('3 ratings'), 'color')).toBe(rgb(colours.inkMuted));
     });
 
     it('says an unrated recipe in inkMuted', () => {
         systemScheme.current = scheme;
         renderDisplay();
 
-        expect(getComputedStyle(screen.getByText('Not yet rated')).color).toBe(rgb(colours.inkMuted));
+        expect(resolvedColour(screen.getByText('Not yet rated'), 'color')).toBe(rgb(colours.inkMuted));
     });
 
     it('draws Remove and an error in dangerText', () => {
         systemScheme.current = scheme;
         renderInput({ selectedStars: 3, error: 'generic' });
 
-        expect(getComputedStyle(screen.getByText('Remove my rating')).color).toBe(rgb(colours.dangerText));
-        expect(getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(colours.dangerText));
+        expect(resolvedColour(screen.getByText('Remove my rating'), 'color')).toBe(rgb(colours.dangerText));
+        expect(resolvedColour(screen.getByRole('alert'), 'color')).toBe(rgb(colours.dangerText));
     });
 });
 
-/** Walk RNW's atomic classes back to a CSS property's value (inline styles first). */
-function styleOf(element: Element, property: string): string {
-    const inline = (element as HTMLElement).style.getPropertyValue(property);
-
-    if (inline !== '') {
-        return inline;
-    }
-
-    return Array.from(document.styleSheets)
-        .flatMap((sheet) => Array.from(sheet.cssRules))
-        .filter(
-            (rule): rule is CSSStyleRule =>
-                rule instanceof CSSStyleRule &&
-                element.className.split(' ').some((name) => rule.selectorText === `.${name}`),
-        )
-        .map((rule) => rule.style.getPropertyValue(property))
-        .filter((value) => value !== '')
-        .join(' ');
-}
-
-// F8 and F15 (`evaluateFinal.md`), parity with web: the heading is `sectionTitle` (Inter 600), and the section adds no
-// gutter of its own, so "Community rating" starts at the column edge its sibling headings share.
-describe('RatingSection (native) — the heading and the column edge', () => {
-    it('sets the heading in Inter and adds no side padding', () => {
+// Slice 1: the rating is a card, not a section. It draws no "Community rating" heading, so the interactive variant's only
+// heading is its own "Rate this recipe", and the card adds the padding of a card on every side.
+describe('RatingSection (native) — the card', () => {
+    it('draws "Rate this recipe" and no community heading', () => {
         renderInput();
 
-        const heading = screen.getByRole('heading');
-        const region = heading.parentElement as HTMLElement;
+        expect(screen.queryByText('Community rating')).toBeNull();
+        expect(screen.getByText('Rate this recipe')).toBeTruthy();
+    });
 
-        expect(styleOf(heading, 'font-family')).toMatch(/Inter/u);
-        expect(styleOf(region, 'padding-left')).toMatch(/^(?:0px)?$/u);
-        expect(styleOf(region, 'padding-inline-start')).toMatch(/^(?:0px)?$/u);
+    it('is a bordered card with the card padding on every side', () => {
+        renderInput();
+
+        const card = screen.getByLabelText('Recipe rating');
+        const pad = `${String(nativeTokens.spacing[4])}px`;
+
+        expect(resolvedStyle(card, 'padding')).toBe(pad);
+        expect(resolvedStyle(card, 'borderTopWidth')).toBe('1px');
     });
 });

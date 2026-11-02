@@ -58,7 +58,8 @@ describe('IngredientCheckRow (web)', () => {
 
     // Owner C5 + T1: the row text is the `list` role (14, amount 600, the rest 400 ink), the row pads 8 above and below,
     // and the WHOLE row is the touch target, at least 44 tall.
-    it('sets the line in the list role, pads 8 and is at least 44 tall', () => {
+    // REWRITTEN IN SLICE 2: the line is the `body` role (16), as the board draws it, where it was `list`.
+    it('sets the line in the body role, pads 8 and is at least 44 tall', () => {
         const { container } = render(
             <ul>
                 <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />
@@ -70,8 +71,8 @@ describe('IngredientCheckRow (web)', () => {
         expect(row.className).toContain('min-h-11');
         expect(row.className).not.toMatch(/min-h-12|py-3/u);
         expect(row.className).toContain('py-2');
-        expect(text?.className).toContain('text-list');
-        expect(text?.className).not.toContain('text-body');
+        expect(text?.className).toContain('text-body');
+        expect(text?.className).not.toContain('text-list');
     });
 
     it('toggles when the cook presses anywhere on the row, the amount and the preparation included', () => {

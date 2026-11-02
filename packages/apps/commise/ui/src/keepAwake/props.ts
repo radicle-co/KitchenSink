@@ -2,13 +2,10 @@
  * @module @commise/ui/keep-awake — the platform-neutral contract of the design-system `KeepAwakeToggle` ("Screen on",
  * `docs/design/uiOverhaul/buildSpec.md` §6.3): a switch the cook turns on to keep the screen awake while they cook.
  *
- * The toggle is controlled: the orchestration layer owns the one `on` state and holds the lock with `useKeepAwake`, so
- * the two positions the detail page draws it in (the action row from a 720 body, the section switch below it) can never
- * hold two locks or disagree.
+ * It is a QUIET text action in the page's action row (the sun glyph and the label, no fill and no outline), not a pill of
+ * its own (designer, iosBatch1). The toggle is controlled: the orchestration layer owns the one `on` state and holds the
+ * lock with `useKeepAwake`.
  */
-
-/** How the toggle shows itself: with its visible label, or as its glyph alone (still named in full). */
-export type KeepAwakeDisplay = 'labelled' | 'icon';
 
 /** Props for the `KeepAwakeToggle` leaves (web and native). */
 export interface KeepAwakeToggleProps {
@@ -16,8 +13,11 @@ export interface KeepAwakeToggleProps {
     readonly on: boolean;
     /** Called with the state the cook asked for. */
     readonly onChange: (on: boolean) => void;
-    /** The localised name, "Screen on". It is the accessible name in both displays. */
+    /** The localised name, "Screen on": the visible label and the accessible name. */
     readonly label: string;
-    /** Labelled (from a 720 body) or icon-only (in the section switch). */
-    readonly display: KeepAwakeDisplay;
+    /**
+     * What the switch does, as its accessibility hint (web: its description): spoken after the name and the state, and never
+     * drawn (designer, after iosBatch1).
+     */
+    readonly hint?: string;
 }

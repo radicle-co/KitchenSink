@@ -4,9 +4,14 @@
  * (title, description, badges), meta (times + servings), ingredients (quantity/unit/notes/user-entered),
  * instructions (ordered, optional timer), nutrition (complete vs partial/estimated), and photos (present
  * vs absent) — asserting on role/name/text so a missing section or a dropped branch fails.
+ *
+ * SLICE 1 REWRITES (`nativeBoards/buildLists.md`): the section switch and its sticky slot are gone, the stat strip is
+ * three `cover-steel` fact tiles with no Cook tile, the title never clamps, the rating moved to the rating card and
+ * the version link and source line moved up under the title. Each test changed below says so in its own comment, and the
+ * new behaviour is proved in `RecipeDetailTop.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -109,7 +114,8 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.getByText('Tender and herby.')).toBeTruthy();
     });
 
-    it('sets the title in the large-title role, three lines at most, its full text kept as its name (§6.1)', () => {
+    // REWRITTEN IN SLICE 1: the title wraps and is never clamped to three lines (the board, `buildLists.md` item 3).
+    it('sets the title in the large-title role and never clamps it (§6.1)', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -120,9 +126,10 @@ describe('RecipeDetailView (web) — header', () => {
 
         const heading = screen.getByRole('heading', { level: 1, name: 'Mediterranean Grilled Lamb' });
         expect(heading.className).toContain('text-large-title');
-        expect(heading.className).toContain('line-clamp-3');
+        expect(heading.className).not.toContain('line-clamp');
     });
 
+    // REWRITTEN IN SLICE 2: the byline is the display name alone (`designAnswers.md` 2026-11-02), with no @handle beside it.
     it('leads with the cuisine and, on another cook’s recipe, the author', () => {
         render(
             <RecipeDetailView
@@ -139,7 +146,7 @@ describe('RecipeDetailView (web) — header', () => {
         // The no-photo band repeats the cuisine as its caption, hidden from assistive tech; the meta line says it.
         const exposed = screen.getAllByText('Moroccan').filter((node) => node.closest('[aria-hidden="true"]') === null);
         expect(exposed).toHaveLength(1);
-        expect(screen.getByText('by \u2068@braise\u2069 (\u2068Eliza Moreno\u2069)')).toBeTruthy();
+        expect(screen.getByText('by \u2068Eliza Moreno\u2069')).toBeTruthy();
     });
 
     // F8 (`evaluateFinal.md`): the recipe title is Manrope `largeTitle` (§1.5). `text-large-title` alone sets no face.
@@ -157,9 +164,9 @@ describe('RecipeDetailView (web) — header', () => {
         );
     });
 
-    // F7: in a 435 px title column, four cells of about 100 px wrapped "5 h 30 / min" and cut "Medium". The strip turns
-    // 2 × 2 below a 480 px strip (the threshold `evaluateFinal.md` F7 returns to SPECIFY), one row from it.
-    it('lays the stat strip 2 × 2 below a 480 px strip and in one row from it', () => {
+    // REWRITTEN IN SLICE 1: the stat strip is gone. The three fact tiles are a wrapping flex list, so a tile moves to the
+    // next line instead of cutting its text, which is what F7's two-by-two grid existed to prevent.
+    it('lays the fact tiles in a wrapping row, each growing to share it', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -168,11 +175,10 @@ describe('RecipeDetailView (web) — header', () => {
             />,
         );
 
-        const strip = screen.getByText('Total').closest('dl') as HTMLElement;
+        const tiles = screen.getByText('Total').closest('dl') as HTMLElement;
 
-        expect(strip.className).toContain('grid-cols-2');
-        expect(strip.className).toContain('@min-[30rem]/stats:grid-flow-col');
-        expect(strip.className).not.toContain('22.5rem');
+        expect(tiles.className.split(' ')).toEqual(expect.arrayContaining(['flex', 'flex-wrap']));
+        expect((screen.getByText('Total').closest('div') as HTMLElement).className.split(' ')).toContain('flex-1');
     });
 
     // The section gap is 32 on web and native, in one column and two (designer ruling, `nativeBoards/designAnswers.md`):
@@ -251,9 +257,10 @@ describe('RecipeDetailView (web) — header', () => {
         const lamb = screen.getByRole('heading', { level: 3, name: 'For the lamb' });
         const chickpeas = screen.getByRole('heading', { level: 3, name: 'For the chickpeas' });
 
-        expect(lamb.className).toContain('text-label');
+        // REWRITTEN IN SLICE 2: the group name is the `caption` role (weight 500 in the role itself), as the native label is, where
+        // it was `label` plus a `font-medium` class.
+        expect(lamb.className).toContain('text-caption');
         // C5/C6 (redesign): a group name is weight 500, muted, in sentence case (no uppercase transform).
-        expect(lamb.className).toContain('font-medium');
         // T1: 16 above a group name.
         expect(lamb.className).toContain('pt-4');
         expect(lamb.className).toContain('text-ink-muted');
@@ -291,7 +298,9 @@ describe('RecipeDetailView (web) — header', () => {
         expect(screen.queryByRole('button', { name: /grill/u })).toBeNull();
     });
 
-    it('states the rating and count, and the owner’s visibility, in one line under the title', () => {
+    // REWRITTEN IN SLICE 1: the rating moved to the rating card (proved in `rating/__tests__`), so the line under the
+    // title is the owner's visibility, still legible, and carries no rating.
+    it('states the owner’s visibility under the title, legibly, and no rating', () => {
         renderAsOwner(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -301,7 +310,7 @@ describe('RecipeDetailView (web) — header', () => {
             />,
         );
 
-        expect(screen.getByText('4.8 (12)')).toBeTruthy();
+        expect(screen.queryByText('4.8 (12)')).toBeNull();
         expect(utilityContrast(screen.getByText('Public').className, { foreground: 'text' })).toBeGreaterThanOrEqual(
             4.5,
         );
@@ -432,7 +441,7 @@ describe('RecipeDetailView (web) — steel-as-text below the hero is WCAG-AA leg
 });
 
 describe('RecipeDetailView (web) — meta', () => {
-    it('renders prep, cook, total times and servings', () => {
+    it('renders prep and total times and servings', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -447,15 +456,16 @@ describe('RecipeDetailView (web) — meta', () => {
         );
 
         expect(screen.getByText('15 min')).toBeTruthy();
-        expect(screen.getByText('30 min')).toBeTruthy();
         expect(screen.getByText('45 min')).toBeTruthy();
+        // REWRITTEN IN SLICE 1: there is no Cook tile, so the 30 minute cook time is not on the page.
+        expect(screen.queryByText('30 min')).toBeNull();
         // REWRITTEN (serving scaling): the Serves cell is no longer static text — it is the labelled
         // serving-count control, opening at the recipe's own yield. The assertion below proves the SAME
         // fact (the strip reports 4 servings) against the new affordance; the coverage did not move.
         expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('4')).toBeTruthy();
     });
 
-    it('orders the stat strip Total, Prep, Cook, Difficulty, and hides a missing time (§6.1)', () => {
+    it('orders the fact tiles Total, Prep, Difficulty, and hides a missing time (§6.1)', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -470,7 +480,7 @@ describe('RecipeDetailView (web) — meta', () => {
         );
 
         const labels = screen.getAllByRole('term').map((el) => el.textContent);
-        expect(labels.slice(0, 3)).toEqual(['Total', 'Cook', 'Difficulty']);
+        expect(labels.slice(0, 2)).toEqual(['Total', 'Difficulty']);
         expect(screen.getByText('Medium')).toBeTruthy();
         expect(screen.queryByText('0 min')).toBeNull();
     });
@@ -992,43 +1002,9 @@ describe('RecipeDetailView (web) — tap-to-check and the current step', () => {
     const backend = memoryCookMarksBackend();
 });
 
-describe('RecipeDetailView (web) — the section switch and Screen on (§6.2, §6.3)', () => {
-    it('links the three sections from a sticky switch, each to its focusable heading', () => {
-        render(
-            <RecipeDetailView
-                dataSourcesHref="/en/legal/sources"
-                unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail()}
-            />,
-        );
-
-        const nav = screen.getByRole('navigation', { name: 'Recipe sections' });
-
-        for (const [label, id] of [
-            ['Ingredients', 'ingredients'],
-            ['Steps', 'steps'],
-            ['Nutrition', 'nutrition'],
-        ] as const) {
-            expect(within(nav).getByRole('link', { name: label }).getAttribute('href')).toBe(`#${id}`);
-            expect(document.getElementById(id)?.getAttribute('tabindex')).toBe('-1');
-        }
-    });
-
-    it('marks the section the screen’s scroll spy reports, and only it', () => {
-        render(
-            <RecipeDetailView
-                dataSourcesHref="/en/legal/sources"
-                unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail()}
-                currentSection="steps"
-            />,
-        );
-
-        const nav = screen.getByRole('navigation', { name: 'Recipe sections' });
-        expect(within(nav).getByRole('link', { name: 'Steps' }).getAttribute('aria-current')).toBe('location');
-        expect(within(nav).getByRole('link', { name: 'Ingredients' }).getAttribute('aria-current')).toBeNull();
-    });
-
+// REWRITTEN IN SLICE 1: the section switch is gone (a page with no section switch is proved in
+// `RecipeDetailTop.test.tsx`), so what is left is Screen on, which is one labelled row.
+describe('RecipeDetailView (web) — Screen on (§6.3)', () => {
     it('draws no Screen on control where the browser cannot keep the screen awake — never a disabled one', () => {
         render(
             <RecipeDetailView
@@ -1042,7 +1018,7 @@ describe('RecipeDetailView (web) — the section switch and Screen on (§6.2, §
         expect(screen.queryByRole('switch', { name: 'Screen on' })).toBeNull();
     });
 
-    it('draws Screen on in the switch and the action row from ONE state, and holds the lock while on', async () => {
+    it('draws Screen on once, and holds the lock while on', async () => {
         const release = vi.fn(() => Promise.resolve());
         const request = vi.fn(() => Promise.resolve({ released: false, release }));
         Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
@@ -1060,15 +1036,15 @@ describe('RecipeDetailView (web) — the section switch and Screen on (§6.2, §
             );
 
             const toggles = screen.getAllByRole('switch', { name: 'Screen on' });
-            expect(toggles).toHaveLength(2);
-            expect(toggles.every((toggle) => toggle.getAttribute('aria-checked') === 'false')).toBe(true);
+            expect(toggles).toHaveLength(1);
+            expect(toggles[0]?.getAttribute('aria-checked')).toBe('false');
 
             await user.click(toggles[0] as HTMLElement);
 
-            expect(toggles.every((toggle) => toggle.getAttribute('aria-checked') === 'true')).toBe(true);
+            expect(toggles[0]?.getAttribute('aria-checked')).toBe('true');
             expect(request).toHaveBeenCalledTimes(1);
 
-            await user.click(toggles[1] as HTMLElement);
+            await user.click(toggles[0] as HTMLElement);
             expect(release).toHaveBeenCalledTimes(1);
         } finally {
             Reflect.deleteProperty(navigator, 'wakeLock');
@@ -1196,7 +1172,8 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
         expect(hero.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('renders the monogram band hero for a recipe with no cover', () => {
+    // REWRITTEN IN SLICE 1 (designer, iosBatch1): the no-photo band is the tint only, with no monogram letter.
+    it('renders the tint band hero for a recipe with no cover, with no monogram', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
@@ -1205,8 +1182,8 @@ describe('RecipeDetailView (web) — hero cover (mockup screenRecipeDetail)', ()
             />,
         );
 
-        // The 96 px monogram band (F10): the title's first letter, decorative, and no picture glyph.
-        expect(screen.getByText('L').closest('[aria-hidden="true"]')).not.toBeNull();
+        // The 96 px band (F10): decorative, with no letter and no picture glyph.
+        expect(screen.queryByText('L')).toBeNull();
         expect(screen.queryByRole('img', { name: 'No photo yet' })).toBeNull();
         // And the title still renders — a missing cover degrades the hero, never the screen.
         expect(screen.getByRole('heading', { level: 1, name: 'Lamb' })).toBeTruthy();
@@ -1562,18 +1539,9 @@ describe('RecipeDetailView (web) — serving scale', () => {
         expect(screen.getByText('1 h')).toBeTruthy(); // total 45 + the 15-minute prep delta
     });
 
-    it('does NOT scale cook time', () => {
-        const { container } = renderAt(8);
-
-        // Read the Cook cell specifically: doubling the batch must leave it at the stored 25 minutes. A
-        // "scale every timing" implementation renders 50 here and would tell a cook to bake twice as long.
-        const cook = Array.from(container.querySelectorAll('div')).find(
-            (cell) => cell.querySelector('dt')?.textContent === 'Cook',
-        );
-
-        expect(cook?.querySelector('dd')?.textContent).toBe('25 min');
-    });
-
+    // REWRITTEN IN SLICE 1: the page has no Cook tile, so cook time is not on screen to assert. That doubling the batch
+    // leaves it alone is proved where it is decided, `scaleRecipeForServings` in recipe-core; the step timer test below
+    // still proves the timings the page does draw are not scaled.
     it('does NOT scale a step timer', () => {
         renderAt(8);
 
@@ -1826,52 +1794,6 @@ describe('RecipeDetailView (web) — a failed refresh of what is on screen', () 
     });
 });
 
-describe('RecipeDetailView (web) — the sticky switch (A-013, D1, D5)', () => {
-    /** The switch's slot: the ancestor of its navigation that is a direct child of the article. */
-    const slotOf = (): HTMLElement => {
-        const nav = screen.getByRole('navigation', { name: 'Recipe sections' });
-        const article = nav.closest('article') as HTMLElement;
-        let node: HTMLElement = nav;
-
-        while (node.parentElement !== article) {
-            node = node.parentElement as HTMLElement;
-        }
-
-        return node;
-    };
-
-    const renderPage = () =>
-        render(
-            <RecipeDetailView
-                dataSourcesHref="/en/legal/sources"
-                unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail()}
-            />,
-        );
-
-    // The primitive's own root is `sticky`, but its only parent was a slot exactly as tall as the bar, so it had no
-    // room to travel and scrolled away. The element that must stick is the one that spans the whole article.
-    it('makes the slot — a child of the article — the sticky element, on the chrome layer', () => {
-        renderPage();
-
-        const classes = slotOf().className.split(' ');
-
-        expect(classes).toEqual(expect.arrayContaining(['sticky', 'top-0', 'z-20']));
-    });
-
-    it('hides the slot from a 720 px body, where both columns show', () => {
-        renderPage();
-
-        expect(slotOf().className.split(' ')).toContain('@min-[45rem]/detail:hidden');
-    });
-
-    it('lets the slot bleed to the window edge on a phone, so three labels and the toggle fit at 320', () => {
-        renderPage();
-
-        expect(slotOf().className.split(' ')).toContain('@max-[35.5rem]/detail:-mx-4');
-    });
-});
-
 describe('RecipeDetailView (web) — controls over the hero (A-014)', () => {
     it('lays the caller’s hero controls over the photo, ahead of the title in the reading order', () => {
         render(
@@ -1903,8 +1825,10 @@ describe('RecipeDetailView (web) — controls over the hero (A-014)', () => {
     });
 });
 
-describe('RecipeDetailView (web) — the Screen on hint (D6)', () => {
-    const withWakeLock = async (run: () => Promise<void>): Promise<void> => {
+// REWRITTEN IN SLICE 1 (designer, iosBatch1): "Screen on" has no caption, so there is no hint to show, take back at a scroll,
+// or leave out where the browser cannot keep the screen awake. The page draws none, with or without the capability.
+describe('RecipeDetailView (web) — Screen on has no caption', () => {
+    it('draws no hint, with the Wake Lock API', () => {
         Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
         Object.defineProperty(navigator, 'wakeLock', {
             value: { request: () => Promise.resolve({ released: false, release: () => Promise.resolve() }) },
@@ -1912,102 +1836,34 @@ describe('RecipeDetailView (web) — the Screen on hint (D6)', () => {
         });
 
         try {
-            await run();
+            render(
+                <RecipeDetailView
+                    dataSourcesHref="/en/legal/sources"
+                    unreachableRetry={idleUnreachableRetry}
+                    recipe={makeRecipeDetail()}
+                    headerActions={<button type="button">Edit recipe</button>}
+                />,
+            );
+
+            expect(screen.getByRole('switch', { name: 'Screen on' })).toBeTruthy();
+            expect(screen.queryByText('Keeps the screen awake while you cook.')).toBeNull();
         } finally {
             Reflect.deleteProperty(navigator, 'wakeLock');
             Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true });
         }
-    };
+    });
 
-    const renderPage = () =>
+    it('draws no hint and no switch without it', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail()}
-                headerActions={<button type="button">Edit recipe</button>}
             />,
         );
 
-    it('shows the hint under the switch and under the action-row toggle, once', async () => {
-        await withWakeLock(async () => {
-            renderPage();
-
-            // Two positions, one per layout (the same CSS-swapped pairing as the toggle itself): one is hidden by CSS.
-            expect(screen.getAllByText(recipeMessages.en.detail.screenOnHint)).toHaveLength(2);
-        });
-    });
-
-    it('is gone after the cook uses the toggle', async () => {
-        await withWakeLock(async () => {
-            const user = userEvent.setup();
-            renderPage();
-
-            await user.click(screen.getAllByRole('switch', { name: 'Screen on' })[0] as HTMLElement);
-
-            expect(screen.queryByText(recipeMessages.en.detail.screenOnHint)).toBeNull();
-        });
-    });
-
-    it('is gone after the first scroll, and stays gone', async () => {
-        await withWakeLock(async () => {
-            renderPage();
-            expect(screen.getAllByText(recipeMessages.en.detail.screenOnHint)).toHaveLength(2);
-
-            act(() => {
-                window.dispatchEvent(new Event('scroll'));
-            });
-
-            expect(screen.queryByText(recipeMessages.en.detail.screenOnHint)).toBeNull();
-        });
-    });
-
-    it('never shows where the browser cannot keep the screen awake — a hint for an absent control is noise', () => {
-        renderPage();
-
-        expect(screen.queryByText(recipeMessages.en.detail.screenOnHint)).toBeNull();
-    });
-});
-
-describe('RecipeDetailView (web) — the stat strip with a missing cell (D8)', () => {
-    const strip = (recipe: ReturnType<typeof makeRecipeDetail>): HTMLElement => {
-        render(
-            <RecipeDetailView
-                dataSourcesHref="/en/legal/sources"
-                unreachableRetry={idleUnreachableRetry}
-                recipe={recipe}
-            />,
-        );
-
-        return document.querySelector('dl') as HTMLElement;
-    };
-
-    it('lays three cells in one row from a 360 px strip, instead of 2 × 2 with a hole', () => {
-        const classes = strip(
-            makeRecipeDetail({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30, difficulty: undefined }),
-        ).className.split(' ');
-
-        expect(classes).toEqual(
-            expect.arrayContaining(['@min-[22.5rem]/stats:grid-flow-col', '@min-[22.5rem]/stats:auto-cols-fr']),
-        );
-        expect(classes).not.toContain('@min-[30rem]/stats:grid-flow-col');
-    });
-
-    it('makes the last cell of an odd count span the row where two fit a row', () => {
-        const classes = strip(
-            makeRecipeDetail({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30, difficulty: undefined }),
-        ).className.split(' ');
-
-        expect(classes).toContain('@max-[22.5rem]/stats:[&>*:last-child:nth-child(odd)]:col-span-2');
-    });
-
-    it('keeps the 480 px rule for four cells (F7), with nothing spanning', () => {
-        const classes = strip(
-            makeRecipeDetail({ prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30, difficulty: 'easy' }),
-        ).className.split(' ');
-
-        expect(classes).toContain('@min-[30rem]/stats:grid-flow-col');
-        expect(classes.some((name) => name.includes('col-span-2'))).toBe(false);
+        expect(screen.queryByRole('switch', { name: 'Screen on' })).toBeNull();
+        expect(screen.queryByText('Keeps the screen awake while you cook.')).toBeNull();
     });
 });
 
@@ -2115,15 +1971,18 @@ describe('RecipeDetailView (web) — the visibility notice', () => {
         expect(utilityContrast(region.className, { foreground: 'text' })).toBeGreaterThanOrEqual(4.5);
     });
 
-    it('sits directly under the rating and visibility line and above the stat strip, in the header', () => {
+    // REWRITTEN IN SLICE 1: the line it sits under is the status row now (no rating in it), and the fact tiles follow it.
+    it('sits directly under the status row and above the fact tiles, in the header', () => {
         renderAsOwner(ownerView(NOTICE));
 
         const region = screen.getByRole('alert');
-        const ratingLine = screen.getByText('Public').closest('p') as HTMLElement;
+        const statusRow = screen.getByText('Public').closest('div') as HTMLElement;
 
-        expect(ratingLine.nextElementSibling).toBe(region);
+        expect(statusRow.nextElementSibling).toBe(region);
         expect(region.closest('header')).not.toBeNull();
-        expect(region.nextElementSibling?.querySelector('dl')).not.toBeNull();
+        expect(region.compareDocumentPosition(document.querySelector('dl') as HTMLElement)).toBe(
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        );
     });
 
     it('does not move focus', () => {

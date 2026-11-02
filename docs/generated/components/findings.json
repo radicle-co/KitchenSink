@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 161,
         "missing-module-doc": 21,
-        "platform-singleton": 73,
+        "platform-singleton": 75,
         "ref-api": 15,
         "unclassified-layer": 92,
-        "undocumented-prop": 181
+        "undocumented-prop": 180
     },
     "findings": [
         {
@@ -1921,21 +1921,11 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailFooter",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
+            "component": "featuresRecipes/detail/DetailFactTiles",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFactTiles.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/detail/DetailFooter",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "recipe"
             ]
         },
         {
@@ -2006,8 +1996,8 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailRatingLine",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailRatingLine.native.tsx",
+            "component": "featuresRecipes/detail/DetailStatusRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatusRow.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
@@ -2016,8 +2006,8 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailStatStrip",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx",
+            "component": "featuresRecipes/detail/HeroBand",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/heroBand.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
@@ -2059,6 +2049,26 @@
             "evidence": [
                 "photos",
                 "title"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/PhotoDots",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoDots.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/PhotoPagingChevrons",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -2068,8 +2078,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back currentSection dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back bind currentSection dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks onEditSection onOpenDataSources onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
+                "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks onEditSection onOpenDataSources onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
             ]
         },
         {

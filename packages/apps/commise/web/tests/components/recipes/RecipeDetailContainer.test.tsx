@@ -1111,13 +1111,14 @@ describe('RecipeDetailContainer', () => {
             return client;
         };
 
+        // REWRITTEN IN SLICE 1: Edit recipe is a TEXT action, the DS ghost tier, not the filled primary (`designAnswers.md` D2).
         it('gives the OWNER Edit recipe as a real DS link, and Version history in the ⋯ menu', async () => {
             const user = userEvent.setup();
             renderOwnerDetail();
 
             const edit = await screen.findByRole('link', { name: 'Edit recipe' });
             expect(edit).toHaveAttribute('href', '/en/recipes/rec_1/edit');
-            expect(edit.className).toBe(buttonSurfaceClass('primary'));
+            expect(edit.className).toBe(buttonSurfaceClass('ghost'));
 
             await user.click(screen.getAllByRole('button', { name: /^More actions for /u })[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Version history' }));
@@ -1719,7 +1720,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            expect(await screen.findByText('You can’t rate your own recipe.')).toBeInTheDocument();
+            expect(await screen.findByText('Only other cooks can rate your recipe.')).toBeInTheDocument();
             expect(screen.queryByRole('radiogroup', { name: 'Your rating' })).not.toBeInTheDocument();
             expect(screen.queryByRole('radio', { name: 'Rate 4 stars' })).not.toBeInTheDocument();
             expect(setRatingMutateMock).not.toHaveBeenCalled();

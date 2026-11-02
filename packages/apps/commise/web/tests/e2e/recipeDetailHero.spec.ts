@@ -157,16 +157,13 @@ test.describe('recipe-detail hero', () => {
         // the H1 names the recipe — not a labelled picture glyph, which read as "the image failed".
         await expect(page.getByRole('img', { name: NO_PHOTO_LABEL })).toHaveCount(0);
         const band = await page.getByRole('article', { name: 'Weeknight Dal' }).evaluate((article) => {
-            const cover = Array.from(article.querySelectorAll('div')).find(
-                (node) => getComputedStyle(node).containerType === 'size',
-            );
+            const tint = article.querySelector('div[aria-hidden="true"].h-24');
 
-            return cover === undefined
-                ? null
-                : { height: cover.getBoundingClientRect().height, text: cover.textContent };
+            return tint === null ? null : { height: tint.getBoundingClientRect().height, text: tint.textContent };
         });
         expect(band?.height).toBe(96);
-        expect(band?.text).toContain('W');
+        // REWRITTEN IN SLICE 1 (designer, iosBatch1): the band is the tint only, with no monogram letter and no cuisine.
+        expect(band?.text).toBe('');
 
         // The DESIGN RULE, asserted as such: the fallback renders NO `<img>` element, because an empty `src`
         // paints a broken-image glyph. Scoped to the detail article, and read off the DOM rather than through
@@ -176,6 +173,44 @@ test.describe('recipe-detail hero', () => {
             .getByRole('article', { name: 'Weeknight Dal' })
             .evaluate((element) => element.querySelectorAll('img').length);
         expect(imageElementCount).toBe(0);
+    });
+});
+
+/**
+ * Hero PAGING (`nativeBoards/buildLists.md` item 1): chevrons at the sides and dots that track the page. Real layout only:
+ * jsdom has no scroll-snap, so it cannot say that a press lands on the next photo or that the page did not move.
+ */
+test.describe('recipe-detail hero paging', () => {
+    test('pages through the photos with the chevrons, and the dots follow', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await openRecipeWithPhotos(page);
+
+        const dot = (index: number) =>
+            page.getByRole('list', { name: 'Photo navigation' }).getByRole('link', {
+                name: `Go to ${TITLE} photo ${String(index)}`,
+            });
+        const next = page.getByRole('button', { name: `Next ${TITLE} photo` });
+        const previous = page.getByRole('button', { name: `Previous ${TITLE} photo` });
+
+        await expect(previous).toHaveCount(0);
+        await expect(dot(1)).toHaveAttribute('aria-current', 'true');
+
+        await next.click();
+        await expect(page.getByRole('img', { name: `${TITLE} photo 2` })).toBeInViewport({ ratio: 0.9 });
+        await expect(dot(2)).toHaveAttribute('aria-current', 'true');
+        await expect(previous).toBeVisible();
+
+        await next.click();
+        await expect(page.getByRole('img', { name: `${TITLE} photo 3` })).toBeInViewport({ ratio: 0.9 });
+        await expect(dot(3)).toHaveAttribute('aria-current', 'true');
+        await expect(next).toHaveCount(0);
+
+        // Paging moves the strip, not the page.
+        expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+        await previous.click();
+        await expect(dot(2)).toHaveAttribute('aria-current', 'true');
+        await expect(page.getByRole('img', { name: `${TITLE} photo 2` })).toBeInViewport({ ratio: 0.9 });
     });
 });
 

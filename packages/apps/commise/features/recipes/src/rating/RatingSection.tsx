@@ -1,10 +1,10 @@
 /**
  * @module @commise/features-recipes/rating — the shared rating-section scaffold, web leaf.
  *
- * The labelled region + community heading + read-only aggregate that BOTH rating variants
- * (`RecipeRatingDisplay`, `RecipeRatingInput`) render, with each variant's distinct tail supplied as
- * `children`. Keeps the section chrome in one place (§3 DRY) so the display and input variants cannot drift on
- * the heading, region label, or aggregate.
+ * The labelled card + read-only aggregate that BOTH rating variants (`RecipeRatingDisplay`,
+ * `RecipeRatingInput`) render, with each variant's distinct tail supplied as `children`. Keeps the card chrome in
+ * one place (§3 DRY) so the display and input variants cannot drift on the region label or aggregate. The card
+ * draws no heading of its own (`RecipeDetailAndroid384`).
  *
  * The COMMUNITY aggregate — the social-proof score every viewer sees (`average` / `ratingCount`) — is private
  * to this module: it has exactly one consumer, and it is the aggregate's placement inside the scaffold that
@@ -44,8 +44,9 @@ const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: Re
             {Array.from({ length: STAR_COUNT }, (_value, index) => (
                 <StarShape key={index} filled={fills[index] ?? false} />
             ))}
-            <span aria-hidden className="ml-1 text-body-sm text-ink-muted">
-                {formatAverageRating(average, locale)} · {ratings}
+            <span aria-hidden className="ms-1 flex items-center gap-2 text-body">
+                <span className="tabular-nums lining-nums text-ink">{formatAverageRating(average, locale)}</span>
+                <span className="text-ink-muted">{ratings}</span>
             </span>
         </div>
     );
@@ -71,13 +72,12 @@ export const RatingSection: FC<RatingSectionProps> = ({ average, ratingCount, ch
     const { rating } = useMessages(recipeRatingMessages);
 
     return (
-        // No gutter or centring of its own: the section sits in the page's column, so its heading starts where its
-        // siblings' do (F15), and it is `sectionTitle` like them (F8).
-        <section aria-label={rating.regionLabel} className="flex w-full flex-col gap-4">
-            <div className="flex flex-col gap-2">
-                <h2 className="text-section-title text-ink">{rating.communityHeading}</h2>
-                <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
-            </div>
+        // No gutter or centring of its own: the card sits in the page's column and starts at its edge (F15).
+        <section
+            aria-label={rating.regionLabel}
+            className="flex w-full flex-col gap-3 rounded-lg border border-line-divider bg-paper p-4"
+        >
+            <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
             {children}
         </section>
     );

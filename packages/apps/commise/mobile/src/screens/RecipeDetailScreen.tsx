@@ -244,15 +244,16 @@ function SettledRecipeDetail({
         return <RecipeDetailSkeleton label={loadCopy.loadingLabel} />;
     }
 
-    // The row's primary; Back and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
+    // The page's text action, Edit recipe or Save a copy (`designAnswers.md` D2: no filled button, no Start cooking). Back
+    // and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
     // there is no Back to its start.
     const primary =
         page.primary === 'edit' ? (
-            <Button variant="primary" icon="pencilLine" onPress={() => onEdit?.(recipeId)}>
+            <Button variant="ghost" icon="pencilLine" onPress={() => onEdit?.(recipeId)}>
                 {detailActions.editRecipe}
             </Button>
         ) : page.primary === 'saveCopy' ? (
-            <Button variant="primary" icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
+            <Button variant="ghost" icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
                 {detailActions.saveCopy}
             </Button>
         ) : undefined;

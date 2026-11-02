@@ -217,6 +217,12 @@ const EXEMPTIONS: readonly Exemption[] = [
         reason: 'The 48 pt thumb holds the RecipeCover monogram, sized to the box (RecipeCover.native.tsx L59-65); the cuisine caption shows only from 96 pt tall (L73).',
     },
     {
+        file: `${APPS}features/recipes/src/detail/heroBand.native.tsx`,
+        frame: '<Box',
+        kind: 'allowed',
+        reason: 'The 96 pt band holds only the gradient (Wash, L24 and L32) and is aria-hidden (L31): it has no text, no disc and no letter (header comment, designer 2026-11-02). The reader counts the child Wash component as possible text.',
+    },
+    {
         file: `${APPS}ui/src/button/Button.native.tsx`,
         frame: '<View style={[ styles.base,',
         kind: 'allowed',
@@ -257,12 +263,6 @@ const EXEMPTIONS: readonly Exemption[] = [
         frame: '<View style={[styles.disc, styles.center,',
         kind: 'allowed',
         reason: 'The 44 pt disc holds a single icon glyph (L34); there is no text.',
-    },
-    {
-        file: `${APPS}ui/src/keepAwake/KeepAwakeToggle.native.tsx`,
-        frame: '<View style={[ styles.pill,',
-        kind: 'allowed',
-        reason: 'No fixed height: the pill sets minHeight and minWidth (L48-49). The reader cannot read the paint call.',
     },
     {
         file: `${APPS}ui/src/largeTitleHeader/LargeTitleHeader.native.tsx`,

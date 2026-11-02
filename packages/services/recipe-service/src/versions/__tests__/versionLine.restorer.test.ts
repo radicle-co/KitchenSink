@@ -40,7 +40,7 @@ function build(identities: ReadonlyMap<string, IngredientLineIdentity>) {
     return {
         restorer: new VersionLineRestorer(
             { identify } as unknown as LineIdentityReader,
-            { addByName, createFreeform } as unknown as IngredientsService,
+            { addByNameThroughCascade: addByName, createFreeform } as unknown as IngredientsService,
         ),
         identify,
         addByName,

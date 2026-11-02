@@ -17,6 +17,8 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { IngredientsController } from '../ingredients.controller.js';
 import type { IngredientsService } from '../ingredients.service.js';
+import type { NameProposalsService } from '../nameProposals.service.js';
+import type { IngredientNameProposalsQueryDto } from '../dto/ingredientNameProposalsQuery.dto.js';
 import type { AddIngredientByFoodDto } from '../dto/addIngredientByFood.dto.js';
 import type { AddIngredientByFoodVariantDto } from '../dto/addIngredientByFoodVariant.dto.js';
 import type { CreateIngredientDto } from '../dto/createIngredient.dto.js';
@@ -35,6 +37,7 @@ const BOM = '\uFEFF';
 
 describe('IngredientsController', () => {
     let controller: IngredientsController;
+    let proposals: { propose: ReturnType<typeof vi.fn> };
     let mocks: {
         search: ReturnType<typeof vi.fn>;
         createFreeform: ReturnType<typeof vi.fn>;
@@ -56,11 +59,47 @@ describe('IngredientsController', () => {
             addByFoodVariantId: vi.fn(),
             refreshStatus: vi.fn(),
         };
+        proposals = { propose: vi.fn() };
         controller = new IngredientsController(
             mocks as unknown as IngredientsService,
             // The batch nutrition read has its own route test (`ingredientFoodNutrition.controller.test.ts`).
             { read: vi.fn() },
+            proposals as unknown as NameProposalsService,
         );
+    });
+
+    describe("GET /api/v1/ingredients/by-name/proposals (the add field's suggestions)", () => {
+        it('canonicalizes the typed name and asks the proposals service as the caller, then returns its answer as is', async () => {
+            const answer = {
+                phrase: 'Quinoa',
+                proposals: [{ kind: 'root', id: 'F1', name: 'Quinoa', source: 'remembered' }],
+            };
+            proposals.propose.mockResolvedValue(answer);
+
+            const result = await controller.nameProposals(CALLER, TOKEN, {
+                name: '  Quinoa ',
+            } as IngredientNameProposalsQueryDto);
+
+            expect(proposals.propose).toHaveBeenCalledWith(TOKEN, 'Quinoa', CALLER);
+            expect(result).toBe(answer);
+        });
+
+        it('never reaches a binding path: a read must not bind, add, or create', async () => {
+            proposals.propose.mockResolvedValue({ phrase: 'Quinoa', proposals: [] });
+
+            await controller.nameProposals(CALLER, TOKEN, { name: 'Quinoa' } as IngredientNameProposalsQueryDto);
+
+            for (const spy of [mocks.addByName, mocks.addByFoodId, mocks.addByFoodVariantId, mocks.createFreeform]) {
+                expect(spy).not.toHaveBeenCalled();
+            }
+        });
+
+        it('rejects a name with no visible content as a 400, before asking anyone', async () => {
+            await expect(
+                controller.nameProposals(CALLER, TOKEN, { name: `${ZWSP}${NBSP}` } as IngredientNameProposalsQueryDto),
+            ).rejects.toMatchObject({ response: { code: 'VALIDATION_FAILED' }, status: HttpStatus.BAD_REQUEST });
+            expect(proposals.propose).not.toHaveBeenCalled();
+        });
     });
 
     describe('GET /api/v1/ingredients/search', () => {

@@ -3,7 +3,9 @@
  * ONE progressive answer (`useIngredientEntry`'s view). The authority is `docs/design/rowEditorOpenDecisions.md`,
  * "S7 list contract" P1 to P7, with items 1, 2, 5 and 10 and rulings R1 to R3; L1 to L4 govern the database part.
  *
- * Top to bottom (P1): the database line before the listbox when our database found no food; `Your foods`, `Food
+ * Top to bottom (P1): the database line before the listbox when our database found no food; the foods the entry
+ * SUGGESTS from a remembered answer, one unnamed group tagged `Suggested` (designer answer N2; known before the list
+ * is shown, so nothing moves, and never the active option); `Your foods`, `Food
  * catalog`; `Not listed?` with Find nutrition and Use as written; one `From {source}` group per remote source, in
  * arrival order; on the trailing row, Create my own food once the answer ends. After the listbox, the trailing lines:
  * the database line when our database found a food (`docs/design/v3Evaluation.md` V3-M2a), each source's note in
@@ -19,6 +21,7 @@
  * @pattern Visitor — exhaustive switches over the search view and the remote parts
  */
 import type { ComboboxGroup, ComboboxOption, ComboboxStatus } from '@commise/ui/combobox';
+import type { IngredientNameProposal } from '@kitchensink/schema-recipe';
 
 import { variantPartTexts } from '../detail/lineName.js';
 import type {
@@ -53,6 +56,8 @@ export interface EntryComboboxCopy {
         | 'ingredientSuggestionsMoreHeading'
         | 'ingredientSuggestionsCreateHeading'
         | 'ingredientEntryFindByName'
+        | 'ingredientSuggestedTag'
+        | 'ingredientSuggestedName'
         | 'ingredientEntryUseAsWritten'
         | 'ingredientSuggestionsAuthoredHeading'
         | 'ingredientSuggestionsCatalogHeading'
@@ -90,11 +95,19 @@ export interface EntryComboboxInput extends SourceNaming {
      * `docs/design/rowEditorOpenDecisions.md` O3). A row's list does not: a line reaches it through its `⋮`.
      */
     readonly offersCreateOwnFood: boolean;
+    /**
+     * The foods the entry remembers an answer for, for the text the list is served for (`IngredientEntry.suggestions`).
+     * They lead the list as ONE unnamed group, tagged, and are listed only while the served answer is (P2: nothing
+     * already shown moves).
+     */
+    readonly suggestions: readonly IngredientNameProposal[];
 }
 
 /** The pick an option stands for. */
 export type EntryOption =
     | { readonly kind: 'food'; readonly food: FoodOption }
+    /** A food offered from a remembered answer; picking it binds that food like any listed one. */
+    | { readonly kind: 'suggestedFood'; readonly proposal: IngredientNameProposal }
     | { readonly kind: 'remoteFood'; readonly food: RemoteFoodOption }
     | { readonly kind: 'findByName' }
     | { readonly kind: 'useAsWritten' }
@@ -361,6 +374,14 @@ const remoteOptionOf = (option: RemoteFoodOption, source: string, copy: EntryCom
     accessibleName: fillTemplate(copy.remote.hitName, { name: option.hit.name, source }),
 });
 
+/** A Suggested food, as an option: the tag is drawing, and the accessible name says it (WCAG 2.5.3). Pure. */
+const suggestedOptionOf = (proposal: IngredientNameProposal, copy: EntryComboboxCopy): ComboboxOption => ({
+    key: `suggested:${proposal.kind}:${proposal.id}`,
+    label: proposal.name,
+    tag: copy.form.ingredientSuggestedTag,
+    accessibleName: fillTemplate(copy.form.ingredientSuggestedName, { name: proposal.name }),
+});
+
 /**
  * The picker's default hint (`editor.foodSearch.defaultHint`, staff-ux U16): a note under the list while it shows a
  * default — an option carrying the Default tag — and nothing otherwise. The search wire carries no `isDefault` yet
@@ -421,6 +442,25 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
         }
     };
 
+    // First, unnamed, and only beside a served list: a suggestion for a text the list is not served for would move.
+    if (input.view.kind === 'served') {
+        const suggested = new Map<string, ComboboxOption>();
+
+        for (const proposal of input.suggestions) {
+            const option = suggestedOptionOf(proposal, copy);
+
+            // A repeated proposal is one option: keys stay unique.
+            if (!suggested.has(option.key)) {
+                suggested.set(option.key, option);
+                options.set(option.key, { kind: 'suggestedFood', proposal });
+            }
+        }
+
+        if (suggested.size > 0) {
+            groups.push({ key: 'suggested', options: [...suggested.values()] });
+        }
+    }
+
     grouped('authored', copy.form.ingredientSuggestionsAuthoredHeading, speech.authored, (food) =>
         authoredOptionOf(food, copy),
     );
@@ -471,7 +511,11 @@ export const entryComboboxOf = (input: EntryComboboxInput, copy: EntryComboboxCo
         options.set(createOption.key, { kind: 'createOwnFood' });
     }
 
-    const hint = defaultHintOf(groups, copy.form.foodSearch.defaultHint);
+    // The hint is about the Default tag; a Suggested tag must not raise it.
+    const hint = defaultHintOf(
+        groups.filter((group) => group.key !== 'suggested'),
+        copy.form.foodSearch.defaultHint,
+    );
 
     return {
         groups,

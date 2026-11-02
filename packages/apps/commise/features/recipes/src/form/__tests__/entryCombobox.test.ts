@@ -8,6 +8,7 @@
  * for every state (an inactive field says nothing; below the minimum nothing is offered) are stated again as properties.
  */
 import type { ProgressiveFrame } from '@kitchensink/food-service-client';
+import type { IngredientNameProposal } from '@kitchensink/schema-recipe';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -66,6 +67,7 @@ const input = (over: Partial<EntryComboboxInput> = {}): EntryComboboxInput => ({
     databaseSaidEarly: false,
     pickFailure: undefined,
     offersCreateOwnFood: false,
+    suggestions: [],
     formatTime: () => '3:05 PM',
     formatList: (items) => items.join(' and '),
     sourceName: (source) => SOURCE_NAMES[source],
@@ -658,5 +660,97 @@ describe('defaultHintOf — the default hint under the picker’s list', () => {
         const field = entryComboboxOf(input(), COPY);
 
         expect(field.trailingStatus.some((line) => line.kind === 'note' && line.text === hint)).toBe(false);
+    });
+});
+
+describe('entryComboboxOf — Suggested foods (owner ruling 2026-11-03; designer N2)', () => {
+    const ROOT: IngredientNameProposal = {
+        kind: 'root',
+        id: 'food_chick',
+        name: 'Chickpeas, dry',
+        source: 'ownCorrection',
+    };
+    const VARIANT: IngredientNameProposal = {
+        kind: 'variant',
+        id: 'var_canned',
+        name: 'Chickpeas, canned',
+        source: 'someSourceWeDoNotKnow',
+    };
+
+    it('puts one unnamed group first, one tagged option per proposal, ahead of every other group', () => {
+        const view = entryComboboxOf(input({ suggestions: [ROOT, VARIANT] }), COPY);
+
+        expect(view.groups.map((group) => group.key)).toEqual(['suggested', 'authored', 'catalog', 'more']);
+        expect(view.groups[0]?.label).toBeUndefined();
+        expect(view.groups[0]?.options).toEqual([
+            {
+                key: 'suggested:root:food_chick',
+                label: 'Chickpeas, dry',
+                tag: 'Suggested',
+                accessibleName: 'Chickpeas, dry, suggested',
+            },
+            {
+                key: 'suggested:variant:var_canned',
+                label: 'Chickpeas, canned',
+                tag: 'Suggested',
+                accessibleName: 'Chickpeas, canned, suggested',
+            },
+        ]);
+    });
+
+    it('decodes a Suggested key to its proposal, whatever its source key says', () => {
+        const view = entryComboboxOf(input({ suggestions: [ROOT, VARIANT] }), COPY);
+
+        expect(view.optionFor('suggested:root:food_chick')).toEqual({ kind: 'suggestedFood', proposal: ROOT });
+        expect(view.optionFor('suggested:variant:var_canned')).toEqual({ kind: 'suggestedFood', proposal: VARIANT });
+    });
+
+    it('adds no group when there is no proposal', () => {
+        const view = entryComboboxOf(input({ suggestions: [] }), COPY);
+
+        expect(view.groups.map((group) => group.key)).toEqual(['authored', 'catalog', 'more']);
+    });
+
+    it('an inactive field lists nothing, suggestions included', () => {
+        const view = entryComboboxOf(input({ active: false, suggestions: [ROOT] }), COPY);
+
+        expect(view.groups).toEqual([]);
+        expect(view.optionFor('suggested:root:food_chick')).toBeUndefined();
+    });
+
+    it('lists none while the list is not the served answer for the text (the debounce lags)', () => {
+        const lagging = entrySearchViewOf({
+            trimmed: 'chickpeas',
+            debouncedTrimmed: 'chickpea',
+            read: { kind: 'ended', answer: answerOf(BOTH, COMPLETE_FRAME), resumed: false },
+        });
+        const view = entryComboboxOf(input({ text: 'chickpeas', view: lagging, suggestions: [ROOT] }), COPY);
+
+        expect(view.groups).toEqual([]);
+    });
+
+    it('keeps every key unique: a repeated proposal shows once, and a root and a variant of one id both show', () => {
+        const sameIdVariant: IngredientNameProposal = { ...ROOT, kind: 'variant' };
+        const view = entryComboboxOf(input({ suggestions: [ROOT, ROOT, sameIdVariant] }), COPY);
+        const keys = view.groups.flatMap((group) => group.options.map((option) => option.key));
+
+        expect(new Set(keys).size).toBe(keys.length);
+        expect(view.groups[0]?.options.map((option) => option.key)).toEqual([
+            'suggested:root:food_chick',
+            'suggested:variant:food_chick',
+        ]);
+    });
+
+    it('the Default hint is about the Default tag only: a Suggested tag does not raise it', () => {
+        const view = entryComboboxOf(input({ suggestions: [ROOT] }), COPY);
+
+        expect(linesOf(view.trailingStatus)).not.toContain(form.foodSearch.defaultHint);
+    });
+
+    it('does not change what the count says (it counts foods found, item 5)', () => {
+        const without = entryComboboxOf(input({ suggestions: [] }), COPY);
+        const withSuggestions = entryComboboxOf(input({ suggestions: [ROOT] }), COPY);
+
+        expect(withSuggestions.countAnnouncement).toBe(without.countAnnouncement);
     });
 });

@@ -261,7 +261,59 @@ describe('addByFoodId — a pick binds only after food’s authorship-checked an
     });
 });
 
-describe('addByName — the cascade first, then food, and every failure keeps its reason', () => {
+describe('addByName — food alone: a typed name never binds what a tier remembers (owner rulings 2026-11-03)', () => {
+    const remembers = (tier: 'curated' | 'memo'): ResolutionTier => ({
+        id: tier,
+        resolve: vi.fn(async () => ({
+            kind: 'resolved' as const,
+            tier,
+            food: { kind: 'root' as const, id: 'food-remembered' },
+            evidence: `${tier} says so`,
+        })),
+    });
+
+    it.each(['curated', 'memo'] as const)(
+        "⛔ never consults the %s tier, so the cook's own correction, a ruling and a memo cannot bind here",
+        async (tier) => {
+            const spy = remembers(tier);
+            const h = build([spy]);
+            h.food.addByName.mockResolvedValue({ id: 'food-pending', status: 'PENDING' });
+
+            await h.service.addByName(CALLER, NAME, COOK);
+
+            expect(spy.resolve).not.toHaveBeenCalled();
+            expect(h.food.addByName).toHaveBeenCalledWith(NAME);
+            expect(h.resolutions.record).not.toHaveBeenCalled();
+        },
+    );
+
+    it('still binds the food food itself answers RESOLVED for: the press of "Find nutrition" is the cook\'s own act', async () => {
+        const h = build([remembers('memo')]);
+        h.food.addByName.mockResolvedValue({ id: 'food-found', status: 'RESOLVED' });
+        h.refs.resolveForBind.mockImplementation(echo('nutritional yeast'));
+
+        const ingredient = await h.service.addByName(CALLER, NAME, COOK);
+
+        expect(ingredient.id).toBe('lookup-food-found');
+    });
+
+    it('records a PENDING answer as awaiting the source, consulting no tier', async () => {
+        const h = build([remembers('curated')]);
+        h.food.addByName.mockResolvedValue({ id: 'food-pending', status: 'PENDING' });
+
+        await h.service.addByName(CALLER, NAME, COOK);
+
+        expect(h.lookups.recordFailure).toHaveBeenCalledWith(
+            expect.objectContaining({
+                reasonCode: 'awaiting_source',
+                foodHandleId: 'food-pending',
+                tiersConsulted: [],
+            }),
+        );
+    });
+});
+
+describe('addByNameThroughCascade — the settled tiers first, then food, and every failure keeps its reason (the version restorer only)', () => {
     const hit = (foodId: string, kind: 'root' | 'variant' = 'root'): ResolutionTier => ({
         id: 'curated',
         resolve: async () => ({
@@ -280,7 +332,7 @@ describe('addByName — the cascade first, then food, and every failure keeps it
         const h = build([hit('food-mapped')]);
         h.refs.resolveForBind.mockImplementation(echo('nutritional yeast'));
 
-        const ingredient = await h.service.addByName(CALLER, NAME, COOK);
+        const ingredient = await h.service.addByNameThroughCascade(CALLER, NAME, COOK);
 
         expect(h.food.addByName).not.toHaveBeenCalled();
         expect(ingredient.id).toBe('lookup-food-mapped');
@@ -294,7 +346,7 @@ describe('addByName — the cascade first, then food, and every failure keeps it
         const h = build([hit('V-paste', 'variant')]);
         h.refs.resolveForBind.mockResolvedValue(found('tomatoes', { rootId: 'R-tomato', variant: flat }));
 
-        const ingredient = await h.service.addByName(CALLER, NAME, COOK);
+        const ingredient = await h.service.addByNameThroughCascade(CALLER, NAME, COOK);
 
         expect(h.refs.resolveForBind).toHaveBeenCalledWith(CALLER, { kind: 'variant', id: 'V-paste' });
         expect(ingredient).toMatchObject({ id: 'lookup-V-paste', foodId: 'R-tomato', variant: flat });
@@ -306,7 +358,7 @@ describe('addByName — the cascade first, then food, and every failure keeps it
         h.refs.resolveForBind.mockResolvedValueOnce({ outcome: 'absent' });
         h.food.addByName.mockResolvedValue({ id: 'food-pending', status: 'PENDING' });
 
-        const ingredient = await h.service.addByName(CALLER, NAME, COOK);
+        const ingredient = await h.service.addByNameThroughCascade(CALLER, NAME, COOK);
 
         expect(h.food.addByName).toHaveBeenCalledWith(NAME);
         expect(ingredient.foodResolutionStatus).toBe('PENDING');
@@ -316,7 +368,7 @@ describe('addByName — the cascade first, then food, and every failure keeps it
         const h = build([miss]);
         h.food.addByName.mockResolvedValue({ id: 'food-pending', status: 'PENDING' });
 
-        await h.service.addByName(CALLER, NAME, COOK);
+        await h.service.addByNameThroughCascade(CALLER, NAME, COOK);
 
         expect(h.lookups.recordFailure).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -334,7 +386,7 @@ describe('addByName — the cascade first, then food, and every failure keeps it
         h.refs.resolveForBind.mockImplementation(echo('nutritional yeast'));
         h.lookups.findConvergedFailure.mockResolvedValue(converged);
 
-        const ingredient = await h.service.addByName(CALLER, NAME, COOK);
+        const ingredient = await h.service.addByNameThroughCascade(CALLER, NAME, COOK);
 
         expect(ingredient.id).toBe('lookup-food-found');
         expect(h.lookups.settleFailure).toHaveBeenCalledWith(
@@ -348,7 +400,7 @@ describe('addByName — the cascade first, then food, and every failure keeps it
         const h = build([miss]);
         h.food.addByName.mockRejectedValue(new Error('socket hang up'));
 
-        await h.service.addByName(CALLER, NAME, COOK);
+        await h.service.addByNameThroughCascade(CALLER, NAME, COOK);
 
         expect(h.lookups.recordFailure).toHaveBeenCalledWith(
             expect.objectContaining({ reasonCode: 'sources_errored', foodHandleId: null }),
@@ -358,7 +410,7 @@ describe('addByName — the cascade first, then food, and every failure keeps it
     it('does not ask food without a caller, and records what the cascade concluded', async () => {
         const h = build([miss]);
 
-        await h.service.addByName(undefined, NAME, undefined);
+        await h.service.addByNameThroughCascade(undefined, NAME, undefined);
 
         expect(h.food.addByName).not.toHaveBeenCalled();
         expect(h.lookups.recordFailure).toHaveBeenCalledWith(

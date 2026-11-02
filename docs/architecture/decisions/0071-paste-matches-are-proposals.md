@@ -30,8 +30,9 @@ explicit pick. The review gate checks every paste match, whatever its measured e
 
 1. **Matching runs in recipe-service, as the cook.** Food search is made as the caller or not at all (issue #120,
    R20). The parse worker holds no caller credential, so it does not match.
-2. **Two chains.** By-name runs `[curated, memo]`, settled evidence only, and binds. The paste matcher runs
-   `[curated, memo, lexical]` and binds nothing. One guard holds both chains to the same precedence ladder.
+2. **Two chains.** The settled chain `[curated, memo]` is settled evidence only. The paste matcher runs
+   `[curated, memo, lexical]` and binds nothing. One guard holds both chains to the same precedence ladder. A cook who
+   types a name binds nothing from the settled chain either (item 14). Only the version restorer still binds through it.
 3. **A paste match is a proposal, stored in `recipe_parse_job_matches`.** One row per parsed line and food holds the
    proposed food, the tier that proposed it, its rung and margin, up to five candidates, the verdict key and where the
    review stands. It stores no food names. Names come from food at read time, as the caller. The foreign key is to the
@@ -167,11 +168,31 @@ explicit pick. The review gate checks every paste match, whatever its measured e
     matcher read the line's measure with one function, `pastedLineMeasureOf`, so the two keys are equal.
 13. **An identity abstention on a saved line shows the AMBIGUOUS badge** (owner ruling 2026-10-25). A quantity-only
     abstention keeps the catalog status. Nutrition still publishes. Only a contradiction withholds it.
+14. **A name typed in the editor never binds what a tier remembers** (owner rulings 2026-11-03, after devil's advocate
+    M2). A memo is written from any cook's saved line. Cook A pastes `milk`, keeps the default and saves, and the gate
+    agrees, so the memo says `milk` means the default. If by-name then bound that memo, cook B would get it with no
+    choice made. So five answers now only PROPOSE: the cook's own earlier correction, a staff ruling, two cooks
+    agreeing, a memo, and an exact catalog name. The version restore keeps binding what the version defined. The
+    importer tries to match and shows the result for the cook to confirm or change.
+    - `GET /api/v1/ingredients/by-name/proposals?name=` returns what the settled chain remembers, strongest source
+      first (`ownCorrection`, `staffRuling`, `corroborated`, `remembered`). It is a read that writes nothing. Names
+      come from food as the caller. A food food will not show is dropped, so the answer is always `200` and an empty
+      list reveals nothing about another cook's private food. The `source` key is an open string.
+    - The add field shows the proposals as its first options, tagged "Suggested". None is active when the list opens, so
+      Enter alone picks nothing. The pick binds through `by-food` or `by-food-variant`, which check admission again.
+    - `POST /api/v1/ingredients/by-name` asks food alone and consults no tier. It still binds a food that food itself
+      answers `RESOLVED`, because pressing "Find nutrition for X" is the cook's own act.
+    - The version restorer calls `IngredientsService.addByNameThroughCascade`. That method is for the restorer only.
+    - The proposals are not the paste matcher's: they run the settled chain alone (two local reads), so the field adds no
+      catalog search. The field's own list already shows the catalog's hits for the typed text.
 
 ## Consequences
 
-- By-name no longer binds a catalog guess. A phrase neither settled tier knows falls through to food's own add by
-  name, which can still resolve later through its source fan-out.
+- By-name binds no catalog guess and no remembered answer. It asks food's add by name, which can resolve later through
+  its source fan-out. A build that shipped before item 14 still expects a memo to bind there: it now gets a pending
+  or unresolved line, the same shape as a miss.
+- The cookbook import tool reaches by-name only after both its food searches find nothing, so after item 14 it gets
+  food-only behaviour. Its measured match rates shift a little.
 - The save path no longer grants band skips or stores pending re-drives, and no line renders `pending-verification`.
   The wire values `verification_pending` and `PENDING_VERIFICATION` stay in the contract, unproduced. A later cleanup
   decides whether they go.
@@ -201,6 +222,11 @@ explicit pick. The review gate checks every paste match, whatever its measured e
 
 - **Match in the parse worker.** It has no caller credential, and food search as a service identity is refused.
 - **Keep the lexical tier in by-name, behind the pending state.** The pending state read a row every cook shares.
+- **Keep the cascade in by-name and move only the editor to a new route.** The rebind route reaches the same method by
+  name, so the cascade would still bind there. The split is made in the service instead: the plain method asks food
+  alone, and the restorer's method keeps the cascade.
+- **A `mode` flag on by-name.** A boolean that picks between binding and proposing is the shape the standards reject. A
+  separate read route has a different method, a different status and no writes.
 - **Bind confident matches on the server, in the single-paste editor flow.** The editor binds through by-food
   admission, and the cook can still change the line before it is saved. This rejection covers that flow only. The
   bulk import modes of ADR-0072 bind with no editor in front of the cook, by owner ruling.

@@ -105,7 +105,7 @@ export class VersionLineRestorer {
             names.map(async (name) => {
                 const ingredient =
                     kind === 'byName'
-                        ? await this.ingredients.addByName(caller, name, userId)
+                        ? await this.ingredients.addByNameThroughCascade(caller, name, userId)
                         : await this.ingredients.createFreeform(name);
 
                 return [name, ingredient.id] as const;

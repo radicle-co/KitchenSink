@@ -183,3 +183,27 @@ describe('CreateFab (web) — clear of a showing snackbar', () => {
         }
     });
 });
+
+describe('CreateFab (web) — a focus request', () => {
+    it('takes focus when asked and says so once, which is how a sheet gives focus back to its opener', () => {
+        const handled = vi.fn();
+        render(
+            <CreateFab
+                label="New recipe"
+                icon="plus"
+                onPress={vi.fn()}
+                focusRequested
+                onFocusRequestHandled={handled}
+            />,
+        );
+
+        expect(document.activeElement).toBe(fab());
+        expect(handled).toHaveBeenCalledOnce();
+    });
+
+    it('does not take focus unless asked', () => {
+        render(<CreateFab label="New recipe" icon="plus" onPress={vi.fn()} />);
+
+        expect(document.activeElement).not.toBe(fab());
+    });
+});

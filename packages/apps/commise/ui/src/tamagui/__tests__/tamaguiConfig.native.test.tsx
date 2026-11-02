@@ -34,6 +34,10 @@ function valOf(group: TokenGroup, key: string): unknown {
 }
 
 describe('the built Tamagui config', () => {
+    it('names exactly one animation, so the test lane shim cannot drift from the names it fakes', () => {
+        expect(Object.keys(tamaguiConfig.animations.animations)).toEqual(['sheet']);
+    });
+
     it('lays out by React Native’s flex rules, not CSS’s', () => {
         expect(tamaguiConfig.settings.styleCompat).toBe('react-native');
     });
@@ -101,7 +105,9 @@ describe('the built Tamagui config', () => {
 
 /** The sub-themes reach the built config, whose proxy merges each with its parents (a misspelt name fails silently). */
 describe('the built Tamagui config — surface-tone sub-themes', () => {
-    const themes = tamaguiConfig.themes as Readonly<Record<string, Readonly<Record<string, { readonly val: unknown } | string>>>>;
+    const themes = tamaguiConfig.themes as Readonly<
+        Record<string, Readonly<Record<string, { readonly val: unknown } | string>>>
+    >;
     const valueOf = (entry: { readonly val: unknown } | string | undefined): unknown =>
         typeof entry === 'object' ? entry.val : entry;
 

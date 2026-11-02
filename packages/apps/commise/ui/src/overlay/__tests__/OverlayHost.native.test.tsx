@@ -7,23 +7,33 @@
  */
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { createElement, useEffect, type ComponentProps, type FC } from 'react';
-import { Pressable, Text, type Modal as ModalType, type NativeSyntheticEvent } from 'react-native';
+import { Pressable, Text, type Modal as ModalType, type View as ViewType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BackInterceptProvider } from '../../backIntercept/BackInterceptProvider.native.js';
 import { useBackIntercept } from '../../backIntercept/useBackIntercept.native.js';
 import { installHardwareBackHandler } from '../../testing/hardwareBack.native.js';
+import { MODAL_CLOSE_EVENT } from '../../testing/modalCloseEvent.native.js';
 import { DISMISS_ROUTES, type DismissRoute } from '../dismissRoute.js';
 import { OverlayHost } from '../OverlayHost.native.js';
+import { OverlayView } from '../OverlayView.native.js';
 import { useOverlayDismiss } from '../overlayDismissContext.native.js';
 
-const state = vi.hoisted(() => ({ modals: [] as ComponentProps<typeof ModalType>[] }));
+const state = vi.hoisted(() => ({
+    modals: [] as ComponentProps<typeof ModalType>[],
+    views: [] as ComponentProps<typeof ViewType>[],
+}));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
+        View: (props: ComponentProps<typeof ViewType>) => {
+            state.views.push(props);
+
+            return createElement(actual.View, props);
+        },
         Modal: (props: ComponentProps<typeof ModalType>) => {
             state.modals.push(props);
 
@@ -35,31 +45,14 @@ vi.mock('react-native', async (importOriginal) => {
 afterEach(() => {
     cleanup();
     state.modals = [];
+    state.views = [];
 });
-
-/** The event React Native hands `onRequestClose`; the host ignores its content. */
-// Lacks only `target` and `currentTarget` (native element handles no test can make); the host reads neither.
-const CLOSE_EVENT = {
-    nativeEvent: undefined,
-    bubbles: false,
-    cancelable: false,
-    defaultPrevented: false,
-    eventPhase: 0,
-    isTrusted: true,
-    preventDefault: () => undefined,
-    isDefaultPrevented: () => false,
-    stopPropagation: () => undefined,
-    isPropagationStopped: () => false,
-    persist: () => undefined,
-    timeStamp: 0,
-    type: 'requestClose',
-} as NativeSyntheticEvent<unknown>;
 
 /** The `onRequestClose` of the last-rendered Modal (what Android Back calls; the innermost when nested). */
 function hostBack(): void {
     const latest = state.modals.at(-1);
 
-    act(() => latest?.onRequestClose?.(CLOSE_EVENT));
+    act(() => latest?.onRequestClose?.(MODAL_CLOSE_EVENT));
 }
 
 /** A child that fires one dismiss route from inside the window. */
@@ -79,6 +72,41 @@ const Veto: FC<{ readonly handler: () => boolean }> = ({ handler }) => {
 
     return null;
 };
+
+describe('OverlayView (native)', () => {
+    it('hands the screen-reader escape gesture to the host as the escape route', () => {
+        const onDismissRequest = vi.fn();
+        render(
+            <OverlayHost visible onDismissRequest={onDismissRequest}>
+                <OverlayView testID="root">
+                    <Text>Body</Text>
+                </OverlayView>
+            </OverlayHost>,
+        );
+
+        const props = state.views.find((view) => view.testID === 'root');
+
+        expect(props?.onAccessibilityEscape).toBeTypeOf('function');
+
+        act(() => props?.onAccessibilityEscape?.());
+
+        expect(onDismissRequest).toHaveBeenCalledTimes(1);
+        expect(onDismissRequest).toHaveBeenCalledWith('escape');
+    });
+
+    it('passes its own props and children through to the View', () => {
+        render(
+            <OverlayHost visible onDismissRequest={vi.fn()}>
+                <OverlayView testID="root" accessibilityLabel="Sheet">
+                    <Text>Body</Text>
+                </OverlayView>
+            </OverlayHost>,
+        );
+
+        expect(screen.getByText('Body')).toBeTruthy();
+        expect(state.views.find((view) => view.testID === 'root')?.accessibilityLabel).toBe('Sheet');
+    });
+});
 
 describe('OverlayHost (native)', () => {
     it('turns Android Back into one back request when nothing intercepts', () => {

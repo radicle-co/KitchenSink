@@ -79,7 +79,7 @@ describe('answerWindowBack', () => {
 });
 
 describe('DISMISS_ROUTES', () => {
-    it('names the five routes the blueprint lists', () => {
-        expect([...DISMISS_ROUTES]).toEqual(['back', 'scrim', 'swipe', 'close', 'escape']);
+    it('names the six routes, each with a caller: Back, a scrim press, a swipe, the Close control, the screen-reader escape, and the sheet engine', () => {
+        expect([...DISMISS_ROUTES]).toEqual(['back', 'scrim', 'swipe', 'close', 'escape', 'sheet']);
     });
 });

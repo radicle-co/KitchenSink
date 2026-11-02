@@ -28,6 +28,12 @@ export interface CreateFabProps {
      * own start buttons take its place. A button with focus stays until it loses focus.
      */
     readonly yielded?: boolean;
+    /**
+     * A level-triggered request for the button to take focus (the same pattern as `Input`): a sheet raises it when it
+     * closes, so focus returns to the control that opened it. The button acknowledges with `onFocusRequestHandled`.
+     */
+    readonly focusRequested?: boolean;
+    readonly onFocusRequestHandled?: () => void;
 }
 
 /** The face the floating create control (`CreateFab`) draws. */

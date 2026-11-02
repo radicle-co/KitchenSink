@@ -68,6 +68,8 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
     onSaveCopy,
     onPullUpdates,
     onDelete,
+    menuFocusRequested = false,
+    onMenuFocusHandled,
 }) => {
     const messages = useMessages(collectionMessages);
     const { detail, header } = messages;
@@ -109,6 +111,8 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
             onSaveCopy={onSaveCopy}
             onPullUpdates={onPullUpdates}
             onDelete={onDelete}
+            focusRequested={menuFocusRequested}
+            {...(onMenuFocusHandled === undefined ? {} : { onFocusRequestHandled: onMenuFocusHandled })}
         />
     );
 

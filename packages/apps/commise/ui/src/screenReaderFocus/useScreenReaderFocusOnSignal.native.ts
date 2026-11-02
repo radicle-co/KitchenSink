@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, type RefObject } from 'react';
 
-import { moveScreenReaderFocus, type ScreenReaderFocusTarget } from './moveScreenReaderFocus.native.js';
+import { moveScreenReaderFocus, type FocusableNode } from './moveScreenReaderFocus.native.js';
 
 /**
  * A ref to attach to the node that takes screen-reader focus when `signal` changes.
@@ -25,7 +25,7 @@ import { moveScreenReaderFocus, type ScreenReaderFocusTarget } from './moveScree
  * @returns The ref; attach it to a `Text` or `View`.
  * @sideEffect Sends one accessibility `'focus'` event when `signal` changes.
  */
-export function useScreenReaderFocusOnSignal<T extends ScreenReaderFocusTarget>(signal: number): RefObject<T | null> {
+export function useScreenReaderFocusOnSignal<T extends FocusableNode>(signal: number): RefObject<T | null> {
     const node = useRef<T | null>(null);
     const seen = useRef(signal);
 

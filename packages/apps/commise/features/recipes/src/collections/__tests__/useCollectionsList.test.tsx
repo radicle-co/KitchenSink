@@ -156,6 +156,31 @@ describe('useCollectionsList — search and the new-collection sheet', () => {
         expect(onCreated).not.toHaveBeenCalled();
     });
 
+    it('gives focus back to the floating button when the sheet is dismissed without a create, and lowers the request when it is taken', () => {
+        const { result } = setup();
+
+        expect(result.current.createFocus.requested).toBe(false);
+
+        act(() => result.current.sheet.onDismissed());
+        expect(result.current.createFocus.requested).toBe(true);
+
+        act(() => result.current.createFocus.onHandled());
+        expect(result.current.createFocus.requested).toBe(false);
+    });
+
+    it('asks for no focus on the button when the sheet created a collection, because the app navigates away', async () => {
+        const { client, result, onCreated } = setup();
+        vi.spyOn(client, 'createCollection').mockResolvedValue({ id: 'c-1' } as never);
+
+        act(() => result.current.sheet.onOpen());
+        act(() => result.current.sheet.onCreate({ name: 'Picnics' }));
+        await waitFor(() => expect(result.current.sheet.open).toBe(false));
+        act(() => result.current.sheet.onDismissed());
+
+        expect(onCreated).toHaveBeenCalledWith('c-1');
+        expect(result.current.createFocus.requested).toBe(false);
+    });
+
     it('keeps the sheet open and says so when the create is refused, and opening again clears it', async () => {
         const { client, onCreated, result } = setup();
         vi.spyOn(client, 'createCollection').mockRejectedValue(new Error('nope'));

@@ -27,6 +27,15 @@ export type SurfaceToneThemeKey = `${(typeof SURFACE_TONE_NAMES)[number]}${'Fill
 /** The PRO badge's pair, from its own tone (`tones.ts`). */
 export const proThemeKeys = ['proFill', 'proInk'] as const;
 
+/**
+ * The keys Tamagui's own Sheet skin reads by bare name: its overlay is `shadow-color`. Supplied so the engine's default is
+ * our scrim, and a device logs no unknown-colour warning.
+ */
+export const engineThemeKeys = ['shadow-color'] as const;
+
+/** A theme key for the engine. */
+export type EngineThemeKey = (typeof engineThemeKeys)[number];
+
 /** A theme key for the PRO pair. */
 export type ProThemeKey = (typeof proThemeKeys)[number];
 
@@ -51,7 +60,9 @@ export type ToneThemeKey = (typeof TONE_THEME_KEYS)[number];
 export type ToneTheme = Readonly<Record<ToneThemeKey, string>>;
 
 /** One scheme's theme: every role, each tone's fill, press and chip fill, the PRO pair, and the tone keys. */
-export type TamaguiTheme = Readonly<Record<Role | SurfaceToneThemeKey | ProThemeKey | ToneThemeKey, string>>;
+export type TamaguiTheme = Readonly<
+    Record<Role | SurfaceToneThemeKey | ProThemeKey | EngineThemeKey | ToneThemeKey, string>
+>;
 
 /** A sub-theme's name: the scheme, an underscore, the tone. The one place the name is built. */
 export type ToneThemeName = `${PressScheme}_${SurfaceTone}`;
@@ -105,6 +116,7 @@ function themeOf(colors: Readonly<Record<Role, string>>, scheme: PressScheme, pr
         ...Object.fromEntries(toneEntries),
         proFill: pro.fill,
         proInk: pro.text,
+        'shadow-color': colors.scrim,
         // The parent holds the tone keys at the canvas, so a Tamagui part outside every surface reads the page.
         ...toneThemeOf(colors, scheme, DEFAULT_SURFACE_TONE),
     } as TamaguiTheme;

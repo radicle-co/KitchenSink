@@ -64,6 +64,8 @@ export function CollectionsScreen({
         <CollectionListFrame
             onCreate={list.sheet.onOpen}
             createEntryYields={list.createEntryYields}
+            createFocusRequested={list.createFocus.requested}
+            onCreateFocusHandled={list.createFocus.onHandled}
             headingFocusSignal={recovery.signal}
             {...(segments === undefined ? {} : { segments })}
             {...(headerAction === undefined ? {} : { headerAction })}

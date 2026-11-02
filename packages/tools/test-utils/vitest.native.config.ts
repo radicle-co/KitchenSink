@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url';
+
 import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { preferNativeLeaves } from '@kitchensink/vitest/preferNativeLeaves';
 import { defineConfig } from 'vitest/config';
@@ -21,6 +23,10 @@ export default defineConfig({
     resolve: {
         alias: {
             'react-native': 'react-native-web',
+            // The device driver throws on Tamagui's web build, which this lane runs.
+            '@tamagui/animations-react-native': fileURLToPath(
+                import.meta.resolve('@commise/ui/testing/animations-shim'),
+            ),
         },
     },
 });

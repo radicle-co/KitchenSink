@@ -42,6 +42,9 @@
         "./testing/surface-tone-of": "./src/testing/surfaceToneOf.ts",
         "./testing/record-text-inputs": "./src/testing/recordTextInputs.native.tsx",
         "./testing/tamagui": "./src/testing/tamaguiTesting.native.tsx",
+        "./testing/modal-close-event": "./src/testing/modalCloseEvent.native.ts",
+        "./testing/marked-scroll-view": "./src/testing/markedScrollView.native.tsx",
+        "./testing/animations-shim": "./src/testing/animationsShim.ts",
         "./testing/measure-text": "./src/testing/measureText.ts",
         "./button": "./src/button/index.ts",
         "./check-box-glyph": "./src/checkBoxGlyph/index.ts",
@@ -151,9 +154,17 @@
         "react-native": ">=0.79.0",
         "react-native-safe-area-context": ">=5.0.0",
         "react-native-svg": ">=15.0.0",
+        "@tamagui/animations-react-native": "^3.1.9",
+        "@tamagui/dialog": "^3.1.9",
         "tamagui": "^3.1.9"
     },
     "peerDependenciesMeta": {
+        "@tamagui/animations-react-native": {
+            "optional": true
+        },
+        "@tamagui/dialog": {
+            "optional": true
+        },
         "expo-glass-effect": {
             "optional": true
         },
@@ -186,6 +197,9 @@
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
+        "@tamagui/animations-css": "^3.1.9",
+        "@tamagui/animations-react-native": "^3.1.9",
+        "@tamagui/dialog": "^3.1.9",
         "@testing-library/react": "^16.3.0",
         "@testing-library/user-event": "^14.6.1",
         "@types/culori": "^4.0.1",

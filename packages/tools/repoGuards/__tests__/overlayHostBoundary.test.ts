@@ -4,7 +4,7 @@
  * ⛔ WHY. An open `Modal` takes Android Back itself (`onRequestClose`). `OverlayHost` is the one place that turns that,
  * and every other dismiss route, into a single `DismissRequest` the host can veto; a sheet that opens the `Modal`
  * directly has a Back no guard can see, which is how a discard question gets skipped. A Tamagui `Portal`, or a
- * `modal`/`native` prop on its Sheet or Dialog, would add a second window beside ours and bring back the Back and
+ * `modal` that is not the literal `false`, or a `native` prop on its Sheet or Dialog, would add a second window beside ours and bring back the Back and
  * screen-reader problems ADR-0080 rejected. A Tamagui overlay keeps no open state of its own (`defaultOpen`): the host
  * owns `open`, and a veto means leaving it true.
  *
@@ -33,7 +33,7 @@ const HOLDOUTS: readonly string[] = ['packages/apps/commise/features/recipes/src
 
 const MODAL_SPECIFIER = /(^@commise\/ui\/modal$)|((^|\/)modal\/Modal\.native\.js$)/;
 const TAMAGUI_OVERLAY_PARTS = new Set(['Sheet', 'Dialog', 'AlertDialog', 'Popover']);
-const FORBIDDEN_PROPS = new Set(['modal', 'native', 'defaultOpen']);
+const FORBIDDEN_PROPS = new Set(['native', 'defaultOpen']);
 
 /** Whether a source file imports the design-system `Modal` as a value. Pure. */
 export function importsModal(source: string, fileName: string): boolean {
@@ -50,6 +50,18 @@ export function importsModal(source: string, fileName: string): boolean {
                 statement.importClause.namedBindings.elements.some(
                     (element) => !element.isTypeOnly && (element.propertyName ?? element.name).text === 'Modal',
                 )),
+    );
+}
+
+/** Whether a JSX attribute is `={false}`. Pure. */
+function isLiteralFalse(attribute: ts.JsxAttribute): boolean {
+    const value = attribute.initializer;
+
+    return (
+        value !== undefined &&
+        ts.isJsxExpression(value) &&
+        value.expression !== undefined &&
+        value.expression.kind === ts.SyntaxKind.FalseKeyword
     );
 }
 
@@ -91,10 +103,36 @@ export function tamaguiOverlayViolations(source: string, fileName: string): read
             const tag = node.tagName.getText(file).split('.')[0] ?? '';
 
             if (fromTamagui.has(tag)) {
+                const name = node.tagName.getText(file);
+                let modalIsFalse = false;
+
                 for (const attribute of node.attributes.properties) {
-                    if (ts.isJsxAttribute(attribute) && FORBIDDEN_PROPS.has(attribute.name.getText(file))) {
-                        violations.push(`<${node.tagName.getText(file)} ${attribute.name.getText(file)}>`);
+                    if (!ts.isJsxAttribute(attribute)) {
+                        continue;
                     }
+
+                    const prop = attribute.name.getText(file);
+
+                    if (FORBIDDEN_PROPS.has(prop)) {
+                        violations.push(`<${name} ${prop}>`);
+                    }
+
+                    if (prop === 'modal') {
+                        modalIsFalse = isLiteralFalse(attribute);
+
+                        if (!modalIsFalse) {
+                            violations.push(`<${name} modal> is not the literal {false}`);
+                        }
+                    }
+                }
+
+                // The root of a part decides whether a window opens; the default is not relied on.
+                if (
+                    !name.includes('.') &&
+                    !modalIsFalse &&
+                    !violations.includes(`<${name} modal> is not the literal {false}`)
+                ) {
+                    violations.push(`<${name}> does not set modal={false}`);
                 }
             }
         }
@@ -120,16 +158,27 @@ describe('the detectors read what they claim to (a vacuous pass would hide every
 
     it('sees a Portal import and a forbidden prop on a Tamagui part, but not on another element', () => {
         const bad = `import { Portal, Sheet as S, Dialog } from 'tamagui';
-            const a = <S modal />; const b = <Dialog.Content native />; const c = <Dialog defaultOpen />;`;
-        const fine = `import { Sheet } from 'tamagui'; const a = <Sheet open onOpenChange={f} />; const b = <Other modal />;`;
+            const a = <S modal />; const b = <Dialog.Content native />; const c = <Dialog modal={false} defaultOpen />;`;
+        const fine = `import { Sheet } from 'tamagui'; const a = <Sheet modal={false} open onOpenChange={f} />; const b = <Other modal />;`;
 
         expect(tamaguiOverlayViolations(bad, 'a.tsx')).toEqual([
             'imports Portal from tamagui',
-            '<S modal>',
+            '<S modal> is not the literal {false}',
             '<Dialog.Content native>',
             '<Dialog defaultOpen>',
         ]);
         expect(tamaguiOverlayViolations(fine, 'a.tsx')).toEqual([]);
+    });
+
+    it('requires modal to be the literal false on a part root, never the default and never an expression', () => {
+        const root = (attributes: string): readonly string[] =>
+            tamaguiOverlayViolations(`import { Sheet } from 'tamagui'; const a = <Sheet ${attributes} />;`, 'a.tsx');
+
+        expect(root('')).toEqual(['<Sheet> does not set modal={false}']);
+        expect(root('modal')).toEqual(['<Sheet modal> is not the literal {false}']);
+        expect(root('modal={true}')).toEqual(['<Sheet modal> is not the literal {false}']);
+        expect(root('modal={flag}')).toEqual(['<Sheet modal> is not the literal {false}']);
+        expect(root('modal={false}')).toEqual([]);
     });
 
     it('discovers the app sources, and finds the adapter and the host importing/rendering the Modal', () => {
@@ -159,7 +208,7 @@ describe('window overlays open only through OverlayHost', () => {
 });
 
 describe('Tamagui overlay parts open no window and keep no open state', () => {
-    it('has no Portal import and no modal, native or defaultOpen prop on a Sheet, Dialog, AlertDialog or Popover', () => {
+    it('has no Portal import, modal={false} on every part root, and no native or defaultOpen prop', () => {
         const offenders = appSourceFiles().flatMap((file) =>
             tamaguiOverlayViolations(read(file), file).map((violation) => `${file}: ${violation}`),
         );

@@ -297,11 +297,10 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.
     'shell/iosSwipeBack',
-    // The window overlay dismiss routes (OverlayHost). Back order is Android and swipe-dismiss is iOS; neither has run on a
-    // device yet, so neither is planned. Run by name; the QA engineer's device run decides whether the Android one joins
-    // FLOW_PLAN.
+    // The window overlay dismiss routes (OverlayHost). Back order is Android only; swipe-dismiss runs on BOTH platforms. Neither
+    // is planned, so no planned suite runs them on either platform; run by name. The QA engineer's device run decides whether
+    // either joins FLOW_PLAN.
     'shell/overlayBackOrder',
-    'shell/overlaySwipeDismiss',
     'recipes/sourceTabs',
     // Plan 012: the native Google sign-in's cancel (iOS) / no-Play-services error (Android) path. It must start signed
     // OUT, so planning it costs one more Clerk email-code sign-in per platform per run (to restore the session the next
@@ -853,8 +852,8 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
     });
 
     // Slice 4 of the UI overhaul added `recipes/newCollectionSheet` to the collections vertical, and slice 5 added
-    // `recipes/collectionAddRemoveUndo` (seven flows now).
-    it('selects the spine plus the seven collections flows — the 22%-of-flow-time cluster', () => {
+    // `recipes/collectionAddRemoveUndo`, and the sheet-swipe flow made it eight.
+    it('selects the spine plus the eight collections flows — the 22%-of-flow-time cluster', () => {
         const selection = select('full=false', 'collections=true');
 
         expect(selection.flows).toEqual([
@@ -866,6 +865,7 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'recipes/collectionsSaveCopy',
             'recipes/collectionsPull',
             'recipes/newCollectionSheet',
+            'shell/overlaySwipeDismiss',
         ]);
     });
 

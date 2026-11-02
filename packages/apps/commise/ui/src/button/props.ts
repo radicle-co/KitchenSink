@@ -6,8 +6,9 @@
  * The Button is the app-wide standard for a labelled action control, and it encodes its invariants at the type level
  * so callers cannot regress them:
  *  1. **The glyph is a MEANING, not an element.** `icon` is an `IconName` from `@commise/ui/icon`, so a screen cannot
- *     draw its own glyph (`docs/design/uiOverhaul/buildSpec.md` §1.7). It is REQUIRED for `primary`, `secondary` and
- *     `destructive`, and optional only for the two text-like tiers, `ghost` (§1.11) and `quiet`.
+ *     draw its own glyph (`docs/design/uiOverhaul/buildSpec.md` §1.7). It is REQUIRED for `primary` and
+ *     `destructive`, and optional for `secondary` (a safe choice such as "Keep editing") and the two text-like tiers, `ghost`
+ *     (§1.11) and `quiet`.
  *  2. **The label owns the accessible name.** `children` is the visible text AND the accessible name; the glyph is
  *     always decorative, so a screen reader announces the label alone and name-based selection is stable.
  *  3. **Only a destructive button has a tone**, and only a confirm dialog asks for the filled one (§1.11). The
@@ -116,11 +117,21 @@ interface ButtonCommon {
     readonly onFocusRequestHandled?: () => void;
 }
 
-/** A primary (the default) or secondary button: a glyph is required. */
-interface SurfacedButton extends ButtonCommon {
-    readonly variant?: 'primary' | 'secondary';
+/** A primary (the default) button: a glyph is required. */
+interface PrimaryButton extends ButtonCommon {
+    readonly variant?: 'primary';
     /** The meaning the button's glyph draws. */
     readonly icon: IconName;
+}
+
+/**
+ * A secondary button: the glyph is optional. A neutral safe choice such as "Keep editing" is text only, because a glyph on
+ * it (an `x`) reads as close or discard, the opposite of keeping the person's work (designer ruling 2026-11-03).
+ */
+interface SecondaryButton extends ButtonCommon {
+    readonly variant: 'secondary';
+    /** The meaning the button's glyph draws, if it has one. */
+    readonly icon?: IconName;
 }
 
 /** A destructive button: a glyph is required, and it may take the confirm tone. */
@@ -140,7 +151,7 @@ interface TextButton extends ButtonCommon {
 }
 
 /** The cross-platform Button contract shared by the web and native leaves. */
-export type ButtonProps = SurfacedButton | DestructiveButton | TextButton;
+export type ButtonProps = PrimaryButton | SecondaryButton | DestructiveButton | TextButton;
 
 /**
  * The surface a set of props asks for: its tier and, for a destructive button, its tone. Pure.

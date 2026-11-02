@@ -17,6 +17,7 @@ import {
 import { mixOver, role, roleDark, type Role } from '../../tokens/colors.js';
 import { proTone, proToneDark } from '../../tokens/tones.js';
 import {
+    engineThemeKeys,
     proThemeKeys,
     surfaceToneThemeKeys,
     tamaguiThemes,
@@ -30,6 +31,17 @@ const roleNames = Object.keys(role) as Role[];
 const sources: Readonly<Record<PressScheme, Readonly<Record<Role, string>>>> = { light: role, dark: roleDark };
 
 describe('tamaguiThemes', () => {
+    // Tamagui's own Sheet skin paints its overlay with the bare theme key `shadow-color`; a theme without it logs
+    // `unknown color "shadow-color"` on a device, and that debug toast covers the screen and swallows taps. The key is the
+    // scrim role, so the engine's own default and ours are the same colour.
+    it.each([
+        ['light', role],
+        ['dark', roleDark],
+    ] as const)('%s: supplies the keys Tamagui’s Sheet skin reads, from the scrim role', (scheme, colors) => {
+        expect(tamaguiThemes[scheme]['shadow-color']).toBe(colors.scrim);
+        expect([...engineThemeKeys]).toEqual(['shadow-color']);
+    });
+
     // The PRO badge's pair is its own tone (`tones.ts`), not two text roles that equal it today by chance, so a change
     // to the PRO tone moves native with web (Tamagui audit H2).
     it.each([
@@ -52,7 +64,9 @@ describe('tamaguiThemes', () => {
         const keys = Object.keys(tamaguiThemes[scheme]).sort();
         const toneKeys = TONE_THEME_KEYS.filter((key) => !(roleNames as string[]).includes(key));
 
-        expect(keys).toEqual([...roleNames, ...surfaceToneThemeKeys, ...proThemeKeys, ...toneKeys].sort());
+        expect(keys).toEqual(
+            [...roleNames, ...surfaceToneThemeKeys, ...proThemeKeys, ...engineThemeKeys, ...toneKeys].sort(),
+        );
     });
 
     it('keeps the surface-tone keys apart from the role names, so no tone key can shadow a role', () => {

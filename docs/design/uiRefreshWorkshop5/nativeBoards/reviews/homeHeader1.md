@@ -21,3 +21,15 @@ Passes at 1280: one row, the greeting and the date at the start, the profile but
 
 The 390 at 200% shot is a 195 CSS px viewport, below the 320 px reflow floor (WCAG 1.4.10), so it does not judge
 the header. Retake it as 1280 at 400% (320 CSS px). The card text in these shots belongs to the card lane.
+
+## Retake and night greeting
+
+- Web at 1280 and 400% (320 CSS px): the header passes. The greeting and the date wrap whole, and the button stays
+  at the end.
+- Android night: "Still up?" passes at 1.0 and 2.0, light and dark.
+
+Verdict: Android and web pass. iOS follows after C-1.
+
+For the floating-button lane, not this one: at 320 by 200 CSS px the fixed button sits over "See all". Give the web
+page a `scroll-padding-bottom` equal to the button's end room, so a focused control is never hidden under it
+(WCAG 2.4.11).

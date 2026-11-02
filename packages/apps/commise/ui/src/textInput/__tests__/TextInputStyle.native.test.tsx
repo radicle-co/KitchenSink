@@ -63,12 +63,31 @@ describe('TextInput (native) — the input text style', () => {
     it("takes the leading drop off a multi-line field's top padding on iOS", () => {
         const input = field('ios', 1, true, { paddingVertical: 16 });
 
-        expect(input.style.paddingTop).toBe('12px');
+        expect(input.style.paddingTop).toBe('8.5px');
         expect(input.style.paddingBottom).toBe('16px');
     });
 
     it('leaves the padding alone on Android', () => {
         const input = field('android', 1);
+
+        expect(input.style.paddingTop).toBe('12px');
+        expect(input.style.paddingBottom).toBe('12px');
+    });
+
+    it.each([
+        { inputMode: 'numeric' },
+        { inputMode: 'decimal' },
+        { keyboardType: 'number-pad' },
+        { keyboardType: 'decimal-pad' },
+    ] as const)('leaves a numeric input (%o) its padding on iOS: digits sit level with the line', (props) => {
+        withPlatformOs('ios', () =>
+            renderWithTamagui(
+                <TextInput accessibilityLabel="Name" style={{ paddingVertical: 12 }} {...props} />,
+                'light',
+                1,
+            ),
+        );
+        const input = screen.getByRole('textbox', { name: 'Name' });
 
         expect(input.style.paddingTop).toBe('12px');
         expect(input.style.paddingBottom).toBe('12px');

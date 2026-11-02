@@ -38,16 +38,26 @@ export type TextInputProps = Omit<
     'allowFontScaling' | 'disableFullscreenUI' | 'maxFontSizeMultiplier'
 >;
 
+/** Whether an input takes digits only (a numeric keyboard or input mode), which have no descenders to lift for. */
+function isNumeric({ inputMode, keyboardType }: Pick<TextInputProps, 'inputMode' | 'keyboardType'>): boolean {
+    return (
+        inputMode === 'numeric' ||
+        inputMode === 'decimal' ||
+        keyboardType === 'number-pad' ||
+        keyboardType === 'decimal-pad' ||
+        keyboardType === 'numeric'
+    );
+}
+
 /**
  * React Native's `TextInput`, never in Android's full-screen editor, focusable by its label, and capped at 2× the text
  * size (ADR-0080 §8). It is the one place the app renders React Native's input, so the cap here reaches every field. A
  * presentational component: it renders its props and holds no state. Native only, because only Android has the editor.
  */
 export const TextInput: FC<TextInputProps> = ({ ref, style, ...props }) => {
-    const { nativeID } = props;
+    const { nativeID, multiline = false, inputMode, keyboardType } = props;
     const scale = TextScaleContext.useStyledContext().textScale;
     const os = Platform.OS === 'ios' ? 'ios' : 'android';
-    const multiline = props.multiline === true;
     const labelTarget = useCallback(
         (node: NativeTextInput | null) =>
             node === null || nativeID === undefined ? undefined : registerLabelledField(nativeID, node),
@@ -68,7 +78,7 @@ export const TextInput: FC<TextInputProps> = ({ ref, style, ...props }) => {
                 inputTextStyle(scale, os, multiline),
                 style,
                 // The ink centred in the box, on iOS (see `inputTextStyle`).
-                inputBoxPadding(style, os, multiline, scale),
+                inputBoxPadding(style, os, multiline, scale, isNumeric({ inputMode, keyboardType })),
             ]}
         />
     );

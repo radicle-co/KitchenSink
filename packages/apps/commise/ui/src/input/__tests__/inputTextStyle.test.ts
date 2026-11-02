@@ -55,9 +55,19 @@ describe('the measured iOS offsets, each stated once', () => {
         expect(IOS_INK_DROP_EM).toBe(0.11);
     });
 
-    // The designer measured the first line of a multi-line field about 4 pt low under a 24 pt leading: one sixth of it.
-    it('names the multi-line first-line drop as a fraction of the leading, 4 pt at the 24 pt body leading', () => {
-        expect(IOS_LEADING_DROP * 24).toBe(4);
+    // The designer measured the first line of a multi-line field about 4 pt low under a 24 pt leading, and the first-line
+    // check (qaChecks, 2026-11-03) wants its gap above within 2 pt of a single-line field's: qa-ios's Title read 3.4 pt
+    // more at 1x. Together 7.5 pt at the 24 pt body leading, which is 5/16 of it and 15 pt at the cap.
+    it('names the multi-line first-line drop as a fraction of the leading, 7.5 pt at the 24 pt body leading', () => {
+        expect(IOS_LEADING_DROP * 24).toBe(7.5);
+    });
+});
+
+describe('inputBoxPadding — a numeric input', () => {
+    // Digits have no descenders, so their ink is centred on the line's own middle: the lift that centres "Hxg" would put
+    // them high. A numeric input is not offset on any platform.
+    it.each([true, false])('is left as the caller styled it on iOS (multi-line %s)', (multiline) => {
+        expect(inputBoxPadding({ paddingVertical: 12 }, 'ios', multiline, 1, true)).toBeUndefined();
     });
 });
 
@@ -66,7 +76,7 @@ describe('inputBoxPadding', () => {
 
     it('raises a single-line ink by the drop on iOS without changing the field height', () => {
         const drop = 16 * IOS_INK_DROP_EM;
-        const padded = inputBoxPadding({ paddingVertical: 12 }, 'ios', false, 1);
+        const padded = inputBoxPadding({ paddingVertical: 12 }, 'ios', false, 1, false);
 
         expect(padded).toBeDefined();
         expect(centreOf(box, padded as InputBoxPadding)).toBeCloseTo(box / 2 - drop, 5);
@@ -75,13 +85,13 @@ describe('inputBoxPadding', () => {
 
     it('scales the drop with the capped size, so the ink is centred at the cap too', () => {
         const drop = 32 * IOS_INK_DROP_EM;
-        const padded = inputBoxPadding({ paddingVertical: 12 }, 'ios', false, 3.1) as InputBoxPadding;
+        const padded = inputBoxPadding({ paddingVertical: 12 }, 'ios', false, 3.1, false) as InputBoxPadding;
 
         expect(centreOf(box, padded)).toBeCloseTo(box / 2 - drop, 5);
     });
 
     it('takes it from the bottom when there is no top padding to give, which grows the field by the drop twice', () => {
-        const padded = inputBoxPadding({}, 'ios', false, 1) as InputBoxPadding;
+        const padded = inputBoxPadding({}, 'ios', false, 1, false) as InputBoxPadding;
         const drop = 16 * IOS_INK_DROP_EM;
 
         expect(padded.paddingTop).toBe(0);
@@ -101,23 +111,27 @@ describe('inputBoxPadding', () => {
         expect(padded.paddingBottom).toBeCloseTo(12 + drop, 5);
     });
 
-    it('leaves a multi-line field its bottom and takes the leading drop off the top, 4 pt at 1x and 8 pt at the cap', () => {
-        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 1)).toEqual({ paddingTop: 12, paddingBottom: 16 });
-        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 3.1)).toEqual({
-            paddingTop: 8,
+    it('leaves a multi-line field its bottom and takes the leading drop off the top, 7.5 pt at 1x and 15 pt at the cap', () => {
+        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 1, false)).toEqual({
+            paddingTop: 8.5,
+            paddingBottom: 16,
+        });
+        expect(inputBoxPadding({ paddingVertical: 16 }, 'ios', true, 2, false)).toEqual({
+            paddingTop: 1,
             paddingBottom: 16,
         });
     });
 
     it('never goes below zero', () => {
         expect(
-            (inputBoxPadding({ paddingTop: 1, paddingBottom: 0 }, 'ios', true, 3.1) as InputBoxPadding).paddingTop,
+            (inputBoxPadding({ paddingTop: 1, paddingBottom: 0 }, 'ios', true, 3.1, false) as InputBoxPadding)
+                .paddingTop,
         ).toBe(0);
     });
 
     it('changes nothing on Android', () => {
-        expect(inputBoxPadding({ paddingVertical: 12 }, 'android', false, 1)).toBeUndefined();
-        expect(inputBoxPadding({ paddingVertical: 16 }, 'android', true, 1)).toBeUndefined();
+        expect(inputBoxPadding({ paddingVertical: 12 }, 'android', false, 1, false)).toBeUndefined();
+        expect(inputBoxPadding({ paddingVertical: 16 }, 'android', true, 1, false)).toBeUndefined();
     });
 
     it('reads a style array and skips what is not a style', () => {

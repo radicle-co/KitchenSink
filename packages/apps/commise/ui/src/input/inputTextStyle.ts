@@ -58,10 +58,11 @@ export function inputTextStyle(systemScale: number, os: 'ios' | 'android', multi
 export const IOS_INK_DROP_EM = 0.11;
 
 /**
- * How far iOS draws a multi-line field's first line below the top of its box, as a fraction of the leading: the 4 pt the
- * designer measured under the 24 pt body leading.
+ * How far to lift a multi-line field's first line, as a fraction of the leading. iOS draws it about 4 pt low under the 24 pt
+ * body leading (designer), and 3.4 pt lower again than a single-line field's first line sits (qa-ios's Title at 1x; the
+ * `firstLine` check wants them within 2 pt): 7.5 pt at 24 pt, 15 pt at the 48 pt cap.
  */
-export const IOS_LEADING_DROP = 1 / 6;
+export const IOS_LEADING_DROP = 5 / 16;
 
 /** The vertical padding of an input, in points. */
 export interface InputBoxPadding {
@@ -108,12 +109,13 @@ function verticalPaddingOf(style: unknown): InputBoxPadding {
  *
  * A single line moves its padding from the top to the bottom, so the field keeps its height; with no top padding to
  * give, the bottom takes twice the drop. A multi-line field takes the leading drop off its top padding only. Neither
- * goes below zero. Android is not offset.
+ * goes below zero. Android and a numeric input are not offset.
  *
  * @param style - The caller's style for the input (an object, or an array of them).
  * @param os - The platform.
  * @param multiline - Whether the input has more than one line.
  * @param systemScale - The system font scale.
+ * @param numeric - Whether the input takes digits only: they have no descenders, so they need no lift.
  * @returns The two paddings to lay over the caller's style, or nothing where the platform is not offset.
  */
 export function inputBoxPadding(
@@ -121,8 +123,9 @@ export function inputBoxPadding(
     os: 'ios' | 'android',
     multiline: boolean,
     systemScale: number,
+    numeric = false,
 ): InputBoxPadding | undefined {
-    if (os !== 'ios') {
+    if (os !== 'ios' || numeric) {
         return undefined;
     }
 

@@ -1114,30 +1114,6 @@ describe('RecipeDetailView (native) — the quantity flows with the name (D1)', 
     });
 });
 
-function appliedFontFamily(element: Element): string | undefined {
-    const className = element.className.split(' ').find((name) => name.startsWith('r-fontFamily-'));
-
-    if (className === undefined) {
-        return undefined;
-    }
-
-    const sheets = document.styleSheets;
-
-    for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
-        const rules = sheets[sheetIndex]?.cssRules;
-
-        for (let ruleIndex = 0; ruleIndex < (rules?.length ?? 0); ruleIndex += 1) {
-            const rule = rules?.[ruleIndex];
-
-            if (rule instanceof CSSStyleRule && rule.selectorText === `.${className}`) {
-                return rule.style.getPropertyValue('font-family');
-            }
-        }
-    }
-
-    return undefined;
-}
-
 describe('RecipeDetailView (native) — the current step is tellable from the others', () => {
     it('fills the current step’s numeral with the action colour and reports it pressed; the others do neither', () => {
         render(

@@ -25,6 +25,8 @@ Each answer is the design ruling a port builds to. Newest first.
   the shadow. No scheme-aware tokens.
 - **Android 7 and 8:** the Material fallback is accepted, with `lg` 5 and `xl` 7.
 - **SectionIndex gaps:** 4 (`$1`) for all three.
+- **"Cannot restore" marker in the version preview:** use `cardTitle` (16 at 600), not `label`, so it keeps its size.
+  The Fields gap of 4 is accepted.
 - **Add by name with a shared memo:** no new step. The add field already makes the cook pick the food from the list
   (buildSpec 7.5.3). Show the memo's food as the first option with a `caption` "Suggested". It is never the active
   option when the list opens, so Enter alone does not pick it. Web and mobile alike.

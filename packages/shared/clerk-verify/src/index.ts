@@ -6,6 +6,8 @@
  * project's convention.
  */
 export {
+    ACCOUNT_SUSPENDED_CODE,
+    ACCOUNT_SUSPENDED_MESSAGE,
     ClerkAccountSuspendedError,
     SUSPENDED_METADATA_KEY,
     isClerkAccountSuspendedError,

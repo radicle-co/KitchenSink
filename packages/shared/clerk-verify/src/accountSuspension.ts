@@ -10,6 +10,15 @@
  * @pattern Specification — one rule object, consulted by the shared verifier; adopters only map its outcome to HTTP.
  */
 
+/**
+ * The wire `code` every adopter answers a suspended account with (`403`). The ONE spelling: adopters throw it from here,
+ * and each service publishes it in its own error contract, with a test that its schema spells the same word.
+ */
+export const ACCOUNT_SUSPENDED_CODE = 'ACCOUNT_SUSPENDED';
+
+/** The human-readable message that travels with {@link ACCOUNT_SUSPENDED_CODE}. */
+export const ACCOUNT_SUSPENDED_MESSAGE = 'Account is suspended';
+
 /** The `public_metadata` key the deletion worker writes (`true`) and clears (`null`). */
 export const SUSPENDED_METADATA_KEY = 'suspended';
 
@@ -32,7 +41,7 @@ export function isSuspendedMark(value: unknown): boolean {
  * token is genuine, so adopters answer `403` (known, refused) where a bad token is `401`.
  */
 export class ClerkAccountSuspendedError extends Error {
-    public constructor(message = 'Account is suspended') {
+    public constructor(message = ACCOUNT_SUSPENDED_MESSAGE) {
         super(message);
         this.name = 'ClerkAccountSuspendedError';
         Object.setPrototypeOf(this, ClerkAccountSuspendedError.prototype);

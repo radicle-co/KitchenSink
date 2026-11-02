@@ -9,9 +9,11 @@
 import type { Context, ScheduledEvent } from 'aws-lambda';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRunErasureFanout, mockEnqueueErasure } = vi.hoisted(() => ({
+const { mockRunErasureFanout, mockEnqueueErasure, mockRedrive } = vi.hoisted(() => ({
     mockRunErasureFanout: vi.fn(),
     mockEnqueueErasure: vi.fn(),
+    // ADR-0081 §4: the provider-convergence re-drive this nightly run also performs.
+    mockRedrive: vi.fn(),
 }));
 
 vi.mock('../../common/db.js', () => ({ getDb: vi.fn() }));
@@ -37,6 +39,7 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('../../common/erasureFanout.js', () => ({ runErasureFanout: mockRunErasureFanout }));
 vi.mock('../../common/erasureEnqueue.js', () => ({ enqueueErasure: mockEnqueueErasure }));
+vi.mock('../../common/convergenceRedrive.js', () => ({ redriveUnappliedConvergence: mockRedrive }));
 
 const { emitMetric } = vi.hoisted(() => ({ emitMetric: vi.fn() }));
 vi.mock('../../common/observability.js', () => ({
@@ -120,6 +123,7 @@ beforeEach(() => {
     resetConfigCacheForTests();
     mockRunErasureFanout.mockResolvedValue(complete);
     mockEnqueueErasure.mockResolvedValue(undefined);
+    mockRedrive.mockResolvedValue({ scanned: 0, redriven: 0, failed: 0 });
     process.env['DELETION_QUEUE_URL'] = 'https://sqs.local/queue/deletion';
     process.env['DB_HOST'] = 'db.internal';
     process.env['DB_PORT'] = '5432';
@@ -131,6 +135,28 @@ beforeEach(() => {
 });
 
 describe('erasure-reconciliation handler', () => {
+    // ADR-0081 §4. A status change commits and THEN sends one message, so a send lost to an SQS outage leaves the
+    // provider behind for good unless something sends again. `queueCheck` is read-only by design; this run holds the
+    // send permission on the deletion queue already, so the re-drive rides it.
+    it('also re-drives owed provider convergence, against the deletion queue', async () => {
+        const db = mockDbWith([]);
+        mockGetDb.mockResolvedValue(db as never);
+
+        await handler(makeEvent(), makeContext());
+
+        expect(mockRedrive).toHaveBeenCalledWith(db, 'https://sqs.local/queue/deletion', expect.any(Date));
+    });
+
+    it('a failing re-drive never fails the erasure reconciliation, and still emits its aggregate', async () => {
+        mockGetDb.mockResolvedValue(mockDbWith([{ id: 'usr_01', identityId: 'user_a' }]) as never);
+        mockRedrive.mockRejectedValue(new Error('select failed'));
+
+        const result = await handler(makeEvent(), makeContext());
+
+        expect(result).toMatchObject({ scanned: 1, incomplete: 0 });
+        expect(emitMetric).toHaveBeenCalledWith('ErasureIncomplete', 0);
+    });
+
     it('re-drives every erased user (actor = reconciliation) and flags none when both legs are terminal/clean', async () => {
         mockGetDb.mockResolvedValue(
             mockDbWith([

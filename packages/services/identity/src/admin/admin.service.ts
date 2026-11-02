@@ -133,8 +133,9 @@ export class AdminService {
             await this.sqs.enqueueDeletion({ identityId: user.identityId, userId: user.id, event: 'reactivation' });
         } catch (err) {
             // ⛔ NOT a `warn`: the status is committed, so the database says suspended (or active) while the token mark
-            // still says the old thing. The ONE paging path in `deletionEnqueue.error.ts`; the queue check finds the
-            // owed intent and the backstop re-drives it.
+            // still says the old thing. The ONE paging path in `deletionEnqueue.error.ts`. The lost message is not gone for
+            // good: the intent stays unapplied, `queueCheck` reports it, and the nightly erasure-reconciliation run
+            // re-sends the trigger (`convergenceRedrive.ts`). The queue check itself only reads.
             reportDeletionEnqueueFailure({
                 event: 'reactivation',
                 userId: user.id,

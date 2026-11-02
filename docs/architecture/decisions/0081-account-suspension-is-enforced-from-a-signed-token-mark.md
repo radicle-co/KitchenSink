@@ -54,12 +54,12 @@ Each adopter holds one short catch arm that maps the error to HTTP, because the 
 The verifier takes the request (method and path). It exempts a short allow-list, written once in
 `accountSuspension.ts`:
 
-| Route | Reason |
-| --- | --- |
-| `POST /api/v1/users/me/erasure` | Erasure (GDPR Art. 17), identity's half |
-| `POST /api/v1/account/erasure` | Erasure, recipe's half |
-| `GET /api/v1/account/export` | Access and portability (GDPR Art. 15 and 20) |
-| `GET /api/v1/recipes` | The owner's own recipe list, which the erase screen reads to build the donate election |
+| Route                           | Reason                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `POST /api/v1/users/me/erasure` | Erasure (GDPR Art. 17), identity's half                                                |
+| `POST /api/v1/account/erasure`  | Erasure, recipe's half                                                                 |
+| `GET /api/v1/account/export`    | Access and portability (GDPR Art. 15 and 20)                                           |
+| `GET /api/v1/recipes`           | The owner's own recipe list, which the erase screen reads to build the donate election |
 
 The bare `/v1` spelling is covered. Food exempts nothing. Its erasure is service-to-service and never carries a user
 token. The erase flow does not read `GET /api/v1/users/me`. When that read fails, the profile page still shows its danger zone.
@@ -84,11 +84,24 @@ protects the ban. The stale worker's settle fails, it throws, and the redelivery
 advanced intent, so the queue check reported a lost trigger for ever. The worker now settles it. So the
 bump is required, and the old reason no longer holds.
 
+**A lost trigger is sent again.** A status change commits, then sends one message. If SQS is down at that moment the
+message is gone and the intent stays unapplied. For an unsuspend that leaves the person marked suspended, and recipe
+and food answer `403` until someone notices. The queue check only reads and escalates, and its role holds no send
+permission, so it cannot repair this. The nightly erasure-reconciliation run already holds that permission. It now also
+selects every non-erased account whose `status_applied_version` differs from `status_version` and which has been owed for
+at least 15 minutes, and sends the trigger again, oldest first, up to 200 each run. The worker reads the stored status, so
+a repeat, a late repeat and a repeat that overlaps the original are all harmless. The worst case for a lost unsuspend is
+therefore one day, not for ever. A tighter cadence needs its own scheduled Lambda, which joins the NAT consumer list
+(ADR-0004), and is not built here.
+
 **The ship order holds in one change.** The trigger reuses the existing `reactivation` event. There is no new event
-name for the worker to reject. The name is historical. The worker treats each of these events as "converge this
-user's provider state". Identity can deploy before the worker and no message goes to the dead-letter queue. An older
-worker unbans the user (a no-op for a suspended user) and settles the intent, so nothing stays owed. Until the new
-worker runs, the mark is not written. Identity's database gates still hold.
+name for the worker to reject, so no message goes to the dead-letter queue whichever service deploys first. The name is
+historical. The worker treats each of these events as "converge this user's provider state".
+
+**The first deploy has one gap.** An older worker, given a trigger for a suspended user, unbans them (a no-op) and
+settles the intent without writing the mark. If identity deploys first, a suspension made before the new worker is live is
+marked applied while the token carries no mark, and nothing sends it again. Deploy the worker first. If a suspension was
+made in the gap, suspend that account again once both are live.
 
 ### 5. A third `public_metadata` writer
 
@@ -118,6 +131,10 @@ These are accepted, not solved.
 3. **The CDN can serve a suspended person's cached responses.** The edge serves per-principal cached recipe responses
    without reaching the origin, until their TTL ends. The edge does not check the mark.
 
-There is a fourth, smaller risk. The instance-wide template is set in the Clerk dashboard, outside this repository.
+4. **Nothing rate-limits a suspended person.** Food has no limiter for them, and this record adds none. Each refused call
+   costs one signature check, and Clerk keeps issuing tokens to a suspended person, so they can keep calling. The cost
+   is bounded by the per-source `401` cap not counting them and by the verification pool's own concurrency limit.
+
+There is a fifth, smaller risk. The instance-wide template is set in the Clerk dashboard, outside this repository.
 Nothing here can check it. The integration tests prove the verifier reads the mark from the signed token. They cannot
 prove the template puts it there.

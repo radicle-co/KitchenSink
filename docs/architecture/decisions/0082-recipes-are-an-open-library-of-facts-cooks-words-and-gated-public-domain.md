@@ -61,8 +61,19 @@ clone of one of those. Open to the web reads the LABEL, never the source type al
 - **Book and paid-site recipes get a facts card** (`004-FR-014b`, `021-FR-004`): the same field list, with a credit to
   the book (title, author, publisher) or the site, a per-source cap, and never in the book's order. Our servers never
   fetch paid sites. The cook's full copy stays private.
-- **[House rule] Facts cards stay `noindex`**, with no recipe structured data. This is for search quality, goodwill
-  toward source sites, and lower database-right exposure. It is not a legal bar, and the founder can change it.
+- **Facts cards are indexable** (owner ruling 2026-11-03). The founder's words: "Our competitors rely on making users
+  pay to access any recipe. I want to undercut them and I believe recipes are like a library and so I want people to
+  find public and creator recipes on our app over all others." Indexing is not a separate permission. It follows the
+  public rule. Every indexable page, a card included, is server-rendered signed out, has one canonical URL and a
+  sitemap entry, and carries schema.org `Recipe` data built only from our own facts and the cook's or Commise's own
+  text, with `isBasedOn` pointing at the source (`021-FR-020`, `FR-023`, `FR-027`). The card keeps its facts-only
+  field list, its caps, a visible credit and link, and no source prose, headnote or photo.
+- **One canonical page per dish from one source page.** Where many cards, or a card and a cook's own recipe, describe
+  one dish from the same page, one canonical page wins and the others declare it, so we never publish thin duplicates
+  (`021-FR-026a`). Two cooks' texts are never merged.
+- **No paywall on reading** (owner ruling 2026-11-03). No Pro gate ever applies to reading a public or creator
+  recipe, signed in or out. Pro sells private capacity and tools, never access. 018's paid chef content is a separate
+  product a chef sells, not a public recipe.
 - **A public facts card is a public recipe.** It uses no private slot (ADR-0073). The cook's full copy behind it is
   visible only to the cook and their household. This matches ADR-0077 §3 for web imports, and `016-FR-029a` forbids
   pricing on imported content in any case. A free cook can therefore import a whole cookbook, publish each recipe as a
@@ -202,5 +213,6 @@ infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
 - **Ship the Commise version at launch.** Commise is then the direct infringer for any close paraphrase, with no safe
   harbor. Rejected for launch, kept as a gated pilot.
 - **CC0 on every recipe's facts.** It implies rights we do not hold in other sites' databases. Rejected.
-- **Index facts cards.** Lawful, but weaker for search quality and goodwill. Left to the founder.
+- **Keep facts cards `noindex`.** Lawful, and weaker for discovery. The founder chose to be found over all others.
+  Rejected.
 - **Keep the US URL-import copy in every market.** Fails in the EU and UK. Rejected.

@@ -4,11 +4,13 @@
  * @module @commise/features-recipes/card — the web recipe card: one data shape, three variants
  * (`docs/design/uiOverhaul/buildSpec.md` §4.1).
  *
- * - **grid** — the full CR-002 card: a 4:3 cover with its chips, then five rows (title; difficulty · rating; cuisine ·
- *   calories · servings; the tags as text; the version and the timestamp). It is a SUBGRID six rows tall, so in a
- *   library or Home grid every card's rows line up with its neighbours' and an empty row keeps its track.
- * - **row** — the list view: an 80 × 80 cover, the title on up to two lines, a meta line and a status line. It is the
- *   only variant that drops fields (the tags and the version wait for the detail page).
+ * - **grid** — a 4:3 cover with its chips, then the title, the meta line (time · difficulty · rating · calories) and
+ *   the timestamp. It is a SUBGRID four rows tall, so in a library or Home grid every card's rows line up with its
+ *   neighbours' and an empty row keeps its track.
+ * - **row** — the list view: an 80 × 80 cover, the title on up to two lines, the same meta line and a status line.
+ *
+ * No variant shows servings, cuisine, the tags, the version, a cover time chip or a difficulty badge (designer ruling
+ * 2026-11-02, `docs/design/uiRefreshWorkshop5/nativeBoards/designAnswers.md`); difficulty is a plain word in the meta line.
  * - **compact** — Home below a 960 container: the cover with its chips, then the title.
  *
  * The variant is decided by `cardVariantOf` in the orchestration layer and handed in; selecting an arrangement of one
@@ -20,14 +22,13 @@
  * `shadow-sm`, `shadow-md` on hover with a fine pointer — and never glass (owner ruling D12). Every colour is a role, so
  * the card follows the browser's scheme (D15).
  *
- * The rules the parts draw are decided in `./recipeCardView.ts`, shared with the native leaf: an absent difficulty,
- * cuisine or tag list renders nothing; PRO follows the materialized flag; a draft's status replaces its visibility;
+ * The rules the parts draw are decided in `./recipeCardView.ts`, shared with the native leaf: an absent difficulty
+ * renders nothing; PRO follows the materialized flag; a draft's status replaces its visibility;
  * an unrated recipe says so.
  *
  * @pattern Compound Component — a Root carrying the view in context, and parts each surface arranges
  * @pattern Registry — the variant's default arrangement, keyed by the closed variant union
  */
-import { DifficultyBadge } from '@commise/ui/difficulty-badge';
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { isModifiedClick } from '@commise/ui/route-link';
@@ -77,16 +78,6 @@ const LINE_ITEM_BASE =
 const LINE_ITEM = `${LINE_ITEM_BASE} max-w-full`;
 
 /**
- * The cuisine of a list row: capped at half the line and truncated, so the cuisine gives way before the time and the
- * servings drop (W-06). Wrapping alone cannot do it: a wrapping item keeps its full width and the NEXT item drops.
- */
-const CUISINE_ITEM = `${LINE_ITEM_BASE} max-w-1/2`;
-
-/** The overlay chips on a cover: solid `photoChip`, `ink`, the `sm` radius (§4.1 row 1). */
-const COVER_CHIP =
-    'inline-flex min-h-6 items-center gap-1 rounded-sm bg-photo-chip px-2 py-0.5 text-caption font-medium text-ink';
-
-/**
  * The status chip (designer ruling 2026-11-03, reversing W-08's half-cover cap): it takes its content width, up to the
  * row it sits in, and its word never truncates. Its content is the word, then the glyph, in a row drawn right to left
  * that is exactly one line and clips what wraps, so a chip wider than the cover drops the GLYPH and keeps the word.
@@ -115,24 +106,12 @@ const Star: FC<{ readonly filled: boolean; readonly extra: boolean }> = ({ fille
     </svg>
 );
 
-/** The cover: the photo or its monogram, with the status chip, PRO and the time chip over it. */
+/** The cover: the photo or its monogram, with the status chip and PRO over it. */
 const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 'pro' }> = ({
     aspect = '4:3',
     chips = 'all',
 }) => {
     const { recipe, cover } = useCardView();
-    // Text never sits under a chip (§1.8): a cover that draws the time chip says no cuisine of its own.
-    const drawsTimeChip = chips === 'all' && cover.time !== undefined;
-    // The band is the cover's footer, in flow below the monogram's letter, so the letter is centred above its top edge and
-    // never under it (designer ruling 2026-11-03).
-    const timeChip =
-        cover.time === undefined ? null : (
-            <span aria-label={cover.time.label} className={COVER_CHIP}>
-                <Icon name="clock" size={16} />
-                <span className="tabular-nums lining-nums">{cover.time.text}</span>
-            </span>
-        );
-
     return (
         <div
             className={`relative overflow-hidden ${aspect === '4:3' ? 'rounded-t-md' : 'size-20 shrink-0 rounded-md'}`}
@@ -141,9 +120,6 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                 recipeId={recipe.id}
                 title={recipe.title}
                 aspect={aspect}
-                showCuisine={!drawsTimeChip}
-                {...(drawsTimeChip ? { footer: timeChip } : {})}
-                {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
             {chips === 'all'
@@ -233,58 +209,44 @@ const CardTitle: FC = () => {
     return <Heading className="line-clamp-2 text-card-title text-ink">{content}</Heading>;
 };
 
-/** Difficulty, then the rating: one line, the rating dropping first. */
-const CardDifficultyRating: FC = () => {
-    const { meta, separator } = useCardView();
-
-    return (
-        <div className={BADGE_LINE}>
-            {meta.difficulty !== undefined && (
-                <span data-sep={separator.trim()} className={LINE_ITEM}>
-                    <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
-                </span>
-            )}
-            <span data-sep={separator.trim()} className={LINE_ITEM}>
-                <CardRating />
-            </span>
-        </div>
-    );
-};
-
-/** The meta row of the grid card: cuisine · calories · servings, each only when present. */
+/**
+ * The meta line of the grid card and the list row: ⏱ time · difficulty · rating · calories, each only when present. The
+ * difficulty is a plain word, never a badge.
+ */
 const CardMeta: FC = () => {
-    const { recipe, meta, separator } = useCardView();
+    const { meta, separator } = useCardView();
     const nutrition = useContext(RecipeCardNutritionContext);
     const sep = separator.trim();
 
     return (
         <div className={TEXT_LINE}>
-            {recipe.cuisine !== undefined && (
+            {meta.duration !== undefined && (
+                <span data-sep={sep} aria-label={meta.timeLabel} className={LINE_ITEM}>
+                    <Icon name="clock" size={16} />
+                    <span className="tabular-nums lining-nums">{meta.duration}</span>
+                </span>
+            )}
+            {meta.difficulty !== undefined && (
                 <span data-sep={sep} className={LINE_ITEM}>
-                    <span className="truncate">{recipe.cuisine}</span>
+                    {meta.difficulty}
                 </span>
             )}
             <span data-sep={sep} className={LINE_ITEM}>
-                {nutrition}
+                <CardRating />
             </span>
-            <span data-sep={sep} aria-label={meta.servingsLabel} className={LINE_ITEM}>
-                {meta.servingsText}
+            <span data-sep={sep} className={LINE_ITEM}>
+                {nutrition}
             </span>
         </div>
     );
 };
 
-/** The status: Draft, Private or Public as the design-system badge, then the version and the timestamp. */
+/** The status: Draft, Private or Public as the design-system badge, then the timestamp. */
 const CardBadges: FC = () => {
     const { badges } = useCardView();
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            {badges.version !== undefined && (
-                <span aria-label={badges.version.label} className="text-caption text-ink-muted">
-                    {badges.version.text}
-                </span>
-            )}
             <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
             <span className="text-caption text-ink-muted">{badges.timestamp}</span>
         </div>
@@ -311,69 +273,20 @@ const CardRating: FC = () => {
     );
 };
 
-/** The tags as one line of text. An empty line keeps its track in the grid. */
-const CardTags: FC = () => {
-    const { tags } = useCardView();
-
-    return (
-        <p className="truncate text-caption text-ink-muted" {...(tags === undefined ? {} : { title: tags.label })}>
-            {tags?.text}
-        </p>
-    );
-};
-
-/** The version (past v1) and the timestamp. */
+/** The timestamp. */
 const CardFooter: FC = () => {
-    const { footer } = useCardView();
+    const { badges } = useCardView();
 
-    return <p className="truncate text-caption text-ink-muted">{footer}</p>;
+    return <p className="truncate text-caption text-ink-muted">{badges.timestamp}</p>;
 };
 
-/** Row line 2: ⏱ total · 👥 servings · cuisine · calories, dropping from the end. */
-const RowMeta: FC = () => {
-    const { recipe, meta, separator } = useCardView();
-    const nutrition = useContext(RecipeCardNutritionContext);
-    const sep = separator.trim();
-
-    return (
-        <div className={TEXT_LINE}>
-            {recipe.cuisine !== undefined && (
-                <span data-sep={sep} className={CUISINE_ITEM}>
-                    <span className="truncate">{recipe.cuisine}</span>
-                </span>
-            )}
-            {meta.duration !== undefined && (
-                <span data-sep={sep} aria-label={meta.timeLabel} className={LINE_ITEM}>
-                    <Icon name="clock" size={16} />
-                    <span className="tabular-nums lining-nums">{meta.duration}</span>
-                </span>
-            )}
-            <span data-sep={sep} aria-label={meta.servingsLabel} className={LINE_ITEM}>
-                <Icon name="users" size={16} />
-                <span className="tabular-nums lining-nums">{recipe.servings}</span>
-            </span>
-            <span data-sep={sep} className={LINE_ITEM}>
-                {nutrition}
-            </span>
-        </div>
-    );
-};
-
-/** Row line 3: difficulty · rating · the visibility glyph (or the Draft badge), and the timestamp at the end. */
+/** Row line 3: the visibility glyph (or the Draft badge), and the timestamp at the end. */
 const RowStatus: FC = () => {
-    const { meta, badges, separator } = useCardView();
+    const { badges, separator } = useCardView();
     const sep = separator.trim();
 
     return (
         <div className={BADGE_LINE}>
-            {meta.difficulty !== undefined && (
-                <span data-sep={sep} className={LINE_ITEM}>
-                    <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
-                </span>
-            )}
-            <span data-sep={sep} className={LINE_ITEM}>
-                <CardRating />
-            </span>
             <span data-sep={sep} className={LINE_ITEM}>
                 {badges.status.status === 'draft' ? (
                     <StatusBadge status="draft">{badges.status.text}</StatusBadge>
@@ -415,7 +328,7 @@ const SlotBox: FC<{
     </div>
 );
 
-/** The full card's six rows, in the order the grid's subgrid aligns. */
+/** The full card's four rows, in the order the grid's subgrid aligns. */
 const GridArrangement: FC<ArrangementSlots> = ({ footer }) => (
     <>
         <CardCover />
@@ -426,13 +339,7 @@ const GridArrangement: FC<ArrangementSlots> = ({ footer }) => (
             and layout containment turns a subgrid back into a standalone grid, which would unalign the rows. The row is
             the card's width less its 2 × 16 px padding, so 13 rem here is the 240 px card of `homeCardsA.md` §3. */}
         <div className="@container/card px-4 pt-2">
-            <CardDifficultyRating />
-        </div>
-        <div className="px-4 pt-1">
             <CardMeta />
-        </div>
-        <div className="px-4 pt-1">
-            <CardTags />
         </div>
         {footer === undefined ? (
             <div className="px-4 pb-4 pt-1">
@@ -452,7 +359,7 @@ const RowArrangement: FC<ArrangementSlots> = ({ note, trailing }) => (
         <CardCover aspect="1:1" chips="pro" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
             <CardTitle />
-            <RowMeta />
+            <CardMeta />
             <RowStatus />
             {note === undefined ? null : <p className="truncate text-caption text-ink-muted">{note}</p>}
         </div>
@@ -560,5 +467,4 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
     Meta: CardMeta,
     Badges: CardBadges,
     Rating: CardRating,
-    Tags: CardTags,
 });

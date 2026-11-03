@@ -6,11 +6,11 @@
     "coverage": {
         "components": 94,
         "implementations": 153,
-        "props": 861,
+        "props": 859,
         "documentedComponents": 94,
         "implementationsWithModuleDoc": 153,
         "implementationsWithComponentDoc": 139,
-        "documentedProps": 811,
+        "documentedProps": 809,
         "classifiedComponents": 87,
         "componentsWithPatternTag": 94,
         "crossPlatformComponents": 59
@@ -11036,7 +11036,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/recipeCover/RecipeCover.tsx",
                     "dir": "packages/apps/commise/ui/src/recipeCover",
-                    "moduleDoc": "@commise/ui/recipe-cover — the web design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo: lazily loaded, decoded off the main thread, cropped to cover its box from the\ncentre 40% down. Without one it draws a monogram: the recipe's own tint (`coverTintOf`), the title's first letter in\nManrope 600 `ink` at 40% of the cover's height, and the cuisine as a `caption` under it on a cover 96 px tall or\ntaller, unless the caller lays a chip over the cover (`showCuisine={false}`). The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the\nviewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title\nis the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.\n\nA caller's `footer` (the meta-chip band) is the last child of the cover's column, in flow at its natural height. The\nletter's region is the flexible space above it, so the letter is centred above the band's top edge and never under it,\nhowever tall the band grows (designer ruling 2026-11-03); with no footer the region is the whole cover. No measuring.",
+                    "moduleDoc": "@commise/ui/recipe-cover — the web design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo: lazily loaded, decoded off the main thread, cropped to cover its box from the\ncentre 40% down. Without one it draws a monogram: the recipe's own tint (`coverTintOf`), the title's first letter in\nManrope 600 `ink` at 40% of the cover's height, and the cuisine as a `caption` under it on a cover 96 px tall or\ntaller, unless the caller lays a chip over the cover (`showCuisine={false}`). The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the\nviewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title\nis the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.\n\nThe letter's region is the whole cover, so the letter is centred in it. No measuring.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11072,15 +11072,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The cuisine, shown under the monogram's letter on a cover 96 px tall or taller.",
-                            "declaredIn": "packages/apps/commise/ui/src/recipeCover/props.ts"
-                        },
-                        {
-                            "name": "footer",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "A band laid over the cover's bottom start (the meta chips), at its natural height. It sits IN FLOW below the\nletter's region, so the letter is centred in the space above the band's top edge and never under it, however\ntall the band grows with the text size (designer ruling, 2026-11-03). The band keeps its own accessible name: it\nis not hidden with the letter.",
                             "declaredIn": "packages/apps/commise/ui/src/recipeCover/props.ts"
                         },
                         {
@@ -11132,7 +11123,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/recipeCover/RecipeCover.native.tsx",
                     "dir": "packages/apps/commise/ui/src/recipeCover",
-                    "moduleDoc": "@commise/ui/recipe-cover — the native design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo through `expo-image` (disk-cached), covering its box from the centre 40% down. Without\none it draws a monogram on the recipe's own tint: the title's first letter in Manrope 700 `ink` at 40% of the cover's\nheight, and the cuisine as a `caption` under it from 96 pt tall, unless the caller lays a chip over the cover. React\nNative has no container query, so the cover measures its own height (`onLayout`) and holds it as local view state. The\nphoto and the letter's region are hidden from assistive tech either way: the title is the name of the control the cover\nsits in. Each aspect reserves its box.\n\nThe cover is a column. A caller's `footer` (the meta-chip band) is its last child, in flow at its natural height, and\nthe letter's region is the flexible space above it, so the letter is centred above the band's top edge and never under\nit, however tall the band grows with the text size (designer ruling 2026-11-03). With no footer the region is the whole\ncover. The band is not hidden: it carries its own accessible name. No ref and no measuring of the band.\n\nThe letter does not scale with the system text size (designer ruling c10ecadbf, 2026-11-03): it is decoration like avatar\ninitials, drawn with the design-system Text's `fixedPx`.\n\nStyled with Tamagui (ADR-0080): the tint is a theme key (`$coverSteel`), so the cover follows the scheme with no hook.",
+                    "moduleDoc": "@commise/ui/recipe-cover — the native design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo through `expo-image` (disk-cached), covering its box from the centre 40% down. Without\none it draws a monogram on the recipe's own tint: the title's first letter in Manrope 700 `ink` at 40% of the cover's\nheight, and the cuisine as a `caption` under it from 96 pt tall, unless the caller lays a chip over the cover. React\nNative has no container query, so the cover measures its own height (`onLayout`) and holds it as local view state. The\nphoto and the letter's region are hidden from assistive tech either way: the title is the name of the control the cover\nsits in. Each aspect reserves its box.\n\nThe letter's region is the whole cover, so the letter is centred in it. No ref and no measuring of anything but the\ncover itself.\n\nThe letter does not scale with the system text size (designer ruling c10ecadbf, 2026-11-03): it is decoration like avatar\ninitials, drawn with the design-system Text's `fixedPx`.\n\nStyled with Tamagui (ADR-0080): the tint is a theme key (`$coverSteel`), so the cover follows the scheme with no hook.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -11172,15 +11163,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The cuisine, shown under the monogram's letter on a cover 96 px tall or taller.",
-                            "declaredIn": "packages/apps/commise/ui/src/recipeCover/props.ts"
-                        },
-                        {
-                            "name": "footer",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "A band laid over the cover's bottom start (the meta chips), at its natural height. It sits IN FLOW below the\nletter's region, so the letter is centred in the space above the band's top edge and never under it, however\ntall the band grows with the text size (designer ruling, 2026-11-03). The band keeps its own accessible name: it\nis not hidden with the letter.",
                             "declaredIn": "packages/apps/commise/ui/src/recipeCover/props.ts"
                         },
                         {

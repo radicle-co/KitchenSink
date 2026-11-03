@@ -67,8 +67,8 @@ interface RecipeCardNoSlots {
  * The grid and the compact card, which end in a footer (`docs/design/uiOverhaul/buildSpec.md` §4.1).
  *
  * - `footer` — an already-decided node for the card's last line: the Discover author and Save a copy, a collection
- *   member's source label and ⋯ menu. In the grid it REPLACES the own-recipe footer (the version and the timestamp),
- *   so the six rows a grid row aligns on stay six; in the compact card it is added under the title. Its controls are
+ *   member's source label and ⋯ menu. In the grid it REPLACES the own-recipe footer (the timestamp),
+ *   so the four rows a grid row aligns on stay four; in the compact card it is added under the title. Its controls are
  *   lifted above the card's one link, never nested inside it.
  */
 export interface RecipeCardPanelProps extends RecipeCardBaseProps, Omit<RecipeCardNoSlots, 'footer'> {

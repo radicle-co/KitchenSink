@@ -9,22 +9,17 @@ import { coverTintOf } from '../coverTint.js';
 import { coverTint, coverTintDark } from '../../tokens/covers.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { stubBoundingRects } from '../../testing/boundingRects.js';
-import {
-    renderWithTamagui,
-    renderedRoot,
-    resolvedColour,
-    resolvedStyle,
-} from '../../testing/tamaguiTesting.native.js';
+import { renderWithTamagui, renderedRoot, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * RecipeCover (native) — the native half of spec §1.8: the photo through `expo-image`, else the monogram on the
  * recipe's tint, the letter at 40% of the measured height, the cuisine as a caption only from 96 pt tall.
  *
- * ⚠️ REWRITTEN for the cover-letter ruling (designer, 2026-11-03): the cover is styled with Tamagui (ADR-0080) and takes
- * a `footer` (the meta-chip band) IN FLOW, as the last child of a column. The letter's region is the flexible space above
- * it, so the letter is centred above the band's top edge and never sits under it, however tall the band grows with the
- * text size. jsdom lays nothing out, so the tests assert the layout RULE that guarantees it (a column, a growing region
- * that holds the letter, a footer in flow after it) and the letter's fixed size; the pixels are for a device.
+ * ⚠️ REWRITTEN for the card-fields ruling (designer, 2026-11-02): no card draws a cover time chip, so the cover's
+ * `footer` prop is deleted and the letter is centred in the WHOLE cover. The footer-specific tests (the letter above a
+ * band, the band readable by assistive tech, the band over a photo) went with the prop; the no-footer centring test is
+ * kept. jsdom lays nothing out, so the tests assert the layout RULE (a growing region that holds the letter and centres
+ * it) and the letter's fixed size; the pixels are for a device.
  */
 
 /** Restores `getBoundingClientRect` after a test that measured the cover. */
@@ -157,7 +152,7 @@ describe('RecipeCover (native) — a monogram', () => {
     });
 });
 
-describe('RecipeCover (native) — the letter and the footer band (cover-letter ruling)', () => {
+describe('RecipeCover (native) — the letter is centred in the whole cover', () => {
     /** The element that holds the letter, and the flow children beside it. */
     function regionOf(cover: HTMLElement): HTMLElement {
         const region = screen.getByText('L').closest<HTMLElement>('[aria-hidden="true"]');
@@ -169,50 +164,7 @@ describe('RecipeCover (native) — the letter and the footer band (cover-letter 
         return region;
     }
 
-    it.each([
-        ['one line of chip', 1],
-        ['a band grown by the largest text size', 4],
-    ] as const)('lays the letter out in the region ABOVE the footer, not over the whole cover: %s', (_name, lines) => {
-        const cover = renderCover(
-            <RecipeCover
-                recipeId="rec_42"
-                title="Lemon tart"
-                aspect="4:3"
-                showCuisine={false}
-                footer={
-                    <span data-band>
-                        {Array.from({ length: lines }, (_line, index) => (
-                            <span key={index}>35 min</span>
-                        ))}
-                    </span>
-                }
-            />,
-        );
-        const region = regionOf(cover);
-        const band = screen.getAllByText('35 min')[0]?.closest('[data-band]')?.parentElement ?? null;
-
-        // A column: the footer follows the letter's region in flow, so the region is only the space above the band.
-        expect(resolvedStyle(cover, 'flexDirection')).toBe('column');
-        expect(cover.children).toHaveLength(2);
-        expect(cover.children[0]).toBe(region);
-        expect(cover.children[1]).toBe(band);
-        expect(resolvedStyle(band as HTMLElement, 'position')).not.toBe('absolute');
-        // The region takes what the band leaves and centres the letter in it, so the band can grow and the letter moves up.
-        expect(resolvedStyle(region, 'flexGrow')).toBe('1');
-        expect(resolvedStyle(region, 'justifyContent')).toBe('center');
-        expect(resolvedStyle(region, 'alignItems')).toBe('center');
-    });
-
-    it('keeps the footer readable by assistive tech: only the letter’s region is hidden', () => {
-        const cover = renderCover(
-            <RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" footer={<span>35 min</span>} />,
-        );
-
-        expect(cover.getAttribute('aria-hidden')).not.toBe('true');
-        expect(screen.getByText('35 min').closest('[aria-hidden="true"]')).toBeNull();
-    });
-
-    it('centres the letter in the whole cover when there is no footer', () => {
+    it('centres the letter in the whole cover', () => {
         const cover = renderCover(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
         const region = regionOf(cover);
 
@@ -220,28 +172,13 @@ describe('RecipeCover (native) — the letter and the footer band (cover-letter 
         expect(resolvedStyle(region, 'flexGrow')).toBe('1');
         expect(resolvedStyle(region, 'justifyContent')).toBe('center');
     });
-
-    it('puts the footer over a photo too, at the cover’s bottom start', () => {
-        const cover = renderCover(
-            <RecipeCover
-                recipeId="rec_1"
-                title="Tart"
-                photoUrl="https://img.example/tart.jpg"
-                aspect="4:3"
-                footer={<span>35 min</span>}
-            />,
-        );
-        const band = screen.getByText('35 min').parentElement as HTMLElement;
-
-        expect(band.parentElement).toBe(cover);
-        expect(resolvedStyle(band, 'alignSelf')).toBe('flex-start');
-        expect(resolvedStyle(cover.lastElementChild as HTMLElement, 'alignSelf')).toBe('flex-start');
-    });
 });
 
 describe('RecipeCover (native) — the dark scheme', () => {
     it('grounds the monogram in the tint’s DARK value when the system is dark', () => {
-        const cover = renderCover(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />, { scheme: 'dark' });
+        const cover = renderCover(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />, {
+            scheme: 'dark',
+        });
 
         expect(resolvedColour(cover, 'backgroundColor')).toBe(formatRgb(coverTintDark[coverTintOf('rec_42')]));
     });

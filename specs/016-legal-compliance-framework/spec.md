@@ -581,15 +581,15 @@ The rights label tells the cook who owns the writing.
   owner, on web and mobile. There are seven labels. This table is the one authority for who owns the writing and for
   what the cook can do under each label. Other specs cite it and do not restate it.
 
-    | #   | Label                                                    | Who owns the writing and photos                                                       | Keep it | Share with the household | Publish                                                                                                                                                                                               | Export                          |
-    | --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-    | 1   | Written by you                                           | The cook                                                                              | Yes     | Yes                      | Yes, in full                                                                                                                                                                                          | Yes                             |
-    | 2   | Adapted by you from a credited source, in your own words | The cook owns their words. The source keeps its own words and photos                  | Yes     | Yes                      | Yes, in full, with "Adapted from [source]"                                                                                                                                                            | Yes                             |
-    | 3   | Copied from a public web page                            | The page's author                                                                     | Yes     | Yes                      | Only as a facts card (the linked card, `021-FR-014a`), readable signed out and `noindex`, under the per-site cap (`FR-030a`). In full only where the page states a licence that allows it (`FR-012b`) | Yes, as the cook's own copy     |
-    | 4   | From a cookbook, magazine or paid site                   | The publisher, or the author                                                          | Yes     | Yes                      | Its words and photos, never. A facts card with a credit to the book or site, under the per-source cap (`FR-030a`). The cook can publish their own version under label 2                               | Yes, as the cook's own copy     |
-    | 5   | From a family member or friend, with their permission    | The person who wrote it                                                               | Yes     | Yes                      | Yes, in full, after 020's check, and open to the web when the giver's permission covers the web (`021-FR-002`)                                                                                        | Yes                             |
-    | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"                                                                                                                      | Yes, inside the cook's own file |
-    | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full, and open to the web, only under the curator grant with a passing `FR-015k` record (`021-FR-006`)                                                                                        | Yes                             |
+    | #   | Label                                                    | Who owns the writing and photos                                                       | Keep it | Share with the household | Publish                                                                                                                                                                                                                                                                                   | Export                          |
+    | --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+    | 1   | Written by you                                           | The cook                                                                              | Yes     | Yes                      | Yes, in full                                                                                                                                                                                                                                                                              | Yes                             |
+    | 2   | Adapted by you from a credited source, in your own words | The cook owns their words. The source keeps its own words and photos                  | Yes     | Yes                      | Yes, in full, with "Adapted from [source]"                                                                                                                                                                                                                                                | Yes                             |
+    | 3   | Copied from a public web page                            | The page's author                                                                     | Yes     | Yes                      | Only as a facts card (the linked card, `021-FR-014a`), readable signed out and indexable under the public rule (`021-FR-020`, amended 2026-11-03, owner ruling O2, ADR-0082), under the per-site cap (`FR-030a`). In full only where the page states a licence that allows it (`FR-012b`) | Yes, as the cook's own copy     |
+    | 4   | From a cookbook, magazine or paid site                   | The publisher, or the author                                                          | Yes     | Yes                      | Its words and photos, never. A facts card with a credit to the book or site, under the per-source cap (`FR-030a`). The cook can publish their own version under label 2                                                                                                                   | Yes, as the cook's own copy     |
+    | 5   | From a family member or friend, with their permission    | The person who wrote it                                                               | Yes     | Yes                      | Yes, in full, after 020's check, and open to the web when the giver's permission covers the web (`021-FR-002`)                                                                                                                                                                            | Yes                             |
+    | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"                                                                                                                                                                                                          | Yes, inside the cook's own file |
+    | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full, and open to the web, only under the curator grant with a passing `FR-015k` record (`021-FR-006`)                                                                                                                                                                            | Yes                             |
     - _(amended 2026-11-03, owner ruling, ADR-0082)_ Rows 3, 4, 5 and 7 changed. Row 3's facts card is now readable
       signed out, by anyone. Row 4 gains a facts card and the cook's own adapted version. Row 5 and row 7 open to the
       web, under their conditions. [Law] Nobody owns a recipe's facts: the dish name, ingredients, amounts, times,
@@ -604,7 +604,7 @@ The rights label tells the cook who owns the writing.
       trimmed (`FR-015b`). Family recipes are the exception and can be public as themselves (label 5).
     - "Keep it" means a private copy. A free cook keeps it within the 50 private slots (ADR-0073), like any private
       recipe. That includes label 3: the owner ruled on 2026-10-29 that any cook can keep a web import private, using a
-      slot (ADR-0077 §6, `001` C-004). The cook always sees their own full copy while its public form is a card.
+      slot (ADR-0077 §6, `001` C-004). The cook always sees their own full copy while its public form is a card. _(Amended 2026-11-03, owner ruling O1, ADR-0082.)_ Any cook, using a slot holds only for a recipe kept private with no public card. A recipe with a public facts card is a public recipe and uses no slot, even when the cook keeps the full text privately. Counsel review is owed before launch (`FR-050`).
     - "Share with the household" means the cook's household under 017. Counsel confirms that sharing labels 3 and 4
       with a household is still private use (`FR-050`).
     - "Export" means the cook's own data export (`FR-034`). It is for the cook's own use. Counsel confirms that the
@@ -997,8 +997,8 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
   launch (`FR-050`).
 
     **Import guardrails** _(owner ruling 2026-10-25, restored 2026-10-27)_. Every import channel is open on every plan
-    (`004-FR-028`). A book or paid-site recipe uses one of a free cook's 50 private slots, and Pro removes that limit
-    for every private recipe alike ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).
+    (`004-FR-028`). A book or paid-site recipe kept private with no card uses one of a free cook's 50 private slots, and Pro removes that limit
+    for every private recipe alike (a recipe with a public card uses none, owner ruling O1, 2026-11-03, ADR-0082) ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).
     So that imported content is never the draw:
     1. Pro is never marketed, priced or described in terms of importing. No "import your cookbooks with Pro", no
        import-specific offer, and no Pro benefit that names a source.
@@ -1849,8 +1849,10 @@ records the decision.
   _Mavrix_.
 
     > **Amended 2026-11-03 (owner ruling, ADR-0082).** C-016-006's two states stand for the cook's copy. The linked
-    > card is now readable signed out, by anyone, and it stays `noindex` with no recipe structured data [House rule].
-    > Whether to index facts cards is an open business question for the owner, not a legal bar.
+    > card is now readable signed out, by anyone. _(Further amended 2026-11-03, owner ruling O2, ADR-0082.)_ The
+    > `noindex` house rule for facts cards is removed. A facts card is indexable under the public rule, with `Recipe`
+    > data built only from our own facts (`021-FR-023`). The per-site cap, the visible credit and the facts-only field
+    > list stay. Counsel review is owed before launch (`FR-050`).
 
 - **Owed by specs this session does not edit.** 012 owed a way for a cook to prove a site is their own, so a blogger who imports their own posts is not treated as a copier (`020-FR-012g`). 026's site claim now provides it (`FR-055`, [ADR-0078](../../docs/architecture/decisions/0078-a-live-site-claim-clears-the-own-site-hit.md)). 015 still lists D4b, making `imported_public`
   private by default, as open. This ruling settles what a public web import shows to other cooks. The owner then ruled on
@@ -1862,7 +1864,12 @@ ADR-0082 records the decision. It amends ADR-0077, ADR-0072, ADR-0023, ADR-0073 
 before launch (`FR-050`).
 
 - **C-016-009: the facts of any recipe are public and free, signed out, for anyone.** The facts card replaces the
-  signed-out source card. It stays `noindex` (`FR-015c` row 3, `FR-012`).
+  signed-out source card. _(Amended 2026-11-03, owner ruling O2, ADR-0082.)_ It is indexable under the public rule
+  (`021-FR-020`), with the caps, the credit and the facts-only list kept (`FR-015c` row 3, `FR-012`).
+- **C-016-009a: a public card uses no private slot, and reading is never paid for** (owner rulings O1 and O5,
+  2026-11-03, ADR-0082). A recipe with a public facts card is a public recipe and uses no slot, even when the cook
+  keeps the full text privately. A recipe kept private with no card still uses a slot. No Pro plan or other paywall
+  applies to reading a public or creator recipe. Counsel review is owed before launch (`FR-050`).
 - **C-016-010: family recipes and gated public-domain text open to the web** (`FR-015c` rows 5 and 7, `FR-015g`).
   The public-domain gate is `FR-015k`. It replaces the earlier "open both" ruling.
 - **C-016-011: open licences on the open layers** (`FR-033`, `FR-010`). CC0 on Commise's own text, CC BY 4.0 opt-in

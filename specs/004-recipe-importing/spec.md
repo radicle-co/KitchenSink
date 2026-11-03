@@ -259,7 +259,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     >    yield, servings and the order of steps (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991),
     >    and _Publications International v. Meredith_, 88 F.3d 473 (7th Cir. 1996)). So the one public card for a page is
     >    now readable signed out, by anyone, where the earlier text said "other signed-in cooks". Its field list does not
-    >    grow (`021-FR-014a`). [House rule] It stays `noindex` with no recipe structured data.
+    >    grow (`021-FR-014a`). _(Further amended 2026-11-03, owner ruling O2, ADR-0082.)_ The `noindex` house rule is removed. The card is indexable under the public rule (`021-FR-020`), with `Recipe` data built only from our own facts, `isBasedOn` the source and the credit (`021-FR-023`). A recipe with a public card uses no private slot (owner ruling O1), and bulk import does not pause for book or paid-site recipes (`016-FR-029a`). Counsel review is owed before launch (`016-FR-050`).
     > 2. **One facts card per page.** There is one public facts card per canonical page. Two cooks' texts are never merged
     >    into one. Matching on the URL alone misses the same recipe at another address and pasted copies. That is a
     >    product gap, not a legal one, and it is recorded in C-001. [Law] Merging or linking near-identical recipes is a

@@ -15,10 +15,10 @@
  * iOS masks a layer's shadow when the same layer clips, so the elevation sits on an outer shell that never clips and the
  * clip on the content view inside it.
  *
- * One line that runs out of room: native has no `:empty`, so the meta line spaces its items with a gap rather than the
- * web's middots — a nutrition slot that settles on nothing would otherwise leave an orphan separator. A one-line row is a
- * wrapping row of EXACTLY one line's height (`./oneLine.ts`, scaled by the OS font scale), so an item that does not fit
- * wraps to a second line that is fully hidden (W-06).
+ * The meta line wraps and never clips: native has no `:empty`, so it spaces its items with a gap rather than the web's
+ * middots — a nutrition slot that settles on nothing would otherwise leave an orphan separator. A part that does not fit
+ * moves to the next line. A badge line is a wrapping row of EXACTLY one line's height (`./oneLine.ts`, scaled by the OS
+ * font scale), so an item that does not fit wraps to a second line that is fully hidden (W-06).
  *
  * No variant shows servings, cuisine, the tags, the version, a cover time chip or a difficulty badge (designer ruling
  * 2026-11-02, `docs/design/uiRefreshWorkshop5/nativeBoards/designAnswers.md`); difficulty is a plain word in the meta line.
@@ -53,17 +53,22 @@ import { useRecipeCardView } from './useRecipeCardView.js';
  */
 const FontScaleContext = createContext(1);
 
-/**
- * One line of a card: a wrapping row of exactly one line's height.
- *
- * @param props.kind - `meta` for text and icons, `badge` for a row holding a badge.
- */
-const OneLine: FC<{ readonly kind: 'meta' | 'badge'; readonly children: ReactNode }> = ({ kind, children }) => {
+/** One line of a card that holds a badge: a wrapping row of exactly the badge line's height, hiding what does not fit. */
+const OneLine: FC<{ readonly children: ReactNode }> = ({ children }) => {
     const fontScale = useContext(FontScaleContext);
-    const height = kind === 'meta' ? metaLineHeightOf(fontScale) : badgeLineHeightOf(fontScale);
+    const height = badgeLineHeightOf(fontScale);
 
     return <View style={[styles.oneLine, { height }]}>{children}</View>;
 };
+
+/**
+ * A wrapping row (the meta line; the status and timestamp) with no fixed height, no clip and no truncation, so no part
+ * with data is ever hidden. A part that does not fit moves to the next line (owner ruling 2026-11-03, Android QA on
+ * 7ae95db2e).
+ */
+const WrapLine: FC<{ readonly children: ReactNode }> = ({ children }) => (
+    <View style={styles.wrapLine}>{children}</View>
+);
 
 /**
  * A cover chip: solid `photoChip`, `ink`, the `sm` radius.
@@ -158,11 +163,7 @@ const CardRating: FC = () => {
     const { colors } = useTheme();
 
     if (rating.kind === 'unrated') {
-        return (
-            <Text numberOfLines={1} style={[styles.meta, { color: colors.inkMuted }]}>
-                {rating.text}
-            </Text>
-        );
+        return <Text style={[styles.meta, { color: colors.inkMuted }]}>{rating.text}</Text>;
     }
 
     return (
@@ -181,21 +182,10 @@ const CardRating: FC = () => {
 };
 
 /** A muted word of a meta line: the one place the line's text colour is read. */
-const MetaText: FC<{ readonly children: ReactNode; readonly oneLine?: boolean; readonly figure?: boolean }> = ({
-    children,
-    oneLine = false,
-    figure = false,
-}) => {
+const MetaText: FC<{ readonly children: ReactNode; readonly figure?: boolean }> = ({ children, figure = false }) => {
     const { colors } = useTheme();
 
-    return (
-        <Text
-            {...(oneLine ? { numberOfLines: 1 } : {})}
-            style={[styles.meta, { color: colors.inkMuted }, figure && styles.figure]}
-        >
-            {children}
-        </Text>
-    );
+    return <Text style={[styles.meta, { color: colors.inkMuted }, figure && styles.figure]}>{children}</Text>;
 };
 
 /** The time item of a meta line, absent when the recipe has none. */
@@ -216,12 +206,12 @@ const CardMeta: FC = () => {
     const nutrition = useContext(RecipeCardNutritionContext);
 
     return (
-        <OneLine kind="meta">
+        <WrapLine>
             <MetaTime />
-            {meta.difficulty !== undefined && <MetaText oneLine>{meta.difficulty}</MetaText>}
+            {meta.difficulty !== undefined && <MetaText>{meta.difficulty}</MetaText>}
             <CardRating />
             {nutrition}
-        </OneLine>
+        </WrapLine>
     );
 };
 
@@ -238,10 +228,10 @@ const CardBriefMeta: FC = () => {
     }
 
     return (
-        <OneLine kind="meta">
+        <WrapLine>
             <MetaTime />
             {nutrition}
-        </OneLine>
+        </WrapLine>
     );
 };
 
@@ -251,10 +241,10 @@ const CardBadges: FC = () => {
     const { colors } = useTheme();
 
     return (
-        <View style={styles.wrapLine}>
+        <WrapLine>
             <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
             <Text style={[styles.caption, { color: colors.inkMuted }]}>{badges.timestamp}</Text>
-        </View>
+        </WrapLine>
     );
 };
 
@@ -276,7 +266,7 @@ const RowStatus: FC = () => {
     const { colors } = useTheme();
 
     return (
-        <OneLine kind="badge">
+        <OneLine>
             {badges.status.status === 'draft' ? (
                 <StatusBadge status="draft">{badges.status.text}</StatusBadge>
             ) : (
@@ -527,7 +517,7 @@ const styles = StyleSheet.create({
     meta: { ...nativeTokens.type.meta },
     caption: { ...nativeTokens.type.caption },
     figure: { fontVariant: ['tabular-nums', 'lining-nums'] },
-    // One line: an item that does not fit wraps to a second line that the row's height (`OneLine`) hides entirely, so
+    // One badge line: an item that does not fit wraps to a second line that the row's height (`OneLine`) hides entirely, so
     // items drop from the end.
     oneLine: {
         flexDirection: 'row',

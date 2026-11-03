@@ -212,7 +212,9 @@ describe('RecipeCard (web) — the meta line reads time, difficulty, rating, cal
                 nutrition={<span>520 cal</span>}
             />,
         );
-        const line = screen.getByLabelText('35 minutes total time').closest('[class*="h-lh"]') as HTMLElement;
+        const line = screen
+            .getByLabelText('35 minutes total time')
+            .closest('[class*="text-meta"][class*="flex-wrap"]') as HTMLElement;
 
         expect(line.textContent).toMatch(/35 min.*Medium.*4\.8 \(12\).*520 cal/u);
     });
@@ -525,14 +527,15 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
 const itemClasses = (label: string): readonly string[] => screen.getByLabelText(label).className.split(/\s+/u);
 
 describe('RecipeCard (web) — W-06: a one-line row is one line, and a separator only follows a visible item', () => {
-    it('sizes the meta line to exactly one line of its own type role, so a dropped item leaves no sliver', () => {
+    // REWRITTEN (owner ruling 2026-11-03): the meta line was one line of its own type role with the rest hidden; it now
+    // wraps and has no height (see "the meta line never hides a part" below).
+    it('lets the meta line wrap, with no fixed height and no clip', () => {
         renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ totalTimeMinutes: 35 })} />);
-        const line = screen
-            .getByLabelText('35 minutes total time')
-            .closest('[class*="overflow-hidden"]') as HTMLElement;
+        const line = screen.getByLabelText('35 minutes total time').closest('[class*="flex-wrap"]') as HTMLElement;
 
-        expect(line.className.split(/\s+/u)).toEqual(expect.arrayContaining(['h-lh', 'text-meta']));
-        expect(line.className.split(/\s+/u)).not.toContain('h-6');
+        expect(line.className.split(/\s+/u)).toEqual(expect.arrayContaining(['flex-wrap', 'text-meta']));
+        expect(line.className.split(/\s+/u)).not.toContain('overflow-hidden');
+        expect(line.className.split(/\s+/u)).not.toContain('h-lh');
     });
 
     it('draws the separator after a visible sibling, never `not-first` (an absent time left it as a line-leading dot)', () => {
@@ -668,7 +671,7 @@ describe('RecipeCard (web, compact) — the meta line', () => {
         const { container } = renderCard(
             <RecipeCard headingLevel={3} variant="compact" recipe={model(rated)} nutrition={<span>520 cal</span>} />,
         );
-        const line = container.querySelector('[class*="h-lh"]') as HTMLElement;
+        const line = container.querySelector('[class*="text-meta"][class*="flex-wrap"]') as HTMLElement;
 
         expect(line.textContent?.replace(/\s+/gu, ' ')).toMatch(/^\s*35 min\s*520 cal\s*$/u);
         expect(screen.queryByText('Medium')).toBeNull();
@@ -686,13 +689,13 @@ describe('RecipeCard (web, compact) — the meta line', () => {
         );
 
         expect(screen.queryByLabelText(/total time/u)).toBeNull();
-        expect(container.querySelector('[class*="h-lh"]')?.textContent).toContain('520 cal');
+        expect(container.querySelector('[class*="text-meta"][class*="flex-wrap"]')?.textContent).toContain('520 cal');
     });
 
     it('leaves out the calories when there is no figure, and keeps the time', () => {
         const { container } = renderCard(<RecipeCard headingLevel={3} variant="compact" recipe={model(rated)} />);
 
-        expect(container.querySelector('[class*="h-lh"]')?.textContent).toBe('35 min');
+        expect(container.querySelector('[class*="text-meta"][class*="flex-wrap"]')?.textContent).toBe('35 min');
     });
 
     it('draws no line at all when neither the time nor the calories exist', () => {
@@ -700,7 +703,7 @@ describe('RecipeCard (web, compact) — the meta line', () => {
             <RecipeCard headingLevel={3} variant="compact" recipe={model({ ...rated, totalTimeMinutes: 0 })} />,
         );
 
-        expect(container.querySelector('[class*="h-lh"]')).toBeNull();
+        expect(container.querySelector('[class*="text-meta"][class*="flex-wrap"]')).toBeNull();
     });
 
     it('draws the whole list-row line on a Recipes tile that asks for it (fullMeta)', () => {
@@ -713,7 +716,7 @@ describe('RecipeCard (web, compact) — the meta line', () => {
                 nutrition={<span>520 cal</span>}
             />,
         );
-        const line = container.querySelector('[class*="h-lh"]') as HTMLElement;
+        const line = container.querySelector('[class*="text-meta"][class*="flex-wrap"]') as HTMLElement;
 
         expect(line.textContent).toMatch(/35 min.*Medium.*4\.8 \(12\).*520 cal/u);
     });
@@ -727,7 +730,7 @@ describe('RecipeCard (web, compact) — the meta line', () => {
                 recipe={model({ ...rated, difficulty: undefined })}
             />,
         );
-        const text = container.querySelector('[class*="h-lh"]')?.textContent ?? '';
+        const text = container.querySelector('[class*="text-meta"][class*="flex-wrap"]')?.textContent ?? '';
 
         expect(text).toMatch(/35 min.*4\.8 \(12\)/u);
         expect(text).not.toContain('Medium');
@@ -754,6 +757,45 @@ describe.each(['grid', 'compact'] as const)(
             expect(cover.children).toHaveLength(1);
             expect(cover.contains(chip)).toBe(false);
             expect(overlay.parentElement).toBe(cover.parentElement);
+        });
+    },
+);
+
+// Owner ruling (coordinator, 2026-11-03, Android QA on 7ae95db2e): no part with data is ever hidden. The meta line WRAPS
+// onto more lines; it has no fixed height, no clip and no truncation (this reverses "items drop from the end").
+describe.each(['grid', 'row', 'compact'] as const)(
+    'RecipeCard (web, %s) — the meta line never hides a part',
+    (variant) => {
+        it('wraps, has no fixed height or clip, and truncates none of its parts', () => {
+            const { container } = renderCard(
+                <RecipeCard
+                    headingLevel={3}
+                    variant={variant}
+                    fullMeta
+                    recipe={model({
+                        totalTimeMinutes: 45,
+                        difficulty: RecipeDifficulty.EASY,
+                        averageRating: undefined,
+                        ratingCount: 0,
+                    })}
+                    nutrition={<span>370 cal</span>}
+                />,
+            );
+            const line = container.querySelector('[class*="text-meta"][class*="flex-wrap"]') as HTMLElement;
+            const tokens = (node: Element): string[] => node.className.toString().split(/\s+/u);
+
+            for (const part of ['45 min', 'Easy', 'No ratings yet', '370 cal']) {
+                expect(line.textContent).toContain(part);
+            }
+
+            expect(tokens(line)).toContain('flex-wrap');
+            expect(tokens(line).filter((t) => /^(h-|max-h-|overflow-hidden|h-lh)/u.test(t))).toEqual([]);
+
+            for (const node of line.querySelectorAll('*')) {
+                expect(
+                    tokens(node).filter((t) => /^(truncate|line-clamp|overflow-hidden|whitespace-nowrap)/u.test(t)),
+                ).toEqual([]);
+            }
         });
     },
 );

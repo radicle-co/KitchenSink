@@ -52,17 +52,16 @@ const STAR_PATH =
     'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z';
 
 /**
- * One line of items that never wraps: an item that does not fit moves to a second line, which the fixed height hides,
- * so items drop from the END (§4.1 "Items drop from the end").
+ * A badge line (and the status chip): an item that does not fit moves to a second line, which the fixed height hides,
+ * so items drop from the END (§4.1 "Items drop from the end"). The meta line is not one: it wraps (`TEXT_LINE`).
  */
 const ONE_LINE = 'flex flex-wrap content-start items-center gap-x-1 overflow-hidden';
 
 /**
- * A one-line row of TEXT: exactly one line of its own type role (`h-lh`, the `meta` leading), so the second line a
- * dropped item wraps to is hidden entirely. The `h-6` it replaces was taller than the 19.6 px line and let the top
- * 4 px of a dropped item show under it (W-06).
+ * The meta line: a wrapping row of text with no fixed height, no clip and no truncation, so no part with data is ever
+ * hidden; a part that does not fit moves to the next line (owner ruling 2026-11-03, Android QA on 7ae95db2e).
  */
-const TEXT_LINE = `${ONE_LINE} h-lh text-meta text-ink-muted`;
+const TEXT_LINE = 'flex flex-wrap items-center gap-x-1 gap-y-1 text-meta text-ink-muted';
 
 /** A one-line row that holds a badge, whose own 24 px (`min-h-6`) is the line. */
 const BADGE_LINE = `${ONE_LINE} h-6`;
@@ -302,7 +301,7 @@ const CardRating: FC = () => {
     const { rating } = useCardView();
 
     if (rating.kind === 'unrated') {
-        return <span className="truncate text-meta text-ink-muted">{rating.text}</span>;
+        return <span className="text-meta text-ink-muted">{rating.text}</span>;
     }
 
     return (

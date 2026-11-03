@@ -8,7 +8,7 @@
  * cards. The iOS shadow-clipping invariants (shadow and clip never on one node) are kept, because the level-1 card
  * still elevates and still clips its cover.
  */
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -454,28 +454,10 @@ describe('RecipeCard (native, row) — A-016: the member row keeps its text besi
     });
 });
 
-describe('RecipeCard (native) — W-06 / A-028: a one-line row is exactly one line, at any font scale', () => {
-    const timeLineOf = (): HTMLElement => screen.getByLabelText('35 minutes total time').parentElement as HTMLElement;
-
-    it('is as tall as the meta line (19.6 pt, rounded up), so a dropped item leaves no sliver under it', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ totalTimeMinutes: 35 })} />);
-
-        expect(getComputedStyle(timeLineOf()).height).toBe('20px');
-    });
-
-    it('scales with the OS font scale, so the largest setting clips nothing', () => {
-        fontScale.current = 2;
-        renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="row"
-                recipe={model({ totalTimeMinutes: 35, difficulty: RecipeDifficulty.EASY })}
-            />,
-        );
-
-        expect(getComputedStyle(timeLineOf()).height).toBe('40px');
-    });
-});
+// REWRITTEN (owner ruling 2026-11-03, Android QA on 7ae95db2e): the meta line was W-06 / A-028's "exactly one line" row, a fixed
+// height that hid whatever wrapped (rating and calories vanished on the Recipes grid). It now wraps and has no height at all,
+// at any font scale; the coverage is "the meta line never hides a part" at the end of this file. The badge line keeps its
+// fixed height.
 
 describe('RecipeCard (native, grid) — cover chips', () => {
     // REWRITTEN for the designer's ruling (2026-11-03, designAnswers.md bdb2403cb), which reverses W-08's half-cover cap:
@@ -683,5 +665,53 @@ describe.each(['grid', 'compact'] as const)(
             expect(overlay).not.toBeNull();
             expect(overlay?.parentElement).toBe(cover.parentElement);
         });
+    },
+);
+
+// Owner ruling (coordinator, 2026-11-03, Android QA on 7ae95db2e): no part with data is ever hidden. The meta line WRAPS
+// onto more lines; it has no fixed height, no clip and no truncation (this reverses "items drop from the end").
+describe.each(['grid', 'row', 'compact'] as const)(
+    'RecipeCard (native, %s) — the meta line never hides a part',
+    (variant) => {
+        it.each([1, 2])(
+            'wraps, has no fixed height or clip, and clamps none of its parts, at font scale %s',
+            (scale) => {
+                fontScale.current = scale;
+                renderCard(
+                    <RecipeCard
+                        headingLevel={3}
+                        variant={variant}
+                        fullMeta
+                        recipe={model({
+                            totalTimeMinutes: 45,
+                            difficulty: RecipeDifficulty.EASY,
+                            averageRating: undefined,
+                            ratingCount: 0,
+                        })}
+                        nutrition={<span>370 cal</span>}
+                    />,
+                );
+                const line = screen.getByLabelText('45 minutes total time').parentElement as HTMLElement;
+                const style = window.getComputedStyle(line);
+
+                for (const part of ['Easy', 'No ratings yet', '370 cal']) {
+                    expect(within(line).getByText(part)).toBeTruthy();
+                }
+
+                expect(style.flexWrap).toBe('wrap');
+                expect(style.overflowX).not.toBe('hidden');
+                expect(style.overflowY).not.toBe('hidden');
+                expect(style.height).not.toMatch(/px/u);
+                expect(style.maxHeight).not.toMatch(/px/u);
+
+                for (const node of line.querySelectorAll<HTMLElement>('*')) {
+                    const own = window.getComputedStyle(node);
+
+                    expect(own.textOverflow).not.toBe('ellipsis');
+                    expect(own.getPropertyValue('-webkit-line-clamp')).toBe('');
+                    expect(own.overflowX).not.toBe('hidden');
+                }
+            },
+        );
     },
 );

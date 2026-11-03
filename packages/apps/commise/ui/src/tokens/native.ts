@@ -4,6 +4,7 @@
  * objects; `nativeTokens` is the RN-facing projection of the exact same scale, so the two platforms
  * cannot drift. This module is pure data (no `react-native` import) and safe under Node/Vitest.
  */
+import { devicePixelScale, snapLineHeight } from './iosLineHeight.js';
 import type { PerContainerClass } from './layout.js';
 import {
     bodyFontFace,
@@ -72,12 +73,22 @@ function faceOf(spec: TypeRoleSpec): string {
     return face;
 }
 
+/**
+ * A token leading as the platform draws it (iOS sits a hair above the pixel grid, react/react-native#58970; see
+ * `iosLineHeight.native.ts`). The token in `typography.ts` stays exact.
+ */
+function platformLeading(lineHeight: number): number {
+    return snapLineHeight(lineHeight, devicePixelScale());
+}
+
 /** A role at one px size (or at the size of its line, for `inherit`). Pure. */
 function toNativeTypeStyle(spec: TypeRoleSpec, size: number | 'inherit'): NativeTypeStyle {
     return {
         fontFamily: faceOf(spec),
         ...(size === 'inherit' ? {} : { fontSize: size }),
-        ...(size === 'inherit' || spec.lineHeight === 'inherit' ? {} : { lineHeight: spec.lineHeight }),
+        ...(size === 'inherit' || spec.lineHeight === 'inherit'
+            ? {}
+            : { lineHeight: platformLeading(spec.lineHeight) }),
         ...(spec.figure === true
             ? { fontVariant: ['tabular-nums', 'lining-nums'] satisfies NativeTypeStyle['fontVariant'] }
             : {}),
@@ -96,7 +107,7 @@ function toSizedNativeTypeStyle(spec: TypeRoleSpec, size: number): SizedNativeTy
         throw new Error('A sized type role needs a leading of its own.');
     }
 
-    return { ...toNativeTypeStyle(spec, size), fontSize: size, lineHeight: spec.lineHeight };
+    return { ...toNativeTypeStyle(spec, size), fontSize: size, lineHeight: platformLeading(spec.lineHeight) };
 }
 
 /** A role with one size per container class, projected once per class. Pure. */

@@ -3,9 +3,10 @@
  * height at a font scale. A box draws at its floor or at its contents, whichever is taller; the contents are a caption
  * line, the padding and the edges. The values are chosen so the contents fill the floor exactly at 1×, so every tone
  * draws 24 pt: a neutral badge's 1 pt edges once made it 26 pt where a row let it grow, and a card row that restated
- * the padding without the edges was 2 pt short of it. Pure.
+ * the padding without the edges was 2 pt short of it. It reads the raw token leading: the native projection sits 0.001
+ * above the pixel grid on iOS (react/react-native#58970), which `ceil` would turn into a whole extra point. Pure.
  */
-import { nativeTokens } from '../tokens/native.js';
+import { typeRole } from '../tokens/typography.js';
 
 /** The badge's floor, and the padding and edge above and below its word, in points. */
 export const BADGE_BOX = { minHeight: 24, paddingVertical: 1, borderWidth: 1 } as const;
@@ -19,7 +20,7 @@ export const BADGE_BOX = { minHeight: 24, paddingVertical: 1, borderWidth: 1 } a
  */
 export function badgeHeightOf(fontScale: number): number {
     const { minHeight, paddingVertical, borderWidth } = BADGE_BOX;
-    const word = Math.ceil(nativeTokens.type.caption.lineHeight * fontScale);
+    const word = Math.ceil(typeRole.caption.lineHeight * fontScale);
 
     return Math.max(minHeight, word + 2 * (paddingVertical + borderWidth));
 }

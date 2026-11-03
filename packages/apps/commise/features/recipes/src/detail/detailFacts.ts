@@ -367,9 +367,9 @@ export function ingredientRowStatuses(
 const LONG_DESCRIPTION_CHARS = 180;
 
 /**
- * Whether a description is long enough to be clamped at four lines on a phone, which is when "More" is offered. A
+ * Whether a description is long enough to be clamped at four lines on a phone, which is when "Read more" is offered. A
  * character count rather than a measurement: a measurement needs a ref and a layout read, and the cost of the
- * heuristic is a "More" that expands two words. Pure.
+ * heuristic is a "Read more" that expands two words. Pure.
  *
  * @param description - The description.
  * @returns `true` above 180 characters.

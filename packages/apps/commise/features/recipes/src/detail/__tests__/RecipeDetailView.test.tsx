@@ -339,7 +339,7 @@ describe('RecipeDetailView (web) — header', () => {
             />,
         );
 
-        const more = screen.getByRole('button', { name: 'More' });
+        const more = screen.getByRole('button', { name: 'Read more' });
         const description = screen.getByText(long.trim(), { normalizer: (text) => text.trim() });
         expect(more.getAttribute('aria-expanded')).toBe('false');
         expect(description.className).toContain('line-clamp-4');
@@ -359,7 +359,7 @@ describe('RecipeDetailView (web) — header', () => {
             />,
         );
 
-        expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Read more' })).toBeNull();
     });
 });
 

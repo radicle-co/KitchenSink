@@ -77,6 +77,8 @@ export function HomeTabBar({
     return (
         <View
             collapsable={false}
+            // The Maestro scroll helper clears this container's top edge (`.maestro/recipes/common/scrollIntoTapView.yaml`).
+            testID="appTabBar"
             accessibilityRole="tablist"
             accessibilityLabel={chrome.tabNavLabel}
             style={[

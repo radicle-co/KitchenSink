@@ -10,6 +10,9 @@
  * registered Adapter — this leaf holds no ref of its own). The keyboard stays as the host's
  * `keyboardShouldPersistTaps` leaves it.
  *
+ * `focusSignal` hands the field KEYBOARD focus when a counter the screen owns advances (`useFocusInputOnSignal`), for a
+ * proxy elsewhere in the reading order.
+ *
  * @pattern Adapter over `@commise/ui/text-input` — the label, glyph and clear control are the primitive's
  */
 import { useState, type FC } from 'react';
@@ -25,12 +28,16 @@ import { nativeTokens } from '../tokens/native.js';
 import type { SearchFieldProps } from './props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
+import { useFocusInputOnSignal } from './useFocusInputOnSignal.native.js';
 
 /** The pill's height, in points. */
 const PILL_HEIGHT = 48;
 
-/** The pill's border, which sits outside the input: the slop gives the input's target that band back. */
-const INPUT_HIT_SLOP = { top: 1, bottom: 1 } as const;
+/** The input's own minimum height: the pill less its border and its vertical padding. */
+const INPUT_MIN_HEIGHT = PILL_HEIGHT - 2 - 2 * nativeTokens.spacing[2];
+
+/** The pill's border and padding sit outside the input: the slop gives the input's target that band back. */
+const INPUT_HIT_SLOP = { top: 1 + nativeTokens.spacing[2], bottom: 1 + nativeTokens.spacing[2] } as const;
 
 /** The native design-system search field. */
 export const SearchField: FC<SearchFieldProps> = ({
@@ -44,10 +51,12 @@ export const SearchField: FC<SearchFieldProps> = ({
     placeholder,
     onFocus,
     onBlur,
+    focusSignal,
 }) => {
     const { colors } = useTheme();
     const [clears, setClears] = useState(0);
     const field = useScreenReaderFocusOnSignal<NativeTextInput>(clears);
+    useFocusInputOnSignal(field, focusSignal);
 
     return (
         <View style={styles.stack}>
@@ -105,6 +114,6 @@ const styles = StyleSheet.create({
         paddingStart: nativeTokens.spacing[4],
         paddingEnd: nativeTokens.spacing[1],
     },
-    input: { flex: 1 },
+    input: { flex: 1, minHeight: INPUT_MIN_HEIGHT },
     clear: { alignItems: 'center', justifyContent: 'center', borderRadius: nativeTokens.radius.full },
 });

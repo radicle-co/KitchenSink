@@ -2,6 +2,9 @@
  * @module @commise/features-recipes — the native recipe page's status row: the owner's visibility (or the Draft
  * badge) and the "Version history" link, on one line under the title. It draws nothing when it has neither.
  *
+ * The two items sit in a wrapping row 16 apart each way, with no separator glyph (designer ruling): when the pair wraps
+ * at 2x text, each stands on its own line, and nothing has to be measured.
+ *
  * Presentational: props to JSX.
  */
 import { Button } from '@commise/ui/button';
@@ -15,10 +18,7 @@ import { styled, XStack } from 'tamagui';
 import { recipeMessages } from '../messages.js';
 import type { DetailStatus } from './detailFacts.js';
 
-const Row = styled(XStack, { name: 'DetailStatusRow', flexWrap: 'wrap', alignItems: 'center', columnGap: '$2' });
-
-/** The separator and the item after it, kept together on one line. */
-const Unit = styled(XStack, { name: 'DetailStatusUnit', alignItems: 'center', columnGap: '$2' });
+const Row = styled(XStack, { name: 'DetailStatusRow', flexWrap: 'wrap', alignItems: 'center', gap: '$4' });
 
 const Visibility = styled(XStack, { name: 'DetailVisibility', alignItems: 'center', gap: '$1' });
 
@@ -50,17 +50,9 @@ export const DetailStatusRow: FC<DetailStatusRowProps> = ({ status, onViewVersio
                 </Visibility>
             )}
             {onViewVersions !== undefined && (
-                // A separator never ends a line: it is joined to the item after it as one unit, so the two wrap together.
-                <Unit>
-                    {status !== undefined && (
-                        <Text typeRole="meta" color="$inkMuted" aria-hidden>
-                            ·
-                        </Text>
-                    )}
-                    <Button variant="ghost" size="sm" onPress={onViewVersions}>
-                        {detail.versionHistory}
-                    </Button>
-                </Unit>
+                <Button variant="ghost" size="sm" onPress={onViewVersions}>
+                    {detail.versionHistory}
+                </Button>
             )}
         </Row>
     );

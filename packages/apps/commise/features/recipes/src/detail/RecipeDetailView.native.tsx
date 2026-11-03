@@ -39,6 +39,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
     const { width, fontScale } = useWindowDimensions();
     const [screenOn, setScreenOn] = useState(false);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+    const [nutritionExpanded, setNutritionExpanded] = useState(false);
     const [sourcesOpen, setSourcesOpen] = useState(false);
     const [sourcesClosed, setSourcesClosed] = useState(0);
 
@@ -57,6 +58,8 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
                 }}
                 descriptionExpanded={descriptionExpanded}
                 onToggleDescription={() => setDescriptionExpanded((expanded) => !expanded)}
+                nutritionExpanded={nutritionExpanded}
+                onToggleNutrition={() => setNutritionExpanded((expanded) => !expanded)}
                 layout={detailNativeLayoutOf(width - 2 * GUTTER, cappedFontScale(fontScale))}
                 onOpenDataSources={() => setSourcesOpen(true)}
                 dataSourcesReturnFocusSignal={sourcesClosed}

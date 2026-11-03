@@ -15,8 +15,6 @@ export const detailStyles = StyleSheet.create({
     // bottom safe area.
     container: { gap: nativeTokens.spacing[6], paddingBottom: nativeTokens.spacing[7] },
     top: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
-    caption: { ...nativeTokens.type.caption },
-    figureGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: nativeTokens.spacing[4] },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
     // One section (or the run of closing blocks) as a direct child of the scroll content: the page's one 16 gutter,
     // and the 8 that makes the 24 content gap between top blocks the 32 between sections.
@@ -35,7 +33,4 @@ export const detailStyles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    caveat: { fontWeight: '600' },
-    linkTouch: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
-    link: { textDecorationLine: 'underline' },
 });

@@ -266,6 +266,12 @@ export interface RecipeDetailMessages {
     readonly stepToggleLabel: string;
     /** Heading for the nutrition section. */
     readonly nutritionHeading: string;
+    /** The native nutrition row's title (`RecipeDetailAndroid384`, build list item 12). */
+    readonly nutritionTitle: string;
+    /** The row's summary while the figures are collapsed (contains `{calories}`, the per-serving calories). */
+    readonly nutritionSummary: string;
+    /** The row's summary when no food was counted, so there are no figures to give. */
+    readonly nutritionSummaryNone: string;
     /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
     /** The one line under the dashes when no ingredient was counted (`buildSpec.md` §6.7, F17). */
     readonly nutritionNoneCounted: string;
@@ -991,6 +997,9 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             stepTimerIcon: 'Timer',
             stepToggleLabel: 'Mark step {step} as current',
             nutritionHeading: 'Nutrition (per serving)',
+            nutritionTitle: 'Nutrition',
+            nutritionSummary: '{calories} cal per serving',
+            nutritionSummaryNone: 'Not counted yet',
             nutritionPartial: 'Estimated — some items aren’t counted yet',
             nutritionNoneCounted: 'Not counted yet: no ingredient has a food.',
             nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',

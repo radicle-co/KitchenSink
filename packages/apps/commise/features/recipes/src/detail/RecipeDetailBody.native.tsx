@@ -75,6 +75,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     screenOn,
     descriptionExpanded,
     onToggleDescription,
+    nutritionExpanded,
+    onToggleNutrition,
     layout,
 }) => {
     const { detail, duration, card } = useMessages(recipeMessages);
@@ -118,6 +120,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     const nutrition = (
         <DetailNutritionSection
             recipe={recipe}
+            expanded={nutritionExpanded}
+            onToggle={onToggleNutrition}
             onOpenDataSources={onOpenDataSources}
             returnFocusSignal={dataSourcesReturnFocusSignal}
         />
@@ -206,45 +210,50 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
         );
     }
 
+    // The Nutrition row comes before the columns (`RecipeDetailAndroid384`, item 12), in a block of its own.
+    children.push(
+        <View key="nutrition" style={styles.sectionBlock}>
+            {nutrition}
+        </View>,
+    );
+
     if (twoColumns) {
         children.push(
             <View key="columns" style={styles.twoColumns}>
                 {ingredients}
                 <DetailStack column="steps">
                     {steps}
-                    {nutrition}
                     {tail}
                 </DetailStack>
             </View>,
         );
     } else {
+        // The review block rides inside the steps block, not as a child of its own: an empty child of the content still
+        // costs the content's gap and its margin, which left the last content 128 above the tab bar instead of 48.
         children.push(
             <View key="ingredients" style={styles.sectionBlock}>
                 {ingredients}
             </View>,
             <View key="steps" style={styles.sectionBlock}>
-                {steps}
-            </View>,
-            <View key="nutrition" style={styles.sectionBlock}>
-                {nutrition}
-            </View>,
-            <View key="tail" style={styles.sectionBlock}>
-                <DetailStack>{tail}</DetailStack>
-            </View>,
-        );
-    }
-
-    if (scrollFooter !== undefined) {
-        children.push(
-            <View key="footer" style={styles.sectionBlock}>
-                {scrollFooter}
+                <DetailStack>
+                    {steps}
+                    {tail}
+                </DetailStack>
             </View>,
         );
     }
 
     return (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-            {children}
-        </ScrollView>
+        <>
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                {children}
+            </ScrollView>
+            {/* The owner dialogs draw over the page, so they take no room in it. */}
+            {scrollFooter}
+        </>
     );
 };

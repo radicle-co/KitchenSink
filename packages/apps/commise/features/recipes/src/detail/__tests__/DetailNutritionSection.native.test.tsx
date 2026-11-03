@@ -1,59 +1,96 @@
 /**
- * The native recipe page's nutrition section: its heading and the section's own spacing.
- *
- * It draws through the design system's Tamagui frames (ADR-0080): the heading is the `sectionTitle` role in `ink` for
- * the scheme it is shown in, and the section stacks its parts 12 apart. Every expected value is read from the tokens,
- * so a scale or palette change moves this test with it. The figures, the notes and the Data sources link are still
- * React Native (the link waits on the design system's press component), so their styling is not asserted here.
+ * The native recipe page's nutrition row, as `RecipeDetailAndroid384` draws it (`nativeBoards/buildLists.md` item 12): a
+ * COLLAPSED row reading "Nutrition" and "{n} cal per serving" that expands in place to the four figures, or reads
+ * "Nutrition" and "Not counted yet" when no food was counted. REWRITTEN: the section used to be an always-open heading with a
+ * 2x2 grid, so the tests of that heading's role, colour and gap are gone; the rows' own styling is the design system's.
  */
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-import { nativeTokens } from '@commise/ui/native';
-import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
-import { renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
+import { renderWithTamagui } from '@commise/ui/testing/tamagui';
 
-import { makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeIngredientView, makeNutrition, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { recipeMessages } from '../../messages.js';
 import { DetailNutritionSection } from '../DetailNutritionSection.native.js';
 
 const { detail } = recipeMessages.en;
 
-const section = (
-    <DetailNutritionSection recipe={makeRecipeDetail()} onOpenDataSources={() => undefined} returnFocusSignal={0} />
-);
+const counted = makeRecipeDetail({
+    nutrition: makeNutrition({ calories: 520 }),
+    ingredients: [makeIngredientView({ ingredientId: 'a' })],
+});
+const uncounted = makeRecipeDetail({
+    nutrition: makeNutrition({ calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: false }),
+    ingredients: [makeIngredientView({ ingredientId: 'a' })],
+});
 
-const heading = (): HTMLElement => screen.getByRole('heading', { name: detail.nutritionHeading });
+const draw = (recipe = counted, expanded = false, onToggle = vi.fn()) => {
+    renderWithTamagui(
+        <DetailNutritionSection
+            recipe={recipe}
+            expanded={expanded}
+            onToggle={onToggle}
+            onOpenDataSources={() => undefined}
+            returnFocusSignal={0}
+        />,
+        'light',
+    );
+
+    return onToggle;
+};
+
+const row = (): HTMLElement => screen.getByRole('button', { name: /^Nutrition/u });
 
 afterEach(cleanup);
 
-describe('DetailNutritionSection (native)', () => {
-    it('names the section with a heading', () => {
-        renderWithTamagui(section, 'light');
+describe('DetailNutritionSection (native) — the collapsed row', () => {
+    it('is collapsed by default: a button with an expanded state of false and no figures', () => {
+        draw();
 
-        expect(heading().textContent).toBe(detail.nutritionHeading);
+        expect(row().getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByText(detail.caloriesLabel)).toBeNull();
+        expect(screen.queryByText(detail.proteinLabel)).toBeNull();
     });
 
-    it('sets the heading in the sectionTitle role', () => {
-        const spec = nativeTokens.type.sectionTitle;
-        renderWithTamagui(section, 'light');
-        const style = getComputedStyle(heading());
+    it('reads "Nutrition" and the calories per serving', () => {
+        draw();
 
-        expect(style.fontFamily).toContain(spec.fontFamily);
-        expect(style.fontSize).toBe(`${String(spec.fontSize)}px`);
-        expect(style.lineHeight).toBe(`${String(spec.lineHeight)}px`);
+        expect(screen.getByText('Nutrition')).toBeTruthy();
+        expect(screen.getByText('520 cal per serving')).toBeTruthy();
+        expect(row().getAttribute('aria-label')).toBe('Nutrition, 520 cal per serving');
     });
 
-    it.each(['light', 'dark'] as const)('paints the heading in ink in the %s scheme', (scheme) => {
-        renderWithTamagui(section, scheme);
+    it('reads "Nutrition" and "Not counted yet" when nothing was counted', () => {
+        draw(uncounted);
 
-        expect(resolvedColour(heading(), 'color')).toBe(rgb(rolesFor(scheme).ink));
+        expect(screen.getByText('Not counted yet')).toBeTruthy();
+        expect(row().getAttribute('aria-label')).toBe('Nutrition, Not counted yet');
     });
 
-    it('stacks the heading and the figures space-3 apart', () => {
-        renderWithTamagui(section, 'light');
-        const frame = heading().parentElement as HTMLElement;
+    it('asks the shell to flip the disclosure when pressed', () => {
+        const onToggle = draw();
 
-        expect(resolvedStyle(frame, 'gap')).toBe(`${String(nativeTokens.spacing[3])}px`);
+        fireEvent.click(row());
+
+        expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('DetailNutritionSection (native) — expanded', () => {
+    it('is a button with an expanded state of true, and shows the four figures', () => {
+        draw(counted, true);
+
+        expect(row().getAttribute('aria-expanded')).toBe('true');
+        for (const label of [detail.caloriesLabel, detail.proteinLabel, detail.carbsLabel, detail.fatLabel]) {
+            expect(screen.getByLabelText(new RegExp(`^${label},`, 'u'))).toBeTruthy();
+        }
+    });
+
+    it('shows the explanation lines and NO dashes when nothing was counted', () => {
+        draw(uncounted, true);
+
+        expect(screen.getByText(detail.nutritionNoneCounted)).toBeTruthy();
+        expect(screen.queryByText('—')).toBeNull();
+        expect(screen.queryByText(detail.caloriesLabel)).toBeNull();
     });
 });

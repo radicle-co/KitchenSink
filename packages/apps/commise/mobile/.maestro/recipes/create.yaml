@@ -216,7 +216,14 @@ appId: ${APP_ID}
       text: '.*s timer'
 
 # REQ-034 — this recipe's Tomato line was declared as written (not the food database), so the custom note must
-# render (§S15; `listDetail.yaml` asserts the same copy).
+# render (§S15; `listDetail.yaml` asserts the same copy). The Nutrition row is collapsed and ABOVE the ingredients
+# (`RecipeDetailAndroid384`, item 12), so open it first.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Nutrition, .*'
+          DIRECTION: UP
+- tapOn: 'Nutrition, .*'
 - scrollUntilVisible:
       element: 'Custom ingredients count only the nutrition you entered for them.'
       direction: DOWN

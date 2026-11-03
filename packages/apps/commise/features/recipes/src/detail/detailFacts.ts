@@ -297,6 +297,25 @@ export function nutritionCells(
 }
 
 /**
+ * The nutrition row's collapsed summary: "{n} cal per serving", or "Not counted yet" when no food was counted (there is
+ * no calorie figure to give, and a "0 cal" would read as a measurement). Pure; shared so the two platforms word it alike.
+ *
+ * @param cells - The cells {@link nutritionCells} answered.
+ * @param detail - The detail copy.
+ * @returns The summary.
+ */
+export function nutritionSummary(
+    cells: NutritionCells,
+    detail: Pick<RecipeDetailMessages, 'nutritionSummary' | 'nutritionSummaryNone'>,
+): string {
+    const calories = cells.cells[0]?.value;
+
+    return cells.noneCounted || calories === undefined
+        ? detail.nutritionSummaryNone
+        : fillTemplate(detail.nutritionSummary, { calories });
+}
+
+/**
  * The ONE line under the nutrition figures that says why they are what they are (A-015). Pure.
  *
  * Nothing counted and nothing withheld → no ingredient has a food. Some counted and some did not → partial. Nothing

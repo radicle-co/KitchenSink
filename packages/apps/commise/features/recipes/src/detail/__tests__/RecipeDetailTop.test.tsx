@@ -144,15 +144,12 @@ describe('RecipeDetailView (web) — the status row', () => {
         expect(versions.getAttribute('href')).toBe('/en/recipes/r1/versions');
     });
 
-    // Designer, iosBatch2: a separator never ends a line; it is joined to the version link as one unit.
-    it('joins the separator to the version link as one unit, apart from the visibility', () => {
+    // REPLACED (designer ruling after iosBatch2): no separator glyph; the wrapping row is pinned in `RecipeDetailView.test.tsx`.
+    it('draws no separator between the visibility and the version link', () => {
         render(view(owned, { viewerIsOwner: true, versionsHref: '/en/recipes/r1/versions' }));
 
-        const separator = screen.getByText('·');
-        const versions = screen.getByRole('link', { name: detail.versionHistory });
-
-        expect(separator.parentElement).toBe(versions.parentElement);
-        expect(separator.parentElement?.contains(screen.getByText(detail.visibilityPublic))).toBe(false);
+        expect(screen.queryByText('·')).toBeNull();
+        expect(screen.getByRole('link', { name: detail.versionHistory })).toBeTruthy();
     });
 
     it('shows Draft instead of a visibility for the owner’s draft', () => {

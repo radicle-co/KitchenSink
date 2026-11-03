@@ -50,6 +50,20 @@ const render = (
     wrapper: FC<{ readonly children: ReactNode }> = CookMarksTestProvider,
 ): ReturnType<typeof renderInDesignSystem> => renderInDesignSystem(ui, { wrapper });
 
+/**
+ * The nutrition row is collapsed until pressed (`RecipeDetailAndroid384`, build list item 12), so a test of its figures or
+ * notes presses it first, as a cook does.
+ */
+const renderExpanded = (
+    ui: ReactElement,
+    wrapper: FC<{ readonly children: ReactNode }> = CookMarksTestProvider,
+): ReturnType<typeof renderInDesignSystem> => {
+    const rendered = render(ui, wrapper);
+    fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
+
+    return rendered;
+};
+
 /** The owner's view also mounts the ambiguity review, which reads the food client. */
 const OwnerScope: FC<{ readonly children: ReactNode }> = ({ children }) => (
     <QueryClientProvider client={new QueryClient()}>
@@ -231,8 +245,10 @@ describe('RecipeDetailView (native)', () => {
     });
 
     // F17 (`evaluateFinal.md`; §6.7): nothing counted reads "—" in each cell and one line, never "0 / 0 g".
-    it('shows a dash in each nutrition cell and one line when no ingredient was counted', () => {
-        render(
+    // REWRITTEN (`RecipeDetailAndroid384`, item 12): nothing counted leaves the four dashes OUT of the expanded row and the
+    // collapsed row says "Not counted yet".
+    it('says "Not counted yet", with no dashes, and the one line why, when no ingredient was counted', () => {
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -241,7 +257,8 @@ describe('RecipeDetailView (native)', () => {
             />,
         );
 
-        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.queryByText('—')).toBeNull();
+        expect(screen.getByText('Not counted yet')).toBeTruthy();
         expect(screen.getByText('Not counted yet: no ingredient has a food.')).toBeTruthy();
         expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
     });
@@ -269,7 +286,7 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('renders the per-serving macros', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ nutrition: makeNutrition({ calories: 520, proteinG: 32 }) })}
@@ -281,7 +298,7 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('shows the estimated indicator only when nutrition is incomplete', () => {
-        const { unmount } = render(
+        const { unmount } = renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: false }) })}
@@ -290,7 +307,7 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText('Estimated — some items aren’t counted yet')).toBeTruthy();
         unmount();
 
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: true }) })}
@@ -301,7 +318,7 @@ describe('RecipeDetailView (native)', () => {
 
     it('⛔ shows the stale-data notice only when the figures were served from saved food data (KTD-3b)', () => {
         const stale = 'These figures include saved food data, so they may be out of date.';
-        const { unmount } = render(
+        const { unmount } = renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ nutrition: makeNutrition({ freshness: 'stale' }) })}
@@ -310,7 +327,7 @@ describe('RecipeDetailView (native)', () => {
         expect(screen.getByText(stale)).toBeTruthy();
         unmount();
 
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ nutrition: makeNutrition({ freshness: 'fresh' }) })}
@@ -320,7 +337,7 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('renders the stale notice ALONGSIDE the partial one — each its own sentence', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ nutrition: makeNutrition({ isComplete: false, freshness: 'stale' }) })}
@@ -332,7 +349,7 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('keeps the notices in reading order: partial, range, stale, then review', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -359,7 +376,7 @@ describe('RecipeDetailView (native)', () => {
      * holds the same set.
      */
     it('shows the custom sentence, and no catalog sentence or link, for a recipe of user-entered lines (FR-007a)', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -375,7 +392,7 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('shows the catalog sentence and the Data sources link for a recipe with a catalog line (§S15)', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ foodId: 'food_salt' })] })}
@@ -388,19 +405,22 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('sizes the link row to the 48 dp touch floor (§S15, §S18)', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ foodId: 'food_salt' })] })}
             />,
         );
 
-        expect(window.getComputedStyle(screen.getByRole('link', { name: 'Data sources' })).minHeight).toBe('48px');
+        // The link is a press frame around a 48 dp box, which carries the floor.
+        const box = screen.getByRole('link', { name: 'Data sources' }).firstElementChild as HTMLElement;
+
+        expect(resolvedStyle(box, 'minHeight')).toBe('48px');
     });
 
     // One type scale on both platforms: the web note is `text-caption` (`docs/design/readSurfacesEvaluation.md` D9).
     it('sets the note and its link in the caption size, the web note’s size', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ foodId: 'food_salt' })] })}
@@ -409,17 +429,17 @@ describe('RecipeDetailView (native)', () => {
 
         const caption = `${String(nativeTokens.fontSize.caption)}px`;
 
-        expect(appliedStyle(screen.getByText(SOURCE_NOTE), 'font-size')).toBe(caption);
+        expect(resolvedStyle(screen.getByText(SOURCE_NOTE), 'fontSize')).toBe(caption);
         expect(
-            appliedStyle(
+            resolvedStyle(
                 within(screen.getByRole('link', { name: 'Data sources' })).getByText('Data sources'),
-                'font-size',
+                'fontSize',
             ),
         ).toBe(caption);
     });
 
     it('shows both sentences, each once, for a recipe with a catalog line and a user-entered line', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -441,7 +461,7 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('counts a line whose food could not be asked: saved catalog figures stand in for it (KTD-3b)', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -488,7 +508,7 @@ describe('RecipeDetailView (native)', () => {
     });
 
     it('⛔ names no single source anywhere on the read view (D16)', () => {
-        const { container } = render(
+        const { container } = renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -520,6 +540,7 @@ describe('RecipeDetailView (native)', () => {
         );
 
         expect(screen.queryByRole('heading', { name: 'Data sources' })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
         fireEvent.click(screen.getByRole('link', { name: 'Data sources' }));
         expect(await screen.findByRole('heading', { name: 'Data sources' })).toBeTruthy();
 
@@ -1235,7 +1256,7 @@ describe('RecipeDetailView (native) — serving scale', () => {
         });
 
     /** Render the PURE body at an explicit serving count — the ratio cases, with no store involved. */
-    const renderAt = (servings: number) =>
+    const renderAt = (servings: number, nutritionExpanded = false) =>
         render(
             <RecipeDetailBody
                 unreachableRetry={idleUnreachableRetry}
@@ -1246,6 +1267,7 @@ describe('RecipeDetailView (native) — serving scale', () => {
                 dataSourcesReturnFocusSignal={0}
                 layout={{ columns: 'one', bodyWidth: 358, textScale: 1 }}
                 {...idleDetailBodyState}
+                nutritionExpanded={nutritionExpanded}
             />,
         );
 
@@ -1287,7 +1309,7 @@ describe('RecipeDetailView (native) — serving scale', () => {
     });
 
     it('leaves PER-SERVING nutrition untouched, because it is invariant under scaling', () => {
-        renderAt(12);
+        renderAt(12, true);
 
         expect(screen.getByText('520')).toBeTruthy();
     });
@@ -1382,7 +1404,7 @@ describe('RecipeDetailView (native) — ranged and absent quantities (U9)', () =
     });
 
     it('discloses that the nutrition figure came from one bound of a stated range (R38)', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ nutrition: makeNutrition({ rangeDerivedBound: 'low' }) })}

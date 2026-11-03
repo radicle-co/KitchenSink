@@ -61,24 +61,26 @@ appId: ${APP_ID}
           - extendedWaitUntil:
                 visible: '${E2E_RECIPE_LAMB}'
                 timeout: 40000
+          # The Nutrition row is a COLLAPSED row BEFORE Ingredients (`RecipeDetailAndroid384`, build list item 12), named
+          # "Nutrition, {summary}" for a screen reader, so it is reached first and matched by prefix.
+          - scrollUntilVisible:
+                element: 'Nutrition, .*'
+                direction: DOWN
+                timeout: 20000
           - scrollUntilVisible:
                 element: 'Ingredients'
                 direction: DOWN
                 timeout: 20000
-          # ⚠️ `Instructions` and `Nutrition (per serving)` were asserted BLIND here, and can no longer be: the
+          # ⚠️ `Instructions` was asserted BLIND here, and can no longer be: the
           # seeded lamb now carries five ingredient lines and four steps
           # (`packages/services/recipe-service/src/database/seed.ts`), which pushes both headings roughly a
           # screen below the fold, and `assertVisible` only ever sees the current viewport — so a blind assert
           # would now fail for a TALLER FIXTURE rather than for a broken screen. They are still asserted, in
           # document order, with `scrollUntilVisible`, which still FAILS when the heading genuinely is absent
           # (unlike a `when: visible` guard, which would SKIP it). Same remedy `recipes/listDetail.yaml`
-          # applies to the same two headings on the same screen.
+          # applies on the same screen.
           - scrollUntilVisible:
                 element: 'Steps'
-                direction: DOWN
-                timeout: 20000
-          - scrollUntilVisible:
-                element: 'Nutrition (per serving)'
                 direction: DOWN
                 timeout: 20000
 

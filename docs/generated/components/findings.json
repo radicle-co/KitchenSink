@@ -2332,7 +2332,7 @@
             "message": "the web and native leaves declare different prop names",
             "evidence": [
                 "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks onEditSection onOpenDataSources onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onOpenDataSources onServingsChange onToggleDescription onToggleNutrition onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
             ]
         },
         {

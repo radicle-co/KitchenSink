@@ -17,11 +17,11 @@ import { nativeTokens } from '@commise/ui/native';
 import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { Text as DesignText } from '@commise/ui/text';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
 import { useContext, type FC } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { cappedFontScale } from '@commise/ui/font-scale-cap';
 import { compactColumnsOf, libraryGridColumnsOf } from '../card/cardGridLayout.js';
@@ -47,7 +47,6 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     scrollBind,
 }) => {
     const { list } = useMessages(collectionMessages);
-    const { colors } = useTheme();
     const locale = useLocale();
     // The frame's large title and segments, which this list draws as its first child so they scroll away with it.
     const header = useContext(RecipeListHeaderContext);
@@ -69,19 +68,19 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
             <ScrollView contentContainerStyle={{ paddingBottom: fabRoom }} keyboardShouldPersistTaps="handled">
                 {header}
                 <View style={styles.firstRun}>
-                    <DesignText role="heading" aria-level={2} typeRole="sectionTitle">
+                    <Text role="heading" aria-level={2} typeRole="sectionTitle">
                         {list.emptyTitle}
-                    </DesignText>
-                    <DesignText typeRole="body" color="$inkMuted" textAlign="center">
+                    </Text>
+                    <Text typeRole="body" color="$inkMuted" textAlign="center">
                         {list.emptyBody}
-                    </DesignText>
+                    </Text>
                     {/* "New collection" is the frame's floating button (shared with New recipe), so only the no-recipes case
                         needs a start button of its own: a collection needs recipes first. */}
                     {firstRun.hasRecipes ? null : (
                         <>
-                            <DesignText typeRole="body" color="$inkMuted">
+                            <Text typeRole="body" color="$inkMuted">
                                 {list.needRecipes}
-                            </DesignText>
+                            </Text>
                             <Button icon="pencilLine" size="lg" width="fill" onPress={firstRun.onAddRecipe}>
                                 {list.addRecipe}
                             </Button>
@@ -114,7 +113,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
             ListHeaderComponent={
                 <View>
                     <View style={styles.headerBleed}>{header}</View>
-                    <Text style={[styles.count, { color: colors.ink }]}>
+                    <Text typeRole="label" figures>
                         {formatRecipeCount(total, { one: list.countOne, other: list.countOther }, locale)}
                     </Text>
                     {refreshNotice !== undefined && (
@@ -128,7 +127,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                 </View>
             }
             ListEmptyComponent={
-                <Text role="status" style={[styles.body, { color: colors.inkMuted }]}>
+                <Text role="status" typeRole="body" color="$inkMuted">
                     {fillTemplate(list.noMatch, { query: search.value.trim() })}
                 </Text>
             }
@@ -227,14 +226,16 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
                 <View style={styles.clip}>
                     <CollectionCover collection={collection} />
                     <View style={styles.cardBody}>
-                        <Text numberOfLines={2} style={[styles.cardTitle, { color: colors.ink }]}>
+                        <Text numberOfLines={2} typeRole="cardTitle">
                             {collection.name}
                         </Text>
                         <View style={styles.meta}>
                             {count === undefined ? null : (
                                 <>
-                                    <Text style={[styles.metaText, { color: colors.inkMuted }]}>{count}</Text>
-                                    <Text accessible={false} style={[styles.metaText, { color: colors.inkMuted }]}>
+                                    <Text typeRole="meta" color="$inkMuted">
+                                        {count}
+                                    </Text>
+                                    <Text accessible={false} typeRole="meta" color="$inkMuted">
                                         {card.separator.trim()}
                                     </Text>
                                 </>
@@ -244,10 +245,12 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
                                 size={16}
                                 tone="inkMuted"
                             />
-                            <Text style={[styles.metaText, { color: colors.inkMuted }]}>{visibility}</Text>
+                            <Text typeRole="meta" color="$inkMuted">
+                                {visibility}
+                            </Text>
                         </View>
                         {copiedFrom === undefined ? null : (
-                            <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
+                            <Text numberOfLines={1} typeRole="caption" color="$inkMuted">
                                 {fillTemplate(list.copiedFrom, { byline: copiedFrom })}
                             </Text>
                         )}
@@ -271,8 +274,6 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[8],
         paddingHorizontal: nativeTokens.spacing[4],
     },
-    body: { ...nativeTokens.type.body },
-    count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
     // The frame's header insets its own sides, so under the list's 16 pt side padding it steps back out by that much.
     headerBleed: { marginHorizontal: -nativeTokens.spacing[4] },
@@ -283,10 +284,7 @@ const styles = StyleSheet.create({
     card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth, ...nativeTokens.elevation.sm },
     clip: { borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
     cardBody: { padding: nativeTokens.spacing[3], gap: nativeTokens.spacing[1] },
-    cardTitle: { ...nativeTokens.type.cardTitle },
     meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[1] },
     album: { flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
     albumTile: { flexBasis: '49%', flexGrow: 1 },
-    metaText: { ...nativeTokens.type.meta },
-    caption: { ...nativeTokens.type.caption },
 });

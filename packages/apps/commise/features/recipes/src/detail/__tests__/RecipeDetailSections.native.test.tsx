@@ -86,18 +86,54 @@ describe('RecipeDetailView (native) — below a 720 pt body, one flat page', () 
         expect(pageScroller().props['stickyHeaderIndices']).toBeUndefined();
     });
 
-    it('puts each of the three sections in its own direct child, in page order', () => {
+    // REWRITTEN (RecipeDetailAndroid384, build list items 12 to 14): the Nutrition row comes BEFORE Ingredients, and it is a
+    // collapsed button, not a heading.
+    it('puts each of the three sections in its own direct child, Nutrition before Ingredients before Steps', () => {
         render(view());
 
         const { content } = pageScroller();
+        const nutrition = childIndexHolding(content, screen.getByRole('button', { name: /^Nutrition/u }));
         const at = (name: string): number => childIndexHolding(content, screen.getByRole('heading', { name }));
         const ingredients = at(detail.ingredientsHeading);
         const steps = at(detail.instructionsHeading);
-        const nutrition = at(detail.nutritionHeading);
 
-        expect(ingredients).toBeGreaterThan(0);
+        expect(nutrition).toBeGreaterThan(0);
+        expect(nutrition).toBeLessThan(ingredients);
         expect(ingredients).toBeLessThan(steps);
-        expect(steps).toBeLessThan(nutrition);
+    });
+});
+
+/**
+ * The page ends 48 below its last block (`nativeBoards/designAnswers.md`: Detail has no floating button, so the 88 end room
+ * does not apply). jsdom has no layout, so this pins what makes it 48: the content's own bottom padding, and no empty
+ * trailing child, because each child of the content is a 24 gap plus its own margin even when it draws nothing (the
+ * review block and the owner dialogs did, which left the last content 128 above the tab bar).
+ */
+describe('RecipeDetailView (native) — the page end', () => {
+    it('pads the content 48 at the bottom', () => {
+        render(view());
+
+        expect(resolvedStyle(pageScroller().content, 'paddingBottom')).toBe('48px');
+    });
+
+    it('ends with the steps: no empty block follows them', () => {
+        render(view());
+        const { content } = pageScroller();
+        const last = content.children[content.children.length - 1] as HTMLElement;
+
+        expect(last.contains(screen.getByRole('heading', { name: detail.instructionsHeading }))).toBe(true);
+    });
+
+    it('keeps the owner dialogs out of the scroll content', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail()}
+                scrollFooter={<span>dialogs</span>}
+            />,
+        );
+
+        expect(pageScroller().content.contains(screen.getByText('dialogs'))).toBe(false);
     });
 });
 
@@ -201,16 +237,16 @@ describe('RecipeDetailView (native) — one gutter (A-024)', () => {
         return total;
     };
 
-    it.each([detail.instructionsHeading, detail.nutritionHeading])(
-        'insets the %s section by 16, once — not by 32 from two nested gutters',
-        (heading) => {
-            render(view());
+    it.each([
+        ['Steps', () => screen.getByRole('heading', { name: detail.instructionsHeading })],
+        ['Nutrition', () => screen.getByRole('button', { name: /^Nutrition/u })],
+    ] as const)('insets the %s section by 16, once — not by 32 from two nested gutters', (_name, find) => {
+        render(view());
 
-            const { content } = pageScroller();
+        const { content } = pageScroller();
 
-            expect(gutterBetween(screen.getByRole('heading', { name: heading }), content)).toBe(16);
-        },
-    );
+        expect(gutterBetween(find(), content)).toBe(16);
+    });
 });
 
 // REWRITTEN IN SLICE 1 (designer, iosBatch1): "Screen on" has no caption, so there is no hint to show, dismiss or remember.

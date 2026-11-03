@@ -20,9 +20,9 @@ import { EnterTransition } from '@commise/ui/motion';
 import { nativeTokens } from '@commise/ui/native';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
-import { useTheme } from '@commise/ui/theme';
-import type { FC } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Text } from '@commise/ui/text';
+import type { ComponentRef, FC } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
@@ -60,14 +60,15 @@ const Rail: FC<{
     readonly blockRecoveries: number;
 }> = ({ rail, blockRecoveries }) => {
     const discovery = useMessages(discoveryMessages);
-    const { colors } = useTheme();
     const title = railTitle(rail.id, discovery);
-    const headingRef = useScreenReaderFocusOnSignal<Text>(rail.headingFocusSignal + blockRecoveries);
+    const headingRef = useScreenReaderFocusOnSignal<ComponentRef<typeof Text>>(
+        rail.headingFocusSignal + blockRecoveries,
+    );
 
     return (
         <View style={styles.rail}>
             <View style={styles.railHeader}>
-                <Text ref={headingRef} accessibilityRole="header" style={[styles.railTitle, { color: colors.ink }]}>
+                <Text ref={headingRef} role="heading" aria-level={2} typeRole="sectionTitle" flexShrink={1}>
                     {title}
                 </Text>
                 {/* The link wraps under the title when the two do not fit; it never shrinks or truncates, and its box
@@ -101,7 +102,6 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
     scrollBind,
 }) => {
     const discovery = useMessages(discoveryMessages);
-    const { colors } = useTheme();
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so the screen-reader cursor
     // goes to the first rail's heading.
     const recoveries = refreshNotice?.recoveries ?? 0;
@@ -137,7 +137,7 @@ export const RecipeBrowseRails: FC<RecipeBrowseRailsProps> = ({
             {cuisines.length > 0 && (
                 <EnterTransition delayMs={rails.length * SECTION_STAGGER_MS}>
                     <View style={styles.rail}>
-                        <Text accessibilityRole="header" style={[styles.railTitle, { color: colors.ink }]}>
+                        <Text role="heading" aria-level={2} typeRole="sectionTitle" flexShrink={1}>
                             {discovery.cuisinesTitle}
                         </Text>
                         <ChipRow mode="filter" label={discovery.cuisinesTitle} overflow="scroll">
@@ -169,5 +169,4 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         columnGap: nativeTokens.spacing[2],
     },
-    railTitle: { ...nativeTokens.type.sectionTitle, flexShrink: 1 },
 });

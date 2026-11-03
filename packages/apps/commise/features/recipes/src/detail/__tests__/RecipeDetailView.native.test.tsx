@@ -15,7 +15,7 @@ import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import userEvent from '@testing-library/user-event';
 import { AccessibilityInfo } from 'react-native';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
-import { computedContrast, guardedFoodClient, renderWithFoodClient } from '@commise/test-utils';
+import { guardedFoodClient, renderWithFoodClient } from '@commise/test-utils';
 import { palette } from '@commise/ui';
 import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
@@ -684,17 +684,23 @@ describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
 });
 
 describe('RecipeDetailView (native) — contrast (WCAG AA)', () => {
-    it('makes the step timer label legible (4.02:1 as steel, under the 4.5:1 floor)', () => {
-        render(
-            <RecipeDetailView
-                unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({
-                    steps: [makeStepView({ stepNumber: 1, instruction: 'Rest the lamb.', timerSeconds: 120 })],
-                })}
-            />,
+    // REWRITTEN: the label is now the design-system `Text`, whose colour is a theme variable jsdom cannot measure
+    // (`computedContrast` throws on it), so the test reads the resolved colour and holds it to the `ink` role, the
+    // text role that the 4.02:1 steel it replaced could not meet on the chip's muted surface.
+    it.each(['light', 'dark'] as const)('draws the step timer label in the ink role in the %s scheme', (scheme) => {
+        renderWithTamagui(
+            <CookMarksTestProvider>
+                <RecipeDetailView
+                    unreachableRetry={idleUnreachableRetry}
+                    recipe={makeRecipeDetail({
+                        steps: [makeStepView({ stepNumber: 1, instruction: 'Rest the lamb.', timerSeconds: 120 })],
+                    })}
+                />
+            </CookMarksTestProvider>,
+            scheme,
         );
 
-        expect(computedContrast(screen.getByText('2 min')), 'step timer label').toBeGreaterThanOrEqual(4.5);
+        expect(resolvedColour(screen.getByText('2 min'), 'color')).toBe(rgb(rolesFor(scheme).ink));
     });
 
     /** F1 — mirrors the web leaf: hours and minutes, and a glyph a screen reader names "Timer". */

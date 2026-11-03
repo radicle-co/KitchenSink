@@ -8,6 +8,10 @@
  * that is NOT an accessibility element, so a screen reader meets the text and the one button rather than a button
  * that swallows the text. The current step shows the 3 pt `hereBar` and fills its numeral with `action`.
  *
+ * The instruction and the timer are set by the design-system `Text`, which turns system scaling off and draws the size
+ * and leading itself: a plain `Text` measured and painted with different metrics on iOS and clipped one step's line
+ * (QA batch 4, step 11; `stepText.native.test.tsx`).
+ *
  * Presentational: props → JSX.
  */
 import { useMessages } from '@commise/i18n/react';
@@ -17,7 +21,7 @@ import { useTheme } from '@commise/ui/theme';
 import { touchFloor } from '@commise/ui/layout';
 import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { numeralDiscOf } from '../format/numeralDisc.js';
@@ -61,11 +65,15 @@ export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
                 </View>
             </Pressable>
             <View style={styles.body}>
-                <Text style={[styles.text, { color: colors.ink }]}>{step.instruction}</Text>
+                <DesignText typeRole="readingBody" color="$ink">
+                    {step.instruction}
+                </DesignText>
                 {timer !== undefined && (
                     <View style={[styles.timer, { backgroundColor: colors.surfaceMuted }]}>
                         <Icon name="timer" size={16} label={detail.stepTimerIcon} />
-                        <Text style={[styles.timerText, { color: colors.ink }]}>{timer}</Text>
+                        <DesignText typeRole="meta" color="$ink">
+                            {timer}
+                        </DesignText>
                     </View>
                 )}
             </View>
@@ -84,7 +92,6 @@ const styles = StyleSheet.create({
     toggle: { width: touchFloor(), height: touchFloor(), alignItems: 'center', justifyContent: 'center' },
     numeral: { alignItems: 'center', justifyContent: 'center' },
     body: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[2], paddingTop: nativeTokens.spacing[2] },
-    text: { ...nativeTokens.type.readingBody },
     timer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -94,5 +101,4 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[2],
         paddingVertical: 2,
     },
-    timerText: { ...nativeTokens.type.meta },
 });

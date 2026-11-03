@@ -421,6 +421,12 @@ fixed regardless of the answer**:
 
 ### Functional Requirements
 
+> _(added 2026-11-03, owner ruling, ADR-0082)_ **Every door to public passes 020's hold.** Any recipe text, lesson
+> text, photo or video description this feature shows to anyone other than its owner counts as "publicly visible" for
+> `020-FR-001`. It goes through 020's one hold before it is shown, and fails closed (020 section K). A copy delivered
+> to a buyer carries its source's checked-content digest (`020-FR-057`). [House rule] This keeps every path to public
+> behind one gate. Counsel review is owed before launch (`016-FR-050`).
+
 #### A. The Chef Program — standing and lifecycle
 
 - **FR-001**: The system MUST model chef standing as an explicit lifecycle with exactly these states:

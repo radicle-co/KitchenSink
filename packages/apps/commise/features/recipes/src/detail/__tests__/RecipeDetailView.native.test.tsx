@@ -1599,7 +1599,8 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
         render(view(NOTICE), OwnerScope);
 
         const region = screen.getByRole('alert');
-        const ratingLine = screen.getByText('Public').parentElement?.parentElement as HTMLElement;
+        // The status row: the text sits in its item frame, the frame in the unstyled View that reports its layout, that in the row.
+        const ratingLine = screen.getByText('Public').parentElement?.parentElement?.parentElement as HTMLElement;
 
         expect(ratingLine.nextElementSibling).toBe(region);
     });

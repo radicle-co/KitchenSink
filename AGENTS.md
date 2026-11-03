@@ -21,6 +21,10 @@ owner ruling and current code over superseded historical descriptions.
   ADR **before** proposing a change to an established boundary. `CLAUDE.md`
   indexes decisions that look wrong but are deliberate; later ADRs or owner
   rulings may supersede an earlier posture.
+- [Recipe rights](docs/architecture/decisions/0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md):
+  read before any change to what is public, signed out, licensed or imported.
+  Facts are free, other people's words and photos are not, public domain opens
+  only under `016-FR-015k`, and every door to public passes spec 020's hold.
 - [Cross-feature governance](specs/governance-rules.md): GR-015–GR-021 for
   service-owned contracts, input validation, new-package conformance,
   rejection paths, identifier integrity, principal binding, and table/task

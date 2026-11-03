@@ -275,7 +275,7 @@ canonical addresses, a sitemap and Organization data. The pages are fast on a ph
 **Why this priority**: Brand search matters at launch, and these basics cost little. Broad search traffic comes from
 021's recipe pages, not from here. _(Note 2026-11-03, owner ruling, ADR-0082: those pages are the open recipes. A
 linked facts card is open to a signed-out reader but stays `noindex`. That is a [House rule] and an open business
-question, not a legal bar. Nothing here may claim that search finds facts cards. Counsel review is owed before
+question, not a legal bar. Nothing here can claim that search finds facts cards. Counsel review is owed before
 launch (`016-FR-050`).)_
 
 **Independent Test**: Every page has a unique title and description and a canonical address on the site's one host.

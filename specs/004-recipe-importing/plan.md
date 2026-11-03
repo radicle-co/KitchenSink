@@ -249,7 +249,7 @@ with `created` / `already_existed` / `failed` plus a reason.
 **Provenance whitelist (`FR-025`, HAZ-057).** The DTO for `POST /api/v1/recipes` accepts only a
 `declaredSource` of `own` or `paid-source + citation`. _(Amended 2026-11-03, ADR-0082: the statement kind is the
 D3 set `authored`, `adapted`, `source`, `family`, `publicDomain`. `publicDomain` is curator-grant only and needs the D1
-record. A book or paid-site `source` keeps its verbatim copy private and may publish a facts card, `FR-014b`.)_
+record. A book or paid-site `source` keeps its verbatim copy private and can publish a facts card, `FR-014b`.)_
 `imported_public` and `imported_physical` are **not representable** in that DTO — they are set server-side from the channel actually observed. This is why the
 whitelist lives in the type, not in a validation branch someone can forget.
 

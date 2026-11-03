@@ -524,7 +524,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     >
     > **Amended 2026-11-03 (owner ruling, ADR-0082): what the values mean.** `imported_public` means "copied from a
     > publicly reachable page". [Law] Such a page is fully protected from the day it is written. So `imported_public`
-    > is the **opposite** of public domain. It never means that anyone may republish the text. A public domain text
+    > is the **opposite** of public domain. It never means that anyone can republish the text. A public domain text
     > is also stored as `imported_public`, under the curator grant (ADR-0023), but its label comes from the curator's
     > public-domain record (`016-FR-015k`), not from the value. Nobody owns the facts of any recipe
     > (17 U.S.C. §102(b)), so every `imported_public` recipe can show a facts card. Its full text opens to the web only

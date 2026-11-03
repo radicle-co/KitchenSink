@@ -65,7 +65,9 @@ clone of one of those. Open to the web reads the LABEL, never the source type al
   toward source sites, and lower database-right exposure. It is not a legal bar, and the founder can change it.
 - **A public facts card is a public recipe.** It uses no private slot (ADR-0073). The cook's full copy behind it is
   visible only to the cook and their household. This matches ADR-0077 §3 for web imports, and `016-FR-029a` forbids
-  pricing on imported content in any case.
+  pricing on imported content in any case. A free cook can therefore import a whole cookbook, publish each recipe as a
+  card and keep every full copy without a slot, so ADR-0073's "bulk import pauses" no longer happens for book
+  recipes. The founder must confirm this outcome before it is built.
 
 ### 3. Caps are counted over time, per site and per source
 
@@ -170,7 +172,8 @@ infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
 - EU and UK cooks get a weaker URL import than US cooks.
 - The rights label Policy, the public-domain record, the licence fields, the facts-card projection, the cap ledger
   and the fetch-signal log are new work. None of them exists in code yet.
-- A free cook can publish a book or web recipe as a facts card without using a slot. That follows `016-FR-029a`.
+- A free cook can publish a book or web recipe as a facts card without using a slot. That follows `016-FR-029a`, and
+  it is pending the founder's confirmation (§2).
 
 ## One-way doors
 

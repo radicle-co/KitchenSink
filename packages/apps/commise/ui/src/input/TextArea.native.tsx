@@ -26,7 +26,7 @@ import { Platform, StyleSheet, type TextInput as NativeTextInput } from 'react-n
 import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native.js';
 import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
-import { scaledTypeSize } from '../text/scaledType.js';
+import { scaledLeading } from '../text/scaledType.js';
 import { TextScaleContext } from '../text/textScaleContext.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
@@ -119,7 +119,7 @@ export const TextArea: FC<TextAreaProps> = ({
             editable={!disabled}
             style={[
                 styles.field,
-                { height: textAreaHeight(content, minRows, maxRows, scaledTypeSize('body', scale).lineHeight) },
+                { height: textAreaHeight(content, minRows, maxRows, scaledLeading('body', scale)) },
                 fieldPaint(theme, invalid || error !== undefined),
                 disabled ? styles.disabled : null,
             ]}

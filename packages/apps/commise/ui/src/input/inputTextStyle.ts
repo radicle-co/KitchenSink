@@ -29,7 +29,7 @@
  */
 import type { TextStyle } from 'react-native';
 
-import { scaledTypeSize } from '../text/scaledType.js';
+import { scaledLeading, scaledTypeSize } from '../text/scaledType.js';
 import { nativeTokens } from '../tokens/native.js';
 
 /** The part of a text style an input's text owns. */
@@ -124,7 +124,7 @@ export function inputBoxPadding(
     }
 
     const { paddingTop, paddingBottom } = verticalPaddingOf(style);
-    const { lineHeight } = scaledTypeSize('body', systemScale);
+    const lineHeight = scaledLeading('body', systemScale);
 
     return { paddingTop: Math.max(0, paddingTop - lineHeight * IOS_LEADING_DROP), paddingBottom };
 }

@@ -38,9 +38,10 @@ describe('TextInput (native) — the input text style', () => {
         expect(resolvedStyle(field('android', 3.1), 'lineHeight')).toBe(`${scaledTypeSize('body', 3.1).lineHeight}px`);
     });
 
-    it('keeps the capped line height for a multi-line input on iOS', () => {
+    // The leading handed to the text is the iOS-snapped one (react/react-native#58970), so the expectation is read as iOS.
+    it('keeps the capped, iOS-snapped line height for a multi-line input on iOS', () => {
         expect(resolvedStyle(field('ios', 3.1, true), 'lineHeight')).toBe(
-            `${scaledTypeSize('body', 3.1).lineHeight}px`,
+            `${withPlatformOs('ios', () => scaledTypeSize('body', 3.1).lineHeight)}px`,
         );
     });
 

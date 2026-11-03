@@ -55,13 +55,40 @@ export interface ScaledTypeMetrics {
     readonly lineHeight: `${number}px`;
 }
 
+/** The scale a sized role grows to: the system scale under the role's (or a chrome step's) ceiling. */
+function grownScale(role: Exclude<TypeRole, 'figureInline'>, systemScale: number, chromeCap?: ChromeCap): number {
+    const ceiling = chromeCap === undefined ? CEILING[role] : Math.min(CEILING[role], Number(chromeCap));
+
+    return Math.min(systemScale, ceiling);
+}
+
+/**
+ * A sized role's leading at the system scale, BEFORE the iOS snap (react/react-native#58970). Pure.
+ *
+ * Row and height arithmetic reads this, never {@link scaledTypeSize}'s `lineHeight`: the snap lifts a leading a hair
+ * above the pixel grid, so a `Math.ceil` or a row count over the snapped value drifts by a whole point. Only the value
+ * handed to a React Native text style is snapped.
+ *
+ * @param role - The type role (any but `figureInline`).
+ * @param systemScale - The system font scale (`useWindowDimensions().fontScale`).
+ * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
+ * @returns The leading in points, unsnapped.
+ */
+export function scaledLeading(
+    role: Exclude<TypeRole, 'figureInline'>,
+    systemScale: number,
+    chromeCap?: ChromeCap,
+): number {
+    return typeRole[role].lineHeight * grownScale(role, systemScale, chromeCap);
+}
+
 /**
  * The size and leading a sized role is drawn at, in px numbers. Pure.
  *
  * @param role - The type role (any but `figureInline`, which takes its line's).
  * @param systemScale - The system font scale (`useWindowDimensions().fontScale`).
  * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
- * @returns The scaled size and leading.
+ * @returns The scaled size and leading; the leading is iOS-snapped, so it is for a style, not for arithmetic.
  */
 export function scaledTypeSize(
     role: Exclude<TypeRole, 'figureInline'>,
@@ -69,14 +96,11 @@ export function scaledTypeSize(
     chromeCap?: ChromeCap,
 ): ScaledTypeSize {
     const base = role === 'largeTitle' ? nativeTokens.type.largeTitle.regular : nativeTokens.type[role];
-    const ceiling = chromeCap === undefined ? CEILING[role] : Math.min(CEILING[role], Number(chromeCap));
-    const grown = Math.min(systemScale, ceiling);
 
-    // The raw token leading, NOT `base.lineHeight`: the projection is already snapped for iOS (react/react-native#58970),
-    // and the snap must come once, after the font scaling.
+    // The snap comes once, after the font scaling, over the raw leading (the projection `base.lineHeight` is already snapped).
     return {
-        fontSize: base.fontSize * grown,
-        lineHeight: snapLineHeight(typeRole[role].lineHeight * grown, devicePixelScale()),
+        fontSize: base.fontSize * grownScale(role, systemScale, chromeCap),
+        lineHeight: snapLineHeight(scaledLeading(role, systemScale, chromeCap), devicePixelScale()),
     };
 }
 

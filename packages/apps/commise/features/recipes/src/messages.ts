@@ -1035,7 +1035,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             editSection: 'Edit',
             editIngredientsLabel: 'Edit ingredients',
             editStepsLabel: 'Edit steps',
-            descriptionMore: 'More',
+            descriptionMore: 'Read more',
             descriptionLess: 'Less',
             versionHistory: 'Version history',
             backTo: 'Back to {parent}',

@@ -14,11 +14,11 @@ There are three digests. Each is SHA-256, prefixed with its version (`v1:` + hex
 computes each one. recipe-service uses it on write and the worker uses it on read. A second implementation is a
 defect.
 
-| Digest                                      | Covers                                                                                                                            | Keys                                                           |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| **Text digest** (`checkedTextDigest`)       | title, description, tags (sorted), each ingredient's raw source line in line order, each step's instruction in step order         | the text's model evidence (section 2)                          |
-| **Photo digest**                            | the stored bytes of one uploaded photo: `recipe_photos.content_sha256`                                                            | that photo's model evidence (section 2)                        |
-| **Content digest** (`checkedContentDigest`) | the text digest, the **sorted** photo digests, and the **source statement**: the label and the normalised citation (spec FR-005a) | the recipe's outcome (section 3) and the read rule (section 8) |
+| Digest                                      | Covers                                                                                                                                                                                                                                                                                                                                | Keys                                                           |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Text digest** (`checkedTextDigest`)       | title, description, tags (sorted), each ingredient's raw source line in line order (its display text where it has none, plus its group label and preparation words), each step's instruction in step order, the cook's own notes, and the credit text of an Adapted or family statement _(widened 2026-11-03, ADR-0082, spec FR-058)_ | the text's model evidence (section 2)                          |
+| **Photo digest**                            | the stored bytes of one uploaded photo: `recipe_photos.content_sha256`                                                                                                                                                                                                                                                                | that photo's model evidence (section 2)                        |
+| **Content digest** (`checkedContentDigest`) | the text digest, the **sorted** photo digests, and the **source statement**: the label and the normalised citation (spec FR-005a)                                                                                                                                                                                                     | the recipe's outcome (section 3) and the read rule (section 8) |
 
 - Each text field is Unicode NFKC-normalised with whitespace collapsed, and parts are joined with a separator that
   cannot occur in normalised text.
@@ -40,6 +40,11 @@ ALTER TABLE account_erasure_jobs ADD COLUMN donation_review_until timestamptz NU
 
 - `recipes.checked_content_digest` is written only by recipe-service, in the same transaction as any write that changes
   the checked content or the source statement: a text edit, a photo confirmed or deleted, or the downgrade route.
+- _(Added 2026-11-03, ADR-0082, spec FR-058.)_ A trigger on every table that holds a checked field sets
+  `checked_content_digest` to NULL on any change, in the same transaction. recipe-service then writes the new digest. A
+  NULL digest has no outcome, so the recipe reads as held (spec FR-059). A digest version change is a re-keying
+  migration. It carries each outcome and decision forward only when the new version reads the same fields. A version
+  that reads more fields re-checks the new parts. It never hides every public recipe at once.
 - `recipe_photos.content_sha256` is the SHA-256 of the stored bytes. The upload's confirm step computes it. That step
   already reads the bytes to make the thumbnail, so this adds no new read.
 - `recipe_photos.check_key` is the object key of the photo's **check rendition**: a copy at a fixed maximum size, made

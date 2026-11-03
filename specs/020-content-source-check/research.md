@@ -198,8 +198,8 @@ fact about the same site.
 
 **The constraint that shapes everything**: code cannot find a model's "quote" in an image. Text evidence is proven by
 finding the quote in the text. Nothing like that exists for a photo. So under the owner's ruling a photo signal is the
-clearest case of "the AI can't figure it out": it sends the recipe to a person, and it never blocks or clears on its
-own (spec FR-006).
+clearest case of "the AI can't figure it out": it does not reject the recipe automatically and never clears it on its
+own. It holds the recipe for a person (spec FR-006, reworded 2026-11-03, ADR-0082).
 
 **Decision**:
 

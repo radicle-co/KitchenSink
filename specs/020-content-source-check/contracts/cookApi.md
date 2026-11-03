@@ -49,7 +49,7 @@ sourceCheck: null                         // only when the current digest has no
   match in our database (public or private), a source decision, a spent budget or a failed check, gives the same
   response. The client shows "In review: a person will check this before it goes public".
 - **`notApproved` by the rules** carries the rule evidence the cook's own text holds, because the rules read only the
-  cook's own content and the statement of reasons names it. A model item is never shown, because it never blocks.
+  cook's own content and the statement of reasons names it. A model item is never shown, because it does not reject the recipe automatically. It holds the recipe for a person.
 - **`notApproved` by a person** carries `rejection`: the one reason the reviewer chose and their note, word for word
   (owner ruling, 2026-10-26, spec FR-027). It never names or links another recipe, and `notYours` can only come from a
   match against a public recipe. "In review" and "Checking" stay generic.

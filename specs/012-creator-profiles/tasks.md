@@ -234,6 +234,12 @@ Phase 1, so the first endpoint must not land before the contract it serves is au
     - **⛔ "Converging" a third-party client deletes a validation boundary — a security regression, not a cleanup. `packages/clients/usda/src/schemas.ts` is the reference implementation and must NEVER be touched in this rule's name.**
     - **Tests**: unit (the delegation's outbound body is rejected before send when malformed; 010's response is parsed on receipt) **AND** integration (delegation against a booted identity/billing surface).
 
+- [ ] **T-067** [US-001] Public profile lists every open label and shows each recipe's label and CC BY licence — `packages/services/creator-profiles-service/src/`, web and mobile profile screens _(added 2026-11-03, owner ruling, ADR-0082)_
+    - **Depends on**: T-044
+    - **Implements**: FR-008 as amended 2026-11-03, `021-FR-002`
+    - **Acceptance**: A signed-out profile lists recipes under Written by you, Adapted by you, From a family member or friend, Public domain and clones of those, each with its label, and never a linked facts card. A recipe the cook put under CC BY 4.0 shows that licence.
+    - **Tests**: unit (the list filter by label), integration (signed-out read of a mixed profile), vitest component tests for the label states on both platforms, Playwright and Maestro for the signed-out profile.
+
 ---
 
 ## Traceability
@@ -254,3 +260,8 @@ Phase 1, so the first endpoint must not land before the contract it serves is au
 
 **Task count: 66** (was 55). T-056…T-066 close GR-017 §17-e.12 — the schema package, the `CONTRACT_HASH` gate
 and receipt validation had **no task** in this file, while `plan.md` L85-96 stated all three in prose.
+
+- [ ] **T-068** [US-001] Public collection text passes 020's check. The description limit matches FR-017. Files: `packages/services/recipe-service/src/collections/`, `packages/schemas/recipe` _(added 2026-11-03, owner ruling, ADR-0082)_
+    - **Implements**: FR-017 as amended 2026-11-03, `020-FR-071`
+    - **Acceptance**: `MAX_COLLECTION_DESCRIPTION_LENGTH` is 200, as FR-017 states, or FR-017 is amended to the shipped 1000 by the owner. A public collection's description passes the rule detectors and, past `020-FR-012f`'s minimum length, the web search. A hit hides the description until a person decides. An uploaded cover is checked as a photo.
+    - **Tests**: unit (the limit at its edge, and a description with a valid ISBN is hidden). Integration (a public collection read hides a held description). A row in 020's deployed bypass suite (`020-FR-074`).

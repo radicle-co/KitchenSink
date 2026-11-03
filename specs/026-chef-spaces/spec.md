@@ -410,7 +410,10 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 | 016  | Processor terms for the email list (FR-023). Creator terms that cover the site claim and the sponsor line. FTC disclosure rules for affiliate links and sponsor lines | Applied 2026-10-29: `016-FR-054` to `FR-057` |
 
 The linked card (`021-FR-014a` to `FR-014h`) is for a recipe from someone else's page. It does not apply to a chef's
-own page under a live claim. This spec does not edit 016 or 010.
+own page under a live claim. This spec does not edit 016 or 010. _(Note 2026-11-03, owner ruling, ADR-0082: the
+linked card is now a signed-out facts card, `noindex` by house rule. A chef's public pages list every open label
+(written, adapted, family, public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0.
+They never list a linked card. Counsel review is owed before launch (`016-FR-050`).)_
 
 ### Key Entities
 

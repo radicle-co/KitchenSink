@@ -51,10 +51,12 @@ export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label })
     const lead = useContext(MetaLeadContext);
 
     return (
-        <span className="inline-flex items-center">
+        <>
             {lead}
-            <span className="sr-only">{unbreakable(label)}</span>
-            <span aria-hidden="true" className={SHIMMER_CLASS} />
-        </span>
+            <span className="inline-flex items-center">
+                <span className="sr-only">{unbreakable(label)}</span>
+                <span aria-hidden="true" className={SHIMMER_CLASS} />
+            </span>
+        </>
     );
 };

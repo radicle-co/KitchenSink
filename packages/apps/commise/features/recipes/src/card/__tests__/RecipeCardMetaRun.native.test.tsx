@@ -22,7 +22,7 @@ const renderCard = (ui: React.ReactElement) => render(<LocaleProvider locale="en
 
 const RECIPE_ID = '00000000-0000-4000-8000-00000000000a';
 const nb = (text: string): string => text.replaceAll(' ', '\u00A0');
-const DOT = '\u00A0· ';
+const DOT = '\u2060\u00A0\u2060· ';
 
 /** A calorie figure the way a host draws it: the slot over a settled (or pending, or omitting) batch reading. */
 const known = (calories: number): RecipeNutritionBatchReading => ({
@@ -266,5 +266,37 @@ describe.each(['grid', 'row'] as const)('RecipeCard (native, %s) — a part neve
         );
 
         expect(breaksOnlyAfterDots(textOf(container) ?? '')).toBe(true);
+    });
+});
+
+// qa-ios on 087051a43: a nested span that STARTS with a space or a dot lets a platform break at the span boundary. No span of
+// the run starts with one: the calorie figure's lead is plain text in the run, outside the figure's own span.
+describe('RecipeCard (native) — no span of the meta run starts with a space or a dot', () => {
+    const startsBreakable = /^[\s\u00A0\u2060·]/u;
+
+    it.each([
+        ['an unrated recipe', { ...base, ratingCount: 0 }],
+        ['a rated recipe', { ...base, averageRating: 4.75, ratingCount: 5 }],
+    ] as const)('%s', (_name, over) => {
+        const { container } = renderCard(
+            <RecipeCard headingLevel={3} variant="row" recipe={model(over)} nutrition={slot(known(370))} />,
+        );
+        const line = lineOf(container) as HTMLElement;
+        const spans = [...line.querySelectorAll('*')];
+
+        expect(spans.length).toBeGreaterThan(0);
+        expect(spans.filter((node) => startsBreakable.test(node.textContent ?? ''))).toEqual([]);
+        expect(line.textContent).toContain(`${DOT}370`);
+    });
+
+    it('keeps the loading placeholder’s lead in the run too', () => {
+        const { container } = renderCard(
+            <RecipeCard headingLevel={3} variant="row" recipe={model(base)} nutrition={slot({ status: 'pending' })} />,
+        );
+        const line = lineOf(container) as HTMLElement;
+
+        expect([...line.querySelectorAll('*')].filter((node) => startsBreakable.test(node.textContent ?? ''))).toEqual(
+            [],
+        );
     });
 });

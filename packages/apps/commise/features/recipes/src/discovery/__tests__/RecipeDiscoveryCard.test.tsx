@@ -149,6 +149,8 @@ describe('RecipeDiscoveryCard (web) — the meta line', () => {
         });
         const card = screen.getByRole('article', { name: 'Lamb Shoulder' });
 
-        expect(card.textContent).toContain('45\u00A0min\u00A0· Easy\u00A0· No\u00A0ratings\u00A0yet');
+        expect(card.textContent).toContain(
+            '45\u00A0min\u2060\u00A0\u2060· Easy\u2060\u00A0\u2060· No\u00A0ratings\u00A0yet',
+        );
     });
 });

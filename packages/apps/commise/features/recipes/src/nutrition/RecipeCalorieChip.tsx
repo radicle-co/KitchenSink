@@ -78,10 +78,14 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
             const chip = toCalorieChipModel(nutrition, locale, messages);
 
             return (
-                <span role={CHIP_ROLE} aria-label={chip.label} className={chip.isStale ? STALE_CLASS : undefined}>
+                <>
+                    {/* The lead is text of the run, outside the figure's own span: a span that starts with a space or a dot
+                        lets a platform break at its boundary (qa-ios on 087051a43). */}
                     {lead}
-                    {unbreakable(chip.text)}
-                </span>
+                    <span role={CHIP_ROLE} aria-label={chip.label} className={chip.isStale ? STALE_CLASS : undefined}>
+                        {unbreakable(chip.text)}
+                    </span>
+                </>
             );
         }
 

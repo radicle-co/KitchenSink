@@ -13,8 +13,13 @@
  */
 import { createContext, createElement, Fragment, isValidElement, type ReactNode } from 'react';
 
-/** The separator between two parts: a no-break space, the dot, then an ordinary space. A design constant. */
-export const META_SEPARATOR = ' · ';
+/**
+ * The separator between two parts: a no-break space between two word joiners, the dot, then an ordinary space. A design
+ * constant. The joiners keep the dot with the word before it even where a platform has to break inside a no-break chain
+ * because a part is wider than the line (qa-ios on 087051a43: iOS broke at the no-break space and started a line with the
+ * dot). The only break opportunity left is the ordinary space after the dot.
+ */
+export const META_SEPARATOR = '\u2060\u00A0\u2060· ';
 
 /**
  * What a part that may settle on nothing (the calorie figure) draws before itself: the separator when parts precede it, and

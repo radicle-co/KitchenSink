@@ -1127,6 +1127,27 @@ describe('RecipeDetailView (web) — footer facts (§6.1)', () => {
         );
     });
 
+    // Designer ruling (`RecipeDetailAndroid384` item 4, lockstep with native): the status and the link sit in a wrapping row 16
+    // apart each way, with no separator glyph.
+    it('puts the status and the Version history link in a wrapping row 16 apart, with no separator', () => {
+        renderAsOwner(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                versionsHref="/en/recipes/rec_1/versions"
+                viewerIsOwner
+                recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC })}
+            />,
+        );
+        const row = screen.getByRole('link', { name: 'Version history' }).closest('div') as HTMLElement;
+
+        expect(row.contains(screen.getByText('Public'))).toBe(true);
+        expect(row.className).toContain('flex-wrap');
+        expect(row.className).toContain('gap-x-4');
+        expect(row.className).toContain('gap-y-4');
+        expect(row.textContent).not.toContain('·');
+    });
+
     it('draws no Version history link without an address', () => {
         render(
             <RecipeDetailView

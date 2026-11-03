@@ -6961,7 +6961,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatusRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — the native recipe page's status row: the owner's visibility (or the Draft\nbadge) and the \"Version history\" link, on one line under the title. It draws nothing when it has neither.\n\nThe separator is drawn only while the two items share a line: when the pair wraps (2x text) each item stands alone, so\nno \"·\" starts the second line. A layout cannot say that, so the row reads where each item laid out and compares their\ntop edges (state, no ref; the second being lower than the first is a wrap at any text size).\n\nPresentational: props to JSX, plus that one layout state.",
+                    "moduleDoc": "@commise/features-recipes — the native recipe page's status row: the owner's visibility (or the Draft\nbadge) and the \"Version history\" link, on one line under the title. It draws nothing when it has neither.\n\nThe two items sit in a wrapping row 16 apart each way, with no separator glyph (designer ruling): when the pair wraps\nat 2x text, each stands on its own line, and nothing has to be measured.\n\nPresentational: props to JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -193,7 +193,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         {recipe.title}
                     </h1>
                     {(status !== undefined || versionsHref !== undefined) && (
-                        <div className="flex flex-wrap items-center gap-x-2 text-meta text-ink-muted">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-4 text-meta text-ink-muted">
                             {status?.kind === 'draft' && <StatusBadge status="draft">{status.text}</StatusBadge>}
                             {status?.kind === 'visibility' && (
                                 <span className="inline-flex items-center gap-1 text-ink-muted">
@@ -202,13 +202,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                 </span>
                             )}
                             {versionsHref !== undefined && (
-                                // A separator never ends a line: it is joined to the link after it as one unit, so the two wrap together.
-                                <span className="inline-flex items-center gap-x-2">
-                                    {status !== undefined && <span aria-hidden="true">·</span>}
-                                    <Link href={versionsHref as Href} className={EDIT_LINK}>
-                                        {detail.versionHistory}
-                                    </Link>
-                                </span>
+                                <Link href={versionsHref as Href} className={EDIT_LINK}>
+                                    {detail.versionHistory}
+                                </Link>
                             )}
                         </div>
                     )}

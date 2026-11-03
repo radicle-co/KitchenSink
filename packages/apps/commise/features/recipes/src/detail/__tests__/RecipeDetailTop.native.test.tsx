@@ -195,21 +195,13 @@ describe('RecipeDetailView (native) — the status row', () => {
         expect(visibility.closest('[name="DetailStatusRow"]')).toBe(versions.closest('[name="DetailStatusRow"]'));
     });
 
-    // Designer, iosBatch2: at the cap "Public ·" ended a line and "Version history" wrapped alone. A separator never ends a line:
-    // it is joined to the item after it as one unit, so they wrap together.
-    it('joins the separator to the version link as one unit, apart from the visibility', () => {
+    // REPLACED (designer ruling after iosBatch2): the separator that was joined to the link is gone, so a wrapped pair has no
+    // glyph left to dangle. The wrapping row and its 16 gap are in `DetailStatusRow.native.test.tsx`.
+    it('draws no separator between the visibility and the version link', () => {
         render(view(owned, { viewerIsOwner: true, onViewVersions: vi.fn() }));
 
-        const separator = screen.getByText('·');
-        const versions = screen.getByRole('button', { name: detail.versionHistory });
-        const visibility = screen.getByText(detail.visibilityPublic);
-
-        const unit = separator.parentElement as HTMLElement;
-
-        expect(unit.getAttribute('name')).toBe('DetailStatusUnit');
-        expect(unit.contains(versions)).toBe(true);
-        expect(unit.contains(visibility)).toBe(false);
-        expect(follows(separator, versions)).toBe(true);
+        expect(screen.queryByText('·')).toBeNull();
+        expect(screen.getByRole('button', { name: detail.versionHistory })).toBeTruthy();
     });
 
     it('opens the version history from the link', () => {

@@ -143,15 +143,38 @@ describe('RecipeListContainer (web)', () => {
     });
 
     describe('the list/grid choice is an account setting', () => {
+        /**
+         * jsdom has no layout, so `<main>` measures 0 px and reads `narrow`. Since d5788f1ee a narrow library GRID draws
+         * the compact tile (designer, 2026-11-02; `cardVariant.ts`), so the full grid card needs a measured `<main>`
+         * of at least 600 px; this test sets it, and the narrow case below pins the compact tile.
+         */
+        const mainOfWidth = (width: number): void => {
+            const main = document.createElement('main');
+
+            Object.defineProperty(main, 'clientWidth', { configurable: true, value: width });
+            document.body.appendChild(main);
+        };
+        afterEach(() => document.querySelector('main')?.remove());
+
         const card = () => screen.getByRole('article', { name: 'Recipe 1' }).getAttribute('data-card-variant');
 
         it.each([
             ['list', 'row'],
             ['grid', 'grid'],
-        ] as const)('CHOSEN: draws the %s the account holds', async (recipeViewMode, variant) => {
-            await renderContainer([base(1)], { ...SETTINGS_DEFAULTS, recipeViewMode });
+        ] as const)(
+            'CHOSEN: draws the %s the account holds in a regular container',
+            async (recipeViewMode, variant) => {
+                mainOfWidth(1000);
+                await renderContainer([base(1)], { ...SETTINGS_DEFAULTS, recipeViewMode });
 
-            await vi.waitFor(() => expect(card()).toBe(variant));
+                await vi.waitFor(() => expect(card()).toBe(variant));
+            },
+        );
+
+        it('CHOSEN: a grid in a narrow container draws the compact tile, not the full card', async () => {
+            await renderContainer([base(1)], { ...SETTINGS_DEFAULTS, recipeViewMode: 'grid' });
+
+            await vi.waitFor(() => expect(card()).toBe('compact'));
         });
 
         it('DEFAULT: with nothing chosen the width picks, and nothing is written', async () => {
@@ -166,6 +189,7 @@ describe('RecipeListContainer (web)', () => {
         });
 
         it('SAVING: shows the new view at once, sends only the view, and writes no cookie', async () => {
+            mainOfWidth(1000);
             const { patchSettings } = await renderContainer([base(1)], {
                 ...SETTINGS_DEFAULTS,
                 recipeViewMode: 'list',

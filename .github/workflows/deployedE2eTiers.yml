@@ -179,7 +179,7 @@ jobs:
                   # `DOMAIN_NAME`.
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${IDENTITY_ORIGIN}" "${WEB_ORIGIN}"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -257,7 +257,7 @@ jobs:
                   # `DOMAIN_NAME`.
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${FOOD_ORIGIN}" "${WEB_ORIGIN}"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -352,7 +352,7 @@ jobs:
                   # `DOMAIN_NAME`.
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${RECIPE_ORIGIN}" "${WEB_ORIGIN}"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -424,7 +424,7 @@ jobs:
                   # `DOMAIN_NAME`.
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${DEPLOYED_RECIPE_URL}" "${DEPLOYED_FOOD_URL}"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -475,7 +475,7 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -645,7 +645,7 @@ jobs:
                   # is not spelled `*_ORIGIN` or `*_URL`, which is why the guard below now derives them
                   # from the job's own env rather than from a naming convention.
                   target_scope_assert "${DOMAIN_NAME}" "${LINKAGE_RECIPE_URL}" "${LINKAGE_FOOD_URL}" "${LINKAGE_AZP}" "${IDENTITY_ORIGIN}"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -939,7 +939,7 @@ jobs:
                   set -euo pipefail
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${RECIPE_ORIGIN}" "${WEB_ORIGIN}" "${IDENTITY_ORIGIN}"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -1156,7 +1156,7 @@ jobs:
                   # The same one predicate every other tier calls — see `.github/scripts/targetScope.sh`.
                   . .github/scripts/targetScope.sh
                   target_scope_assert "${DOMAIN_NAME}" "${PLAYWRIGHT_BASE_URL}" "${SEED_RECIPE_ORIGIN}" "${SEED_FOOD_ORIGIN}" "${SEED_IDENTITY_ORIGIN}"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies

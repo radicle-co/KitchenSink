@@ -417,7 +417,7 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 
 The linked card (`021-FR-014a` to `FR-014h`) is for a recipe from someone else's page. It does not apply to a chef's
 own page under a live claim. This spec does not edit 016 or 010. _(Note 2026-11-03, owner ruling, ADR-0082: the
-linked card is now a signed-out facts card, `noindex` by house rule. A chef's public pages list every open label
+linked card is now a signed-out facts card, indexable under 021's public rule (owner ruling O2, amended 2026-11-03). A chef's public pages list every open label
 (written, adapted, family, public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0.
 They never list a linked card. Counsel review is owed before launch (`016-FR-050`).)_
 

@@ -129,3 +129,26 @@ describe('RecipeDiscoveryCard (web)', () => {
         },
     );
 });
+
+// UI Designer ruling (2026-11-03): a cook chooses from Discover cards, so even the compact one draws the full run
+// (time · difficulty · rating · calories).
+describe('RecipeDiscoveryCard (web) — the meta line', () => {
+    it.each(['grid', 'compact'] as const)('draws the full run on the %s card', (variant) => {
+        renderCard({
+            variant,
+            recipe: toRecipeCardModel(
+                makeRecipe({
+                    id: 'rec_1',
+                    title: 'Lamb Shoulder',
+                    totalTimeMinutes: 45,
+                    difficulty: 'easy',
+                    ratingCount: 0,
+                }),
+            ),
+            nutrition: <span>370 cal</span>,
+        });
+        const card = screen.getByRole('article', { name: 'Lamb Shoulder' });
+
+        expect(card.textContent).toContain('45 min\u00A0· Easy\u00A0· No ratings yet');
+    });
+});

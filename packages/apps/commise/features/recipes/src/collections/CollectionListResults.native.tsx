@@ -25,6 +25,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions
 
 import { cappedFontScale } from '@commise/ui/font-scale-cap';
 import { compactColumnsOf, libraryGridColumnsOf } from '../card/cardGridLayout.js';
+import { HostAnimatedScroll } from '../list/HostAnimatedScroll.native.js';
 import { formatRecipeCount } from '../list/model.js';
 import { RecipeListHeaderContext } from '../list/recipeListHeaderContext.js';
 import { recipeMessages } from '../messages.js';
@@ -96,6 +97,8 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
             keyboardShouldPersistTaps="handled"
             key={`${String(columns)}-${String(textScale)}`}
             {...scrollBind}
+            // The host's offset reaches the pinned search through this scroller (a plain one left it at 0: no slide, no band).
+            renderScrollComponent={HostAnimatedScroll}
             data={collections}
             numColumns={columns}
             keyExtractor={(collection) => collection.id}

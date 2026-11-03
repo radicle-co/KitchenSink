@@ -1,11 +1,7 @@
 /**
- * The step's instruction text on native draws through the design-system `Text`, not a plain React Native `Text`.
- *
- * Why this is pinned: on iOS a plain `Text` that sets its size and leading from a style sheet while still honouring the
- * system text scale measures and paints with different metrics, so a line that fits the measure by a hair paints one
- * unwrapped line clipped at the frame while a second line stays reserved (QA batch 4, 2e8b83005: step 11, "Step number
- * 11: do the next thing carefully, then check it."). The design-system `Text` turns system scaling off and draws the
- * size and leading itself, so the two agree. jsdom cannot lay out text; this pins the property that makes them agree.
+ * The step's instruction text on native draws through the design-system `Text`, not a plain React Native `Text`
+ * (ADR-0080). Pinned as the migration. It is NOT a regression test for the iOS clip of step 11 ("Step number 11: do the
+ * next thing carefully, then check it."), which the move did not change on a device and whose cause is still open.
  */
 import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';

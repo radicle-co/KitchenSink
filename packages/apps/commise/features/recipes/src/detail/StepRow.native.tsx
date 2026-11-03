@@ -8,9 +8,9 @@
  * that is NOT an accessibility element, so a screen reader meets the text and the one button rather than a button
  * that swallows the text. The current step shows the 3 pt `hereBar` and fills its numeral with `action`.
  *
- * The instruction and the timer are set by the design-system `Text`, which turns system scaling off and draws the size
- * and leading itself: a plain `Text` measured and painted with different metrics on iOS and clipped one step's line
- * (QA batch 4, step 11; `stepText.native.test.tsx`).
+ * The instruction and the timer are set by the design-system `Text` (ADR-0080), which turns system scaling off and draws
+ * the size and leading itself. This is the migration only: it did NOT change the iOS clip of step 11 (QA batch 4, device
+ * check at 08ae6ba75), whose cause is still open.
  *
  * Presentational: props → JSX.
  */

@@ -636,7 +636,12 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   ([ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9). The channels MUST stay
   advertised to free-tier users. Pro users have no slot limit. _(Amended 2026-10-29, ADR-0077.)_ A family or friend
   recipe shared with permission is not "non-public by policy". It can be public, so this FR's refusals do not apply to
-  it. Its private copy uses a slot like any private recipe.
+  it. Its private copy uses a slot like any private recipe. _(Amended 2026-11-03, owner ruling, ADR-0082 §2: "No, it
+  is free.")_ A book or paid-site recipe is no longer non-public by policy either. It can be public as a facts card
+  (`FR-014b`), and a recipe with a public facts card is a public recipe that uses no private slot, even while the cook
+  keeps the full text privately (`016-FR-029a`). So a free cook with no free slot MUST be offered the facts card
+  instead of a refusal, and bulk import does not pause for book or paid-site recipes. The refusal above stays only
+  for a recipe the cook wants to keep private with no facts card.
 - **FR-014b** _(added 2026-11-03, owner ruling, ADR-0082, decision D5)_: System MUST offer a public **facts card** for a
   book or paid-site recipe (`imported_physical`, `imported_paid`). [Law] The facts of a recipe are free to anyone
   (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991)). The card has the same field list as the linked card

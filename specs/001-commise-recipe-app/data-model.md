@@ -782,7 +782,7 @@ Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constrain
 >    `privateOnly` rule (`privateRuleOf`) refuses `public` for `IMPORTED_PAID` and `IMPORTED_PHYSICAL` today. It
 >    must allow `public`. For label 4, every reader but the owner and household then gets the book card projection,
 >    never the full copy.
-> 2. A public book card frees the private slot its recipe held, like any public recipe (ADR-0073). Pending the founder's confirmation (ADR-0082 §2): a free cook can then publish a whole cookbook as cards without using a slot.
+> 2. A public book card frees the private slot its recipe held, like any public recipe (ADR-0073). Owner ruling 2026-11-03 (ADR-0082 §2): "No, it is free." A free cook can publish a whole cookbook as cards without using a slot, even while keeping the full book text privately. This follows `016-FR-029a`.
 > 3. Who reads what is no longer `visibility` alone. The read path must pick the full recipe or a facts card by the
 >    rights label (`016-FR-015d`). That Policy does not exist yet.
 

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
-- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): a public facts card for a web, book or paid-site recipe is a public recipe and uses no slot, so bulk import no longer pauses for book recipes. The founder must confirm that outcome before it is built. Every other part stands.
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): a public facts card for a web, book or paid-site recipe is a public recipe and uses no slot, so bulk import no longer pauses for book recipes. Owner ruling 2026-11-03: "No, it is free." This follows `016-FR-029a`. Every other part stands.
 - **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md) §6: an `imported_public`
   recipe no longer needs Pro and a substantive edit to go private. Any cook can keep one private, using a slot. So
   §1's last-but-one rule, the `imported_public` row of §6, and §10's badge rule no longer apply, and the PRO badge

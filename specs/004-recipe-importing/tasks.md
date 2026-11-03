@@ -954,6 +954,11 @@ Counsel review is owed before launch (`016-FR-050`). Each task is test-first and
 - [ ] Public projection with the linked card's field list, no prose, headnote or photo, a credit to the book or site,
       never in the book's order or as a book's collection
 - [ ] Web and mobile in lockstep (§14.1). Component tests for each state, a Playwright test and a Maestro flow
+- [ ] _(added 2026-11-03, owner ruling, ADR-0082 §2)_ A recipe with a public facts card counts as public and uses no
+      private slot. Unit test on the slot count, and an integration test in which a free cook at 50 private recipes
+      saves a book recipe as a facts card and is not refused (`FR-028`)
+- [ ] Bulk import offers the facts card for a book or paid-site recipe and does not pause for it. Integration test
+      with a free cook at the limit importing a book file
 
 ### T-037 · Delete the page image after extraction
 

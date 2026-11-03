@@ -11,7 +11,8 @@ import { useTheme } from '@commise/ui/theme';
 import { useContext, type FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
-import { MetaLeadContext, unbreakable } from '../card/metaRun.js';
+import { MetaLeadContext } from '../card/metaLine.js';
+import { unbreakable } from '../card/metaRun.js';
 import { recipeNutritionMessages } from './messages.js';
 import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
 

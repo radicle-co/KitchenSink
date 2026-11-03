@@ -14,7 +14,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { useContext, type FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { MetaLeadContext } from '../card/metaRun.js';
+import { MetaLeadContext } from '../card/metaLine.js';
 
 /** Props for the native calorie skeleton. */
 export interface RecipeCalorieSkeletonProps {

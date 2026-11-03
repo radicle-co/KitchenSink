@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/nutrition — web calorie skeleton (pure render component).
  *
@@ -26,7 +28,7 @@
  */
 import { useContext, type FC } from 'react';
 
-import { MetaLeadContext } from '../card/metaRun.js';
+import { MetaLeadContext } from '../card/metaLine.js';
 
 /** Props for {@link RecipeCalorieSkeleton}. */
 export interface RecipeCalorieSkeletonProps {

@@ -39,7 +39,8 @@ import { createContext, useContext, type CSSProperties, type FC, type ReactNode 
 import { GRID_CELL_CLASS } from './cardGridClass.js';
 import type { CardVariant } from './cardVariant.js';
 import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from './coverChip.js';
-import { META_SEPARATOR, MetaLeadContext, metaRunOf, unbreakable } from './metaRun.js';
+import { MetaLine } from './metaLine.js';
+import { unbreakable } from './metaRun.js';
 import {
     RecipeCardNutritionContext,
     RecipeCardViewContext,
@@ -200,15 +201,8 @@ const ratingPartOf = (rating: RecipeCardView['rating']): ReactNode =>
 const timePartOf = (duration: string | undefined): ReactNode =>
     duration === undefined ? undefined : <span className="tabular-nums lining-nums">{unbreakable(duration)}</span>;
 
-/**
- * The calorie figure at the end of a run. It draws its own lead (the separator) when it has something to say, so a figure
- * that settles on nothing leaves no dot behind (`MetaLeadContext`).
- */
-const MetaCalories: FC<{ readonly hasLead: boolean }> = ({ hasLead }) => {
-    const nutrition = useContext(RecipeCardNutritionContext);
-
-    return <MetaLeadContext.Provider value={hasLead ? META_SEPARATOR : ''}>{nutrition}</MetaLeadContext.Provider>;
-};
+/** The paragraph the meta run sits in. */
+const MetaParagraph: FC<{ readonly children: ReactNode }> = ({ children }) => <p className={TEXT_LINE}>{children}</p>;
 
 /**
  * The meta line of the grid card and the list row: ONE run of text, time · difficulty · rating · calories, each only when
@@ -216,35 +210,17 @@ const MetaCalories: FC<{ readonly hasLead: boolean }> = ({ hasLead }) => {
  */
 const CardMeta: FC = () => {
     const { meta, rating } = useCardView();
-    const run = metaRunOf([timePartOf(meta.duration), meta.difficulty, ratingPartOf(rating)]);
 
     return (
-        <p className={TEXT_LINE}>
-            {run}
-            <MetaCalories hasLead={run.length > 0} />
-        </p>
+        <MetaLine Frame={MetaParagraph} parts={[timePartOf(meta.duration), meta.difficulty, ratingPartOf(rating)]} />
     );
 };
 
-/**
- * The compact tile's brief run (Home, a collection's members): time, then calories, each only when present. A run with
- * neither is not drawn at all, so the tile does not hold a blank row (UI Designer ruling, 2026-11-03).
- */
+/** The compact tile's brief run (Home, a collection's members): time, then calories. */
 const CardBriefMeta: FC = () => {
     const { meta } = useCardView();
-    const nutrition = useContext(RecipeCardNutritionContext);
-    const run = metaRunOf([timePartOf(meta.duration)]);
 
-    if (run.length === 0 && nutrition === null) {
-        return null;
-    }
-
-    return (
-        <p className={TEXT_LINE}>
-            {run}
-            <MetaCalories hasLead={run.length > 0} />
-        </p>
-    );
+    return <MetaLine Frame={MetaParagraph} parts={[timePartOf(meta.duration)]} />;
 };
 
 /** The status: Draft, Private or Public as the design-system badge, then the timestamp. */

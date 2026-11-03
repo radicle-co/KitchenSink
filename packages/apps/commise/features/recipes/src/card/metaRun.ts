@@ -11,7 +11,7 @@
  *
  * @pattern Builder — joins the parts that exist into one run; the web and native leaves only wrap it in their text primitive
  */
-import { createContext, createElement, Fragment, isValidElement, type ReactNode } from 'react';
+import { createElement, Fragment, isValidElement, type ReactNode } from 'react';
 
 /**
  * The separator between two parts: a no-break space between two word joiners, the dot, then an ordinary space. A design
@@ -20,13 +20,6 @@ import { createContext, createElement, Fragment, isValidElement, type ReactNode 
  * dot). The only break opportunity left is the ordinary space after the dot.
  */
 export const META_SEPARATOR = '\u2060\u00A0\u2060· ';
-
-/**
- * What a part that may settle on nothing (the calorie figure) draws before itself: the separator when parts precede it, and
- * nothing when it comes first. The part draws it only when it has something to say, so a figure that settles on nothing
- * leaves no dot behind, on either platform.
- */
-export const MetaLeadContext = createContext('');
 
 /**
  * A part's text with every ordinary space made a no-break space, so the line can break only after a dot and a part such as

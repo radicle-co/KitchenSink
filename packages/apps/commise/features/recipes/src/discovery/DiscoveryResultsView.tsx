@@ -89,9 +89,8 @@ export const DiscoveryResultsView: FC<DiscoveryResultsViewProps> = ({
     ...actions
 }) => {
     const browsing = isDiscoveryBrowsing(criteria);
-    const renderNutrition = useDiscoveryPlatform().useRenderNutrition(
-        browsing || cardVariant === 'compact' ? [] : recipeIdPagesOf(pages),
-    );
+    // The compact card asks too: a Discover card draws the full meta line, calories included (UI Designer ruling 2026-11-03).
+    const renderNutrition = useDiscoveryPlatform().useRenderNutrition(browsing ? [] : recipeIdPagesOf(pages));
 
     return (
         <RecipeDiscoveryResults

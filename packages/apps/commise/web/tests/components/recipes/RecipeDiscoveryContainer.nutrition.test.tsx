@@ -160,17 +160,17 @@ const settle = async (): Promise<void> => {
 };
 
 describe('RecipeDiscoveryContainer — the deferred calorie lookup', () => {
-    // The compact card (a narrow `<main>`, or none measured yet) draws no figure. A batch for it would have nobody to read
-    // its promise, so a rejection would surface as an unhandled one on every narrow phone whose food service had a bad minute.
-    it('asks for NO figures while the cards are compact, since a compact card draws none', async () => {
+    // REWRITTEN (UI Designer ruling, 2026-11-03): a Discover card, compact included, draws the full meta line, calories among
+    // them, so the compact cards (a narrow `<main>`, or none measured yet) ask for their figures like the grid cards.
+    it('asks for the figures of the compact cards too, since they draw the full meta line', async () => {
         const { client, batch } = twoPageClient();
 
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
         await settle();
 
         expect(screen.getByRole('link', { name: 'Weeknight Pasta' })).toBeInTheDocument();
-        expect(screen.queryByRole('img', { name: /cal/u })).toBeNull();
-        expect(batch).not.toHaveBeenCalled();
+        expect(screen.getByRole('img', { name: '420 cal' })).toBeInTheDocument();
+        expect(batch).toHaveBeenCalledTimes(1);
     });
 
     it('issues ONE batch for the first page of results', async () => {
@@ -438,8 +438,9 @@ describe('RecipeDiscoveryContainer — the deferred calorie lookup across the se
         const html = renderToString(page(client, await prefetchedQueryClient(client)));
 
         expect(html, 'the prefetched results ship in the HTML').toContain('Weeknight Pasta');
-        // The server renders at the narrow width, where the compact card carries no figure and so reserves no box.
-        expect(html).not.toContain('Loading calories');
+        // REWRITTEN (UI Designer ruling, 2026-11-03: a Discover card, compact included, draws the full meta line): the
+        // server render now DRAWS the calorie slot, in its pending form, so its loading text is in the HTML. What this test
+        // pins is unchanged: drawing the slot starts no read.
         expect(batch).not.toHaveBeenCalled();
     });
 

@@ -58,7 +58,8 @@ describe('IngredientCheckRow (web)', () => {
 
     // Owner C5 + T1: the row text is the `list` role (14, amount 600, the rest 400 ink), the row pads 8 above and below,
     // and the WHOLE row is the touch target, at least 44 tall.
-    it('sets the line in the list role, pads 8 and is at least 44 tall', () => {
+    // REWRITTEN IN SLICE 2: the line is the `body` role (16), as the board draws it, where it was `list`.
+    it('sets the line in the body role, pads 8 and is at least 44 tall', () => {
         const { container } = render(
             <ul>
                 <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />
@@ -70,8 +71,8 @@ describe('IngredientCheckRow (web)', () => {
         expect(row.className).toContain('min-h-11');
         expect(row.className).not.toMatch(/min-h-12|py-3/u);
         expect(row.className).toContain('py-2');
-        expect(text?.className).toContain('text-list');
-        expect(text?.className).not.toContain('text-body');
+        expect(text?.className).toContain('text-body');
+        expect(text?.className).not.toContain('text-list');
     });
 
     it('toggles when the cook presses anywhere on the row, the amount and the preparation included', () => {
@@ -161,6 +162,19 @@ describe('IngredientCheckRow (web)', () => {
 
 describe('StepRow (web)', () => {
     const step = makeStepView({ stepNumber: 3, instruction: 'Rest the lamb for 20 minutes.', timerSeconds: 1200 });
+
+    // Designer ruling c10ecadbf (2026-11-03): the numeral's circle is at least 32 and grows with the numeral, so two digits fit.
+    it('draws the numeral in a circle that is at least 2rem and can only grow', () => {
+        render(
+            <ul>
+                <StepRow step={step} current={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+        const classes = (screen.getByText(String(step.stepNumber)).className ?? '').split(/\s+/u);
+
+        expect(classes).toEqual(expect.arrayContaining(['min-h-8', 'min-w-8', 'aspect-square']));
+        expect(classes).not.toContain('size-8');
+    });
 
     it('keeps the step text as plain content beside a toggle named for the step', () => {
         render(

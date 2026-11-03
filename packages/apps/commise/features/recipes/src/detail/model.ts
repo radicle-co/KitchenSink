@@ -8,7 +8,6 @@
 import type { ReactNode } from 'react';
 
 import type { Locale } from '@commise/i18n';
-import type { ScrollBind } from '@commise/ui/scroll-host';
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { servingsRange } from '@kitchensink/recipe-core/scaling';
@@ -838,15 +837,11 @@ export const clonePrivateFoodsBannerText = (
  * (`RecipeHero.native.tsx`) leaves so the two cannot drift on the contract (§14.4).
  */
 export interface RecipeHeroProps {
-    /** The recipe's id — with no photo, it picks the monogram band's tint (`RecipeCover`). */
-    readonly recipeId: string;
-    /** The recipe title — the photos' alt text and the carousel's names are built from it; its first letter is the monogram. */
+    /** The recipe title — the photos' alt text and the carousel's names are built from it. */
     readonly title: string;
-    /** The cuisine, the monogram band's caption. */
-    readonly cuisine?: string;
     /**
      * The recipe's photos, in display order. The first is the cover (the service's rule, on every read path), so the
-     * hero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px monogram band (§1.8, §6.7).
+     * hero is the carousel itself and shows the cover once (F2). EMPTY → the 96 px gradient band (§1.8, §6.7).
      *
      * Deliberately NOT `coverPhotoUrl`: that is a small thumbnail of `photos[0]`, made for the card, and reading it here
      * as well is how the cover came to be painted twice.
@@ -897,7 +892,7 @@ export interface RecipeDetailViewProps {
      * no room for them. Web ignores it: its containers keep these as siblings of the view.
      */
     readonly scrollFooter?: ReactNode;
-    /** The rating block under the nutrition: the input for another cook, the read-only average for the owner. */
+    /** The rating card at the top of the page: the input for another cook, the read-only average for the owner. */
     readonly rating?: ReactNode;
     /** Optional notice for a failed refresh of the recipe on screen — both platforms. Absent ⇒ no notice. */
     readonly refreshNotice?: RefreshNoticeControl;
@@ -920,10 +915,8 @@ export interface RecipeDetailViewProps {
     readonly versionsHref?: string;
     /** Native: open the editor at a section (the owner's Edit links and empty-state actions). */
     readonly onEditSection?: (section: DetailSection) => void;
-    /** Native: open the version history from the footer. */
+    /** Native: open the version history from the status row. */
     readonly onViewVersions?: () => void;
-    /** The section the reader is in, from the screen's `ScrollHost` (blueprint A7); the section switch marks it. */
-    readonly currentSection?: string;
     /**
      * Whether the viewer owns this recipe (`isOwner`, which the container already evaluates for its owner controls).
      * It decides the meta line's author, the rating line's status, the section Edit links, and whether the ambiguity
@@ -947,7 +940,10 @@ export type DetailSection = 'ingredients' | 'steps' | 'nutrition';
 /** The native recipe page's layout at the window's width (`detailNativeLayoutOf`). */
 export interface DetailNativeLayout {
     readonly columns: 'one' | 'two';
-    readonly statsPerRow: 2 | 4;
+    /** The width the page's content gets, in points: the room the fact tiles share. */
+    readonly bodyWidth: number;
+    /** The scale the text is drawn at (the system's, up to the cap). */
+    readonly textScale: number;
 }
 
 /** The cook's marks as the body draws them, and the commands over them (`useCookMarks`). */
@@ -958,15 +954,10 @@ export interface DetailMarks {
     readonly toggleStep: (step: number) => void;
 }
 
-/** The one "Screen on" state the shell holds, drawn by the body in up to two places. */
+/** The one "Screen on" state the shell holds, drawn by the body in the action row. */
 export interface DetailScreenOn {
     readonly on: boolean;
     readonly onChange: (on: boolean) => void;
-    /**
-     * The one-time hint (`buildSpec.md` §6.3), present only while it should show: the shell holds whether the cook has
-     * used the toggle or scrolled, and the body draws it under the toggle's bar. Absent draws nothing.
-     */
-    readonly hint?: string;
 }
 
 /**
@@ -999,22 +990,20 @@ export interface RecipeDetailBodyProps extends RecipeDetailViewProps {
  * so the shell cannot leave the link inert.
  */
 export interface RecipeDetailBodyNativeProps extends RecipeDetailBodyProps {
-    /**
-     * The page's ONE scroller's binding, from the `ScrollHost` the shell mounts. The body renders the `ScrollView`
-     * itself because React Native's sticky header sticks only a DIRECT child of the scroller's content, and the scroll
-     * spy reads each section's `onLayout` y, which is relative to its parent (`@commise/ui/scroll-host`).
-     */
-    readonly bind: ScrollBind;
     /** Open the Data sources sheet. */
     readonly onOpenDataSources: () => void;
     /** Advances each time the sheet closes. */
     readonly dataSourcesReturnFocusSignal: number;
     /**
-     * The page's layout at this width (§6.1): one column below a 720 pt body and two from it, and the stat strip two
-     * cells to a row below a 360 pt strip. The shell measures the window, because a pure leaf takes no dimension hook;
-     * the web leaf reads the same thresholds through container queries instead.
+     * The page's layout at this width (§6.1): one column below a 720 pt body and two from it. The shell measures the
+     * window, because a pure leaf takes no dimension hook; the web leaf reads the same threshold through container
+     * queries instead.
      */
     readonly layout: DetailNativeLayout;
+    /** Whether the collapsed Nutrition row is expanded (`RecipeDetailAndroid384`, item 12). */
+    readonly nutritionExpanded: boolean;
+    /** Expand or collapse the Nutrition row. */
+    readonly onToggleNutrition: () => void;
 }
 
 /**

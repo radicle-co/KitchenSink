@@ -252,6 +252,8 @@ collections:recipes/collectionsPagination
 collections:recipes/collectionsVisibility
 collections:recipes/collectionsSaveCopy
 collections:recipes/collectionsPull
+collections:recipes/collectionsSearchPinned
+collections:recipes/collectionsFirstRunLargeText
 collections:recipes/newCollectionSheet
 collections:shell/overlaySwipeDismiss
 recipes:recipes/createEntry

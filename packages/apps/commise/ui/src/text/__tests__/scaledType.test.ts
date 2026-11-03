@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
 import { CHROME_CAPS, scaledTypeMetrics, scaledTypeSize } from '../scaledType.js';
+import { letterLiftOf } from '../letterMetrics.js';
 
 /** Each sized role's ceiling, written out (not read from the code under test). */
 const CEILING = {
@@ -137,5 +138,45 @@ describe('scaledTypeMetrics for a mark on a picture', () => {
         const { fontSize } = nativeTokens.type.caption;
 
         expect(scaledTypeMetrics('caption', 3.1, undefined, false)).toMatchObject({ fontSize: fontSize * 2 });
+    });
+});
+
+// Designer ruling c10ecadbf (2026-11-03): initials in a disc are drawn at 40% of the disc's diameter and do not scale, so
+// two letters fit at every size. The size is the caller's, in px; the leading is the size plus 4.
+describe('scaledTypeMetrics for a fixed size', () => {
+    it.each([1, 1.5, 2, 3.1])('draws the given px at system scale %f, whatever the role says', (scale) => {
+        expect(scaledTypeMetrics('label', scale, undefined, false, 12)).toEqual({ fontSize: 12, lineHeight: '16px' });
+    });
+
+    it('wins over a chrome cap and over a picture mark', () => {
+        expect(scaledTypeMetrics('label', 2, '1.5', true, 8)).toEqual({ fontSize: 8, lineHeight: '12px' });
+    });
+
+    it('leaves a role without a fixed size to scale as before', () => {
+        expect(scaledTypeMetrics('label', 2)).toMatchObject({ fontSize: 28 });
+    });
+});
+
+// Designer ruling (2026-11-03): the cover letter is centred by its cap band. A cap-centred fixed size draws its line as
+// the font's own height and lifts by the capitals' drop, so no platform places leading around it.
+describe('scaledTypeMetrics — a cap-centred fixed size', () => {
+    it('answers the font’s own line height and the lift of the cap band', () => {
+        expect(scaledTypeMetrics('label', 2, undefined, false, 48, true)).toEqual({
+            fontSize: 48,
+            lineHeight: '66px',
+            transform: [{ translateY: -letterLiftOf(48) }],
+        });
+    });
+
+    it('leaves a plain fixed size (initials in a disc) with its size-plus-4 leading and no lift', () => {
+        expect(scaledTypeMetrics('label', 2, undefined, false, 48)).toEqual({ fontSize: 48, lineHeight: '52px' });
+    });
+
+    it('lifts nothing on iOS, where the cap band already sits in the middle of the font’s own line', () => {
+        expect(scaledTypeMetrics('label', 2, undefined, false, 111, true, 'ios')).toEqual({
+            fontSize: 111,
+            lineHeight: '152px',
+            transform: [{ translateY: -0 }],
+        });
     });
 });

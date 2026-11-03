@@ -5,7 +5,15 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import {
+    ARIA_HIDDEN_CONTENT,
+    render,
+    renderWithTamagui,
+    resolvedColour,
+    resolvedStyle,
+} from '@commise/ui/testing/tamagui';
 
 import { RecipeDetailSkeleton } from '../RecipeDetailSkeleton.native.js';
 
@@ -36,5 +44,38 @@ describe('RecipeDetailSkeleton (native)', () => {
         const hero = hidden.firstElementChild as HTMLElement;
 
         expect(Number.parseFloat(getComputedStyle(hero).aspectRatio)).toBeCloseTo(4 / 3, 2);
+    });
+});
+
+// The caption is the typed `LiveRegion`: a type role and a colour role, so it follows the scheme and the system text scale.
+describe('RecipeDetailSkeleton (native) — the caption', () => {
+    it.each(['light', 'dark'] as const)('paints the caption in inkMuted in the %s scheme', (scheme) => {
+        renderWithTamagui(<RecipeDetailSkeleton label="Loading recipe…" />, scheme);
+
+        expect(resolvedColour(screen.getByText('Loading recipe…'), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
+    });
+
+    it('sets the caption in the caption role, and grows it with the system text scale', () => {
+        const { fontSize } = nativeTokens.type.caption;
+
+        renderWithTamagui(<RecipeDetailSkeleton label="Loading recipe…" />, 'light');
+        expect(resolvedStyle(screen.getByText('Loading recipe…'), 'fontSize')).toBe(`${String(fontSize)}px`);
+        cleanup();
+
+        renderWithTamagui(<RecipeDetailSkeleton label="Loading recipe…" />, 'light', 2);
+        expect(resolvedStyle(screen.getByText('Loading recipe…'), 'fontSize')).toBe(`${String(fontSize * 2)}px`);
+    });
+
+    it('keeps the 16 gutter the page has', () => {
+        render(<RecipeDetailSkeleton label="Loading recipe…" />);
+
+        const caption = screen.getByText('Loading recipe…');
+        let gutter = 0;
+
+        for (let node: HTMLElement | null = caption; node !== null; node = node.parentElement) {
+            gutter += Number.parseFloat(getComputedStyle(node).paddingLeft) || 0;
+        }
+
+        expect(gutter).toBe(nativeTokens.spacing[4]);
     });
 });

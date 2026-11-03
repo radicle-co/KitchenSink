@@ -2,10 +2,10 @@
  * @module @commise/features-recipes/card — the native recipe card: one data shape, three variants
  * (`docs/design/uiOverhaul/buildSpec.md` §4.1), the twin of the web leaf.
  *
- * - **grid** — the full CR-002 card: a 4:3 cover with its chips, then the title; difficulty · rating; cuisine ·
- *   calories · servings; the tags as text; the version and the timestamp.
- * - **row** — the list view: an 80 × 80 cover, the title on up to two lines, a meta line and a status line.
- * - **compact** — the cover with its chips, then the title.
+ * - **grid** — a 4:3 cover with its chips, then the title, the meta line (time · difficulty · rating · calories) and
+ *   the timestamp.
+ * - **row** — the list view: an 80 × 80 cover, the title on up to two lines, the same meta line and a status line.
+ * - **compact** — the cover with its chips, then the title and a brief meta line (time, calories); the whole line with `fullMeta`.
  *
  * The orchestration layer decides the variant with `cardVariantOf`; this leaf draws the arrangement it is handed. The
  * card is ONE pressable link named by the title. Its surface is a level-1 card — `paper`, a `lineDivider` hairline,
@@ -15,17 +15,18 @@
  * iOS masks a layer's shadow when the same layer clips, so the elevation sits on an outer shell that never clips and the
  * clip on the content view inside it.
  *
- * One line that runs out of room: native has no `:empty`, so the meta line spaces its items with a gap rather than the
- * web's middots — a nutrition slot that settles on nothing would otherwise leave an orphan separator. A one-line row is a
- * wrapping row of EXACTLY one line's height (`./oneLine.ts`, scaled by the OS font scale), so an item that does not fit
- * wraps to a second line that is fully hidden. The row's cuisine is capped at half the line and truncates, so it gives
- * way before the time and the servings drop (W-06).
+ * The meta line wraps and never clips: native has no `:empty`, so it spaces its items with a gap rather than the web's
+ * middots — a nutrition slot that settles on nothing would otherwise leave an orphan separator. A part that does not fit
+ * moves to the next line. A badge line is a wrapping row of EXACTLY one line's height (`./oneLine.ts`, scaled by the OS
+ * font scale), so an item that does not fit wraps to a second line that is fully hidden (W-06).
+ *
+ * No variant shows servings, cuisine, the tags, the version, a cover time chip or a difficulty badge (designer ruling
+ * 2026-11-02, `docs/design/uiRefreshWorkshop5/nativeBoards/designAnswers.md`); difficulty is a plain word in the meta line.
  *
  * @pattern Compound Component — a Root carrying the view in context, and parts each surface arranges
  * @pattern Registry — the variant's default arrangement, keyed by the closed variant union
  */
 import { nativeTokens } from '@commise/ui/native';
-import { DifficultyBadge } from '@commise/ui/difficulty-badge';
 import { Icon } from '@commise/ui/icon';
 import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
@@ -35,7 +36,8 @@ import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { CardVariant } from './cardVariant.js';
-import { STAR_COUNT } from './model.js';
+import { META_SEPARATOR, MetaLeadContext, metaRunOf, unbreakable } from './metaRun.js';
+import { COVER_CHIP_INSET, COVER_CHIP_PADDING, COVER_CHIP_PADDING_V } from './coverChip.js';
 import { badgeLineHeightOf, metaLineHeightOf } from './oneLine.js';
 import {
     RecipeCardNutritionContext,
@@ -51,39 +53,58 @@ import { useRecipeCardView } from './useRecipeCardView.js';
  */
 const FontScaleContext = createContext(1);
 
-/**
- * One line of a card: a wrapping row of exactly one line's height.
- *
- * @param props.kind - `meta` for text and icons, `badge` for a row holding a badge.
- */
-const OneLine: FC<{ readonly kind: 'meta' | 'badge'; readonly children: ReactNode }> = ({ kind, children }) => {
+/** One line of a card that holds a badge: a wrapping row of exactly the badge line's height, hiding what does not fit. */
+const OneLine: FC<{ readonly children: ReactNode }> = ({ children }) => {
     const fontScale = useContext(FontScaleContext);
-    const height = kind === 'meta' ? metaLineHeightOf(fontScale) : badgeLineHeightOf(fontScale);
+    const height = badgeLineHeightOf(fontScale);
 
     return <View style={[styles.oneLine, { height }]}>{children}</View>;
 };
 
-/** A cover chip: solid `photoChip`, `ink`, the `sm` radius. */
-const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string }> = ({ children, label }) => {
+/**
+ * A wrapping row (the meta line; the status and timestamp) with no fixed height, no clip and no truncation, so no part
+ * with data is ever hidden. A part that does not fit moves to the next line (designer ruling 2026-11-03, Android QA on
+ * 7ae95db2e).
+ */
+const WrapLine: FC<{ readonly children: ReactNode }> = ({ children }) => (
+    <View style={styles.wrapLine}>{children}</View>
+);
+
+/**
+ * A cover chip: solid `photoChip`, `ink`, the `sm` radius.
+ *
+ * `oneLine` is the status chip (designer ruling 2026-11-03): its word, then its glyph, drawn right to left in a row that is
+ * exactly one line and clips what wraps, so a chip wider than the cover drops the GLYPH (the last item to wrap) and keeps
+ * the word. The line is the meta line scaled by the OS font scale, as the card's other one-line rows are.
+ */
+const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string; readonly oneLine?: boolean }> = ({
+    children,
+    label,
+    oneLine = false,
+}) => {
     const { colors } = useTheme();
+    const fontScale = useContext(FontScaleContext);
 
     return (
         <View
             collapsable={false}
             {...(label === undefined ? {} : { accessible: true, accessibilityLabel: label })}
-            style={[styles.coverChip, { backgroundColor: colors.photoChip }]}
+            style={[
+                styles.coverChip,
+                oneLine && styles.chipLine,
+                oneLine && { height: metaLineHeightOf(fontScale) + 2 * COVER_CHIP_PADDING_V },
+                { backgroundColor: colors.photoChip },
+            ]}
         >
             {children}
         </View>
     );
 };
 
-/** The cover: the photo or its monogram, with the status chip, PRO and the time chip over it. */
+/** The cover: the photo or its monogram, with the status chip and PRO over it. */
 const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) => {
     const { recipe, cover } = useCardView();
     const { colors } = useTheme();
-    // Text never sits under a chip (§1.8): a cover that draws the time chip says no cuisine of its own.
-    const drawsTimeChip = !thumbnail && cover.time !== undefined;
 
     return (
         // Kept, so the thumbnail's clipping never moves the cover into it (`nativeFlattenFlips.test.ts`).
@@ -92,37 +113,34 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                 recipeId={recipe.id}
                 title={recipe.title}
                 aspect={thumbnail ? '1:1' : '4:3'}
-                showCuisine={!drawsTimeChip}
-                {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
-            {!thumbnail && cover.status !== undefined && (
-                <View style={styles.topStart}>
-                    <CoverChip label={cover.status.text}>
-                        <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} tone="ink" />
-                        <Text numberOfLines={1} style={[styles.caption, styles.shrink, { color: colors.ink }]}>
-                            {cover.status.text}
-                        </Text>
-                    </CoverChip>
-                </View>
-            )}
-            {cover.pro !== undefined && (
-                <View
-                    accessible
-                    accessibilityLabel={cover.pro.label}
-                    style={thumbnail ? styles.topEndTight : styles.topEnd}
-                >
-                    <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
-                </View>
-            )}
-            {!thumbnail && cover.time !== undefined && (
-                <View style={styles.bottomStart}>
-                    <CoverChip label={cover.time.label}>
-                        <Icon name="clock" size={16} tone="ink" />
-                        <Text style={[styles.caption, styles.figure, { color: colors.ink }]}>{cover.time.text}</Text>
-                    </CoverChip>
-                </View>
-            )}
+            {thumbnail
+                ? cover.pro !== undefined && (
+                      <View accessible accessibilityLabel={cover.pro.label} style={styles.topEndTight}>
+                          <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
+                      </View>
+                  )
+                : (cover.status !== undefined || cover.pro !== undefined) && (
+                      // One wrapping row: a second chip that does not fit moves whole to the next line.
+                      <View style={styles.coverTop}>
+                          {cover.status !== undefined && (
+                              <CoverChip oneLine label={cover.status.text}>
+                                  <Text style={[styles.caption, { color: colors.ink }]}>{cover.status.text}</Text>
+                                  <Icon
+                                      name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'}
+                                      size={16}
+                                      tone="ink"
+                                  />
+                              </CoverChip>
+                          )}
+                          {cover.pro !== undefined && (
+                              <View accessible accessibilityLabel={cover.pro.label}>
+                                  <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
+                              </View>
+                          )}
+                      </View>
+                  )}
         </View>
     );
 };
@@ -139,165 +157,127 @@ const CardTitle: FC = () => {
     );
 };
 
-/** The rating: display-only. Rated → a named star group and the figure; unrated → "No ratings yet". */
-const CardRating: FC = () => {
+/** The rating as the run's part: "No ratings yet", or the star with the figure ("★ 4.8 (12)"), named as one unit. */
+const RatingPart: FC = () => {
     const { rating } = useCardView();
     const { colors } = useTheme();
 
     if (rating.kind === 'unrated') {
-        return (
-            <Text numberOfLines={1} style={[styles.meta, { color: colors.inkMuted }]}>
-                {rating.text}
-            </Text>
-        );
+        return unbreakable(rating.text);
     }
 
     return (
-        <View accessible accessibilityRole="image" accessibilityLabel={rating.label} style={styles.stars}>
-            {Array.from({ length: STAR_COUNT }, (_value, index) => (
-                <Text
-                    key={index}
-                    style={[styles.star, { color: rating.fills[index] === true ? colors.rating : colors.inkMuted }]}
-                >
-                    {rating.fills[index] === true ? '★' : '☆'}
-                </Text>
-            ))}
-            <Text style={[styles.meta, styles.figure, styles.ratingFigure, { color: colors.ink }]}>{rating.short}</Text>
-        </View>
+        <Text accessibilityRole="image" accessibilityLabel={rating.label} style={styles.figure}>
+            <Text style={{ color: colors.rating }}>★</Text>
+            {'\u00A0'}
+            {unbreakable(rating.short)}
+        </Text>
     );
 };
 
-/** Difficulty, then the rating. */
-const CardDifficultyRating: FC = () => {
+/** The time as the run's part, absent when the recipe has none. */
+const TimePart: FC = () => {
     const { meta } = useCardView();
 
-    return (
-        <OneLine kind="badge">
-            {meta.difficulty !== undefined && (
-                <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
-            )}
-            <CardRating />
-        </OneLine>
-    );
+    return meta.duration === undefined ? null : <Text style={styles.figure}>{unbreakable(meta.duration)}</Text>;
 };
 
-/** The grid card's meta line: cuisine, calories, servings. */
-const CardMeta: FC = () => {
-    const { recipe, meta } = useCardView();
+/**
+ * The calorie figure at the end of a run. It draws its own lead (the separator) when it has something to say, so a figure
+ * that settles on nothing leaves no dot behind (`MetaLeadContext`).
+ */
+const MetaCalories: FC<{ readonly hasLead: boolean }> = ({ hasLead }) => {
     const nutrition = useContext(RecipeCardNutritionContext);
+
+    return <MetaLeadContext.Provider value={hasLead ? META_SEPARATOR : ''}>{nutrition}</MetaLeadContext.Provider>;
+};
+
+/** The meta line's text: one run in the muted meta style. It wraps like text, with no clip and no `numberOfLines`. */
+const MetaRun: FC<{ readonly children: ReactNode }> = ({ children }) => {
     const { colors } = useTheme();
-    const text = [styles.meta, { color: colors.inkMuted }];
+
+    return <Text style={[styles.meta, { color: colors.inkMuted }]}>{children}</Text>;
+};
+
+/**
+ * The meta line of the grid card and the list row: ONE run of text, time · difficulty · rating · calories, each only when
+ * present (UI Designer ruling, 2026-11-03). The star stays with the rating, and there is no clock glyph.
+ */
+const CardMeta: FC = () => {
+    const { meta } = useCardView();
+    const hasTime = meta.duration !== undefined;
+    const run = metaRunOf([
+        hasTime ? <TimePart key="time" /> : undefined,
+        meta.difficulty,
+        <RatingPart key="rating" />,
+    ]);
 
     return (
-        <OneLine kind="meta">
-            {recipe.cuisine !== undefined && (
-                <Text numberOfLines={1} style={[text, styles.shrink]}>
-                    {recipe.cuisine}
-                </Text>
-            )}
-            {nutrition}
-            <Text accessibilityLabel={meta.servingsLabel} style={text}>
-                {meta.servingsText}
-            </Text>
-        </OneLine>
+        <MetaRun>
+            {run}
+            <MetaCalories hasLead={run.length > 0} />
+        </MetaRun>
     );
 };
 
-/** The status as the design-system badge, the version and the timestamp. */
+/**
+ * The compact tile's brief run (Home, a collection's members): time, then calories, each only when present. A run with
+ * neither is not drawn at all, so the tile does not hold a blank row (UI Designer ruling, 2026-11-03).
+ */
+const CardBriefMeta: FC = () => {
+    const { meta } = useCardView();
+    const nutrition = useContext(RecipeCardNutritionContext);
+    const run = metaRunOf([meta.duration === undefined ? undefined : <TimePart key="time" />]);
+
+    if (run.length === 0 && nutrition === null) {
+        return null;
+    }
+
+    return (
+        <MetaRun>
+            {run}
+            <MetaCalories hasLead={run.length > 0} />
+        </MetaRun>
+    );
+};
+
+/** The status as the design-system badge, and the timestamp. */
 const CardBadges: FC = () => {
     const { badges } = useCardView();
     const { colors } = useTheme();
 
     return (
-        <View style={styles.wrapLine}>
-            {badges.version !== undefined && (
-                <Text accessibilityLabel={badges.version.label} style={[styles.caption, { color: colors.inkMuted }]}>
-                    {badges.version.text}
-                </Text>
-            )}
+        <WrapLine>
             <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
             <Text style={[styles.caption, { color: colors.inkMuted }]}>{badges.timestamp}</Text>
-        </View>
+        </WrapLine>
     );
 };
 
-/** The tags as one line of text. An empty line keeps its height, so cards side by side keep their rows. */
-const CardTags: FC = () => {
-    const { tags } = useCardView();
-    const { colors } = useTheme();
-
-    return (
-        <Text
-            numberOfLines={1}
-            {...(tags === undefined ? {} : { accessibilityLabel: tags.label })}
-            style={[styles.caption, styles.lineBox, { color: colors.inkMuted }]}
-        >
-            {tags?.text ?? ''}
-        </Text>
-    );
-};
-
-/** The version (past v1) and the timestamp. */
+/** The timestamp. */
 const CardFooter: FC = () => {
-    const { footer } = useCardView();
+    const { badges } = useCardView();
     const { colors } = useTheme();
 
     return (
         <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
-            {footer}
+            {badges.timestamp}
         </Text>
     );
 };
 
-/** Row line 2: cuisine, ⏱ total, 👥 servings, calories. */
-const RowMeta: FC = () => {
-    const { recipe, meta } = useCardView();
-    const nutrition = useContext(RecipeCardNutritionContext);
-    const { colors } = useTheme();
-    const text = [styles.meta, { color: colors.inkMuted }];
-
-    return (
-        <OneLine kind="meta">
-            {recipe.cuisine !== undefined && (
-                <Text numberOfLines={1} style={[text, styles.cuisineCap]}>
-                    {recipe.cuisine}
-                </Text>
-            )}
-            {meta.duration !== undefined && (
-                <View accessible accessibilityLabel={meta.timeLabel} style={styles.iconItem}>
-                    <Icon name="clock" size={16} tone="inkMuted" />
-                    <Text style={[text, styles.figure]}>{meta.duration}</Text>
-                </View>
-            )}
-            <View accessible accessibilityLabel={meta.servingsLabel} style={styles.iconItem}>
-                <Icon name="users" size={16} tone="inkMuted" />
-                <Text style={[text, styles.figure]}>{recipe.servings}</Text>
-            </View>
-            {nutrition}
-        </OneLine>
-    );
-};
-
-/** Row line 3: difficulty, rating, the visibility glyph or the Draft badge, then the timestamp. */
+/**
+ * Row line 3: the Draft or Private badge, then the timestamp. A public recipe shows no status mark, and a glyph alone is
+ * never a status (UI Designer ruling, 2026-11-03).
+ */
 const RowStatus: FC = () => {
-    const { meta, badges } = useCardView();
+    const { badges } = useCardView();
     const { colors } = useTheme();
 
     return (
-        <OneLine kind="badge">
-            {meta.difficulty !== undefined && (
-                <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
-            )}
-            <CardRating />
-            {badges.status.status === 'draft' ? (
-                <StatusBadge status="draft">{badges.status.text}</StatusBadge>
-            ) : (
-                <Icon
-                    name={badges.status.status === 'private' ? 'lock' : 'globe'}
-                    size={16}
-                    tone="inkMuted"
-                    label={badges.status.text}
-                />
+        <OneLine>
+            {badges.status.status === 'public' ? null : (
+                <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
             )}
             <Text numberOfLines={1} style={[styles.caption, styles.trailing, { color: colors.inkMuted }]}>
                 {badges.timestamp}
@@ -317,6 +297,7 @@ interface ArrangementSlots {
     readonly note?: ReactNode;
     readonly trailing?: ReactNode;
     readonly showEdited?: boolean;
+    readonly fullMeta?: boolean;
 }
 
 const GridArrangement: FC<ArrangementSlots> = ({ link, footer }) => (
@@ -326,9 +307,7 @@ const GridArrangement: FC<ArrangementSlots> = ({ link, footer }) => (
                 <CardCover />
                 <View style={[styles.body, footer !== undefined && styles.bodyBeforeFooter]}>
                     <CardTitle />
-                    <CardDifficultyRating />
                     <CardMeta />
-                    <CardTags />
                     {footer === undefined ? <CardFooter /> : null}
                 </View>
             </>,
@@ -347,7 +326,7 @@ const RowArrangement: FC<ArrangementSlots> = ({ link, note, trailing }) => (
                     <CardCover thumbnail />
                     <View style={styles.rowText}>
                         <CardTitle />
-                        <RowMeta />
+                        <CardMeta />
                         <RowStatus />
                         {note === undefined ? null : <NoteLine>{note}</NoteLine>}
                     </View>
@@ -358,13 +337,14 @@ const RowArrangement: FC<ArrangementSlots> = ({ link, note, trailing }) => (
     </View>
 );
 
-const CompactArrangement: FC<ArrangementSlots> = ({ link, footer, showEdited }) => (
+const CompactArrangement: FC<ArrangementSlots> = ({ link, footer, showEdited, fullMeta }) => (
     <>
         {link(
             <>
                 <CardCover />
                 <View style={styles.compactBody}>
                     <CardTitle />
+                    {fullMeta === true ? <CardMeta /> : <CardBriefMeta />}
                     {footer === undefined && showEdited === true ? <CardFooter /> : null}
                 </View>
             </>,
@@ -410,7 +390,14 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
     const view = useRecipeCardView(recipe);
     const { fontScale } = useWindowDimensions();
     const Arrangement = props.variant === undefined ? null : ARRANGEMENT[props.variant];
-    const ownControls = props.footer !== undefined || props.trailing !== undefined;
+    // The link sits INSIDE the surface when the card has controls of its own, and on the tiles that share a grid row: the
+    // surface must be the outermost box to grow to the tallest tile's height, and a press frame around it would hold it at
+    // its content height (UI Designer ruling, 2026-11-03). A row and a custom arrangement keep the whole card as the link.
+    const linkInside =
+        props.footer !== undefined ||
+        props.trailing !== undefined ||
+        props.variant === 'grid' ||
+        props.variant === 'compact';
     const select = (node: ReactNode): ReactNode =>
         onSelect === undefined ? (
             node
@@ -431,11 +418,12 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
                 props.children
             ) : (
                 <Arrangement
-                    link={ownControls ? select : asIs}
+                    link={linkInside ? select : asIs}
                     footer={props.footer}
                     note={props.note}
                     trailing={props.trailing}
                     showEdited={props.showEdited}
+                    fullMeta={props.fullMeta}
                 />
             )}
         </CardSurface>
@@ -445,7 +433,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
         <RecipeCardViewContext.Provider value={view}>
             <RecipeCardNutritionContext.Provider value={nutrition}>
                 <FontScaleContext.Provider value={fontScale}>
-                    {ownControls ? surface : select(surface)}
+                    {linkInside ? surface : select(surface)}
                 </FontScaleContext.Provider>
             </RecipeCardNutritionContext.Provider>
         </RecipeCardViewContext.Provider>
@@ -460,8 +448,6 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
     Title: CardTitle,
     Meta: CardMeta,
     Badges: CardBadges,
-    Rating: CardRating,
-    Tags: CardTags,
 });
 
 const styles = StyleSheet.create({
@@ -480,19 +466,37 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.md,
         overflow: 'hidden',
     },
-    // Half the cover at most, so the status chip and PRO never meet at a large font scale (W-08, A-028).
-    topStart: { position: 'absolute', top: nativeTokens.spacing[2], start: nativeTokens.spacing[2], maxWidth: '50%' },
-    topEnd: { position: 'absolute', top: nativeTokens.spacing[2], end: nativeTokens.spacing[2] },
+    // The status chip and PRO share one wrapping row (designer ruling 2026-11-03, reversing W-08's half-cover cap): the
+    // chip takes its content width, and PRO moves whole to the next line when the two do not fit.
+    coverTop: {
+        position: 'absolute',
+        top: COVER_CHIP_INSET,
+        start: COVER_CHIP_INSET,
+        end: COVER_CHIP_INSET,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: nativeTokens.spacing[1],
+    },
     topEndTight: { position: 'absolute', top: nativeTokens.spacing[1], end: nativeTokens.spacing[1] },
-    bottomStart: { position: 'absolute', bottom: nativeTokens.spacing[2], start: nativeTokens.spacing[2] },
     coverChip: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: nativeTokens.spacing[1],
         minHeight: 24,
+        maxWidth: '100%',
         borderRadius: nativeTokens.radius.sm,
-        paddingHorizontal: nativeTokens.spacing[2],
-        paddingVertical: 2,
+        paddingHorizontal: COVER_CHIP_PADDING,
+        paddingVertical: COVER_CHIP_PADDING_V,
+    },
+    // One line, drawn right to left, clipping what wraps: the glyph wraps first and the word stays.
+    chipLine: {
+        flexDirection: 'row-reverse',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        columnGap: nativeTokens.spacing[1],
+        overflow: 'hidden',
     },
     body: {
         paddingHorizontal: nativeTokens.spacing[4],
@@ -521,7 +525,7 @@ const styles = StyleSheet.create({
     meta: { ...nativeTokens.type.meta },
     caption: { ...nativeTokens.type.caption },
     figure: { fontVariant: ['tabular-nums', 'lining-nums'] },
-    // One line: an item that does not fit wraps to a second line that the row's height (`OneLine`) hides entirely, so
+    // One badge line: an item that does not fit wraps to a second line that the row's height (`OneLine`) hides entirely, so
     // items drop from the end.
     oneLine: {
         flexDirection: 'row',
@@ -531,12 +535,5 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     wrapLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    lineBox: { minHeight: 18 },
-    shrink: { flexShrink: 1 },
-    cuisineCap: { flexShrink: 1, maxWidth: '50%' },
-    iconItem: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
     trailing: { marginStart: 'auto', flexShrink: 1 },
-    stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-    star: { ...nativeTokens.type.meta },
-    ratingFigure: { marginStart: nativeTokens.spacing[1] },
 });

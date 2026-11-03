@@ -7,7 +7,9 @@ import { formatRgb } from 'culori';
 import { VISUALLY_HIDDEN_GEOMETRY } from '../../accessibility/visuallyHidden.native.js';
 import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
+import { devicePixelScale, snapLineHeight } from '../../tokens/iosLineHeight.js';
 import { nativeTokens } from '../../tokens/native.js';
+import { typeRole } from '../../tokens/typography.js';
 import { LiveRegion } from '../LiveRegion.native.js';
 
 /**
@@ -316,7 +318,10 @@ describe('LiveRegion (native) — a region in a type role', () => {
     });
 
     it('grows its size and leading to 2× above the cap', () => {
-        const { fontSize, lineHeight } = nativeTokens.type.body;
+        const { fontSize } = nativeTokens.type.body;
+        // This file runs as iOS: the leading is the RAW token doubled, then snapped once (react/react-native#58970).
+        // Doubling the projection would double its 0.001 shift too.
+        const lineHeight = snapLineHeight(typeRole.body.lineHeight * 2, devicePixelScale());
 
         renderWithTamagui(
             <LiveRegion politeness="polite" typeRole="body">
@@ -327,7 +332,7 @@ describe('LiveRegion (native) — a region in a type role', () => {
         );
 
         expect(getComputedStyle(screen.getByText('Added Basil')).fontSize).toBe(`${String(fontSize * 2)}px`);
-        expect(getComputedStyle(screen.getByText('Added Basil')).lineHeight).toBe(`${String(lineHeight * 2)}px`);
+        expect(getComputedStyle(screen.getByText('Added Basil')).lineHeight).toBe(`${String(lineHeight)}px`);
     });
 
     // The `offFlow` variant restates `VISUALLY_HIDDEN_GEOMETRY` as a literal for the style guards, so this holds the

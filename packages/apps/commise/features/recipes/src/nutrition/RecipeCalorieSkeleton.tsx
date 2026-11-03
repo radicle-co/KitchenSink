@@ -24,7 +24,9 @@
  * The shimmer's box is sized to the chip it replaces, so the card's meta row does not reflow when the figure
  * lands — a row that jumps on every card in a grid is the visible cost of a fallback that reserves nothing.
  */
-import type { FC } from 'react';
+import { useContext, type FC } from 'react';
+
+import { MetaLeadContext, unbreakable } from '../card/metaRun.js';
 
 /** Props for {@link RecipeCalorieSkeleton}. */
 export interface RecipeCalorieSkeletonProps {
@@ -45,9 +47,16 @@ const SHIMMER_CLASS = 'inline-block h-4 w-14 animate-pulse rounded-sm bg-surface
  * @param props - The localized loading label.
  * @returns The decorative, reduced-motion-safe shimmer beside visually-hidden text naming the state.
  */
-export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label }) => (
-    <span className="inline-flex items-center">
-        <span className="sr-only">{label}</span>
-        <span aria-hidden="true" className={SHIMMER_CLASS} />
-    </span>
-);
+export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label }) => {
+    const lead = useContext(MetaLeadContext);
+
+    return (
+        <>
+            {lead}
+            <span className="inline-flex items-center">
+                <span className="sr-only">{unbreakable(label)}</span>
+                <span aria-hidden="true" className={SHIMMER_CLASS} />
+            </span>
+        </>
+    );
+};

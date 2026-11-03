@@ -22,7 +22,9 @@
  *     outage can never reach this member.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { FC } from 'react';
+import { useContext, type FC } from 'react';
+
+import { MetaLeadContext, unbreakable } from '../card/metaRun.js';
 
 import { recipeNutritionMessages } from './messages.js';
 import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
@@ -69,15 +71,21 @@ const CHIP_ROLE = 'img';
 export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => {
     const messages = useMessages(recipeNutritionMessages);
     const locale = useLocale();
+    const lead = useContext(MetaLeadContext);
 
     switch (nutrition.state) {
         case 'known': {
             const chip = toCalorieChipModel(nutrition, locale, messages);
 
             return (
-                <span role={CHIP_ROLE} aria-label={chip.label} className={chip.isStale ? STALE_CLASS : undefined}>
-                    {chip.text}
-                </span>
+                <>
+                    {/* The lead is text of the run, outside the figure's own span: a span that starts with a space or a dot
+                        lets a platform break at its boundary (qa-ios on 087051a43). */}
+                    {lead}
+                    <span role={CHIP_ROLE} aria-label={chip.label} className={chip.isStale ? STALE_CLASS : undefined}>
+                        {unbreakable(chip.text)}
+                    </span>
+                </>
             );
         }
 

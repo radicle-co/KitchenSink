@@ -138,10 +138,7 @@ describe('the Recipes list (native) — layout reports that say nothing new cost
         expect(onRender.mock.calls.length).toBe(settled);
     });
 
-    // KNOWN GAP, not this feature's: the quick-filter chip row's horizontal scroller (`@commise/ui/chip`'s HorizontalScroller)
-    // keeps its measured widths unrounded, so each wobbled report costs a commit there. `it.fails` turns green-by-surprise into
-    // a failure the day it is fixed, so this line is then deleted.
-    it.fails('ignores sub-pixel wobble in the chip row too', () => {
+    it('ignores sub-pixel wobble in the chip row too', () => {
         const onRender = vi.fn();
         mount(onRender, true);
 

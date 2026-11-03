@@ -13,12 +13,14 @@ import { Button } from '@commise/ui/button';
 import { DurationField } from '@commise/ui/duration-field';
 import { FieldLabel, TextArea } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
+import { Text as DesignText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { numeralDiscOf } from '../format/numeralDisc.js';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { stepFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
@@ -26,11 +28,10 @@ import { applyDraftAction, type RecipeEditorSectionProps } from './props.js';
 import { stepsMessage } from './stepsMessage.js';
 import { useStepList } from './useStepList.js';
 
-/** The numeral's circle, in points (§7.6). */
-const NUMERAL = 32;
-
 /** The Steps section: the list of steps, then Add step. */
 export const RecipeInstructionsFields: FC<RecipeEditorSectionProps> = ({ values, errors, onChange }) => {
+    // The numeral caps at 1.5x and its circle grows with it, never below 32 pt (§7.6, designer ruling 2026-11-03).
+    const numeralDisc = numeralDiscOf('label', useWindowDimensions().fontScale);
     const m = useMessages(recipeFormMessages);
     const e = useMessages(editorMessages);
     const { colors } = useTheme();
@@ -77,9 +78,19 @@ export const RecipeInstructionsFields: FC<RecipeEditorSectionProps> = ({ values,
                                 <View style={styles.header}>
                                     <View
                                         aria-hidden
-                                        style={[styles.numeral, { backgroundColor: colors.selectedFill }]}
+                                        style={[
+                                            styles.numeral,
+                                            {
+                                                minWidth: numeralDisc,
+                                                minHeight: numeralDisc,
+                                                borderRadius: numeralDisc / 2,
+                                                backgroundColor: colors.selectedFill,
+                                            },
+                                        ]}
                                     >
-                                        <Text style={[styles.numeralText, { color: colors.ink }]}>{n}</Text>
+                                        <DesignText typeRole="label" chromeCap="1.5" figures color="$ink">
+                                            {n}
+                                        </DesignText>
                                     </View>
                                     <View style={styles.label}>
                                         <FieldLabel forId={stepFieldId(index)} label={label} />
@@ -167,14 +178,7 @@ const styles = StyleSheet.create({
     list: { gap: nativeTokens.spacing[6] },
     step: { gap: nativeTokens.spacing[2] },
     header: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
-    numeral: {
-        width: NUMERAL,
-        height: NUMERAL,
-        borderRadius: NUMERAL / 2,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    numeralText: { ...nativeTokens.type.label, fontVariant: ['tabular-nums'] },
+    numeral: { alignItems: 'center', justifyContent: 'center' },
     label: { flex: 1, minWidth: 0 },
     timer: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: nativeTokens.spacing[3] },
     start: { alignSelf: 'flex-start' },

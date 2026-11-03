@@ -28,6 +28,8 @@ android	recipes/collectionAddRemoveUndo	134	5
 android	recipes/collections	113	5
 android	recipes/collectionsPagination	884	4
 android	recipes/collectionsPull	162	4
+android	recipes/collectionsSearchPinned	108	0
+android	recipes/collectionsFirstRunLargeText	108	0
 android	recipes/collectionsSaveCopy	74	5
 android	recipes/collectionsVisibility	75	4
 android	recipes/conflictMerge	222	4
@@ -99,6 +101,8 @@ ios	recipes/collectionAddRemoveUndo	157	4
 ios	recipes/collections	112	4
 ios	recipes/collectionsPagination	808	2
 ios	recipes/collectionsPull	169	4
+ios	recipes/collectionsSearchPinned	108	0
+ios	recipes/collectionsFirstRunLargeText	108	0
 ios	recipes/collectionsSaveCopy	180	3
 ios	recipes/collectionsVisibility	107	4
 ios	recipes/conflictMerge	304	1

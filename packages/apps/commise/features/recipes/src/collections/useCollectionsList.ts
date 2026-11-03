@@ -17,8 +17,10 @@ import { useCreateCollection, useRecipeServiceClient } from '@kitchensink/recipe
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { createEntryYields } from '../hooks/libraryState.js';
+import { createEntryYieldsWhileLoading } from '../hooks/libraryState.js';
 import { useLibraryState } from '../hooks/useLibraryState.js';
+import { useLibraryTotal } from '../hooks/useLibraryTotal.js';
+import { COLLECTION_SEARCH_FROM } from './model.js';
 
 /** What {@link useCollectionsList} reads. */
 export interface CollectionsListInput {
@@ -30,13 +32,18 @@ export interface CollectionsListInput {
 export interface CollectionsList {
     /** The collections read: the same options object the boundary's prefetch check and the suspense read use. */
     readonly read: ReturnType<ReturnType<typeof collectionQueries>['listInfinite']>;
-    readonly search: { readonly value: string; readonly onChange: (value: string) => void };
+    readonly search: {
+        readonly value: string;
+        readonly onChange: (value: string) => void;
+        /** Whether the pinned search shows: from {@link COLLECTION_SEARCH_FROM} collections, and while the cook has typed. */
+        readonly visible: boolean;
+    };
     /** Whether the cook has a recipe to group; while unknown it is `true`, so the first run offers New collection. */
     readonly hasRecipes: boolean;
     /**
-     * The floating "New collection" yields (§3.4, §5.1): while the first read is in flight it never appears, so it cannot
-     * vanish; on the first run (no collection at all) the screen draws its own start buttons in its place. Offline or
-     * failed with nothing cached, it shows.
+     * The floating "New collection" yields (§3.4, §5.1) only while the first read is in flight, so it never appears and
+     * then vanishes. On the first run it stays, the same as "New recipe" (designer ruling 2026-11-03), and offline or failed
+     * with nothing cached, it shows.
      */
     readonly createEntryYields: boolean;
     /** Focus goes back to the floating button: the sheet closed without creating a collection. */
@@ -75,13 +82,18 @@ export function useCollectionsList({ onCreated }: CollectionsListInput): Collect
     const anyRecipe = useQuery(recipeQueries(client).list({ pageSize: 1 }));
     // A cache-only read of the list's own key (its family is that one key: collection search is on the device and not in
     // it). It fetches nothing.
-    const createEntryYieldsNow = createEntryYields(
-        useLibraryState([{ queryKey: read.queryKey, exact: true }], read.queryKey),
-    );
+    const family = [{ queryKey: read.queryKey, exact: true }];
+    const createEntryYieldsNow = createEntryYieldsWhileLoading(useLibraryState(family, read.queryKey));
+    // The frame sits outside the read's boundary, so it learns how many collections there are from the cache.
+    const total = useLibraryTotal(family, read.queryKey);
 
     return {
         read,
-        search: { value: searchValue, onChange: setSearchValue },
+        search: {
+            value: searchValue,
+            onChange: setSearchValue,
+            visible: total >= COLLECTION_SEARCH_FROM || searchValue !== '',
+        },
         hasRecipes: (anyRecipe.data?.total ?? 1) > 0,
         createEntryYields: createEntryYieldsNow,
         createFocus: { requested: refocusCreate, onHandled: () => setRefocusCreate(false) },

@@ -1,0 +1,88 @@
+appId: ${APP_ID}
+---
+# Designer ruling (2026-11-02): where the Collections tab has a search field ("Search your collections", from six
+# collections), it follows the Recipes rule. The title, segments and count scroll away WITH the list; only the search field
+# sticks at the top, on its band, and it stays reachable (one search field exposed at a time).
+#
+# HERMETIC, like `collectionsPagination.yaml`: the free-tier signer sees an EMPTY collections list, so this flow creates the
+# eight collections it needs (the field shows from six, and four rows of two tiles do not fit one screen) and deletes them
+# all at the end.
+#
+# NOT RUN yet: written test-first with the Collections pin, which waits for the merge of the Recipes pin it reuses. Run it
+# once on each platform at the default text size.
+- runFlow: ../auth/signin.yaml
+
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000
+
+- repeat:
+      times: 8
+      commands:
+          - tapOn: 'New collection'
+          - extendedWaitUntil:
+                visible: 'Description \(optional\)'
+                timeout: 20000
+          - runFlow:
+                file: common/typeCollectionName.yaml
+                env:
+                    NAME: 'Maestro pin'
+          - pressKey: Enter
+          - extendedWaitUntil:
+                visible: 'More actions for Maestro pin'
+                timeout: 40000
+          - tapOn: 'Back to Collections'
+          # The button the next pass taps proves the pop back to the list ended.
+          - extendedWaitUntil:
+                visible: 'New collection'
+                timeout: 20000
+
+# At the top the whole header is there, with the field in its place after the segments.
+- assertVisible: 'My recipes'
+- assertVisible: 'Search your collections'
+
+# Scroll the list up: the segments leave the screen with the tiles, the search field stays.
+- scroll
+- scroll
+- assertNotVisible: 'My recipes'
+- assertVisible: 'Search your collections'
+
+# The pinned field is the live one: typing filters, and a query that matches nothing says so while the field stays.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Search your collections'
+          TEXT: 'zzzznosuchcollection'
+- assertVisible: 'No collections match'
+- assertVisible: 'Search your collections'
+
+# Back to the top: the whole header is there again.
+- runFlow:
+      file: common/typeIntoField.yaml
+      env:
+          FIELD: 'Search your collections'
+          TEXT: 'Maestro'
+- scrollUntilVisible:
+      element: 'My recipes'
+      direction: UP
+      timeout: 20000
+- assertVisible: 'My recipes'
+
+# CLEANUP (hermetic): drain the eight collections from the top of the list.
+- repeat:
+      times: 12
+      while:
+          visible: 'Maestro pin(, .*)?'
+      commands:
+          - tapOn:
+                text: 'Maestro pin(, .*)?'
+                below: '\d+ collections?'
+          - tapOn: 'More actions for Maestro pin'
+          - tapOn: 'Delete collection'
+          - tapOn: 'Delete collection'
+          - extendedWaitUntil:
+                visible: 'New collection'
+                timeout: 40000

@@ -126,3 +126,24 @@ describe.each(['row', 'grid', 'compact'] as const)('CollectionMemberRow (native,
         }
     });
 });
+
+// UI Designer ruling (2026-11-03): a collection-detail tile is the compact tile, so it keeps the Home line (time, then
+// calories) and draws no difficulty or rating.
+describe('CollectionMemberRow (native) — the compact tile’s meta line', () => {
+    it('draws the time and no difficulty or rating', () => {
+        renderRow({
+            variant: 'compact',
+            member: makeCollectionMemberRecipe({
+                id: 'rec_1',
+                title: 'Pasta',
+                totalTimeMinutes: 45,
+                difficulty: 'easy',
+                ratingCount: 0,
+            }),
+        });
+
+        expect(screen.getByText('45 min')).toBeTruthy();
+        expect(screen.queryByText('Easy')).toBeNull();
+        expect(screen.queryByText(/No ratings yet/u)).toBeNull();
+    });
+});

@@ -10,9 +10,11 @@
  *
  * @pattern Strategy — one pure function owns the type-scaling arithmetic
  */
+import { devicePixelScale, snapLineHeight } from '../tokens/iosLineHeight.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { TypeRole } from '../tokens/typography.js';
+import { typeRole, type TypeRole } from '../tokens/typography.js';
 import { FONT_SCALE_CAP } from './fontScaleCap.js';
+import { letterLiftOf, letterLineHeightOf, type LetterPlatform } from './letterMetrics.js';
 
 /** The display roles' ceiling: a title stops growing at 1.5×. */
 export const DISPLAY_FONT_SCALE_CAP = 1.5;
@@ -52,6 +54,35 @@ export interface ScaledTypeSize {
 export interface ScaledTypeMetrics {
     readonly fontSize: number;
     readonly lineHeight: `${number}px`;
+    /** The cap-centring lift of a cap-centred fixed size, and nothing else's. */
+    readonly transform?: readonly [{ readonly translateY: number }];
+}
+
+/** The scale a sized role grows to: the system scale under the role's (or a chrome step's) ceiling. */
+function grownScale(role: Exclude<TypeRole, 'figureInline'>, systemScale: number, chromeCap?: ChromeCap): number {
+    const ceiling = chromeCap === undefined ? CEILING[role] : Math.min(CEILING[role], Number(chromeCap));
+
+    return Math.min(systemScale, ceiling);
+}
+
+/**
+ * A sized role's leading at the system scale, BEFORE the iOS snap (react/react-native#58970). Pure.
+ *
+ * Row and height arithmetic reads this, never {@link scaledTypeSize}'s `lineHeight`: the snap lifts a leading a hair
+ * above the pixel grid, so a `Math.ceil` or a row count over the snapped value drifts by a whole point. Only the value
+ * handed to a React Native text style is snapped.
+ *
+ * @param role - The type role (any but `figureInline`).
+ * @param systemScale - The system font scale (`useWindowDimensions().fontScale`).
+ * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
+ * @returns The leading in points, unsnapped.
+ */
+export function scaledLeading(
+    role: Exclude<TypeRole, 'figureInline'>,
+    systemScale: number,
+    chromeCap?: ChromeCap,
+): number {
+    return typeRole[role].lineHeight * grownScale(role, systemScale, chromeCap);
 }
 
 /**
@@ -60,7 +91,7 @@ export interface ScaledTypeMetrics {
  * @param role - The type role (any but `figureInline`, which takes its line's).
  * @param systemScale - The system font scale (`useWindowDimensions().fontScale`).
  * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
- * @returns The scaled size and leading.
+ * @returns The scaled size and leading; the leading is iOS-snapped, so it is for a style, not for arithmetic.
  */
 export function scaledTypeSize(
     role: Exclude<TypeRole, 'figureInline'>,
@@ -68,10 +99,12 @@ export function scaledTypeSize(
     chromeCap?: ChromeCap,
 ): ScaledTypeSize {
     const base = role === 'largeTitle' ? nativeTokens.type.largeTitle.regular : nativeTokens.type[role];
-    const ceiling = chromeCap === undefined ? CEILING[role] : Math.min(CEILING[role], Number(chromeCap));
-    const grown = Math.min(systemScale, ceiling);
 
-    return { fontSize: base.fontSize * grown, lineHeight: base.lineHeight * grown };
+    // The snap comes once, after the font scaling, over the raw leading (the projection `base.lineHeight` is already snapped).
+    return {
+        fontSize: base.fontSize * grownScale(role, systemScale, chromeCap),
+        lineHeight: snapLineHeight(scaledLeading(role, systemScale, chromeCap), devicePixelScale()),
+    };
 }
 
 /**
@@ -82,6 +115,11 @@ export function scaledTypeSize(
  * @param chromeCap - A navigation-chrome step, which can only lower the role's ceiling.
  * @param pictorial - A mark drawn on a picture (PRO on a card cover), which keeps the role's own size at every scale
  *     (designer ruling 2026-11-01, M-1); the text around the picture states the same word at the scaled size.
+ * @param fixedPx - A size in px that does not scale (initials in a disc, drawn at 40% of its diameter: designer ruling
+ *     2026-11-03). It wins over the role's size, the cap and `pictorial`; the leading is the size plus 4.
+ * @param capCentred - With `fixedPx`: draw the line as the font's own height and lift by the capitals' drop, so the
+ *     capital, not the line, is what a centring parent centres (the cover letter; designer ruling 2026-11-03).
+ * @param platform - With `capCentred`: `ios` lifts by the drop measured on a device (none); anything else by the font's.
  * @returns The scaled size and leading, or nothing for `figureInline`, which keeps its line's.
  */
 export function scaledTypeMetrics(
@@ -89,7 +127,22 @@ export function scaledTypeMetrics(
     systemScale: number,
     chromeCap?: ChromeCap,
     pictorial = false,
+    fixedPx?: number,
+    capCentred = false,
+    platform: LetterPlatform = 'other',
 ): ScaledTypeMetrics | Record<string, never> {
+    if (fixedPx !== undefined && capCentred) {
+        return {
+            fontSize: fixedPx,
+            lineHeight: `${letterLineHeightOf(fixedPx)}px`,
+            transform: [{ translateY: -letterLiftOf(fixedPx, platform) }],
+        };
+    }
+
+    if (fixedPx !== undefined) {
+        return { fontSize: fixedPx, lineHeight: `${fixedPx + 4}px` };
+    }
+
     if (role === 'figureInline') {
         return {};
     }

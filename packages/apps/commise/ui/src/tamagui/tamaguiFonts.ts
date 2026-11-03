@@ -11,14 +11,19 @@
  *
  * @pattern Adapter — the type scale projected into Tamagui's font shape
  */
+import { devicePixelScale, snapLineHeight } from '../tokens/iosLineHeight.js';
 import { bodyFontFace, displayFontFace, fontWeight, lineHeightPx } from '../tokens/scale.js';
 import type { TypeSize } from '../tokens/typography.js';
 
 /** Typed over every allowed size, so a size added to the scale without an entry here does not compile. */
 const size: Readonly<Record<TypeSize, TypeSize>> = { 14: 14, 16: 16, 18: 18, 28: 28 };
 
+/**
+ * A size's leading as the platform draws it: on iOS a hair above the pixel grid (react/react-native#58970, see
+ * `iosLineHeight.native.ts`), exact elsewhere. `lineHeightPx` itself stays exact.
+ */
 function leadingOf(step: TypeSize): `${number}px` {
-    return `${lineHeightPx[step]}px`;
+    return `${snapLineHeight(lineHeightPx[step], devicePixelScale())}px`;
 }
 
 const lineHeight: Readonly<Record<TypeSize, `${number}px`>> = {

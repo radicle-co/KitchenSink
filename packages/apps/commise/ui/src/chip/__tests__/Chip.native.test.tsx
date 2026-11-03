@@ -9,11 +9,11 @@ import { Chip } from '../Chip.native.js';
 import { ChipRow } from '../ChipRow.native.js';
 import { Button } from '../../button/Button.native.js';
 import type { ChipOption } from '../props.js';
-import { chipLabel, chipPill } from '../chipStyle.js';
+import { chipPill } from '../chipStyle.js';
 import { role, roleDark } from '../../tokens/colors.js';
 import { themeFor } from '../../theme/themeFor.js';
 import { nativeTokens } from '../../tokens/native.js';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * Chip and ChipRow (native) — rendered via react-native-web under jsdom, glyphs through the `lucideNativeStub`.
@@ -80,7 +80,7 @@ describe('Chip (native) — filter', () => {
         expect(pill.backgroundColor).toBe(rgb(role.surfaceMuted));
         // Ruling 4: the edge is there at rest, in a transparent colour, at the selected width.
         expect(pill.borderTopWidth).toBe('1.5px');
-        expect(getComputedStyle(screen.getByText('Vegan')).color).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Vegan'), 'color')).toBe(rgb(role.ink));
     });
 
     // Ruling 4 (`componentFixes` issue 4): selecting a chip must never shift its neighbours. Mutation lens: a rest edge of
@@ -170,7 +170,6 @@ describe('Chip (native) — filter', () => {
         const theme = themeFor('dark');
 
         expect(chipPill(theme, false, false, 'canvas').backgroundColor).toBe(roleDark.surfaceMuted);
-        expect(chipLabel(theme, false).color).toBe(roleDark.ink);
     });
 
     it('shows selection by tint, a 1.5pt selectedEdge, an actionText label AND a check', () => {
@@ -182,7 +181,7 @@ describe('Chip (native) — filter', () => {
         expect(pill.backgroundColor).toBe(rgb(role.selectedFill));
         expect(pill.borderTopColor).toBe(rgb(role.selectedEdge));
         expect(pill.borderTopWidth).toBe('1.5px');
-        expect(getComputedStyle(screen.getByText('Vegan')).color).toBe(rgb(role.actionText));
+        expect(resolvedColour(screen.getByText('Vegan'), 'color')).toBe(rgb(role.actionText));
         expect(glyphIn(chip)).toBe('check');
     });
 
@@ -211,7 +210,7 @@ describe('Chip (native) — filter', () => {
     it('shows a count in tabular inkMuted digits, inside the accessible name', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} count={12} onPress={vi.fn()} />);
 
-        expect(getComputedStyle(screen.getByText('12')).color).toBe(rgb(role.inkMuted));
+        expect(resolvedColour(screen.getByText('12'), 'color')).toBe(rgb(role.inkMuted));
         expect(screen.getByRole('checkbox', { name: 'Vegan 12' })).toBeTruthy();
     });
 
@@ -379,5 +378,38 @@ describe('ChipRow (native) — filter and input', () => {
         const line = screen.getByRole('checkbox', { name: 'Vegan' }).parentElement;
 
         expect(line === null ? undefined : getComputedStyle(line).flexWrap).toBe('wrap');
+    });
+});
+
+// Designer finding C-1 (reviews/mergedUiIos1.md): chip text grew to about 3x at the largest text size and broke inside its
+// word. The label and the count are the design-system Text, which stops at 2x; the pill grows with it (a minimum height).
+describe('Chip (native) — the label and the count stop at 2x', () => {
+    it.each([
+        [1, '14px', '14px'],
+        [2, '28px', '28px'],
+        [3.1, '28px', '28px'],
+    ] as const)('at system scale %fx the label is %s and the count %s', (scale, label, count) => {
+        renderWithTamagui(
+            <Chip kind="filter" label="Under 30 min" count={12} selected={false} onPress={vi.fn()} />,
+            'light',
+            scale,
+        );
+
+        expect(resolvedStyle(screen.getByText('Under 30 min'), 'fontSize')).toBe(label);
+        expect(resolvedStyle(screen.getByText('12'), 'fontSize')).toBe(count);
+    });
+});
+
+// REWRITES the old check of `chipLabel(theme).color`, a style function the chip no longer uses: the label is the design-system
+// Text, whose colour is a theme token, so it is read resolved from the rendered label.
+describe('Chip (native) — the label colour follows the theme', () => {
+    it.each([
+        ['light', false, role.ink],
+        ['dark', false, roleDark.ink],
+        ['light', true, role.actionText],
+    ] as const)('in the %s scheme, selected=%s', (scheme, selected, expected) => {
+        renderWithTamagui(<Chip kind="filter" label="Under 30 min" selected={selected} onPress={vi.fn()} />, scheme);
+
+        expect(resolvedColour(screen.getByText('Under 30 min'), 'color')).toBe(rgb(expected));
     });
 });

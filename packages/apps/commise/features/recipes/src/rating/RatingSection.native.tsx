@@ -1,35 +1,45 @@
 /**
- * @module @commise/features-recipes/rating — the shared rating-section scaffold, native leaf.
+ * @module @commise/features-recipes/rating — the rating card's scaffold, native leaf.
  *
- * The React Native peer of the web `RatingSection`: the labelled region + community heading + read-only
- * aggregate that BOTH rating variants render, with each variant's distinct tail supplied as `children`. Keeps
- * the section chrome in one place (§3 DRY) so the display and input variants cannot drift on the heading,
- * region label, or aggregate.
- *
- * As on web, the COMMUNITY aggregate is private to this module — it has exactly one consumer, and its
- * placement inside the scaffold is precisely what the two variants must not be able to disagree about.
+ * The React Native peer of the web `RatingSection`: the labelled card that BOTH rating variants render, with each
+ * variant's tail supplied as `children`. It draws the community summary on one row, stars then the figure then the
+ * count (`RecipeDetailAndroid384`), and no heading of its own.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { FC, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { styled, XStack, YStack } from 'tamagui';
 
 import { STAR_COUNT, formatAverageRating, formatRatingCount, toStarFills } from '../card/model.js';
 import { recipeRatingMessages, type RecipeRatingMessages } from './messages.js';
 import { StarShape } from './StarShape.native.js';
 
-/** The read-only community aggregate: a labelled star image when rated, an honest "not yet rated" otherwise. */
+const Card = styled(YStack, {
+    name: 'RatingCard',
+    gap: '$3',
+    padding: '$4',
+    borderRadius: '$lg',
+    borderWidth: 1,
+    borderColor: '$lineDivider',
+    backgroundColor: '$paper',
+});
+
+const SummaryRow = styled(XStack, { name: 'RatingSummaryRow', alignItems: 'center', gap: '$2', flexWrap: 'wrap' });
+
+/** The read-only community summary: stars, the figure and the count when rated, an honest "not yet rated" otherwise. */
 const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: RecipeRatingMessages }> = ({
     average,
     ratingCount,
     rating,
 }) => {
     const locale = useLocale();
-    const { colors } = useTheme();
 
     if (average === undefined || ratingCount === 0) {
-        return <Text style={[styles.unrated, { color: colors.inkMuted }]}>{rating.unrated}</Text>;
+        return (
+            <Text typeRole="meta" color="$inkMuted">
+                {rating.unrated}
+            </Text>
+        );
     }
 
     const ratings = formatRatingCount(
@@ -37,17 +47,24 @@ const CommunityAggregate: FC<{ average?: number; ratingCount: number; rating: Re
         { one: rating.ratingCountOne, other: rating.ratingCountOther },
         locale,
     );
-    const label = rating.communitySummary
-        .replace('{average}', formatAverageRating(average, locale))
-        .replace('{ratings}', ratings);
+    const figure = formatAverageRating(average, locale);
+    const label = rating.communitySummary.replace('{average}', figure).replace('{ratings}', ratings);
     const fills = toStarFills(average);
 
     return (
-        <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.stars}>
-            {Array.from({ length: STAR_COUNT }, (_value, index) => (
-                <StarShape key={index} filled={fills[index] ?? false} />
-            ))}
-        </View>
+        <SummaryRow>
+            <XStack accessible role="img" aria-label={label} gap="$1">
+                {Array.from({ length: STAR_COUNT }, (_value, index) => (
+                    <StarShape key={index} filled={fills[index] ?? false} />
+                ))}
+            </XStack>
+            <Text typeRole="body" figures>
+                {figure}
+            </Text>
+            <Text typeRole="body" color="$inkMuted">
+                {ratings}
+            </Text>
+        </SummaryRow>
     );
 };
 
@@ -57,36 +74,23 @@ export interface RatingSectionProps {
     readonly average?: number;
     /** How many ratings the community average is drawn from. */
     readonly ratingCount: number;
-    /** The variant's own tail, rendered below the aggregate. */
+    /** The variant's own tail, rendered below the summary. */
     readonly children: ReactNode;
 }
 
 /**
- * The rating section chrome.
+ * The rating card.
  *
- * @param props - The community aggregate values and the variant's tail.
- * @returns The labelled rating region.
+ * @param props - The community summary values and the variant's tail.
+ * @returns The labelled rating card.
  */
 export const RatingSection: FC<RatingSectionProps> = ({ average, ratingCount, children }) => {
     const { rating } = useMessages(recipeRatingMessages);
-    const { colors } = useTheme();
 
     return (
-        <View collapsable={false} accessibilityLabel={rating.regionLabel} style={styles.container}>
-            <Text accessibilityRole="header" style={[styles.heading, { color: colors.ink }]}>
-                {rating.communityHeading}
-            </Text>
+        <Card collapsable={false} aria-label={rating.regionLabel}>
             <CommunityAggregate average={average} ratingCount={ratingCount} rating={rating} />
             {children}
-        </View>
+        </Card>
     );
 };
-
-const styles = StyleSheet.create({
-    // No side padding: the section sits in the page's column, so its heading starts where its siblings' do (F15).
-    container: { gap: 12, paddingVertical: 8 },
-    // `sectionTitle`, like every sibling H2 (`buildSpec.md` §1.5, F8).
-    heading: { ...nativeTokens.type.sectionTitle },
-    stars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    unrated: { ...nativeTokens.type.meta },
-});

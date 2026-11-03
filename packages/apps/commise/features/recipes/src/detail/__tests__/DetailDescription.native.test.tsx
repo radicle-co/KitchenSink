@@ -74,11 +74,11 @@ describe('DetailDescription (native)', () => {
         expect(resolvedColour(screen.getByText(LONG), 'color')).toBe(rgb(rolesFor(scheme).ink));
     });
 
-    it('clamps a long description to four lines with More under it', () => {
+    it('clamps a long description to four lines with Read more under it', () => {
         renderWithTamagui(description(), 'light');
 
         expect(clampOf(screen.getByText(LONG))).toBe('4');
-        expect(screen.getByRole('button', { name: detail.descriptionMore })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Read more' })).toBeTruthy();
     });
 
     it('shows the whole text with Less under it once expanded', () => {
@@ -92,7 +92,7 @@ describe('DetailDescription (native)', () => {
         const onToggle = vi.fn();
         renderWithTamagui(description({ onToggle }), 'light');
 
-        fireEvent.click(screen.getByRole('button', { name: detail.descriptionMore }));
+        fireEvent.click(screen.getByRole('button', { name: 'Read more' }));
 
         expect(onToggle).toHaveBeenCalledTimes(1);
     });
@@ -101,13 +101,13 @@ describe('DetailDescription (native)', () => {
         renderWithTamagui(description({ twoColumns: true }), 'light');
 
         expect(clampOf(screen.getByText(LONG))).toBe('');
-        expect(screen.queryByRole('button', { name: detail.descriptionMore })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Read more' })).toBeNull();
     });
 
     it('offers no toggle for a short description', () => {
         renderWithTamagui(description({ description: SHORT }), 'light');
 
-        expect(screen.queryByRole('button', { name: detail.descriptionMore })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Read more' })).toBeNull();
     });
 
     it('stacks the text and its toggle space-1 apart at the start of the line', () => {

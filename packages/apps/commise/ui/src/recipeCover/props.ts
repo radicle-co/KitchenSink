@@ -2,7 +2,6 @@
  * @module @commise/ui/recipe-cover — the shared contract of the design-system `RecipeCover`
  * (`docs/design/uiOverhaul/buildSpec.md` §1.8): a recipe's photo, or its monogram when it has none.
  */
-
 /** The cover's shape: a 4:3 card, a 1:1 thumbnail, or the 96 px band across a phone's detail hero. */
 export type CoverAspect = '4:3' | '1:1' | 'band';
 

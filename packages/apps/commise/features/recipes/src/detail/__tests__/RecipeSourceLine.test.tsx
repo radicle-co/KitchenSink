@@ -30,10 +30,11 @@ describe('RecipeSourceLine (web) — absent source', () => {
 });
 
 describe('RecipeSourceLine (web) — attribution without a URL', () => {
-    it('renders the attribution as plain text under a Source label, with no link', () => {
+    // REWRITTEN IN SLICE 1: the label reads "Adapted from" where it read "Source" (`buildLists.md` item 5).
+    it('renders the attribution as plain text under an Adapted from label, with no link', () => {
         render(<RecipeSourceLine sourceAttribution="Grandma’s cookbook" />);
 
-        expect(screen.getByText('Source')).toBeTruthy();
+        expect(screen.getByText('Adapted from')).toBeTruthy();
         expect(screen.getByText('Grandma’s cookbook')).toBeTruthy();
         expect(screen.queryByRole('link')).toBeNull();
     });

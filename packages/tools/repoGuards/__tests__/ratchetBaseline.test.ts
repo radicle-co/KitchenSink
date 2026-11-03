@@ -90,8 +90,37 @@ describe('raisedAgainst', () => {
             ]);
         });
 
-        it('does not let the rule re-admit a path that fell to zero', () => {
-            expect(raisedAgainst(history, [[{ 'c.tsx': 1 }, (b) => b.files, recount, () => true]], sourceAt)).toEqual([
+        // A merge joins two lanes' histories, and `git log` lists their versions in one line. A version from the OTHER
+        // lane does not record the path, and that is not the path falling out: an admitted path is read from the
+        // versions that record it. (The ADR register, not the history, is what keeps an unlisted path out.)
+        it('reads an admitted path only from the versions that record it, so a sibling lane does not zero it', () => {
+            const merged: readonly BaselineVersion<Baseline>[] = [
+                { revision: 'm3', baseline: { files: { 'e.tsx': 1 } } },
+                { revision: 'm2', baseline: { files: {} } },
+                { revision: 'm1', baseline: { files: { 'e.tsx': 1 } } },
+                ...history,
+            ];
+
+            expect(raisedAgainst(merged, [[{ 'e.tsx': 1 }, (b) => b.files, undefined, admitE]], sourceAt)).toEqual([]);
+            expect(raisedAgainst(merged, [[{ 'e.tsx': 2 }, (b) => b.files, undefined, admitE]], sourceAt)).toEqual([
+                'e.tsx: 2 > 1 (lowest at m3)',
+            ]);
+        });
+
+        it('still reads a path the rule does not admit from the whole history, so a sibling lane cannot add it', () => {
+            const merged: readonly BaselineVersion<Baseline>[] = [
+                { revision: 'm2', baseline: { files: {} } },
+                { revision: 'm1', baseline: { files: { 'f.tsx': 1 } } },
+                ...history,
+            ];
+
+            expect(raisedAgainst(merged, [[{ 'f.tsx': 1 }, (b) => b.files, undefined, admitE]], sourceAt)).toEqual([
+                'f.tsx: 1 > 0 (lowest at m2)',
+            ]);
+        });
+
+        it('does not let the rule re-admit a path that fell to zero when it does not admit it', () => {
+            expect(raisedAgainst(history, [[{ 'c.tsx': 1 }, (b) => b.files, recount, admitE]], sourceAt)).toEqual([
                 'c.tsx: 1 > 0 (lowest at r2, where the file did not exist)',
             ]);
         });

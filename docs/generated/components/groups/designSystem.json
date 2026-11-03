@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 90,
-        "implementations": 149,
-        "props": 850,
-        "documentedComponents": 90,
-        "implementationsWithModuleDoc": 149,
-        "implementationsWithComponentDoc": 135,
-        "documentedProps": 802,
-        "classifiedComponents": 83,
-        "componentsWithPatternTag": 90,
+        "components": 94,
+        "implementations": 153,
+        "props": 859,
+        "documentedComponents": 94,
+        "implementationsWithModuleDoc": 153,
+        "implementationsWithComponentDoc": 139,
+        "documentedProps": 809,
+        "classifiedComponents": 87,
+        "componentsWithPatternTag": 94,
         "crossPlatformComponents": 59
     },
     "components": [
@@ -4497,7 +4497,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/durationField/DurationField.native.tsx",
                     "dir": "packages/apps/commise/ui/src/durationField",
-                    "moduleDoc": "@commise/ui/duration-field — the native `DurationField`: the React Native leaf of `DurationField.tsx`, with\nthe same contract (a duration stored in seconds, entered as hours and minutes in one labelled group, never showing\na \"0\"). The arithmetic is `./duration.ts`, shared with the web leaf.\n\nA caller's `error` is each box's `accessibilityHint` (React Native has no `aria-describedby` or `aria-invalid`) and\npaints the `danger` edge.\n\nPresentational and controlled: it owns no state; the caller holds the seconds.",
+                    "moduleDoc": "@commise/ui/duration-field — the native `DurationField`: the React Native leaf of `DurationField.tsx`, with\nthe same contract (a duration stored in seconds, entered as hours and minutes in one labelled group, never showing\na \"0\"). The arithmetic is `./duration.ts`, shared with the web leaf.\n\nA caller's `error` is each box's `accessibilityHint` (React Native has no `aria-describedby` or `aria-invalid`) and\npaints the `danger` edge.\n\nEach box asks the field reveal host to hold it in view while it has focus (`useRevealedField`), as `Input` does.\n\nControlled: the caller holds the seconds.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -4589,7 +4589,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": true,
+                        "presentational": false,
                         "orchestration": false
                     }
                 }
@@ -5074,7 +5074,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/HorizontalScroller.native.tsx",
                     "dir": "packages/apps/commise/ui/src/horizontalScroller",
-                    "moduleDoc": "@commise/ui/horizontal-scroller — the native design-system {@link HorizontalScroller}\n(`docs/design/uiOverhaul/horizontalScrollHint.md`).\n\nA horizontal `ScrollView` that keeps the platform's own scroll indicator (iOS and Android show it only while the\nreader scrolls), a 16 dp gradient over its inline-end edge into the surface colour while more lies ahead, and a\ndecorative chevron while the content overflows and the scroller rests at its start. React Native has no CSS mask, so\nthe fade is a gradient to the colour behind the scroller: say which with `surface`.\n\nThe chevron has a 24 dp COLUMN of its own beside the scroller while the content overflows, so it never sits on the\nchip at the edge (the old solid band drawn over the scroller hid that chip's last characters). The column stays for\nas long as the content overflows and only the chevron's opacity changes, so nothing reflows on the first scroll.\nOverflow is read against the box around the scroller AND the column, which the column does not move, never against\nthe scroller, which it does (`scrollHint.ts`, `outer`).\n\nThe chevron changes opacity over 150 ms, instantly while the OS reduce-motion preference is on or not yet known.\n\nPresentational: props → JSX; the position is read by {@link useScrollHint}.",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the native design-system {@link HorizontalScroller}\n(`docs/design/uiOverhaul/horizontalScrollHint.md`).\n\nA horizontal `ScrollView` that keeps the platform's own scroll indicator (iOS and Android show it only while the\nreader scrolls), a 16 dp gradient over its inline-end edge into the surface colour while more lies ahead, and a\ndecorative chevron while the content overflows and the scroller rests at its start. React Native has no CSS mask, so\nthe fade is a gradient to the colour behind the scroller: say which with `surface`.\n\nThe chevron has a 24 dp COLUMN of its own beside the scroller while the content overflows, so it never sits on the\nchip at the edge (the old solid band drawn over the scroller hid that chip's last characters). The column stays for\nas long as the content overflows and only the chevron's opacity changes, so nothing reflows on the first scroll.\nOverflow is read against the box around the scroller AND the column, which the column does not move, never against\nthe scroller, which it does (`scrollHint.ts`, `outer`).\n\nThe chevron changes opacity over 150 ms, instantly while the OS reduce-motion preference is on or not yet known.\n\nPresentational: props → JSX; the position is read by {@link useScrollHint}.\n\nThe animated chevron and the gradient are the two parts Tamagui cannot draw yet; they live in `ScrollChevron.native` and `ScrollFade.native`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -5151,6 +5151,140 @@
                             "defaultValue": "canvas",
                             "description": "The surface behind the scroller; see {@link ScrollerSurface}.",
                             "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/horizontalScroller/ScrollChevron",
+            "name": "ScrollChevron",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/horizontalScroller",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter — an Animated.Value opacity behind a plain component"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ScrollChevron",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/horizontalScroller",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's chevron, the one part Tamagui cannot draw yet: its opacity is\nan `Animated.Value` (the config has no animation driver), which takes one React Native style, held here and nowhere\nelse. This file must not import `tamagui` (a file that does holds no React Native styling).\n\nOrchestration: it owns the opacity animation and reads the reduce-motion preference; it fetches nothing.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/horizontal-scroller — the scroll hint's chevron, the one part Tamagui cannot draw yet: its opacity is"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — an Animated.Value opacity behind a plain component"
+                        }
+                    ],
+                    "description": "The decorative chevron. It fades over 150 ms, and not at all while the OS reduce-motion preference is on or not yet\nknown.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "measured",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether anything has been measured yet; before that the chevron stays at its initial 0.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx"
+                        },
+                        {
+                            "name": "show",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the chevron shows.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/horizontalScroller/ScrollFade",
+            "name": "ScrollFade",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/horizontalScroller",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter — expo-linear-gradient behind a plain component"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ScrollFade",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/horizontalScroller",
+                    "moduleDoc": "@commise/ui/horizontal-scroller — the scroll hint's gradient fade, the one part Tamagui cannot draw yet:\n`expo-linear-gradient` takes a React Native style, held here and nowhere else. This file must not import `tamagui` (a\nfile that does holds no React Native styling).\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/horizontal-scroller — the scroll hint's gradient fade, the one part Tamagui cannot draw yet:"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — expo-linear-gradient behind a plain component"
+                        }
+                    ],
+                    "description": "A gradient from transparent to the colour behind the scroller, filling the box it is placed in.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ground",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The colour behind the scroller, which the fade ends in.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx"
+                        },
+                        {
+                            "name": "rtl",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the writing direction is right to left, which flips the gradient.",
+                            "declaredIn": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -5584,7 +5718,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/input/FieldLabel.native.tsx",
                     "dir": "packages/apps/commise/ui/src/input",
-                    "moduleDoc": "@commise/ui/input — the native design-system {@link FieldLabel}: the visible label above every field\n(`label` role, `inkMuted`), carrying the `nativeID` its field's `aria-labelledby` names (`fieldLabelId`), with an\noptional `caption` hint whose id the field's `describedBy` names (`fieldHintId`).\n\nPressing the label focuses its field, as a web `<label for>` does (`@commise/ui/text-input`'s label registry). The\npress area is not an accessibility element: the field is already named by the label and reached on its own, so the\nlabel adds no stop and no role, the web label's behaviour too.\n\nBoth texts are the design-system Text, so they grow with the system scale, size and leading together (ADR-0080 §8).",
+                    "moduleDoc": "@commise/ui/input — the native design-system {@link FieldLabel}: the visible label above every field\n(`label` role, `inkMuted`), carrying the `nativeID` its field's `aria-labelledby` names (`fieldLabelId`), with an\noptional `caption` hint whose id the field's `describedBy` names (`fieldHintId`).\n\nPressing the label focuses its field, as a web `<label for>` does (`@commise/ui/text-input`'s label registry). The\npress area is not an accessibility element: the field is already named by the label and reached on its own, so the\nlabel adds no stop and no role, the web label's behaviour too.\n\nThe press area draws only the label's line, so it carries a vertical `hitSlop` that makes up the difference to the touch\nfloor (Android QA, 2026-11-03: 379 x 20.2 dp). The slop overlaps the field below it, which sits later in the tree and so\ntakes the touches inside its own box first. Nothing drawn changes.\n\nBoth texts are the design-system Text, so they grow with the system scale, size and leading together (ADR-0080 §8).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6862,7 +6996,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/keepAwake/KeepAwakeToggle.tsx",
                     "dir": "packages/apps/commise/ui/src/keepAwake",
-                    "moduleDoc": "@commise/ui/keep-awake — the web design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with `aria-checked`, drawn as the secondary Button pill (`buttonToggleSurfaceClass`, 44 px, an outline,\nthe 16/20/600 `cardTitle`), NOT a chip: it sets a mode, it does not filter a list (`componentFixes` issue 6). While\non it takes the `selectedFill` with a `selectedEdge` outline of the same width, and the `sun` glyph is filled, so the\nstate never rests on colour alone. Icon-only it keeps \"Screen on\" as its name.\n\nIt presses as `Button` does: the same `PressScale` wrapper, and while off the secondary pill's own hover and pressed\nfill (`surface-muted`).\n\nPresentational apart from one capability read: with no Wake Lock API (an older browser, an insecure context) it\nrenders nothing at all. It is never shown disabled, because a control the cook can never use is noise.",
+                    "moduleDoc": "@commise/ui/keep-awake — the web design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with `aria-checked`, drawn as the QUIET Button surface (`buttonSurfaceClass('quiet')`): the `sun` glyph and the\nlabel, no fill and no outline, sitting in the action row after Edit recipe or Save a copy (designer, iosBatch1). It sets\na mode, it does not filter a list (`componentFixes` issue 6), and the glyph is filled while on, so the state never rests\non colour alone.\n\nIt presses as `Button` does: the same `PressScale` wrapper.\n\nPresentational apart from one capability read: with no Wake Lock API (an older browser, an insecure context) it\nrenders nothing at all. It is never shown disabled, because a control the cook can never use is noise.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6879,15 +7013,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "display",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"icon\"",
-                                "\"labelled\""
-                            ],
-                            "required": true,
+                            "name": "hint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Labelled (from a 720 body) or icon-only (in the section switch).",
+                            "description": "What the switch does, as its accessibility hint (web: its description): spoken after the name and the state, and never\ndrawn (designer, after iosBatch1).",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {
@@ -6896,7 +7027,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The localised name, \"Screen on\". It is the accessible name in both displays.",
+                            "description": "The localised name, \"Screen on\": the visible label and the accessible name.",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {
@@ -6930,7 +7061,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/keepAwake/KeepAwakeToggle.native.tsx",
                     "dir": "packages/apps/commise/ui/src/keepAwake",
-                    "moduleDoc": "@commise/ui/keep-awake — the native design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with `aria-checked`, drawn as the secondary Button pill and pressed through the same `PressScale` Button\nuses, NOT a chip: it sets a mode, it does not filter a\nlist (`componentFixes` issue 6). The pill is the touch floor tall (44 pt, 48 dp on Android) with a 1 pt outline: paper\nand `lineControl` while off, the `selectedFill` and `selectedEdge` while on, at the SAME edge width so turning it on\nmoves nothing around it. The label is the 16/20/600 `cardTitle` in `ink`, and the `sun` glyph is filled while on, so\nthe state never rests on colour alone. The name is always stated, because react-native-web joins a pressable's texts\nand the icon-only display has no text at all.\n\nNative always has the capability (`useKeepAwakeAvailable.native.ts`), so this leaf always renders; the Null Object\ncontract lives in the web leaf, where the capability can be missing.",
+                    "moduleDoc": "@commise/ui/keep-awake — the native design-system {@link KeepAwakeToggle} (\"Screen on\").\n\nA `switch` with its checked state, drawn as a QUIET action: the `sun` glyph (in `actionText`, filled while on, so the\nstate never rests on colour alone) and the label in `ink`, with no fill and no outline, in the action row after Edit\nrecipe or Save a copy (designer, iosBatch1). It is pressed through the same `PressScale` Button uses, and is the touch\nfloor tall (44 pt, 48 dp on Android).\n\nNative always has the capability (`useKeepAwakeAvailable.native.ts`), so this leaf always renders; the Null Object\ncontract lives in the web leaf, where the capability can be missing.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -6943,15 +7074,12 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "display",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"icon\"",
-                                "\"labelled\""
-                            ],
-                            "required": true,
+                            "name": "hint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Labelled (from a 720 body) or icon-only (in the section switch).",
+                            "description": "What the switch does, as its accessibility hint (web: its description): spoken after the name and the state, and never\ndrawn (designer, after iosBatch1).",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {
@@ -6960,7 +7088,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The localised name, \"Screen on\". It is the accessible name in both displays.",
+                            "description": "The localised name, \"Screen on\": the visible label and the accessible name.",
                             "declaredIn": "packages/apps/commise/ui/src/keepAwake/props.ts"
                         },
                         {
@@ -7519,7 +7647,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.native.tsx",
                     "dir": "packages/apps/commise/ui/src/largeTitleHeader",
-                    "moduleDoc": "@commise/ui/large-title-header — the native design-system {@link LargeTitleHeader} (see `props.ts`): the\nH1 in `largeTitle`, sized by the screen's container class, under a transparent 44 pt row that holds the `action` at the\nend. Native shows it at every size, as iOS's large title and Material's collapsing bar do.\n\n⛔ It draws NO Back control, though it keeps the `back` prop (web uses it for the 840+ eyebrow). On native Back is the\npinned `CondensedTitleBar`'s, in every state and at every scroll position (`docs/design/uiRefreshWorkshop5/\npinnedBackBar.md` §4): a second one here would be an off-screen duplicate with the same accessible name, and a dead band\nabove the title. The 44 pt row is therefore drawn for an `action` and for nothing else.\n\nThe accessibility tree reads title → subtitle → action → `afterTitle` → segments, whatever is drawn where, so the title\ncomes before the avatar and the floating button (§4.2). The action is laid over the row by absolute position for that\nreason.\n\nInside a `ScrollHost` the title block reports its layout, so the host knows when the title has scrolled under the top\nand the screen's `CondensedTitleBar` shows. That needs this header to be the scroller's FIRST child.\n\nThe H1's ref is `useScreenReaderFocusOnSignal`'s, sanctioned in the ref register: moving the screen-reader cursor has\nno declarative form.\n\nThe header insets itself {@link SIDE_INSET} on both sides; the action, placed absolutely, carries the same inset.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/large-title-header — the native design-system {@link LargeTitleHeader} (see `props.ts`): the\nH1 in `largeTitle`, sized by the screen's container class, under a transparent row the touch floor tall (44 pt; 48 dp on Android) that holds the `action` at the\nend. Native shows it at every size, as iOS's large title and Material's collapsing bar do.\n\n⛔ It draws NO Back control, though it keeps the `back` prop (web uses it for the 840+ eyebrow). On native Back is the\npinned `CondensedTitleBar`'s, in every state and at every scroll position (`docs/design/uiRefreshWorkshop5/\npinnedBackBar.md` §4): a second one here would be an off-screen duplicate with the same accessible name, and a dead band\nabove the title. The 44 pt row is therefore drawn for an `action` and for nothing else.\n\nThe accessibility tree reads title → subtitle → action → `afterTitle` → segments, whatever is drawn where, so the title\ncomes before the avatar and the floating button (§4.2). The action is laid over the row by absolute position for that\nreason.\n\nInside a `ScrollHost` the title block reports its layout, so the host knows when the title has scrolled under the top\nand the screen's `CondensedTitleBar` shows. That needs this header to be the scroller's FIRST child.\n\nThe H1's ref is `useScreenReaderFocusOnSignal`'s, sanctioned in the ref register: moving the screen-reader cursor has\nno declarative form.\n\nThe header insets itself {@link SIDE_INSET} on both sides; the action, placed absolutely, carries the same inset.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -9577,6 +9705,172 @@
             ]
         },
         {
+            "id": "designSystem/pinnedSearch/PinnedSearchOverlay",
+            "name": "PinnedSearchOverlay",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/pinnedSearch",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the host's `Animated.Value` scroll offset, hence the style exemptions below",
+                "Overlay — the field is drawn once above the list over a spacer the list holds"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PinnedSearchOverlay",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/pinnedSearch",
+                    "moduleDoc": "@commise/ui/pinned-search — the pinned field and its band, drawn once above a list (native).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/pinned-search — the pinned field and its band, drawn once above a list (native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Overlay — the field is drawn once above the list over a spacer the list holds"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the host's `Animated.Value` scroll offset, hence the style exemptions below"
+                        }
+                    ],
+                    "description": "The field and its band, a later sibling of the list so it draws above the cards, over the spacer the list holds for it. It slides\nwith the scroll on the native side and stops at the top; its parent never changes, so the field never remounts and keeps focus and\nthe keyboard. Hidden until the spacer has been measured.\n\nOrchestration: it owns the animated box that carries the slide and reports the field's height upward.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The pinned search and the field's props."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The overlay."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "field",
+                            "type": "Omit<SearchFieldProps, \"onFocus\" | \"onBlur\" | \"focusSignal\">",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field's props; focus is the pinned search's to wire.",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx"
+                        },
+                        {
+                            "name": "pin",
+                            "type": "PinnedSearch",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/pinnedSearch/PinnedSearchSpacer",
+            "name": "PinnedSearchSpacer",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/pinnedSearch",
+            "kind": "orchestration",
+            "patterns": [
+                "Overlay — the slot the list holds so the field can be drawn once above it"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PinnedSearchSpacer",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/pinnedSearch",
+                    "moduleDoc": "@commise/ui/pinned-search — the header's slot for the pinned field, and its screen-reader stand-in (native).",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/pinned-search — the header's slot for the pinned field, and its screen-reader stand-in (native)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Overlay — the slot the list holds so the field can be drawn once above it"
+                        }
+                    ],
+                    "description": "The header's slot for the pinned field, and the field's STAND-IN for a screen reader: the drawn field sits after the list, so a\nswipe would reach it behind every card, while this sits where the field shows. A press hands the cook to the real field.\n\nOrchestration: it reports its own layout upward and presses through to the hook's focus request.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The pinned search, the field's name and whether the header is compact."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "A blank pressable the field's size."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "compact",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "In compact height the spacer shares a wrapping row with the heading.",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field's accessible name, which the stand-in takes.",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx"
+                        },
+                        {
+                            "name": "pin",
+                            "type": "PinnedSearch",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/popover/Popover",
             "name": "Popover",
             "group": "designSystem",
@@ -10726,7 +11020,8 @@
             "dir": "packages/apps/commise/ui/src/recipeCover",
             "kind": "unclassified",
             "patterns": [
-                "Null Object — the monogram stands in for a missing photo, so a caller never branches on one"
+                "Null Object — the monogram stands in for a missing photo, so a caller never branches on one",
+                "Variant — the aspect and the tint are Tamagui variants over closed unions, the discriminated-union render map"
             ],
             "platforms": [
                 "web",
@@ -10741,7 +11036,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/recipeCover/RecipeCover.tsx",
                     "dir": "packages/apps/commise/ui/src/recipeCover",
-                    "moduleDoc": "@commise/ui/recipe-cover — the web design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo: lazily loaded, decoded off the main thread, cropped to cover its box from the\ncentre 40% down. Without one it draws a monogram: the recipe's own tint (`coverTintOf`), the title's first letter in\nManrope 600 `ink` at 40% of the cover's height, and the cuisine as a `caption` under it on a cover 96 px tall or\ntaller, unless the caller lays a chip over the cover (`showCuisine={false}`). The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the\nviewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title\nis the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.",
+                    "moduleDoc": "@commise/ui/recipe-cover — the web design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo: lazily loaded, decoded off the main thread, cropped to cover its box from the\ncentre 40% down. Without one it draws a monogram: the recipe's own tint (`coverTintOf`), the title's first letter in\nManrope 600 `ink` at 40% of the cover's height, and the cuisine as a `caption` under it on a cover 96 px tall or\ntaller, unless the caller lays a chip over the cover (`showCuisine={false}`). The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the\nviewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title\nis the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.\n\nThe letter's region is the whole cover, so the letter is centred in it. No measuring. Its line is trimmed to the cap band\n(`text-box: trim-both cap alphabetic`), so it is the capital that is centred; a browser without it keeps the line box, which\nfor Manrope is 0.023 em low.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10828,7 +11123,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/recipeCover/RecipeCover.native.tsx",
                     "dir": "packages/apps/commise/ui/src/recipeCover",
-                    "moduleDoc": "@commise/ui/recipe-cover — the native design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo through `expo-image` (disk-cached), covering its box from the centre 40% down.\nWithout one it draws a monogram on the recipe's own tint: the title's first letter in Manrope 600 `ink` at 40% of\nthe cover's height, and the cuisine as a `caption` under it from 96 pt tall, unless the caller lays a chip over the cover. React Native has no container\nquery, so the cover measures its own height (`onLayout`) and holds it as local view state. The cover is hidden from\nassistive tech either way: the title is the name of the control it sits in. Each aspect reserves its box.",
+                    "moduleDoc": "@commise/ui/recipe-cover — the native design-system {@link RecipeCover} (spec §1.8).\n\nWith a photo it draws the photo through `expo-image` (disk-cached), covering its box from the centre 40% down. Without\none it draws a monogram on the recipe's own tint: the title's first letter in Manrope 700 `ink` at 40% of the cover's\nheight, and the cuisine as a `caption` under it from 96 pt tall, unless the caller lays a chip over the cover. React\nNative has no container query, so the cover measures its own height (`onLayout`) and holds it as local view state. The\nphoto and the letter's region are hidden from assistive tech either way: the title is the name of the control the cover\nsits in. Each aspect reserves its box.\n\nThe letter's region is the whole cover, so the letter is centred in it. No ref and no measuring of anything but the\ncover itself.\n\nThe letter is centred by its cap band, not its line box (`letterMetrics`). It does not scale with the system text size (designer ruling c10ecadbf, 2026-11-03): it is decoration like avatar\ninitials, drawn with the design-system Text's `fixedPx`.\n\nStyled with Tamagui (ADR-0080): the tint is a theme key (`$coverSteel`), so the cover follows the scheme with no hook.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10837,6 +11132,10 @@
                         {
                             "name": "pattern",
                             "text": "Null Object — the monogram stands in for a missing photo, so a caller never branches on one"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Variant — the aspect and the tint are Tamagui variants over closed unions, the discriminated-union render map"
                         }
                     ],
                     "description": "The native design-system recipe cover.",
@@ -15339,7 +15638,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/textInput/TextInput.native.tsx",
                     "dir": "packages/apps/commise/ui/src/textInput",
-                    "moduleDoc": "@commise/ui/text-input — the one React Native `TextInput` the apps render\n(`docs/design/compactHeightLayout.md` §7).\n\nOn a phone held sideways, Android may hand a focused field a full-screen editor of its own unless\n`disableFullscreenUI` is set (React Native: \"the OS may choose to have the user edit the text inside of a full\nscreen text input mode\"; Android only). That editor hides the whole app, and with it everything a field means beside:\nits label (SC 3.3.2), a search's results, the phrase the erase dialog asks the cook to copy, which ingredient row a\nquantity belongs to. The app keeps a focused field above the keyboard instead, so this adapter fixes the prop for\nEVERY field, multiline too, and takes it out of the API. iOS has no such editor; the prop does nothing there.\n\nEvery other prop passes through, `ref` included (React 19 hands a function component its ref as a prop), so a caller\nthat focuses its field keeps doing so. A value import of `TextInput` from `react-native` anywhere else in the apps\nfails `packages/tools/repoGuards/__tests__/textInputAdapterImports.test.ts`; a type-only one, for typing a ref, is fine.\n\nA field with a `nativeID` also registers itself while mounted (`labelFocus.native.ts`), so the `FieldLabel` naming\nthat id focuses it when pressed, as a web `<label for>` does. That takes the field's node, through a callback ref\ncomposed with the caller's: `.focus()` has no declarative form.",
+                    "moduleDoc": "@commise/ui/text-input — the one React Native `TextInput` the apps render\n(`docs/design/compactHeightLayout.md` §7).\n\nOn a phone held sideways, Android may hand a focused field a full-screen editor of its own unless\n`disableFullscreenUI` is set (React Native: \"the OS may choose to have the user edit the text inside of a full\nscreen text input mode\"; Android only). That editor hides the whole app, and with it everything a field means beside:\nits label (SC 3.3.2), a search's results, the phrase the erase dialog asks the cook to copy, which ingredient row a\nquantity belongs to. The app keeps a focused field above the keyboard instead, so this adapter fixes the prop for\nEVERY field, multiline too, and takes it out of the API. iOS has no such editor; the prop does nothing there.\n\nEvery other prop passes through, `ref` included (React 19 hands a function component its ref as a prop), so a caller\nthat focuses its field keeps doing so. A value import of `TextInput` from `react-native` anywhere else in the apps\nfails `packages/tools/repoGuards/__tests__/textInputAdapterImports.test.ts`; a type-only one, for typing a ref, is fine.\n\nA field with a `nativeID` also registers itself while mounted (`labelFocus.native.ts`), so the `FieldLabel` naming\nthat id focuses it when pressed, as a web `<label for>` does. That takes the field's node, through a callback ref\ncomposed with the caller's: `.focus()` has no declarative form.\n\nIt also sets the text of EVERY field (`inputTextStyle`): the design-system body size at the capped scale, with no line\nheight on iOS, where one sits the text low in its box. A caller's `style` is laid over it for the box, never the text.",
                     "moduleTags": [
                         {
                             "name": "module",

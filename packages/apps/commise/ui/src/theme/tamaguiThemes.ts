@@ -1,10 +1,12 @@
 /**
- * @module theme/tamaguiThemes — the colour roles and the surface-tone table as Tamagui's `light` and `dark` themes.
+ * @module theme/tamaguiThemes — the colour roles, the surface-tone table and the cover tints as Tamagui's `light` and
+ * `dark` themes.
  * Pure, and free of any Tamagui import.
  *
  * A theme key is a role name (`$paper`, `$ink`), or a surface tone's derived colour: `${tone}Fill`, `${tone}Press` and
  * `${tone}ChipFill`. The tone keys are generated from `SURFACE_TONE_NAMES`, never listed, so a tone added to the table
- * reaches the themes with no edit here. `proFill` and `proInk` are the PRO badge's own tone, so it moves with web.
+ * reaches the themes with no edit here. `proFill` and `proInk` are the PRO badge's own tone, so it moves with web. A
+ * cover tint is `cover${Name}` (`$coverSteel`), generated from `COVER_TINT_NAMES`.
  *
  * @pattern Adapter — the role and surface-tone registries projected into Tamagui's theme shape
  */
@@ -19,6 +21,7 @@ import {
     type SurfaceTone,
 } from '../surfaceTone/surfaceTone.js';
 import { role, roleDark, type Role } from '../tokens/colors.js';
+import { COVER_TINT_NAMES, coverTint, coverTintDark, type CoverTintName } from '../tokens/covers.js';
 import { proTone, proToneDark, type Tone } from '../tokens/tones.js';
 
 /** A theme key that a surface tone adds beside the roles. */
@@ -38,6 +41,15 @@ export type EngineThemeKey = (typeof engineThemeKeys)[number];
 
 /** A theme key for the PRO pair. */
 export type ProThemeKey = (typeof proThemeKeys)[number];
+
+/** A theme key for a cover tint. */
+export type CoverThemeKey = `cover${Capitalize<CoverTintName>}`;
+
+const coverKeyOf = (name: CoverTintName): CoverThemeKey =>
+    `cover${name.charAt(0).toUpperCase()}${name.slice(1)}` as CoverThemeKey;
+
+/** Every cover-tint key, in table order. */
+export const coverThemeKeys: readonly CoverThemeKey[] = COVER_TINT_NAMES.map(coverKeyOf);
 
 /**
  * The keys a surface tone sets: the ink a bare `Text` takes, its muted form and the divider, and the four a Tamagui part reads. `color` is `ink` under
@@ -59,9 +71,9 @@ export type ToneThemeKey = (typeof TONE_THEME_KEYS)[number];
 /** A sub-theme: only the keys that differ by tone. Tamagui merges the rest from the parent. */
 export type ToneTheme = Readonly<Record<ToneThemeKey, string>>;
 
-/** One scheme's theme: every role, each tone's fill, press and chip fill, the PRO pair, and the tone keys. */
+/** One scheme's theme: every role, each tone's fill, press and chip fill, the PRO pair, the engine and tone keys, and the cover tints. */
 export type TamaguiTheme = Readonly<
-    Record<Role | SurfaceToneThemeKey | ProThemeKey | EngineThemeKey | ToneThemeKey, string>
+    Record<Role | SurfaceToneThemeKey | ProThemeKey | EngineThemeKey | ToneThemeKey | CoverThemeKey, string>
 >;
 
 /** A sub-theme's name: the scheme, an underscore, the tone. The one place the name is built. */
@@ -103,7 +115,12 @@ function toneThemeOf(colors: Readonly<Record<Role, string>>, scheme: PressScheme
     };
 }
 
-function themeOf(colors: Readonly<Record<Role, string>>, scheme: PressScheme, pro: Tone): TamaguiTheme {
+function themeOf(
+    colors: Readonly<Record<Role, string>>,
+    scheme: PressScheme,
+    pro: Tone,
+    covers: Readonly<Record<CoverTintName, string>>,
+): TamaguiTheme {
     const press = pressFillsOf(colors, scheme);
     const toneEntries = SURFACE_TONE_NAMES.flatMap((tone) => [
         [`${tone}Fill`, colors[SURFACE_TONES[tone].fill]],
@@ -111,9 +128,12 @@ function themeOf(colors: Readonly<Record<Role, string>>, scheme: PressScheme, pr
         [`${tone}ChipFill`, colors[chipFillRoleOf(tone, scheme)]],
     ]);
 
+    const coverEntries = COVER_TINT_NAMES.map((name) => [coverKeyOf(name), covers[name]]);
+
     return {
         ...colors,
         ...Object.fromEntries(toneEntries),
+        ...Object.fromEntries(coverEntries),
         proFill: pro.fill,
         proInk: pro.text,
         'shadow-color': colors.scrim,
@@ -122,9 +142,9 @@ function themeOf(colors: Readonly<Record<Role, string>>, scheme: PressScheme, pr
     } as TamaguiTheme;
 }
 
-const light = themeOf(role, 'light', proTone);
+const light = themeOf(role, 'light', proTone, coverTint);
 
-const dark = themeOf(roleDark, 'dark', proToneDark);
+const dark = themeOf(roleDark, 'dark', proToneDark, coverTintDark);
 
 const sources = { light: role, dark: roleDark } as const;
 

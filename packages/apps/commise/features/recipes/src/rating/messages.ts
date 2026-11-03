@@ -12,8 +12,6 @@ import type { LocalizedMessages } from '@commise/i18n';
 export interface RecipeRatingMessages {
     /** Accessible label for the whole rating region. */
     readonly regionLabel: string;
-    /** Heading for the community aggregate. */
-    readonly communityHeading: string;
     /** Accessible summary template for a rated recipe (contains `{average}` and `{ratings}`). */
     readonly communitySummary: string;
     /** Singular rating-count template (contains `{count}`). */
@@ -46,7 +44,6 @@ export const recipeRatingMessages: LocalizedMessages<{ rating: RecipeRatingMessa
     en: {
         rating: {
             regionLabel: 'Recipe rating',
-            communityHeading: 'Community rating',
             communitySummary: 'Rated {average} out of 5, {ratings}',
             ratingCountOne: '{count} rating',
             ratingCountOther: '{count} ratings',
@@ -57,7 +54,7 @@ export const recipeRatingMessages: LocalizedMessages<{ rating: RecipeRatingMessa
             rateStarOther: 'Rate {count} stars',
             removeLabel: 'Remove my rating',
             submittingLabel: 'Saving your rating…',
-            ownRecipeNote: 'You can’t rate your own recipe.',
+            ownRecipeNote: 'Only other cooks can rate your recipe.',
             errorNotAvailable: 'This recipe isn’t available.',
             errorGeneric: 'We couldn’t save your rating. Try again.',
         },

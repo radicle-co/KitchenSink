@@ -135,19 +135,25 @@ describe('nativeStylingUses', () => {
 });
 
 // A design-system Adapter may record a NEW adapter exemption (the hairline token was the first), but only in a file
-// whose uses were never counted: an exemption marker must not relabel styling the ratchet still owes a migration.
+// whose uses were never counted (an exemption marker must not relabel styling the ratchet still owes a migration) and
+// that ADR-0080 section 5 names: the ADR is the single register, so a path the ADR does not list is never admitted.
 describe('admitsAdapterExemption', () => {
     const history: readonly Readonly<Record<string, number>>[] = [{ [FEATURE]: 2 }, { [FEATURE]: 3, [UI]: 1 }];
+    const listed = new Set([UI, FEATURE]);
 
-    it('admits a design-system file no baseline ever counted', () => {
-        expect(admitsAdapterExemption([{ [FEATURE]: 2 }])(UI)).toBe(true);
+    it('admits a design-system file no baseline ever counted that the ADR lists', () => {
+        expect(admitsAdapterExemption([{ [FEATURE]: 2 }], listed)(UI)).toBe(true);
+    });
+
+    it('refuses a design-system file the ADR does not list, however clean its history', () => {
+        expect(admitsAdapterExemption([{ [FEATURE]: 2 }], new Set())(UI)).toBe(false);
     });
 
     it('refuses a design-system file whose counted uses would become exemptions', () => {
-        expect(admitsAdapterExemption(history)(UI)).toBe(false);
+        expect(admitsAdapterExemption(history, listed)(UI)).toBe(false);
     });
 
-    it('refuses a file outside the design system', () => {
-        expect(admitsAdapterExemption([{}])(FEATURE)).toBe(false);
+    it('refuses a file outside the design system, even when the ADR lists it', () => {
+        expect(admitsAdapterExemption([{}], listed)(FEATURE)).toBe(false);
     });
 });

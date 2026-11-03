@@ -52,14 +52,13 @@ import { ActionMenu } from '@commise/ui/action-menu';
 import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
-import { ScrollHost, useScrollHost } from '@commise/ui/scroll-host';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useState, type ComponentProps, type FC } from 'react';
+import { useCallback, useState, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
@@ -99,24 +98,6 @@ export const RecipeDetailContainer: FC<RecipeDetailContainerProps> = ({ id }) =>
             <SettledRecipeDetail key={id} id={id} detail={detail} />
         </ClientQueryBoundary>
     );
-};
-
-/** The recipe page's sections, in page order: the ids of their headings. */
-const DETAIL_SECTIONS = ['ingredients', 'steps', 'nutrition'] as const;
-
-/** Where the scroll spy's activation line sits below the top of the window: under the sticky section switch. */
-const SECTION_ACTIVATION_PX = 112;
-
-/**
- * The recipe view, told which section the reader is in by the page's `ScrollHost`.
- *
- * @param props - The view's props.
- * @returns The view.
- */
-const SectionAwareDetailView: FC<ComponentProps<typeof RecipeDetailView>> = (props) => {
-    const { current } = useScrollHost();
-
-    return <RecipeDetailView {...props} {...(current === undefined ? {} : { currentSection: current })} />;
 };
 
 /** Props for {@link SettledRecipeDetail}. */
@@ -215,16 +196,16 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // neither focusable nor announced.
     const moreActions = (appearance: 'plain' | 'disc') =>
         page.menu === undefined ? null : <ActionMenu {...page.menu} appearance={appearance} />;
-    // §6.1: the action row is the primary — Edit recipe for the owner, Save a copy for another cook. The two NAVIGATIONS
+    // The page's text action (`designAnswers.md` D2, no filled button): Edit recipe for the owner, Save a copy for another cook. The two NAVIGATIONS
     // stay real links: a `<button onClick={router.push}>` would lose the link role, ⌘-click and open-in-new-tab.
     const primary =
         page.primary === 'edit' ? (
-            <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('primary')}>
+            <Link href={`/${locale}/recipes/${id}/edit` as Route} className={buttonSurfaceClass('ghost')}>
                 <Icon name="pencilLine" size={20} />
                 {detailActions.editRecipe}
             </Link>
         ) : page.primary === 'saveCopy' ? (
-            <Button icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
+            <Button variant="ghost" icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
                 {detailActions.saveCopy}
             </Button>
         ) : null;
@@ -240,47 +221,42 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
 
     return (
         <>
-            {/* Blueprint A7: the page's one scroll spy reads the section headings by id; the view marks the current
-                one in its section switch. The activation line sits under the sticky switch (the headings'
-                `scroll-mt-28`). */}
-            <ScrollHost sections={DETAIL_SECTIONS} activationOffset={SECTION_ACTIVATION_PX}>
-                <SectionAwareDetailView
-                    recipe={recipe}
-                    dataSourcesHref={dataSourcesHref(locale)}
-                    editHref={`/${locale}/recipes/${id}/edit`}
-                    versionsHref={page.viewerIsOwner ? versionsHref : undefined}
-                    viewerIsOwner={page.viewerIsOwner}
-                    {...(page.visibilityNotice === undefined ? {} : { visibilityNotice: page.visibilityNotice })}
-                    refreshNotice={refreshNotice}
-                    unreachableRetry={unreachableRetry}
-                    headerActions={headerActions}
-                    heroControls={
-                        <>
-                            <span className="nav:hidden">
-                                <HeroButton
-                                    icon="chevronLeft"
-                                    label={backLabel}
-                                    href={backHref}
-                                    onPress={() => router.push(backHref as Route)}
-                                />
-                            </span>
-                            {page.menu === undefined ? null : <span className="nav:hidden">{moreActions('disc')}</span>}
-                        </>
-                    }
-                    back={
-                        <span className="hidden nav:contents">
-                            <Link
-                                href={backHref as Route}
-                                className={`${buttonSurfaceClass('ghost', { size: 'sm' })} ${GHOST_EDGE_CLASS} self-start`}
-                            >
-                                <Icon name="chevronLeft" size={16} />
-                                {detailActions.backToRecipes}
-                            </Link>
+            <RecipeDetailView
+                recipe={recipe}
+                dataSourcesHref={dataSourcesHref(locale)}
+                editHref={`/${locale}/recipes/${id}/edit`}
+                versionsHref={page.viewerIsOwner ? versionsHref : undefined}
+                viewerIsOwner={page.viewerIsOwner}
+                {...(page.visibilityNotice === undefined ? {} : { visibilityNotice: page.visibilityNotice })}
+                refreshNotice={refreshNotice}
+                unreachableRetry={unreachableRetry}
+                headerActions={headerActions}
+                heroControls={
+                    <>
+                        <span className="nav:hidden">
+                            <HeroButton
+                                icon="chevronLeft"
+                                label={backLabel}
+                                href={backHref}
+                                onPress={() => router.push(backHref as Route)}
+                            />
                         </span>
-                    }
-                    rating={<RecipeDetailRating {...page.rating} />}
-                />
-            </ScrollHost>
+                        {page.menu === undefined ? null : <span className="nav:hidden">{moreActions('disc')}</span>}
+                    </>
+                }
+                back={
+                    <span className="hidden nav:contents">
+                        <Link
+                            href={backHref as Route}
+                            className={`${buttonSurfaceClass('ghost', { size: 'sm' })} ${GHOST_EDGE_CLASS} self-start`}
+                        >
+                            <Icon name="chevronLeft" size={16} />
+                            {detailActions.backToRecipes}
+                        </Link>
+                    </span>
+                }
+                rating={<RecipeDetailRating {...page.rating} />}
+            />
 
             <RecipeDetailDialogs {...page.dialogs} />
         </>

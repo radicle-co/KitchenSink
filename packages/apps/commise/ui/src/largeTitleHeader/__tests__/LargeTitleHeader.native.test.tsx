@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen } from '@testing-library/react';
 import { Pressable, Text } from 'react-native';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
-import { renderWithTamagui, render } from '../../testing/tamaguiTesting.native.js';
+import { renderWithTamagui, render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { useScrollHost } from '../../scrollHost/scrollHostContext.js';
 import { LargeTitleHeader } from '../LargeTitleHeader.native.js';
@@ -83,6 +84,29 @@ describe('LargeTitleHeader (native)', () => {
         );
 
         expect(getComputedStyle(titleBlock()).paddingTop).toBe('44px');
+    });
+
+    // Android QA (2026-11-03): the profile avatar's 48 dp target sat in a 44 pt action box and measured 48 x 44.2, so the
+    // row is the touch floor tall: 44 pt on iOS and 48 dp on Android ("every 44 is 48 there").
+    it('draws its action row at the touch floor: 44 pt on iOS and 48 dp on Android', () => {
+        for (const [os, height] of [
+            ['ios', '44px'],
+            ['android', '48px'],
+        ] as const) {
+            withPlatformOs(os, () => {
+                const { unmount } = render(
+                    <LargeTitleHeader
+                        headingId="h"
+                        title="Recipes"
+                        action={{ kind: 'controls', menu: <Text>more</Text> }}
+                    />,
+                );
+
+                expect(getComputedStyle(screen.getByText('more').parentElement!).height, os).toBe(height);
+                expect(getComputedStyle(screen.getByRole('heading').parentElement!).paddingTop, os).toBe(height);
+                unmount();
+            });
+        }
     });
 
     // Bug sweep (pagesDesignerB, component item): a screen that forgot to pad put the title on the screen edge, so the
@@ -176,5 +200,21 @@ describe('LargeTitleHeader (native)', () => {
         expect(seen.condensed).toBe(false);
         act(() => seen.scroll?.(84));
         expect(seen.condensed).toBe(true);
+    });
+});
+
+// Designer finding C-1 (reviews/mergedUiIos1.md): at the largest text size the title drew at about 3x and broke inside its
+// word ("Recipe / s"). `largeTitle` stops at 1.5x (42 pt), a capped title fits whole words at 390 pt (the fit is
+// `recipesScreen.fit.test.ts`).
+describe('LargeTitleHeader (native) — the title stops at 1.5x', () => {
+    it.each([
+        [1, '28px'],
+        [1.5, '42px'],
+        [2, '42px'],
+        [3.1, '42px'],
+    ] as const)('at system scale %fx the title is %s', (scale, size) => {
+        renderWithTamagui(<LargeTitleHeader headingId="h" title="Recipes" />, 'light', scale);
+
+        expect(resolvedStyle(screen.getByRole('heading', { name: 'Recipes' }), 'fontSize')).toBe(size);
     });
 });

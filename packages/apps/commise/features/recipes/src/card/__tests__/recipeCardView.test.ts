@@ -36,38 +36,35 @@ describe('recipeCardViewOf — the cover', () => {
 });
 
 describe('recipeCardViewOf — the meta row', () => {
-    it('names the total time and the servings', () => {
+    it('names the total time, and has no servings', () => {
         const { meta } = viewOf({ totalTimeMinutes: 45, servings: 4 });
 
         expect(meta.duration).toBe('45 min');
         expect(meta.timeLabel).toBe('45 minutes total time');
-        expect(meta.servingsLabel).toBe('Serves 4');
+        expect(meta).not.toHaveProperty('servingsLabel');
+        expect(meta).not.toHaveProperty('servingsText');
     });
 
     it('offers no difficulty pill when the author stated none', () => {
         expect(viewOf({ difficulty: undefined }).meta.difficulty).toBeUndefined();
     });
 
-    it.each<[RecipeDifficulty, string, string]>([
-        [RecipeDifficulty.EASY, 'Easy', 'easy'],
-        [RecipeDifficulty.MEDIUM, 'Medium', 'medium'],
-        [RecipeDifficulty.HARD, 'Hard', 'hard'],
-    ])('labels a stated difficulty and carries its level: %s', (difficulty, label, level) => {
-        expect(viewOf({ difficulty }).meta.difficulty).toEqual({ label, level });
-    });
-
-    it('says the servings as a phrase for the meta line', () => {
-        expect(viewOf({ servings: 8 }).meta.servingsText).toBe('Serves 8');
+    it.each<[RecipeDifficulty, string]>([
+        [RecipeDifficulty.EASY, 'Easy'],
+        [RecipeDifficulty.MEDIUM, 'Medium'],
+        [RecipeDifficulty.HARD, 'Hard'],
+    ])('says a stated difficulty as a plain word, with no level to tint: %s', (difficulty, word) => {
+        expect(viewOf({ difficulty }).meta.difficulty).toBe(word);
     });
 });
 
 describe('recipeCardViewOf — the badges', () => {
-    it('offers no version badge at v1', () => {
-        expect(viewOf({ currentVersion: 1 }).badges.version).toBeUndefined();
-    });
+    it('offers no version badge, tags line or footer, at any version', () => {
+        const view = viewOf({ currentVersion: 12, tags: ['vegan'] });
 
-    it('offers the version badge, with its name, past v1', () => {
-        expect(viewOf({ currentVersion: 12 }).badges.version).toEqual({ text: 'v12', label: 'Version 12' });
+        expect(view.badges).not.toHaveProperty('version');
+        expect(view).not.toHaveProperty('tags');
+        expect(view).not.toHaveProperty('footer');
     });
 
     it.each<[string, RecipeStatus, RecipeVisibility, { status: 'draft' | 'private' | 'public'; text: string }]>([
@@ -129,11 +126,10 @@ describe('recipeCardViewOf — the rating', () => {
         expect(recipeCardViewOf(model, copy, 'en', NOW).rating).toEqual({ kind: 'unrated', text: 'No ratings yet' });
     });
 
-    it('names a rated recipe with its average and count, and fills its stars', () => {
+    it('names a rated recipe with its average and count, and its figure', () => {
         expect(viewOf({ averageRating: 3.6, ratingCount: 1 }).rating).toEqual({
             kind: 'rated',
             label: 'Rated 3.6 out of 5, 1 rating',
-            fills: [true, true, true, true, false],
             short: '3.6 (1)',
         });
     });
@@ -164,49 +160,18 @@ describe('recipeCardViewOf — the cover chips', () => {
         [25, '25 min'],
         [60, '1 h'],
         [330, '5 h 30 min'],
-    ])('says %i minutes in hours and minutes on the time chip: %s', (totalTimeMinutes, text) => {
-        expect(viewOf({ totalTimeMinutes }).cover.time).toEqual({
-            text,
-            label: `${totalTimeMinutes} minutes total time`,
-        });
+    ])('says %i minutes in hours and minutes on the meta line: %s', (totalTimeMinutes, text) => {
+        const view = viewOf({ totalTimeMinutes });
+
+        expect(view.meta.duration).toBe(text);
+        expect(view.cover).not.toHaveProperty('time');
     });
 
     // F17 (`evaluateFinal.md`; `buildSpec.md` §1.11 `formatDuration`): a draft with no times showed "⏱ 0 min". 0 or
     // absent shows nothing — no chip on the cover, no duration in the meta line.
-    it('shows no time chip and no duration for a recipe with no time', () => {
+    it('shows no duration for a recipe with no time', () => {
         const view = viewOf({ totalTimeMinutes: 0 });
 
-        expect(view.cover.time).toBeUndefined();
         expect(view.meta.duration).toBeUndefined();
-    });
-});
-
-describe('recipeCardViewOf — the tags line', () => {
-    it('offers no tags line for a recipe with no tags', () => {
-        expect(viewOf({ tags: [] }).tags).toBeUndefined();
-    });
-
-    it.each<[readonly string[], string]>([
-        [['vegan'], 'vegan'],
-        [['vegan', 'quick'], 'vegan · quick'],
-        [['gluten-free', 'slow-cooked', 'braise', 'winter', 'lamb'], 'gluten-free · slow-cooked · +3'],
-    ])('joins %j as one line of text, counting the rest', (tags, text) => {
-        expect(viewOf({ tags: [...tags] }).tags).toEqual({ text, label: tags.join(', ') });
-    });
-});
-
-describe('recipeCardViewOf — the footer', () => {
-    it('joins the version past v1 and the timestamp', () => {
-        expect(
-            viewOf({ currentVersion: 12, createdAt: '2026-06-01T12:00:00.000Z', updatedAt: '2026-07-22T12:00:00.000Z' })
-                .footer,
-        ).toBe('v12 · Edited 2d ago');
-    });
-
-    it('says only the timestamp at v1', () => {
-        expect(
-            viewOf({ currentVersion: 1, createdAt: '2026-07-22T12:00:00.000Z', updatedAt: '2026-07-22T12:00:00.000Z' })
-                .footer,
-        ).toBe('Created 2d ago');
     });
 });

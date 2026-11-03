@@ -33,13 +33,12 @@ describe('RecipeCover (web) — a photo', () => {
 
 describe('RecipeCover (web) — a monogram', () => {
     it('grounds the cover in the recipe’s own tint and shows the title’s first letter, hidden from assistive tech', () => {
-        const { container } = render(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />);
-        const ground = container.querySelector<HTMLElement>('[aria-hidden="true"]');
+        const { container, getByText } = render(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />);
 
         // The tint's CLASS, whose custom property the dark block overrides (D15) — not an inline light hex.
-        expect(ground?.className.split(/\s+/u)).toContain(`bg-cover-${coverTintOf('rec_42')}`);
-        expect(ground?.style.backgroundColor).toBe('');
-        expect(ground?.textContent).toBe('L');
+        expect(tokensOf(container.firstElementChild)).toContain(`bg-cover-${coverTintOf('rec_42')}`);
+        expect((container.firstElementChild as HTMLElement).style.backgroundColor).toBe('');
+        expect(getByText('L').closest('[aria-hidden="true"]')?.textContent).toBe('L');
         expect(container.querySelector('img')).toBeNull();
     });
 
@@ -91,6 +90,27 @@ describe('RecipeCover (web) — a monogram', () => {
         expect(tokensOf(container.firstElementChild)).toEqual(
             expect.arrayContaining(['[container-type:size]', '[container-name:cover]']),
         );
+    });
+});
+
+describe('RecipeCover (web) — the letter is centred in the whole cover', () => {
+    it('centres the letter in the whole cover', () => {
+        const { container, getByText } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
+        const region = getByText('L').closest('[aria-hidden="true"]');
+
+        expect(Array.from(container.firstElementChild?.children ?? [])).toEqual([region]);
+        expect(tokensOf(region)).toEqual(expect.arrayContaining(['flex-1', 'items-center', 'justify-center']));
+    });
+});
+
+// Designer ruling (2026-11-03): the letter centres by its CAP BAND, not its line box. `text-box: trim-both cap alphabetic`
+// trims the line to the cap band, so flex centring centres the capital itself, at every size. A browser without it
+// (Firefox) keeps the line box, which for Manrope puts the cap band 0.023 em low, inside the 2 px allowance.
+describe('RecipeCover (web) — the letter is centred by its cap band', () => {
+    it('trims the letter’s line to its cap band', () => {
+        const { getByText } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
+
+        expect(tokensOf(getByText('L'))).toContain('[text-box:trim-both_cap_alphabetic]');
     });
 });
 

@@ -7,6 +7,7 @@
  */
 import { cleanup, screen } from '@testing-library/react';
 import { nativeTokens } from '@commise/ui/native';
+import { scaledTypeSize } from '@commise/ui/scaled-type';
 import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -47,7 +48,10 @@ describe('GoogleSignInButton label size', () => {
         });
 
         expect(labelStyle().fontSize).toBe(`${String(fontSize)}px`);
-        expect(labelStyle().lineHeight).toBe(`${String(lineHeight)}px`);
+        // On iOS the leading sits a hair above the pixel grid (react/react-native#58970), so it is read as iOS too.
+        expect(labelStyle().lineHeight).toBe(
+            `${String(withPlatformOs('ios', () => scaledTypeSize('cardTitle', 1).lineHeight))}px`,
+        );
     });
 
     it('grows to the 1.5× chrome cap on Android, its leading with it', () => {

@@ -9,15 +9,16 @@
  * @pattern Composite — the row owns the group semantics its chips cannot state alone
  */
 import type { FC, ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
+import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { visibleChipLabel } from './chipLabel.js';
-import { CHIP_LABEL_LINES, chipHit, chipHitHeight, chipLabel, chipPill } from './chipStyle.js';
+import { CHIP_LABEL_LINES, chipHit, chipHitHeight, chipPill } from './chipStyle.js';
 import type { ChipRowOverflow, ChipRowProps, ChipRowSurface, ChoiceRowProps } from './props.js';
 
 /**
@@ -87,7 +88,12 @@ const ChoiceRow: FC<ChoiceRowProps> = ({
                             {({ pressed }) => (
                                 <View style={chipPill(theme, chosen, pressed, tone)}>
                                     {chosen ? <Icon name="check" size={16} tone="actionText" /> : null}
-                                    <Text style={chipLabel(theme, chosen)} numberOfLines={CHIP_LABEL_LINES}>
+                                    <Text
+                                        typeRole="caption"
+                                        color={chosen ? '$actionText' : '$ink'}
+                                        flexShrink={1}
+                                        numberOfLines={CHIP_LABEL_LINES}
+                                    >
                                         {visibleChipLabel(option.label)}
                                     </Text>
                                 </View>

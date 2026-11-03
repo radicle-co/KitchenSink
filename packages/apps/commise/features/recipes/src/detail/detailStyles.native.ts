@@ -15,35 +15,10 @@ export const detailStyles = StyleSheet.create({
     // bottom safe area.
     container: { gap: nativeTokens.spacing[6], paddingBottom: nativeTokens.spacing[7] },
     top: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
-    // Weight 500, sentence case (owner decisions C5/C6): the medium face, which is the `caption` role's.
-    groupLabel: { ...nativeTokens.type.caption },
-    groupHeading: { paddingTop: nativeTokens.spacing[4] },
-    title: { ...nativeTokens.type.largeTitle.narrow },
-    ratingLine: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    inline: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
-    meta: { ...nativeTokens.type.meta },
-    caption: { ...nativeTokens.type.caption },
-    figures: { fontVariant: ['tabular-nums', 'lining-nums'] },
-    figureGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: nativeTokens.spacing[4] },
-    statStrip: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        borderRadius: nativeTokens.radius.lg,
-        borderWidth: StyleSheet.hairlineWidth,
-        paddingVertical: nativeTokens.spacing[2],
-        ...nativeTokens.elevation.sm,
-    },
-    statCell: {
-        gap: nativeTokens.spacing[1],
-        paddingHorizontal: nativeTokens.spacing[3],
-        paddingVertical: nativeTokens.spacing[2],
-    },
-    statValue: { ...nativeTokens.type.figureStat },
     actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
     // One section (or the run of closing blocks) as a direct child of the scroll content: the page's one 16 gutter,
     // and the 8 that makes the 24 content gap between top blocks the 32 between sections.
     sectionBlock: { paddingHorizontal: nativeTokens.spacing[4], marginTop: nativeTokens.spacing[2] },
-    hint: { alignSelf: 'flex-start' },
     twoColumns: {
         flexDirection: 'row',
         alignItems: 'flex-start',
@@ -51,10 +26,6 @@ export const detailStyles = StyleSheet.create({
         gap: nativeTokens.spacing[6],
         paddingHorizontal: nativeTokens.spacing[4],
     },
-    // Only the ingredients heading reads this: it holds the ref `useScreenReaderFocusOnSignal<Text>` returns, a hook
-    // typed to React Native's Text, so it cannot be the Tamagui `DetailSectionHeading` until the design system settles
-    // the hook's target. It is the same token (`nativeTokens.type.sectionTitle`), so it is not a second authority.
-    sectionHeading: { ...nativeTokens.type.sectionTitle },
     scaleNotice: {
         alignItems: 'flex-start',
         gap: nativeTokens.spacing[1],
@@ -62,14 +33,4 @@ export const detailStyles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    caveat: { fontWeight: '600' },
-    grow: { flexGrow: 1 },
-    notice: {
-        ...nativeTokens.type.meta,
-        borderRadius: nativeTokens.radius.md,
-        paddingHorizontal: nativeTokens.spacing[3],
-        paddingVertical: nativeTokens.spacing[2],
-    },
-    linkTouch: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
-    link: { textDecorationLine: 'underline' },
 });

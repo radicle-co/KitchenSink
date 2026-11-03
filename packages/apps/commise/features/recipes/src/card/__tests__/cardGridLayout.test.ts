@@ -9,6 +9,7 @@ import {
     COMPACT_COLUMN_MIN_WIDTH,
     HOME_COLUMNS,
     columnsOfVariant,
+    columnsKeepingMinOf,
     compactColumnsOf,
     libraryGridColumnsOf,
 } from '../cardGridLayout.js';
@@ -63,6 +64,47 @@ describe('compactColumnsOf', () => {
 
     it('never divides by an unmeasured scale: zero or less reads as 1x', () => {
         expect(compactColumnsOf(343, 0)).toBe(2);
+    });
+});
+
+// The ONE rule behind every "this many columns while each keeps its minimum width, else one" decision: the container width
+// less the gaps, shared between the columns, per unit of CAPPED text scale. Its two callers are the compact tile grid (two
+// columns, 160 pt each, no gap, which is the designer's 320 pt) and the recipe page's fact tiles (as many as there are
+// tiles, 100 pt each, an 8 pt gap).
+describe('columnsKeepingMinOf', () => {
+    interface Rule {
+        readonly columns: number;
+        readonly minPerColumn: number;
+        readonly gap?: number;
+    }
+
+    it.each<[string, number, number, Rule, number]>([
+        // The boundary: the column is exactly its minimum, and a hair under it.
+        ['exactly the minimum', 200, 1, { columns: 2, minPerColumn: 100 }, 2],
+        ['a hair under', 199.99, 1, { columns: 2, minPerColumn: 100 }, 1],
+        // The gap comes out BEFORE the split: 2 × 100 + 10 fits at 210 and not at 209.99.
+        ['gap met', 210, 1, { columns: 2, minPerColumn: 100, gap: 10 }, 2],
+        ['gap not met', 209.99, 1, { columns: 2, minPerColumn: 100, gap: 10 }, 1],
+        // Text scale multiplies the minimum.
+        ['scaled minimum met', 400, 2, { columns: 2, minPerColumn: 100 }, 2],
+        ['scaled minimum missed', 399.99, 2, { columns: 2, minPerColumn: 100 }, 1],
+        // Three across, the fact tiles' case: an 8 pt gap and 100 pt per unit of scale.
+        ['three tiles at 1x', 316, 1, { columns: 3, minPerColumn: 100, gap: 8 }, 3],
+        ['three tiles, one short', 315, 1, { columns: 3, minPerColumn: 100, gap: 8 }, 1],
+        ['three tiles at 2x', 358, 2, { columns: 3, minPerColumn: 100, gap: 8 }, 1],
+        ['two tiles at 1.5x', 358, 1.5, { columns: 2, minPerColumn: 100, gap: 8 }, 2],
+        // One column has no gap to take out, and one is also the fallback.
+        ['one column, narrow', 50, 1, { columns: 1, minPerColumn: 100 }, 1],
+        // Nothing to lay out.
+        ['no columns', 358, 1, { columns: 0, minPerColumn: 100 }, 0],
+        ['negative columns', 358, 1, { columns: -1, minPerColumn: 100 }, 0],
+    ])('%s: %d pt at %dx with %o is %d columns', (_name, width, scale, rule, expected) => {
+        expect(columnsKeepingMinOf(width, scale, rule)).toBe(expected);
+    });
+
+    it('reads an unmeasured scale (zero or less) as 1x', () => {
+        expect(columnsKeepingMinOf(200, 0, { columns: 2, minPerColumn: 100 })).toBe(2);
+        expect(columnsKeepingMinOf(200, -1, { columns: 2, minPerColumn: 100 })).toBe(2);
     });
 });
 

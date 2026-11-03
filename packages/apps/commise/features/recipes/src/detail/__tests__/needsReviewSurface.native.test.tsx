@@ -12,10 +12,10 @@
  * enforces it is two suites asserting the same behaviour — a shared model does not render anything.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
-import { render as renderInDesignSystem } from '@commise/ui/testing/tamagui';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { render as renderInDesignSystem, resolvedColour } from '@commise/ui/testing/tamagui';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import { computedContrast } from '@commise/test-utils';
 
 import { makeIngredientView, makeNutrition, makeRecipeDetail, idleUnreachableRetry } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -28,6 +28,14 @@ import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
 /** Every detail renders inside the session’s cook-marks scope, as each app root mounts it. */
 const render = (ui: ReactElement): ReturnType<typeof renderInDesignSystem> =>
     renderInDesignSystem(ui, { wrapper: CookMarksTestProvider });
+
+/** The nutrition row is collapsed until pressed (`RecipeDetailAndroid384`, item 12): a test of its notes presses it first. */
+const renderExpanded = (ui: ReactElement): ReturnType<typeof renderInDesignSystem> => {
+    const rendered = render(ui);
+    fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
+
+    return rendered;
+};
 
 const en = recipeMessages.en.detail;
 
@@ -56,13 +64,13 @@ describe('RecipeDetailView (native) — a line the verification gate contradicte
     });
 
     it('discloses the withholding once for the whole recipe, in its own sentence', () => {
-        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={withheldRecipe()} />);
+        renderExpanded(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={withheldRecipe()} />);
 
         expect(screen.getByText(en.needsReviewNoticeOne)).toBeTruthy();
     });
 
     it('counts the doubted lines in the plural disclosure', () => {
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -144,7 +152,7 @@ describe('RecipeDetailView (native) — a line the verification gate contradicte
         // The conflation this surface exists to prevent, rendered. "Some items aren’t counted yet" says the
         // catalog had nothing; the review notice says the catalog HAD it and we held it back. A cook seeing
         // only one of the two cannot tell which of the two fixes applies.
-        render(
+        renderExpanded(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
@@ -166,14 +174,16 @@ describe('RecipeDetailView (native) — a line the verification gate contradicte
         // `computedContrast` reads the colour react-native-web actually compiled, not the style object.
         // REWRITTEN for ADR-0080: the badge is the design system's status badge, painted by Tamagui, and its own
         // tests hold every status's label at 4.5:1 on its fill (StatusBadge.native.test.tsx). Here it is only shown.
-        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={withheldRecipe()} />);
+        renderExpanded(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={withheldRecipe()} />);
 
         expect(screen.getByText(en.needsReviewBadge)).toBeTruthy();
-        expect(computedContrast(screen.getByRole('note')), 'needs-review notice').toBeGreaterThanOrEqual(4.5);
+        // REWRITTEN: the notice is the design system's `label` role in `ink`, a theme variable jsdom cannot measure, so the
+        // test reads the resolved colour and holds it to the `ink` role (the text role the palette tests clear for AA).
+        expect(resolvedColour(screen.getByRole('note'), 'color')).toBe(rgb(rolesFor('light').ink));
     });
 
     it('announces the disclosure as a NOTE, so it reaches a screen reader as a remark rather than prose', () => {
-        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={withheldRecipe()} />);
+        renderExpanded(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={withheldRecipe()} />);
 
         // `role="note"` on the native leaf (RN's older `accessibilityRole` union has no `note` member), which
         // react-native-web renders as `role="note"` — the same guarantee the web leaf gives, same query.
@@ -209,27 +219,33 @@ describe('RecipeDetailView (native) — ONE note under the nutrition figures', (
 
     it('says the review sentence and NOT "no ingredient has a food" when every line is withheld', () => {
         renderRecipe(allWithheld());
+        fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
 
         expect(screen.getByText(en.needsReviewNoticeMany.replace('{count}', '2'))).toBeTruthy();
         expect(screen.queryByText(en.nutritionNoneCounted)).toBeNull();
         expect(screen.queryByText(en.nutritionPartial)).toBeNull();
     });
 
-    it('shows the dashes for every cell in that state', () => {
+    // REWRITTEN (`RecipeDetailAndroid384`, item 12): an expanded row with nothing counted leaves the four dashes OUT; the
+    // collapsed summary says "Not counted yet" and the note under it says why.
+    it('draws no figure cells in that state, expanded or not', () => {
         renderRecipe(allWithheld());
+        fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
 
-        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.queryByText('—')).toBeNull();
+        expect(screen.queryByText(en.caloriesLabel)).toBeNull();
     });
 
-    it('draws dashes and the one "no ingredient has a food" line for a recipe with no lines, never zeros', () => {
+    it('draws the one "no ingredient has a food" line and no dashes for a recipe with no lines, never zeros', () => {
         renderRecipe(
             makeRecipeDetail({
                 ingredients: [],
                 nutrition: makeNutrition({ calories: 0, proteinG: 0, carbsG: 0, fatG: 0, isComplete: true }),
             }),
         );
+        fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
 
-        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.queryByText('—')).toBeNull();
         expect(screen.getAllByText(en.nutritionNoneCounted)).toHaveLength(1);
         expect(screen.queryByText('0')).toBeNull();
     });

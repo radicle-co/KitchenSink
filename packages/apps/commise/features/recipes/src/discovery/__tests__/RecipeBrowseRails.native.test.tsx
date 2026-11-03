@@ -26,7 +26,8 @@ import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.native.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.native.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedStyle } from '@commise/ui/testing/tamagui';
+import { RAIL_LINK_PADDING } from '../railHeading.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
@@ -417,5 +418,44 @@ describe("RecipeBrowseRails (native) — the scroll host's bind", () => {
         fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
+    });
+});
+
+// Designer ruling (designAnswers.md 2026-11-01, "See all under its title"; seen at the largest text size, iOS
+// Discover_light_cap_b1611, where "See all" was cut to "See a"): when the heading and the link do not fit on one row, the
+// link wraps onto its own line under the heading, its text aligned with the title's start edge, its target at least 48 pt
+// tall. It never truncates and never shrinks. The fit on real font metrics is `railHeading.fit.test.ts`.
+describe('RecipeBrowseRails (native) — a rail heading wraps "See all" under its title and never cuts it', () => {
+    const headerOf = (): HTMLElement => screen.getByRole('heading', { name: 'Trending' }).parentElement as HTMLElement;
+    const linkBoxOf = (): HTMLElement => headerOf().lastElementChild as HTMLElement;
+
+    it('lets the heading row wrap, so the link moves to its own line when the two do not fit', () => {
+        renderRails({ rails: [rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })])] });
+
+        expect(getComputedStyle(headerOf()).flexWrap).toBe('wrap');
+    });
+
+    it('lets the title shrink and wrap its own words, and never the link', () => {
+        renderRails({ rails: [rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })])] });
+
+        expect(getComputedStyle(screen.getByRole('heading', { name: 'Trending' })).flexShrink).toBe('1');
+        expect(getComputedStyle(linkBoxOf()).flexShrink).toBe('0');
+    });
+
+    it("gives the link a target at least 48 pt tall, and pulls its text onto the title's start edge", () => {
+        renderRails({ rails: [rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })])] });
+        // The box is a Tamagui frame, so its tokens are read resolved.
+        const box = linkBoxOf();
+
+        expect(resolvedStyle(box, 'minHeight')).toBe('48px');
+        expect(resolvedStyle(box, 'marginInlineStart')).toBe('-12px');
+        expect(within(linkBoxOf()).getByRole('button', { name: 'See all Trending' })).toBeTruthy();
+    });
+
+    it("pulls the box back by exactly the ghost button's own padding, so the text lands on the title's edge", () => {
+        renderRails({ rails: [rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })])] });
+        const pill = within(linkBoxOf()).getByText('See all').parentElement as HTMLElement;
+
+        expect(resolvedStyle(pill, 'paddingLeft')).toBe(`${String(RAIL_LINK_PADDING)}px`);
     });
 });

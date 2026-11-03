@@ -33,6 +33,7 @@ export const RecipeDiscoveryCard: FC<RecipeDiscoveryCardProps> = ({
 }) => (
     <RecipeCard
         variant={variant}
+        fullMeta
         headingLevel={headingLevel}
         recipe={recipe}
         onSelect={onSelect}

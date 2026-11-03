@@ -17,20 +17,25 @@
  * that id focuses it when pressed, as a web `<label for>` does. That takes the field's node, through a callback ref
  * composed with the caller's: `.focus()` has no declarative form.
  *
+ * It also sets the text of EVERY field (`inputTextStyle`): the design-system body size at the capped scale, with no line
+ * height on iOS, where one sits the text low in its box. A caller's `style` is laid over it for the box, never the text.
+ *
  * @pattern Adapter over React Native's `TextInput` — one prop fixed, the `@commise/ui/modal` precedent
  * @pattern Registry client — a field with an id registers itself for its label (`labelFocus.native.ts`)
  */
 import { useComposedRefs } from '@radix-ui/react-compose-refs';
 import { useCallback, type ComponentPropsWithRef, type FC } from 'react';
-import { TextInput as NativeTextInput } from 'react-native';
+import { Platform, TextInput as NativeTextInput } from 'react-native';
 
 import { registerLabelledField } from './labelFocus.native.js';
+import { inputBoxPadding, inputTextStyle } from '../input/inputTextStyle.js';
 import { FONT_SCALE_CAP } from '../text/fontScaleCap.js';
+import { TextScaleContext } from '../text/textScaleContext.native.js';
 
 /** React Native's `TextInput` props, `ref` included, less the full-screen editor and the text-size cap this adapter owns. */
 export type TextInputProps = Omit<
     ComponentPropsWithRef<typeof NativeTextInput>,
-    'disableFullscreenUI' | 'maxFontSizeMultiplier'
+    'allowFontScaling' | 'disableFullscreenUI' | 'maxFontSizeMultiplier'
 >;
 
 /**
@@ -38,8 +43,10 @@ export type TextInputProps = Omit<
  * size (ADR-0080 §8). It is the one place the app renders React Native's input, so the cap here reaches every field. A
  * presentational component: it renders its props and holds no state. Native only, because only Android has the editor.
  */
-export const TextInput: FC<TextInputProps> = ({ ref, ...props }) => {
-    const { nativeID } = props;
+export const TextInput: FC<TextInputProps> = ({ ref, style, ...props }) => {
+    const { nativeID, multiline = false } = props;
+    const scale = TextScaleContext.useStyledContext().textScale;
+    const os = Platform.OS === 'ios' ? 'ios' : 'android';
     const labelTarget = useCallback(
         (node: NativeTextInput | null) =>
             node === null || nativeID === undefined ? undefined : registerLabelledField(nativeID, node),
@@ -47,7 +54,23 @@ export const TextInput: FC<TextInputProps> = ({ ref, ...props }) => {
     );
     const composed = useComposedRefs(ref, labelTarget);
 
-    return <NativeTextInput {...props} ref={composed} disableFullscreenUI maxFontSizeMultiplier={FONT_SCALE_CAP} />;
+    return (
+        <NativeTextInput
+            {...props}
+            ref={composed}
+            // The size below is already the capped one; the platform must not scale it a second time.
+            allowFontScaling={false}
+            disableFullscreenUI
+            maxFontSizeMultiplier={FONT_SCALE_CAP}
+            // NATIVE-STYLE-ADAPTER: the one place the app styles React Native's input; its text style is computed per platform and scale.
+            style={[
+                inputTextStyle(scale, os, multiline),
+                style,
+                // A multi-line field's first-line cap band, where a single line's sits (see `inputTextStyle`).
+                inputBoxPadding(style, os, multiline, scale),
+            ]}
+        />
+    );
 };
 
 /**

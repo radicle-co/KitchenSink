@@ -1,5 +1,5 @@
 /**
- * The Tamagui themes are a projection of the colour roles and the surface-tone table, and nothing else. Every expected
+ * The Tamagui themes are a projection of the colour roles, the surface-tone table and the cover tints, and nothing else. Every expected
  * value is read from `colors.ts` and `surfaceTone.ts`, so a palette or table change moves this test with it; what the
  * test pins is the SHAPE of the projection: which keys exist, and which source each one is read from.
  */
@@ -15,8 +15,10 @@ import {
     type PressScheme,
 } from '../../surfaceTone/surfaceTone.js';
 import { mixOver, role, roleDark, type Role } from '../../tokens/colors.js';
+import { COVER_TINT_NAMES, coverTint, coverTintDark } from '../../tokens/covers.js';
 import { proTone, proToneDark } from '../../tokens/tones.js';
 import {
+    coverThemeKeys,
     engineThemeKeys,
     proThemeKeys,
     surfaceToneThemeKeys,
@@ -65,7 +67,14 @@ describe('tamaguiThemes', () => {
         const toneKeys = TONE_THEME_KEYS.filter((key) => !(roleNames as string[]).includes(key));
 
         expect(keys).toEqual(
-            [...roleNames, ...surfaceToneThemeKeys, ...proThemeKeys, ...engineThemeKeys, ...toneKeys].sort(),
+            [
+                ...roleNames,
+                ...surfaceToneThemeKeys,
+                ...proThemeKeys,
+                ...engineThemeKeys,
+                ...toneKeys,
+                ...coverThemeKeys,
+            ].sort(),
         );
     });
 
@@ -97,6 +106,23 @@ describe('tamaguiThemes', () => {
             }
         },
     );
+
+    // A tile that wears a cover tint (the recipe page's fact tiles, `designAnswers.md` D5) reads `$coverSteel`, so the tint
+    // follows the scheme exactly as the monogram cover's does.
+    it.each([
+        ['light', coverTint],
+        ['dark', coverTintDark],
+    ] as const)('%s: carries each cover tint under a cover key', (scheme, tints) => {
+        const theme = tamaguiThemes[scheme] as Readonly<Record<string, string>>;
+
+        expect(coverThemeKeys).toHaveLength(COVER_TINT_NAMES.length);
+
+        for (const name of COVER_TINT_NAMES) {
+            const key = `cover${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+
+            expect(theme[key], key).toBe(tints[name]);
+        }
+    });
 
     it('differs between the schemes, so a dark device does not paint the light theme', () => {
         expect(tamaguiThemes.dark.paper).not.toBe(tamaguiThemes.light.paper);

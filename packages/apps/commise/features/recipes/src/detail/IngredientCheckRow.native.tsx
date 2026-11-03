@@ -15,12 +15,13 @@ import { touchFloor } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
-import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@commise/ui/text';
 
 import { recipeMessages } from '../messages.js';
+import { IngredientRowDivider } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
@@ -28,74 +29,121 @@ import { formatAmount, isLineFoodRemoved } from './model.js';
 import { usePressFill } from '@commise/ui/surface-tone';
 
 /** The native checkable ingredient row. */
-export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({ ingredient, checked, allRemoved, onToggle }) => {
+export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
+    ingredient,
+    checked,
+    allRemoved,
+    onToggle,
+    divided = false,
+}) => {
     const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     const locale = useLocale();
-    const { colors } = useTheme();
     const wash = usePressFill();
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
-    const textColour = { color: checked ? colors.inkMuted : colors.ink };
+    // The preparation, then the notes override: the board's muted note after the name.
+    const notes = [ingredient.preparation, ingredient.notes].filter(
+        (note): note is string => note !== undefined && note.length > 0,
+    );
 
     return (
-        <Pressable
-            role="checkbox"
-            aria-checked={checked}
-            accessibilityState={{ checked }}
-            accessibilityLabel={ingredientRowName(
-                ingredient,
-                locale,
-                ingredientLineName,
-                ingredientDetails.checkLabelWithDetails,
-            )}
-            {...(statuses.length > 0 ? { accessibilityHint: statuses.map((status) => status.text).join(', ') } : {})}
-            onPress={() => onToggle(ingredient.ingredientId)}
-            // The floor is read at render: 44 pt on iOS, 48 dp on Android (`touchFloor()`, the Button's own source).
-            style={({ pressed }) => [
-                styles.row,
-                { minHeight: touchFloor() },
-                pressed ? { backgroundColor: wash } : null,
-            ]}
-        >
-            {/* The 18 pt box sits on the text's 20 pt first line, 1 pt down to centre on it. */}
-            <View style={styles.box}>
-                <CheckBoxGlyph checked={checked} />
-            </View>
-            <View style={styles.text}>
-                {isStandInName(ingredient) ? (
-                    <>
-                        {amount !== '' && <Text style={[styles.line, styles.amount, textColour]}>{amount}</Text>}
-                        <StandIn tone={isLineFoodRemoved(ingredient) ? 'caution' : 'neutral'}>
-                            {lineDisplayName(ingredient, ingredientLineName)}
-                        </StandIn>
-                    </>
-                ) : (
-                    <Text style={[styles.line, textColour]}>
-                        {amount !== '' && (
-                            <>
-                                <Text style={styles.amount}>{amount}</Text>{' '}
-                            </>
-                        )}
-                        <Text>
-                            {lineAmountName(ingredient, ingredient.quantity, ingredient.unit, ingredientLineName)}
-                        </Text>
-                    </Text>
+        <>
+            {divided && <IngredientRowDivider />}
+            <Pressable
+                role="checkbox"
+                aria-checked={checked}
+                accessibilityState={{ checked }}
+                accessibilityLabel={ingredientRowName(
+                    ingredient,
+                    locale,
+                    ingredientLineName,
+                    ingredientDetails.checkLabelWithDetails,
                 )}
-                {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
-                {ingredient.preparation !== undefined && ingredient.preparation.length > 0 && (
-                    <Text style={[styles.detail, { color: colors.inkMuted }]}>{ingredient.preparation}</Text>
-                )}
-                {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                    <Text style={[styles.detail, { color: colors.inkMuted }]}>{ingredient.notes}</Text>
-                )}
-                {statuses.map((status) => (
-                    <StatusBadge key={status.text} status={status.tone}>
-                        {status.text}
-                    </StatusBadge>
-                ))}
-            </View>
-        </Pressable>
+                {...(statuses.length > 0
+                    ? { accessibilityHint: statuses.map((status) => status.text).join(', ') }
+                    : {})}
+                onPress={() => onToggle(ingredient.ingredientId)}
+                // The floor is read at render: 44 pt on iOS, 48 dp on Android (`touchFloor()`, the Button's own source).
+                style={({ pressed }) => [
+                    styles.row,
+                    { minHeight: touchFloor() },
+                    pressed ? { backgroundColor: wash } : null,
+                ]}
+            >
+                {/* The 18 pt box sits on the text's 20 pt first line, 1 pt down to centre on it. */}
+                <View style={styles.box}>
+                    <CheckBoxGlyph checked={checked} />
+                </View>
+                <View style={styles.text}>
+                    {isStandInName(ingredient) ? (
+                        <>
+                            {amount !== '' && (
+                                <Text typeRole="figureInline" color={checked ? '$inkMuted' : '$ink'}>
+                                    {amount}
+                                </Text>
+                            )}
+                            <StandIn tone={isLineFoodRemoved(ingredient) ? 'caution' : 'neutral'}>
+                                {lineDisplayName(ingredient, ingredientLineName)}
+                            </StandIn>
+                            {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
+                            {notes.map((note) => (
+                                <Text key={note} typeRole="body" color="$inkMuted">
+                                    {note}
+                                </Text>
+                            ))}
+                        </>
+                    ) : (
+                        <>
+                            {/* Amount, name and notes are ONE flow of text, as the board draws them: the amount stressed, the
+                            notes muted. Each span names its own colour, so a checked line dims all of it. A variant's
+                            dotted line, when there is one, sits BEFORE the notes (§S5), so the notes then take a line of
+                            their own under it. */}
+                            <Text typeRole="body" color={checked ? '$inkMuted' : '$ink'}>
+                                {amount !== '' && (
+                                    <>
+                                        <Text typeRole="figureInline" color={checked ? '$inkMuted' : '$ink'}>
+                                            {amount}
+                                        </Text>{' '}
+                                    </>
+                                )}
+                                <Text typeRole="body" color={checked ? '$inkMuted' : '$ink'}>
+                                    {lineAmountName(
+                                        ingredient,
+                                        ingredient.quantity,
+                                        ingredient.unit,
+                                        ingredientLineName,
+                                    )}
+                                </Text>
+                                {parts === undefined &&
+                                    notes.map((note) => (
+                                        <Text key={note} typeRole="body" color="$inkMuted">
+                                            {' '}
+                                            {note}
+                                        </Text>
+                                    ))}
+                            </Text>
+                            {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
+                            {parts !== undefined && notes.length > 0 && (
+                                <Text typeRole="body" color="$inkMuted">
+                                    {notes.map((note, index) => (
+                                        <Text key={note} typeRole="body" color="$inkMuted">
+                                            {index > 0 ? ' ' : ''}
+                                            {note}
+                                        </Text>
+                                    ))}
+                                </Text>
+                            )}
+                        </>
+                    )}
+                    {statuses.map((status) => (
+                        <StatusBadge key={status.text} status={status.tone}>
+                            {status.text}
+                        </StatusBadge>
+                    ))}
+                </View>
+            </Pressable>
+        </>
     );
 };
 
@@ -104,14 +152,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-start',
         gap: nativeTokens.spacing[3],
-        paddingHorizontal: nativeTokens.spacing[3],
+        paddingHorizontal: nativeTokens.spacing[4],
         paddingVertical: nativeTokens.spacing[2],
         borderRadius: nativeTokens.radius.md,
     },
     text: { flex: 1, minWidth: 0, alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
     box: { marginTop: 1 },
-    // The `list` role: 14 / 20, regular. The amount alone is the registered 600 face, never a weight on a family.
-    line: { ...nativeTokens.type.list },
-    amount: { fontFamily: nativeTokens.fontFace.body.semibold, fontVariant: ['tabular-nums', 'lining-nums'] },
-    detail: { ...nativeTokens.type.list },
 });

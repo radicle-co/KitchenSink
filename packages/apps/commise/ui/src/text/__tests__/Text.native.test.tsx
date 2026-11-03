@@ -241,7 +241,8 @@ describe('Text (native) — iOS above the cap', () => {
             const { container, unmount } = withPlatformOs('ios', () =>
                 renderWithTamagui(<Text typeRole={typeRole}>Peruvian</Text>, 'light', scale),
             );
-            const { fontSize, lineHeight } = scaledTypeSize(typeRole, scale);
+            // The scaler is read as iOS too: it shifts the leading above the pixel grid there (react/react-native#58970).
+            const { fontSize, lineHeight } = withPlatformOs('ios', () => scaledTypeSize(typeRole, scale));
             const node = container.querySelector('[name="CommiseText"]') as HTMLElement;
 
             expect(resolvedStyle(node, 'fontSize'), typeRole).toBe(`${fontSize}px`);

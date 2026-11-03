@@ -8,9 +8,10 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
-import type { FC } from 'react';
+import { useContext, type FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
+import { MetaLeadContext, unbreakable } from '../card/metaRun.js';
 import { recipeNutritionMessages } from './messages.js';
 import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
 
@@ -31,24 +32,28 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
     const messages = useMessages(recipeNutritionMessages);
     const locale = useLocale();
     const { colors } = useTheme();
+    const lead = useContext(MetaLeadContext);
 
     switch (nutrition.state) {
         case 'known': {
             const chip = toCalorieChipModel(nutrition, locale, messages);
 
             return (
-                // `accessibilityRole="image"` mirrors the web leaf's `role="img"`: it announces the figure
-                // and its caveat as ONE unit, and keeps the two platforms identical in EFFECT and not merely
-                // in API — the web leaf needs the role because a bare span cannot carry an accessible name
-                // at all, and a native `Text` that announced differently would be the same §14 drift by
-                // another route.
-                <Text
-                    accessibilityRole="image"
-                    accessibilityLabel={chip.label}
-                    style={[chip.isStale ? styles.stale : styles.figure, { color: colors.inkMuted }]}
-                >
-                    {chip.text}
-                </Text>
+                <>
+                    {/* The lead is text of the run, outside the figure's own span: a span that starts with a space or a dot
+                        lets iOS break at its boundary (qa-ios on 087051a43). Empty outside a meta line, where a bare string
+                        would not be allowed. */}
+                    {lead === '' ? null : lead}
+                    {/* `accessibilityRole="image"` mirrors the web leaf's `role="img"`: it announces the figure and its
+                        caveat as ONE unit, so the two platforms are identical in EFFECT and not merely in API. */}
+                    <Text
+                        accessibilityRole="image"
+                        accessibilityLabel={chip.label}
+                        style={[chip.isStale ? styles.stale : styles.figure, { color: colors.inkMuted }]}
+                    >
+                        {unbreakable(chip.text)}
+                    </Text>
+                </>
             );
         }
 

@@ -1,6 +1,9 @@
 /**
  * Integration test for the Home → recipe-detail navigation chain (mobile).
  *
+ * Updated for the recipe detail rebuild (fix/im-recipedetail, b2b1294bc): the title moved from a heading-role Text
+ * to a header-role View that wraps the Text, so the heading is found by the text's heading ANCESTOR.
+ *
  * This is the test that actually proves the feature: it renders the REAL `AppRoot` with the REAL `HomeScreen`,
  * `HomeWidgetSurface`, `RecipeWidgetSlot`, the real lazily-loaded recipe widget, and the real shared card
  * leaves — then taps a "Recent recipes" card and asserts the recipes surface opens on THAT recipe's detail.
@@ -136,8 +139,12 @@ describe('Home → recipe detail (mobile, end to end)', () => {
         // role=heading"; reproduced locally with the test's core oversubscribed). Only the detail renders this title as
         // a heading (the hidden Home card shows it as plain text), and the detail commits in one go when its boundary
         // settles, so one match means the heading is there. The `getByRole` below is the same assertion as before.
+        // The detail's title is a header View wrapping the large-title Text (recipe detail rebuild), so the text node is
+        // INSIDE the heading, not the heading itself: match the text, then ask for its nearest heading ancestor.
         await waitFor(() =>
-            expect(screen.queryAllByText('Weeknight Pasta', { selector: '[role="heading"]' })).toHaveLength(1),
+            expect(
+                screen.queryAllByText('Weeknight Pasta').filter((node) => node.closest('[role="heading"]') !== null),
+            ).toHaveLength(1),
         );
         expect(screen.getByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
         // 20s, not the 5s default. This is the heaviest test in the monorepo — the ONLY one that exceeds

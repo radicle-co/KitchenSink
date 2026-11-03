@@ -9,7 +9,7 @@
  * bar, a page that does not scroll, and loading (no title). The photo state is R3's and is not built.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 
 const escape = vi.hoisted(() => ({ handler: undefined as (() => void) | undefined }));
@@ -34,6 +34,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 import { role } from '../../tokens/colors.js';
 import { rgb } from '../../testing/systemColorScheme.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { LargeTitleHeader } from '../../largeTitleHeader/LargeTitleHeader.native.js';
 import { PushedPageFrame } from '../PushedPageFrame.native.js';
 import { PINNED_BAR_HEIGHT } from '../../largeTitleHeader/barGeometry.js';

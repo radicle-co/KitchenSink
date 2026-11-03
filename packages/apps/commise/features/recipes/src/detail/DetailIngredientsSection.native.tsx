@@ -12,17 +12,25 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
-import { useTheme } from '@commise/ui/theme';
 import { Surface } from '@commise/ui/surface-tone';
 import type { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
-import type { FC } from 'react';
-import { Text, View } from 'react-native';
+import { Fragment, type FC } from 'react';
+import { View } from 'react-native';
+import { Text as DsText } from '@commise/ui/text';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { DetailEmptySection } from './DetailEmptySection.native.js';
-import { DetailHeadingRow, DetailSection } from './detailFrames.native.js';
+import { DetailSection } from './detailFrames.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
+import {
+    IngredientGroupLabel,
+    IngredientsCard,
+    IngredientsNotices,
+    RemovedFoodNotice,
+    IngredientsEditRow,
+    IngredientsHeadRow,
+} from './ingredientFrames.native.js';
 import { IngredientCheckRow } from './IngredientCheckRow.native.js';
 import { ingredientGroupRuns } from './detailFacts.js';
 import { allLinesFoodRemoved, removedFoodNotice, type RecipeDetailBodyNativeProps } from './model.js';
@@ -61,100 +69,98 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
     twoColumns,
 }) => {
     const { detail } = useMessages(recipeMessages);
-    const { colors } = useTheme();
-    const headingRef = useScreenReaderFocusOnSignal<Text>(unreachableRetry.recoveries);
+    const headingRef = useScreenReaderFocusOnSignal<View>(unreachableRetry.recoveries);
     const removedNotice = removedFoodNotice(recipe.ingredients, detail);
     const allRemoved = allLinesFoodRemoved(recipe.ingredients);
-    const ink = { color: colors.ink };
     const hasIngredients = recipe.ingredients.length > 0;
 
     return (
         <DetailSection {...(twoColumns ? { column: 'ingredients' } : {})}>
-            <DetailHeadingRow>
-                {/* React Native's Text, not the frame's heading: the screen-reader focus hook is typed to it. */}
-                <Text
-                    ref={headingRef}
-                    accessibilityRole="header"
-                    {...(saysRecovered ? { accessibilityHint: detail.unreachableResolved } : {})}
-                    style={[styles.sectionHeading, ink]}
-                >
-                    {detail.ingredientsHeading}
-                </Text>
-                <Text style={[styles.meta, { color: colors.inkMuted }, styles.grow]}>
-                    {fillTemplate(detail.ingredientsFor, { count: servings })}
-                </Text>
-                <ServingScaleControl
-                    servings={servings}
-                    baseServings={recipe.servings}
-                    onServingsChange={onServingsChange}
-                />
-                {/* The owner's Edit: a ghost link at the END of the heading row (§6.1), never a centred line of its own
-                    (F22). The row wraps on a narrow phone, so it takes the next line before it squeezes. */}
-                {onEdit !== undefined && hasIngredients && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        icon="pencilLine"
-                        accessibilityLabel={detail.editIngredientsLabel}
-                        onPress={onEdit}
+            <IngredientsCard>
+                <IngredientsHeadRow>
+                    {/* The heading is a View, for the screen-reader cursor: the focus hook takes a native view, and the design-system Text
+                        inside it sets the heading in the section-title role, which caps its growth with the system text scale. */}
+                    <View
+                        ref={headingRef}
+                        accessible
+                        accessibilityRole="header"
+                        {...(saysRecovered ? { accessibilityHint: detail.unreachableResolved } : {})}
                     >
-                        {detail.editSection}
-                    </Button>
+                        <DsText typeRole="sectionTitle">{detail.ingredientsHeading}</DsText>
+                    </View>
+                    <DsText typeRole="meta" color="$inkMuted" flexGrow={1}>
+                        {fillTemplate(detail.ingredientsFor, { count: servings })}
+                    </DsText>
+                    <ServingScaleControl
+                        servings={servings}
+                        baseServings={recipe.servings}
+                        onServingsChange={onServingsChange}
+                    />
+                </IngredientsHeadRow>
+                {/* The owner's Edit sits under the heading row, at the start (`RecipeDetailAndroid384`). */}
+                {onEdit !== undefined && hasIngredients && (
+                    <IngredientsEditRow>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            icon="pencilLine"
+                            accessibilityLabel={detail.editIngredientsLabel}
+                            onPress={onEdit}
+                        >
+                            {detail.editSection}
+                        </Button>
+                    </IngredientsEditRow>
                 )}
-            </DetailHeadingRow>
-            {scaled.scaling.isScaled && (
-                <Surface tone="muted" accessibilityLiveRegion="polite" style={[styles.scaleNotice]}>
-                    <Text style={[styles.meta, ink]}>
-                        {fillTemplate(detail.scaledFrom, { original: recipe.servings })}
-                    </Text>
-                    <Text style={[styles.meta, styles.caveat, ink]}>{detail.scaledTimingCaveat}</Text>
-                    <Button variant="ghost" size="sm" onPress={() => onServingsChange(recipe.servings)}>
-                        {detail.resetScale}
-                    </Button>
-                </Surface>
-            )}
-            {/* Plan 002 R2 — ALWAYS MOUNTED; it takes precedence over the page-level notice (see the web leaf). */}
-            <RefreshNotice
-                failed={unreachable !== undefined}
-                refreshing={unreachableRetry.refreshing}
-                onRetry={unreachableRetry.onRetry}
-                labels={{ failed: unreachable ?? '', retry: detail.refreshRetry }}
-            />
-            {/* The withdrawn-food tile: a warning TINT with an `ink` label. `role="note"` is inert on device (RN has no
+                <IngredientsNotices>
+                    {scaled.scaling.isScaled && (
+                        <Surface tone="muted" accessibilityLiveRegion="polite" style={[styles.scaleNotice]}>
+                            <DsText typeRole="meta">
+                                {fillTemplate(detail.scaledFrom, { original: recipe.servings })}
+                            </DsText>
+                            <DsText typeRole="caption">{detail.scaledTimingCaveat}</DsText>
+                            <Button variant="ghost" size="sm" onPress={() => onServingsChange(recipe.servings)}>
+                                {detail.resetScale}
+                            </Button>
+                        </Surface>
+                    )}
+                    {/* Plan 002 R2 — ALWAYS MOUNTED; it takes precedence over the page-level notice (see the web leaf). */}
+                    <RefreshNotice
+                        failed={unreachable !== undefined}
+                        refreshing={unreachableRetry.refreshing}
+                        onRetry={unreachableRetry.onRetry}
+                        labels={{ failed: unreachable ?? '', retry: detail.refreshRetry }}
+                    />
+                    {/* The withdrawn-food tile: a warning TINT with an `ink` label. `role="note"` is inert on device (RN has no
                 note role on either platform) and is kept because it states intent; the text is its own node. */}
-            {removedNotice !== undefined && (
-                <Text role="note" style={[styles.notice, ink, { backgroundColor: colors.attentionTint }]}>
-                    {removedNotice}
-                </Text>
-            )}
-            {hasIngredients ? (
-                <View>
-                    {/* A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list. */}
-                    {ingredientGroupRuns(scaled.ingredients).map((run, index) => (
-                        <View key={`${run.label ?? ''}-${String(index)}`}>
-                            {run.label !== undefined && (
-                                <Text
-                                    accessibilityRole="header"
-                                    style={[styles.groupLabel, styles.groupHeading, { color: colors.inkMuted }]}
-                                >
-                                    {run.label}
-                                </Text>
-                            )}
-                            {run.lines.map((ingredient) => (
-                                <IngredientCheckRow
-                                    key={ingredient.ingredientId}
-                                    ingredient={ingredient}
-                                    checked={marks.checkedLines.has(ingredient.ingredientId)}
-                                    allRemoved={allRemoved}
-                                    onToggle={marks.toggleLine}
-                                />
-                            ))}
-                        </View>
-                    ))}
-                </View>
-            ) : (
-                <DetailEmptySection text={detail.noIngredients} actionLabel={detail.addIngredients} onAction={onEdit} />
-            )}
+                    {removedNotice !== undefined && <RemovedFoodNotice role="note">{removedNotice}</RemovedFoodNotice>}
+                </IngredientsNotices>
+                {hasIngredients ? (
+                    <>
+                        {/* A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list. */}
+                        {ingredientGroupRuns(scaled.ingredients).map((run, index) => (
+                            <Fragment key={`${run.label ?? ''}-${String(index)}`}>
+                                {run.label !== undefined && <IngredientGroupLabel>{run.label}</IngredientGroupLabel>}
+                                {run.lines.map((ingredient, lineIndex) => (
+                                    <IngredientCheckRow
+                                        key={ingredient.ingredientId}
+                                        ingredient={ingredient}
+                                        checked={marks.checkedLines.has(ingredient.ingredientId)}
+                                        allRemoved={allRemoved}
+                                        onToggle={marks.toggleLine}
+                                        divided={lineIndex > 0}
+                                    />
+                                ))}
+                            </Fragment>
+                        ))}
+                    </>
+                ) : (
+                    <DetailEmptySection
+                        text={detail.noIngredients}
+                        actionLabel={detail.addIngredients}
+                        onAction={onEdit}
+                    />
+                )}
+            </IngredientsCard>
         </DetailSection>
     );
 };

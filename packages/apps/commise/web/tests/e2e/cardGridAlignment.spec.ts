@@ -153,17 +153,10 @@ test.describe('recipe cards — W-06: a one-line meta row is exactly one line', 
         const card = page.getByRole('article', { name: 'Lamb' });
         await expect(card).toHaveAttribute('data-card-variant', 'row');
 
-        // The visible cuisine is the meta line's. The 80 px cover's monogram holds the cuisine too, as a caption it shows
-        // only on a cover 96 px tall or more, so here it is in the DOM and hidden.
-        const line = card
-            .getByText('Mediterranean')
-            .filter({ visible: true })
-            .locator('xpath=ancestor::div[contains(@class,"overflow-hidden")][1]');
-        const box = await line.boundingBox();
-        const lineHeight = await line.evaluate((element) => Number.parseFloat(getComputedStyle(element).lineHeight));
+        // The meta line is one run of text that wraps (UI Designer ruling, 2026-11-03): the time leads it and stays on screen at 320.
+        const line = card.locator('p[class*="text-meta"]');
 
-        expect(Math.abs((box?.height ?? 0) - lineHeight), 'the line box is one line tall').toBeLessThan(1);
-        // The cuisine yields before the figures do: the time stays on screen at 320.
-        await expect(card.getByLabel(/minutes total time/u)).toBeVisible();
+        await expect(line).toBeVisible();
+        await expect(line).toContainText('5 h 30 min');
     });
 });

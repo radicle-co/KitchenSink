@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 20,
         "missing-component-doc": 164,
         "missing-module-doc": 21,
-        "platform-singleton": 87,
+        "platform-singleton": 92,
         "ref-api": 19,
         "unclassified-layer": 91,
         "undocumented-prop": 192
@@ -398,6 +398,26 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/horizontalScroller/ScrollChevron",
+            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/horizontalScroller/ScrollFade",
+            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
             "rule": "ref-api",
             "severity": "violation",
             "component": "designSystem/input/Input",
@@ -623,6 +643,46 @@
                 "htmlFor",
                 "ref",
                 "target"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/pinnedSearch/PinnedSearchOverlay",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/pinnedSearch/PinnedSearchOverlay",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "pin"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/pinnedSearch/PinnedSearchSpacer",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/pinnedSearch/PinnedSearchSpacer",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "pin"
             ]
         },
         {
@@ -2114,21 +2174,11 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailFooter",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
+            "component": "featuresRecipes/detail/DetailFactTiles",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFactTiles.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/detail/DetailFooter",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "recipe"
             ]
         },
         {
@@ -2199,8 +2249,8 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailRatingLine",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailRatingLine.native.tsx",
+            "component": "featuresRecipes/detail/DetailStatusRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatusRow.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
@@ -2209,8 +2259,8 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailStatStrip",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx",
+            "component": "featuresRecipes/detail/HeroBand",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/heroBand.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
@@ -2252,6 +2302,26 @@
             "evidence": [
                 "photos",
                 "title"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/PhotoDots",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoDots.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/PhotoPagingChevrons",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -2261,8 +2331,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back currentSection dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back bind currentSection dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks onEditSection onOpenDataSources onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
+                "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onOpenDataSources onServingsChange onToggleDescription onToggleNutrition onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
             ]
         },
         {
@@ -2714,6 +2784,72 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/RailLinkBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailHeadingLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/discovery/RailLinkBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailHeadingLayout.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
             ]
         },
         {
@@ -4207,138 +4343,6 @@
                 "onSelectRecipe",
                 "sort",
                 "view"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/list/SearchBand",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/list/SearchBand",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "accessibilityValue",
-                "aria-checked",
-                "aria-disabled",
-                "aria-expanded",
-                "aria-selected",
-                "aria-valuemin",
-                "aria-valuenow",
-                "aria-valuetext",
-                "dangerouslySetInnerHTML",
-                "debug",
-                "disabled",
-                "htmlFor",
-                "nativeBackgroundAndroid",
-                "nativeForegroundAndroid",
-                "onBlurCapture",
-                "onClickCapture",
-                "onFocusCapture",
-                "onGotPointerCapture",
-                "onGotPointerCaptureCapture",
-                "onKeyDownCapture",
-                "onKeyUpCapture",
-                "onLostPointerCapture",
-                "onLostPointerCaptureCapture",
-                "onPointerCancelCapture",
-                "onPointerDownCapture",
-                "onPointerEnter",
-                "onPointerEnterCapture",
-                "onPointerLeave",
-                "onPointerLeaveCapture",
-                "onPointerMoveCapture",
-                "onPointerOut",
-                "onPointerOutCapture",
-                "onPointerOver",
-                "onPointerOverCapture",
-                "onPointerUpCapture",
-                "onResponderEnd",
-                "onResponderStart",
-                "onTouchCancel",
-                "onTouchCancelCapture",
-                "onTouchEnd",
-                "onTouchEndCapture",
-                "onTouchMove",
-                "onTouchMoveCapture",
-                "onTouchStart",
-                "onTouchStartCapture",
-                "ref",
-                "target"
-            ]
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/list/SearchOverlay",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "native"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/list/SearchOverlay",
-            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "accessibilityValue",
-                "aria-checked",
-                "aria-disabled",
-                "aria-expanded",
-                "aria-selected",
-                "aria-valuemin",
-                "aria-valuenow",
-                "aria-valuetext",
-                "dangerouslySetInnerHTML",
-                "debug",
-                "disabled",
-                "htmlFor",
-                "nativeBackgroundAndroid",
-                "nativeForegroundAndroid",
-                "onBlurCapture",
-                "onClickCapture",
-                "onFocusCapture",
-                "onGotPointerCapture",
-                "onGotPointerCaptureCapture",
-                "onKeyDownCapture",
-                "onKeyUpCapture",
-                "onLostPointerCapture",
-                "onLostPointerCaptureCapture",
-                "onPointerCancelCapture",
-                "onPointerDownCapture",
-                "onPointerEnter",
-                "onPointerEnterCapture",
-                "onPointerLeave",
-                "onPointerLeaveCapture",
-                "onPointerMoveCapture",
-                "onPointerOut",
-                "onPointerOutCapture",
-                "onPointerOver",
-                "onPointerOverCapture",
-                "onPointerUpCapture",
-                "onResponderEnd",
-                "onResponderStart",
-                "onTouchCancel",
-                "onTouchCancelCapture",
-                "onTouchEnd",
-                "onTouchEndCapture",
-                "onTouchMove",
-                "onTouchMoveCapture",
-                "onTouchStart",
-                "onTouchStartCapture",
-                "ref",
-                "target"
             ]
         },
         {

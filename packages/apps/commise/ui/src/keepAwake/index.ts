@@ -5,4 +5,4 @@
 export { KeepAwakeToggle } from './KeepAwakeToggle.js';
 export { useKeepAwake } from './useKeepAwake.js';
 export { useKeepAwakeAvailable } from './useKeepAwakeAvailable.js';
-export type { KeepAwakeDisplay, KeepAwakeToggleProps } from './props.js';
+export type { KeepAwakeToggleProps } from './props.js';

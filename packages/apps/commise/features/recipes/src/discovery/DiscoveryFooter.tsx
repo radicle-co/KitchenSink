@@ -12,6 +12,7 @@
  *
  * Presentational: it holds no state and sends nothing; the card lifts it above its link (`RecipeCard`'s `footer` slot).
  */
+import { initialsPxOf } from '@commise/ui/avatar-initials';
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
@@ -65,7 +66,8 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
                 {initial === undefined ? null : (
                     <span
                         aria-hidden="true"
-                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill text-label text-action-text"
+                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill font-semibold text-action-text"
+                        style={{ fontSize: initialsPxOf(20) }}
                     >
                         {initial}
                     </span>

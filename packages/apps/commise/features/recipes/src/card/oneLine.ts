@@ -10,17 +10,13 @@
  * Pure.
  */
 import { badgeHeightOf } from '@commise/ui/badge-box';
-import { nativeTokens } from '@commise/ui/native';
+import { lineHeightPx } from '@commise/ui/scale';
 
 /**
- * A type role's leading, in points. The roles all state one; a role that did not would fall back to its size.
- *
- * @param style - The native type role.
- * @returns The leading.
+ * The `meta` leading (14 pt text), in points. It is the scale's raw value, not `nativeTokens.type.meta.lineHeight`: on
+ * iOS that projection sits 0.001 above the pixel grid (react/react-native#58970) and `ceil` would add a whole point.
  */
-function leadingOf(style: { readonly lineHeight?: number; readonly fontSize?: number }): number {
-    return style.lineHeight ?? style.fontSize ?? 0;
-}
+const META_LEADING = lineHeightPx[14];
 
 /**
  * The height of a row of `meta` text and 16 pt icons, at an OS font scale.
@@ -29,7 +25,7 @@ function leadingOf(style: { readonly lineHeight?: number; readonly fontSize?: nu
  * @returns The height, in points, rounded up so the text is never clipped.
  */
 export function metaLineHeightOf(fontScale: number): number {
-    return Math.ceil(leadingOf(nativeTokens.type.meta) * fontScale);
+    return Math.ceil(META_LEADING * fontScale);
 }
 
 /**

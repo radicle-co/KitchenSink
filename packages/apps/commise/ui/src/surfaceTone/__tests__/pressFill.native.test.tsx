@@ -23,7 +23,6 @@ vi.mock('react-native', async (importOriginal) => {
 
 import { Button } from '../../button/Button.native.js';
 import { Chip } from '../../chip/Chip.native.js';
-import { KeepAwakeToggle } from '../../keepAwake/KeepAwakeToggle.native.js';
 import { BottomSheetPanel } from '../../sheet/BottomSheetPanel.native.js';
 import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js';
 import { themeFor } from '../../theme/themeFor.js';
@@ -101,18 +100,8 @@ describe.each(['light', 'dark'] as const)('a pressed control in the %s theme', (
             expect(fill(screen.getByRole('button', { name: 'Press me' }))).toBe(rgb(theme.press[tone]));
         });
 
-        it('the Screen on switch (off) presses to the tone’s press fill', () => {
-            systemScheme.current = scheme;
-            press.pressed = true;
-            render(
-                <Surface tone={tone}>
-                    <KeepAwakeToggle on={false} onChange={vi.fn()} label="Screen on" display="labelled" />
-                </Surface>,
-            );
-
-            expect(fill(screen.getByRole('switch', { name: 'Screen on' }))).toBe(rgb(theme.press[tone]));
-        });
-
+        // REMOVED IN SLICE 1: "Screen on" is a quiet action with no wash of its own (designer, iosBatch1), so it has no press fill to
+        // assert; it presses by the PressScale transform alone, which `KeepAwakeToggle.native.test.tsx` covers.
         it('a chip rests on the surface’s chip fill and presses to that fill’s row', () => {
             systemScheme.current = scheme;
             const { rerender } = render(

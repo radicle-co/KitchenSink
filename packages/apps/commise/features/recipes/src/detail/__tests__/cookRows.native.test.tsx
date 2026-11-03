@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render } from '@commise/ui/testing/tamagui';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';
@@ -41,9 +41,9 @@ describe('IngredientCheckRow (native)', () => {
         expect(onToggle).toHaveBeenCalledWith('ing_lamb');
     });
 
-    // Owner C5 + T1: the row text is the `list` role, the row pads 8 and is at least 44 tall (iOS), sized from the tokens, and a
-    // press anywhere on the row (the text included) toggles it.
-    it('sets the line in the list role, pads 8 and is at least 44 tall', () => {
+    // Owner C5 + T1: the row pads 8 and is at least 44 tall (iOS), sized from the tokens, and a press anywhere on the row (the text
+    // included) toggles it. REWRITTEN IN SLICE 2: the line is the `body` role (16), as the board draws it, where it was `list`.
+    it('sets the line in the body role, pads 8 and is at least 44 tall', () => {
         render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
 
         const row = getComputedStyle(screen.getByRole('checkbox', { name: /lamb shoulder/u }));
@@ -52,7 +52,7 @@ describe('IngredientCheckRow (native)', () => {
         expect(row.paddingTop).toBe(`${nativeTokens.spacing[2]}px`);
         expect(row.paddingBottom).toBe(`${nativeTokens.spacing[2]}px`);
         expect(getComputedStyle(screen.getByText('lamb shoulder')).fontSize).toBe(
-            `${nativeTokens.type.list.fontSize}px`,
+            `${nativeTokens.type.body.fontSize}px`,
         );
     });
 
@@ -86,14 +86,14 @@ describe('IngredientCheckRow (native)', () => {
         expect(row.getAttribute('aria-checked')).toBe('true');
         const name = screen.getByText('lamb shoulder');
         expect(getComputedStyle(name).textDecorationLine ?? '').not.toContain('line-through');
-        expect(getComputedStyle(name).color).toBe(rgb(role.inkMuted));
+        expect(resolvedColour(name, 'color')).toBe(rgb(role.inkMuted));
     });
 
     it('unchecked: reports unchecked and keeps the text in ink', () => {
         render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
 
         expect(screen.getByRole('checkbox', { name: /lamb shoulder/u }).getAttribute('aria-checked')).toBe('false');
-        expect(getComputedStyle(screen.getByText('lamb shoulder')).color).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('lamb shoulder'), 'color')).toBe(rgb(role.ink));
     });
 });
 

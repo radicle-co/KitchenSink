@@ -13,7 +13,9 @@
  * queries and the computed `pointerEvents`, never with a click alone.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+
+import { render, renderedRoot, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 
 const platform = vi.hoisted(() => ({ os: 'ios' as 'ios' | 'android', width: 390 }));
 
@@ -53,7 +55,7 @@ describe('CondensedTitleBar (native)', () => {
     it.each(FLAGS)('keeps Back rendered, named and pressable with %o', (flags) => {
         const onPress = vi.fn();
         const { container } = render(<CondensedTitleBar title="Weeknight dinners" {...flags} back={back(onPress)} />);
-        const bar = container.firstElementChild as HTMLElement;
+        const bar = renderedRoot(container) as HTMLElement;
 
         // Present in the accessibility tree: no hidden ancestor, found WITHOUT the `hidden` escape hatch.
         const control = screen.getByRole('button', { name: 'Back to Collections' });
@@ -83,7 +85,7 @@ describe('CondensedTitleBar (native)', () => {
         const { container } = render(
             <CondensedTitleBar title="Weeknight dinners" surfaceShown titleShown back={back()} />,
         );
-        const bar = container.firstElementChild as HTMLElement;
+        const bar = renderedRoot(container) as HTMLElement;
 
         expect(getComputedStyle(bar).pointerEvents).toBe('none');
         expect(getComputedStyle(screen.getByText('Weeknight dinners')).pointerEvents).toBe('none');
@@ -100,7 +102,7 @@ describe('CondensedTitleBar (native)', () => {
         const { container } = render(
             <CondensedTitleBar title="Weeknight dinners" surfaceShown titleShown back={back()} />,
         );
-        const bar = container.firstElementChild as HTMLElement;
+        const bar = renderedRoot(container) as HTMLElement;
         const wrapper = screen.getByText('Weeknight dinners').parentElement as HTMLElement;
 
         // Its own View, not the bar: the bar is `box-none`, which a Text inside it does not inherit on Android.
@@ -129,7 +131,7 @@ describe('CondensedTitleBar (native)', () => {
 
     it('never puts an opacity on the bar itself: it would stop a GlassView rendering', () => {
         const { container } = render(<CondensedTitleBar title="Dinners" surfaceShown={false} titleShown={false} />);
-        const bar = container.firstElementChild as HTMLElement;
+        const bar = renderedRoot(container) as HTMLElement;
 
         expect(getComputedStyle(bar).opacity === '' || getComputedStyle(bar).opacity === '1').toBe(true);
     });
@@ -138,10 +140,12 @@ describe('CondensedTitleBar (native)', () => {
 describe('CondensedTitleBar (native) — its place in the safe-area frame', () => {
     it('is the pinned height tall and adds no status-bar inset of its own: the screen frame already clears it', () => {
         const { container } = render(<CondensedTitleBar title="Weeknight dinners" surfaceShown titleShown />);
-        const bar = container.firstElementChild as HTMLElement;
+        const bar = renderedRoot(container) as HTMLElement;
 
         expect(PINNED_BAR_HEIGHT).toBe(56);
-        expect(getComputedStyle(bar).height).toBe('56px');
+        // REWRITTEN (designer ruling c10ecadbf, 2026-11-03): 56 pt is the MINIMUM; the bar grows to fit its text.
+        expect(getComputedStyle(bar).minHeight).toBe('56px');
+        expect(getComputedStyle(bar).height).not.toBe('56px');
         expect(getComputedStyle(bar).paddingTop === '' || getComputedStyle(bar).paddingTop === '0px').toBe(true);
     });
 });
@@ -183,7 +187,8 @@ describe('CondensedTitleBar (native) — the Back control', () => {
 
 describe('CondensedTitleBar (native) — where the chevron sits', () => {
     // react-native-web writes a dynamic `paddingStart` inline as the physical `padding-left` in LTR.
-    const startOf = (node: Element): string => getComputedStyle(node).paddingLeft;
+    // Read through the theme's resolver: the Tamagui provider the tests now render in writes it as `padding-inline`.
+    const startOf = (node: Element): string => resolvedStyle(node, 'paddingLeft');
 
     it.each([
         ['ios', '6px', '10px'],
@@ -195,7 +200,7 @@ describe('CondensedTitleBar (native) — where the chevron sits', () => {
         const control = screen.getByRole('button', { name: 'Back to Collections' });
 
         // bar start padding + the control's leading room = the glyph's left edge at the 16 pt gutter.
-        expect(startOf(container.firstElementChild as Element)).toBe(bar);
+        expect(startOf(renderedRoot(container))).toBe(bar);
         expect(startOf(control)).toBe(lead);
     });
 
@@ -204,7 +209,34 @@ describe('CondensedTitleBar (native) — where the chevron sits', () => {
         platform.width = 390;
         const { container } = render(<CondensedTitleBar surfaceShown titleShown back={back()} />);
 
-        expect(startOf(container.firstElementChild as Element)).toBe('6px');
+        expect(startOf(renderedRoot(container))).toBe('6px');
         expect(startOf(screen.getByRole('button', { name: 'Back to Collections' }))).not.toBe('10px');
+    });
+});
+
+// Designer ruling c10ecadbf (2026-11-03): the title and the parent name cap at 1.5x, like chrome. The title is one line and
+// may truncate: it repeats the page H1, and it is the only title allowed to (qaChecks' truncation check exempts it by name).
+describe('CondensedTitleBar (native) — the title and the parent name cap at 1.5x', () => {
+    it.each([
+        [1, '16px', '14px'],
+        [1.5, '24px', '21px'],
+        [2, '24px', '21px'],
+        [3.1, '24px', '21px'],
+    ] as const)('at system scale %fx the title is %s and the parent name %s', (scale, title, parent) => {
+        platform.width = 800;
+        renderWithTamagui(
+            <CondensedTitleBar title="Weeknight dinners" back={back()} surfaceShown titleShown />,
+            'light',
+            scale,
+        );
+
+        expect(resolvedStyle(screen.getByText('Weeknight dinners', { ignore: 'none' }), 'fontSize')).toBe(title);
+        expect(resolvedStyle(screen.getByText('Collections', { ignore: 'none' }), 'fontSize')).toBe(parent);
+    });
+
+    it('keeps the title to one line', () => {
+        renderWithTamagui(<CondensedTitleBar title="A long title" surfaceShown titleShown />, 'light', 1);
+
+        expect(getComputedStyle(screen.getByText('A long title', { ignore: 'none' })).textOverflow).toBe('ellipsis');
     });
 });

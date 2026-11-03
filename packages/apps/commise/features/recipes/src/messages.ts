@@ -100,8 +100,6 @@ export interface RecipeListMessages {
 export interface RecipeDetailMessages {
     /** Label for the prep-time meta stat. */
     readonly prepLabel: string;
-    /** Label for the cook-time meta stat. */
-    readonly cookLabel: string;
     /** Label for the total-time meta stat. */
     readonly totalLabel: string;
     /** Label for the servings meta stat. */
@@ -116,6 +114,10 @@ export interface RecipeDetailMessages {
     readonly photoDotsLabel: string;
     /** Accessible name for a single navigation dot (contains `{title}` and `{index}`). */
     readonly photoDot: string;
+    /** Accessible name for the carousel's paging chevron to the previous photo (contains `{title}`). */
+    readonly photoPrevious: string;
+    /** Accessible name for the carousel's paging chevron to the next photo (contains `{title}`). */
+    readonly photoNext: string;
     /** Accessible name for the lightbox close control. */
     readonly lightboxClose: string;
     /** Heading for the ingredients section. */
@@ -264,6 +266,12 @@ export interface RecipeDetailMessages {
     readonly stepToggleLabel: string;
     /** Heading for the nutrition section. */
     readonly nutritionHeading: string;
+    /** The native nutrition row's title (`RecipeDetailAndroid384`, build list item 12). */
+    readonly nutritionTitle: string;
+    /** The row's summary while the figures are collapsed (contains `{calories}`, the per-serving calories). */
+    readonly nutritionSummary: string;
+    /** The row's summary when no food was counted, so there are no figures to give. */
+    readonly nutritionSummaryNone: string;
     /** Notice shown when per-serving nutrition is incomplete (FR-007 partial nutrition). */
     /** The one line under the dashes when no ingredient was counted (`buildSpec.md` §6.7, F17). */
     readonly nutritionNoneCounted: string;
@@ -364,7 +372,7 @@ export interface RecipeDetailMessages {
     readonly scaledAnnounce: string;
     /** The "Screen on" switch's name. */
     readonly screenOn: string;
-    /** The one-time hint under the section switch the first time Screen on shows. */
+    /** What Screen on does, as the switch's accessibility hint (never drawn). */
     readonly screenOnHint: string;
     /** The steps section with no steps. */
     readonly noSteps: string;
@@ -384,10 +392,6 @@ export interface RecipeDetailMessages {
     readonly descriptionMore: string;
     /** The same button once the description is expanded. */
     readonly descriptionLess: string;
-    /** The name of the section switch's navigation. */
-    readonly sectionsLabel: string;
-    /** The section switch's link to the nutrition section. */
-    readonly nutritionLink: string;
     /** The ghost link in the footer facts that opens the version history. */
     readonly versionHistory: string;
     /**
@@ -423,8 +427,6 @@ export interface RecipeCardMessages {
     readonly difficultyLabel: string;
     /** Accessible total-time template (contains `{minutes}`), e.g. "45 minutes total time". */
     readonly timeLabel: string;
-    /** Accessible servings template (contains `{count}`), e.g. "Serves 4". */
-    readonly servingsLabel: string;
     /** Accessible rating-summary template (contains `{average}` and `{ratings}`). */
     readonly ratingSummary: string;
     /** Singular rating-count template (contains `{count}`). */
@@ -435,9 +437,7 @@ export interface RecipeCardMessages {
     readonly unrated: string;
     /** The rating beside the stars, e.g. "4.8 (12)" (contains `{average}` and `{count}`). */
     readonly ratingShort: string;
-    /** The count of tags past the ones a card shows, e.g. "+3" (contains `{count}`). */
-    readonly moreTags: string;
-    /** The separator between the items of one card line, e.g. "Moroccan · Serves 8". */
+    /** The separator between the items of one card line, e.g. "35 min · Medium". */
     readonly separator: string;
     /** Accessible label for the cover-image placeholder shown when a recipe has no photo. */
     readonly noPhotoLabel: string;
@@ -447,10 +447,6 @@ export interface RecipeCardMessages {
      * consumer and duplicated `nutrition/messages.ts`'s `calories` verbatim. Two authoritative spellings of
      * one string, one of them unreachable. The nutrition module owns the calorie copy.
      */
-    /** Visible version-badge text, shown only past v1 (contains `{version}`). */
-    readonly versionBadge: string;
-    /** Accessible name for the version badge (contains `{version}`). */
-    readonly versionLabel: string;
     /** Visibility-badge text for a public recipe. */
     readonly visibilityPublic: string;
     /** Visibility-badge text for a private recipe. */
@@ -940,7 +936,6 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             refreshError: 'We couldn’t refresh this recipe.',
             refreshRetry: 'Try again',
             prepLabel: 'Prep',
-            cookLabel: 'Cook',
             totalLabel: 'Total',
             servingsLabel: 'Serves',
             photosLabel: 'Recipe photos',
@@ -948,6 +943,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             photoOpen: 'Open {title} photo {index} full screen',
             photoDotsLabel: 'Photo navigation',
             photoDot: 'Go to {title} photo {index}',
+            photoPrevious: 'Previous {title} photo',
+            photoNext: 'Next {title} photo',
             lightboxClose: 'Close photo',
             ingredientsHeading: 'Ingredients',
             userEnteredBadge: 'Your own food',
@@ -992,6 +989,9 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             stepTimerIcon: 'Timer',
             stepToggleLabel: 'Mark step {step} as current',
             nutritionHeading: 'Nutrition (per serving)',
+            nutritionTitle: 'Nutrition',
+            nutritionSummary: '{calories} cal per serving',
+            nutritionSummaryNone: 'Not counted yet',
             nutritionPartial: 'Estimated — some items aren’t counted yet',
             nutritionNoneCounted: 'Not counted yet: no ingredient has a food.',
             nutritionRangeDerivedLow: 'Estimated from the lower amount of each stated range',
@@ -1010,7 +1010,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             badgesLabel: 'Recipe status',
-            sourceHeading: 'Source',
+            sourceHeading: 'Adapted from',
             servingsAdjustLabel: 'Servings',
             servingsDecrease: 'Fewer servings',
             servingsIncrease: 'More servings',
@@ -1036,10 +1036,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             editSection: 'Edit',
             editIngredientsLabel: 'Edit ingredients',
             editStepsLabel: 'Edit steps',
-            descriptionMore: 'More',
+            descriptionMore: 'Read more',
             descriptionLess: 'Less',
-            sectionsLabel: 'Recipe sections',
-            nutritionLink: 'Nutrition',
             versionHistory: 'Version history',
             backTo: 'Back to {parent}',
             parentHome: 'Home',
@@ -1055,17 +1053,13 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             difficultyHard: 'Hard',
             difficultyLabel: 'Difficulty: {difficulty}',
             timeLabel: '{minutes} minutes total time',
-            servingsLabel: 'Serves {count}',
             ratingSummary: 'Rated {average} out of 5, {ratings}',
             ratingCountOne: '{count} rating',
             ratingCountOther: '{count} ratings',
             unrated: 'No ratings yet',
             ratingShort: '{average} ({count})',
-            moreTags: '+{count}',
             separator: ' · ',
             noPhotoLabel: 'No photo yet',
-            versionBadge: 'v{version}',
-            versionLabel: 'Version {version}',
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             draftBadge: 'Draft',

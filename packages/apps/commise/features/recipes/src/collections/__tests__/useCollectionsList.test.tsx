@@ -60,7 +60,8 @@ describe('useCollectionsList — the first run', () => {
     // ⚠️ REWRITTEN from "is a first run only once the collection list has settled empty": that boolean was false while
     // the list loaded, so the floating button mounted and then vanished under the cook's finger. It now yields while
     // loading as well, and shows when the list is unreachable (offline or failed) with nothing cached.
-    it('yields the floating create button while the list loads and once it settles empty, not once it holds one', async () => {
+    // REWRITTEN (designer, 2026-11-03): the floating button also stays in the first run, so it yields only while the list loads.
+    it('yields the floating create button only while the list loads, not once it settles empty or holds one', async () => {
         const { queryClient, result } = setup();
 
         expect(result.current.createEntryYields).toBe(true);
@@ -71,7 +72,7 @@ describe('useCollectionsList — the first run', () => {
                 pageParams: [1],
             });
         });
-        await waitFor(() => expect(result.current.createEntryYields).toBe(true));
+        await waitFor(() => expect(result.current.createEntryYields).toBe(false));
 
         act(() => {
             queryClient.setQueryData(result.current.read.queryKey, {
@@ -195,5 +196,41 @@ describe('useCollectionsList — search and the new-collection sheet', () => {
         act(() => result.current.sheet.onOpen());
 
         expect(result.current.sheet.failed).toBe(false);
+    });
+});
+
+// Designer ruling (2026-11-02): where the Collections tab has a search field (from six collections) it pins on a band, as Recipes'
+// does. The frame draws it and sits outside the read's boundary, so the hook says whether it shows, from the cached total.
+describe('useCollectionsList — the pinned search shows from six collections', () => {
+    const pages = (total: number) => ({
+        pages: [{ data: [], total, page: 1, pageSize: 20, hasMore: false }],
+        pageParams: [1],
+    });
+
+    it('is hidden while the list loads and below six, and shows from six', async () => {
+        const { queryClient, result } = setup();
+
+        expect(result.current.search.visible).toBe(false);
+
+        act(() => {
+            queryClient.setQueryData(result.current.read.queryKey, pages(5));
+        });
+        await waitFor(() => expect(result.current.search.visible).toBe(false));
+
+        act(() => {
+            queryClient.setQueryData(result.current.read.queryKey, pages(6));
+        });
+        await waitFor(() => expect(result.current.search.visible).toBe(true));
+    });
+
+    it('stays while the cook has typed, so a search can always be cleared', async () => {
+        const { queryClient, result } = setup();
+        act(() => {
+            queryClient.setQueryData(result.current.read.queryKey, pages(2));
+        });
+
+        act(() => result.current.search.onChange('pie'));
+
+        await waitFor(() => expect(result.current.search.visible).toBe(true));
     });
 });

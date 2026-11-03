@@ -55,7 +55,7 @@ const PULSE =
 
 const CARD = 'rounded-md border border-line-divider bg-paper';
 
-/** The grid card's six rows: the cover and five lines. */
+/** The grid card's four rows: the cover, the title, the meta line and the last line. */
 const GridSkeleton: FC = () => (
     <div data-skeleton-variant="grid" className={`${GRID_CELL_CLASS} ${CARD}`}>
         <div className={`aspect-[4/3] w-full rounded-t-md ${PULSE}`} />
@@ -63,13 +63,7 @@ const GridSkeleton: FC = () => (
             <div className={`h-4 w-3/4 rounded-sm ${PULSE}`} />
         </div>
         <div className="px-4 pt-2">
-            <div className={`h-4 w-1/2 rounded-sm ${PULSE}`} />
-        </div>
-        <div className="px-4 pt-1">
             <div className={`h-4 w-2/3 rounded-sm ${PULSE}`} />
-        </div>
-        <div className="px-4 pt-1">
-            <div className={`h-3 w-1/2 rounded-sm ${PULSE}`} />
         </div>
         <div className="px-4 pb-4 pt-1">
             <div className={`h-3 w-1/3 rounded-sm ${PULSE}`} />

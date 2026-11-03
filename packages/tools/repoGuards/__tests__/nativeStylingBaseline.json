@@ -184,7 +184,7 @@
         "packages/apps/commise/ui/src/input/TextArea.native.tsx": 3,
         "packages/apps/commise/ui/src/keyboardAvoider/KeyboardAvoider.native.tsx": 1,
         "packages/apps/commise/ui/src/largeTitleHeader/CondensedTitleBar.native.tsx": 10,
-        "packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.native.tsx": 11,
+        "packages/apps/commise/ui/src/largeTitleHeader/LargeTitleHeader.native.tsx": 10,
         "packages/apps/commise/ui/src/layout/BottomChromeFrame.native.tsx": 3,
         "packages/apps/commise/ui/src/liveRegion/LiveRegion.native.tsx": 1,
         "packages/apps/commise/ui/src/loadMore/LoadMoreControl.native.tsx": 4,

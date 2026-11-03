@@ -266,13 +266,13 @@ const EXEMPTIONS: readonly Exemption[] = [
     },
     {
         file: `${APPS}ui/src/largeTitleHeader/LargeTitleHeader.native.tsx`,
-        frame: '<View style={styles.action}>',
+        frame: '<View style={[styles.action, { height: rowHeight }]}>',
         kind: 'allowed',
         reason: "The slot holds the caller's avatar disc, a control with no text of its own (L52); the reader counts `{action.avatar}` as text.",
     },
     {
         file: `${APPS}ui/src/largeTitleHeader/LargeTitleHeader.native.tsx`,
-        frame: '<View style={[styles.action, styles.controls]}>',
+        frame: '<View style={[styles.action, styles.controls, { height: rowHeight }]}>',
         kind: 'allowed',
         reason: "The slot holds the caller's icon button and menu (L56-57), controls with no text of their own.",
     },

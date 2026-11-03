@@ -35,6 +35,9 @@ const ADAPTIVE_FROM = 600;
 /** A content-width route segment's floor, in dp: two place names must not squeeze (W-25). */
 const CONTENT_SEGMENT_MIN = 136;
 
+/** A segment's vertical hit slop: the track's inset above and below it. */
+const SEGMENT_HIT_SLOP = { top: TRACK_INSET, bottom: TRACK_INSET } as const;
+
 /** One segment, with the roles its control's form gives it. */
 interface SegmentFace {
     readonly id: string;
@@ -90,6 +93,8 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                         : { 'aria-checked': face.selected })}
                     aria-label={face.label}
                     onPress={face.onPress}
+                    // The track pads each segment by TRACK_INSET; the slop gives the target back that band, so it spans the track.
+                    hitSlop={SEGMENT_HIT_SLOP}
                     style={[
                         styles.segment,
                         compactTrack ? styles.segmentContent : null,

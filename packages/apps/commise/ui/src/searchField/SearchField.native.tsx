@@ -29,6 +29,9 @@ import { Surface } from '../surfaceTone/Surface.native.js';
 /** The pill's height, in points. */
 const PILL_HEIGHT = 48;
 
+/** The pill's border, which sits outside the input: the slop gives the input's target that band back. */
+const INPUT_HIT_SLOP = { top: 1, bottom: 1 } as const;
+
 /** The native design-system search field. */
 export const SearchField: FC<SearchFieldProps> = ({
     id,
@@ -54,6 +57,7 @@ export const SearchField: FC<SearchFieldProps> = ({
                 <TextInput
                     ref={field}
                     nativeID={id}
+                    hitSlop={INPUT_HIT_SLOP}
                     {...(labelVisibility === 'visible'
                         ? { 'aria-labelledby': fieldLabelId(id) }
                         : { 'aria-label': label })}

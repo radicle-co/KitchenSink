@@ -3,7 +3,7 @@
  *
  * The measured state (the spacer's place, the field's height, focus) and the ONE set of Animated nodes that moves the field and
  * shows the band (`searchPinNodes.native.ts`; a re-measure writes two inputs, it never swaps a node). The spacer and the overlay
- * ({@link PinnedSearchSpacer}, {@link PinnedSearchOverlay}) read it; the frame that owns the screen's search composes the three.
+ * (`PinnedSearchSpacer`, `PinnedSearchOverlay`) read it; the frame that owns the screen's search composes the three.
  * Recipes and Collections share all three: a difference between their pins is a bug in the sharing.
  *
  * @pattern Overlay — the field is drawn once above the list over a spacer the list holds

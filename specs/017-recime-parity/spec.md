@@ -377,6 +377,15 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   own stated position — "does not use bots or automated tools" — so it is the floor, not caution. Our exposure
   is strictly worse than theirs at equal posture, because we operate a public library and they do not. A green
   `robots.txt` is not terms-of-use clearance.)_
+    > **Amended 2026-11-03 (owner ruling, ADR-0082): what binds a social fetch.** [Law] The server MUST NOT download
+    > TikTok, Instagram or YouTube video against their terms. It MUST use **official APIs under their terms**
+    > (oEmbed, the platform's data API where the terms allow it). Where none allows the import, the capture resolves
+    > `unreadable` (FR-008) and the fallback is the cook's **paste, share sheet or screenshot**. It MUST NOT pass a
+    > login or paywall, use a cook's password or cookies, pose as another bot or rotate addresses (17 U.S.C. §1201,
+    > CFAA after a revocation, _Facebook v. Power Ventures_, 844 F.3d 1058 (9th Cir. 2016)). It MUST honour robots.txt
+    > per RFC 9309 and the data-mining opt-outs of `004-FR-023`, and MUST log what each signal said per fetch. The
+    > result follows the per-market private-copy switch (`004-FR-008` ruling, D6): the EU and UK keep facts and a link
+    > only. Counsel review is owed before launch (`016-FR-050`).
 - **FR-001b** `→ 004 ADDED`: System MUST monitor extraction success **per source platform**, MUST surface a
   defined degradation path when one platform stops working, and MUST NOT let any single platform be
   load-bearing for the feature's success criteria. _(ReciMe took a staff-acknowledged import outage across
@@ -400,6 +409,11 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   tier that yields a structurally complete recipe: **(1)** caption/description text, **(2)** audio transcript,
   **(3)** on-screen text from sampled frames, **(4)** visual analysis of sampled frames, **(5)** lookup of the
   original source site. The draft MUST record which tier produced each field.
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** Tiers 2 to 4 need the video itself. They run only on media the
+    > cook hands us (a shared file, a screen recording, a screenshot) or that an official API under its terms returns.
+    > They never run on a server-side download against a platform's terms. [Law, EU] Extraction's basis is per market:
+    > US fair use (a judgement, weakened by _Thomson Reuters v. Ross_), EU DSM Art. 4 unless opted out, UK s.28A only,
+    > and Australia has no matching exception. Counsel review is owed before launch (`016-FR-050`).
 - **FR-003** `→ 004 ADDED`: Tier 3 MUST recover recipe text that appears only as burned-in on-screen text,
   including where the post has neither caption nor speech.
 - **FR-004** `→ 004 ADDED`: Tier 4 MUST recover ingredients and steps that are demonstrated visually but never
@@ -427,6 +441,10 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   persisted to operator-controlled storage** — analysis is transient and the artefacts are discarded with the
   extraction that produced them. This satisfies `016-FR-027`, which prohibits _persisting_ a copy; it does not
   by itself answer whether transient decode is a reproduction (see Dependencies).
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** The import MUST NOT keep video frames or audio at all, in any
+    > store, and MUST NOT run face recognition on frames (Illinois BIPA, 740 ILCS 14). [Law, EU] DSM Art. 4(2) limits
+    > retention of mining copies, and GDPR storage limitation applies where people appear. A screenshot or page image
+    > the cook gives us is deleted after extraction unless the cook asks to keep it (`011-FR-018`).
 
 #### B. Capture surfaces — D2, D3
 
@@ -454,12 +472,19 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   MUST NOT pre-scan pages the user has not activated it on. _(The browser-level expression of FR-001a. Widening
   this later triggers store re-review and can suspend the extension for existing users pending re-consent, so
   it is treated as an expensive-to-reverse boundary.)_
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** [Law] The extension runs in the cook's browser, with the cook's own
+    > session, after the cook's action. It captures what the cook can already see, including a page behind the cook's own
+    > subscription, so the server never fetches a paid site and never uses a cook's cookies. The captured page is a
+    > private copy under the per-market switch (D6, `004-FR-008` ruling), and its public form is a facts card. The
+    > extension follows the same signal rules as `004-FR-023` for any fetch the server makes on its behalf. Counsel
+    > review is owed before launch (`016-FR-050`).
 - **FR-015** `→ 004 ADDED`: Every capture surface — chooser, share sheet, extension, migration — MUST route
   through **one** import pipeline, so provenance, confidence, quota (`004-FR-022`), attestation
   (`016-FR-014`), and policy behave identically regardless of entry point. Each surface MUST record its
   channel classification per `016-FR-028` — **video import is `operator-performed retrieval`**, which is
   the disfavoured side of `016-FR-029` and cannot be otherwise, since a user cannot hand us the bytes of a
-  hosted video.
+  hosted video. _(Amended 2026-11-03, ADR-0082: operator-performed retrieval is allowed only through official APIs
+  under their terms. Everything else is a cook-supplied paste, share or screenshot.)_
 
 #### C. Portability — D15, D14
 
@@ -581,6 +606,11 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
   members, and MUST make it the ownership boundary for meal plans and grocery lists. Every account belongs to
   exactly one household, created implicitly at signup with that user as its only member, so that a solo user is
   a household of one and no code path needs a "no household" branch.
+  _(Amended 2026-11-03, owner ruling, ADR-0082.)_ [House rule] Sharing with the household is not publication, so it
+  starts no 020 check (`020-FR-072`). A member's clone of a shared private copy stays private and keeps the source's
+  label. The household has no public link, feed or export of another member's private recipes. Whether a household of
+  up to 6 accounts is a private circle in every market is a counsel item. Counsel review is owed before launch
+  (`016-FR-050`).
 - **FR-030a** `→ 006 ADDED, → 007 ADDED`: Every **active member** MUST be able to create, edit and check off
   the household's meal plans, grocery lists and aisle taxonomy. Content capability is equal across roles —
   that equality is the point of a household.

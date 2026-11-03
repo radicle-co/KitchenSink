@@ -141,6 +141,21 @@ Ordered by **risk and dependency**, not by story priority — per the spec's own
 | **6** | Browser extension (`activeTab`)                                 | FR-014                                                                                                | Increment 1                                                                           |
 | **7** | Push binding for completion                                     | FR-013a via `014-FR-001`                                                                              | `014` existing at all — it has **no package today**                                   |
 
+**Open-library amendments (2026-11-03, owner ruling, ADR-0082).** These change what Increments 1, 4 and 6 build.
+Counsel review is owed before launch (`016-FR-050`).
+
+| #     | Change                                                                                                                                                     | Increment |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **1** | Social fetch uses official APIs under their terms only. No server-side video download. Fallback is paste, share sheet or screenshot (`FR-001a`, `FR-008`). | 1         |
+| **1** | The fetch honours RFC 9309 and the data-mining opt-outs, and writes a signal log row per fetch (`004` T-033).                                              | 1         |
+| **1** | The saved copy follows the per-market switch: EU and UK keep facts and a link only (`004` T-034, D6).                                                      | 1         |
+| **4** | Tiers 3 and 4 run only on media the cook supplies or an official API returns. No frames or audio are kept, and there is no face recognition (`FR-011`).    | 4         |
+| **4** | U-2 is read per market: US fair use, EU DSM Art. 4 unless opted out, UK s.28A only, Australia no matching exception.                                       | 4         |
+| **6** | The extension captures in the cook's own session. The server never uses a cook's cookies or passes a paywall (`FR-014`).                                   | 6         |
+
+No Commise-authored rewrite of a creator's recipe is built here (R6). At launch the output is a facts card with a link,
+and the cook can publish their own Adapted version.
+
 Increments 0–3 are unblocked today. Increment 0 is design-first and blocks nothing but must not be retrofitted.
 Increment 7 is deliberately last and additive: the completion signal ships in-app in Increment 1, and push
 becomes a second binding of the same publisher port once `014` exists.

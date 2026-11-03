@@ -196,7 +196,7 @@ const EXEMPTIONS: readonly Exemption[] = [
         file: `${APPS}features/recipes/src/card/RecipeCard.native.tsx`,
         frame: '<View style={[styles.oneLine, { height }]}>',
         kind: 'allowed',
-        reason: 'The BADGE row (the list row status line) is exactly one badge line, sized from the OS font scale (badgeLineHeightOf), and hides what does not fit by design. The meta line is not this row: it wraps with no height (owner ruling 2026-11-03).',
+        reason: 'The BADGE row (the list row status line) is exactly one badge line, sized from the OS font scale (badgeLineHeightOf), and hides what does not fit by design. The meta line is not this row: it wraps with no height (UI Designer ruling 2026-11-03).',
     },
     {
         file: `${APPS}features/recipes/src/card/RecipeCard.native.tsx`,

@@ -6,7 +6,7 @@
         "packages/apps/commise/features/account/src/profile/ProfileHeader.native.tsx": 13,
         "packages/apps/commise/features/account/src/profile/ProfileRow.native.tsx": 4,
         "packages/apps/commise/features/recipes/src/actions/RecipeUpsellSheet.native.tsx": 7,
-        "packages/apps/commise/features/recipes/src/card/RecipeCard.native.tsx": 59,
+        "packages/apps/commise/features/recipes/src/card/RecipeCard.native.tsx": 53,
         "packages/apps/commise/features/recipes/src/card/RecipeCardGridSkeleton.native.tsx": 19,
         "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.native.tsx": 2,
         "packages/apps/commise/features/recipes/src/collections/CollectionHeader.native.tsx": 19,

@@ -8,9 +8,10 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
-import type { FC } from 'react';
+import { useContext, type FC } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
+import { MetaLeadContext } from '../card/metaRun.js';
 import { recipeNutritionMessages } from './messages.js';
 import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
 
@@ -31,6 +32,7 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
     const messages = useMessages(recipeNutritionMessages);
     const locale = useLocale();
     const { colors } = useTheme();
+    const lead = useContext(MetaLeadContext);
 
     switch (nutrition.state) {
         case 'known': {
@@ -47,6 +49,7 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
                     accessibilityLabel={chip.label}
                     style={[chip.isStale ? styles.stale : styles.figure, { color: colors.inkMuted }]}
                 >
+                    {lead}
                     {chip.text}
                 </Text>
             );

@@ -11,8 +11,10 @@
  */
 import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
-import type { FC } from 'react';
+import { useContext, type FC } from 'react';
 import { StyleSheet, View } from 'react-native';
+
+import { MetaLeadContext } from '../card/metaRun.js';
 
 /** Props for the native calorie skeleton. */
 export interface RecipeCalorieSkeletonProps {
@@ -28,11 +30,16 @@ export interface RecipeCalorieSkeletonProps {
  */
 export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label }) => {
     const { colors } = useTheme();
+    const lead = useContext(MetaLeadContext);
 
     return (
-        <View accessible accessibilityLabel={label} style={styles.container}>
-            <View aria-hidden style={[styles.bar, { backgroundColor: colors.surfaceMuted }]} />
-        </View>
+        <>
+            {/* Only inside the meta line's text run, where a string is text; elsewhere the lead is empty. */}
+            {lead === '' ? null : lead}
+            <View accessible accessibilityLabel={label} style={styles.container}>
+                <View aria-hidden style={[styles.bar, { backgroundColor: colors.surfaceMuted }]} />
+            </View>
+        </>
     );
 };
 

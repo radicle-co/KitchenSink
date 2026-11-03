@@ -22,13 +22,7 @@ import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/r
 import { formatDuration } from '../format/duration.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeMessages } from '../messages.js';
-import {
-    formatAverageRating,
-    formatRatingCount,
-    formatRelativeTime,
-    toStarFills,
-    type RecipeCardModel,
-} from './model.js';
+import { formatAverageRating, formatRatingCount, formatRelativeTime, type RecipeCardModel } from './model.js';
 
 /** A recipe's publication status, as the design-system badge names it. */
 export type RecipeCardStatus = 'draft' | 'private' | 'public';
@@ -54,14 +48,11 @@ export interface RecipeCardView {
         readonly status: { readonly status: RecipeCardStatus; readonly text: string };
         readonly timestamp: string;
     };
-    /** The separator between the items of one line, from the locale. */
-    readonly separator: string;
     readonly rating:
         | { readonly kind: 'unrated'; readonly text: string }
         | {
               readonly kind: 'rated';
               readonly label: string;
-              readonly fills: readonly boolean[];
               /** The figure beside the stars, e.g. "4.8 (12)". */
               readonly short: string;
           };
@@ -131,7 +122,6 @@ export function recipeCardViewOf(
             status: { status, text: statusText[status] },
             timestamp,
         },
-        separator: card.separator,
         rating:
             recipe.averageRating === undefined || recipe.ratingCount === 0
                 ? { kind: 'unrated', text: card.unrated }
@@ -147,7 +137,6 @@ export function recipeCardViewOf(
                                   locale,
                               ),
                           ),
-                      fills: toStarFills(recipe.averageRating),
                       short: fillTemplate(card.ratingShort, {
                           average: formatAverageRating(recipe.averageRating, locale),
                           count: new Intl.NumberFormat(locale).format(recipe.ratingCount),

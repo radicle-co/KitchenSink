@@ -39,17 +39,15 @@ import { createContext, useContext, type CSSProperties, type FC, type ReactNode 
 import { GRID_CELL_CLASS } from './cardGridClass.js';
 import type { CardVariant } from './cardVariant.js';
 import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from './coverChip.js';
-import { STAR_COUNT } from './model.js';
+import { META_SEPARATOR, MetaLeadContext, metaRunOf } from './metaRun.js';
 import {
     RecipeCardNutritionContext,
     RecipeCardViewContext,
     useCardView,
     type RecipeCardProps,
 } from './recipeCardContext.js';
+import type { RecipeCardView } from './recipeCardView.js';
 import { useRecipeCardView } from './useRecipeCardView.js';
-
-const STAR_PATH =
-    'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z';
 
 /**
  * A badge line (and the status chip): an item that does not fit moves to a second line, which the fixed height hides,
@@ -58,23 +56,13 @@ const STAR_PATH =
 const ONE_LINE = 'flex flex-wrap content-start items-center gap-x-1 overflow-hidden';
 
 /**
- * The meta line: a wrapping row of text with no fixed height, no clip and no truncation, so no part with data is ever
- * hidden; a part that does not fit moves to the next line (designer ruling 2026-11-03, Android QA on 7ae95db2e).
+ * The meta line: one run of text that wraps like text, with no fixed height, no clip and no truncation, so no part with
+ * data is ever hidden (UI Designer ruling, 2026-11-03).
  */
-const TEXT_LINE = 'flex flex-wrap items-center gap-x-1 gap-y-1 text-meta text-ink-muted';
+const TEXT_LINE = 'text-meta text-ink-muted';
 
 /** A one-line row that holds a badge, whose own 24 px (`min-h-6`) is the line. */
 const BADGE_LINE = `${ONE_LINE} h-6`;
-
-/**
- * One item of a one-line row. It draws the locale's separator before itself only when a VISIBLE item precedes it
- * (`[:not(:empty)~&]`), so a leading item that is absent or settled on nothing leaves no line-leading dot, and an item
- * whose content is empty (a nutrition slot that settled on nothing) hides with its separator.
- */
-const LINE_ITEM_BASE =
-    'inline-flex min-w-0 items-center gap-1 empty:hidden [:not(:empty)~&]:before:text-ink-muted [:not(:empty)~&]:before:content-[attr(data-sep)]';
-
-const LINE_ITEM = `${LINE_ITEM_BASE} max-w-full`;
 
 /**
  * The status chip (designer ruling 2026-11-03, reversing W-08's half-cover cap): it takes its content width, up to the
@@ -89,21 +77,6 @@ const COVER_TOP_STYLE: CSSProperties = { top: COVER_CHIP_INSET, left: COVER_CHIP
 
 /** The status chip's padding, from `coverChip.ts`, so the number is stated once. */
 const STATUS_CHIP_STYLE: CSSProperties = { paddingLeft: COVER_CHIP_PADDING, paddingRight: COVER_CHIP_PADDING };
-
-const Star: FC<{ readonly filled: boolean; readonly extra: boolean }> = ({ filled, extra }) => (
-    <svg
-        aria-hidden="true"
-        // An empty star states the scale, so it is `inkMuted`, never a hairline tone. Stars past the first collapse
-        // under a 240 px card, leaving one star and the figure (`homeCardsA.md` §3). Outside that row (the list row) there
-        // is no card container, so the list row always shows one star and the figure.
-        className={`size-4 ${filled ? 'fill-rating text-rating' : 'text-ink-muted'} ${extra ? 'hidden @min-[13rem]/card:inline' : ''}`}
-        fill={filled ? 'currentColor' : 'none'}
-        stroke="currentColor"
-        viewBox="0 0 20 20"
-    >
-        <path d={STAR_PATH} />
-    </svg>
-);
 
 /** The cover: the photo or its monogram, with the status chip and PRO over it. */
 const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 'pro' }> = ({
@@ -209,78 +182,67 @@ const CardTitle: FC = () => {
     return <Heading className="line-clamp-2 text-card-title text-ink">{content}</Heading>;
 };
 
+/** The rating as the run's part: "No ratings yet", or the star with the figure ("★ 4.8 (12)"), named as one unit. */
+const ratingPartOf = (rating: RecipeCardView['rating']): ReactNode =>
+    rating.kind === 'unrated' ? (
+        rating.text
+    ) : (
+        <span role="img" aria-label={rating.label} className="tabular-nums lining-nums">
+            <span aria-hidden="true" className="text-rating">
+                ★
+            </span>{' '}
+            {rating.short}
+        </span>
+    );
+
+/** The time as the run's part, absent when the recipe has none. */
+const timePartOf = (duration: string | undefined): ReactNode =>
+    duration === undefined ? undefined : <span className="tabular-nums lining-nums">{duration}</span>;
+
 /**
- * The meta line of the grid card and the list row: ⏱ time · difficulty · rating · calories, each only when present. The
- * difficulty is a plain word, never a badge.
+ * The calorie figure at the end of a run. It draws its own lead (the separator) when it has something to say, so a figure
+ * that settles on nothing leaves no dot behind (`MetaLeadContext`).
+ */
+const MetaCalories: FC<{ readonly hasLead: boolean }> = ({ hasLead }) => {
+    const nutrition = useContext(RecipeCardNutritionContext);
+
+    return <MetaLeadContext.Provider value={hasLead ? META_SEPARATOR : ''}>{nutrition}</MetaLeadContext.Provider>;
+};
+
+/**
+ * The meta line of the grid card and the list row: ONE run of text, time · difficulty · rating · calories, each only when
+ * present (UI Designer ruling, 2026-11-03). It wraps like text, with no clip and no truncation.
  */
 const CardMeta: FC = () => {
-    const { separator } = useCardView();
-    const sep = separator.trim();
+    const { meta, rating } = useCardView();
+    const run = metaRunOf([timePartOf(meta.duration), meta.difficulty, ratingPartOf(rating)]);
 
     return (
-        <div className={TEXT_LINE}>
-            <MetaTime sep={sep} />
-            <MetaDifficulty sep={sep} />
-            <span data-sep={sep} className={LINE_ITEM}>
-                <CardRating />
-            </span>
-            <MetaCalories sep={sep} />
-        </div>
+        <p className={TEXT_LINE}>
+            {run}
+            <MetaCalories hasLead={run.length > 0} />
+        </p>
     );
 };
 
 /**
- * The compact tile's brief meta line (Home): ⏱ time, then calories, each only when present. A line with neither is not
- * drawn at all, so the tile does not hold a blank row (designer, 2026-11-03).
+ * The compact tile's brief run (Home, a collection's members): time, then calories, each only when present. A run with
+ * neither is not drawn at all, so the tile does not hold a blank row (UI Designer ruling, 2026-11-03).
  */
 const CardBriefMeta: FC = () => {
-    const { meta, separator } = useCardView();
+    const { meta } = useCardView();
     const nutrition = useContext(RecipeCardNutritionContext);
-    const sep = separator.trim();
+    const run = metaRunOf([timePartOf(meta.duration)]);
 
-    if (meta.duration === undefined && nutrition === null) {
+    if (run.length === 0 && nutrition === null) {
         return null;
     }
 
     return (
-        <div className={TEXT_LINE}>
-            <MetaTime sep={sep} />
-            <MetaCalories sep={sep} />
-        </div>
-    );
-};
-
-/** The time item of a meta line, absent when the recipe has none. */
-const MetaTime: FC<{ readonly sep: string }> = ({ sep }) => {
-    const { meta } = useCardView();
-
-    return meta.duration === undefined ? null : (
-        <span data-sep={sep} aria-label={meta.timeLabel} className={LINE_ITEM}>
-            <Icon name="clock" size={16} />
-            <span className="tabular-nums lining-nums">{meta.duration}</span>
-        </span>
-    );
-};
-
-/** The difficulty item of a meta line, a plain word, absent when the author stated none. */
-const MetaDifficulty: FC<{ readonly sep: string }> = ({ sep }) => {
-    const { meta } = useCardView();
-
-    return meta.difficulty === undefined ? null : (
-        <span data-sep={sep} className={LINE_ITEM}>
-            {meta.difficulty}
-        </span>
-    );
-};
-
-/** The calorie item of a meta line: the surface's nutrition node, which may settle on nothing. */
-const MetaCalories: FC<{ readonly sep: string }> = ({ sep }) => {
-    const nutrition = useContext(RecipeCardNutritionContext);
-
-    return (
-        <span data-sep={sep} className={LINE_ITEM}>
-            {nutrition}
-        </span>
+        <p className={TEXT_LINE}>
+            {run}
+            <MetaCalories hasLead={run.length > 0} />
+        </p>
     );
 };
 
@@ -296,26 +258,6 @@ const CardBadges: FC = () => {
     );
 };
 
-/** The rating: display-only. Rated → a named star group and the figure; unrated → "No ratings yet". */
-const CardRating: FC = () => {
-    const { rating } = useCardView();
-
-    if (rating.kind === 'unrated') {
-        return <span className="text-meta text-ink-muted">{rating.text}</span>;
-    }
-
-    return (
-        <span role="img" aria-label={rating.label} className="inline-flex items-center gap-0.5">
-            {Array.from({ length: STAR_COUNT }, (_value, index) => (
-                <Star key={index} filled={rating.fills[index] ?? false} extra={index > 0} />
-            ))}
-            <span aria-hidden="true" className="ms-1 text-meta text-ink tabular-nums lining-nums">
-                {rating.short}
-            </span>
-        </span>
-    );
-};
-
 /** The timestamp. */
 const CardFooter: FC = () => {
     const { badges } = useCardView();
@@ -323,26 +265,18 @@ const CardFooter: FC = () => {
     return <p className="truncate text-caption text-ink-muted">{badges.timestamp}</p>;
 };
 
-/** Row line 3: the visibility glyph (or the Draft badge), and the timestamp at the end. */
+/**
+ * Row line 3: the Draft or Private badge, and the timestamp at the end. A public recipe shows no status mark, and a glyph
+ * alone is never a status (UI Designer ruling, 2026-11-03).
+ */
 const RowStatus: FC = () => {
-    const { badges, separator } = useCardView();
-    const sep = separator.trim();
+    const { badges } = useCardView();
 
     return (
         <div className={BADGE_LINE}>
-            <span data-sep={sep} className={LINE_ITEM}>
-                {badges.status.status === 'draft' ? (
-                    <StatusBadge status="draft">{badges.status.text}</StatusBadge>
-                ) : (
-                    <span className="text-ink-muted">
-                        <Icon
-                            name={badges.status.status === 'private' ? 'lock' : 'globe'}
-                            size={16}
-                            label={badges.status.text}
-                        />
-                    </span>
-                )}
-            </span>
+            {badges.status.status === 'public' ? null : (
+                <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
+            )}
             {/* Last, so it is the first to drop when the line runs out of room. */}
             <span className="ms-auto truncate ps-2 text-caption text-ink-muted">{badges.timestamp}</span>
         </div>
@@ -513,5 +447,4 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
     Title: CardTitle,
     Meta: CardMeta,
     Badges: CardBadges,
-    Rating: CardRating,
 });

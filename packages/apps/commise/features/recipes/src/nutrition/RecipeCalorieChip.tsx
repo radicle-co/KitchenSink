@@ -22,7 +22,9 @@
  *     outage can never reach this member.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
-import type { FC } from 'react';
+import { useContext, type FC } from 'react';
+
+import { MetaLeadContext } from '../card/metaRun.js';
 
 import { recipeNutritionMessages } from './messages.js';
 import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
@@ -69,6 +71,7 @@ const CHIP_ROLE = 'img';
 export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => {
     const messages = useMessages(recipeNutritionMessages);
     const locale = useLocale();
+    const lead = useContext(MetaLeadContext);
 
     switch (nutrition.state) {
         case 'known': {
@@ -76,6 +79,7 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
 
             return (
                 <span role={CHIP_ROLE} aria-label={chip.label} className={chip.isStale ? STALE_CLASS : undefined}>
+                    {lead}
                     {chip.text}
                 </span>
             );

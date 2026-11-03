@@ -126,11 +126,10 @@ describe('recipeCardViewOf — the rating', () => {
         expect(recipeCardViewOf(model, copy, 'en', NOW).rating).toEqual({ kind: 'unrated', text: 'No ratings yet' });
     });
 
-    it('names a rated recipe with its average and count, and fills its stars', () => {
+    it('names a rated recipe with its average and count, and its figure', () => {
         expect(viewOf({ averageRating: 3.6, ratingCount: 1 }).rating).toEqual({
             kind: 'rated',
             label: 'Rated 3.6 out of 5, 1 rating',
-            fills: [true, true, true, true, false],
             short: '3.6 (1)',
         });
     });

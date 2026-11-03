@@ -36,7 +36,7 @@ import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { CardVariant } from './cardVariant.js';
-import { STAR_COUNT } from './model.js';
+import { META_SEPARATOR, MetaLeadContext, metaRunOf } from './metaRun.js';
 import { COVER_CHIP_INSET, COVER_CHIP_PADDING, COVER_CHIP_PADDING_V } from './coverChip.js';
 import { badgeLineHeightOf, metaLineHeightOf } from './oneLine.js';
 import {
@@ -157,81 +157,85 @@ const CardTitle: FC = () => {
     );
 };
 
-/** The rating: display-only. Rated → a named star group and the figure; unrated → "No ratings yet". */
-const CardRating: FC = () => {
+/** The rating as the run's part: "No ratings yet", or the star with the figure ("★ 4.8 (12)"), named as one unit. */
+const RatingPart: FC = () => {
     const { rating } = useCardView();
     const { colors } = useTheme();
 
     if (rating.kind === 'unrated') {
-        return <Text style={[styles.meta, { color: colors.inkMuted }]}>{rating.text}</Text>;
+        return rating.text;
     }
 
     return (
-        <View accessible accessibilityRole="image" accessibilityLabel={rating.label} style={styles.stars}>
-            {Array.from({ length: STAR_COUNT }, (_value, index) => (
-                <Text
-                    key={index}
-                    style={[styles.star, { color: rating.fills[index] === true ? colors.rating : colors.inkMuted }]}
-                >
-                    {rating.fills[index] === true ? '★' : '☆'}
-                </Text>
-            ))}
-            <Text style={[styles.meta, styles.figure, styles.ratingFigure, { color: colors.ink }]}>{rating.short}</Text>
-        </View>
+        <Text accessibilityRole="image" accessibilityLabel={rating.label} style={styles.figure}>
+            <Text style={{ color: colors.rating }}>★</Text> {rating.short}
+        </Text>
     );
 };
 
-/** A muted word of a meta line: the one place the line's text colour is read. */
-const MetaText: FC<{ readonly children: ReactNode; readonly figure?: boolean }> = ({ children, figure = false }) => {
-    const { colors } = useTheme();
-
-    return <Text style={[styles.meta, { color: colors.inkMuted }, figure && styles.figure]}>{children}</Text>;
-};
-
-/** The time item of a meta line, absent when the recipe has none. */
-const MetaTime: FC = () => {
+/** The time as the run's part, absent when the recipe has none. */
+const TimePart: FC = () => {
     const { meta } = useCardView();
 
-    return meta.duration === undefined ? null : (
-        <View accessible accessibilityLabel={meta.timeLabel} style={styles.iconItem}>
-            <Icon name="clock" size={16} tone="inkMuted" />
-            <MetaText figure>{meta.duration}</MetaText>
-        </View>
-    );
+    return meta.duration === undefined ? null : <Text style={styles.figure}>{meta.duration}</Text>;
 };
 
-/** The meta line of the grid card and the list row: ⏱ time, difficulty, rating, calories. The difficulty is a plain word. */
-const CardMeta: FC = () => {
-    const { meta } = useCardView();
+/**
+ * The calorie figure at the end of a run. It draws its own lead (the separator) when it has something to say, so a figure
+ * that settles on nothing leaves no dot behind (`MetaLeadContext`).
+ */
+const MetaCalories: FC<{ readonly hasLead: boolean }> = ({ hasLead }) => {
     const nutrition = useContext(RecipeCardNutritionContext);
 
+    return <MetaLeadContext.Provider value={hasLead ? META_SEPARATOR : ''}>{nutrition}</MetaLeadContext.Provider>;
+};
+
+/** The meta line's text: one run in the muted meta style. It wraps like text, with no clip and no `numberOfLines`. */
+const MetaRun: FC<{ readonly children: ReactNode }> = ({ children }) => {
+    const { colors } = useTheme();
+
+    return <Text style={[styles.meta, { color: colors.inkMuted }]}>{children}</Text>;
+};
+
+/**
+ * The meta line of the grid card and the list row: ONE run of text, time · difficulty · rating · calories, each only when
+ * present (UI Designer ruling, 2026-11-03). The star stays with the rating, and there is no clock glyph.
+ */
+const CardMeta: FC = () => {
+    const { meta } = useCardView();
+    const hasTime = meta.duration !== undefined;
+    const run = metaRunOf([
+        hasTime ? <TimePart key="time" /> : undefined,
+        meta.difficulty,
+        <RatingPart key="rating" />,
+    ]);
+
     return (
-        <WrapLine>
-            <MetaTime />
-            {meta.difficulty !== undefined && <MetaText>{meta.difficulty}</MetaText>}
-            <CardRating />
-            {nutrition}
-        </WrapLine>
+        <MetaRun>
+            {run}
+            <MetaCalories hasLead={run.length > 0} />
+        </MetaRun>
     );
 };
 
 /**
- * The compact tile's brief meta line (Home): ⏱ time, then calories, each only when present. A line with neither is not
- * drawn at all, so the tile does not hold a blank row (designer, 2026-11-03).
+ * The compact tile's brief run (Home, a collection's members): time, then calories, each only when present. A run with
+ * neither is not drawn at all, so the tile does not hold a blank row (UI Designer ruling, 2026-11-03).
  */
 const CardBriefMeta: FC = () => {
     const { meta } = useCardView();
     const nutrition = useContext(RecipeCardNutritionContext);
+    const run = metaRunOf([meta.duration === undefined ? undefined : <TimePart key="time" />]);
 
-    if (meta.duration === undefined && nutrition === null) {
+    if (run.length === 0 && nutrition === null) {
         return null;
     }
 
     return (
-        <WrapLine>
-            <MetaTime />
-            {nutrition}
-        </WrapLine>
+        <MetaRun>
+            {run}
+            <MetaCalories hasLead={run.length > 0} />
+        </MetaRun>
     );
 };
 
@@ -260,22 +264,18 @@ const CardFooter: FC = () => {
     );
 };
 
-/** Row line 3: the visibility glyph or the Draft badge, then the timestamp. */
+/**
+ * Row line 3: the Draft or Private badge, then the timestamp. A public recipe shows no status mark, and a glyph alone is
+ * never a status (UI Designer ruling, 2026-11-03).
+ */
 const RowStatus: FC = () => {
     const { badges } = useCardView();
     const { colors } = useTheme();
 
     return (
         <OneLine>
-            {badges.status.status === 'draft' ? (
-                <StatusBadge status="draft">{badges.status.text}</StatusBadge>
-            ) : (
-                <Icon
-                    name={badges.status.status === 'private' ? 'lock' : 'globe'}
-                    size={16}
-                    tone="inkMuted"
-                    label={badges.status.text}
-                />
+            {badges.status.status === 'public' ? null : (
+                <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
             )}
             <Text numberOfLines={1} style={[styles.caption, styles.trailing, { color: colors.inkMuted }]}>
                 {badges.timestamp}
@@ -388,7 +388,14 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
     const view = useRecipeCardView(recipe);
     const { fontScale } = useWindowDimensions();
     const Arrangement = props.variant === undefined ? null : ARRANGEMENT[props.variant];
-    const ownControls = props.footer !== undefined || props.trailing !== undefined;
+    // The link sits INSIDE the surface when the card has controls of its own, and on the tiles that share a grid row: the
+    // surface must be the outermost box to grow to the tallest tile's height, and a press frame around it would hold it at
+    // its content height (UI Designer ruling, 2026-11-03). A row and a custom arrangement keep the whole card as the link.
+    const linkInside =
+        props.footer !== undefined ||
+        props.trailing !== undefined ||
+        props.variant === 'grid' ||
+        props.variant === 'compact';
     const select = (node: ReactNode): ReactNode =>
         onSelect === undefined ? (
             node
@@ -409,7 +416,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
                 props.children
             ) : (
                 <Arrangement
-                    link={ownControls ? select : asIs}
+                    link={linkInside ? select : asIs}
                     footer={props.footer}
                     note={props.note}
                     trailing={props.trailing}
@@ -424,7 +431,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
         <RecipeCardViewContext.Provider value={view}>
             <RecipeCardNutritionContext.Provider value={nutrition}>
                 <FontScaleContext.Provider value={fontScale}>
-                    {ownControls ? surface : select(surface)}
+                    {linkInside ? surface : select(surface)}
                 </FontScaleContext.Provider>
             </RecipeCardNutritionContext.Provider>
         </RecipeCardViewContext.Provider>
@@ -439,7 +446,6 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
     Title: CardTitle,
     Meta: CardMeta,
     Badges: CardBadges,
-    Rating: CardRating,
 });
 
 const styles = StyleSheet.create({
@@ -527,9 +533,5 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     wrapLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    iconItem: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
     trailing: { marginStart: 'auto', flexShrink: 1 },
-    stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-    star: { ...nativeTokens.type.meta },
-    ratingFigure: { marginStart: nativeTokens.spacing[1] },
 });

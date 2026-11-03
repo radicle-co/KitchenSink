@@ -26,7 +26,7 @@ appId: ${APP_ID}
 # ⛔ WHY A LAST SWIPE CLEARS THE TAB BAR. XCUITest also counts an element visible while the TAB BAR covers it, and on a short
 # page the first scroll stops as soon as the element arrives, which can be with its centre inside the bar (QA batch 4,
 # "Edit recipe" on a short recipe at the largest text size: centre y=780, bar [774, 874]), so the tap hit a tab. When the
-# bar is on screen and the target is not above it, the page swipes up, at most three times; at a page end a swipe moves
+# bar (the `appTabBar` container, whose TOP edge is the bar's, not a tab label that sits lower: QA Private at the cap had its button's text above the "Discover" label with its centre inside the bar) is on screen and the target is not above it, the page swipes up, at most three times; at a page end a swipe moves
 # nothing and the loop stops. An on-screen target above the bar is untouched, so the rule above still holds. Downward only:
 # the bar is at the bottom, and a target scrolled UP into view is never the one under it.
 #
@@ -71,18 +71,19 @@ appId: ${APP_ID}
 - runFlow:
       when:
           true: ${DIRECTION != 'UP'}
-          visible: 'Discover'
+          visible:
+              id: appTabBar
           notVisible:
               text: ${TARGET}
               above:
-                  text: 'Discover'
+                  id: appTabBar
       commands:
           - repeat:
                 while:
                     notVisible:
                         text: ${TARGET}
                         above:
-                            text: 'Discover'
+                            id: appTabBar
                 times: 3
                 commands:
                     - swipe:

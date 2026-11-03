@@ -46,6 +46,14 @@ function renderAdapter(prevent = false, index = 0, insets = { top: 0, bottom: 20
 }
 
 describe('AppTabBar', () => {
+    // The Maestro helper `scrollIntoTapView.yaml` measures a target against this container's TOP edge: the tab labels sit
+    // below the top edge, so a button whose bottom is inside the bar can still be above a label.
+    it('names its container "appTabBar", the bar whose top edge the Maestro helper clears', () => {
+        renderAdapter();
+
+        expect(screen.getByRole('tablist').getAttribute('data-testid')).toBe('appTabBar');
+    });
+
     it('emits a preventable tabPress for the pressed tab, then navigates to it', () => {
         const { emit, navigate } = renderAdapter();
 

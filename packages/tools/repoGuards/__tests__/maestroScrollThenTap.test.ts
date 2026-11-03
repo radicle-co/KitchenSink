@@ -355,7 +355,8 @@ describe('the shared step leaves an on-screen target where it is', () => {
  * Scrolling DOWN also clears the tab bar. XCUITest counts an element visible while the tab bar covers it, so the first
  * scroll can stop with the target's centre inside the bar and the caller's tap lands on a tab (QA batch 4, "Edit recipe"
  * on a short recipe at the largest text size: centre y=780, tab bar [774, 874]). When the bar is on screen and the target
- * is not above it, the step swipes the page up a few times, bounded, so a page end simply stops it.
+ * is not above its TOP edge (the `appTabBar` container, not a tab label: a button whose text frame sits above the "Discover"
+ * label can still have its centre inside the bar, QA Private at the cap, centre y=780 against a bar top of 774), the step swipes the page up a few times, bounded, so a page end simply stops it.
  */
 describe('the shared step clears the tab bar', () => {
     const source = readFileSync(join(REPO_ROOT, FLOW_ROOT, 'recipes', SHARED_STEP), 'utf8');
@@ -369,9 +370,13 @@ describe('the shared step clears the tab bar', () => {
     it('has one swipe block, run only when the tab bar is on screen and the target is not above it', () => {
         expect(clearance).toHaveLength(1);
         expect(clearance[0]?.['when']).toMatchObject({
-            visible: 'Discover',
-            notVisible: { text: '${TARGET}', above: { text: 'Discover' } },
+            visible: { id: 'appTabBar' },
+            notVisible: { text: '${TARGET}', above: { id: 'appTabBar' } },
         });
+    });
+
+    it('measures against the bar container, never a tab label', () => {
+        expect(JSON.stringify(clearance[0])).not.toContain('Discover');
     });
 
     it('runs for a downward scroll only, and bounds the swipes', () => {

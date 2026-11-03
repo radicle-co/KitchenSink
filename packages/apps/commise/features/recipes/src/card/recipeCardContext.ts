@@ -54,6 +54,13 @@ interface RecipeCardBaseProps {
      * recency (designer, 2026-11-02). A surface `footer` replaces it, as in the grid; the grid and the row ignore it.
      */
     readonly showEdited?: boolean;
+    /**
+     * The compact tile only: draw the list row's whole meta line (time · difficulty · rating · calories). Without it the
+     * compact tile draws the brief line, the time then the calories (Home's tile; designer, 2026-11-03). The Recipes grid
+     * asks, because its tile is the compact variant in size and a list row's equal in what it says. The grid and the
+     * row always draw the whole line and ignore it.
+     */
+    readonly fullMeta?: boolean;
 }
 
 /** The slots a surface may fill, spelled out so a card can never be given one its variant has no place for. */

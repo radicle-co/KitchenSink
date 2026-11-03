@@ -136,6 +136,7 @@ export const RecipeListResults: FC<RecipeListResultsProps> = ({
                         <RecipeCard
                             variant={variant}
                             showEdited
+                            fullMeta
                             headingLevel={2}
                             recipe={recipe}
                             onSelect={onSelectRecipe}

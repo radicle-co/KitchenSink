@@ -112,6 +112,7 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
     chips = 'all',
 }) => {
     const { recipe, cover } = useCardView();
+
     return (
         <div
             className={`relative overflow-hidden ${aspect === '4:3' ? 'rounded-t-md' : 'size-20 shrink-0 rounded-md'}`}
@@ -214,30 +215,73 @@ const CardTitle: FC = () => {
  * difficulty is a plain word, never a badge.
  */
 const CardMeta: FC = () => {
-    const { meta, separator } = useCardView();
-    const nutrition = useContext(RecipeCardNutritionContext);
+    const { separator } = useCardView();
     const sep = separator.trim();
 
     return (
         <div className={TEXT_LINE}>
-            {meta.duration !== undefined && (
-                <span data-sep={sep} aria-label={meta.timeLabel} className={LINE_ITEM}>
-                    <Icon name="clock" size={16} />
-                    <span className="tabular-nums lining-nums">{meta.duration}</span>
-                </span>
-            )}
-            {meta.difficulty !== undefined && (
-                <span data-sep={sep} className={LINE_ITEM}>
-                    {meta.difficulty}
-                </span>
-            )}
+            <MetaTime sep={sep} />
+            <MetaDifficulty sep={sep} />
             <span data-sep={sep} className={LINE_ITEM}>
                 <CardRating />
             </span>
-            <span data-sep={sep} className={LINE_ITEM}>
-                {nutrition}
-            </span>
+            <MetaCalories sep={sep} />
         </div>
+    );
+};
+
+/**
+ * The compact tile's brief meta line (Home): ⏱ time, then calories, each only when present. A line with neither is not
+ * drawn at all, so the tile does not hold a blank row (designer, 2026-11-03).
+ */
+const CardBriefMeta: FC = () => {
+    const { meta, separator } = useCardView();
+    const nutrition = useContext(RecipeCardNutritionContext);
+    const sep = separator.trim();
+
+    if (meta.duration === undefined && nutrition === null) {
+        return null;
+    }
+
+    return (
+        <div className={TEXT_LINE}>
+            <MetaTime sep={sep} />
+            <MetaCalories sep={sep} />
+        </div>
+    );
+};
+
+/** The time item of a meta line, absent when the recipe has none. */
+const MetaTime: FC<{ readonly sep: string }> = ({ sep }) => {
+    const { meta } = useCardView();
+
+    return meta.duration === undefined ? null : (
+        <span data-sep={sep} aria-label={meta.timeLabel} className={LINE_ITEM}>
+            <Icon name="clock" size={16} />
+            <span className="tabular-nums lining-nums">{meta.duration}</span>
+        </span>
+    );
+};
+
+/** The difficulty item of a meta line, a plain word, absent when the author stated none. */
+const MetaDifficulty: FC<{ readonly sep: string }> = ({ sep }) => {
+    const { meta } = useCardView();
+
+    return meta.difficulty === undefined ? null : (
+        <span data-sep={sep} className={LINE_ITEM}>
+            {meta.difficulty}
+        </span>
+    );
+};
+
+/** The calorie item of a meta line: the surface's nutrition node, which may settle on nothing. */
+const MetaCalories: FC<{ readonly sep: string }> = ({ sep }) => {
+    const nutrition = useContext(RecipeCardNutritionContext);
+
+    return (
+        <span data-sep={sep} className={LINE_ITEM}>
+            {nutrition}
+        </span>
     );
 };
 
@@ -312,6 +356,7 @@ interface ArrangementSlots {
     readonly note?: ReactNode;
     readonly trailing?: ReactNode;
     readonly showEdited?: boolean;
+    readonly fullMeta?: boolean;
 }
 
 /**
@@ -372,14 +417,16 @@ const RowArrangement: FC<ArrangementSlots> = ({ note, trailing }) => (
 );
 
 /**
- * The compact card: the cover with its chips, then the title, the own-recipe footer when the surface asks for it
- * (`showEdited`) and its own footer, if there is one.
+ * The compact card: the cover with its chips, then the title, the meta line (brief: time, calories; the whole line when the
+ * surface asks with `fullMeta`), the own-recipe footer when the surface asks for it (`showEdited`) and its own footer, if
+ * there is one.
  */
-const CompactArrangement: FC<ArrangementSlots> = ({ footer, showEdited }) => (
+const CompactArrangement: FC<ArrangementSlots> = ({ footer, showEdited, fullMeta }) => (
     <>
         <CardCover />
         <div className="p-3">
             <CardTitle />
+            {fullMeta === true ? <CardMeta /> : <CardBriefMeta />}
             {footer === undefined && showEdited === true ? <CardFooter /> : null}
         </div>
         {footer === undefined ? null : (
@@ -448,6 +495,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
                                     note={props.note}
                                     trailing={props.trailing}
                                     showEdited={props.showEdited}
+                                    fullMeta={props.fullMeta}
                                 />
                             )}
                         </article>

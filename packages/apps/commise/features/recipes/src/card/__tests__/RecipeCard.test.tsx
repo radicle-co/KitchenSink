@@ -186,7 +186,9 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — the fields no card shows (desi
 
         expect(container.querySelector('[data-meter-dot]')).toBeNull();
         const word = screen.queryByText('Medium');
+
         if (variant === 'compact') {
+            // The compact tile's brief line (time, calories) carries no difficulty.
             expect(word).toBeNull();
         } else {
             expect(word?.className ?? '').not.toContain('truncate');
@@ -376,7 +378,7 @@ describe('RecipeCard (web, row) — the list row', () => {
 });
 
 describe('RecipeCard (web, compact) — Home below 960', () => {
-    it('is the cover and the title only: no rating, no meta line, no footer', () => {
+    it('has no rating, cuisine or version: its meta line is the time, then the calories', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -655,3 +657,103 @@ describe("RecipeCard (web, compact) — the Edited line is the surface's choice"
         expect(screen.getByText('@braise.club')).toBeTruthy();
     });
 });
+
+// Designer ruling (2026-11-03, designAnswers.md): every tile has a meta line. A compact Home tile shows the time, then the
+// calories; the Recipes grid tile (also the compact variant, asked with `fullMeta`) shows the list row's whole line. A
+// part with no data is left out, and a line with no parts is left out.
+describe('RecipeCard (web, compact) — the meta line', () => {
+    const rated = { totalTimeMinutes: 35, difficulty: RecipeDifficulty.MEDIUM, averageRating: 4.75, ratingCount: 12 };
+
+    it('shows the time, then the calories, and nothing else, on a Home tile', () => {
+        const { container } = renderCard(
+            <RecipeCard headingLevel={3} variant="compact" recipe={model(rated)} nutrition={<span>520 cal</span>} />,
+        );
+        const line = container.querySelector('[class*="h-lh"]') as HTMLElement;
+
+        expect(line.textContent?.replace(/\s+/gu, ' ')).toMatch(/^\s*35 min\s*520 cal\s*$/u);
+        expect(screen.queryByText('Medium')).toBeNull();
+        expect(screen.queryByText(/4\.8/u)).toBeNull();
+    });
+
+    it('leaves out the time when the recipe has none, and keeps the calories', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="compact"
+                recipe={model({ ...rated, totalTimeMinutes: 0 })}
+                nutrition={<span>520 cal</span>}
+            />,
+        );
+
+        expect(screen.queryByLabelText(/total time/u)).toBeNull();
+        expect(container.querySelector('[class*="h-lh"]')?.textContent).toContain('520 cal');
+    });
+
+    it('leaves out the calories when there is no figure, and keeps the time', () => {
+        const { container } = renderCard(<RecipeCard headingLevel={3} variant="compact" recipe={model(rated)} />);
+
+        expect(container.querySelector('[class*="h-lh"]')?.textContent).toBe('35 min');
+    });
+
+    it('draws no line at all when neither the time nor the calories exist', () => {
+        const { container } = renderCard(
+            <RecipeCard headingLevel={3} variant="compact" recipe={model({ ...rated, totalTimeMinutes: 0 })} />,
+        );
+
+        expect(container.querySelector('[class*="h-lh"]')).toBeNull();
+    });
+
+    it('draws the whole list-row line on a Recipes tile that asks for it (fullMeta)', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="compact"
+                fullMeta
+                recipe={model(rated)}
+                nutrition={<span>520 cal</span>}
+            />,
+        );
+        const line = container.querySelector('[class*="h-lh"]') as HTMLElement;
+
+        expect(line.textContent).toMatch(/35 min.*Medium.*4\.8 \(12\).*520 cal/u);
+    });
+
+    it('drops only the absent parts of the whole line (no difficulty, no calories)', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="compact"
+                fullMeta
+                recipe={model({ ...rated, difficulty: undefined })}
+            />,
+        );
+        const text = container.querySelector('[class*="h-lh"]')?.textContent ?? '';
+
+        expect(text).toMatch(/35 min.*4\.8 \(12\)/u);
+        expect(text).not.toContain('Medium');
+        expect(text).not.toContain('cal');
+    });
+});
+
+// Designer ruling (2026-11-03): the status chips sit over the cover and never push the cover letter down.
+describe.each(['grid', 'compact'] as const)(
+    'RecipeCard (web, %s) — the chips are an overlay on the cover',
+    (variant) => {
+        it('lays the Draft chip over the cover, out of its flow', () => {
+            renderCard(
+                <RecipeCard
+                    headingLevel={3}
+                    variant={variant}
+                    recipe={model({ title: 'Herb Risotto', status: RecipeStatus.DRAFT, coverPhotoUrl: undefined })}
+                />,
+            );
+            const cover = screen.getByText('H').closest('[aria-hidden="true"]')?.parentElement as HTMLElement;
+            const chip = screen.getByText('Draft');
+            const overlay = chip.closest('.absolute') as HTMLElement;
+
+            expect(cover.children).toHaveLength(1);
+            expect(cover.contains(chip)).toBe(false);
+            expect(overlay.parentElement).toBe(cover.parentElement);
+        });
+    },
+);

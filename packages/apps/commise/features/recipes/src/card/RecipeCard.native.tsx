@@ -5,7 +5,7 @@
  * - **grid** — a 4:3 cover with its chips, then the title, the meta line (time · difficulty · rating · calories) and
  *   the timestamp.
  * - **row** — the list view: an 80 × 80 cover, the title on up to two lines, the same meta line and a status line.
- * - **compact** — the cover with its chips, then the title.
+ * - **compact** — the cover with its chips, then the title and a brief meta line (time, calories); the whole line with `fullMeta`.
  *
  * The orchestration layer decides the variant with `cardVariantOf`; this leaf draws the arrangement it is handed. The
  * card is ONE pressable link named by the title. Its surface is a level-1 card — `paper`, a `lineDivider` hairline,
@@ -100,6 +100,7 @@ const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string; rea
 const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) => {
     const { recipe, cover } = useCardView();
     const { colors } = useTheme();
+
     return (
         // Kept, so the thumbnail's clipping never moves the cover into it (`nativeFlattenFlips.test.ts`).
         <View collapsable={false} style={thumbnail ? styles.thumbnail : styles.cover}>
@@ -179,27 +180,66 @@ const CardRating: FC = () => {
     );
 };
 
+/** A muted word of a meta line: the one place the line's text colour is read. */
+const MetaText: FC<{ readonly children: ReactNode; readonly oneLine?: boolean; readonly figure?: boolean }> = ({
+    children,
+    oneLine = false,
+    figure = false,
+}) => {
+    const { colors } = useTheme();
+
+    return (
+        <Text
+            {...(oneLine ? { numberOfLines: 1 } : {})}
+            style={[styles.meta, { color: colors.inkMuted }, figure && styles.figure]}
+        >
+            {children}
+        </Text>
+    );
+};
+
+/** The time item of a meta line, absent when the recipe has none. */
+const MetaTime: FC = () => {
+    const { meta } = useCardView();
+
+    return meta.duration === undefined ? null : (
+        <View accessible accessibilityLabel={meta.timeLabel} style={styles.iconItem}>
+            <Icon name="clock" size={16} tone="inkMuted" />
+            <MetaText figure>{meta.duration}</MetaText>
+        </View>
+    );
+};
+
 /** The meta line of the grid card and the list row: ⏱ time, difficulty, rating, calories. The difficulty is a plain word. */
 const CardMeta: FC = () => {
     const { meta } = useCardView();
     const nutrition = useContext(RecipeCardNutritionContext);
-    const { colors } = useTheme();
-    const text = [styles.meta, { color: colors.inkMuted }];
 
     return (
         <OneLine kind="meta">
-            {meta.duration !== undefined && (
-                <View accessible accessibilityLabel={meta.timeLabel} style={styles.iconItem}>
-                    <Icon name="clock" size={16} tone="inkMuted" />
-                    <Text style={[text, styles.figure]}>{meta.duration}</Text>
-                </View>
-            )}
-            {meta.difficulty !== undefined && (
-                <Text numberOfLines={1} style={text}>
-                    {meta.difficulty}
-                </Text>
-            )}
+            <MetaTime />
+            {meta.difficulty !== undefined && <MetaText oneLine>{meta.difficulty}</MetaText>}
             <CardRating />
+            {nutrition}
+        </OneLine>
+    );
+};
+
+/**
+ * The compact tile's brief meta line (Home): ⏱ time, then calories, each only when present. A line with neither is not
+ * drawn at all, so the tile does not hold a blank row (designer, 2026-11-03).
+ */
+const CardBriefMeta: FC = () => {
+    const { meta } = useCardView();
+    const nutrition = useContext(RecipeCardNutritionContext);
+
+    if (meta.duration === undefined && nutrition === null) {
+        return null;
+    }
+
+    return (
+        <OneLine kind="meta">
+            <MetaTime />
             {nutrition}
         </OneLine>
     );
@@ -265,6 +305,7 @@ interface ArrangementSlots {
     readonly note?: ReactNode;
     readonly trailing?: ReactNode;
     readonly showEdited?: boolean;
+    readonly fullMeta?: boolean;
 }
 
 const GridArrangement: FC<ArrangementSlots> = ({ link, footer }) => (
@@ -304,13 +345,14 @@ const RowArrangement: FC<ArrangementSlots> = ({ link, note, trailing }) => (
     </View>
 );
 
-const CompactArrangement: FC<ArrangementSlots> = ({ link, footer, showEdited }) => (
+const CompactArrangement: FC<ArrangementSlots> = ({ link, footer, showEdited, fullMeta }) => (
     <>
         {link(
             <>
                 <CardCover />
                 <View style={styles.compactBody}>
                     <CardTitle />
+                    {fullMeta === true ? <CardMeta /> : <CardBriefMeta />}
                     {footer === undefined && showEdited === true ? <CardFooter /> : null}
                 </View>
             </>,
@@ -382,6 +424,7 @@ const RecipeCardRoot: FC<RecipeCardProps> = (props) => {
                     note={props.note}
                     trailing={props.trailing}
                     showEdited={props.showEdited}
+                    fullMeta={props.fullMeta}
                 />
             )}
         </CardSurface>

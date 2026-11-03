@@ -454,7 +454,7 @@ describe('RecipeCard (native, row) — A-016: the member row keeps its text besi
     });
 });
 
-// REWRITTEN (owner ruling 2026-11-03, Android QA on 7ae95db2e): the meta line was W-06 / A-028's "exactly one line" row, a fixed
+// REWRITTEN (designer ruling 2026-11-03, Android QA on 7ae95db2e): the meta line was W-06 / A-028's "exactly one line" row, a fixed
 // height that hid whatever wrapped (rating and calories vanished on the Recipes grid). It now wraps and has no height at all,
 // at any font scale; the coverage is "the meta line never hides a part" at the end of this file. The badge line keeps its
 // fixed height.

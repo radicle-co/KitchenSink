@@ -63,7 +63,7 @@ const OneLine: FC<{ readonly children: ReactNode }> = ({ children }) => {
 
 /**
  * A wrapping row (the meta line; the status and timestamp) with no fixed height, no clip and no truncation, so no part
- * with data is ever hidden. A part that does not fit moves to the next line (owner ruling 2026-11-03, Android QA on
+ * with data is ever hidden. A part that does not fit moves to the next line (designer ruling 2026-11-03, Android QA on
  * 7ae95db2e).
  */
 const WrapLine: FC<{ readonly children: ReactNode }> = ({ children }) => (

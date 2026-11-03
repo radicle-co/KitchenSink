@@ -527,7 +527,7 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
 const itemClasses = (label: string): readonly string[] => screen.getByLabelText(label).className.split(/\s+/u);
 
 describe('RecipeCard (web) — W-06: a one-line row is one line, and a separator only follows a visible item', () => {
-    // REWRITTEN (owner ruling 2026-11-03): the meta line was one line of its own type role with the rest hidden; it now
+    // REWRITTEN (designer ruling 2026-11-03): the meta line was one line of its own type role with the rest hidden; it now
     // wraps and has no height (see "the meta line never hides a part" below).
     it('lets the meta line wrap, with no fixed height and no clip', () => {
         renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ totalTimeMinutes: 35 })} />);

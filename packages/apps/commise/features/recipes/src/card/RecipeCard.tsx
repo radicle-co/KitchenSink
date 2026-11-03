@@ -59,7 +59,7 @@ const ONE_LINE = 'flex flex-wrap content-start items-center gap-x-1 overflow-hid
 
 /**
  * The meta line: a wrapping row of text with no fixed height, no clip and no truncation, so no part with data is ever
- * hidden; a part that does not fit moves to the next line (owner ruling 2026-11-03, Android QA on 7ae95db2e).
+ * hidden; a part that does not fit moves to the next line (designer ruling 2026-11-03, Android QA on 7ae95db2e).
  */
 const TEXT_LINE = 'flex flex-wrap items-center gap-x-1 gap-y-1 text-meta text-ink-muted';
 

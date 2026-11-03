@@ -2,7 +2,7 @@
 
 /**
  * @module @commise/features-recipes/editor — the web editor's header (build spec §7.1): × "Close editor", the title
- * ("New recipe" or "Edit recipe", the page's one H1, never the recipe's own title), the save status in `caption`, and
+ * ("New recipe" or "Edit recipe", the page's one H1, never the recipe's own title), the save status in `meta`, and
  * ⋯ "More editor actions" holding the one destructive action. at least 56 px (it grows when the status wraps), sticky, on the page's solid surface — the
  * editor's only glass is its action bar (owner D12).
  *
@@ -43,7 +43,7 @@ export const EditorHeader: FC<WebEditorHeaderProps> = ({ title, status, closeLab
         </button>
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
             <h1 className="shrink-0 truncate text-bar-title text-ink">{title}</h1>
-            {status !== undefined && <p className="min-w-0 text-caption text-ink-muted">{status}</p>}
+            {status !== undefined && <p className="min-w-0 text-meta text-ink-muted">{status}</p>}
         </div>
         {menu !== undefined && (
             <ActionMenu

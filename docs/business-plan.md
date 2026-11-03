@@ -83,8 +83,10 @@ is hired after review volume reaches a set trigger. Recorded in
 ### Recipe rights
 
 - Cooks keep the copyright in what they write.
-- A recipe imported from someone else's web page stays private, or shows to other cooks as a linked card that points
-  to the source.
+- A recipe imported from someone else's web page stays private, or shows to anyone as a linked facts card that points
+  to the source. _(Amended 2026-11-03, owner ruling, ADR-0082: the facts of any recipe are free, so the card is open
+  to signed-out readers. It stays `noindex` by house rule. A cook can publish their own "Adapted by you" version.
+  Counsel review is owed before launch (`016-FR-050`).)_
 - The research is [recipeOwnershipResearch.md](./research/business/recipeOwnershipResearch.md) and
   [linkedCardResearch.md](./research/business/linkedCardResearch.md). Both are research, not legal advice. The spec
   changes for these rulings (2026-10-29) are being written into specs 016, 020 and 021.

@@ -138,6 +138,10 @@ styling ratchet asserts this list and the ledger match in both directions:
 - `packages/apps/commise/ui/src/textInput/TextInput.native.tsx`: the `style` of React Native's text input, the one place the
   app renders it. The text size and leading are computed per platform and system scale (`inputTextStyle`: no line height
   on iOS, where one sits the text low), which a static Tamagui style cannot express.
+- `packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx`: the pinned search's slide and band are
+  native-driven `Animated` values over the scroll host's offset.
+- `packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx`: the spacer is as tall as the measured field,
+  which no token holds.
 
 The first recording was proven once, by hand. Every file in the styling baseline existed at `5979abcd5` with at least
 its recorded count.

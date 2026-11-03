@@ -8,6 +8,7 @@ import {
     createEntryYields,
     createEntryYieldsWhileLoading,
     libraryStateOf,
+    libraryTotalOf,
     type ReadSnapshot,
 } from '../libraryState.js';
 
@@ -98,5 +99,26 @@ describe('createEntryYieldsWhileLoading', () => {
         ['unreachable', false],
     ] as const)('%s -> %s', (state, expected) => {
         expect(createEntryYieldsWhileLoading(state)).toBe(expected);
+    });
+});
+
+// The Collections frame draws its pinned search from six collections, and it sits outside the read's boundary, so it reads the
+// total from the cache, the same latest-settled-read rule as the state.
+describe('libraryTotalOf', () => {
+    it('is the total of the settled read (chunked or one page)', () => {
+        expect(libraryTotalOf([settled(chunk(7))], undefined)).toBe(7);
+        expect(libraryTotalOf([settled(page(2))], undefined)).toBe(2);
+    });
+
+    it('takes the LATEST settled read of the family, and the larger total on a tie', () => {
+        expect(libraryTotalOf([settled(chunk(3), 1), settled(chunk(9), 5)], undefined)).toBe(9);
+        expect(libraryTotalOf([settled(chunk(9), 1), settled(chunk(3), 5)], undefined)).toBe(3);
+        expect(libraryTotalOf([settled(chunk(3), 4), settled(chunk(8), 4)], undefined)).toBe(8);
+    });
+
+    it('is 0 while nothing has settled: loading, offline and failed alike', () => {
+        expect(libraryTotalOf([], read())).toBe(0);
+        expect(libraryTotalOf([], undefined)).toBe(0);
+        expect(libraryTotalOf([], read({ status: 'error', fetchStatus: 'idle' }))).toBe(0);
     });
 });

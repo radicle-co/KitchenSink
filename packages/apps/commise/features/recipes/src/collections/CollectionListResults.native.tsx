@@ -17,11 +17,10 @@ import { nativeTokens } from '@commise/ui/native';
 import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { SearchField } from '@commise/ui/search-field';
 import { Text as DesignText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
-import { useContext, useId, type FC } from 'react';
+import { useContext, type FC } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { cappedFontScale } from '@commise/ui/font-scale-cap';
@@ -33,12 +32,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';
-import {
-    COLLECTION_SEARCH_FROM,
-    cardCoverOf,
-    type CollectionCardSource,
-    type CollectionListResultsProps,
-} from './model.js';
+import { cardCoverOf, type CollectionCardSource, type CollectionListResultsProps } from './model.js';
 
 export const CollectionListResults: FC<CollectionListResultsProps> = ({
     collections,
@@ -54,7 +48,6 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     const { list } = useMessages(collectionMessages);
     const { colors } = useTheme();
     const locale = useLocale();
-    const searchId = useId();
     // The frame's large title and segments, which this list draws as its first child so they scroll away with it.
     const header = useContext(RecipeListHeaderContext);
     const fabRoom = useFabReservedBottom();
@@ -62,9 +55,10 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     const contentWidth = contentWidthOf(width);
     // On a phone, two columns while a column keeps 320 pt at the capped text scale, else one (designer rule, 2026-11-02); from
     // a 600 container, as many columns of at least 240 as fit (§5.1).
+    const textScale = cappedFontScale(fontScale);
     const columns =
         containerClassOf(contentWidth) === 'narrow'
-            ? compactColumnsOf(contentWidth, cappedFontScale(fontScale))
+            ? compactColumnsOf(contentWidth, textScale)
             : libraryGridColumnsOf(contentWidth);
 
     if (total === 0) {
@@ -100,7 +94,7 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     return (
         <FlashList
             keyboardShouldPersistTaps="handled"
-            key={columns}
+            key={`${String(columns)}-${String(textScale)}`}
             {...scrollBind}
             data={collections}
             numColumns={columns}
@@ -111,22 +105,12 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
                 </View>
             )}
             ItemSeparatorComponent={CardSeparator}
-            // The whole header is the list's first child: the frame's title and segments, then the search, the count and
-            // the refresh notice. One list stays mounted whatever the search matches, so the field never loses focus.
+            // The frame's header (title, segments, and the pinned search's spacer) is the list's first child, full width; the count and
+            // the refresh notice follow it, inside the list's side padding. A new layout, and a new text scale, is a NEW list (the key
+            // above): FlashList starts with an empty size cache, and the host resets its scroll offset when the new scroller attaches.
             ListHeaderComponent={
-                <View style={styles.listHead}>
-                    {header}
-                    {total >= COLLECTION_SEARCH_FROM && (
-                        <SearchField
-                            id={searchId}
-                            label={list.searchLabel}
-                            labelVisibility="hidden"
-                            clearLabel={list.clearSearch}
-                            placeholder={list.searchLabel}
-                            value={search.value}
-                            onChangeText={search.onChange}
-                        />
-                    )}
+                <View>
+                    <View style={styles.headerBleed}>{header}</View>
                     <Text style={[styles.count, { color: colors.ink }]}>
                         {formatRecipeCount(total, { one: list.countOne, other: list.countOther }, locale)}
                     </Text>
@@ -288,7 +272,7 @@ const styles = StyleSheet.create({
     count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
     // The frame's header insets its own sides, so under the list's 16 pt side padding it steps back out by that much.
-    listHead: { gap: nativeTokens.spacing[4], marginHorizontal: -nativeTokens.spacing[4] },
+    headerBleed: { marginHorizontal: -nativeTokens.spacing[4] },
     cardSeparator: { height: nativeTokens.spacing[4] },
     // No `flex: 1`: a cell that grows vertically fills the recycler's ESTIMATE and is measured at it, which left a blank slot
     // between rows. The cell takes its card's height, and its width from the column.

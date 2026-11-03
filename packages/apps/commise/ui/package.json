@@ -128,6 +128,7 @@
         "./photo-control": "./src/photoControl/index.ts",
         "./bar-geometry": "./src/largeTitleHeader/barGeometry.ts",
         "./large-title-header": "./src/largeTitleHeader/index.ts",
+        "./pinned-search": "./src/pinnedSearch/index.native.ts",
         "./scroll-host": "./src/scrollHost/index.ts",
         "./pushed-page": "./src/pushedPage/index.ts",
         "./route-link": "./src/routeLink/index.ts"

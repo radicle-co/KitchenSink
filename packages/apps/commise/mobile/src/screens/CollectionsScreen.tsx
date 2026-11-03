@@ -64,6 +64,7 @@ export function CollectionsScreen({
         <CollectionListFrame
             onCreate={list.sheet.onOpen}
             createEntryYields={list.createEntryYields}
+            search={list.search}
             createFocusRequested={list.createFocus.requested}
             onCreateFocusHandled={list.createFocus.onHandled}
             headingFocusSignal={recovery.signal}

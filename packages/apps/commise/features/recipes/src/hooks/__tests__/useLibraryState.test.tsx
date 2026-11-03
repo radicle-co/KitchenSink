@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RECENT_RECIPE_LIMIT } from '../../widget/recentRecipeLimit.js';
 import { useLibraryState } from '../useLibraryState.js';
+import { useLibraryTotal } from '../useLibraryTotal.js';
 import { useRecipeLibraryState } from '../useRecipeLibraryState.js';
 
 const BY_UPDATED = recipeServiceKeys.recipeLibrary({ sortBy: 'updatedAt' });
@@ -181,5 +182,25 @@ describe('useLibraryState (a family of one: the collection list)', () => {
             client.setQueryData(KEY, chunk(0));
         });
         await waitFor(() => expect(result.current).toBe('empty'));
+    });
+});
+
+describe('useLibraryTotal', () => {
+    it('is 0 while nothing is cached, then follows the cache', async () => {
+        const { client, wrapper } = harness();
+        const family = [{ queryKey: BY_UPDATED }];
+        const { result } = renderHook(() => useLibraryTotal(family, BY_UPDATED), { wrapper });
+
+        expect(result.current).toBe(0);
+
+        act(() => {
+            client.setQueryData(BY_UPDATED, chunk(7));
+        });
+        await waitFor(() => expect(result.current).toBe(7));
+
+        act(() => {
+            client.setQueryData(BY_UPDATED, chunk(2));
+        });
+        await waitFor(() => expect(result.current).toBe(2));
     });
 });

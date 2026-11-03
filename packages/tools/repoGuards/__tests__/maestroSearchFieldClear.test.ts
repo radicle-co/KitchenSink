@@ -34,15 +34,22 @@ function filesUnder(dir: string, keep: (name: string) => boolean): readonly stri
 }
 
 /**
- * The message keys a source file's `<SearchField` elements name in their `label` and `placeholder` props. Pure.
+ * The message keys a source file's search fields name in their `label` and `placeholder`. A field is a `<SearchField` element
+ * (`label={list.searchLabel}`), or the `field={{ label: list.searchLabel, ... }}` of a `<PinnedSearchOverlay`, which draws the
+ * design-system `SearchField` for the Recipes and Collections pins. Pure.
  *
  * @param source - A `.native.tsx` file.
- * @returns One entry per element: its keys (`label={list.searchLabel}` gives `searchLabel`).
+ * @returns One entry per field: its keys.
  */
 export function searchFieldKeys(source: string): readonly (readonly string[])[] {
-    return [...source.matchAll(/<SearchField\b([\s\S]*?)\/>/g)].map(([, props = '']) =>
+    const elements = [...source.matchAll(/<SearchField\b([\s\S]*?)\/>/g)].map(([, props = '']) =>
         [...props.matchAll(/\b(?:label|placeholder)=\{\s*\w+\.(\w+)\s*\}/g)].map(([, key = '']) => key),
     );
+    const pinned = [...source.matchAll(/<PinnedSearchOverlay\b([\s\S]*?)\/>/g)].map(([, props = '']) =>
+        [...props.matchAll(/\b(?:label|placeholder):\s*\w+\.(\w+)\b/g)].map(([, key = '']) => key),
+    );
+
+    return [...elements, ...pinned];
 }
 
 /** Every literal a messages source assigns to `key` (`searchLabel: 'Search recipes'`). Pure. */
@@ -118,6 +125,22 @@ describe('the rule, on inline sources', () => {
                 fields,
             ),
         ).toEqual([]);
+    });
+});
+
+describe('searchFieldKeys', () => {
+    it('reads the keys of a SearchField element', () => {
+        expect(searchFieldKeys('<SearchField id={x} label={list.searchLabel} placeholder={list.hint} />')).toEqual([
+            ['searchLabel', 'hint'],
+        ]);
+    });
+
+    it("reads the keys of a pinned search overlay's field object", () => {
+        expect(
+            searchFieldKeys(
+                '<PinnedSearchOverlay pin={pin} field={{ id: searchId, label: list.searchLabel, placeholder: list.searchPlaceholder }} />',
+            ),
+        ).toEqual([['searchLabel', 'searchPlaceholder']]);
     });
 });
 

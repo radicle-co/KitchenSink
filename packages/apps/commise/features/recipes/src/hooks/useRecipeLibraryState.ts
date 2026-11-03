@@ -9,7 +9,8 @@ import type { QueryKey } from '@tanstack/react-query';
 
 import { RECENT_RECIPE_LIMIT } from '../widget/recentRecipeLimit.js';
 import type { LibraryCacheState } from './libraryState.js';
-import { useLibraryState, type LibraryFamilyMember } from './useLibraryState.js';
+import type { LibraryFamilyMember } from './useCacheJudgement.js';
+import { useLibraryState } from './useLibraryState.js';
 
 /**
  * The recipe library's family: every whole-library read, whatever its sort (a prefix, so a new sort joins it), and Home's

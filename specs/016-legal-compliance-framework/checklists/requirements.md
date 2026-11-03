@@ -151,9 +151,19 @@ recommendation had been offered without its basis. The basis: no statute sets a 
 §507(b) sets the 3-year floor; GDPR Art. 17(3)(e) is what permits survival past erasure and its scope is the
 claim period, which sets the ceiling; and DSA Art. 24(5)'s database duty does not reach us under Art. 19(1).
 
+### Iteration 7: open library rulings (2026-11-03, ADR-0082)
+
+The owner's rulings of 2026-11-03 changed 016 in place. `FR-015k` is new and is the one authority for the
+public-domain gate. `FR-010`, `FR-012`, `FR-015d`, `FR-012b`, `FR-015c`, `FR-015g`, `FR-015i`, `FR-015j`, `FR-018`, `FR-019`,
+`FR-024a`, `FR-025`, `FR-027f`, `FR-027h`, `FR-028`, `FR-029a`, `FR-030`, `FR-030a`, `FR-033`, `FR-034`, `FR-048c`,
+`FR-050`, `SC-011`, findings 3 and 4, Layer 4 and User Story 2 were amended. Each carries its amendment note and
+the line "Counsel review is owed before launch". No requirement ID was renumbered. The checklist items still pass.
+Each new rule has a measurable check in [quickstart.md](../quickstart.md) slice 7.
+
 ## Notes
 
-- **The spec is READY for `/speckit-plan`.** Zero markers remain; **85** functional requirements, 7 non-functional,
+- **The spec is READY for `/speckit-plan`.** Zero markers remain. There are **105** functional requirements (`FR-015k` added
+  2026-11-03), 7 non-functional,
   **17** success criteria, **8** user stories.
 - ⚠️ **The cross-spec amendments A-1 … A-10 are APPLIED (documents only; code untouched).** `001-FR-005`, the C-004 matrix in
   `001/data-model.md`, and `evaluateVisibility(sourceType, isPremium, hasSubstantiveEdit, requested)` encode

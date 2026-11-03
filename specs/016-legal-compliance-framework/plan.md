@@ -45,8 +45,10 @@ record in under 5 s (`SC-004`); export within one month (`FR-034`)
 constraint that drives the deployable decision; every legal string localized (`FR-049`); no third-party media
 bytes persisted (`FR-027`, `SC-005`); **records purged at 3 years unless under a recorded legal hold**
 (`FR-052a`–`FR-052c`)
-**Scale/Scope**: pre-launch, US-only at v1 (C-016-001). Low notice volume, human adjudication.
-**85 functional requirements across 8 user stories, delivered in 6 slices**
+**Scale/Scope**: pre-launch, US at v1 (C-016-001). Low notice volume, human adjudication. _(amended 2026-11-03,
+ADR-0082)_ "US at v1" is not a defence by itself: an app listed in EU or UK stores serves them, so the store
+territories are restricted and recorded, or the UK's light duties are met from day one (spec `FR-048c`).
+**105 functional requirements across 8 user stories, delivered in 7 slices** (2026-11-03: the earlier 85 was stale. `FR-015k` makes 105.)
 
 ## Constitution Check
 
@@ -72,7 +74,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 ```text
 specs/016-legal-compliance-framework/
-├── spec.md              # 85 FRs, 7 NFRs, 17 SCs, 8 user stories — READY
+├── spec.md              # 105 FRs, 7 NFRs, 17 SCs, 8 user stories, READY
 ├── plan.md              # This file (revision 2)
 ├── research.md          # Phase 0 — twelve decisions
 ├── data-model.md        # Phase 1 — entities, tables, state machines, retention
@@ -121,6 +123,13 @@ packages/apps/commise/web/src/app/[locale]/
 
 packages/apps/commise/mobile/src/screens/legal/   # same user surfaces natively
 
+# added 2026-11-03 (ADR-0082). Recipe-service owns these records. staff-architect confirms at PLANNING
+packages/services/recipe-service/src/recipes/domain/
+├── publicDomainGate.ts          # pure: does a record pass FR-015k today?
+├── licenceChoicePolicy.ts       # pure: can this recipe take cc-by-4.0?
+└── sourceCapPolicy.ts           # pure: is this source past its cap?
+packages/services/recipe-service/src/database/migrations/00NN_*.sql   # data-model §10, §11, §12, §15 (expand-first)
+
 packages/services/identity/infra/lib/             # SES identity + IAM; migration Trigger (ADR-0022)
 packages/services/identity-webhooks/infra/lib/    # intake route + sweep schedule
 docs/architecture/decisions/0004-minimize-nat-egress.md   # +2 nat-consumers entries
@@ -135,17 +144,18 @@ separate admin application, so Principle V holds.
 
 ## Phase sequencing
 
-Six independently shippable slices, P1 first. Each is a vertical: schema → service → contract → surfaces →
+Seven independently shippable slices, P1 first (slice 7 added 2026-11-03, ADR-0082). Each is a vertical: schema → service → contract → surfaces →
 every test tier.
 
-| Slice | Stories       | Delivers                                                                                                         | Depends on            |
-| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------- |
-| **1** | US1 (P1)      | Versioned documents, acceptance records, re-acceptance on material revision, licence gating                      | —                     |
-| **2** | US2 (P1)      | Public intake, decisions, **two-channel statements of reasons incl. SES**, counter-notices, strikes, termination | Slice 1               |
-| **3** | US8 (P2)      | **Reviewer dashboard** — queue sorted by time-to-deadline, decision authoring, account view, read-only evidence  | Slice 2               |
-| **4** | US3, US4 (P2) | Legal surfaces both platforms; consent + withdrawal; DSAR export; **retention sweep + legal holds**              | Slice 1               |
-| **5** | US5 (P2)      | Reproduction controls — no persisted third-party media, channel classification, transient-extraction guardrails  | `004` import channels |
-| **6** | US6, US7 (P3) | Renewal disclosure + in-app cancellation; AI interaction disclosure + marking                                    | `010`; `005`/`GR-010` |
+| Slice | Stories       | Delivers                                                                                                                                                                                                                                                                                                | Depends on                          |
+| ----- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **1** | US1 (P1)      | Versioned documents, acceptance records, re-acceptance on material revision, licence gating                                                                                                                                                                                                             | —                                   |
+| **2** | US2 (P1)      | Public intake, decisions, **two-channel statements of reasons incl. SES**, counter-notices, strikes, termination                                                                                                                                                                                        | Slice 1                             |
+| **3** | US8 (P2)      | **Reviewer dashboard** — queue sorted by time-to-deadline, decision authoring, account view, read-only evidence                                                                                                                                                                                         | Slice 2                             |
+| **4** | US3, US4 (P2) | Legal surfaces both platforms; consent + withdrawal; DSAR export; **retention sweep + legal holds**                                                                                                                                                                                                     | Slice 1                             |
+| **5** | US5 (P2)      | Reproduction controls — no persisted third-party media, channel classification, transient-extraction guardrails                                                                                                                                                                                         | `004` import channels               |
+| **6** | US6, US7 (P3) | Renewal disclosure + in-app cancellation; AI interaction disclosure + marking                                                                                                                                                                                                                           | `010`; `005`/`GR-010`               |
+| **7** | US1, US2, US5 | _(added 2026-11-03, ADR-0082)_ The open library: the public-domain gate and record, the CC BY choice, the five statement kinds, the cap over time, fetch signals and their log, statements of reasons for restrictions, the per-market extraction basis and URL-import switch, the market preconditions | Slices 1 and 2, `004`, `020`, `021` |
 
 **Out of this plan's control, and stated rather than assumed:**
 
@@ -157,6 +167,47 @@ every test tier.
   words.
 - **`002` needs an amendment before slice 3 ships** (A-11): its Out of Scope excludes an admin UI, and slice 3
   builds one.
+
+## Tasks owed (ADR-0082)
+
+_(added 2026-11-03, owner ruling, ADR-0082)_ This feature has no `tasks.md` yet. These are the tasks the 2026-11-03
+rulings add. When `/speckit-tasks` runs, each row becomes a task, written test-first in every tier listed. IDs here
+are `L082-NN` so they cannot collide with the generated `T` numbers.
+
+| ID      | Task                                                                                                                  | Serves                             | Owner package                  | Test tiers                                                                       |
+| ------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------ | -------------------------------------------------------------------------------- |
+| L082-01 | `public_domain_records` and `public_domain_creators` tables, migration, and the curator's entry path                  | `FR-015k`, data-model §10          | recipe-service                 | unit, integration, LOCAL e2e (migration)                                         |
+| L082-02 | `publicDomainGate` pure function, with the rolling year rule and all six tests                                        | `FR-015k`                          | recipe-service                 | unit (boundary years, each test failing alone), integration                      |
+| L082-03 | Rights-label Policy reads the record, and label 7 shows its basis                                                     | `FR-015d`, `FR-015g`               | recipe-service, web, mobile    | unit, integration, component, Playwright, Maestro                                |
+| L082-04 | Licence columns and `recipe_licence_grants`, migration, and the read contract fields                                  | `FR-010`, data-model §11           | recipe-service, schema-recipe  | unit, integration, LOCAL e2e, contract                                           |
+| L082-05 | `licenceChoicePolicy`: CC BY only on a checked label 1 recipe, from an adult                                          | `FR-010`, `FR-008`                 | recipe-service                 | unit, integration                                                                |
+| L082-06 | The CC BY choice at publish, with the photo choice and the plain words, on web and mobile                             | `FR-010`                           | features-recipes, web, mobile  | component (every state), Playwright, Maestro                                     |
+| L082-07 | schema.org `license`, CC0 on Commise text, and the Public Domain Mark on public pages                                 | `FR-033`, `FR-015k`                | web                            | component, Playwright                                                            |
+| L082-08 | Five statement kinds, expand-first migration widening `0059_recipe_imports.sql`, and `magazine`                       | data-model §15                     | recipe-service                 | unit, integration, LOCAL e2e (migration)                                         |
+| L082-09 | The family statement's web permission and optional giver credit, on web and mobile                                    | `FR-015g` row 5                    | features-recipes, web, mobile  | component, Playwright, Maestro                                                   |
+| L082-10 | `source_card_events` ledger and `sourceCapPolicy` with a per-source lock, aggregators, books, paid sites, bulk import | `FR-030a`, data-model §12          | recipe-service                 | unit, integration, LOCAL e2e, k6 (lock contention)                               |
+| L082-11 | The fetcher reads robots.txt per RFC 9309, TDMRep, `noai`, AI-crawler blocks, `ai-input`, pirate hosts                | `FR-024a`                          | the fetching service (004)     | unit, integration                                                                |
+| L082-12 | `fetch_signal_records` log, with "none found" as a value                                                              | `FR-024a`, data-model §13          | the fetching service (004)     | unit, integration, LOCAL e2e                                                     |
+| L082-13 | `restriction_statements`, the internal call from recipe-service, two-channel delivery, the challenge path             | `FR-018`, `FR-019`, data-model §14 | identity, recipe-service       | unit, integration, LOCAL e2e, Playwright, Maestro                                |
+| L082-14 | Per-market URL-import switch, closed by default, and the per-market extraction basis                                  | `FR-027f`, `FR-048`                | recipe-service, market posture | unit, integration                                                                |
+| L082-15 | Delete an uploaded page image after extraction unless the cook keeps it                                               | `FR-027h`                          | recipe-workers                 | unit, integration                                                                |
+| L082-16 | Anti-extraction terms carve-out, and rate limits plus bot management on public reads                                  | `FR-030`                           | web edge, recipe-service       | unit, integration, k6                                                            |
+| L082-17 | Market preconditions as a checked list on the market posture, and the store-territory record                          | `FR-048c`                          | identity (market posture)      | unit, integration                                                                |
+| L082-18 | GDPR Art. 17(2) deletion signal for a CC BY recipe whose cook erases                                                  | `FR-010`                           | recipe-service                 | unit, integration                                                                |
+| L082-19 | Founder action: register the DMCA agent in the company's legal name. Not software                                     | `FR-025`                           | founder                        | none (alarmed calendar item, `SC-009`)                                           |
+| L082-20 | Counsel review of every item `FR-050` gained on 2026-11-03                                                            | `FR-050`                           | founder, counsel               | none                                                                             |
+| L082-21 | A scheduled purge of `fetch_signal_records` past the `FR-052a` period, in the fetching service                        | `FR-024a`, `FR-052a`               | the fetching service (004)     | unit, integration                                                                |
+| L082-22 | The internal restriction intake and the cook's challenge route (contracts §C, §B)                                     | `FR-018`, `FR-019`                 | identity, schema-identity      | unit, integration, contract, k6                                                  |
+| L082-23 | Notice form with every §512(c)(3) and DSA Art. 16(2) element, and the contact step for a partial notice               | `FR-058`                           | identity, web                  | unit (each missing element), integration, component, Playwright                  |
+| L082-24 | The designated agent page, linked from every footer, held equal to the filed details                                  | `FR-059`                           | web                            | component, Playwright, a guard that the page and the record match                |
+| L082-25 | Removal reaches every public surface, clones and facts cards included, with an alert on a surface still serving       | `FR-060`                           | recipe-service, web            | integration, deployed e2e (a takedown, then every surface answers not-available) |
+| L082-26 | Counter-notice form, copy to the notifier, and the 10 to 14 business-day restore sweep                                | `FR-061`                           | identity, recipe-service       | unit (business-day arithmetic over holidays), integration, LOCAL e2e             |
+| L082-27 | Strike counting per decision, the termination appeal, and no re-registration after termination                        | `FR-062`                           | identity                       | unit (the rolling window at its edges), integration                              |
+| L082-28 | The size record on the market posture, and the Art. 20 and Art. 21 switch at the end of small size                    | `FR-063`                           | identity (market posture)      | unit, integration                                                                |
+| L082-29 | UK OSA reporting and complaints procedures on the one notice form                                                     | `FR-064`                           | identity, web, mobile          | unit, integration, component, Playwright, Maestro                                |
+| L082-30 | The publisher fast lane: apply, verify, queue priority, revoke                                                        | `FR-065`                           | identity                       | unit, integration                                                                |
+| L082-31 | Misuse warnings, suspension of processing, and the §512(f) words on both forms                                        | `FR-066`                           | identity, web                  | unit (a compliant notice is still received while suspended), integration         |
+| L082-32 | Counsel review of the items `FR-050` gained for `FR-058` to `FR-066`                                                  | `FR-050`                           | founder, counsel               | none                                                                             |
 
 ## Complexity Tracking
 
@@ -195,6 +246,8 @@ deployable. The three choices that could have broken a gate were checked specifi
   unhandled rather than a runtime string mismatch.
 - **Principle V + GR-021** — the nine tables are declared once in
   `packages/services/identity/src/database/schema/legal.ts`, and no name collides with a shipped table.
+  _(2026-11-03, ADR-0082)_ `restriction_statements` makes ten identity tables. The recipe-service records of
+  data-model §10 to §13 and §15 are declared once, in recipe-service's own schema.
 - **Principle IV** — the dashboard is the highest-risk new surface for coverage theatre, so its component
   tests are specified per **state** (empty queue, overdue, decision-in-progress, undelivered email, account at
   threshold, refused without scope), not per page.

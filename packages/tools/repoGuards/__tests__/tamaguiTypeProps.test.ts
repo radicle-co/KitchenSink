@@ -155,6 +155,7 @@ describe('typePropFindings', () => {
                 'packages/apps/commise/features/recipes/src/form/RecipeInstructionsFields.native.tsx',
                 0,
             ],
+            ["the editor's header", 'packages/apps/commise/features/recipes/src/editor/EditorHeader.native.tsx', 0],
             ['the pinned bar', 'packages/apps/commise/ui/src/largeTitleHeader/CondensedTitleBar.native.tsx', 0],
             ['a sibling of the floating button', 'packages/apps/commise/ui/src/createFab/CreateFab.native.tsx', 1],
             ['any other screen', 'packages/apps/commise/features/recipes/src/x/X.native.tsx', 1],

@@ -24,10 +24,10 @@ const OLD_TYPE_STYLES = /^nativeTokens\.type\b/u;
  * The navigation chrome, the only modules that may lower a label's ceiling with `chromeCap` (designer ruling
  * 2026-11-01, ADR-0080 §8): the tab bar, which draws every tab label, the view-switch control, and the floating create button's face
  * (ruling d, 2026-11-02). Also, per designer ruling c10ecadbf (2026-11-03), a step numeral (the cook's and the editor's) and the
- * pinned bar's title and parent name, which cap at 1.5x like chrome.
+ * pinned bar's title and parent name, which cap at 1.5x like chrome, and the editor header's title and save status (2026-11-03).
  */
 const CHROME_MODULES =
-    /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx|ui\/src\/createFab\/FabFace\.native\.tsx|ui\/src\/largeTitleHeader\/CondensedTitleBar\.native\.tsx|features\/recipes\/src\/detail\/StepRow\.native\.tsx|features\/recipes\/src\/form\/RecipeInstructionsFields\.native\.tsx)$/u;
+    /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx|ui\/src\/createFab\/FabFace\.native\.tsx|ui\/src\/largeTitleHeader\/CondensedTitleBar\.native\.tsx|features\/recipes\/src\/detail\/StepRow\.native\.tsx|features\/recipes\/src\/form\/RecipeInstructionsFields\.native\.tsx|features\/recipes\/src\/editor\/EditorHeader\.native\.tsx)$/u;
 
 /**
  * The modules that draw initials at a size that does not scale, with `fixedPx` (designer ruling c10ecadbf, 2026-11-03):

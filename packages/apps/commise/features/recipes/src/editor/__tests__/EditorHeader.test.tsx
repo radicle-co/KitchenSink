@@ -22,6 +22,15 @@ describe('EditorHeader (web): scaled text', () => {
         expect(screen.getByText(STATUS).className).not.toMatch(/\btruncate\b|line-clamp/);
     });
 
+    it('sets the status in the meta size, never the title size', () => {
+        drawHeader();
+
+        const status = screen.getByText(STATUS).className;
+
+        expect(status).toMatch(/\btext-meta\b/);
+        expect(status).not.toMatch(/text-bar-title/);
+    });
+
     it('still lets the title truncate', () => {
         drawHeader();
 

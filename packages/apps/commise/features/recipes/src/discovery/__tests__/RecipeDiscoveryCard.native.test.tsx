@@ -136,6 +136,6 @@ describe('RecipeDiscoveryCard (native) — the meta line', () => {
         });
         const card = screen.getByText('Lamb Shoulder').parentElement as HTMLElement;
 
-        expect(card.textContent).toContain('45 min\u00A0· Easy\u00A0· No ratings yet');
+        expect(card.textContent).toContain('45\u00A0min\u00A0· Easy\u00A0· No\u00A0ratings\u00A0yet');
     });
 });

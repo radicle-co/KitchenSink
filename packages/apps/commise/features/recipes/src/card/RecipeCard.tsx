@@ -39,7 +39,7 @@ import { createContext, useContext, type CSSProperties, type FC, type ReactNode 
 import { GRID_CELL_CLASS } from './cardGridClass.js';
 import type { CardVariant } from './cardVariant.js';
 import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from './coverChip.js';
-import { META_SEPARATOR, MetaLeadContext, metaRunOf } from './metaRun.js';
+import { META_SEPARATOR, MetaLeadContext, metaRunOf, unbreakable } from './metaRun.js';
 import {
     RecipeCardNutritionContext,
     RecipeCardViewContext,
@@ -190,14 +190,15 @@ const ratingPartOf = (rating: RecipeCardView['rating']): ReactNode =>
         <span role="img" aria-label={rating.label} className="tabular-nums lining-nums">
             <span aria-hidden="true" className="text-rating">
                 ★
-            </span>{' '}
-            {rating.short}
+            </span>
+            {'\u00A0'}
+            {unbreakable(rating.short)}
         </span>
     );
 
 /** The time as the run's part, absent when the recipe has none. */
 const timePartOf = (duration: string | undefined): ReactNode =>
-    duration === undefined ? undefined : <span className="tabular-nums lining-nums">{duration}</span>;
+    duration === undefined ? undefined : <span className="tabular-nums lining-nums">{unbreakable(duration)}</span>;
 
 /**
  * The calorie figure at the end of a run. It draws its own lead (the separator) when it has something to say, so a figure

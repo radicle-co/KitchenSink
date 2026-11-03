@@ -24,7 +24,7 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useContext, type FC } from 'react';
 
-import { MetaLeadContext } from '../card/metaRun.js';
+import { MetaLeadContext, unbreakable } from '../card/metaRun.js';
 
 import { recipeNutritionMessages } from './messages.js';
 import { toCalorieChipModel, type RecipeCalorieState } from './model.js';
@@ -80,7 +80,7 @@ export const RecipeCalorieChip: FC<RecipeCalorieChipProps> = ({ nutrition }) => 
             return (
                 <span role={CHIP_ROLE} aria-label={chip.label} className={chip.isStale ? STALE_CLASS : undefined}>
                     {lead}
-                    {chip.text}
+                    {unbreakable(chip.text)}
                 </span>
             );
         }

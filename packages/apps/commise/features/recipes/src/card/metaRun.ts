@@ -23,6 +23,17 @@ export const META_SEPARATOR = ' · ';
  */
 export const MetaLeadContext = createContext('');
 
+/**
+ * A part's text with every ordinary space made a no-break space, so the line can break only after a dot and a part such as
+ * "45 min" or "★ 4.8 (5)" is never split (UI Designer ruling, 2026-11-03). Text a part draws inside a node goes through it too.
+ *
+ * @param text - The part's text, translated or not.
+ * @returns The text with no breakable space.
+ */
+export function unbreakable(text: string): string {
+    return text.replaceAll(' ', '\u00A0');
+}
+
 /** Whether a part has anything to draw. An empty string, `false`, `null` and `undefined` do not. */
 function hasData(part: ReactNode): boolean {
     return part !== undefined && part !== null && part !== false && part !== '';
@@ -38,6 +49,8 @@ export function metaRunOf(parts: readonly ReactNode[]): ReactNode[] {
     return parts.filter(hasData).flatMap((part, index) => {
         const node = isValidElement(part) ? createElement(Fragment, { key: index }, part) : part;
 
-        return index === 0 ? [node] : [META_SEPARATOR, node];
+        const unit = typeof node === 'string' ? unbreakable(node) : node;
+
+        return index === 0 ? [unit] : [META_SEPARATOR, unit];
     });
 }

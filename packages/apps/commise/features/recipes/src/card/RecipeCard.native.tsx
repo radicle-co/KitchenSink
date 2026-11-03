@@ -36,7 +36,7 @@ import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { CardVariant } from './cardVariant.js';
-import { META_SEPARATOR, MetaLeadContext, metaRunOf } from './metaRun.js';
+import { META_SEPARATOR, MetaLeadContext, metaRunOf, unbreakable } from './metaRun.js';
 import { COVER_CHIP_INSET, COVER_CHIP_PADDING, COVER_CHIP_PADDING_V } from './coverChip.js';
 import { badgeLineHeightOf, metaLineHeightOf } from './oneLine.js';
 import {
@@ -163,12 +163,14 @@ const RatingPart: FC = () => {
     const { colors } = useTheme();
 
     if (rating.kind === 'unrated') {
-        return rating.text;
+        return unbreakable(rating.text);
     }
 
     return (
         <Text accessibilityRole="image" accessibilityLabel={rating.label} style={styles.figure}>
-            <Text style={{ color: colors.rating }}>★</Text> {rating.short}
+            <Text style={{ color: colors.rating }}>★</Text>
+            {'\u00A0'}
+            {unbreakable(rating.short)}
         </Text>
     );
 };
@@ -177,7 +179,7 @@ const RatingPart: FC = () => {
 const TimePart: FC = () => {
     const { meta } = useCardView();
 
-    return meta.duration === undefined ? null : <Text style={styles.figure}>{meta.duration}</Text>;
+    return meta.duration === undefined ? null : <Text style={styles.figure}>{unbreakable(meta.duration)}</Text>;
 };
 
 /**

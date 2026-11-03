@@ -193,7 +193,7 @@ describe('RecipeCard (native, grid)', () => {
         );
 
         expect(screen.getByRole('img', { name: 'Rated 4.8 out of 5, 12 ratings' })).toBeTruthy();
-        expect(screen.getByRole('img', { name: /Rated/u }).textContent).toBe('★ 4.8 (12)');
+        expect(screen.getByRole('img', { name: /Rated/u }).textContent).toBe('★\u00A04.8\u00A0(12)');
         unmount();
         renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ ratingCount: 0 })} />);
 

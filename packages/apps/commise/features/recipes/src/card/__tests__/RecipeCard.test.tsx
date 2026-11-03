@@ -252,7 +252,7 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
         );
 
         const rating = screen.getByRole('img', { name: 'Rated 4.8 out of 5, 12 ratings' });
-        expect(rating.textContent).toBe('★ 4.8 (12)');
+        expect(rating.textContent).toBe('★\u00A04.8\u00A0(12)');
     });
 
     it('says an unrated recipe has no ratings, and draws no stars', () => {

@@ -22,6 +22,7 @@ const model = (over: Parameters<typeof makeRecipe>[0] = {}) => toRecipeCardModel
 const renderCard = (ui: React.ReactElement) => render(<LocaleProvider locale="en">{ui}</LocaleProvider>);
 
 const RECIPE_ID = '00000000-0000-4000-8000-00000000000a';
+const nb = (text: string): string => text.replaceAll(' ', '\u00A0');
 const DOT = '\u00A0· ';
 
 /** A calorie figure the way a host draws it: the slot over a settled (or pending, or omitting) batch reading. */
@@ -54,7 +55,7 @@ describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — the meta line 
             <RecipeCard headingLevel={3} variant={variant} recipe={model(base)} nutrition={slot(known(370))} />,
         );
 
-        expect(textOf(container)).toBe(`45 min${DOT}Easy${DOT}No ratings yet${DOT}370 cal`);
+        expect(textOf(container)).toBe(`${nb('45 min')}${DOT}Easy${DOT}${nb('No ratings yet')}${DOT}${nb('370 cal')}`);
     });
 
     it('keeps the star with a rating, as part of the run', () => {
@@ -66,7 +67,7 @@ describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — the meta line 
             />,
         );
 
-        expect(textOf(container)).toBe(`45 min${DOT}Easy${DOT}★ 4.8 (12)`);
+        expect(textOf(container)).toBe(`${nb('45 min')}${DOT}Easy${DOT}${nb('★ 4.8 (12)')}`);
     });
 
     it('draws no clock glyph and no separate part boxes: the line is text', () => {
@@ -92,7 +93,7 @@ describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — the meta line 
             />,
         );
 
-        expect(textOf(container)).toBe(`No ratings yet${DOT}370 cal`);
+        expect(textOf(container)).toBe(`${nb('No ratings yet')}${DOT}${nb('370 cal')}`);
     });
 
     it('leaves no dot behind when the calorie figure settles on nothing', () => {
@@ -105,7 +106,7 @@ describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — the meta line 
             />,
         );
 
-        expect(textOf(container)).toBe(`45 min${DOT}Easy${DOT}No ratings yet`);
+        expect(textOf(container)).toBe(`${nb('45 min')}${DOT}Easy${DOT}${nb('No ratings yet')}`);
     });
 
     it('keeps the calorie loading form’s text inside the run', () => {
@@ -118,7 +119,7 @@ describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — the meta line 
             />,
         );
 
-        expect(textOf(container)).toMatch(/^45 min\u00A0· Easy\u00A0· No ratings yet\u00A0· .+/u);
+        expect(textOf(container)).toMatch(/^45\u00A0min\u00A0· Easy\u00A0· No\u00A0ratings\u00A0yet\u00A0· .+/u);
     });
 });
 
@@ -128,7 +129,7 @@ describe('RecipeCard (web, compact) — the brief run', () => {
             <RecipeCard headingLevel={3} variant="compact" recipe={model(base)} nutrition={slot(known(370))} />,
         );
 
-        expect(textOf(container)).toBe(`45 min${DOT}370 cal`);
+        expect(textOf(container)).toBe(`${nb('45 min')}${DOT}${nb('370 cal')}`);
     });
 
     it('reads just the calories, with no leading dot, when there is no time', () => {
@@ -141,7 +142,7 @@ describe('RecipeCard (web, compact) — the brief run', () => {
             />,
         );
 
-        expect(textOf(container)).toBe('370 cal');
+        expect(textOf(container)).toBe('370\u00A0cal');
     });
 
     it('draws no line at all when no part has data', () => {
@@ -163,7 +164,7 @@ describe('RecipeCard (web, compact) — the brief run', () => {
             />,
         );
 
-        expect(textOf(container)).toBe(`45 min${DOT}Easy${DOT}No ratings yet${DOT}370 cal`);
+        expect(textOf(container)).toBe(`${nb('45 min')}${DOT}Easy${DOT}${nb('No ratings yet')}${DOT}${nb('370 cal')}`);
     });
 });
 
@@ -204,5 +205,38 @@ describe.each(['grid', 'compact'] as const)('RecipeCard (web, %s) — the tile f
         expect(CARD_LIST_CLASS[variant]).toMatch(/\bgrid\b/u);
         expect(CARD_LIST_CLASS[variant]).not.toMatch(/\bitems-(start|center|end|baseline)\b/u);
         expect(CARD_LIST_CLASS[variant]).not.toMatch(/\balign-items\b|\bself-/u);
+    });
+});
+
+/** Every ordinary space in a run must follow a dot: the line may break only after a "·". */
+const breaksOnlyAfterDots = (text: string): boolean =>
+    [...text.matchAll(/ /gu)].every((m) => text[(m.index ?? 0) - 1] === '·');
+
+describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — a part never breaks inside', (variant) => {
+    it.each([
+        ['an unrated recipe', { ...base, ratingCount: 0 }],
+        ['a rated recipe', { ...base, averageRating: 4.75, ratingCount: 5 }],
+    ] as const)('%s', (_name, over) => {
+        const { container } = renderCard(
+            <RecipeCard headingLevel={3} variant={variant} recipe={model(over)} nutrition={slot(known(370))} />,
+        );
+        const text = textOf(container) ?? '';
+
+        expect(text).toContain('45\u00A0min');
+        expect(text).toContain('370\u00A0cal');
+        expect(breaksOnlyAfterDots(text)).toBe(true);
+    });
+
+    it('keeps the calorie loading form unbreakable too', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant={variant}
+                recipe={model(base)}
+                nutrition={slot({ status: 'pending' })}
+            />,
+        );
+
+        expect(breaksOnlyAfterDots(textOf(container) ?? '')).toBe(true);
     });
 });

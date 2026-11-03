@@ -1,7 +1,7 @@
 import { isValidElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
-import { META_SEPARATOR, metaRunOf } from '../metaRun.js';
+import { META_SEPARATOR, metaRunOf, unbreakable } from '../metaRun.js';
 
 /** The text a run reads as, with each nested node's own children folded in. */
 const textOf = (run: readonly ReactNode[]): string =>
@@ -23,11 +23,15 @@ describe('metaRunOf — the one shared builder of the meta line’s text run', (
     });
 
     it('joins the parts that exist with the separator, and no separator at either end', () => {
-        expect(textOf(metaRunOf(['45 min', 'Easy', 'No ratings yet']))).toBe('45 min · Easy · No ratings yet');
+        expect(textOf(metaRunOf(['45 min', 'Easy', 'No ratings yet']))).toBe(
+            '45\u00A0min\u00A0· Easy\u00A0· No\u00A0ratings\u00A0yet',
+        );
     });
 
     it('leaves out an absent part together with its separator', () => {
-        expect(textOf(metaRunOf(['45 min', undefined, null, false, 'No ratings yet']))).toBe('45 min · No ratings yet');
+        expect(textOf(metaRunOf(['45 min', undefined, null, false, 'No ratings yet']))).toBe(
+            '45\u00A0min\u00A0· No\u00A0ratings\u00A0yet',
+        );
         expect(textOf(metaRunOf([undefined, 'Easy']))).toBe('Easy');
     });
 
@@ -40,7 +44,24 @@ describe('metaRunOf — the one shared builder of the meta line’s text run', (
         const star = <b key="x">★ 4.8 (12)</b>;
         const run = metaRunOf(['45 min', star]);
 
-        expect(textOf(run)).toBe('45 min · ★ 4.8 (12)');
+        expect(textOf(run)).toBe('45\u00A0min\u00A0· ★ 4.8 (12)');
         expect(run.some((part) => isValidElement(part))).toBe(true);
+    });
+});
+
+// UI Designer ruling (2026-11-03): each part is unbreakable inside, so the line breaks only after a dot.
+describe('unbreakable — no break inside a part', () => {
+    it('turns every ordinary space into a no-break space', () => {
+        expect(unbreakable('45 min')).toBe('45\u00A0min');
+        expect(unbreakable('★ 4.8 (12)')).toBe('★\u00A04.8\u00A0(12)');
+        expect(unbreakable('No ratings yet')).toBe('No\u00A0ratings\u00A0yet');
+    });
+
+    it('is applied to every string part of a run, and leaves the separator’s own space after the dot', () => {
+        expect(metaRunOf(['45 min', 'No ratings yet'])).toEqual([
+            '45\u00A0min',
+            META_SEPARATOR,
+            'No\u00A0ratings\u00A0yet',
+        ]);
     });
 });

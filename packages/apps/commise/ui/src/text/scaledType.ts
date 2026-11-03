@@ -14,7 +14,7 @@ import { devicePixelScale, snapLineHeight } from '../tokens/iosLineHeight.js';
 import { nativeTokens } from '../tokens/native.js';
 import { typeRole, type TypeRole } from '../tokens/typography.js';
 import { FONT_SCALE_CAP } from './fontScaleCap.js';
-import { letterLiftOf, letterLineHeightOf } from './letterMetrics.js';
+import { letterLiftOf, letterLineHeightOf, type LetterPlatform } from './letterMetrics.js';
 
 /** The display roles' ceiling: a title stops growing at 1.5×. */
 export const DISPLAY_FONT_SCALE_CAP = 1.5;
@@ -119,6 +119,7 @@ export function scaledTypeSize(
  *     2026-11-03). It wins over the role's size, the cap and `pictorial`; the leading is the size plus 4.
  * @param capCentred - With `fixedPx`: draw the line as the font's own height and lift by the capitals' drop, so the
  *     capital, not the line, is what a centring parent centres (the cover letter; designer ruling 2026-11-03).
+ * @param platform - With `capCentred`: `ios` lifts by the drop measured on a device (none); anything else by the font's.
  * @returns The scaled size and leading, or nothing for `figureInline`, which keeps its line's.
  */
 export function scaledTypeMetrics(
@@ -128,12 +129,13 @@ export function scaledTypeMetrics(
     pictorial = false,
     fixedPx?: number,
     capCentred = false,
+    platform: LetterPlatform = 'other',
 ): ScaledTypeMetrics | Record<string, never> {
     if (fixedPx !== undefined && capCentred) {
         return {
             fontSize: fixedPx,
             lineHeight: `${letterLineHeightOf(fixedPx)}px`,
-            transform: [{ translateY: -letterLiftOf(fixedPx) }],
+            transform: [{ translateY: -letterLiftOf(fixedPx, platform) }],
         };
     }
 

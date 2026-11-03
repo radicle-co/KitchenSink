@@ -16,6 +16,7 @@
  *     render map, so no `switch` is written
  * @pattern Adapter over the type scale (`nativeTokens.type`)
  */
+import { Platform } from 'react-native';
 import { styled, Text as TamaguiText } from 'tamagui';
 
 import { nativeTokens } from '../tokens/native.js';
@@ -130,5 +131,13 @@ interface ScaledTextProps {
  */
 export const Text = TextFrame.resolve(
     ({ typeRole, textScale, chromeCap, pictorial, fixedPx, capCentred }: ScaledTextProps) =>
-        scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap, pictorial, fixedPx, capCentred),
+        scaledTypeMetrics(
+            typeRole ?? 'body',
+            textScale ?? 1,
+            chromeCap,
+            pictorial,
+            fixedPx,
+            capCentred,
+            Platform.OS === 'ios' ? 'ios' : 'other',
+        ),
 );

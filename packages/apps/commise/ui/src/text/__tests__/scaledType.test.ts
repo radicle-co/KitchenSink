@@ -171,4 +171,12 @@ describe('scaledTypeMetrics — a cap-centred fixed size', () => {
     it('leaves a plain fixed size (initials in a disc) with its size-plus-4 leading and no lift', () => {
         expect(scaledTypeMetrics('label', 2, undefined, false, 48)).toEqual({ fontSize: 48, lineHeight: '52px' });
     });
+
+    it('lifts nothing on iOS, where the cap band already sits in the middle of the font’s own line', () => {
+        expect(scaledTypeMetrics('label', 2, undefined, false, 111, true, 'ios')).toEqual({
+            fontSize: 111,
+            lineHeight: '152px',
+            transform: [{ translateY: -0 }],
+        });
+    });
 });

@@ -24,4 +24,17 @@ describe('letterMetrics — the cap band of the cover letter', () => {
     it('never moves a letter of no size', () => {
         expect(letterLiftOf(0)).toBe(0);
     });
+
+    // iOS (UI Designer ruling 2026-11-03, qa-ios on 087051a43): a true H on a 277.5 pt cover (letter 111 pt) sat 2.4 pt HIGH
+    // with the 2.55 pt lift, so on iOS the cap band is already in the middle of the font's own line (0.15 pt low, 0.0014 em);
+    // Android measured within 0.4 pt with the lift. The lift is therefore platform-specific.
+    it('lifts nothing on iOS, where the cap band already sits in the middle of the font’s own line', () => {
+        expect(letterLiftOf(111, 'ios')).toBe(0);
+        expect(letterLiftOf(48, 'ios')).toBe(0);
+    });
+
+    it('keeps the lift everywhere else', () => {
+        expect(letterLiftOf(111, 'other')).toBeCloseTo(2.553, 3);
+        expect(letterLiftOf(111)).toBe(letterLiftOf(111, 'other'));
+    });
 });

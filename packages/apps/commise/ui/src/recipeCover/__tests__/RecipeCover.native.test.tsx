@@ -1,6 +1,7 @@
 import { cleanup, screen } from '@testing-library/react';
 import { formatRgb } from 'culori';
 import type { ReactElement } from 'react';
+import { Platform } from 'react-native';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -194,6 +195,19 @@ describe('RecipeCover (native) — the letter is centred by its cap band', () =>
         });
 
         expect(Number.parseFloat(resolvedStyle(screen.getByText('L'), 'lineHeight'))).toBe(letterLineHeightOf(48));
+    });
+});
+
+describe('RecipeCover (native) — the letter’s lift is the platform’s own (UI Designer ruling 2026-11-03)', () => {
+    afterEach(() => {
+        Platform.OS = 'web';
+    });
+
+    it('lifts nothing on iOS, where the cap band already sits in the middle of the line', () => {
+        Platform.OS = 'ios';
+        renderCover(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />, { size: [160, 120] });
+
+        expect(resolvedStyle(screen.getByText('L'), 'transform')).toMatch(/translateY\(-?0(px)?\)/u);
     });
 });
 

@@ -8,6 +8,11 @@
  * `ascent − capHeight / 2` below it; the middle of the line is `(ascent + descent) / 2`. The capitals therefore sit
  * {@link CAP_BAND_DROP_EM} below the middle, and the letter is lifted by that much.
  *
+ * ⚠️ iOS is the exception, MEASURED (qa-ios on 087051a43, UI Designer ruling 2026-11-03): a true H on a 277.5 pt cover (letter
+ * 111 pt) sat 2.4 pt HIGH with the 2.55 pt lift, so on iOS the cap band is already in the middle of that line (0.15 pt low).
+ * Android measured within 0.4 pt with the lift. So the lift is {@link IOS_CAP_BAND_DROP_EM}, nothing, on iOS. The figure is one
+ * device measurement at one size and the 1x size agrees (within 2 pt either way); a second size is the check that tightens it.
+ *
  * Pure.
  */
 const UNITS_PER_EM = 2000;
@@ -17,6 +22,12 @@ const CAP_HEIGHT = 1440 / UNITS_PER_EM;
 
 /** How far the middle of the capitals sits below the middle of the font's own line, in em. */
 export const CAP_BAND_DROP_EM = (ASCENT - DESCENT) / 2 - CAP_HEIGHT / 2;
+
+/** The same drop on iOS, measured on a device: none. */
+export const IOS_CAP_BAND_DROP_EM = 0;
+
+/** The platforms the lift tells apart. */
+export type LetterPlatform = 'ios' | 'other';
 
 /**
  * The letter's line height: the font's own height, so neither platform adds leading around it. Pure.
@@ -32,8 +43,9 @@ export function letterLineHeightOf(fontSize: number): number {
  * How far to lift the letter so the middle of its capitals is the middle of its box. Pure.
  *
  * @param fontSize - The letter's size in points.
+ * @param platform - `ios` for the device-measured drop, anything else for the font-metric drop.
  * @returns The lift in points.
  */
-export function letterLiftOf(fontSize: number): number {
-    return CAP_BAND_DROP_EM * fontSize;
+export function letterLiftOf(fontSize: number, platform: LetterPlatform = 'other'): number {
+    return (platform === 'ios' ? IOS_CAP_BAND_DROP_EM : CAP_BAND_DROP_EM) * fontSize;
 }

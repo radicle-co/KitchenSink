@@ -747,3 +747,24 @@ MASTER PROGRAM ORDER there.
     - **⛔ Correction 3 — the acceptance this task carried CONTRADICTED THE SHIPPED DESIGN, and must not be "restored".** It demanded the tier get _"its own `vitest.*.config.ts`, its own `package.json` script, an exclude keeping it out of the default `test` glob, and a CI step"_, citing §7's _"Integration and E2E MUST NOT run in the default `test` task"_. That rule governs tiers needing a **database, a network or a booted app**; the contract gates need **none of the three** — they compare committed generated files against a regeneration, in-process. Separating them would have bought nothing and cost the exact failure mode §7 exists to prevent: a script no CI job invokes. **A deliberate decision, not an oversight — do not split these into their own tier.**
     - **⚠️ Name it `*.test.ts`, never bare `*.spec.ts`** — that suffix is reserved for Playwright, whose default `testMatch` would otherwise collect vitest files and crash the run on their `vitest` imports (§7). This still holds and the shipped files comply.
     - **What the shipped tier actually asserts** (read before assuming it is thin): three drift layers — the authored zod's import allowlist, the committed package **matching a fresh generation verbatim** including `openapi.yaml`, and the `CONTRACT_HASH` being **stamped identically in the schema package and in the SERVICE**, which is what makes a skew check possible at all — plus a **discovery-based** GR-017 §17-c check that every **mutating** request body rejects unknown keys and that it claims rejection on _exactly_ those bodies (no response body, no read query). The regenerate-and-diff layer is inherently red-against-skew: skew the package and the comparison fails.
+
+## Airtight path to public (added 2026-11-03, owner ruling, ADR-0082)
+
+These tasks carry 020 section K (`020-FR-057` to `020-FR-074`) into the code 001 owns. Each is test-first: the failing
+tests in every tier come before the code. Counsel review is owed before launch (`016-FR-050`).
+
+- [ ] T191 Make 020's hold a REQUIRED input of the read rule. Files: `packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts`, `recipes/dal/recipePredicates.ts`
+    - **Implements**: `020-FR-057`, `020-FR-059`, the `020-FR-018` correction (four SQL predicates, not three)
+    - **Acceptance**: `ViewableRecipeFields` gains a required hold field, so every call site in `recipes.service.ts`
+      and `collections.service.ts` fails to compile until it supplies one. `viewableBy`, `publishedOrOwnedBy`,
+      `readableBy` and `communityOf` all read the one hold SQL form. A missing or unknown input reads as held.
+    - **Tests**: unit (each call site refuses a held recipe, and each input forced to NULL reads as held).
+      Integration (the recipe page, search, collections and clone each answer 404 for a held recipe). A row per door
+      in 020's deployed bypass suite (`020-FR-074`).
+- [ ] T192 A version restore writes the restored content's digest and starts a check. Files: `packages/services/recipe-service/src/versions/`
+    - **Implements**: FR-007b as amended, `020-FR-058`, `020-FR-065`
+    - **Depends on**: T191, 020's digest trigger (`020` plan K082-03)
+    - **Acceptance**: restoring a version of a public recipe holds it until the check allows the restored content.
+      A restored digest a person did not approve answers `403 SOURCE_CHECK_NOT_APPROVED` on a change to public.
+    - **Tests**: unit, integration, LOCAL e2e (the trigger nulls the digest on restore), deployed e2e (a signed-out
+      read of a restored, held recipe answers not-available).

@@ -106,13 +106,21 @@ web:
     - a family or friend recipe, shared with the giver's permission
     - public domain text that passes the gate
 - **Facts cards** for every other public recipe. A facts card shows the recipe's facts and a link or a credit, and
-  none of the source's words or photos (FR-003, FR-004, FR-014a). Anyone can read one signed out. It is never indexed.
+  none of the source's words or photos (FR-003, FR-004, FR-014a). Anyone can read one signed out. It can be indexed
+  (FR-020). _(Amended 2026-11-03, owner ruling, ADR-0082.)_
 - **Creator pages** (`/@handle`, spec 012), showing the cook's open recipes.
 
 [Law] Nobody owns a recipe's facts: the dish name, ingredients, amounts, times, temperatures, yield, servings and the
 order of steps (17 U.S.C. §102(b), Feist v. Rural, 499 U.S. 340 (1991), Publications International v. Meredith, 88 F.3d
 473 (7th Cir. 1996)). The words and photos around them are protected. So the facts of any recipe can open. A cook
 with the right to share the words can open them too. Counsel review is owed before launch (`016-FR-050`).
+
+_(Added 2026-11-03, owner ruling O5, ADR-0082.)_ **Reading a public or creator recipe is never paid for.** The owner,
+verbatim: "Our competitors rely on making users pay to access any recipe. I want to undercut them and I believe recipes
+are like a library and so I want people to find public and creator recipes on our app over all others." No Pro plan or
+other paywall ever applies to reading a public or creator recipe, signed in or signed out. Pro sells private capacity
+and tools, never access. A chef's paid content (`018`) is a separate product that a chef sells. It is not a public
+recipe. Counsel review is owed before launch (`016-FR-050`).
 
 Everything else stays behind sign-in. The app root still opens on sign-in (`001-FR-045a`). Public pages live on
 their own routes, and a person reaches them only through a link or a search result.
@@ -135,8 +143,8 @@ their own routes, and a person reaches them only through a link or a search resu
   that already exist, plus the licence and the rights label (`016-FR-015c`). Public means public on the web.
 - **It opens no full copy of words the cook did not write.** _(Amended 2026-11-03, owner rulings, ADR-0082.)_ A copy of
   a web page, a book or a paid site keeps its full text private, for the cook and their household. Its public form is
-  a facts card, and no facts card is ever indexed [House rule]. A page's own stated licence is the one exception
-  (FR-014f).
+  a facts card. A facts card can be indexed under the same public rule as any page (FR-020). _(Amended 2026-11-03,
+  owner ruling, ADR-0082.)_ A page's own stated licence stays `noindex` for now (FR-014f).
 - **It does not ship the Commise version at launch.** Commise does not publish an AI rewrite of another site's recipe
   (FR-014h). That is a launch decision and a later gated pilot, not a legal bar.
 - **It adds one signed-out search: the chef directory** (amended 2026-10-29, Q2). A signed-out visitor otherwise
@@ -148,22 +156,22 @@ their own routes, and a person reaches them only through a link or a search resu
 
 ### Words used in this spec
 
-| Word                     | Meaning                                                                                                                                                                                                                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open recipe**          | A recipe that meets the open-to-the-web rule (FR-002). Anyone can read it signed out                                                                                                                                                                                                              |
-| **Indexable**            | An open recipe, or a creator page, that search engines are allowed to index (FR-020). Every other public page says `noindex`                                                                                                                                                                      |
-| **Public page**          | The signed-out web page for one open recipe or one creator page                                                                                                                                                                                                                                   |
-| **Public view**          | The app's read-only screen for an open recipe or a creator page, reached by a link while signed out                                                                                                                                                                                               |
-| **Facts card**           | _(Added 2026-11-03, ADR-0082.)_ The public form of a recipe whose words the cook cannot share. It shows the recipe's facts and a link or a credit, never the source's words or photos. Anyone can read it signed out. It is always `noindex`. It has two kinds: the linked card and the book card |
-| **Linked card**          | The facts card for a recipe copied from a web page (FR-014a). It ends with a link to the original                                                                                                                                                                                                 |
-| **Book card**            | _(Added 2026-11-03, ADR-0082.)_ The facts card for a recipe from a cookbook, magazine or paid site (FR-004). It credits the book or the site                                                                                                                                                      |
-| **Source card**          | _(Amended 2026-11-03.)_ The narrow form of a linked card: the title, the site's name and a link only. It is used only for a site that opted out, a site past its cap, or an excluded site (FR-014e)                                                                                               |
-| **Public domain record** | _(Added 2026-11-03.)_ The curator's record that lets public domain text open (FR-006, `016-FR-015k`)                                                                                                                                                                                              |
-| **Not available**        | The one answer for any address that is not an open recipe, a public facts card, a source card or an active creator page. It never says why                                                                                                                                                        |
-| **Share link**           | The canonical address of a public page, plus an opaque share mark (FR-031)                                                                                                                                                                                                                        |
-| **Settle period**        | The 72 hours after a recipe first becomes open, or after its checked content changes. During it, the page is open but not indexable                                                                                                                                                               |
-| **Exit event**           | Anything that takes a recipe or a creator page out of the open set, or changes what its page shows (FR-007)                                                                                                                                                                                       |
-| **Purge bound**          | How fast an exit event must show on every public surface (FR-061)                                                                                                                                                                                                                                 |
+| Word                     | Meaning                                                                                                                                                                                                                                                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Open recipe**          | A recipe that meets the open-to-the-web rule (FR-002). Anyone can read it signed out                                                                                                                                                                                                                  |
+| **Indexable**            | An open recipe, a facts card or a creator page that search engines are allowed to index (FR-020). Every other public page says `noindex`                                                                                                                                                              |
+| **Public page**          | The signed-out web page for one open recipe or one creator page                                                                                                                                                                                                                                       |
+| **Public view**          | The app's read-only screen for an open recipe or a creator page, reached by a link while signed out                                                                                                                                                                                                   |
+| **Facts card**           | _(Added 2026-11-03, ADR-0082.)_ The public form of a recipe whose words the cook cannot share. It shows the recipe's facts and a link or a credit, never the source's words or photos. Anyone can read it signed out. It can be indexed (FR-020). It has two kinds: the linked card and the book card |
+| **Linked card**          | The facts card for a recipe copied from a web page (FR-014a). It ends with a link to the original                                                                                                                                                                                                     |
+| **Book card**            | _(Added 2026-11-03, ADR-0082.)_ The facts card for a recipe from a cookbook, magazine or paid site (FR-004). It credits the book or the site                                                                                                                                                          |
+| **Source card**          | _(Amended 2026-11-03.)_ The narrow form of a linked card: the title, the site's name and a link only. It is used only for a site that opted out, a site past its cap, or an excluded site (FR-014e)                                                                                                   |
+| **Public domain record** | _(Added 2026-11-03.)_ The curator's record that lets public domain text open (FR-006, `016-FR-015k`)                                                                                                                                                                                                  |
+| **Not available**        | The one answer for any address that is not an open recipe, a public facts card, a source card or an active creator page. It never says why                                                                                                                                                            |
+| **Share link**           | The canonical address of a public page, plus an opaque share mark (FR-031)                                                                                                                                                                                                                            |
+| **Settle period**        | The 72 hours after a recipe first becomes open, or after its checked content changes. During it, the page is open but not indexable                                                                                                                                                                   |
+| **Exit event**           | Anything that takes a recipe or a creator page out of the open set, or changes what its page shows (FR-007)                                                                                                                                                                                           |
+| **Purge bound**          | How fast an exit event must show on every public surface (FR-061)                                                                                                                                                                                                                                     |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -191,7 +199,8 @@ is visible. The response sets no cookie. The same address requested with a valid
    **Then** each gets the same not-available answer, with the same status, words and preview card (FR-013).
 4. **Given** a public recipe copied from a web page, **When** a signed-out visitor opens its share link, **Then** they
    see the linked card: the facts, our ingredient list and a link to the original. They see none of the source's
-   method, headnote or photos, and the page answers `noindex` (FR-003, FR-014a). _(Amended 2026-11-03, ADR-0082.)_
+   method, headnote or photos (FR-003, FR-014a). The page can be indexed (FR-020). _(Amended 2026-11-03, ADR-0082,
+   owner ruling O2.)_
    For a site that opted out or is past its cap, they see the source card only (FR-014e).
 5. **Given** a phone with the Commise app installed and nobody signed in, **When** the visitor taps the share link,
    **Then** the app opens the public view of that recipe. Closing it lands on sign-in (FR-016).
@@ -585,6 +594,11 @@ creator page.
     - **Public domain opens under one gate.** `016-FR-015k` holds the rule. It replaces the earlier "open both" reading
       (authors dead 70 years) (FR-006).
     - **Book and paid-site recipes get a facts card** (FR-004). The cook's full copy stays private.
+    - _(Added 2026-11-03, second round, ADR-0082.)_ **Facts cards are indexable** (O2, FR-014g, FR-020). **Every
+      indexable page carries our own structured data, one canonical address and a sitemap place** (O3, FR-023,
+      FR-026, FR-027). **One canonical page wins for one dish from one source page** (O4, FR-026a). **A public card uses
+      no private slot** (O1, FR-014d). **Reading is never paid for** (O5, Overview). Counsel review is owed before
+      launch (`016-FR-050`).
     - **The Commise version is not at launch** (FR-014h).
     - **A CC BY 4.0 choice**, opt-in, for a recipe the cook wrote (FR-040a).
 - **Reading: visibility stays binary.** A book or paid-site recipe now has the same two states as a copied web page.
@@ -599,14 +613,21 @@ creator page.
   C-762/19). Rewording does not cure it. So the per-site cap counts every public card and any later Commise version,
   together and over time (FR-014e). [House rule] It applies to every site from day one, because we cannot tell where a
   site was made. Counsel review is owed before launch (`016-FR-050`).
-- **Reading: `noindex` on facts cards is a house rule.** It is a choice for search quality, goodwill toward source
-  sites and lower database-right exposure. It is not a legal bar. The founder can change it (FR-014g).
+- **Reading: facts cards are indexable** _(amended 2026-11-03, owner ruling, ADR-0082)_. The earlier `noindex`
+  house rule is removed. The founder, verbatim: "Our competitors rely on making users pay to access any recipe. I want
+  to undercut them and I believe recipes are like a library and so I want people to find public and creator recipes on
+  our app over all others." What stays: the facts-only field list, the per-site and per-source caps counted over time,
+  a visible credit and link to the source, and no source prose, headnote or photo. Indexing is not a separate
+  permission. It follows the public rule (FR-014g, FR-020). [House rule] Counsel review is owed before launch
+  (`016-FR-050`).
+- **Reading: no paywall on reading** _(owner ruling O5, 2026-11-03, ADR-0082)_. No Pro or other paywall applies to
+  reading a public or creator recipe, signed in or out. Pro sells private capacity and tools, never access. `018` paid
+  chef content is a separate product (FR-008).
 - **Reading: public domain pages are indexable by default.** Indexing them is a search-quality choice, not a legal
   bar. The founder can change it (FR-020).
 - **Reading: "signed in" was never the legal line.** Signed in and signed out are the same "public" in law. The
   signed-in-only rule on the linked card is removed (FR-014g).
 - **Open for the founder, not law.** Each of these is a business choice:
-    - whether facts cards are ever indexed (FR-014g)
     - whether an aggregator site gets the tightest cap or no public cards at all (FR-014e)
     - whether a creator page lists the cook's facts cards (FR-015)
     - whether a full page shown under its own stated licence is indexed (FR-014f)
@@ -669,8 +690,8 @@ creator page.
   `imported_physical` and can still carry the family label, and then it follows FR-002 like any recipe. The two
   states are:
     - **Private**: the cook's full copy, for the cook and their household. It never goes public in full.
-    - **Public**: the **book card**, a facts card only. Anyone can read it signed out. It is `noindex` and carries no
-      recipe structured data.
+    - **Public**: the **book card**, a facts card only. Anyone can read it signed out. It can be indexed (FR-020). Its
+      structured data follows FR-023. _(Amended 2026-11-03, owner ruling, ADR-0082.)_
 
     The book card has the linked card's field list (FR-014a) and no prose, headnote or photo from the source (FR-014b).
     In place of the site link it credits the book (title, author, publisher) or the paid site. These rules hold:
@@ -798,8 +819,8 @@ creator page.
   answer for a public recipe copied from a web page, served as a public projection (FR-102). The **source card** MUST
   be the answer only for a site that opted out, is past its cap, or is excluded (FR-014e). The source card shows four
   things: the title, the source site's name, a link to the original, and a sign-up control. Its preview card is a
-  Commise card with the title. It MUST NOT show ingredients, steps, the description or any photo. Both cards MUST answer `noindex` and MUST
-  NOT appear in any sitemap. The server's response is the same for every viewer (FR-012). After the page loads, the
+  Commise card with the title. It MUST NOT show ingredients, steps, the description or any photo. The linked card follows FR-020 for indexing and sitemaps. The source card MUST
+  answer `noindex` and MUST NOT appear in any sitemap. The server's response is the same for every viewer (FR-012). After the page loads, the
   owner's browser, or a household member's, MUST offer a link to the full private copy on its in-app route. This
   replaces "the source card is the signed-out answer", which hid the ingredients from signed-out readers. [Law] Signed
   in and signed out are the same "public" in law, and the facts are free (17 U.S.C. §102(b), Feist). Counsel review is
@@ -835,8 +856,10 @@ creator page.
 - **FR-014d**: There MUST be at most one public linked card per canonical page address (`004` C-001). A later cook's
   import of the same page is their own private copy. When that cook chooses Public, the existing card is offered to
   them instead of a second card. _(Amended 2026-11-03, ADR-0082.)_ The question "who can keep a web import private" is
-  answered: any cook, using a slot (001 C-004, ADR-0077 §6). The same rule holds for book cards: one public book card
-  per recipe in one book (FR-004). [Law] Merging or linking near-identical recipes is a product choice, not a legal
+  answered: any cook, using a slot (001 C-004, ADR-0077 §6), for a recipe kept private with no card. _(Amended
+  2026-11-03, owner ruling O1, ADR-0082.)_ A recipe with a public card is a public recipe and uses no slot, even when
+  the cook keeps the full text privately. The same rule holds for book cards: one public book card per recipe in one
+  book (FR-004). [Law] Merging or linking near-identical recipes is a product choice, not a legal
   problem (Sheldon v. Metro-Goldwyn, 81 F.2d 49 (2d Cir. 1936), Morrissey v. Procter & Gamble, 379 F.2d 675 (1st Cir.
   1967)). Two cooks' texts MUST never be merged into one. Matching on the address alone misses the same recipe at
   another address, and pasted copies. That is a product gap, not a legal one, and it is plan work.
@@ -870,15 +893,19 @@ creator page.
     - the curator or the fetch recorded the licence
 
     Otherwise it is a linked card (FR-003). Whether such a page is indexed is the founder's choice. Until the founder
-    decides, it is `noindex` [House rule], because the same text already sits at its own address. [Law] Software can
+    decides, it is `noindex` [House rule], because the same text already sits at its own address. This is not a facts
+    card, so owner ruling O2 does not change it. [Law] Software can
     find a STATED licence (schema.org `license`, a CC mark). It cannot find "no copyright", because every page is
     protected from creation (Berne Art. 5(2), 17 U.S.C. §102, §408). Public domain text under the curator grant now
     follows FR-006. Counsel review is owed before launch (`016-FR-050`).
 
-- **FR-014g** _(amended 2026-11-03, owner rulings, ADR-0082)_: Every facts card MUST answer `noindex` and carry no
-  recipe structured data [House rule]. The reasons are search quality, goodwill toward source sites, and lower EU and
-  UK database-right exposure. It is not a legal bar. Whether to index facts cards is an open business question for the
-  founder. A facts card is readable signed out (FR-014). "Reachable only signed in" is removed, because signed in is
+- **FR-014g** _(amended 2026-11-03, owner rulings O2 and O3, ADR-0082)_: A facts card MUST be indexable under the
+  same public rule as any page (FR-020), and MUST carry the structured data of FR-023. The earlier house rule that
+  every facts card answers `noindex` with no recipe structured data is removed. The owner chose to undercut paid
+  recipe sites and to make public and creator recipes easy to find. What stays: the facts-only field list (FR-014a),
+  the per-site and per-source caps counted over time (FR-014e), a visible credit and link to the source, and no source
+  prose, headnote or photo (FR-014b). [House rule] Counsel review is owed before launch (`016-FR-050`). A facts card
+  is readable signed out (FR-014). "Reachable only signed in" is removed, because signed in is
   not a legal line. A surface MUST NOT list, browse, filter or search facts cards by source site or by book
   (`016-FR-030a`). The owner's fallback needs counsel to ask for it. In it the card hides its ingredient list and keeps
   every add-to action. It says plainly that the ingredients are on the site and still go to the cook's list. The
@@ -942,8 +969,9 @@ creator page.
 
 #### C. Search engines
 
-- **FR-020**: An open recipe is **indexable** only if all of these hold. Every other public page MUST answer
-  `noindex`, in both the page and the `X-Robots-Tag` header, and MUST be left out of sitemaps:
+- **FR-020** _(amended 2026-11-03, owner ruling O2, ADR-0082)_: An open recipe or a facts card is **indexable** only
+  if all of these hold. Every other public page MUST answer `noindex`, in both the page and the `X-Robots-Tag` header,
+  and MUST be left out of sitemaps:
     1. It is not a clone (FR-005).
     2. It is not thin (FR-021).
     3. Its settle period is over (FR-022).
@@ -953,7 +981,10 @@ creator page.
     6. _(Added 2026-11-03, ADR-0082.)_ It is not a page shown under its source's own stated licence (FR-014f), until
        the founder decides otherwise.
 
-    _(Amended 2026-11-03, ADR-0082.)_ A facts card is never an open recipe, so it is never indexable (FR-014g). Every
+    _(Amended 2026-11-03, owner ruling O2, ADR-0082.)_ A facts card is not an open recipe, but it is indexable under
+    this same rule (FR-014g). Rule 1 does not apply to a card that is the one canonical card for its source page
+    (FR-014d). A source card (FR-014e) is never indexable. A facts card that declares another page as its canonical
+    page (FR-026a) is left out of sitemaps. Indexing is not a separate permission: it follows the public rule. Every
     open label can be indexable under these rules: written, adapted, family and public domain alike. Indexing a public
     domain page is a search-quality choice, not a legal bar. The default is indexable, and the founder can change it.
 
@@ -979,7 +1010,17 @@ creator page.
     - the CC Public Domain Mark address, for public domain text (FR-006)
     - the Commise terms address, otherwise
 
-    An open page with no structured data states its licence with a `rel="license"` link instead. A facts card carries no structured data (FR-014g).
+    An open page with no structured data states its licence with a `rel="license"` link instead.
+
+    _(Added 2026-11-03, owner ruling O3, ADR-0082.)_ An indexable facts card with at least one of the owner's own
+    photos MUST carry schema.org `Recipe` data built only from the facts the card shows (FR-014a): `name`, `image` (the
+    owner's own photo), the times, `recipeYield`, `recipeIngredient` in our normalized form, our own `nutrition` with
+    the existing partial-data rule, and the owner's own notes as `description`. It MUST include `isBasedOn`, pointing
+    at the source page (or naming the book or paid site), and MUST show the same credit on the page. It MUST NOT carry
+    the source's method, headnote, photo or any raw line, and it carries no `recipeInstructions` because the card shows
+    only a step count. A card with no owner photo carries no `Recipe` data (Google needs `image`). Every indexable page
+    MUST be signed-out server-rendered HTML with one canonical address (FR-026) and a place in the sitemap (FR-027).
+    [House rule] Counsel review is owed before launch (`016-FR-050`).
 
 - **FR-024**: The structured data's `author`, and the page's author line, MUST come from the cook's active creator
   profile: its display name, and its address as the URL. A cook with no active creator profile MUST have no author
@@ -992,7 +1033,13 @@ creator page.
   profile fields the cook set.
 - **FR-026**: Every public page MUST declare its canonical address, and a clone MUST declare its own. Query parameters,
   the share mark included, MUST never change the canonical address.
-- **FR-027**: Sitemaps MUST list every indexable recipe and creator page, and nothing else, with a last-modified date
+- **FR-026a** _(added 2026-11-03, owner ruling O4, ADR-0082)_: We MUST NOT publish thin duplicates. Where several
+  public pages describe one dish from the same source page, one canonical page wins and the others declare it as their
+  canonical address. The model is the existing one: one public card per canonical page address (FR-014d, `004` C-001),
+  and a clone stays `noindex` with its own canonical (FR-005, FR-026). Two cooks' texts MUST never be merged. [House
+  rule] Which page wins when a card and a cook's own open recipe meet is plan work. Counsel review is owed before
+  launch (`016-FR-050`).
+- **FR-027**: Sitemaps MUST list every indexable recipe, indexable facts card and creator page, and nothing else, with a last-modified date
   equal to the last change to what the page shows. They MUST be split so no file passes 50,000 addresses, and MUST be
   reachable from a sitemap index. A page that becomes indexable MUST appear within one hour, and one that stops MUST
   leave within one hour.
@@ -1091,7 +1138,7 @@ creator page.
       ownership of another cook's words.
     - _(Amended 2026-11-03, owner rulings, ADR-0082.)_ For a recipe whose public form is a facts card (a copied web
       page, a book or a paid site), the second and third points do not apply. The panel says instead: anyone can read
-      the facts and the link or credit, signed out. Search engines are told not to index it. The method and photos
+      the facts and the link or credit, signed out. Search engines can index it. The method and photos
       stay with the source. The words come from `016-FR-015g`. A family or friend recipe and public domain text get
       all the points, like any open recipe. This replaces "never open to the web" for those two labels.
     - _(Added 2026-11-03.)_ The cook's own notes and photos on a facts card are the cook's protected expression, so
@@ -1451,8 +1498,9 @@ creator page.
 - **SC-015** _(added 2026-10-28)_: 100% of indexable recipe pages show every ingredient and step, and their structured
   data, in a fetch that runs no script.
 - **SC-016** _(added 2026-11-03)_: Zero facts cards carry the source's method, headnote, description, photo or a raw
-  line, checked by a scan of rendered cards and their projection. Zero facts cards are indexable or carry recipe
-  structured data.
+  line, checked by a scan of rendered cards and their projection. _(Amended 2026-11-03, owner ruling, ADR-0082.)_ Every
+  indexable facts card carries `Recipe` data built only from its own facts, with `isBasedOn` and a visible credit, and
+  no source prose.
 - **SC-017** _(added 2026-11-03)_: No site, book or paid site ever has more public facts cards than its cap, checked by
   a test that publishes past the cap and deletes cards to try to free a place.
 - **SC-018** _(added 2026-11-03)_: 100% of open pages show a licence line, and every `license` value in their markup

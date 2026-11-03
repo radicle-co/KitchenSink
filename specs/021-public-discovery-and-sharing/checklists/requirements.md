@@ -39,7 +39,7 @@
   the web, every non-open address gets one `404`, and "ping" means IndexNow plus sitemap removal. The 2026-10-27
   reading that `imported_public` stays signed-in only is replaced (Session 2026-11-03, ADR-0082).
 - 2026-11-03 (owner rulings, ADR-0082): the rights label, not the source type, decides what opens. Facts cards (the
-  linked card and the book card) are readable signed out and always `noindex`. Family recipes and gated public domain
+  linked card and the book card) are readable signed out and indexable under the public rule (owner ruling O2, amended 2026-11-03, ADR-0082). Family recipes and gated public domain
   text open to the web. Cooks get an opt-in CC BY choice. The source card is kept only for an opted-out, capped or
   excluded site. Counsel's list grows (FR-095). GR-014 is amended in the same change (FR-096). No `plan.md` or
   `tasks.md` exists yet, so the spec lists the plan work owed under Dependencies.

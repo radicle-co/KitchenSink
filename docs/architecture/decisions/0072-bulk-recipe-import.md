@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §9 and its Related work. A recipe whose source is not a public web page can be public as the cook's own "Adapted" version or as a facts card. The server looks for a stated licence, never for "no copyright". Two statement kinds are added. Every other part stands.
 - **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): §9's statement list gains
   "Adapted in my own words" and "From a family member or friend, with their permission". A family or friend recipe is
   no longer labelled like a paid source. The rest of §9 stands, except that a web import now goes private for any cook,

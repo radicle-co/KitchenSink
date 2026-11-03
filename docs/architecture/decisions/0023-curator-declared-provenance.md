@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-19
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §1: the curator grant carries a public-domain record, judged by the rolling gate in `016-FR-015k`, and public-domain text under the grant is open to the web when that record passes. No `sourceType` value is added. Every other decision here stands.
 - **Drivers**: Seeding the recipe tier with 100+ public-domain recipes from Project Gutenberg cookbooks,
   through the real `POST /api/v1/recipes` rather than a side door, ran straight into two walls:
     - `RecipesService.create` hardcoded `sourceType: RecipeSourceType.USER_CREATED`, so **the service could

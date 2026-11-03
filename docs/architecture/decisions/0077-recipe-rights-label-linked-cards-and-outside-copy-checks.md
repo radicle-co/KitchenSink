@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-29
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §2 and §3: family recipes and gated public domain are open to the web, the linked card is readable signed out, book and paid-site recipes get a facts card, and the AI-rewrite ban is a launch decision with a pilot gate. §4 "never blocking" means "never rejected automatically". Every other part stands.
 - **Amended by:** [ADR-0078](0078-a-live-site-claim-clears-the-own-site-hit.md): §4's rule for a blogger who imports
   their own posts. A live site claim (026) now clears the hit on the recipe's own origin page. Any other hit, model
   item or photo signal still goes to a person. Every other decision here stands.

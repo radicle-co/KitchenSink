@@ -5,7 +5,7 @@
  * `selectedFill` tint, a 1.5 pt `selectedEdge` (2 pt while pressed) and an `actionText` label. A count keeps the semibold figure on both
  * platforms. The web leaves spell the same rules as utilities (`chipClass.ts`).
  */
-import { Platform, type TextStyle, type ViewStyle } from 'react-native';
+import { Platform, type ViewStyle } from 'react-native';
 
 import { chipFillRoleOf, chipPressToneOf, type SurfaceTone } from '../surfaceTone/surfaceTone.js';
 import type { Theme } from '../theme/themeFor.js';
@@ -70,20 +70,4 @@ export function chipPill(
                   borderColor: 'transparent',
               }),
     };
-}
-
-/**
- * The label for a chip's state. Pure.
- *
- * @param theme - The current theme (`useTheme()`).
- * @param selected - Whether it shows selected.
- * @returns The label's style.
- */
-export function chipLabel({ colors }: Theme, selected: boolean): TextStyle {
-    return { ...nativeTokens.type.caption, flexShrink: 1, color: selected ? colors.actionText : colors.ink };
-}
-
-/** A count after the label: tabular digits, `inkMuted`, from the theme. Pure. */
-export function chipCount({ colors }: Theme): TextStyle {
-    return { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'], color: colors.inkMuted };
 }

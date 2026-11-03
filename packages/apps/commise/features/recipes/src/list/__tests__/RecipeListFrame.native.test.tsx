@@ -155,10 +155,11 @@ describe('RecipeListFrame (native) — the heading sits on the canvas', () => {
     it('paints the heading in the large title role’s registered Manrope face, never a CSS font stack', () => {
         render(frame());
 
-        const applied = appliedFontFamily(screen.getByRole('heading', { name: 'Recipes' }));
+        // REWRITTEN (designer finding C-1): the title is the design-system Text, so its face is read resolved, not from a
+        // React Native class.
+        const applied = resolvedStyle(screen.getByRole('heading', { name: 'Recipes' }), 'fontFamily');
 
-        expect(applied).toBe(nativeTokens.type.largeTitle.narrow.fontFamily);
-        expect(applied).not.toContain(',');
+        expect(applied).toContain(nativeTokens.type.largeTitle.narrow.fontFamily);
     });
 
     it('in compact height the plain heading takes the large title role too: its 600 face, never the 700 bold', () => {

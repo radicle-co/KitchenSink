@@ -8,7 +8,7 @@ import { act, cleanup, screen } from '@testing-library/react';
 import { Pressable, Text } from 'react-native';
 
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
-import { renderWithTamagui, render } from '../../testing/tamaguiTesting.native.js';
+import { renderWithTamagui, render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { useScrollHost } from '../../scrollHost/scrollHostContext.js';
 import { LargeTitleHeader } from '../LargeTitleHeader.native.js';
@@ -176,5 +176,21 @@ describe('LargeTitleHeader (native)', () => {
         expect(seen.condensed).toBe(false);
         act(() => seen.scroll?.(84));
         expect(seen.condensed).toBe(true);
+    });
+});
+
+// Designer finding C-1 (reviews/mergedUiIos1.md): at the largest text size the title drew at about 3x and broke inside its
+// word ("Recipe / s"). `largeTitle` stops at 1.5x (42 pt), a capped title fits whole words at 390 pt (the fit is
+// `recipesScreen.fit.test.ts`).
+describe('LargeTitleHeader (native) — the title stops at 1.5x', () => {
+    it.each([
+        [1, '28px'],
+        [1.5, '42px'],
+        [2, '42px'],
+        [3.1, '42px'],
+    ] as const)('at system scale %fx the title is %s', (scale, size) => {
+        renderWithTamagui(<LargeTitleHeader headingId="h" title="Recipes" />, 'light', scale);
+
+        expect(resolvedStyle(screen.getByRole('heading', { name: 'Recipes' }), 'fontSize')).toBe(size);
     });
 });

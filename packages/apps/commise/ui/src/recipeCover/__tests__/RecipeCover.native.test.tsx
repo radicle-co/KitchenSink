@@ -20,7 +20,7 @@ vi.mock('react-native', async (importOriginal) => {
     return {
         ...actual,
         useColorScheme: () => scheme.current,
-        Text: (props: { children?: unknown; allowFontScaling?: boolean }) => {
+        Text: (props: import('react-native').TextProps) => {
             if (typeof props.children === 'string') {
                 textProps.set(props.children, props);
             }

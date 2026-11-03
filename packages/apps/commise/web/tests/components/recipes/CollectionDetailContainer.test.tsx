@@ -504,6 +504,21 @@ describe('CollectionDetailContainer — removing a member, with Undo', () => {
     });
 });
 
+/**
+ * The collection's OWN visibility, in its header's meta line ("🔒 Private · 6 recipes"). A private member recipe now draws a
+ * "Private" status pill of its own on its tile (UI Designer ruling, 2026-11-03: Draft and Private are pills with words), so the
+ * bare word is on the page twice; the header's is the one with a separator (`data-sep`), and the one these tests are about.
+ */
+function headerVisibility(word: 'Private' | 'Public'): HTMLElement {
+    const own = screen.getAllByText(word).filter((node) => node.hasAttribute('data-sep'));
+
+    if (own.length !== 1) {
+        throw new Error(`expected the header's one "${word}", found ${String(own.length)}`);
+    }
+
+    return own[0] as HTMLElement;
+}
+
 describe('CollectionDetailContainer — visibility, with Undo and the Pro sheet', () => {
     it('makes a public collection private at once, says so, and Undo changes it back', async () => {
         const user = userEvent.setup();
@@ -523,7 +538,7 @@ describe('CollectionDetailContainer — visibility, with Undo and the Pro sheet'
 
         expect(await screen.findByText('Collection is now private.')).toBeInTheDocument();
         await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { visibility: 'private' }));
-        expect(screen.getByText('Private')).toBeInTheDocument();
+        expect(headerVisibility('Private')).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'Undo' }));
 
@@ -604,7 +619,7 @@ describe('CollectionDetailContainer — visibility, with Undo and the Pro sheet'
 
             await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
             expect(update).not.toHaveBeenCalled();
-            expect(screen.getByText('Private')).toBeInTheDocument();
+            expect(headerVisibility('Private')).toBeInTheDocument();
         },
     );
 

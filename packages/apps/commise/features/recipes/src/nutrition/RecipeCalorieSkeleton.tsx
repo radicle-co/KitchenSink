@@ -26,7 +26,7 @@
  */
 import { useContext, type FC } from 'react';
 
-import { MetaLeadContext, unbreakable } from '../card/metaRun.js';
+import { MetaLeadContext } from '../card/metaRun.js';
 
 /** Props for {@link RecipeCalorieSkeleton}. */
 export interface RecipeCalorieSkeletonProps {
@@ -54,7 +54,7 @@ export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label })
         <>
             {lead}
             <span className="inline-flex items-center">
-                <span className="sr-only">{unbreakable(label)}</span>
+                <span className="sr-only">{label}</span>
                 <span aria-hidden="true" className={SHIMMER_CLASS} />
             </span>
         </>

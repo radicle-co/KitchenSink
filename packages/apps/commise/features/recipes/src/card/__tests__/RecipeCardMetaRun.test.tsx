@@ -229,7 +229,8 @@ describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — a part never b
         expect(breaksOnlyAfterDots(text)).toBe(true);
     });
 
-    it('keeps the calorie loading form unbreakable too', () => {
+    // Drawn text only: the loading label is `sr-only` (a screen reader hears it, nobody sees it wrap), so it stays plain text.
+    it('keeps the calorie loading form unbreakable too, apart from its screen-reader-only label', () => {
         const { container } = renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -239,7 +240,10 @@ describe.each(['grid', 'row'] as const)('RecipeCard (web, %s) — a part never b
             />,
         );
 
-        expect(breaksOnlyAfterDots(textOf(container) ?? '')).toBe(true);
+        const line = lineOf(container) as HTMLElement;
+
+        line.querySelectorAll('.sr-only').forEach((node) => node.remove());
+        expect(breaksOnlyAfterDots(line.textContent ?? '')).toBe(true);
     });
 });
 

@@ -73,6 +73,7 @@ import type {
     StatusResponse,
 } from '@kitchensink/schema-food';
 
+import { AccountSuspendedError } from './accountSuspendedError.js';
 import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
@@ -1295,6 +1296,9 @@ export class FoodServiceClient {
             case 'UNAUTHORIZED':
             case 'IDENTITY_SYNC_PENDING':
                 return new UnauthorizedError(body.message);
+            // ADR-0081: its own class, a ForbiddenError by inheritance. No retry or sign-in lifts a suspension.
+            case 'ACCOUNT_SUSPENDED':
+                return new AccountSuspendedError(body.message);
             case 'FORBIDDEN':
                 return new ForbiddenError(body.message);
             case 'FOOD_NOT_FOUND':

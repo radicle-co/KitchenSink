@@ -48,7 +48,8 @@
  * module is PURE — it exports data and one pure function, touches no filesystem, and boots no application.
  */
 import { z } from 'zod';
-import { buildOpenApiDocument } from '@kitchensink/contract-gen';
+import { buildOpenApiDocument, withResponseOnOperations } from '@kitchensink/contract-gen';
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import type {
     HttpMethod,
     OpenApiBuildResult,
@@ -1453,6 +1454,19 @@ export function buildRecipeOpenApiDocument(): OpenApiBuildResult {
         },
         defaultSecurity: [CLERK_BEARER],
         components: openApiComponents,
-        paths,
+        // ADR-0081: the suspended-account `403` is added to every operation a Clerk session reaches rather than written on
+        // each route. The auth middleware answers it before any handler runs, so it is a property of the surface, and a
+        // route added tomorrow is covered. A route's own `403` (not the owner, a full private slot) keeps its meaning and
+        // gains this one.
+        paths: withResponseOnOperations<ComponentName>(paths, {
+            status: '403',
+            response: {
+                description: `The token is genuine but its account is suspended: \`code: ${ACCOUNT_SUSPENDED_CODE}\` (ADR-0081). Answered before the route runs.`,
+                schema: 'ErrorResponse',
+            },
+            // The default requirement, or one that names the Clerk scheme. Public probes (`security: []`) and the
+            // service-token routes are out.
+            appliesTo: (operation) => operation.security === undefined || operation.security.includes(CLERK_BEARER),
+        }),
     });
 }

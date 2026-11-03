@@ -29,6 +29,8 @@ interface ReceivedRequest {
 interface CannedResponse {
     readonly status: number;
     readonly json?: unknown;
+    /** Extra response headers, such as `retry-after`. */
+    readonly headers?: Record<string, string>;
 }
 
 /** A booted test server: its base URL, the requests it received (in order), and a shutdown hook. */
@@ -124,7 +126,7 @@ async function startServer(
                 return;
             }
 
-            res.writeHead(canned.status, { 'content-type': 'application/json' });
+            res.writeHead(canned.status, { 'content-type': 'application/json', ...canned.headers });
             res.end(JSON.stringify(canned.json));
         })();
     });
@@ -234,6 +236,21 @@ describe('RecipeServiceClient (integration, real HTTP server)', () => {
         const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch });
 
         await expect(client.getRecipeById('rec_missing')).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('⛔ reads a real 429 Retry-After header into error.retryAfterSeconds', async () => {
+        server = await startServer([
+            {
+                status: 429,
+                json: { code: 'TOO_MANY_REQUESTS', message: 'slow' },
+                headers: { 'retry-after': '60' },
+            },
+        ]);
+        const client = new RecipeServiceClient({ baseUrl: server.baseUrl, fetch });
+
+        const error = await client.getRecipeById('rec_1').catch((caught: unknown) => caught);
+
+        expect(error).toMatchObject({ status: 429, retryAfterSeconds: 60 });
     });
 
     it('resolves void on a real 204 delete', async () => {

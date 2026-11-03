@@ -96,6 +96,55 @@ export class AdminService {
         return { users: rows, limit, offset };
     }
 
+    /**
+     * Move a user from `from` to a new status, only if the row still holds `from`, then wake the deletion worker.
+     *
+     * The status was read and checked before this write, so the check alone cannot stop an erasure that commits in
+     * between from being turned back into `suspended` or `active`. The expected prior status is in the WHERE.
+     *
+     * ⛔ ADR-0081: suspension is a PROVIDER state. The deletion worker writes the `public_metadata.suspended` mark that
+     * every service refuses at the shared verifier, and clears it on unsuspend. So the status INTENT advances in the
+     * same statement as the status (compare-and-set against a stale worker, exactly as closure and reactivation do),
+     * and the worker is handed a trigger. This REVERSES the earlier "no `status_version` bump": its reason was that
+     * nothing would ever settle an advanced intent, and the worker now does. The `reactivation` event name is
+     * historical; the worker reads the database and converges, whatever the name (U10).
+     *
+     * @throws ConflictException when no row held `from` any more.
+     * @sideEffect updates the `users` row and enqueues a provider-convergence trigger.
+     */
+    private async transition(
+        user: { id: UserId; identityId: string },
+        from: 'active' | 'suspended',
+        set: { status: 'active' | 'suspended'; updatedAt: Date },
+    ): Promise<void> {
+        const updated = await this.db
+            .update(users)
+            .set({ ...set, statusVersion: sql`${users.statusVersion} + 1` })
+            .where(and(eq(users.id, user.id), eq(users.status, from)))
+            .returning({ id: users.id });
+
+        if (updated.length === 0) {
+            throw new ConflictException(
+                `User ${user.id} is no longer '${from}'; the status changed during the request`,
+            );
+        }
+
+        try {
+            await this.sqs.enqueueDeletion({ identityId: user.identityId, userId: user.id, event: 'reactivation' });
+        } catch (err) {
+            // ⛔ NOT a `warn`: the status is committed, so the database says suspended (or active) while the token mark
+            // still says the old thing. The ONE paging path in `deletionEnqueue.error.ts`. The lost message is not gone for
+            // good: the intent stays unapplied, `queueCheck` reports it, and the nightly erasure-reconciliation run
+            // re-sends the trigger (`convergenceRedrive.ts`). The queue check itself only reads.
+            reportDeletionEnqueueFailure({
+                event: 'reactivation',
+                userId: user.id,
+                identityId: user.identityId,
+                error: err,
+            });
+        }
+    }
+
     async suspendUser(
         targetSub: string,
         adminCtx: AuthorizerContext,
@@ -110,10 +159,7 @@ export class AdminService {
         }
 
         const now = new Date();
-        // No `status_version` bump on purpose: suspension is not a PROVIDER state. The deletion worker converges
-        // `shouldBeBanned = tombstoned`, so active and suspended are both unbanned and nothing would ever settle
-        // an advanced intent, which the queue check would then escalate as a lost trigger forever.
-        await this.db.update(users).set({ status: 'suspended', updatedAt: now }).where(eq(users.id, existing.id));
+        await this.transition(existing, 'active', { status: 'suspended', updatedAt: now });
 
         this.logger.warn('user suspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 
@@ -133,8 +179,7 @@ export class AdminService {
         }
 
         const now = new Date();
-        // No `status_version` bump: see `suspendUser`.
-        await this.db.update(users).set({ status: 'active', updatedAt: now }).where(eq(users.id, existing.id));
+        await this.transition(existing, 'suspended', { status: 'active', updatedAt: now });
 
         this.logger.warn('user unsuspended', { adminSub: adminCtx.userId, targetSub, id: existing.id });
 

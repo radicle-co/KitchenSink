@@ -5,7 +5,12 @@ import { eq } from 'drizzle-orm';
 
 import { recordOnce, hasProcessedWebhookEvent, UserDAO, users } from '@kitchensink/identity-db';
 import type { UserRow } from '@kitchensink/identity-db';
-import { isNonRevivable, provisionCompleteUser, type ProvisionResult } from '@kitchensink/identity-utils';
+import {
+    isEmailUniqueViolation,
+    isNonRevivable,
+    provisionCompleteUser,
+    type ProvisionResult,
+} from '@kitchensink/identity-utils';
 import {
     createSnsHandleSyncPublisher,
     noopHandleSyncPublisher,
@@ -31,7 +36,12 @@ import type { IdentityUserData as ValidatedIdentityUserData } from '../common/id
  */
 type IdentityUserData = ValidatedIdentityUserData;
 
-const getPrimaryEmail = (data: IdentityUserData): string | undefined => data.email_addresses?.[0]?.email_address;
+// The entry Clerk names as primary (the one reconciliation reads), else the first: both paths must agree on "the" email.
+const getPrimaryEmail = (data: IdentityUserData): string | undefined =>
+    (
+        data.email_addresses.find((e) => e.id !== undefined && e.id === data.primary_email_address_id) ??
+        data.email_addresses[0]
+    )?.email_address;
 
 const buildDisplayName = (data: IdentityUserData): string => `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim();
 
@@ -200,7 +210,21 @@ const handleUserUpdated = async (
 
     // if email changed -> update users.email + updated_at
     if (email && email !== existing.email) {
-        await db.update(users).set({ email, updatedAt: now }).where(eq(users.id, existing.id));
+        try {
+            await db.update(users).set({ email, updatedAt: now }).where(eq(users.id, existing.id));
+        } catch (err) {
+            if (!isEmailUniqueViolation(err)) {
+                throw err;
+            }
+
+            // The address belongs to another row (this one holds a placeholder). Keep the current email, as
+            // provisioning does, so the name and username below still sync instead of failing on every event.
+            logger.warn('identity-webhook: user.updated email belongs to another user; keeping the current one', {
+                requestId,
+                identityId: data.id,
+                userId: existing.id,
+            });
+        }
     }
 
     // Coherent users/profiles sync (S-I3; plan 2026-10-15-010 D5): the name and picture are gated on the Clerk MIRROR

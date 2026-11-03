@@ -198,7 +198,11 @@ function failureFor(error: unknown): RecipeSendResult {
     }
 
     if (isRecipeServiceClientError(error) && typeof error.status === 'number') {
-        return { outcome: 'failed', status: error.status };
+        return {
+            outcome: 'failed',
+            status: error.status,
+            ...(error.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: error.retryAfterSeconds }),
+        };
     }
 
     // No status: nothing answered, or something answered in a shape the client could not read. Genuinely

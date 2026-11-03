@@ -71,6 +71,36 @@ export function classifyFailure(failure: SyncFailure): FailureClass {
 }
 
 /**
+ * Whether the drain sends a PARKED record again by itself, with no word from the cook.
+ *
+ * ⛔ ONLY WHEN THAT CANNOT WRITE TWICE: a transient refusal (the server did not process it), `401` (the sender refused
+ * before sending, because its cook was signed out), or a DELETE of any outcome but a stated refusal (its second copy
+ * meets the service's own 404). An unknown outcome of anything else, a conflict and a terminal refusal wait for the
+ * cook — re-sending an unknown outcome on the next reconnect is the blind retry this module's rule forbids, one trigger
+ * later.
+ *
+ * Exported because a Discard's confirm reads it too: a parked write this answers `true` for may be claimed and land at
+ * any moment, so the confirm may not promise it will not (`discardPlanOf`).
+ *
+ * @param failure - The parked record, as the outbox reports it.
+ * @returns Whether a drain re-sends it. Pure.
+ */
+export function resendsWhenParked(failure: SyncFailure): boolean {
+    if (failure.status === 401) {
+        return true;
+    }
+
+    // ⛔ A DELETE CANNOT WRITE TWICE, so an unknown outcome (no status, or a gateway's 502/504) may be sent again: if the first copy landed, the second meets
+    // the service's own "no such recipe" 404, which the sender reads as done. This depends on there being no route that
+    // undeletes a recipe (ADR-0057).
+    if (failure.intentKind === 'delete' && classifyFailure(failure) === 'unknown') {
+        return true;
+    }
+
+    return classifyFailure(failure) === 'transient';
+}
+
+/**
  * Where this error belongs on screen.
  *
  * A write that IS the entity (creating or updating a recipe) scopes to that entity's surface; a write that is

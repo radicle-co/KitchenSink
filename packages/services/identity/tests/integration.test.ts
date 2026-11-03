@@ -196,7 +196,9 @@ describe('UsersService', () => {
 
     it('deleteUserMe tombstones (closure): scrubs email+avatar, keeps the row, and enqueues a closure ban', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
-        const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+        const setMock = vi.fn().mockReturnValue({
+            where: () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([{ id: mockUser.id }]) }),
+        });
         mockDb.update = vi.fn().mockReturnValue({ set: setMock });
         const insertValues = vi.fn().mockResolvedValue(undefined);
         mockDb.insert = vi.fn().mockReturnValue({ values: insertValues });
@@ -230,7 +232,12 @@ describe('UsersService', () => {
 
     it('deleteUserMe closure still succeeds when the avatar S3 delete fails (best-effort)', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
-        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.update = vi.fn().mockReturnValue({
+            set: () => ({
+                where: () =>
+                    Object.assign(Promise.resolve(), { returning: () => Promise.resolve([{ id: mockUser.id }]) }),
+            }),
+        });
         mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
         mockAvatarStore.removeAll.mockRejectedValue(new Error('s3 down'));
 
@@ -246,7 +253,12 @@ describe('UsersService', () => {
     // task role had no `sqs:SendMessage` grant at all and EVERY enqueue was failing.
     it('deleteUserMe PAGES when the closure ban cannot be enqueued, instead of warning about it', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
-        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.update = vi.fn().mockReturnValue({
+            set: () => ({
+                where: () =>
+                    Object.assign(Promise.resolve(), { returning: () => Promise.resolve([{ id: mockUser.id }]) }),
+            }),
+        });
         mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
         mockSqs.enqueueDeletion.mockRejectedValueOnce(new Error('AccessDenied'));
 
@@ -261,6 +273,55 @@ describe('UsersService', () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([]));
 
         await expect(usersService.deleteUserMe(userCtx)).rejects.toThrow('User not found');
+    });
+
+    // A suspended account is a moderation hold: it must not change its profile (the byline would be republished) or
+    // close itself (a later reactivation would silently lift the suspension). Erasure stays open (GDPR).
+    it('deleteUserMe refuses a suspended account and changes nothing', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([{ ...mockUser, status: 'suspended' }]));
+
+        await expect(usersService.deleteUserMe(userCtx)).rejects.toThrow('User is suspended');
+
+        expect(mockDb.transaction).not.toHaveBeenCalled();
+        expect(mockSqs.enqueueDeletion).not.toHaveBeenCalled();
+    });
+
+    // The status was read, then the row written by id alone: an erasure committing in between would be turned
+    // back into a tombstone. The read status is in the WHERE; no row matched means 409 and nothing else happens.
+    it('deleteUserMe answers 409 and rolls back when the row changed under it', async () => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
+        mockDb.update = vi.fn().mockReturnValue({
+            set: () => ({ where: () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([]) }) }),
+        });
+        const insertValues = vi.fn().mockResolvedValue(undefined);
+        mockDb.insert = vi.fn().mockReturnValue({ values: insertValues });
+
+        await expect(usersService.deleteUserMe(userCtx)).rejects.toMatchObject({ status: 409 });
+
+        expect(insertValues).not.toHaveBeenCalled();
+        expect(mockSqs.enqueueDeletion).not.toHaveBeenCalled();
+    });
+
+    // The same rule `resolveUser` applies: only an active account can be closed, so a tombstoned or erased one is
+    // never re-tombstoned (which would also restart its 12-month erasure clock).
+    it.each(['tombstoned', 'erased'])('deleteUserMe refuses a %s account and changes nothing', async (status) => {
+        mockDb.select = vi.fn().mockReturnValue(makeChain([{ ...mockUser, status }]));
+
+        await expect(usersService.deleteUserMe(userCtx)).rejects.toThrow('Account is closed');
+
+        expect(mockDb.transaction).not.toHaveBeenCalled();
+        expect(mockSqs.enqueueDeletion).not.toHaveBeenCalled();
+    });
+
+    it('patchUserMe refuses a suspended account and writes nothing', async () => {
+        mockResolver.resolveUser.mockRejectedValue(new Error('User is suspended'));
+
+        await expect(usersService.patchUserMe(userCtx, { displayName: 'Abusive' })).rejects.toThrow(
+            'User is suspended',
+        );
+
+        expect(mockResolver.resolveUser).toHaveBeenCalledWith(userCtx.userId);
+        expect(mockDb.update).not.toHaveBeenCalled();
     });
 
     it('patchUserMe updates profile fields', async () => {
@@ -280,10 +341,7 @@ describe('UsersService', () => {
             updatedAt: new Date(),
         };
 
-        mockDb.select = vi
-            .fn()
-            .mockReturnValueOnce(makeChain([mockUser]))
-            .mockReturnValueOnce(makeChain([updatedAccount]));
+        mockDb.select = vi.fn().mockReturnValueOnce(makeChain([updatedAccount]));
 
         // The profile comes back from the UPDATE's own RETURNING (plan 2026-10-15-010 D6); the later settle of the
         // handle-sync debt is a plain UPDATE … WHERE.
@@ -318,7 +376,9 @@ describe('UsersService', () => {
      */
     it('eraseUserMe scrubs the row to erased, writes an erasure audit row, and enqueues the erasure event', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
-        const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+        const setMock = vi.fn().mockReturnValue({
+            where: () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([{ id: mockUser.id }]) }),
+        });
         mockDb.update = vi.fn().mockReturnValue({ set: setMock });
         const insertValues = vi.fn().mockResolvedValue(undefined);
         mockDb.insert = vi.fn().mockReturnValue({ values: insertValues });
@@ -352,7 +412,12 @@ describe('UsersService', () => {
     // closure does for its ban.
     it('eraseUserMe PAGES when the erasure event cannot be enqueued', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
-        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.update = vi.fn().mockReturnValue({
+            set: () => ({
+                where: () =>
+                    Object.assign(Promise.resolve(), { returning: () => Promise.resolve([{ id: mockUser.id }]) }),
+            }),
+        });
         mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
         mockSqs.enqueueDeletion.mockRejectedValueOnce(new Error('AccessDenied'));
 
@@ -399,7 +464,12 @@ describe('UsersService', () => {
 
     it('eraseUserMe removes the avatar objects BEFORE it erases the row', async () => {
         mockDb.select = vi.fn().mockReturnValue(makeChain([mockUser]));
-        mockDb.update = vi.fn().mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) });
+        mockDb.update = vi.fn().mockReturnValue({
+            set: () => ({
+                where: () =>
+                    Object.assign(Promise.resolve(), { returning: () => Promise.resolve([{ id: mockUser.id }]) }),
+            }),
+        });
         mockDb.insert = vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
         const order: string[] = [];
         mockAvatarStore.removeAll.mockImplementation(() => {
@@ -436,7 +506,9 @@ describe('AdminService', () => {
         mockDb = {
             select: vi.fn().mockReturnValue(makeChain([mockUser])),
             update: vi.fn().mockReturnValue({
-                set: () => ({ where: () => Promise.resolve() }),
+                set: () => ({
+                    where: () => Object.assign(Promise.resolve(), { returning: () => Promise.resolve([{ id: 'u' }]) }),
+                }),
             }),
         };
 

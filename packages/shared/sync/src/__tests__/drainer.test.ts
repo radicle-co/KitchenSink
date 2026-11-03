@@ -19,13 +19,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     MAX_INLINE_WAIT_MS,
     drain,
-    resendsWhenParked,
     type DrainJournal,
     type SettlementEvent,
     type SendResult,
     type Sender,
 } from '../drainer.js';
-import { EMPTY_OUTBOX, appendIntent, markSending, settle, type OutboxLog } from '../outboxLog.js';
+import { resendsWhenParked } from '../itemStatus.js';
+import { EMPTY_OUTBOX, appendIntent, markSending, recoverInterrupted, settle, type OutboxLog } from '../outboxLog.js';
 import type { Intent, OutboxRecord } from '../record.js';
 
 const EMPTY: OutboxLog = EMPTY_OUTBOX;
@@ -839,5 +839,25 @@ describe('drain — a parked delete with an unknown outcome', () => {
 
         expect(sender).not.toHaveBeenCalled();
         expect(after.log.records.map((record) => record.state)).toStrictEqual(['parked']);
+    });
+});
+
+describe('drain — a duplicated tab', () => {
+    /**
+     * ⛔ A create parked with 401 is re-sent by the drainer. A duplicated tab copies that journal, so without the copy's
+     * recovery both tabs would send it: two recipes. Exactly one create may reach the server.
+     */
+    it('⛔ sends a create parked with 401 once across the original and the copied journal', async () => {
+        const original = settle(
+            appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })),
+            { seq: 1, outcome: 'parked', status: 401 },
+        );
+        const copy = recoverInterrupted(original, { copied: true });
+        const sender = scripted({ outcome: 'ok', serverId: 'srv-1' }, { outcome: 'ok', serverId: 'srv-2' });
+
+        await drain(original, sender);
+        await drain(copy, sender);
+
+        expect(sender).toHaveBeenCalledTimes(1);
     });
 });

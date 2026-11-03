@@ -152,15 +152,18 @@ describe('pr_scope_belongs — delimiter-aware ownership of a resource NAME', ()
 });
 
 describe('pr_scope_path_belongs — the same rule for a `/`-delimited log-group path', () => {
+    // REWRITTEN (2026-11-03): these names were hand-written and carried no `kitchensink`, which no group of ours does.
+    // A group must now name KitchenSink (see the armoury cases below), so the segment rule is proved on our names.
     it('matches the token as a whole path SEGMENT', () => {
-        expect(pathBelongs('pr-73', '/aws/lambda/pr-73')).toBe(true);
-        expect(pathBelongs('pr-73', '/aws/ecs/containerinsights/pr-73-cluster/performance')).toBe(true);
-        expect(pathBelongs('pr-73', 'pr-73-recipes')).toBe(true);
+        expect(pathBelongs('pr-73', '/kitchensink/recipe-service/pr-73')).toBe(true);
+        expect(pathBelongs('pr-73', '/aws/ecs/containerinsights/kitchensink-pr-73-cluster/performance')).toBe(true);
+        expect(pathBelongs('pr-73', '/aws/lambda/kitchensink-recipe-workers-pr-73')).toBe(true);
     });
 
     it('never lets pr-1 claim a pr-15 path segment', () => {
-        expect(pathBelongs('pr-1', '/aws/ecs/containerinsights/pr-15-cluster/performance')).toBe(false);
-        expect(pathBelongs('pr-1', '/aws/lambda/pr-15')).toBe(false);
+        // KitchenSink names, so the refusal comes from the trailing anchor and not from the app-name check.
+        expect(pathBelongs('pr-1', '/aws/ecs/containerinsights/kitchensink-pr-15-cluster/performance')).toBe(false);
+        expect(pathBelongs('pr-1', '/kitchensink/recipe-service/pr-15')).toBe(false);
     });
 
     // ⚠️ ASSERTION REVERSED (2026-08-11). This case used to require `service-pr-1` to be REFUSED, under the
@@ -170,8 +173,8 @@ describe('pr_scope_path_belongs — the same rule for a `/`-delimited log-group 
     // close and matched NOTHING, silently, which is how 22 orphans accumulated. A suffix collision
     // (`xpr-1`, `expr-57`) is still correctly refused — that is the LEADING delimiter's job, and it stays.
     it('matches a token delimited by `-` inside a segment, but not a suffix collision', () => {
-        expect(pathBelongs('pr-1', '/aws/lambda/service-pr-1')).toBe(true);
-        expect(pathBelongs('pr-1', '/aws/lambda/xpr-1')).toBe(false);
+        expect(pathBelongs('pr-1', '/aws/lambda/kitchensink-service-pr-1')).toBe(true);
+        expect(pathBelongs('pr-1', '/aws/lambda/kitchensink-xpr-1')).toBe(false);
         expect(pathBelongs('pr-57', '/aws/ecs/containerinsights/kitchensink-expr-57-cluster/performance')).toBe(false);
     });
 
@@ -187,6 +190,23 @@ describe('pr_scope_path_belongs — the same rule for a `/`-delimited log-group 
         const [token, path] = probe.split('|') as [string, string];
 
         expect(pathBelongs(token, path)).toBe(true);
+    });
+
+    // The account also hosts another app ("armoury"), and the sweep enumerates EVERY log group in it. In CI the IAM
+    // pattern (`PER_PR_NAME_PATTERN`, `kitchensink-*-pr-*`) refuses these deletes and the `|| true` hides the refusal;
+    // a run by hand with admin credentials has no such net. So the matcher itself must refuse another app's names.
+    it.each([
+        '/aws/lambda/armoury-pr-5-api',
+        '/aws/lambda/someapp-pr-5',
+        'API-Gateway-Execution-Logs_39kgy1qha7/pr-5',
+        'pr-5-anything',
+    ])('refuses a log group of another app that carries the token: %s', (path) => {
+        expect(pathBelongs('pr-5', path)).toBe(false);
+    });
+
+    it('still claims both KitchenSink log-group shapes', () => {
+        expect(pathBelongs('pr-5', '/aws/lambda/kitchensink-food-pr-5-x')).toBe(true);
+        expect(pathBelongs('pr-5', '/kitchensink/food-service/pr-5')).toBe(true);
     });
 
     it('still refuses a NEIGHBOURING PR whose real group differs by one digit', () => {

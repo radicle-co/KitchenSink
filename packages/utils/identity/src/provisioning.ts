@@ -162,7 +162,7 @@ const placeholderEmail = (identityId: string): string => `${identityId}@no-email
  * Postgres unique-violation (23505) on `users_email_unique`. Drizzle wraps the driver error, so the
  * pg error (carrying `code`/`constraint`) lives on a possibly-nested `.cause` — walk the chain.
  */
-function isEmailUniqueViolation(err: unknown): boolean {
+export function isEmailUniqueViolation(err: unknown): boolean {
     let current: unknown = err;
 
     for (let depth = 0; current !== null && current !== undefined && depth < 5; depth++) {

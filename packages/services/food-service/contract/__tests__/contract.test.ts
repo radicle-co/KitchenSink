@@ -371,8 +371,11 @@ describe('openapi coverage', () => {
 
     /**
      * Plan 002 S3: the split search routes are documented as served. The term is REQUIRED on every search (an absent
-     * one is a `400`, never "treated as empty"), each route's `429` is its own refusal, and the shared catalog route
-     * documents no `403`: it never reads who the caller is beyond the bearer's validity.
+     * one is a `400`, never "treated as empty"), each route's `429` is its own refusal, and the search routes document
+     * no SCOPE `403` (no `food:admin` gate): they never read who the caller is beyond the bearer's validity.
+     *
+     * REWRITTEN for ADR-0081: they now document a `403`, but only the suspended-account one the guard answers on every
+     * Clerk-authenticated route, so the assertion is no longer "no 403" but "no admin 403".
      */
     it('documents the split search routes: a required term, their bodies, and the statuses they answer', () => {
         const paths = foodOpenApiDocument.document['paths'] as Record<
@@ -381,7 +384,10 @@ describe('openapi coverage', () => {
                 string,
                 {
                     parameters?: { name: string; in: string; required: boolean }[];
-                    responses: Record<string, { content?: Record<string, { schema: { $ref?: string } }> }>;
+                    responses: Record<
+                        string,
+                        { description?: string; content?: Record<string, { schema: { $ref?: string } }> }
+                    >;
                 }
             >
         >;
@@ -397,18 +403,18 @@ describe('openapi coverage', () => {
 
         expect(bodyOf('/api/v1/foods/catalog/search')).toBe('#/components/schemas/CatalogSearchResponse');
         expect(bodyOf('/api/v1/foods/authored/search')).toBe('#/components/schemas/AuthoredFoodSearchResponse');
-        expect(Object.keys(operation('/api/v1/foods/catalog/search')?.responses ?? {}).sort()).toStrictEqual([
-            '200',
-            '400',
-            '401',
-            '429',
-        ]);
-        expect(Object.keys(operation('/api/v1/foods/authored/search')?.responses ?? {}).sort()).toStrictEqual([
-            '200',
-            '400',
-            '401',
-            '429',
-        ]);
+        for (const path of ['/api/v1/foods/catalog/search', '/api/v1/foods/authored/search']) {
+            expect(Object.keys(operation(path)?.responses ?? {}).sort(), path).toStrictEqual([
+                '200',
+                '400',
+                '401',
+                '403',
+                '429',
+            ]);
+            const forbidden = operation(path)?.responses['403'];
+            expect(forbidden?.description, path).toContain('ACCOUNT_SUSPENDED');
+            expect(forbidden?.description, path).not.toContain('food:admin');
+        }
     });
 
     // The erasure routes are machine-to-machine: they must NOT accept a Clerk user session, because their

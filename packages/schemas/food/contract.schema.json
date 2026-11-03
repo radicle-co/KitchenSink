@@ -1250,6 +1250,7 @@
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
+                "ACCOUNT_SUSPENDED",
                 "FOOD_PENDING",
                 "FOOD_NOT_FOUND",
                 "CANDIDATE_MISMATCH",
@@ -1387,6 +1388,23 @@
                     "properties": {
                         "code": {
                             "const": "FORBIDDEN",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "ACCOUNT_SUSPENDED",
                             "type": "string"
                         },
                         "message": {

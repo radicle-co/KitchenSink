@@ -408,6 +408,41 @@ describe('recoverInterrupted', () => {
         expect(after?.lastStatus).toBe(expected === state ? 409 : undefined);
     });
 
+    /**
+     * ⛔ A CREATE ALREADY PARKED WITH A STATUS THE DRAINER RE-SENDS (401, 429, 503) IS SENT BY BOTH TABS. The copy must
+     * strip the status too, so the drainer reads it as an unknown outcome and waits for the cook.
+     */
+    it.each([[401], [429], [503]])('⛔ in a copied log, a create parked with %i loses its status', (status) => {
+        const parked = settle(appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })), {
+            seq: 1,
+            outcome: 'parked',
+            status,
+        });
+
+        const [after] = recoverInterrupted(parked, { copied: true }).records;
+
+        expect(after?.state).toBe('parked');
+        expect(after?.lastStatus).toBeUndefined();
+        expect(recoverInterrupted(parked).records[0]?.lastStatus).toBe(status);
+    });
+
+    /**
+     * ⛔ A REFUSAL THE DRAINER NEVER RE-SENDS KEEPS ITS STATUS IN A COPY. 409 and 422 are the server's own answer: the
+     * recipe does not exist, so the cook is told it was refused, not that it "may exist".
+     */
+    it.each([[409], [422]])('⛔ in a copied log, a create parked with %i keeps its status', (status) => {
+        const parked = settle(appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'create', localId: 'r1' })), {
+            seq: 1,
+            outcome: 'parked',
+            status,
+        });
+
+        const [after] = recoverInterrupted(parked, { copied: true }).records;
+
+        expect(after?.state).toBe('parked');
+        expect(after?.lastStatus).toBe(status);
+    });
+
     it('⛔ in a copied log, still parks a record a dead process left sending', () => {
         const queued = markSending(
             appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' })),

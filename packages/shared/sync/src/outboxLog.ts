@@ -11,7 +11,7 @@
  * @pattern Transactional Outbox in its LOG form — an ordered, dependency-aware set of intents with
  *     at-most-once delivery, not a coalescing map.
  */
-import { classifyFailure } from './itemStatus.js';
+import { classifyFailure, resendsWhenParked } from './itemStatus.js';
 import { LOCAL_REF_PREFIX, resolveRef, type ResolutionMap } from './references.js';
 import type { Intent, IntentKind, LocalRef, OutboxRecord, SyncEntity } from './record.js';
 
@@ -659,18 +659,36 @@ const MINTS_A_ROW: ReadonlySet<IntentKind> = new Set<IntentKind>(['create', 'cre
  * - A record a previous process left `sending`: the server may hold it, so re-sending it would be the blind retry the
  *   drainer forbids. A record THIS process marked `sending` is a live request and is never touched.
  * - In a copied log, also every queued record of a kind that {@link MINTS_A_ROW}: the other owner of the log may send
- *   it too, which is a second recipe. The cook decides. Records of other kinds stay queued.
+ *   it too, which is a second recipe. A parked one loses its status only when the drainer would re-send it
+ *   (`resendsWhenParked`: 401, 429, 503), or both tabs would. A refusal (409, 422) keeps its status. The cook
+ *   decides. Records of other kinds stay as they are.
  *
  * @param log - The log as storage holds it.
  * @param options - Whether the log is a copy.
  * @returns A new log. Pure.
  */
 export function recoverInterrupted(log: OutboxLog, options: RecoveryOptions = {}): OutboxLog {
-    const parks = (record: OutboxRecord): boolean =>
-        record.state === 'sending' ||
-        (options.copied === true &&
-            (record.state === 'pending' || record.state === 'blocked') &&
-            MINTS_A_ROW.has(record.intentKind));
+    const copiedMint = (record: OutboxRecord): boolean => options.copied === true && MINTS_A_ROW.has(record.intentKind);
+
+    const parks = (record: OutboxRecord): boolean => {
+        if (record.state === 'sending') {
+            return true;
+        }
+
+        if (record.state === 'parked') {
+            // ⛔ ONLY A PARK THE DRAINER WOULD RE-SEND LOSES ITS STATUS. A refusal (409, 422) is never re-sent, so its
+            // reason stays for the cook; the same rule the drain uses decides, so it lives in one place.
+            return (
+                copiedMint(record) &&
+                resendsWhenParked({
+                    ...record,
+                    ...(record.lastStatus === undefined ? {} : { status: record.lastStatus }),
+                })
+            );
+        }
+
+        return copiedMint(record) && (record.state === 'pending' || record.state === 'blocked');
+    };
 
     return withdrawMoot({
         ...log,

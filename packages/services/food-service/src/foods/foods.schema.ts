@@ -1043,6 +1043,11 @@ export const foodErrorCodeSchema = z.enum([
     'IDENTITY_SYNC_PENDING',
     /** Authenticated, but lacking the `food:admin` scope (FR-039). */
     'FORBIDDEN',
+    /**
+     * The token is genuine but its account is SUSPENDED (ADR-0081) — a `403` the shared verifier raises before any
+     * handler runs. Its own code so a client tells it from a missing scope; no retry or sign-in can fix it.
+     */
+    'ACCOUNT_SUSPENDED',
     /** The food is being fetched or awaits disambiguation — a `202`, not a failure (FR-003). */
     'FOOD_PENDING',
     /** No such food, or a terminal `NOT_FOUND`/`FAILED` one; the status stays in `details` (FR-004). */
@@ -1128,6 +1133,7 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
     z.object({ code: z.literal('UNAUTHORIZED'), message: z.string() }).loose(),
     z.object({ code: z.literal('IDENTITY_SYNC_PENDING'), message: z.string() }).loose(),
     z.object({ code: z.literal('FORBIDDEN'), message: z.string() }).loose(),
+    z.object({ code: z.literal('ACCOUNT_SUSPENDED'), message: z.string() }).loose(),
     z
         .object({
             code: z.literal('FOOD_PENDING'),

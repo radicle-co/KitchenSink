@@ -15,9 +15,11 @@
  * 2. Assert the request schemas actually enforce what the controller and the published document promise, using
  *    the values that matter (whitespace-only names, empty arrays) rather than only the happy path.
  */
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import { describe, expect, it } from 'vitest';
 import { RANK_TIERS } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
+import { FOOD_ERROR_STATUS } from '../../common/apiError.js';
 import { apiErrorSchema } from '../../common/apiError.schema.js';
 import { foodStatusEnum } from '../../db/schema/food.js';
 import {
@@ -288,6 +290,7 @@ describe('foodErrorSchema', () => {
         UNAUTHORIZED: { code: 'UNAUTHORIZED', message: 'Unauthorized' },
         IDENTITY_SYNC_PENDING: { code: 'IDENTITY_SYNC_PENDING', message: 'Retry with a refreshed token' },
         FORBIDDEN: { code: 'FORBIDDEN', message: 'Operation requires elevated scope' },
+        ACCOUNT_SUSPENDED: { code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended' },
         FOOD_PENDING: {
             code: 'FOOD_PENDING',
             message: 'pending',
@@ -980,5 +983,24 @@ describe('searchResultViewSchema.matchedBy', () => {
 
         expect(parsed.matchedBy).toBeUndefined();
         expect(parsed).toMatchObject({ id: 'F', name: 'n', score: 0.5 });
+    });
+});
+
+describe('ACCOUNT_SUSPENDED is a published food error code (ADR-0081)', () => {
+    // The schema file may import only zod, so it SPELLS the code. This is the test that keeps that spelling equal to
+    // the one the shared verifier's adopters answer with.
+    it('spells the code the shared verifier answers with', () => {
+        expect(foodErrorCodeSchema.enum.ACCOUNT_SUSPENDED).toBe(ACCOUNT_SUSPENDED_CODE);
+    });
+
+    it('is a 403, like every other refusal of an authenticated caller', () => {
+        expect(FOOD_ERROR_STATUS.ACCOUNT_SUSPENDED).toBe(403);
+    });
+
+    it('narrows in the typed union, so a client reads it instead of falling back to the status', () => {
+        const body = { code: ACCOUNT_SUSPENDED_CODE, message: 'Account is suspended' };
+
+        expect(foodErrorSchema.safeParse(body).success).toBe(true);
+        expect(apiErrorSchema.safeParse(body).success).toBe(true);
     });
 });

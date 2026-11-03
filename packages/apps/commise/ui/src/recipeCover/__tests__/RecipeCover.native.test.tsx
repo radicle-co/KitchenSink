@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCover } from '../RecipeCover.native.js';
 import { coverTintOf } from '../coverTint.js';
+import { letterLiftOf, letterLineHeightOf } from '../../text/letterMetrics.js';
 import { coverTint, coverTintDark } from '../../tokens/covers.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { stubBoundingRects } from '../../testing/boundingRects.js';
@@ -171,6 +172,28 @@ describe('RecipeCover (native) — the letter is centred in the whole cover', ()
         expect(cover.children).toHaveLength(1);
         expect(resolvedStyle(region, 'flexGrow')).toBe('1');
         expect(resolvedStyle(region, 'justifyContent')).toBe('center');
+    });
+});
+
+// Designer ruling (2026-11-03): the cover letter centres by its CAP BAND within 2 pt on both axes, at every scale, and the
+// status chips sit over the cover and never push it. jsdom lays nothing out, so these assert the layout RULE; the pixels
+// are for a device.
+describe('RecipeCover (native) — the letter is centred by its cap band', () => {
+    it('gives the letter a line exactly the font’s height (no leading) and lifts it by the cap band’s drop', () => {
+        renderCover(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />, { size: [160, 120] });
+        const letter = screen.getByText('L');
+
+        expect(Number.parseFloat(resolvedStyle(letter, 'lineHeight'))).toBe(letterLineHeightOf(48));
+        expect(resolvedStyle(letter, 'transform')).toContain(`translateY(${-letterLiftOf(48)}px)`);
+    });
+
+    it('keeps the same rule at the largest text size, because the letter does not scale', () => {
+        renderCover(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />, {
+            textScale: 2,
+            size: [160, 120],
+        });
+
+        expect(Number.parseFloat(resolvedStyle(screen.getByText('L'), 'lineHeight'))).toBe(letterLineHeightOf(48));
     });
 });
 

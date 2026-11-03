@@ -14,6 +14,7 @@ import { devicePixelScale, snapLineHeight } from '../tokens/iosLineHeight.js';
 import { nativeTokens } from '../tokens/native.js';
 import { typeRole, type TypeRole } from '../tokens/typography.js';
 import { FONT_SCALE_CAP } from './fontScaleCap.js';
+import { letterLiftOf, letterLineHeightOf } from './letterMetrics.js';
 
 /** The display roles' ceiling: a title stops growing at 1.5×. */
 export const DISPLAY_FONT_SCALE_CAP = 1.5;
@@ -53,6 +54,8 @@ export interface ScaledTypeSize {
 export interface ScaledTypeMetrics {
     readonly fontSize: number;
     readonly lineHeight: `${number}px`;
+    /** The cap-centring lift of a cap-centred fixed size, and nothing else's. */
+    readonly transform?: readonly [{ readonly translateY: number }];
 }
 
 /** The scale a sized role grows to: the system scale under the role's (or a chrome step's) ceiling. */
@@ -114,6 +117,8 @@ export function scaledTypeSize(
  *     (designer ruling 2026-11-01, M-1); the text around the picture states the same word at the scaled size.
  * @param fixedPx - A size in px that does not scale (initials in a disc, drawn at 40% of its diameter: designer ruling
  *     2026-11-03). It wins over the role's size, the cap and `pictorial`; the leading is the size plus 4.
+ * @param capCentred - With `fixedPx`: draw the line as the font's own height and lift by the capitals' drop, so the
+ *     capital, not the line, is what a centring parent centres (the cover letter; designer ruling 2026-11-03).
  * @returns The scaled size and leading, or nothing for `figureInline`, which keeps its line's.
  */
 export function scaledTypeMetrics(
@@ -122,7 +127,16 @@ export function scaledTypeMetrics(
     chromeCap?: ChromeCap,
     pictorial = false,
     fixedPx?: number,
+    capCentred = false,
 ): ScaledTypeMetrics | Record<string, never> {
+    if (fixedPx !== undefined && capCentred) {
+        return {
+            fontSize: fixedPx,
+            lineHeight: `${letterLineHeightOf(fixedPx)}px`,
+            transform: [{ translateY: -letterLiftOf(fixedPx) }],
+        };
+    }
+
     if (fixedPx !== undefined) {
         return { fontSize: fixedPx, lineHeight: `${fixedPx + 4}px` };
     }

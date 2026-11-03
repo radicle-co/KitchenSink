@@ -103,6 +103,17 @@ describe('RecipeCover (web) — the letter is centred in the whole cover', () =>
     });
 });
 
+// Designer ruling (2026-11-03): the letter centres by its CAP BAND, not its line box. `text-box: trim-both cap alphabetic`
+// trims the line to the cap band, so flex centring centres the capital itself, at every size. A browser without it
+// (Firefox) keeps the line box, which for Manrope puts the cap band 0.023 em low, inside the 2 px allowance.
+describe('RecipeCover (web) — the letter is centred by its cap band', () => {
+    it('trims the letter’s line to its cap band', () => {
+        const { getByText } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
+
+        expect(tokensOf(getByText('L'))).toContain('[text-box:trim-both_cap_alphabetic]');
+    });
+});
+
 describe('RecipeCover (web) — the aspect', () => {
     it.each([
         ['4:3', 'aspect-[4/3]'],

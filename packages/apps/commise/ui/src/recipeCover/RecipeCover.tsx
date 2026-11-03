@@ -8,7 +8,9 @@
  * viewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title
  * is the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.
  *
- * The letter's region is the whole cover, so the letter is centred in it. No measuring.
+ * The letter's region is the whole cover, so the letter is centred in it. No measuring. Its line is trimmed to the cap band
+ * (`text-box: trim-both cap alphabetic`), so it is the capital that is centred; a browser without it keeps the line box, which
+ * for Manrope is 0.023 em low.
  *
  * @pattern Null Object — the monogram stands in for a missing photo, so a caller never branches on one
  */
@@ -55,7 +57,9 @@ export const RecipeCover: FC<RecipeCoverProps> = ({
         {photoUrl === undefined ? (
             // The region: the whole cover, with the letter centred in it.
             <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1">
-                <span className="font-display font-bold leading-none text-ink text-[40cqh]">{monogramOf(title)}</span>
+                <span className="font-display font-bold leading-none text-ink text-[40cqh] [text-box:trim-both_cap_alphabetic]">
+                    {monogramOf(title)}
+                </span>
                 {cuisine === undefined || !showCuisine ? null : (
                     <span className="hidden text-caption text-ink [@container_cover_(height>=6rem)]:block">
                         {cuisine}

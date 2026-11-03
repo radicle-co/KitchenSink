@@ -99,6 +99,10 @@ const TextFrame = styled(TamaguiText, {
         // Initials in a disc (a guard admits it in the avatar disc and the discovery footer's avatar): a size in px that does
         // not scale, 40% of the disc's diameter (designer ruling 2026-11-03).
         fixedPx: styled.dynamic<number>(),
+        // With `fixedPx` (admitted in the cover letter only): the capital is centred, not the line (`letterMetrics`).
+        capCentred: {
+            true: {},
+        },
     } as const,
 
     defaultVariants: {
@@ -116,6 +120,7 @@ interface ScaledTextProps {
     readonly chromeCap?: ChromeCap;
     readonly pictorial?: boolean;
     readonly fixedPx?: number;
+    readonly capCentred?: boolean;
 }
 
 /**
@@ -123,6 +128,7 @@ interface ScaledTextProps {
  * role's ceiling (`scaledTypeMetrics`, ADR-0080 §8). The scale comes from `TextScaleContext`, which `DesignSystemTheme`
  * provides. `figureInline` gets no size of its own and keeps its line's. A `styled(Text)` inherits the resolver.
  */
-export const Text = TextFrame.resolve(({ typeRole, textScale, chromeCap, pictorial, fixedPx }: ScaledTextProps) =>
-    scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap, pictorial, fixedPx),
+export const Text = TextFrame.resolve(
+    ({ typeRole, textScale, chromeCap, pictorial, fixedPx, capCentred }: ScaledTextProps) =>
+        scaledTypeMetrics(typeRole ?? 'body', textScale ?? 1, chromeCap, pictorial, fixedPx, capCentred),
 );

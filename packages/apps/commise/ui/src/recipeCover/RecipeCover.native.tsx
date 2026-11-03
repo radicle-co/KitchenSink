@@ -11,7 +11,7 @@
  * The letter's region is the whole cover, so the letter is centred in it. No ref and no measuring of anything but the
  * cover itself.
  *
- * The letter does not scale with the system text size (designer ruling c10ecadbf, 2026-11-03): it is decoration like avatar
+ * The letter is centred by its cap band, not its line box (`letterMetrics`). It does not scale with the system text size (designer ruling c10ecadbf, 2026-11-03): it is decoration like avatar
  * initials, drawn with the design-system Text's `fixedPx`.
  *
  * Styled with Tamagui (ADR-0080): the tint is a theme key (`$coverSteel`), so the cover follows the scheme with no hook.
@@ -113,7 +113,12 @@ export const RecipeCover: FC<RecipeCoverProps> = ({
                     {height === null ? (
                         <Letter typeRole="label">{monogramOf(title)}</Letter>
                     ) : (
-                        <Letter typeRole="label" fixedPx={Math.round(height * LETTER_SHARE)}>
+                        <Letter
+                            typeRole="label"
+                            fixedPx={Math.round(height * LETTER_SHARE)}
+                            capCentred
+                            includeFontPadding={false}
+                        >
                             {monogramOf(title)}
                         </Letter>
                     )}

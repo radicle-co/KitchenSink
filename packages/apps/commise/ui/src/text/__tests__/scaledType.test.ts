@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
 import { CHROME_CAPS, scaledTypeMetrics, scaledTypeSize } from '../scaledType.js';
+import { letterLiftOf } from '../letterMetrics.js';
 
 /** Each sized role's ceiling, written out (not read from the code under test). */
 const CEILING = {
@@ -153,5 +154,21 @@ describe('scaledTypeMetrics for a fixed size', () => {
 
     it('leaves a role without a fixed size to scale as before', () => {
         expect(scaledTypeMetrics('label', 2)).toMatchObject({ fontSize: 28 });
+    });
+});
+
+// Designer ruling (2026-11-03): the cover letter is centred by its cap band. A cap-centred fixed size draws its line as
+// the font's own height and lifts by the capitals' drop, so no platform places leading around it.
+describe('scaledTypeMetrics — a cap-centred fixed size', () => {
+    it('answers the font’s own line height and the lift of the cap band', () => {
+        expect(scaledTypeMetrics('label', 2, undefined, false, 48, true)).toEqual({
+            fontSize: 48,
+            lineHeight: '66px',
+            transform: [{ translateY: -letterLiftOf(48) }],
+        });
+    });
+
+    it('leaves a plain fixed size (initials in a disc) with its size-plus-4 leading and no lift', () => {
+        expect(scaledTypeMetrics('label', 2, undefined, false, 48)).toEqual({ fontSize: 48, lineHeight: '52px' });
     });
 });

@@ -721,8 +721,8 @@ citing the modification requirement as a copyright defence.
 
 - **The `public` scope and AC-014-e come from the 2026-11-03 owner rulings**, recorded in ADR-0082 and applied in
   `021` (FR-002 to FR-006, FR-014 to FR-014h, FR-096) and `001` (FR-004, FR-005, FR-045, C-004).
-- **Signed out is not a legal line.** [Law] Signed in and signed out are the same "public" in law. The `noindex` on
-  facts cards is a [House rule] for search quality and goodwill, not a legal bar (`021-FR-014g`).
+- **Signed out is not a legal line.** [Law] Signed in and signed out are the same "public" in law. Facts cards are indexable
+  (owner ruling 2026-11-03, `021-FR-014g`), and no paywall ever applies to reading a public or creator recipe.
 - ⛔ **The code still implements the pre-amendment rule.** `evaluateVisibility`
   (`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts`) refuses `public` for `imported_paid` and
   `imported_physical` through its `privateOnly` rule. No rights label Policy (`016-FR-015d`), facts card projection,

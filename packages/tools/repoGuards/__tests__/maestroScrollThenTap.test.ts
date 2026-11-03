@@ -332,12 +332,14 @@ describe('the shared step leaves an on-screen target where it is', () => {
         return isRecord(run) && Array.isArray(run['commands']) ? [run] : [];
     });
 
+    const scrollBlocks = blocks.filter((block) => JSON.stringify(block['commands']).includes('scrollUntilVisible'));
+
     it('has one scroll block per direction', () => {
-        expect(blocks).toHaveLength(2);
+        expect(scrollBlocks).toHaveLength(2);
     });
 
     it('gates every scroll block on the target NOT being visible yet', () => {
-        const ungated = blocks.filter((block) => {
+        const ungated = scrollBlocks.filter((block) => {
             const when = isRecord(block['when']) ? block['when'] : {};
             const notVisible = when['notVisible'];
             const target = isRecord(notVisible) ? notVisible['text'] : notVisible;
@@ -346,5 +348,34 @@ describe('the shared step leaves an on-screen target where it is', () => {
         });
 
         expect(ungated).toEqual([]);
+    });
+});
+
+/**
+ * Scrolling DOWN also clears the tab bar. XCUITest counts an element visible while the tab bar covers it, so the first
+ * scroll can stop with the target's centre inside the bar and the caller's tap lands on a tab (QA batch 4, "Edit recipe"
+ * on a short recipe at the largest text size: centre y=780, tab bar [774, 874]). When the bar is on screen and the target
+ * is not above it, the step swipes the page up a few times, bounded, so a page end simply stops it.
+ */
+describe('the shared step clears the tab bar', () => {
+    const source = readFileSync(join(REPO_ROOT, FLOW_ROOT, 'recipes', SHARED_STEP), 'utf8');
+    const steps = parseAllDocuments(source).at(-1)?.toJS() as unknown;
+    const clearance = (Array.isArray(steps) ? steps : []).flatMap((step: unknown) => {
+        const run = isRecord(step) ? step['runFlow'] : undefined;
+
+        return isRecord(run) && JSON.stringify(run).includes('"swipe"') ? [run] : [];
+    });
+
+    it('has one swipe block, run only when the tab bar is on screen and the target is not above it', () => {
+        expect(clearance).toHaveLength(1);
+        expect(clearance[0]?.['when']).toMatchObject({
+            visible: 'Discover',
+            notVisible: { text: '${TARGET}', above: { text: 'Discover' } },
+        });
+    });
+
+    it('runs for a downward scroll only, and bounds the swipes', () => {
+        expect(JSON.stringify(clearance[0]?.['when'])).toContain("DIRECTION != 'UP'");
+        expect(JSON.stringify(clearance[0]?.['commands'])).toMatch(/"times":\d+/);
     });
 });

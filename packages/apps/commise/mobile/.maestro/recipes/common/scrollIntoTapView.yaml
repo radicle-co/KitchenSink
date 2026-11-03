@@ -23,6 +23,13 @@ appId: ${APP_ID}
 # instead (full local iOS shard 1, 2026-10-18: ingredientGroups typed "P", ingredientRowEditor typed "F"). An
 # on-screen target is left where it is, which is what the bare `scrollUntilVisible` this step replaced did.
 #
+# ⛔ WHY A LAST SWIPE CLEARS THE TAB BAR. XCUITest also counts an element visible while the TAB BAR covers it, and on a short
+# page the first scroll stops as soon as the element arrives, which can be with its centre inside the bar (QA batch 4,
+# "Edit recipe" on a short recipe at the largest text size: centre y=780, bar [774, 874]), so the tap hit a tab. When the
+# bar is on screen and the target is not above it, the page swipes up, at most three times; at a page end a swipe moves
+# nothing and the loop stops. An on-screen target above the bar is untouched, so the rule above still holds. Downward only:
+# the bar is at the bottom, and a target scrolled UP into view is never the one under it.
+#
 # `maestroScrollThenTap.test.ts` refuses a bare `scrollUntilVisible` followed by a tap on the same element anywhere else,
 # and holds the on-screen rule above.
 - runFlow:
@@ -61,3 +68,24 @@ appId: ${APP_ID}
                 centerElement: true
                 timeout: 4000
                 optional: true
+- runFlow:
+      when:
+          true: ${DIRECTION != 'UP'}
+          visible: 'Discover'
+          notVisible:
+              text: ${TARGET}
+              above:
+                  text: 'Discover'
+      commands:
+          - repeat:
+                while:
+                    notVisible:
+                        text: ${TARGET}
+                        above:
+                            text: 'Discover'
+                times: 3
+                commands:
+                    - swipe:
+                          start: 50%, 70%
+                          end: 50%, 55%
+                          duration: 500

@@ -143,7 +143,6 @@
         "packages/apps/commise/ui/src/popover/Popover.native.tsx": 2,
         "packages/apps/commise/ui/src/progressBar/ProgressBar.native.tsx": 2,
         "packages/apps/commise/ui/src/radioList/RadioList.native.tsx": 6,
-        "packages/apps/commise/ui/src/recipeCover/RecipeCover.native.tsx": 2,
         "packages/apps/commise/ui/src/refreshNotice/RefreshNotice.native.tsx": 1,
         "packages/apps/commise/ui/src/searchField/SearchField.native.tsx": 3,
         "packages/apps/commise/ui/src/sectionIndex/SectionIndex.native.tsx": 26,

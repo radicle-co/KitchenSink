@@ -9,6 +9,7 @@
  * still elevates and still clips its cover.
  */
 import { act, cleanup, screen } from '@testing-library/react';
+import { stubBoundingRects } from '@commise/ui/testing/bounding-rects';
 import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -37,8 +38,13 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
+/** Puts back `getBoundingClientRect` after a test that measured the cover (Tamagui reports `onLayout` from it, at mount). */
+let restoreRects: (() => void) | undefined;
+
 afterEach(() => {
     cleanup();
+    restoreRects?.();
+    restoreRects = undefined;
     systemScheme.current = null;
     fontScale.current = 1;
 });
@@ -437,6 +443,7 @@ describe('RecipeCard (native) — W-06 / A-028: a one-line row is exactly one li
 
 describe('RecipeCard (native, grid) — W-08: the cuisine never sits under the time chip', () => {
     it('draws no cuisine on a cover that carries the time chip', () => {
+        restoreRects = stubBoundingRects(() => ({ width: 150, height: 150 }));
         const { container } = renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -452,6 +459,7 @@ describe('RecipeCard (native, grid) — W-08: the cuisine never sits under the t
     });
 
     it('keeps the cuisine on a cover with no time chip', () => {
+        restoreRects = stubBoundingRects(() => ({ width: 150, height: 150 }));
         const { container } = renderCard(
             <RecipeCard
                 headingLevel={3}

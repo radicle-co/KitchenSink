@@ -33,13 +33,12 @@ describe('RecipeCover (web) — a photo', () => {
 
 describe('RecipeCover (web) — a monogram', () => {
     it('grounds the cover in the recipe’s own tint and shows the title’s first letter, hidden from assistive tech', () => {
-        const { container } = render(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />);
-        const ground = container.querySelector<HTMLElement>('[aria-hidden="true"]');
+        const { container, getByText } = render(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />);
 
         // The tint's CLASS, whose custom property the dark block overrides (D15) — not an inline light hex.
-        expect(ground?.className.split(/\s+/u)).toContain(`bg-cover-${coverTintOf('rec_42')}`);
-        expect(ground?.style.backgroundColor).toBe('');
-        expect(ground?.textContent).toBe('L');
+        expect(tokensOf(container.firstElementChild)).toContain(`bg-cover-${coverTintOf('rec_42')}`);
+        expect((container.firstElementChild as HTMLElement).style.backgroundColor).toBe('');
+        expect(getByText('L').closest('[aria-hidden="true"]')?.textContent).toBe('L');
         expect(container.querySelector('img')).toBeNull();
     });
 
@@ -91,6 +90,74 @@ describe('RecipeCover (web) — a monogram', () => {
         expect(tokensOf(container.firstElementChild)).toEqual(
             expect.arrayContaining(['[container-type:size]', '[container-name:cover]']),
         );
+    });
+});
+
+describe('RecipeCover (web) — the letter and the footer band (cover-letter ruling)', () => {
+    it.each([
+        ['one line of chip', 1],
+        ['a band grown by the largest text size', 4],
+    ] as const)('lays the letter out in the region ABOVE the footer, not over the whole cover: %s', (_name, lines) => {
+        const { container, getByText } = render(
+            <RecipeCover
+                recipeId="rec_42"
+                title="Lemon tart"
+                aspect="4:3"
+                showCuisine={false}
+                footer={
+                    <span data-band>
+                        {Array.from({ length: lines }, (_line, index) => (
+                            <span key={index}>35 min</span>
+                        ))}
+                    </span>
+                }
+            />,
+        );
+        const cover = container.firstElementChild as HTMLElement;
+        const region = getByText('L').closest('[aria-hidden="true"]');
+        const band = container.querySelector('[data-band]')?.parentElement ?? null;
+
+        // A flex column: the footer follows the letter's region in flow, so the region is only the space above the band.
+        expect(tokensOf(cover)).toEqual(expect.arrayContaining(['flex', 'flex-col']));
+        expect(Array.from(cover.children)).toEqual([region, band]);
+        expect(tokensOf(band)).not.toContain('absolute');
+        expect(tokensOf(region)).toEqual(
+            expect.arrayContaining(['flex-1', 'min-h-0', 'items-center', 'justify-center']),
+        );
+    });
+
+    it('keeps the footer readable by assistive tech: only the letter’s region is hidden', () => {
+        const { container, getByText } = render(
+            <RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" footer={<span>35 min</span>} />,
+        );
+
+        expect(container.firstElementChild?.getAttribute('aria-hidden')).toBeNull();
+        expect(getByText('35 min').closest('[aria-hidden="true"]')).toBeNull();
+    });
+
+    it('centres the letter in the whole cover when there is no footer', () => {
+        const { container, getByText } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
+        const region = getByText('L').closest('[aria-hidden="true"]');
+
+        expect(Array.from(container.firstElementChild?.children ?? [])).toEqual([region]);
+        expect(tokensOf(region)).toEqual(expect.arrayContaining(['flex-1', 'items-center', 'justify-center']));
+    });
+
+    it('puts the footer over a photo too, at the cover’s bottom start', () => {
+        const { container, getByText } = render(
+            <RecipeCover
+                recipeId="rec_1"
+                title="Tart"
+                photoUrl="https://img.example/tart.jpg"
+                aspect="4:3"
+                footer={<span>35 min</span>}
+            />,
+        );
+        const band = getByText('35 min').parentElement;
+
+        expect(band?.parentElement).toBe(container.firstElementChild);
+        expect(container.firstElementChild?.lastElementChild).toBe(band);
+        expect(tokensOf(band)).toEqual(expect.arrayContaining(['self-start']));
     });
 });
 

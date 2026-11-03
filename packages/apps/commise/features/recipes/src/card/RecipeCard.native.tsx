@@ -101,6 +101,15 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
     const { colors } = useTheme();
     // Text never sits under a chip (§1.8): a cover that draws the time chip says no cuisine of its own.
     const drawsTimeChip = !thumbnail && cover.time !== undefined;
+    // The band is the cover's footer, in flow below the monogram's letter, so the letter is centred above its top edge and
+    // never under it, however tall it grows with the text size (designer ruling 2026-11-03).
+    const timeChip =
+        cover.time === undefined ? null : (
+            <CoverChip label={cover.time.label}>
+                <Icon name="clock" size={16} tone="ink" />
+                <Text style={[styles.caption, styles.figure, { color: colors.ink }]}>{cover.time.text}</Text>
+            </CoverChip>
+        );
 
     return (
         // Kept, so the thumbnail's clipping never moves the cover into it (`nativeFlattenFlips.test.ts`).
@@ -110,6 +119,7 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                 title={recipe.title}
                 aspect={thumbnail ? '1:1' : '4:3'}
                 showCuisine={!drawsTimeChip}
+                {...(drawsTimeChip ? { footer: timeChip } : {})}
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
@@ -139,14 +149,6 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                           )}
                       </View>
                   )}
-            {!thumbnail && cover.time !== undefined && (
-                <View style={styles.bottomStart}>
-                    <CoverChip label={cover.time.label}>
-                        <Icon name="clock" size={16} tone="ink" />
-                        <Text style={[styles.caption, styles.figure, { color: colors.ink }]}>{cover.time.text}</Text>
-                    </CoverChip>
-                </View>
-            )}
         </View>
     );
 };
@@ -518,7 +520,6 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[1],
     },
     topEndTight: { position: 'absolute', top: nativeTokens.spacing[1], end: nativeTokens.spacing[1] },
-    bottomStart: { position: 'absolute', bottom: nativeTokens.spacing[2], start: nativeTokens.spacing[2] },
     coverChip: {
         flexDirection: 'row',
         alignItems: 'center',

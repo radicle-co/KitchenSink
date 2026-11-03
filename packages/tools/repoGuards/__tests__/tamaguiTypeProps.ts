@@ -30,11 +30,12 @@ const CHROME_MODULES =
     /(?:^|\/)packages\/apps\/commise\/(?:mobile\/src\/components\/home\/chrome\/HomeTabBar\.tsx|ui\/src\/segmentedControl\/SegmentedControl\.native\.tsx|ui\/src\/createFab\/FabFace\.native\.tsx|ui\/src\/largeTitleHeader\/CondensedTitleBar\.native\.tsx|features\/recipes\/src\/detail\/StepRow\.native\.tsx|features\/recipes\/src\/form\/RecipeInstructionsFields\.native\.tsx)$/u;
 
 /**
- * The two avatar discs, the only modules that draw initials at a size that does not scale, with `fixedPx` (designer ruling
- * c10ecadbf, 2026-11-03): 40% of the disc's diameter, so two letters fit at every size.
+ * The modules that draw initials at a size that does not scale, with `fixedPx` (designer ruling c10ecadbf, 2026-11-03):
+ * 40% of the disc's diameter, so two letters fit at every size; and the recipe cover's monogram letter, 40% of the
+ * cover's height, which is decoration like them.
  */
 const INITIALS_MODULES =
-    /(?:^|\/)packages\/apps\/commise\/(?:ui\/src\/avatar\/AvatarDisc\.native\.tsx|features\/recipes\/src\/discovery\/DiscoveryFooter\.native\.tsx)$/u;
+    /(?:^|\/)packages\/apps\/commise\/(?:ui\/src\/avatar\/AvatarDisc\.native\.tsx|ui\/src\/recipeCover\/RecipeCover\.native\.tsx|features\/recipes\/src\/discovery\/DiscoveryFooter\.native\.tsx)$/u;
 
 /** The status badge, the only module that draws a mark on a picture with `pictorial` (designer ruling 2026-11-01, M-1). */
 const PICTURE_MODULES = /(?:^|\/)packages\/apps\/commise\/ui\/src\/statusBadge\/StatusBadge\.native\.tsx$/u;

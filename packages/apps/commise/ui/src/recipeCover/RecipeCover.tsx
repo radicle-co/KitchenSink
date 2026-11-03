@@ -8,6 +8,10 @@
  * viewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title
  * is the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.
  *
+ * A caller's `footer` (the meta-chip band) is the last child of the cover's column, in flow at its natural height. The
+ * letter's region is the flexible space above it, so the letter is centred above the band's top edge and never under it,
+ * however tall the band grows (designer ruling 2026-11-03); with no footer the region is the whole cover. No measuring.
+ *
  * @pattern Null Object — the monogram stands in for a missing photo, so a caller never branches on one
  */
 import type { FC } from 'react';
@@ -44,13 +48,16 @@ export const RecipeCover: FC<RecipeCoverProps> = ({
     photoUrl,
     aspect,
     showCuisine = true,
+    footer,
 }) => (
-    <div className={`relative overflow-hidden [container-name:cover] [container-type:size] ${ASPECT[aspect]}`}>
+    <div
+        className={`relative flex flex-col overflow-hidden [container-name:cover] [container-type:size] ${ASPECT[aspect]} ${
+            photoUrl === undefined ? COVER_CLASS[coverTintOf(recipeId)] : ''
+        }`}
+    >
         {photoUrl === undefined ? (
-            <div
-                aria-hidden="true"
-                className={`absolute inset-0 flex flex-col items-center justify-center gap-1 ${COVER_CLASS[coverTintOf(recipeId)]}`}
-            >
+            // The region above the footer: it takes what the band leaves, and centres the letter in it.
+            <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1">
                 <span className="font-display font-bold leading-none text-ink text-[40cqh]">{monogramOf(title)}</span>
                 {cuisine === undefined || !showCuisine ? null : (
                     <span className="hidden text-caption text-ink [@container_cover_(height>=6rem)]:block">
@@ -67,5 +74,6 @@ export const RecipeCover: FC<RecipeCoverProps> = ({
                 className="absolute inset-0 size-full object-cover object-[center_40%]"
             />
         )}
+        {footer === undefined ? null : <div className="relative mt-auto max-w-full self-start p-2">{footer}</div>}
     </div>
 );

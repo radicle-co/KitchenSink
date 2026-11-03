@@ -123,6 +123,15 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
     const { recipe, cover } = useCardView();
     // Text never sits under a chip (§1.8): a cover that draws the time chip says no cuisine of its own.
     const drawsTimeChip = chips === 'all' && cover.time !== undefined;
+    // The band is the cover's footer, in flow below the monogram's letter, so the letter is centred above its top edge and
+    // never under it (designer ruling 2026-11-03).
+    const timeChip =
+        cover.time === undefined ? null : (
+            <span aria-label={cover.time.label} className={COVER_CHIP}>
+                <Icon name="clock" size={16} />
+                <span className="tabular-nums lining-nums">{cover.time.text}</span>
+            </span>
+        );
 
     return (
         <div
@@ -133,6 +142,7 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                 title={recipe.title}
                 aspect={aspect}
                 showCuisine={!drawsTimeChip}
+                {...(drawsTimeChip ? { footer: timeChip } : {})}
                 {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
@@ -161,12 +171,6 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                           <StatusBadge status="pro">{cover.pro.text}</StatusBadge>
                       </span>
                   )}
-            {chips === 'all' && cover.time !== undefined && (
-                <span aria-label={cover.time.label} className={`absolute bottom-2 start-2 ${COVER_CHIP}`}>
-                    <Icon name="clock" size={16} />
-                    <span className="tabular-nums lining-nums">{cover.time.text}</span>
-                </span>
-            )}
         </div>
     );
 };

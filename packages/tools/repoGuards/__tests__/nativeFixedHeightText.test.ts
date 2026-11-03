@@ -300,6 +300,12 @@ const EXEMPTIONS: readonly Exemption[] = [
         kind: 'allowed',
         reason: 'The initials do not scale: they are 40% of the disc (12 pt in 32, 14 pt in 36), so two letters fit at every size (designer ruling c10ecadbf, 2026-11-03; Text fixedPx={initialsPxOf(…)}); proven on real font metrics by discGeometry.fit.test.ts.',
     },
+    {
+        file: `${APPS}ui/src/recipeCover/RecipeCover.native.tsx`,
+        frame: '<Cover>',
+        kind: 'allowed',
+        reason: 'Its text is the monogram letter, fixed at 40% of the cover (designer ruling c10ecadbf, 2026-11-03; Text fixedPx), and a cuisine caption that shows only from 96 pt tall and is clipped at the cover edge (overflow hidden, as before the Tamagui move). The `band` aspect (height 96) is the detail hero and takes no footer; a footer goes on the 4:3 and 1:1 aspects, whose height comes from the width.',
+    },
 ];
 
 describe('the tree — a fixed height around text is allowed only where the text cannot grow past it', () => {

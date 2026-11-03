@@ -42,7 +42,7 @@ international sources. Mindset, the same brief: "assume that we can do this and 
 
 ## Overview
 
-Commise launches in the US only (`016-FR-048`). The owner wants it to go international in full: other markets, other
+Commise launches in the US only (`016-FR-048`). "US only" is a launch plan, not a legal defence (FR-088). The owner wants it to go international in full: other markets, other
 languages, local units, local food data, local store pages and local prices.
 
 ### What already exists
@@ -576,6 +576,30 @@ under `016-FR-048c`. They are built as that market opens, and recorded in its re
 - **FR-087**: **Accessibility.** WCAG 2.2 AA applies everywhere, as today. A market-specific accessibility statement is
   a capability (`016-FR-048c`). Counsel checks each market's duties: the UK Equality Act, Canada's federal and
   provincial laws, Australia's Disability Discrimination Act, and the European Accessibility Act for an EU wave.
+- **FR-088**: **"US-only" is not a defence** _(added 2026-11-03, owner ruling, ADR-0082)_. [Law] An app listed in the
+  EU or UK app stores serves those places (DSA Recital 8, GDPR Art. 3(2), UK Online Safety Act s.4(5) and s.4(6)). So
+  `016-FR-048` MUST do one of two things, and the readiness record shows which. Either store availability is
+  restricted to the launch markets and the restriction is recorded (FR-005), or the UK is treated as a day-one market
+  for the light duties below. Counsel review is owed before launch (`016-FR-050`).
+- **FR-089**: **Duties before a market is served.** [Law] Before Commise serves a market, its readiness record shows
+  these, where they apply:
+    - **EU:** a legal representative under DSA Art. 13, a GDPR Art. 27 representative, DSA Art. 11 and 12 contact
+      points, a notice-and-action path (DSA Art. 16), statements of reasons for removal and for demotion or limits on
+      visibility (DSA Art. 17(1)(a), no size exemption, with an "automated: yes or no" flag), and a plan for DSM Art. 17.
+    - **UK:** a UK GDPR representative, the Online Safety Act duties (an illegal-content risk assessment, a children's
+      access assessment, and age assurance where eating-disorder content can appear), and unfair-terms law
+      (Consumer Rights Act 2015 Part 2) at the UK launch.
+    - **Australia:** the under-16 social media self-assessment (Online Safety Act 2021 s.63C) and the Australian
+      Consumer Law fairness test.
+    - **Canada:** notice-and-notice (Copyright Act s.41.25 and s.41.26) with records kept for six months.
+      Counsel review is owed before launch (`016-FR-050`).
+- **FR-090a**: **The URL-import switch is per market (D6).** [Law] Our server makes the copy a URL import keeps, so the
+  hosting defences do not cover it. A cook in the EU or UK gets facts and a link only, with no stored verbatim method,
+  headnote or photo reference (EU DSM Art. 4(2), UK has no private-copy exception). A cook in the US keeps the private
+  full copy. A cook who wants the full text pastes it. The switch lives in one policy, keyed on the cook's market, and
+  defaults closed for any market counsel has not cleared. Extraction's legal basis differs per market: US fair use,
+  EU DSM Art. 4 unless opted out, UK s.28A only, and no matching exception in Australia. The UK and Australia are
+  counsel items. Counsel review is owed before launch (`016-FR-050`).
 
 #### J. Support
 
@@ -606,6 +630,7 @@ under `016-FR-048c`. They are built as that market opens, and recorded in its re
     15. The attribution rule and the referral switch are set for the market (`023-FR-046`, `023-FR-016`).
     16. Public discovery for the market follows `016-FR-048`, and 021's open-to-web rule reads the market.
     17. AI spend for the market is costed against ADR-0024's pool.
+    18. The platform duties in FR-088 and FR-089 are met for the market, and the URL-import switch (FR-090a) is set.
 - **FR-101**: Only a recorded owner ruling, with its reason, can waive a gate. The record shows the waiver.
 - **FR-102**: Closing a market MUST stop new sign-ups and new store availability there. Existing cooks MUST keep their
   recipes, their paid access until it ends, and their export. They are told first. A market closure never locks a cook

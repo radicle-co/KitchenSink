@@ -27,13 +27,13 @@ import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native
 import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import { nativeTokens } from '../tokens/native.js';
+import { typeRole } from '../tokens/typography.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { FIELD_EDGE, FIELD_PADDING, fieldDisabled, fieldGeometry, fieldPaint } from './fieldStyle.js';
 import { fieldAccessibilityHint, fieldLabelId, type TextAreaProps } from './props.js';
 
-/** One body line, in points. */
-const LINE = nativeTokens.type.body.lineHeight ?? 24;
+/** One body line, in points: the raw token, not the iOS-shifted projection (react/react-native#58970), so rows stay whole. */
+const LINE = typeRole.body.lineHeight;
 
 /**
  * The text's own height from a reported content height. Pure.

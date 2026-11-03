@@ -11,6 +11,7 @@ import { createElement, type ComponentProps } from 'react';
 
 import { role, roleDark } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
+import { scaledTypeSize } from '@commise/ui/scaled-type';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
@@ -722,7 +723,9 @@ describe('RecipePhotoManager (native) — the upload caption', () => {
 
         expect(style.fontFamily).toContain(spec.fontFamily);
         expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
-        expect(style.lineHeight).toBe(`${String(spec.lineHeight * 2)}px`);
+        // This file runs as iOS, where the leading is the raw token doubled and then shifted above the pixel grid once
+        // (react/react-native#58970), not the already shifted projection doubled.
+        expect(style.lineHeight).toBe(`${String(scaledTypeSize('meta', 3.1).lineHeight)}px`);
     });
 
     it.each(['light', 'dark'] as const)('paints it in inkMuted in the %s scheme', (scheme) => {

@@ -10,8 +10,9 @@
  *
  * @pattern Strategy — one pure function owns the type-scaling arithmetic
  */
+import { devicePixelScale, snapLineHeight } from '../tokens/iosLineHeight.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { TypeRole } from '../tokens/typography.js';
+import { typeRole, type TypeRole } from '../tokens/typography.js';
 import { FONT_SCALE_CAP } from './fontScaleCap.js';
 
 /** The display roles' ceiling: a title stops growing at 1.5×. */
@@ -71,7 +72,12 @@ export function scaledTypeSize(
     const ceiling = chromeCap === undefined ? CEILING[role] : Math.min(CEILING[role], Number(chromeCap));
     const grown = Math.min(systemScale, ceiling);
 
-    return { fontSize: base.fontSize * grown, lineHeight: base.lineHeight * grown };
+    // The raw token leading, NOT `base.lineHeight`: the projection is already snapped for iOS (react/react-native#58970),
+    // and the snap must come once, after the font scaling.
+    return {
+        fontSize: base.fontSize * grown,
+        lineHeight: snapLineHeight(typeRole[role].lineHeight * grown, devicePixelScale()),
+    };
 }
 
 /**

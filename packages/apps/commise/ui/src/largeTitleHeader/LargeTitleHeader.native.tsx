@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/large-title-header — the native design-system {@link LargeTitleHeader} (see `props.ts`): the
- * H1 in `largeTitle`, sized by the screen's container class, under a transparent 44 pt row that holds the `action` at the
+ * H1 in `largeTitle`, sized by the screen's container class, under a transparent row the touch floor tall (44 pt; 48 dp on Android) that holds the `action` at the
  * end. Native shows it at every size, as iOS's large title and Material's collapsing bar do.
  *
  * ⛔ It draws NO Back control, though it keeps the `back` prop (web uses it for the 840+ eyebrow). On native Back is the
@@ -27,6 +27,7 @@
 import { useContext, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { useContainerClass } from '../layout/useContainerClass.native.js';
 import { ScrollHostContext } from '../scrollHost/scrollHostContext.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
@@ -34,9 +35,6 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { Text as DesignText } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
-
-/** The height of the row that holds the action, pt (§3.3). */
-const ROW_HEIGHT = 44;
 
 /**
  * The header's own side inset, pt. The header owns it so a screen cannot forget it and leave the title on the screen
@@ -46,13 +44,13 @@ const ROW_HEIGHT = 44;
 const SIDE_INSET = nativeTokens.spacing[4];
 
 /** The action group, at the end of the row. */
-function actionOf(action: HeaderAction): ReactNode {
+function actionOf(action: HeaderAction, rowHeight: number): ReactNode {
     switch (action.kind) {
         case 'avatar':
-            return <View style={styles.action}>{action.avatar}</View>;
+            return <View style={[styles.action, { height: rowHeight }]}>{action.avatar}</View>;
         case 'controls':
             return (
-                <View style={[styles.action, styles.controls]}>
+                <View style={[styles.action, styles.controls, { height: rowHeight }]}>
                     {action.button}
                     {action.menu}
                 </View>
@@ -75,10 +73,12 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
     // Read without throwing: a header outside a host (a sheet, a test) simply reports nowhere.
     const host = useContext(ScrollHostContext);
     const hasRow = action !== undefined;
+    // The row is the touch floor tall (44 pt; 48 dp on Android), so an action's target is not cut to the row.
+    const rowHeight = touchFloor();
 
     return (
         <View style={styles.header}>
-            <View onLayout={host?.headingLayout} style={[styles.titleBlock, hasRow ? styles.underRow : null]}>
+            <View onLayout={host?.headingLayout} style={[styles.titleBlock, hasRow ? { paddingTop: rowHeight } : null]}>
                 <Text
                     ref={heading}
                     accessibilityRole="header"
@@ -94,7 +94,7 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
                     </DesignText>
                 )}
             </View>
-            {action === undefined ? null : actionOf(action)}
+            {action === undefined ? null : actionOf(action, rowHeight)}
             {afterTitle}
             {segments === undefined ? null : <View style={styles.segments}>{segments}</View>}
         </View>
@@ -104,13 +104,11 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
 const styles = StyleSheet.create({
     header: { position: 'relative', paddingBottom: nativeTokens.spacing[2], paddingHorizontal: SIDE_INSET },
     titleBlock: { gap: nativeTokens.spacing[1] },
-    underRow: { paddingTop: ROW_HEIGHT },
     action: {
         position: 'absolute',
         top: 0,
         // An absolute child is placed from the parent's edge, not its padding edge, so it carries the inset itself.
         end: SIDE_INSET,
-        height: ROW_HEIGHT,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1,

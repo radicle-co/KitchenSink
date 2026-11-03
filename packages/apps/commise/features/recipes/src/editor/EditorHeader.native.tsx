@@ -1,10 +1,12 @@
 /**
  * @module @commise/features-recipes/editor — the native editor's header (build spec §7.1, §7.12): × "Close editor", the
  * title ("New recipe" or "Edit recipe", the screen's heading, never the recipe's own title), the save status in
- * `caption`, and ⋯ "More editor actions" holding the one destructive action (a bottom sheet on native). 56 pt on the
+ * `caption`, and ⋯ "More editor actions" holding the one destructive action (a bottom sheet on native). at least 56 pt (it grows when the status wraps) on the
  * screen's solid surface: the editor's only glass is its action bar (owner D12).
  *
  * × never asks (Settled 24): the editor saves by itself, so leaving loses nothing.
+ *
+ * Only the title truncates (the H1 repeats it); the save status shows nowhere else, so it wraps.
  *
  * Presentational: props → JSX.
  */
@@ -33,9 +35,7 @@ export const EditorHeader: FC<EditorHeaderProps> = ({ title, status, closeLabel,
                     {title}
                 </Text>
                 {status === undefined ? null : (
-                    <Text numberOfLines={1} style={[styles.status, { color: colors.inkMuted }]}>
-                        {status}
-                    </Text>
+                    <Text style={[styles.status, { color: colors.inkMuted }]}>{status}</Text>
                 )}
             </View>
             {menu === undefined ? null : (

@@ -765,17 +765,17 @@ remain. **No waiver is permitted for the Catastrophic-hazard requirements** (REQ
 
 ## Requirement Validation: REQ-030 (robots.txt interpretation)
 
-#### Test Case: ATP-030-A (Bare wildcard disallow does not block a user-initiated import)
+#### Test Case: ATP-030-A (Bare wildcard disallow blocks the import; amended 2026-11-03, ADR-0082)
 
 **Linked Requirement:** REQ-030
 **Description:** A site whose `robots.txt` contains only `User-agent: *` / `Disallow: /`.
-**Validation Condition:** The import proceeds.
-**Expected Result:** Job succeeds; a draft is produced.
+**Validation Condition:** The import is refused and the block is counted (RFC 9309, amended 2026-11-03, ADR-0082).
+**Expected Result:** Code `IMPORT_SOURCE_BLOCKED`; the robots-block counter increments.
 
 - **User Scenario: SCN-030-A1**
     - **Given** a source site whose robots file disallows all paths for all agents and names no specific agent
     - **When** an authenticated user imports a single recipe page from that site
-    - **Then** the import proceeds and produces a draft
+    - **Then** the import is refused as blocked and the refusal is counted
 
 #### Test Case: ATP-030-B (A directive naming our agent is honoured in full)
 

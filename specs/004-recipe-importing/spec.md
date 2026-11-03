@@ -2,7 +2,7 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-04-14
-**Amended**: 2026-10-28 (`FR-053` added: the "Save to Commise" button for food blogs, gated on the WP Recipe Maker
+**Amended**: 2026-11-03 (open recipe library, owner rulings, ADR-0082: `FR-008` ruling, `FR-011`, `FR-013`, `FR-014`, `FR-014a`, new `FR-014b`, `FR-009`, `FR-012`, `FR-023`, `FR-026` and C-001). 2026-10-28 (`FR-053` added: the "Save to Commise" button for food blogs, gated on the WP Recipe Maker
 team, owner ruling). 2026-10-29 (recipe rights, owner rulings,
 [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): a web
 import is private in full or public as a linked card, two new statements, and C-001 now keys the public card) 2026-10-29 (`FR-053a` added: a chef's bulk bring-in from their own claimed site, owner rulings on
@@ -93,8 +93,10 @@ semantics, visibility _enforcement_, and cloning are 001's, referenced here as d
 
 A user imports a recipe from a public website URL, an Instagram post, a structured file, or a photo of a
 physical copy. Every channel produces an **import draft** the user reviews and completes before it becomes a
-recipe (see _The draft-and-confirm model_ below). Web and Instagram imports are attributed and public;
-physical-copy and file imports are private. Recipes from paid sources are never public.
+recipe (see _The draft-and-confirm model_ below). Web and Instagram imports are attributed, and their public form is a facts
+card with a link; physical-copy and file imports keep the verbatim copy private. A verbatim copy from a paid source is
+never public. _(Amended 2026-11-03, owner ruling, ADR-0082: the cook can publish their own Adapted version of any of
+them, and a family recipe is public as itself.)_
 
 **Why this priority**: Importing removes the single largest barrier to onboarding — users already have
 recipes elsewhere. Attribution compliance for web/Instagram imports is a legal requirement.
@@ -249,11 +251,57 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > page gets their own private copy, from their own capture. At capture the import keeps a fingerprint of the page's
     > method and headnote, never the page, for the source check (`020-FR-012b`). The research behind this is not legal
     > advice, and the card is subject to counsel review (`016-FR-050`).
+    >
+    > ⚠️ **Amended 2026-11-03 (owner ruling, ADR-0082): the facts card is open, the private copy is per market, and the
+    > server check is reworded.**
+    >
+    > 1. **The card is open.** [Law] Nobody owns a recipe's facts: the name, ingredients, amounts, times, temperatures,
+    >    yield, servings and the order of steps (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991),
+    >    and _Publications International v. Meredith_, 88 F.3d 473 (7th Cir. 1996)). So the one public card for a page is
+    >    now readable signed out, by anyone, where the earlier text said "other signed-in cooks". Its field list does not
+    >    grow (`021-FR-014a`). [House rule] It stays `noindex` with no recipe structured data.
+    > 2. **One facts card per page.** There is one public facts card per canonical page. Two cooks' texts are never merged
+    >    into one. Matching on the URL alone misses the same recipe at another address and pasted copies. That is a
+    >    product gap, not a legal one, and it is recorded in C-001. [Law] Merging or linking near-identical recipes is a
+    >    product choice (_Sheldon v. Metro-Goldwyn_, 81 F.2d 49 (2d Cir. 1936), and _Morrissey v. Procter & Gamble_, 379 F.2d
+    >    675 (1st Cir. 1967)).
+    > 3. **The private copy is a per-market switch (D6).** The switch is keyed on the cook's market and lives in one
+    >    policy that defaults closed for any market counsel has not cleared. In the **US** the import keeps the private
+    >    full copy. [Law, US] That is defensible but untested (_Cartoon Network v. CSC_, 536 F.3d 121 (2d Cir. 2008) is for it,
+    >    _UMG v. MP3.com_ is against it). In the **EU and UK** the import keeps **facts and a link only**: no stored verbatim
+    >    method, headnote or photo reference. [Law, EU and UK] Our server makes the copy, so hosting defences do not apply.
+    >    The UK has no private-copy exception (_R (BASCA) v Secretary of State_ [2015] EWHC 2041 (Admin)). EU DSM Art. 4(2)
+    >    limits how long text-and-data-mining copies can be kept. _VCAST_ (C-265/16) puts a commercial service's private
+    >    copies outside the private-copy exception. A cook who wants the full text pastes it (`FR-052`). Paste and image
+    >    storage is user-provided (UK reg. 19, DSA Art. 6).
+    > 4. **"The server checks the page's copyright" is reworded.** [Law] The server cannot find "no copyright". Every page
+    >    is protected from creation (Berne Art. 5(2) and 17 U.S.C. §102). Software can find a STATED licence (schema.org
+    >    `license`, a Creative Commons mark). So the check records what the page states and what we keep and show.
+    >    It decides: import with a facts card and a private copy where the market allows, import with a facts card only,
+    >    or block. A page that states a licence allowing commercial use can be shown in full on that licence's terms
+    >    (`021-FR-014f`). Otherwise the copy is never open in full.
+    > 5. **Copy kept and credited.** [Law] The import keeps the source, the credit and any copyright notice with stored
+    >    text, and never strips them (17 U.S.C. §1202). A server fetch adds contract risk and a closer copyright question.
+    >    It does not by itself make Commise a direct actor (_Cartoon Network_ and _VHT v. Zillow_, 918 F.3d 723 (9th Cir.
+    >    2019)). Paste is still the cleanest channel.
+    > 6. **A cook who reads "Copied from a public web page" also reads:** "Nobody owns the ingredient list or the bare
+    >    steps."
+    >
+    > Counsel review is owed before launch (`016-FR-050`).
 - **FR-009** _(GATED — see D-002)_: System MUST allow users to import recipes from public Instagram posts by
   extracting recipe content from the post caption. Import is limited to posts whose caption contains recipe
   text; video-only or image-only posts without recipe text are unsupported and the user MUST be told so.
   Deduplication by canonicalized source URL applies. **This requirement cannot function without an approved
   Meta application** (D-002); it MUST ship behind a capability flag that is off until that credential exists.
+    > **Amended 2026-11-03 (owner ruling, ADR-0082): social import rules.** [Law] The caption text of a post is protected
+    > like any web text, and a video, its frames, its voice and its captions are protected too. So a social import
+    > (Instagram, and TikTok or YouTube when added) MUST use **official APIs under their terms only**. The server MUST
+    > NOT download a video from TikTok, Instagram or YouTube against their terms. Where no API allows the import, the
+    > fallback is the cook's own **paste, share sheet or screenshot** (`FR-052`, `011`). The import MUST NOT keep video
+    > frames or audio, and MUST NOT run face recognition on frames (Illinois BIPA, 740 ILCS 14). [Law, EU] DSM Art. 4(2)
+    > limits retention of mining copies, and GDPR storage limitation applies where people appear. The result is a
+    > facts card plus the cook's private copy where the market allows (`FR-008` ruling, D6), under the same labels as a
+    > web page. Counsel review is owed before launch (`016-FR-050`).
 - **FR-012** _(REASSIGNED TO 011 — see D-001, amended 2026-08-14)_: Import from physical copies via photo
   capture and OCR is owned by [011-recipe-digitization](../011-recipe-digitization/spec.md), **not by 004**.
   011's image branch routes to a dedicated stateless image-processing service and then submits its extracted
@@ -263,6 +311,11 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   offering an affordance that does nothing, and the bulk import contract MUST accept the
   `imported_physical` `sourceType` so 011 can submit against it without a contract change.
   See [ADR-0019](../../docs/architecture/decisions/0019-recipe-import-spine.md) §1 and §3.
+    > **Amended 2026-11-03 (owner ruling, ADR-0082): the image path.** [Law] A cook's private copy of a cookbook page is
+    > fine, and storage is user-provided (UK reg. 19, DSA Art. 6). The page image MUST be **deleted after extraction**
+    > unless the cook asks to keep it. A kept image stays private. Video frames and audio are never kept. [Law, EU] DSM
+    > Art. 4(2) limits retention, and GDPR storage limitation applies where people appear. Counsel review is owed
+    > before launch (`016-FR-050`).
 - **FR-052** _(raw-text channel — added 2026-08-16, owner ruling)_: System MUST allow users to import a recipe
   by **pasting its text**, as a first-class import method listed in the chooser (`FR-046`) alongside URL and
   file — not as an error-recovery fallback. The channel MUST accept a bounded body of raw text plus a
@@ -309,7 +362,7 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     - **The label comes from the rights check, never from the button.** A save is never `user_created`. The check
       gives one of three outcomes: `imported_public`, `imported_paid` for a page allowed only as private, or blocked. So
       it is
-      never open to the web (`021-FR-003`), and a book or paid-site recipe is never public (C-004).
+      never open to the web (`021-FR-003`), and a book or paid-site recipe's verbatim copy is never public (C-004, amended 2026-11-03, ADR-0082).
     - **020 still checks it.** A cook can make the recipe public. Then 020's source check runs before anyone else
       can see it (`020-FR-004`).
     - **Attribution.** The draft and the recipe show the source site and author, as for any link import
@@ -468,19 +521,46 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > family member or friend, with their permission" is never `imported_paid` (FR-014a). Which existing source type it
     > takes is a PLANNING decision for `staff-architect`, and it adds no fifth source type. The statement kind is stored
     > as its own fact, and the rights label is derived from it (`016-FR-015d`).
+    >
+    > **Amended 2026-11-03 (owner ruling, ADR-0082): what the values mean.** `imported_public` means "copied from a
+    > publicly reachable page". [Law] Such a page is fully protected from the day it is written. So `imported_public`
+    > is the **opposite** of public domain. It never means that anyone may republish the text. A public domain text
+    > is also stored as `imported_public`, under the curator grant (ADR-0023), but its label comes from the curator's
+    > public-domain record (`016-FR-015k`), not from the value. Nobody owns the facts of any recipe
+    > (17 U.S.C. §102(b)), so every `imported_public` recipe can show a facts card. Its full text opens to the web only
+    > on a stated licence (`021-FR-014f`) or after a public-domain pass. `imported_physical` and `imported_paid` keep the
+    > cook's verbatim copy private. Counsel review is owed before launch (`016-FR-050`).
+    >
+    > **Statement kinds (D3).** The stored statement kind has five values: `authored` (I wrote this), `adapted` (my own
+    > words, with a credit), `source` (a copy from a web page, book, magazine or paid site, with its citation and source
+    > kind), `family` (from a family member or friend, with permission to share on Commise and the web, giver credit
+    > optional) and `publicDomain` (curator grant only, needs the D1 record in `016-FR-015k`). Shipped migration 0059
+    > holds only `authored` and `source`, so the other three are a code follow-up.
 - **FR-013**: System MUST create recipes imported from physical copies as private, with no public source
-  attribution. Structured-file imports follow the ordinary `user_created` visibility rules (FR-011).
+  attribution. _(Amended 2026-11-03, owner ruling, ADR-0082: "private" covers the verbatim copy. The cook can publish an
+  Adapted version with credit, and a facts card is `FR-014b`.)_ Structured-file imports follow the ordinary `user_created` visibility rules (FR-011).
 
 **Policy enforcement**
 
 - **FR-014**: System MUST reject import attempts from known paywalled recipe sources before performing any
   outbound request, and inform the user with a clear explanation. The blocklist MUST be stored as data with an
   admin-managed lifecycle (D-004), not as a code constant, and MUST be re-evaluated on every redirect hop.
+    > **Kept and restated 2026-11-03 (owner ruling, ADR-0082).** The blocklist stays. [Law] Passing a paywall, login or
+    > meter is a circumvention risk (17 U.S.C. §1201), and after a revocation it is unauthorised access (CFAA, _Facebook
+    > v. Power Ventures_, 844 F.3d 1058 (9th Cir. 2016), UK Computer Misuse Act, German §202a StGB). So the import MUST
+    > NOT pass a paywall, login or meter, MUST NOT use a cook's password or cookies, MUST NOT pose as another bot, and
+    > MUST NOT rotate addresses. An honest user-agent and no rotation are law-shaped, not only house rules. Known
+    > pirate hosts MUST also be on the blocklist, because a pirated copy is not "lawfully accessible" (DSM Art. 4(1)).
+    > Our servers never fetch a paid site. Counsel review is owed before launch (`016-FR-050`).
 - **FR-014a**: System MUST require, for any manually pasted or typed recipe the user attests originates from an
   external source, both (a) an explicit source attestation and (b) a source citation — a URL where one exists,
   otherwise a free-text citation (e.g. book title, author, page). Where the cited source is **not a publicly
-  reachable web page**, the recipe MUST be classified `imported_paid` and MUST NOT be made public. _(Amended
-  2026-10-29: except a family or friend recipe shared with permission, below.)_ Automated
+  reachable web page**, the recipe MUST be classified `imported_paid`, and its **verbatim copy** MUST stay private.
+  _(Amended 2026-10-29: except a family or friend recipe shared with permission, below. Amended 2026-11-03, owner
+  ruling, ADR-0082: the rule is about the verbatim copy, not about the recipe. [Law] Where a recipe came from is not
+  the test. What we show is. The cook can publish their own **Adapted** version, in their own words with credit, and
+  it is judged by the Adapted rule. A family recipe is public as itself. See the six statements below. Counsel review
+  is owed before launch (`016-FR-050`).)_ Automated
   detection heuristics MUST additionally run as a **secondary signal** that flags a recipe for review; a
   heuristic MUST NOT by itself reclassify a recipe or block a save. _(Legal review remains advisable on the
   heuristic set; the attestation + citation rule above is operable without it — see D-003.)_
@@ -493,11 +573,21 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > 2. "Adapted in my own words, from [credited source]". A credit is required. `user_created`, with the credit shown
     >    on the recipe. A method rewritten by an AI feature does not count as the cook's own words (`016-FR-015i`).
     > 3. "From a public web page", with its link. `imported_public`.
-    > 4. "From a cookbook or magazine", with a citation. `imported_physical`. Never public.
-    > 5. "From a paid site", with a citation. `imported_paid`. Never public.
+    > 4. "From a cookbook or magazine", with a citation. `imported_physical`. The verbatim copy stays private. The
+    >    public form is a facts card (`FR-014b`).
+    > 5. "From a paid site", with a citation. `imported_paid`. The verbatim copy stays private. Our servers never fetch a
+    >    paid site.
     > 6. "From a family member or friend, with their permission". The credit is optional. It is never `imported_paid`.
-    >    It can go public, under the same 020 check as any recipe (`020-FR-013a`). It is never open to the web
-    >    (`021-FR-002`).
+    >    It can go public, under the same 020 check as any recipe (`020-FR-013a`). _(Amended 2026-11-03, owner ruling,
+    >    ADR-0082: it is now open to the web and indexable like any recipe the cook wrote (`021-FR-002`). The statement
+    >    must say the giver agreed to sharing "publicly, on Commise and on the web". Naming the giver is optional
+    >    and needs the giver's permission, because a name can be personal data.)_
+    >
+    > ⚠️ **Amended 2026-11-03 (owner ruling, ADR-0082): statements 2 and 6 make a recipe publishable in full.**
+    > [Law] The bare recipe is free, and a relative's handwritten prose can be theirs. The cook publishes it in their own
+    > words, or the giver's words with the giver's permission. An "Adapted" method must be rewritten, not trimmed
+    > (`016-FR-015b`). An AI rewrite is not the cook's own words (`016-FR-015i`). A cook who holds a verbatim book or
+    > paid-site copy can write an Adapted version and publish that. Counsel review is owed before launch (`016-FR-050`).
     >
     > The statement sets the label and the rights label (`016-FR-015c`). Each channel offers the statements its own
     > rules allow. Paste (`FR-052`) still maps a book or paid-site statement to `imported_paid` and does not offer
@@ -507,7 +597,7 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > ⚠️ **Bulk import.** Owner rulings, 2026-10-26. Every bulk-imported recipe, private as well as public,
     > carries its own statement, and one statement for a whole file does not count. The statement is "I wrote this",
     > with no citation, or "From a source", with a citation. A source is a public web page, a book or a paid site. The import sets the label from it: `user_created`, `imported_public`,
-    > `imported_physical` or `imported_paid`. A recipe whose source is not a public web page cannot be public. A free
+    > `imported_physical` or `imported_paid`. A recipe whose source is not a public web page keeps its verbatim copy private _(amended 2026-11-03, ADR-0082: the cook can publish an Adapted version)_. A free
     > cook keeps a book or paid-site recipe private within their 50 private slots
     > ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). Counsel approves the wording before launch (016
     > FR-050). See [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9.
@@ -547,11 +637,28 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   advertised to free-tier users. Pro users have no slot limit. _(Amended 2026-10-29, ADR-0077.)_ A family or friend
   recipe shared with permission is not "non-public by policy". It can be public, so this FR's refusals do not apply to
   it. Its private copy uses a slot like any private recipe.
+- **FR-014b** _(added 2026-11-03, owner ruling, ADR-0082, decision D5)_: System MUST offer a public **facts card** for a
+  book or paid-site recipe (`imported_physical`, `imported_paid`). [Law] The facts of a recipe are free to anyone
+  (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991)). The card has the same field list as the linked card
+  (`021-FR-014a`): no prose, no headnote and no photo. It credits the book (title, author, publisher) or the paid site.
+  It MUST NOT appear in the book's order or as a book's collection. A **per-source cap** applies, per book (by ISBN or
+  title) and per paid site, counted over time (E7, `016-FR-030a`). [Law, EU and UK] The cap rests on the database right
+  (Directive 96/9/EC Art. 7), US compilation copyright for one source's selection (17 U.S.C. §103) and goodwill.
+  The cook's full verbatim copy stays private. Our servers never fetch a paid site, so the card's facts come from the
+  cook's paste or photo. Counsel review is owed before launch (`016-FR-050`).
+
 - **FR-024** _(PARTIALLY IMPLEMENTED 2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md))_: Recipe creation
   MUST accept an explicit provenance (`sourceType` plus optional source URL and attribution) rather than
   assuming `user_created`, and MUST evaluate the C-004 visibility policy against the **actual** provenance.
   Omitted provenance MUST continue to mean `user_created`, so existing behaviour is unchanged. _(Requires a
   change to 001's `RecipesService` — see the callout above.)_
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** A curator who declares `imported_public` for a public-domain text
+    > MUST also record the public-domain record on the grant: first-publication year and place, each creator (author,
+    > translator, illustrator) with a death year or "no named author", the "mort pour la France" flag per creator, the
+    > edition used, the markets checked, who checked and when, and the rule version (D1, `016-FR-015k`). No new
+    > `sourceType` value is added. The "Public domain" label is derived from the grant plus a passing record. The rule
+    > rolls forward each 1 January, so no cut-off year is fixed here. Counsel review is owed before launch (`016-FR-050`).
+    >
     > ✅ **The create half has shipped, ahead of the rest of 004 and additively.** `POST /api/v1/recipes` now
     > takes an optional `source` — a discriminated union over `sourceType` in
     > `packages/services/recipe-service/src/recipes/recipes.schema.ts` — and `RecipesService.create` no longer
@@ -590,15 +697,32 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   file, rejecting a larger file with an explicit limit message — producing one draft per
   recipe. Drafts with no missing required fields MUST be confirmable in a single bulk action; drafts with gaps
   MUST be surfaced individually for completion. A failure affecting one recipe MUST NOT discard the others.
+  _(Amended 2026-11-03, owner ruling, ADR-0082, E7: a **per-source cap** also applies to bulk import. Facts cards a
+  file would make public are counted per source, per book or per site, over time, together with every earlier card and
+  any later Commise version. A file past the cap keeps the extra recipes private. [Law, EU and UK] This rests on the
+  database right (Directive 96/9/EC Art. 7(5), repeated and systematic taking), US compilation copyright
+  (17 U.S.C. §103) and goodwill. Counsel review is owed before launch (`016-FR-050`).)_
 - **FR-027**: Bulk confirmation MUST report a **per-recipe outcome** (created, already existed, or failed with
   a reason) rather than a single aggregate result, and MUST apply deduplication per recipe so that a recipe
   already present resolves to the existing one rather than counting as a failure.
 - **FR-023**: System MUST consult the source site's `robots.txt` before fetching, and MUST apply it as follows
-  (D-007): where a group **explicitly names the import user-agent**, every directive in that group MUST be
-  honoured in full, including a site-wide `Disallow: /`. Where only the wildcard (`*`) group applies, a
-  **path-specific** `Disallow` matching the requested path MUST be honoured, while a **bare site-wide**
-  `Disallow: /` MUST NOT block a user-initiated import. A blocked fetch MUST be reported as
+  RFC 9309: the group that names the import user-agent binds the fetch, and if no group names it, the `*` group
+  binds it. _(Amended 2026-11-03, owner ruling, ADR-0082: the earlier D-007 exception, that a bare site-wide
+  `Disallow: /` in the `*` group did not block a user-initiated import, is withdrawn. It was a reading of D-007, not of
+  RFC 9309. "Honour every group that names us" alone was also wrong.)_ A blocked fetch MUST be reported as
   `IMPORT_SOURCE_BLOCKED` and MUST be counted, so the real-world cost of this policy is measurable.
+  The fetch MUST also read and honour the machine-readable data-mining opt-outs, because the parse uses an LLM:
+  TDMRep (`/.well-known/tdmrep.json` and the `tdm-reservation` header), `noai` and `noimageai` tags, blocks on AI
+  crawlers (GPTBot, ClaudeBot, Google-Extended, CCBot) and Content Signals `ai-input=no`. [Law, EU] A machine-readable
+  reservation under DSM Art. 4(3) takes the source out of text-and-data mining. This is [Judgement, strong], not
+  settled: no court has ruled on TDMRep, and the law on prose-only opt-outs is open (_Kneschke v. LAION_, OLG Hamburg,
+  10 Dec 2025, further appeal pending). [House rule] We honour them everywhere from v1. The fetch MUST log, per
+  fetch, what each signal said, including "none found", as evidence. [Law, EU] The paste fallback does not cure an EU
+  opt-out for our own LLM analysis. It moves the stored copy to the user side only. That is a counsel item. [Law, US]
+  robots.txt is not US law, but ignoring it weakens implied-licence arguments (_Field v. Google_, 412 F. Supp. 2d 1106
+  (D. Nev. 2006)). Extraction's legal basis is per market: US fair use (a judgement, weakened by _Thomson Reuters v.
+  Ross_), EU DSM Art. 4 unless opted out, UK s.28A only, and Australia has no matching exception. Counsel review is
+  owed before launch (`016-FR-050`).
     > ⚠️ **FINDING (2026-08-19 — [ADR-0023](../../docs/architecture/decisions/0023-curator-declared-provenance.md)): `robots.txt` compliance is NOT
     > terms-of-use compliance, and this requirement treats them as the same check.** A site may permit a path in
     > `robots.txt` and forbid automated access in prose elsewhere. Measured on the live site the same day:
@@ -933,7 +1057,7 @@ The section above decides **who authors** the contract; this one is where it **r
   the button, which is the publisher's own act. Whether that act grants any licence is a counsel question under
   `016-FR-050`. It does not change any label. No other requirement in 004 depends on `FR-053`.
 - **D-003 (FR-014a)**: Attestation **and** citation **and** heuristics, as specified in `FR-014a`: the user
-  declares the source and must cite it; a non-public cited source forces `imported_paid` (never public);
+  declares the source and must cite it; a non-public cited source forces `imported_paid` (its verbatim copy never public, amended 2026-11-03, ADR-0082);
   heuristics flag for review only. Enforcement reuses 001's shipped `imported_paid` handling, so only
   _classification_ is new.
 - **D-004 (Blocklist governance)**: The paywalled-domain blocklist is a **database table with an admin-scoped
@@ -1099,6 +1223,10 @@ channel is hidden by its capability flag and its tests run against the contract 
   card is enforced by a partial unique index that excludes soft-deleted rows, so a deleted import can be re-imported.
   Applies to both website and Instagram imports. One card per page also keeps the count of public cards per site low
   (`016-FR-030a`).
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** The key means one facts card per page, not one per recipe.
+    > Duplicates are a product choice, not a legal problem, and two cooks' texts are never merged into one. **Known
+    > product gap:** matching on the URL alone misses the same recipe at another address, and it misses pasted copies.
+    > The card is now readable signed out (`FR-008` ruling). Counsel review is owed before launch (`016-FR-050`).
 - **C-003 (Instagram import method)**: Instagram import uses the Meta-hosted oEmbed endpoint with an app
   credential and caption-text parsing. Only posts with recipe content in the caption are supported. See D-002.
 - **C-006 (Draft-and-confirm)**: Every import channel produces a draft; confirmation creates the recipe. See

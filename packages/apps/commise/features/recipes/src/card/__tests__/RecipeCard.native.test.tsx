@@ -8,8 +8,7 @@
  * cards. The iOS shadow-clipping invariants (shadow and clip never on one node) are kept, because the level-1 card
  * still elevates and still clips its cover.
  */
-import { act, cleanup, screen } from '@testing-library/react';
-import { stubBoundingRects } from '@commise/ui/testing/bounding-rects';
+import { cleanup, screen } from '@testing-library/react';
 import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -38,13 +37,8 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
-/** Puts back `getBoundingClientRect` after a test that measured the cover (Tamagui reports `onLayout` from it, at mount). */
-let restoreRects: (() => void) | undefined;
-
 afterEach(() => {
     cleanup();
-    restoreRects?.();
-    restoreRects = undefined;
     systemScheme.current = null;
     fontScale.current = 1;
 });
@@ -166,7 +160,7 @@ describe.each(VARIANTS)('RecipeCard (native, %s) — what every variant keeps', 
 });
 
 describe('RecipeCard (native, grid)', () => {
-    it('chips the cover with Draft and the time in hours and minutes', () => {
+    it('chips the cover with Draft only, and says the time in hours and minutes on the meta line', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -176,8 +170,10 @@ describe('RecipeCard (native, grid)', () => {
         );
 
         expect(screen.getByText('Draft')).toBeTruthy();
-        expect(screen.getByLabelText('330 minutes total time')).toBeTruthy();
+        const time = screen.getByLabelText('330 minutes total time');
+        expect(time).toBeTruthy();
         expect(screen.getByText('5 h 30 min')).toBeTruthy();
+        expect(getComputedStyle(time).backgroundColor).not.toBe(rgb(role.photoChip));
     });
 
     it('says the stated difficulty, and nothing when none was stated', () => {
@@ -216,15 +212,12 @@ describe('RecipeCard (native, grid)', () => {
         expect(star === null ? '' : getComputedStyle(star).color).toBe(rgb(rating));
     });
 
-    it('renders the cuisine, the nutrition slot, the servings, the tags line and the footer', () => {
+    it('renders the nutrition slot and a footer of the timestamp alone', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
                 variant="grid"
                 recipe={model({
-                    cuisine: 'Moroccan',
-                    servings: 8,
-                    tags: ['a', 'b', 'c'],
                     currentVersion: 3,
                     createdAt: '2020-01-01T00:00:00.000Z',
                     updatedAt: '2020-01-02T00:00:00.000Z',
@@ -233,15 +226,92 @@ describe('RecipeCard (native, grid)', () => {
             />,
         );
 
-        expect(screen.getByText('Moroccan')).toBeTruthy();
         expect(screen.getByText('612 cal')).toBeTruthy();
-        expect(screen.getByText('Serves 8')).toBeTruthy();
-        expect(screen.getByText('a · b · +1')).toBeTruthy();
-        expect(screen.getByText(/^v3 · Edited /u)).toBeTruthy();
+        expect(screen.getByText(/^Edited /u)).toBeTruthy();
+    });
+});
+
+describe.each(VARIANTS)(
+    'RecipeCard (native, %s) — the fields no card shows (designAnswers.md, 2026-11-02)',
+    (variant) => {
+        const loaded = model({
+            title: 'Herb Risotto',
+            servings: 4,
+            cuisine: 'Italian',
+            tags: ['vegan', 'quick'],
+            currentVersion: 9,
+            totalTimeMinutes: 35,
+            difficulty: RecipeDifficulty.MEDIUM,
+            coverPhotoUrl: undefined,
+        });
+
+        it('draws no servings, cuisine, tags or version', () => {
+            renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={loaded} showEdited />);
+
+            expect(screen.queryByText(/Serves/u)).toBeNull();
+            expect(screen.queryByLabelText(/Serves/u)).toBeNull();
+            expect(screen.queryByText('Italian')).toBeNull();
+            expect(screen.queryByText(/vegan/u)).toBeNull();
+            expect(screen.queryByText(/v9/u)).toBeNull();
+        });
+
+        it('draws no cover time chip, and no difficulty badge: the word is plain text with no meter beside it', () => {
+            const { container } = renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={loaded} />);
+
+            if (variant === 'compact') {
+                expect(screen.queryByText('Medium')).toBeNull();
+                expect(screen.queryByLabelText('35 minutes total time')).toBeNull();
+            } else {
+                const word = screen.getByText('Medium');
+                // A badge is a view holding a hidden three-dot meter beside the word.
+                const meters = [...(word.parentElement?.querySelectorAll('[aria-hidden="true"]') ?? [])].filter(
+                    (node) => node.children.length === 3,
+                );
+
+                expect(meters).toHaveLength(0);
+            }
+            expect(container.querySelector('[class*="cover"] [aria-label="35 minutes total time"]')).toBeNull();
+        });
+    },
+);
+
+describe.each(['grid', 'row'] as const)('RecipeCard (native, %s) — the meta line', (variant) => {
+    it('reads time, difficulty, rating, calories on one line', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant={variant}
+                recipe={model({
+                    totalTimeMinutes: 35,
+                    difficulty: RecipeDifficulty.MEDIUM,
+                    averageRating: 4.75,
+                    ratingCount: 12,
+                })}
+                nutrition={<span>520 cal</span>}
+            />,
+        );
+        const line = screen.getByLabelText('35 minutes total time').parentElement as HTMLElement;
+
+        expect(line.textContent).toMatch(/35 min.*Medium.*4\.8 \(12\).*520 cal/u);
     });
 });
 
 describe('RecipeCard (native, row)', () => {
+    it('orders the title, then the meta line, then the status line', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="row"
+                recipe={model({ title: 'Herb Risotto', totalTimeMinutes: 35, difficulty: RecipeDifficulty.MEDIUM })}
+            />,
+        );
+        const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        const meta = screen.getByLabelText('35 minutes total time');
+
+        expect(before(screen.getByText('Herb Risotto'), meta)).toBe(true);
+        expect(before(meta, screen.getByText(/^Created |^Edited /u))).toBe(true);
+    });
+
     it.each<[RecipeVisibility, string]>([
         [RecipeVisibility.PRIVATE, 'Private'],
         [RecipeVisibility.PUBLIC, 'Public'],
@@ -358,25 +428,13 @@ describe('RecipeCard (native) — slots for a surface’s own controls', () => {
     });
 });
 
-/** Report a laid-out size to every view that asked for one, the way react-native-web's ResizeObserver does. */
-function layOutAll(container: HTMLElement, height: number): void {
-    for (const node of container.querySelectorAll<HTMLElement>('*')) {
-        const handler = (node as HTMLElement & { __reactLayoutHandler?: (event: unknown) => void })
-            .__reactLayoutHandler;
-
-        if (handler !== undefined) {
-            act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width: height, height } } }));
-        }
-    }
-}
-
 describe('RecipeCard (native, row) — A-016: the member row keeps its text beside a trailing control', () => {
     it('gives the link the row’s free width, so the title and meta are not squeezed to nothing', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
                 variant="row"
-                recipe={model({ title: 'Herb Risotto', cuisine: 'Italian' })}
+                recipe={model({ title: 'Herb Risotto' })}
                 onSelect={vi.fn()}
                 note={<span>Added by you</span>}
                 trailing={<button type="button">More actions for Herb Risotto</button>}
@@ -396,83 +454,29 @@ describe('RecipeCard (native, row) — A-016: the member row keeps its text besi
 });
 
 describe('RecipeCard (native) — W-06 / A-028: a one-line row is exactly one line, at any font scale', () => {
-    const metaLineOf = (text: string): HTMLElement => screen.getByText(text).parentElement as HTMLElement;
-    // A badge is a view holding its meter and its word, and the line holds the badge.
-    const badgeLineOf = (text: string): HTMLElement => metaLineOf(text).parentElement as HTMLElement;
+    const timeLineOf = (): HTMLElement => screen.getByLabelText('35 minutes total time').parentElement as HTMLElement;
 
     it('is as tall as the meta line (19.6 pt, rounded up), so a dropped item leaves no sliver under it', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ cuisine: 'Moroccan' })} />);
+        renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ totalTimeMinutes: 35 })} />);
 
-        expect(getComputedStyle(metaLineOf('Moroccan')).height).toBe('20px');
+        expect(getComputedStyle(timeLineOf()).height).toBe('20px');
     });
 
-    it('scales with the OS font scale, so the largest setting clips neither the text nor the badge', () => {
+    it('scales with the OS font scale, so the largest setting clips nothing', () => {
         fontScale.current = 2;
         renderCard(
             <RecipeCard
                 headingLevel={3}
                 variant="row"
-                recipe={model({ cuisine: 'Moroccan', difficulty: RecipeDifficulty.EASY })}
+                recipe={model({ totalTimeMinutes: 35, difficulty: RecipeDifficulty.EASY })}
             />,
         );
 
-        expect(getComputedStyle(metaLineOf('Moroccan')).height).toBe('40px');
-        // REWRITTEN for the px type scale (2026-10-25): the badge's word (caption, 20 pt like meta) plus its padding,
-        // 20 × 2 + 4, is taller than the meta text beside it at this scale. It was the meta text that decided (40).
-        expect(getComputedStyle(badgeLineOf('Easy')).height).toBe('44px');
-    });
-
-    it('keeps the 24 pt badge line at the default scale', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ difficulty: RecipeDifficulty.EASY })} />);
-
-        expect(getComputedStyle(badgeLineOf('Easy')).height).toBe('24px');
-    });
-
-    it('caps the cuisine at half the line, so it truncates before the time and the servings drop', () => {
-        renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="row"
-                recipe={model({ cuisine: 'Mediterranean', totalTimeMinutes: 90 })}
-            />,
-        );
-
-        expect(getComputedStyle(screen.getByText('Mediterranean')).maxWidth).toBe('50%');
+        expect(getComputedStyle(timeLineOf()).height).toBe('40px');
     });
 });
 
-describe('RecipeCard (native, grid) — W-08: the cuisine never sits under the time chip', () => {
-    it('draws no cuisine on a cover that carries the time chip', () => {
-        restoreRects = stubBoundingRects(() => ({ width: 150, height: 150 }));
-        const { container } = renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="grid"
-                recipe={model({ cuisine: 'French', totalTimeMinutes: 15, coverPhotoUrl: undefined })}
-            />,
-        );
-
-        layOutAll(container, 150);
-
-        // The meta line says it; the cover must not say it again beneath the chip.
-        expect(screen.getAllByText('French')).toHaveLength(1);
-    });
-
-    it('keeps the cuisine on a cover with no time chip', () => {
-        restoreRects = stubBoundingRects(() => ({ width: 150, height: 150 }));
-        const { container } = renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="grid"
-                recipe={model({ cuisine: 'French', totalTimeMinutes: 0, coverPhotoUrl: undefined })}
-            />,
-        );
-
-        layOutAll(container, 150);
-
-        expect(screen.getAllByText('French')).toHaveLength(2);
-    });
-
+describe('RecipeCard (native, grid) — cover chips', () => {
     // REWRITTEN for the designer's ruling (2026-11-03, designAnswers.md bdb2403cb), which reverses W-08's half-cover cap:
     // 50% of a 148 pt tile less the chip's padding and glyph left 38 pt, and "Private" needs 47. The chip takes its content
     // width, its word never truncates, a second chip moves whole to the next line, and a chip wider than the cover

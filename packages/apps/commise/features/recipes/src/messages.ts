@@ -427,8 +427,6 @@ export interface RecipeCardMessages {
     readonly difficultyLabel: string;
     /** Accessible total-time template (contains `{minutes}`), e.g. "45 minutes total time". */
     readonly timeLabel: string;
-    /** Accessible servings template (contains `{count}`), e.g. "Serves 4". */
-    readonly servingsLabel: string;
     /** Accessible rating-summary template (contains `{average}` and `{ratings}`). */
     readonly ratingSummary: string;
     /** Singular rating-count template (contains `{count}`). */
@@ -439,9 +437,7 @@ export interface RecipeCardMessages {
     readonly unrated: string;
     /** The rating beside the stars, e.g. "4.8 (12)" (contains `{average}` and `{count}`). */
     readonly ratingShort: string;
-    /** The count of tags past the ones a card shows, e.g. "+3" (contains `{count}`). */
-    readonly moreTags: string;
-    /** The separator between the items of one card line, e.g. "Moroccan · Serves 8". */
+    /** The separator between the items of one card line, e.g. "35 min · Medium". */
     readonly separator: string;
     /** Accessible label for the cover-image placeholder shown when a recipe has no photo. */
     readonly noPhotoLabel: string;
@@ -451,10 +447,6 @@ export interface RecipeCardMessages {
      * consumer and duplicated `nutrition/messages.ts`'s `calories` verbatim. Two authoritative spellings of
      * one string, one of them unreachable. The nutrition module owns the calorie copy.
      */
-    /** Visible version-badge text, shown only past v1 (contains `{version}`). */
-    readonly versionBadge: string;
-    /** Accessible name for the version badge (contains `{version}`). */
-    readonly versionLabel: string;
     /** Visibility-badge text for a public recipe. */
     readonly visibilityPublic: string;
     /** Visibility-badge text for a private recipe. */
@@ -1061,17 +1053,13 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             difficultyHard: 'Hard',
             difficultyLabel: 'Difficulty: {difficulty}',
             timeLabel: '{minutes} minutes total time',
-            servingsLabel: 'Serves {count}',
             ratingSummary: 'Rated {average} out of 5, {ratings}',
             ratingCountOne: '{count} rating',
             ratingCountOther: '{count} ratings',
             unrated: 'No ratings yet',
             ratingShort: '{average} ({count})',
-            moreTags: '+{count}',
             separator: ' · ',
             noPhotoLabel: 'No photo yet',
-            versionBadge: 'v{version}',
-            versionLabel: 'Version {version}',
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             draftBadge: 'Draft',

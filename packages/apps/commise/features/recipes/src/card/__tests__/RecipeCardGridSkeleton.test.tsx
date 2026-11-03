@@ -63,7 +63,7 @@ describe('RecipeCardGridSkeleton (web)', () => {
     });
 
     it.each([
-        ['grid', 6],
+        ['grid', 4],
         ['row', 3],
         ['compact', 2],
     ] as const)('draws a %s skeleton with the rows of that variant (%i bars and covers)', (variant, parts) => {

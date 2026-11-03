@@ -2,9 +2,9 @@
  * @module @commise/features-recipes/card — the native recipe card: one data shape, three variants
  * (`docs/design/uiOverhaul/buildSpec.md` §4.1), the twin of the web leaf.
  *
- * - **grid** — the full CR-002 card: a 4:3 cover with its chips, then the title; difficulty · rating; cuisine ·
- *   calories · servings; the tags as text; the version and the timestamp.
- * - **row** — the list view: an 80 × 80 cover, the title on up to two lines, a meta line and a status line.
+ * - **grid** — a 4:3 cover with its chips, then the title, the meta line (time · difficulty · rating · calories) and
+ *   the timestamp.
+ * - **row** — the list view: an 80 × 80 cover, the title on up to two lines, the same meta line and a status line.
  * - **compact** — the cover with its chips, then the title.
  *
  * The orchestration layer decides the variant with `cardVariantOf`; this leaf draws the arrangement it is handed. The
@@ -18,14 +18,15 @@
  * One line that runs out of room: native has no `:empty`, so the meta line spaces its items with a gap rather than the
  * web's middots — a nutrition slot that settles on nothing would otherwise leave an orphan separator. A one-line row is a
  * wrapping row of EXACTLY one line's height (`./oneLine.ts`, scaled by the OS font scale), so an item that does not fit
- * wraps to a second line that is fully hidden. The row's cuisine is capped at half the line and truncates, so it gives
- * way before the time and the servings drop (W-06).
+ * wraps to a second line that is fully hidden (W-06).
+ *
+ * No variant shows servings, cuisine, the tags, the version, a cover time chip or a difficulty badge (designer ruling
+ * 2026-11-02, `docs/design/uiRefreshWorkshop5/nativeBoards/designAnswers.md`); difficulty is a plain word in the meta line.
  *
  * @pattern Compound Component — a Root carrying the view in context, and parts each surface arranges
  * @pattern Registry — the variant's default arrangement, keyed by the closed variant union
  */
 import { nativeTokens } from '@commise/ui/native';
-import { DifficultyBadge } from '@commise/ui/difficulty-badge';
 import { Icon } from '@commise/ui/icon';
 import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
@@ -95,22 +96,10 @@ const CoverChip: FC<{ readonly children: ReactNode; readonly label?: string; rea
     );
 };
 
-/** The cover: the photo or its monogram, with the status chip, PRO and the time chip over it. */
+/** The cover: the photo or its monogram, with the status chip and PRO over it. */
 const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) => {
     const { recipe, cover } = useCardView();
     const { colors } = useTheme();
-    // Text never sits under a chip (§1.8): a cover that draws the time chip says no cuisine of its own.
-    const drawsTimeChip = !thumbnail && cover.time !== undefined;
-    // The band is the cover's footer, in flow below the monogram's letter, so the letter is centred above its top edge and
-    // never under it, however tall it grows with the text size (designer ruling 2026-11-03).
-    const timeChip =
-        cover.time === undefined ? null : (
-            <CoverChip label={cover.time.label}>
-                <Icon name="clock" size={16} tone="ink" />
-                <Text style={[styles.caption, styles.figure, { color: colors.ink }]}>{cover.time.text}</Text>
-            </CoverChip>
-        );
-
     return (
         // Kept, so the thumbnail's clipping never moves the cover into it (`nativeFlattenFlips.test.ts`).
         <View collapsable={false} style={thumbnail ? styles.thumbnail : styles.cover}>
@@ -118,9 +107,6 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                 recipeId={recipe.id}
                 title={recipe.title}
                 aspect={thumbnail ? '1:1' : '4:3'}
-                showCuisine={!drawsTimeChip}
-                {...(drawsTimeChip ? { footer: timeChip } : {})}
-                {...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine })}
                 {...(recipe.coverPhotoUrl === undefined ? {} : { photoUrl: recipe.coverPhotoUrl })}
             />
             {thumbnail
@@ -193,128 +179,64 @@ const CardRating: FC = () => {
     );
 };
 
-/** Difficulty, then the rating. */
-const CardDifficultyRating: FC = () => {
-    const { meta } = useCardView();
-
-    return (
-        <OneLine kind="badge">
-            {meta.difficulty !== undefined && (
-                <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
-            )}
-            <CardRating />
-        </OneLine>
-    );
-};
-
-/** The grid card's meta line: cuisine, calories, servings. */
+/** The meta line of the grid card and the list row: ⏱ time, difficulty, rating, calories. The difficulty is a plain word. */
 const CardMeta: FC = () => {
-    const { recipe, meta } = useCardView();
+    const { meta } = useCardView();
     const nutrition = useContext(RecipeCardNutritionContext);
     const { colors } = useTheme();
     const text = [styles.meta, { color: colors.inkMuted }];
 
     return (
         <OneLine kind="meta">
-            {recipe.cuisine !== undefined && (
-                <Text numberOfLines={1} style={[text, styles.shrink]}>
-                    {recipe.cuisine}
-                </Text>
-            )}
-            {nutrition}
-            <Text accessibilityLabel={meta.servingsLabel} style={text}>
-                {meta.servingsText}
-            </Text>
-        </OneLine>
-    );
-};
-
-/** The status as the design-system badge, the version and the timestamp. */
-const CardBadges: FC = () => {
-    const { badges } = useCardView();
-    const { colors } = useTheme();
-
-    return (
-        <View style={styles.wrapLine}>
-            {badges.version !== undefined && (
-                <Text accessibilityLabel={badges.version.label} style={[styles.caption, { color: colors.inkMuted }]}>
-                    {badges.version.text}
-                </Text>
-            )}
-            <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
-            <Text style={[styles.caption, { color: colors.inkMuted }]}>{badges.timestamp}</Text>
-        </View>
-    );
-};
-
-/** The tags as one line of text. An empty line keeps its height, so cards side by side keep their rows. */
-const CardTags: FC = () => {
-    const { tags } = useCardView();
-    const { colors } = useTheme();
-
-    return (
-        <Text
-            numberOfLines={1}
-            {...(tags === undefined ? {} : { accessibilityLabel: tags.label })}
-            style={[styles.caption, styles.lineBox, { color: colors.inkMuted }]}
-        >
-            {tags?.text ?? ''}
-        </Text>
-    );
-};
-
-/** The version (past v1) and the timestamp. */
-const CardFooter: FC = () => {
-    const { footer } = useCardView();
-    const { colors } = useTheme();
-
-    return (
-        <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
-            {footer}
-        </Text>
-    );
-};
-
-/** Row line 2: cuisine, ⏱ total, 👥 servings, calories. */
-const RowMeta: FC = () => {
-    const { recipe, meta } = useCardView();
-    const nutrition = useContext(RecipeCardNutritionContext);
-    const { colors } = useTheme();
-    const text = [styles.meta, { color: colors.inkMuted }];
-
-    return (
-        <OneLine kind="meta">
-            {recipe.cuisine !== undefined && (
-                <Text numberOfLines={1} style={[text, styles.cuisineCap]}>
-                    {recipe.cuisine}
-                </Text>
-            )}
             {meta.duration !== undefined && (
                 <View accessible accessibilityLabel={meta.timeLabel} style={styles.iconItem}>
                     <Icon name="clock" size={16} tone="inkMuted" />
                     <Text style={[text, styles.figure]}>{meta.duration}</Text>
                 </View>
             )}
-            <View accessible accessibilityLabel={meta.servingsLabel} style={styles.iconItem}>
-                <Icon name="users" size={16} tone="inkMuted" />
-                <Text style={[text, styles.figure]}>{recipe.servings}</Text>
-            </View>
+            {meta.difficulty !== undefined && (
+                <Text numberOfLines={1} style={text}>
+                    {meta.difficulty}
+                </Text>
+            )}
+            <CardRating />
             {nutrition}
         </OneLine>
     );
 };
 
-/** Row line 3: difficulty, rating, the visibility glyph or the Draft badge, then the timestamp. */
+/** The status as the design-system badge, and the timestamp. */
+const CardBadges: FC = () => {
+    const { badges } = useCardView();
+    const { colors } = useTheme();
+
+    return (
+        <View style={styles.wrapLine}>
+            <StatusBadge status={badges.status.status}>{badges.status.text}</StatusBadge>
+            <Text style={[styles.caption, { color: colors.inkMuted }]}>{badges.timestamp}</Text>
+        </View>
+    );
+};
+
+/** The timestamp. */
+const CardFooter: FC = () => {
+    const { badges } = useCardView();
+    const { colors } = useTheme();
+
+    return (
+        <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
+            {badges.timestamp}
+        </Text>
+    );
+};
+
+/** Row line 3: the visibility glyph or the Draft badge, then the timestamp. */
 const RowStatus: FC = () => {
-    const { meta, badges } = useCardView();
+    const { badges } = useCardView();
     const { colors } = useTheme();
 
     return (
         <OneLine kind="badge">
-            {meta.difficulty !== undefined && (
-                <DifficultyBadge level={meta.difficulty.level}>{meta.difficulty.label}</DifficultyBadge>
-            )}
-            <CardRating />
             {badges.status.status === 'draft' ? (
                 <StatusBadge status="draft">{badges.status.text}</StatusBadge>
             ) : (
@@ -352,9 +274,7 @@ const GridArrangement: FC<ArrangementSlots> = ({ link, footer }) => (
                 <CardCover />
                 <View style={[styles.body, footer !== undefined && styles.bodyBeforeFooter]}>
                     <CardTitle />
-                    <CardDifficultyRating />
                     <CardMeta />
-                    <CardTags />
                     {footer === undefined ? <CardFooter /> : null}
                 </View>
             </>,
@@ -373,7 +293,7 @@ const RowArrangement: FC<ArrangementSlots> = ({ link, note, trailing }) => (
                     <CardCover thumbnail />
                     <View style={styles.rowText}>
                         <CardTitle />
-                        <RowMeta />
+                        <CardMeta />
                         <RowStatus />
                         {note === undefined ? null : <NoteLine>{note}</NoteLine>}
                     </View>
@@ -487,7 +407,6 @@ export const RecipeCard = Object.assign(RecipeCardRoot, {
     Meta: CardMeta,
     Badges: CardBadges,
     Rating: CardRating,
-    Tags: CardTags,
 });
 
 const styles = StyleSheet.create({
@@ -575,9 +494,6 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     wrapLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    lineBox: { minHeight: 18 },
-    shrink: { flexShrink: 1 },
-    cuisineCap: { flexShrink: 1, maxWidth: '50%' },
     iconItem: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[1] },
     trailing: { marginStart: 'auto', flexShrink: 1 },
     stars: { flexDirection: 'row', alignItems: 'center', gap: 1 },

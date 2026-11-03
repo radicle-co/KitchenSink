@@ -2,8 +2,6 @@
  * @module @commise/ui/recipe-cover — the shared contract of the design-system `RecipeCover`
  * (`docs/design/uiOverhaul/buildSpec.md` §1.8): a recipe's photo, or its monogram when it has none.
  */
-import type { ReactNode } from 'react';
-
 /** The cover's shape: a 4:3 card, a 1:1 thumbnail, or the 96 px band across a phone's detail hero. */
 export type CoverAspect = '4:3' | '1:1' | 'band';
 
@@ -24,13 +22,6 @@ export interface RecipeCoverProps {
      * never sits under a chip (§1.8). Defaults to `true`.
      */
     readonly showCuisine?: boolean;
-    /**
-     * A band laid over the cover's bottom start (the meta chips), at its natural height. It sits IN FLOW below the
-     * letter's region, so the letter is centred in the space above the band's top edge and never under it, however
-     * tall the band grows with the text size (designer ruling, 2026-11-03). The band keeps its own accessible name: it
-     * is not hidden with the letter.
-     */
-    readonly footer?: ReactNode;
 }
 
 /** The height from which a monogram shows its cuisine, in px or points (§1.8). */

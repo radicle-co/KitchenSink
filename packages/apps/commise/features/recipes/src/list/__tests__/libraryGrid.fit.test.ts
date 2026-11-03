@@ -105,7 +105,7 @@ function slotsFor(locale: string, variant: CardVariant): readonly Slot[] {
 
     return [
         ...chips,
-        ...[card.unrated, card.servingsLabel].map((text) => ({
+        ...[card.unrated].map((text) => ({
             name: `body line "${say(text)}"`,
             role: 'meta' as const,
             text: say(text),

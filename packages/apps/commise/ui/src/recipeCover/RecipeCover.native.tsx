@@ -8,10 +8,8 @@
  * photo and the letter's region are hidden from assistive tech either way: the title is the name of the control the cover
  * sits in. Each aspect reserves its box.
  *
- * The cover is a column. A caller's `footer` (the meta-chip band) is its last child, in flow at its natural height, and
- * the letter's region is the flexible space above it, so the letter is centred above the band's top edge and never under
- * it, however tall the band grows with the text size (designer ruling 2026-11-03). With no footer the region is the whole
- * cover. The band is not hidden: it carries its own accessible name. No ref and no measuring of the band.
+ * The letter's region is the whole cover, so the letter is centred in it. No ref and no measuring of anything but the
+ * cover itself.
  *
  * The letter does not scale with the system text size (designer ruling c10ecadbf, 2026-11-03): it is decoration like avatar
  * initials, drawn with the design-system Text's `fixedPx`.
@@ -64,7 +62,7 @@ const Backdrop = styled(YStack, {
     left: 0,
 });
 
-/** The space above the footer: it takes what the band leaves and centres the letter (and the cuisine) in it. */
+/** The whole cover: it centres the letter (and the cuisine) in it. */
 const Region = styled(YStack, {
     name: 'RecipeCoverRegion',
     flexGrow: 1,
@@ -74,15 +72,6 @@ const Region = styled(YStack, {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '$1',
-});
-
-/** The band, at its natural height, at the bottom start. `auto` keeps it down when the region is empty (a photo). */
-const Footer = styled(YStack, {
-    name: 'RecipeCoverFooter',
-    marginTop: 'auto',
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
-    padding: '$2',
 });
 
 /** The monogram letter, in the display face. */
@@ -99,7 +88,6 @@ export const RecipeCover: FC<RecipeCoverProps> = ({
     photoUrl,
     aspect,
     showCuisine = true,
-    footer,
 }) => {
     const [height, setHeight] = useState<number | null>(null);
     const hasPhoto = photoUrl !== undefined;
@@ -134,7 +122,6 @@ export const RecipeCover: FC<RecipeCoverProps> = ({
                     ) : null}
                 </Region>
             )}
-            {footer === undefined ? null : <Footer>{footer}</Footer>}
         </Cover>
     );
 };

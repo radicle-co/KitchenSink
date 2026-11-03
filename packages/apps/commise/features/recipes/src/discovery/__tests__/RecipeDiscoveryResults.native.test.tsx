@@ -197,7 +197,8 @@ describe('RecipeDiscoveryResults (native) — populated', () => {
         });
 
         expect(screen.getByText(`${isolate('@tuscan_cook')} (${isolate('Tuscan Cook')})`)).toBeTruthy();
-        expect(screen.getByText('Tuscan')).toBeTruthy();
+        // No card shows a cuisine (designAnswers.md, 2026-11-02).
+        expect(screen.queryByText('Tuscan')).toBeNull();
         expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Ribollita' })).toBeTruthy();
     });

@@ -50,9 +50,11 @@ The corpus fills with willing contributors — who are also the contributors who
 ### ⛔ The central hazard this specification is designed around
 
 **A reward for publishing is an inducement to publish, and an inducement to publish content the user does not
-own is precisely what creates contributory liability and can forfeit safe-harbour protection.** Paying
-attention to this is not a compliance footnote — it is the primary design constraint, and it is why the
-eligibility rules below are deliberately narrow. A version of this feature that rewarded _any_ publication
+own could create contributory liability.** _(amended 2026-11-03, owner ruling, ADR-0082: the risk is restated as
+low.)_ [Law] Rewarding cooks for publishing their own recipes is not inducement to infringe. Inducement needs
+intent to promote infringement (MGM v. Grokster, 545 U.S. 913 (2005), Cox v. Sony, 2026). [House rule] We still
+reward only recipes the cook wrote, as cheap hygiene. Counsel review is owed before launch (`016-FR-050`). The
+eligibility rules below stay deliberately narrow. A version of this feature that rewarded _any_ publication
 would be actively worse than no feature at all.
 
 ---
@@ -270,6 +272,7 @@ no difference in recognition from a free account doing the same.
 **Eligibility — the anti-inducement core**
 
 - **FR-001**: Only a recipe whose provenance records the publishing user as its **author** MAY earn a reward.
+  _(Labelled [House rule] 2026-11-03, owner ruling, ADR-0082. The law does not require it. A Commise version never earns a reward.)_
   Recipes imported from a public web source, from a physical copy, from a paid source, or cloned from another
   user MUST NOT earn a reward under any circumstances. Publication itself is governed by the existing
   visibility policy and is **not** changed by this feature; only _earning_ is restricted here.
@@ -585,7 +588,9 @@ no difference in recognition from a free account doing the same.
 - **SC-002**: 100% of published recipes that earned a reward have a recorded authorship attestation. A
   publication with a grant and no attestation is a defect, not a data-quality issue.
 - **SC-003**: 0% of rewards are granted for recipes whose provenance is imported or cloned, measured
-  continuously rather than sampled.
+  continuously rather than sampled. _(amended 2026-11-03, owner ruling, ADR-0082: this is a [House rule], not a
+  legal requirement. It stays as cheap hygiene. A Commise version, if the later pilot ever ships, never earns a
+  reward. Counsel review is owed before launch (`016-FR-050`).)_
 - **SC-004**: A user can unpublish a recipe in one action, and their benefit balance after unpublishing is
   identical to before, in 100% of cases.
 - **SC-005**: The share of the public corpus contributed by users who published voluntarily rises, while the
@@ -728,7 +733,7 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
   two, not against the AI Act.
 - **C-015-016 — the inducement analysis flagged as missing is now done** to the level a spec can carry
   ([`research/reward-psychology.md`](./research/reward-psychology.md) §6). Conclusion: the programme's shape is
-  defensible while the rewarded set stays narrow and non-monetary — which is what `FR-001`, `FR-002`, `FR-007`,
+  defensible (restated 2026-11-03, ADR-0082: inducement risk is low, see Grokster and Cox v. Sony) while the rewarded set stays narrow and non-monetary — which is what `FR-001`, `FR-002`, `FR-007`,
   `FR-016` and `FR-018` already enforce. It is **also the reason discovery placement is rejected**, since
   boosting the reach of rewarded uploads is the candidate most likely to read as a financial benefit
   attributable to them. Counsel review remains a launch prerequisite.
@@ -906,11 +911,11 @@ cannot**, and the last one is the hardest:
 - **The ToS content licence** (`016-FR-010`–`FR-015`) — still missing portfolio-wide; `016`'s spec records that
   there is no terms acceptance, consent record or age floor today. ⚠️ **This is a PRE-EXISTING gap that this
   feature inherits, not one it creates**: `001-FR-004` (public read) and `001-FR-005` (clone) already ship, so
-  the missing licence blocks the current product. What 015 uniquely adds is **inducement** — rewarding
-  publication converts passive hosting into active encouragement, which is what moves the §512(c)(1)(B)
-  analysis. 015 raises the cost of leaving the gap open; it does not open it.
+  the missing licence blocks the current product. What 015 adds is a **low inducement risk** _(amended
+  2026-11-03, ADR-0082)_. [Law] Rewarding cooks for their own recipes is not inducement (Grokster, Cox v. Sony).
+  The reward rule keeps it low. 015 does not open the gap.
 - **016's takedown process** — a genuine and narrow blocker: `FR-016`–`FR-019` consume it, which hard-blocks
   **User Story 4 only**. US1–US3 do not depend on it.
-- **Counsel review of the inducement posture** — the analysis in
+- **Counsel review of the inducement posture** (`016-FR-050`) — the analysis in
   [`research/reward-psychology.md`](./research/reward-psychology.md) §6 is as far as a specification can
   responsibly go.

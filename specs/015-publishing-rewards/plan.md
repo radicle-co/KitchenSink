@@ -212,10 +212,10 @@ Verified against the codebase, not assumed:
 > **ship today**. The missing licence therefore blocks the _current product_; it is not a novel consequence of
 > this feature.
 >
-> **What 015 uniquely adds is inducement.** Rewarding publication converts passive hosting into active
-> encouragement — the _Grokster_ axis — and is what makes §512(c)(1)(B)'s "direct financial benefit … right and
-> ability to control" prong read differently. `016`'s own spec says this: _"`015` turns on this"_. So 015 does
-> not open the hole; it raises the cost of leaving it open.
+> **What 015 adds is a low inducement risk** _(amended 2026-11-03, owner ruling, ADR-0082)_. [Law] Rewarding
+> cooks for publishing their own recipes is not inducement (MGM v. Grokster, 545 U.S. 913 (2005), Cox v. Sony,
+> 2026). [House rule] Only Written-by-you recipes earn rewards, and a Commise version never does. Counsel review is
+> owed before launch (`016-FR-050`). 015 does not open the hole.
 >
 > **The takedown half is a genuine, narrow 015 blocker**: `FR-016`–`FR-019` consume a process that does not
 > exist, which hard-blocks **US4 only**. The spec already conceded as much in US4's priority note — _"the

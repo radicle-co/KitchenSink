@@ -62,7 +62,7 @@ capability that the plan must design. `staff-architect` PLANNING owns each item:
 
 - the facts card as a signed-out public projection, for web pages and for books and paid sites (FR-014a, FR-004,
   FR-102)
-- the per-site and per-source cap, counted over time, and the aggregator list (FR-014e)
+- the per-site and per-source cap, counted over time, and the aggregator list, whose sites get no card (FR-014e, O6)
 - the public domain record and its gate (FR-006, `016-FR-015k`), and where the record is stored, because ADR-0023's
   grant is a token scope and not a row
 - the stored licence choice and its markup (FR-040a, FR-023)
@@ -78,8 +78,9 @@ Unit and integration tests of the gate on the door come first. Then a row in 020
 - **P082-01**: the open-to-web Specification imports 020's hold Specification, so a public route cannot compile
   without it (FR-001, `020-FR-057`). Tests: unit (each surface refuses a held recipe), integration (each public route
   answers not-available for a held recipe).
-- **P082-02**: version-pinned public reads, or not-available, while an edit is checking (`020-FR-064`). Tests:
-  integration, deployed e2e (the public page never shows the new text before it clears).
+- **P082-02** _(amended 2026-11-03, owner ruling O10, ADR-0082)_: version-pinned public reads: readers see the last approved version while an edit is checking
+  (`020-FR-064`). Not-available applies only when no approved version exists. Tests: integration, deployed e2e (the
+  public page shows the old approved text, never the new text before it clears).
 - **P082-03**: every facts card, the creator page list and the embed widget inside the purge bound (FR-061). Tests:
   deployed e2e (a takedown, then each surface answers not-available within the bound).
 - **P082-04**: live reads for opt-out, cap, exclusion, the public domain record and Home (`020-FR-067`), with an
@@ -89,6 +90,14 @@ Unit and integration tests of the gate on the door come first. Then a row in 020
 - **P082-06**: a non-owner read of a public `imported_public` recipe returns only the facts card projection. Today it
   returns the full copied text (`visibilityPolicy.ts` allows it, and the read has no projection). Tests: unit,
   integration, deployed e2e.
+- **P082-07** _(amended 2026-11-03, owner rulings O6 to O12, ADR-0082)_: the aggregator-site list, and a denial before any count so no card is made for one (FR-014e,
+  `016-FR-030a`, `001` T193). Tests: unit, integration, LOCAL e2e.
+- **P082-08**: a creator page, its widget and its sitemap list never include a facts card (FR-015, `012` T-067).
+  Tests: unit, integration, Playwright and Maestro.
+- **P082-09**: pages under their own stated licence and public domain pages are indexable under FR-020. The earlier
+  `noindex` rule 6 is removed. Tests: unit (each FR-020 rule), component, Playwright (robots and header).
+- **P082-10**: no public bulk download and no public API route (FR-060, FR-103, `001` T195). Tests: unit (guard),
+  integration.
 
 ## Overview
 
@@ -144,7 +153,7 @@ their own routes, and a person reaches them only through a link or a search resu
 - **It opens no full copy of words the cook did not write.** _(Amended 2026-11-03, owner rulings, ADR-0082.)_ A copy of
   a web page, a book or a paid site keeps its full text private, for the cook and their household. Its public form is
   a facts card. A facts card can be indexed under the same public rule as any page (FR-020). _(Amended 2026-11-03,
-  owner ruling, ADR-0082.)_ A page's own stated licence stays `noindex` for now (FR-014f).
+  owner ruling, ADR-0082.)_ A page's own stated licence is indexable too (owner ruling O8, FR-014f).
 - **It does not ship the Commise version at launch.** Commise does not publish an AI rewrite of another site's recipe
   (FR-014h). That is a launch decision and a later gated pilot, not a legal bar.
 - **It adds one signed-out search: the chef directory** (amended 2026-10-29, Q2). A signed-out visitor otherwise
@@ -380,8 +389,8 @@ the app view, the preview image and the CDN copy all answer not available.
 3. **Given** a cook who erases their account, **When** erasure runs, **Then** every page of theirs, every preview image,
    every photo of theirs on a public page, and their avatar stop being served within the purge bound (FR-072).
 4. **Given** a public recipe of Maya's that its owner edits, **When** 020 checks the new content, **Then** the page
-   answers not available until the new content is allowed, and never shows the old version in the meantime
-   (FR-007).
+   keeps showing the last approved version until the new content is allowed, and never shows the new text before that
+   (FR-007, `020-FR-064`). _(amended 2026-11-03, owner ruling O10, ADR-0082)_
 
 ---
 
@@ -454,10 +463,10 @@ creator page.
 
 ### Edge Cases
 
-- **A shared recipe goes into review after an edit.** 020 hides it while it checks the new content. A friend who opens
-  the link meanwhile gets not available, the same answer as for a private recipe. The friend cannot tell it is in
-  review. This is the Kitchen Stories failure in user need FR-018, and we accept it. The other choice is to show the
-  old version, which is content the cook replaced and 020 did not check.
+- **A shared recipe goes into review after an edit.** _(amended 2026-11-03, owner ruling O10, ADR-0082)_ 020 checks the new content. A friend who opens the link
+  meanwhile sees the last approved version. That content passed 020's check earlier, so it is not unchecked. The
+  friend cannot tell an edit is in review. This avoids the Kitchen Stories failure in user need FR-018. If no approved
+  version exists, the friend gets not available, the same answer as for a private recipe.
 - **A cook makes an open recipe private, then public again.** It is open again only after 020 allows it. If its
   checked content changed, a new settle period starts.
 - **Two people share the same recipe.** Each share has its own share mark. The page and its cache are the same for
@@ -623,15 +632,16 @@ creator page.
 - **Reading: no paywall on reading** _(owner ruling O5, 2026-11-03, ADR-0082)_. No Pro or other paywall applies to
   reading a public or creator recipe, signed in or out. Pro sells private capacity and tools, never access. `018` paid
   chef content is a separate product (FR-008).
-- **Reading: public domain pages are indexable by default.** Indexing them is a search-quality choice, not a legal
-  bar. The founder can change it (FR-020).
+- **Reading: public domain pages are indexable** _(amended 2026-11-03, owner ruling O8, ADR-0082)_. This was a default
+  the founder could change. It is now decided (FR-020).
 - **Reading: "signed in" was never the legal line.** Signed in and signed out are the same "public" in law. The
   signed-in-only rule on the linked card is removed (FR-014g).
-- **Open for the founder, not law.** Each of these is a business choice:
-    - whether an aggregator site gets the tightest cap or no public cards at all (FR-014e)
-    - whether a creator page lists the cook's facts cards (FR-015)
-    - whether a full page shown under its own stated licence is indexed (FR-014f)
-    - whether public domain pages stay indexable (FR-020)
+- **Decided on 2026-11-03** _(amended 2026-11-03, owner rulings O6, O7, O8, O12, ADR-0082)_. These were open for the
+  founder. They are now settled, and no open business question remains here:
+    - O6: an aggregator site gets NO public facts cards (FR-014e).
+    - O7: a creator page lists only recipes the cook wrote or adapted, never facts cards (FR-015).
+    - O8: a full page shown under its own stated licence is indexable, and so are public domain pages (FR-014f, FR-020).
+    - O12: no public bulk download and no public API of the open layers for now (FR-060, FR-103, `016-FR-033`).
 
 ## Requirements _(mandatory)_
 
@@ -648,7 +658,8 @@ creator page.
   _(Amended 2026-11-03, owner ruling, ADR-0082.)_ The open-to-web Specification MUST import 020's hold Specification
   (`020-FR-057`). So no public route compiles, and none ships, before the hold is in the read rule (`020-FR-062`).
   Every input it cannot read counts as closed (`020-FR-059`). While an edit is checking or in review, a public surface
-  MUST NOT serve the new content (`020-FR-064`).
+  MUST NOT serve the new content, and MUST serve the last approved version instead (`020-FR-064`, owner ruling O10,
+  2026-11-03, ADR-0082).
 - **FR-002**: A recipe is open to the web only when all of these hold:
     1. Its visibility is public.
     2. It is published, not a draft (`001-FR-003b`).
@@ -748,7 +759,8 @@ creator page.
   (FR-061):
     - visibility set to private, or the recipe set back to draft
     - the recipe deleted, or the account closed or erased
-    - the checked content or source statement changed, which starts a new 020 check (`020-FR-001`)
+    - the checked content or source statement changed, which starts a new 020 check (`020-FR-001`) _(amended 2026-11-03, owner ruling O10, ADR-0082)_. For an edit with an approved earlier version, this one changes the
+      page to that version instead of removing it. Without one, it removes the page.
     - a 016 decision that removes or restricts it, or a suspension or termination of the account
     - the owner's licence acceptance no longer covering web display (FR-041)
     - for a creator page, the profile deactivated, suspended or its handle changed
@@ -870,9 +882,12 @@ creator page.
       public facts card from that site, and any later Commise version (FR-014h), together. It never resets per import,
       and deleting a card does not free a place. A book or paid site has the same cap per source (FR-004). Bulk import
       obeys the same per-source cap (`004`, ADR-0072).
-    - **The site is excluded.** User-recipe aggregator sites (the Allrecipes, Chefkoch, Marmiton and Cookpad type) and
-      edited publishers' collections get the tightest cap, or no public cards at all. Which of the two is the
-      founder's choice. The list of such sites is plan work.
+    - **The site is excluded.** _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ User-recipe aggregator sites (the
+      Allrecipes, Chefkoch, Marmiton and Cookpad type) get NO public facts cards. Their recipes are other users' work
+      and carry the highest database-right risk. A cook's import from one stays private, or the cook publishes it in
+      their own words as "Adapted by you" (FR-002). This replaces "the tightest cap, or no public cards at all", which
+      was the founder's choice and is now decided. Edited publishers' collections keep the per-site cap. The list of
+      aggregator sites is plan work.
 
     The cap numbers are plan work. No feature lists, browses or filters public cards by site (FR-014g). The grounds:
     - [Law, EU and UK] The database right protects the contents of a site's collection against repeated and
@@ -892,9 +907,9 @@ creator page.
     - the licence allows commercial use
     - the curator or the fetch recorded the licence
 
-    Otherwise it is a linked card (FR-003). Whether such a page is indexed is the founder's choice. Until the founder
-    decides, it is `noindex` [House rule], because the same text already sits at its own address. This is not a facts
-    card, so owner ruling O2 does not change it. [Law] Software can
+    Otherwise it is a linked card (FR-003). _(Amended 2026-11-03, owner ruling O8, ADR-0082.)_ A page shown under its own
+    stated licence is **indexable** under the public rule (FR-020). The earlier `noindex` default is removed. [Law] The
+    licence is the grant that lets us show and index it, with its attribution. [Law] Software can
     find a STATED licence (schema.org `license`, a CC mark). It cannot find "no copyright", because every page is
     protected from creation (Berne Art. 5(2), 17 U.S.C. §102, §408). Public domain text under the curator grant now
     follows FR-006. Counsel review is owed before launch (`016-FR-050`).
@@ -930,8 +945,12 @@ creator page.
   MUST add "Nobody owns the ingredient list or the bare steps."
 - **FR-015**: An active creator page (`012-FR-006`) MUST be readable signed out. It shows the profile fields the cook
   set (avatar, display name, bio), the follower count, and the cook's open recipes, newest first, at most 24 per page. Public collections are readable signed out too, each on its own address (FR-008, Q2). It MUST NOT list any recipe that is not open, and MUST NOT show who follows the cook (`012-FR-009`).
-  _(Amended 2026-11-03, ADR-0082.)_ A facts card is not an open recipe, so the creator page does not list it. Whether
-  a creator page lists the cook's facts cards is an open question for the founder.
+  _(Amended 2026-11-03, owner ruling O7, ADR-0082.)_ A facts card is not an open recipe. A creator page lists
+  the cook's recipes they wrote or adapted (labels "Written by you" and "Adapted by you" in `016-FR-015c`), and their
+  clones where the label carries. It never lists facts cards. Family and public domain recipes follow the list rule
+  this requirement already states: they are listed because they are open recipes. The ruling excludes facts cards
+  only. This was an open question and is now decided. Counsel review is
+  owed before launch (`016-FR-050`).
 - **FR-016**: On a phone with the app installed, a link to a public page MUST open the app:
     - Signed in: the recipe or creator screen the app already has, with every action a signed-in reader has.
     - Signed out: the **public view**, a read-only screen with the same content and states as the web page, plus
@@ -978,15 +997,17 @@ creator page.
     4. The 020 outcome that allows it was stamped in `blocking` mode, or a person cleared it (`020-FR-016a`,
        `020-FR-019`). An outcome stamped in `shadow` or `paused` mode lets a page open by link, but not be indexed.
     5. Its owner's search setting is on (FR-043).
-    6. _(Added 2026-11-03, ADR-0082.)_ It is not a page shown under its source's own stated licence (FR-014f), until
-       the founder decides otherwise.
+    6. _(Added 2026-11-03, ADR-0082. Amended 2026-11-03, owner ruling O8, ADR-0082.)_ This rule is removed. A page shown
+       under its source's own stated licence (FR-014f) is indexable under rules 1 to 5. It once answered `noindex`
+       until the founder decided. The founder has decided.
 
     _(Amended 2026-11-03, owner ruling O2, ADR-0082.)_ A facts card is not an open recipe, but it is indexable under
     this same rule (FR-014g). Rule 1 does not apply to a card that is the one canonical card for its source page
     (FR-014d). A source card (FR-014e) is never indexable. A facts card that declares another page as its canonical
     page (FR-026a) is left out of sitemaps. Indexing is not a separate permission: it follows the public rule. Every
-    open label can be indexable under these rules: written, adapted, family and public domain alike. Indexing a public
-    domain page is a search-quality choice, not a legal bar. The default is indexable, and the founder can change it.
+    open label can be indexable under these rules: written, adapted, family and public domain alike. _(Amended
+    2026-11-03, owner ruling O8, ADR-0082.)_ Public domain pages and pages under their own stated licence are indexable.
+    This is decided and is no longer the founder's open choice. Counsel review is owed before launch (`016-FR-050`).
 
 - **FR-021**: A **thin** recipe has fewer than two ingredient lines, or no step.
 - **FR-022**: The **settle period** MUST be 72 hours, from the moment a recipe first becomes open, and again from each
@@ -1029,7 +1050,8 @@ creator page.
   with no named author has no `author`. The cook who saved it is never named as its author. A family recipe names its
   giver only with the giver's permission (FR-002).
 - **FR-025**: A creator page is indexable only if it lists at least one indexable recipe and its owner's search
-  setting is on. An indexable creator page MUST carry schema.org `ProfilePage` data with a `Person` built from the
+  setting is on. _(Amended 2026-11-03, owner ruling O7, ADR-0082.)_ The page lists only what FR-015 lists, so a facts
+  card never counts toward this. An indexable creator page MUST carry schema.org `ProfilePage` data with a `Person` built from the
   profile fields the cook set.
 - **FR-026**: Every public page MUST declare its canonical address, and a clone MUST declare its own. Query parameters,
   the share mark included, MUST never change the canonical address.
@@ -1239,10 +1261,11 @@ creator page.
 - **FR-060**: Signed-out surfaces MUST serve one recipe per address, and one creator page per address with at most 24
   recipes per page. There MUST be no signed-out search, browse, feed, list, bulk or export endpoint. The sitemap is the
   only list, and it lists addresses only. _(Amended 2026-11-03, ADR-0082.)_ No surface slices public recipes or facts
-  cards by source site or book. A public bulk download or API of the library is not specified. If it is ever built,
-  it carries only the open layers (Commise's CC0 text, CC BY cooks' recipes, public domain text) with their credit.
-  It never carries facts cards, third-party text, photos or 018's paid content, and never a slice by site. That is an
-  open question, not a launch item. A cook's own export of their own recipes is `016-FR-034`, not this.
+  cards by source site or book. _(Amended 2026-11-03, owner ruling O12, ADR-0082.)_ There is NO public bulk download and
+  NO public API of the open layers for now. This is decided. A later ruling is needed to build one, and it would carry
+  only the open layers (Commise's CC0 text, CC BY cooks' recipes, public domain text) with their credit, and never
+  facts cards, third-party text, photos or 018's paid content, and never a slice by site. Counsel review is owed
+  before launch (`016-FR-050`). A cook's own export of their own recipes is `016-FR-034`, not this.
 - **FR-061**: The **purge bound**. The public surfaces are the page, the public view, the preview image, the
   structured data, the CDN copy and the origin cache. _(Amended 2026-11-03, ADR-0082.)_ They also include every facts
   card, the 012 creator page list and the 012 embed widget. The widget's own cache lifetime (`012-FR-027`) MUST fit
@@ -1338,10 +1361,13 @@ creator page.
   description, photo or any raw line, even as an unused field. The open recipe's projection carries its licence
   choice and version (FR-040a).
 - **FR-103**: A signed-out read MUST go through the open-to-web Specification (FR-001) and nothing else.
+  _(Amended 2026-11-03, owner ruling O12, ADR-0082.)_ This includes any later endpoint: no public bulk or API route
+  reads the library outside FR-001, and none is built for now (FR-060). A cook's own export is a signed-in route
+  (`016-FR-034`), not a signed-out read.
 - **FR-104**: If a browser calls a public endpoint directly, CORS credentials MUST stay off (ADR-0047 point 3).
 - **FR-105**: The production edge returns `401` to a tokenless call except on its passthrough paths. Any public
   endpoint behind it needs a passthrough for exactly its own path, and nothing wider (FR-094).
-- **FR-106**: `staff-architect` MUST choose the shape at PLANNING. The options this spec sees:
+- **FR-106**: `staff-architect` MUST choose the shape at PLANNING. Either option MUST keep the last approved version (`020-FR-064`, O10). The options this spec sees:
     - **Option A: a public read-only endpoint, and the web renders from it.** recipe-service gains a read-only route
       outside its auth middleware that serves the public projection. The web renders public pages on the server and
       regenerates them on change. The app's public view calls the same endpoint. Trade-off: signed-out traffic reaches
@@ -1532,7 +1558,7 @@ creator page.
   shown under its own stated licence (FR-014f). This replaces "Opening imported recipes, the curator corpus, or any
   recipe a cook did not write". Facts cards, family recipes and gated public domain text are now in scope.
 - The Commise version, an AI rewrite of another site's recipe, at launch (FR-014h).
-- A public bulk download or API of the library (FR-060).
+- A public bulk download or API of the library (FR-060, decided no for now by owner ruling O12, 2026-11-03).
 - Per-sharer referral rewards, and any reward for sharing.
 - Carrying a link through an install on iOS.
 - Translated pages and alternate-language tags.

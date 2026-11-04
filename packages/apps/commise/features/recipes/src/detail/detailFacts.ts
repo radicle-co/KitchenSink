@@ -22,6 +22,9 @@ import {
     isLineAmbiguous,
     isLineFoodRemoved,
     isLineNeedsReview,
+    needsReviewNotice,
+    rangeDerivedNotice,
+    staleNutritionNotice,
     type DetailNativeLayout,
 } from './model.js';
 import { isStandInName } from './lineName.js';
@@ -411,4 +414,54 @@ const TWO_COLUMN_BODY = 720;
  */
 export function detailNativeLayoutOf(bodyWidth: number, textScale: number): DetailNativeLayout {
     return { columns: bodyWidth >= TWO_COLUMN_BODY ? 'two' : 'one', bodyWidth, textScale };
+}
+
+/** What the nutrition row shows, derived once for both platforms. */
+export interface NutritionSectionFacts {
+    /** The four figures, and whether nothing was counted. */
+    readonly cells: NutritionCells;
+    /** The collapsed row's second line: "{n} cal per serving" or "Not counted yet". */
+    readonly summary: string;
+    /** The one line saying why the figures are what they are, if there is one. */
+    readonly statusLine: string | undefined;
+    /** The range-derived caveat, if the stored figure carries one. */
+    readonly rangeNotice: string | undefined;
+    /** The stale caveat, if the stored figure carries one. */
+    readonly staleNotice: string | undefined;
+    /** Our own doubt about a line's food, if any line is withheld for review. */
+    readonly reviewNotice: string | undefined;
+}
+
+/**
+ * Everything the nutrition row reads off a recipe: the figures, the summary and every caveat. Pure. Facts about the READ,
+ * from the stored figure, not the serving count on screen. One derivation for the web and native rows, so they cannot
+ * word a caveat differently.
+ *
+ * @param recipe - The recipe.
+ * @param detail - The detail copy.
+ * @param locale - The active locale.
+ * @returns The facts.
+ */
+export function nutritionSectionFacts(
+    recipe: Pick<RecipeDetail, 'nutrition' | 'ingredients'>,
+    detail: RecipeDetailMessages,
+    locale: Locale,
+): NutritionSectionFacts {
+    const cells = nutritionCells(recipe.nutrition, recipe.ingredients, detail, locale);
+    const reviewNotice = needsReviewNotice(recipe.ingredients, detail);
+
+    return {
+        cells,
+        summary: nutritionSummary(cells, detail),
+        statusLine: nutritionStatusLine(
+            { noneCounted: cells.noneCounted, isComplete: recipe.nutrition.isComplete, reviewNotice },
+            detail,
+        ),
+        rangeNotice: rangeDerivedNotice(recipe.nutrition, {
+            low: detail.nutritionRangeDerivedLow,
+            high: detail.nutritionRangeDerivedHigh,
+        }),
+        staleNotice: staleNutritionNotice(recipe.nutrition, detail.nutritionStale),
+        reviewNotice,
+    };
 }

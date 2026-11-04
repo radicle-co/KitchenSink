@@ -3,13 +3,13 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
-        "cross-platform-props-diverge": 20,
+        "cross-platform-props-diverge": 21,
         "missing-component-doc": 164,
         "missing-module-doc": 21,
-        "platform-singleton": 94,
+        "platform-singleton": 93,
         "ref-api": 19,
         "unclassified-layer": 93,
-        "undocumented-prop": 192
+        "undocumented-prop": 193
     },
     "findings": [
         {
@@ -2263,13 +2263,14 @@
             ]
         },
         {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresRecipes/detail/DetailNutritionSection",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "native"
+                "web: dataSourcesHref expanded onToggle recipe",
+                "native: expanded onOpenDataSources onToggle recipe returnFocusSignal"
             ]
         },
         {
@@ -2277,6 +2278,16 @@
             "severity": "gap",
             "component": "featuresRecipes/detail/DetailNutritionSection",
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "recipe"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/DetailNutritionSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx",
             "message": "props carry no JSDoc description",
             "evidence": [
                 "recipe"
@@ -2367,7 +2378,7 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
+                "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls marks nutritionExpanded onEditSection onServingsChange onToggleDescription onToggleNutrition onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
                 "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onOpenDataSources onServingsChange onToggleDescription onToggleNutrition onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
             ]
         },

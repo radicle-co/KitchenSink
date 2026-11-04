@@ -981,6 +981,10 @@ export interface RecipeDetailBodyProps extends RecipeDetailViewProps {
     readonly descriptionExpanded: boolean;
     /** Expand or clamp the description. */
     readonly onToggleDescription: () => void;
+    /** Whether the collapsed Nutrition row is expanded (`RecipeDetailAndroid384`, item 12), on both platforms. */
+    readonly nutritionExpanded: boolean;
+    /** Expand or collapse the Nutrition row. */
+    readonly onToggleNutrition: () => void;
 }
 
 /**
@@ -1000,10 +1004,6 @@ export interface RecipeDetailBodyNativeProps extends RecipeDetailBodyProps {
      * queries instead.
      */
     readonly layout: DetailNativeLayout;
-    /** Whether the collapsed Nutrition row is expanded (`RecipeDetailAndroid384`, item 12). */
-    readonly nutritionExpanded: boolean;
-    /** Expand or collapse the Nutrition row. */
-    readonly onToggleNutrition: () => void;
 }
 
 /**

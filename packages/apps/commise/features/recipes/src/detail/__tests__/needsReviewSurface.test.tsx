@@ -12,7 +12,7 @@
  * platforms cannot drift on what a doubted line looks like (§14).
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render as renderUnscoped, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderUnscoped, screen } from '@testing-library/react';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { utilityContrast } from '@commise/test-utils';
 
@@ -26,6 +26,15 @@ import { DetailTestScope } from '../../__fixtures__/detailScope.js';
 /** Every detail renders inside its page's scroll host and the session’s cook-marks scope, as the app mounts them. */
 const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
     renderUnscoped(ui, { wrapper: DetailTestScope });
+
+/** The Nutrition row is collapsed until pressed (`buildLists.md` item 12): open it, then read the figures and caveats. */
+const renderWithNutritionOpen = (ui: ReactElement): ReturnType<typeof renderUnscoped> => {
+    const result = render(ui);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
+
+    return result;
+};
 
 const en = recipeMessages.en.detail;
 
@@ -60,7 +69,7 @@ describe('RecipeDetailView (web) — a line the verification gate contradicted',
     });
 
     it('discloses the withholding once for the whole recipe, in its own sentence', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -72,7 +81,7 @@ describe('RecipeDetailView (web) — a line the verification gate contradicted',
     });
 
     it('counts the doubted lines in the plural disclosure', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -163,7 +172,7 @@ describe('RecipeDetailView (web) — a line the verification gate contradicted',
         // The conflation this surface exists to prevent, rendered. "Some items aren’t counted yet" says the
         // catalog had nothing; the review notice says the catalog HAD it and we held it back. A cook seeing
         // only one of the two cannot tell which of the two fixes applies.
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -184,7 +193,7 @@ describe('RecipeDetailView (web) — a line the verification gate contradicted',
         // `@commise/ui`'s palette JSDoc is explicit that #F5B041 is a light FILL that takes a charcoal label:
         // as a foreground on near-white it is far under 4.5:1. Measured off the RENDERED class list rather
         // than a re-spelled one, so a later "tidy" of the utilities is caught here.
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -200,7 +209,7 @@ describe('RecipeDetailView (web) — a line the verification gate contradicted',
     });
 
     it('announces the disclosure as a NOTE, so it reaches a screen reader as a remark rather than prose', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -239,7 +248,7 @@ describe('RecipeDetailView (web) — ONE note under the nutrition figures', () =
         });
 
     const renderRecipe = (recipe: ReturnType<typeof makeRecipeDetail>) =>
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -255,13 +264,16 @@ describe('RecipeDetailView (web) — ONE note under the nutrition figures', () =
         expect(screen.queryByText(en.nutritionPartial)).toBeNull();
     });
 
-    it('shows the dashes for every cell in that state', () => {
+    // REWRITTEN with the native row (`buildLists.md` item 12): the figures are left out when nothing was counted, so no
+    // dashes and no zeros are drawn.
+    it('draws no figures, dashes or zeros in that state', () => {
         renderRecipe(allWithheld());
 
-        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.queryByText('—')).toBeNull();
+        expect(screen.queryByText(en.caloriesLabel)).toBeNull();
     });
 
-    it('draws dashes and the one "no ingredient has a food" line for a recipe with no lines, never zeros', () => {
+    it('draws the one "no ingredient has a food" line and no dashes for a recipe with no lines, never zeros', () => {
         renderRecipe(
             makeRecipeDetail({
                 ingredients: [],
@@ -269,7 +281,7 @@ describe('RecipeDetailView (web) — ONE note under the nutrition figures', () =
             }),
         );
 
-        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.queryByText('—')).toBeNull();
         expect(screen.getAllByText(en.nutritionNoneCounted)).toHaveLength(1);
         expect(screen.queryByText('0')).toBeNull();
     });

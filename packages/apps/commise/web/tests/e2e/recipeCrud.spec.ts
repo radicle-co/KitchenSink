@@ -4,6 +4,7 @@ import { route } from './utils/basePath';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
+import { openNutritionRow } from './utils/nutritionRow';
 import { addStep, fillTimes, openRecipeEditor, setServings } from './utils/recipeEditor';
 
 /**
@@ -92,7 +93,7 @@ test.describe('recipe CRUD (T079)', () => {
         // §S15 — the nutrition note is two sentences, each with its own condition. This recipe's only line ("Salt")
         // is a catalog food, so the source sentence and its Data sources link render and the custom-ingredient
         // sentence does not (`recipeIngredientDetail.spec.ts` has the recipe that shows both).
-        const nutrition = page.getByRole('region', { name: 'Nutrition (per serving)' });
+        const nutrition = await openNutritionRow(page);
         await expect(nutrition).toContainText('Nutrition comes from public food databases.');
         const sources = nutrition.getByRole('link', { name: 'Data sources' });
         await expect(sources).toBeVisible();

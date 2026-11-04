@@ -11,7 +11,7 @@
  * new behaviour is proved in `RecipeDetailTop.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render as renderUnscoped, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderUnscoped, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FoodResolutionStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -46,6 +46,15 @@ import { memoryCookMarksBackend } from '../cookMarksStore.js';
 /** Every detail renders inside its page's scroll host and the session’s cook-marks scope, as the app mounts them. */
 const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
     renderUnscoped(ui, { wrapper: DetailTestScope });
+
+/** The Nutrition row is collapsed until pressed (`buildLists.md` item 12): open it, then read the figures and caveats. */
+const renderWithNutritionOpen = (ui: ReactElement): ReturnType<typeof renderUnscoped> => {
+    const result = render(ui);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Nutrition/u }));
+
+    return result;
+};
 
 /** The owner's view also mounts the ambiguity review, which reads the recipe client. */
 const renderAsOwner = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
@@ -196,7 +205,13 @@ describe('RecipeDetailView (web) — header', () => {
         const stepsSection = screen.getByRole('heading', { level: 2, name: instructionsHeading }).closest('section');
         const stepsColumn = (stepsSection as HTMLElement).parentElement as HTMLElement;
 
-        expect(stepsColumn.contains(screen.getByRole('heading', { level: 2, name: nutritionHeading }))).toBe(true);
+        // The collapsed Nutrition row left this column for the full-width block before the columns (`buildLists.md` item 12).
+        const nutritionSection = screen.getByRole('region', { name: nutritionHeading });
+
+        expect(stepsColumn.contains(nutritionSection)).toBe(false);
+        expect(
+            nutritionSection.compareDocumentPosition(stepsSection as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
         expect(stepsColumn.className.split(' ')).toContain('gap-8');
         expect(stepsColumn.className.split(' ')).not.toContain('gap-10');
     });
@@ -518,8 +533,32 @@ describe('RecipeDetailView (web) — ingredients', () => {
     });
 
     // F17 (`evaluateFinal.md`; §6.7): nothing counted reads "—" in each cell and one line, never "0 / 0 g".
-    it('shows a dash in each nutrition cell and one line when no ingredient was counted', () => {
+    it('opens and closes the Nutrition row from the page, collapsed on arrival (aria-expanded)', () => {
         render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ nutrition: makeNutrition({ calories: 520 }) })}
+            />,
+        );
+
+        const row = screen.getByRole('button', { name: /^Nutrition/u });
+
+        expect(row.getAttribute('aria-expanded')).toBe('false');
+        expect(screen.queryByText('Protein')).toBeNull();
+
+        fireEvent.click(row);
+        expect(row.getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByText('Protein')).toBeTruthy();
+
+        fireEvent.click(row);
+        expect(row.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    // REWRITTEN with the native row (`buildLists.md` item 12): with nothing counted the figures are left out, not drawn as
+    // four dashes, and the one explanation line says why.
+    it('leaves the figures out and gives one line when no ingredient was counted', () => {
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -529,7 +568,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
             />,
         );
 
-        expect(screen.getAllByText('—')).toHaveLength(4);
+        expect(screen.queryByText('—')).toBeNull();
         expect(screen.getByText('Not counted yet: no ingredient has a food.')).toBeTruthy();
         expect(screen.queryByText('Estimated — some items aren’t counted yet')).toBeNull();
     });
@@ -588,7 +627,7 @@ const STALE_NOTICE = 'These figures include saved food data, so they may be out 
 
 describe('RecipeDetailView (web) — nutrition', () => {
     it('renders the per-serving macros', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -604,7 +643,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('shows an estimated indicator when nutrition is incomplete', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -628,7 +667,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('⛔ says so when the figures were served from saved food data (KTD-3b)', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -655,7 +694,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     it('keeps each notice its own sentence, in reading order: partial, range, stale, then review', () => {
         // Source/reading order of the sibling notices — the order a screen reader walks. It cannot see a CSS
         // reorder, so it is not a claim about visual position.
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -687,7 +726,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     const CUSTOM_NOTE = 'Custom ingredients count only the nutrition you entered for them.';
 
     it('shows the custom sentence, and no catalog sentence or link, for a recipe of user-entered lines (FR-007a)', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -705,7 +744,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('draws no Data sources link without an address, and still shows the catalog sentence', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ foodId: 'food_salt' })] })}
@@ -718,7 +757,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('shows the catalog sentence and the Data sources link for a recipe with a catalog line (§S15)', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ foodId: 'food_salt' })] })}
@@ -737,7 +776,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('shows both sentences, each once, for a recipe with a catalog line and a user-entered line', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -757,7 +796,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('counts a line whose food could not be asked: saved catalog figures stand in for it (KTD-3b)', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -810,7 +849,7 @@ describe('RecipeDetailView (web) — nutrition', () => {
     });
 
     it('⛔ names no single source anywhere on the read view (D16)', () => {
-        const { container } = render(
+        const { container } = renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
@@ -1463,7 +1502,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
         });
 
     /** Render the PURE body at an explicit serving count — the ratio cases, with no store involved. */
-    const renderAt = (servings: number) =>
+    const renderAt = (servings: number, nutritionExpanded = false) =>
         render(
             <RecipeDetailBody
                 dataSourcesHref="/en/legal/sources"
@@ -1472,6 +1511,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
                 servings={servings}
                 onServingsChange={vi.fn()}
                 {...idleDetailBodyState}
+                nutritionExpanded={nutritionExpanded}
             />,
         );
 
@@ -1571,7 +1611,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
     });
 
     it('leaves PER-SERVING nutrition untouched, because it is invariant under scaling', () => {
-        renderAt(12);
+        renderAt(12, true);
 
         // Restating it here would double-count the ratio; a fabricated or recomputed figure is the failure.
         expect(screen.getByText('520')).toBeTruthy();
@@ -1670,7 +1710,7 @@ describe('RecipeDetailView (web) — ranged and absent quantities (U9)', () => {
     });
 
     it('discloses that the nutrition figure came from one bound of a stated range (R38)', () => {
-        render(
+        renderWithNutritionOpen(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}

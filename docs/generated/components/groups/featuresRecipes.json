@@ -5,15 +5,15 @@
     "layer": "feature",
     "coverage": {
         "components": 191,
-        "implementations": 324,
-        "props": 2270,
+        "implementations": 325,
+        "props": 2276,
         "documentedComponents": 191,
-        "implementationsWithModuleDoc": 324,
-        "implementationsWithComponentDoc": 215,
-        "documentedProps": 1752,
+        "implementationsWithModuleDoc": 325,
+        "implementationsWithComponentDoc": 216,
+        "documentedProps": 1757,
         "classifiedComponents": 169,
         "componentsWithPatternTag": 92,
-        "crossPlatformComponents": 133
+        "crossPlatformComponents": 134
     },
     "components": [
         {
@@ -7022,12 +7022,74 @@
             "kind": "presentational",
             "patterns": [],
             "platforms": [
+                "web",
                 "native"
             ],
-            "crossPlatform": false,
-            "propsDiverge": false,
+            "crossPlatform": true,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
+                {
+                    "name": "DetailNutritionSection",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the web recipe page's nutrition row (`nativeBoards/buildLists.md` item 12): the\nmirror of `DetailNutritionSection.native.tsx`. A COLLAPSED disclosure reading \"Nutrition\" and \"{n} cal per serving\"\n(or \"Not counted yet\"), which opens in place to the four figures, the caveats the stored figure carries and the notes\non where the numbers came from, with the link to the Data sources page. With nothing counted the figures are left\nout, not drawn as dashes: the explanation lines say why.\n\nThe heading holds the button (the disclosure pattern), so the section keeps its place in the outline and the button\ncarries `aria-expanded` and `aria-controls`. What the row shows is derived once, in `nutritionSectionFacts`, for both\nplatforms.\n\nPresentational: props → JSX. The disclosure state is the shell's.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the web recipe page's nutrition row (`nativeBoards/buildLists.md` item 12): the"
+                        }
+                    ],
+                    "description": "The web nutrition section.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "dataSourcesHref",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The Data sources page the source note links to; the link is left out without it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx"
+                        },
+                        {
+                            "name": "expanded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the cook expanded the row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Flip the disclosure.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx"
+                        },
+                        {
+                            "name": "recipe",
+                            "type": "RecipeDetail",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
                 {
                     "name": "DetailNutritionSection",
                     "platform": "native",
@@ -7766,7 +7828,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`\n§6, the first slice of 008 FR-035).\n\nThe PURE render half of the recipe page, in reading order: the hero, the back link, the rating card, the cuisine eyebrow\nand the title, the status row, the source line and byline, the fact tiles, the actions, the Screen on row, the\ndescription and the tags; then the body — one column below a 720 px body, and from 720 two columns, ingredients (5/12,\nsticky with its own scroll) beside the steps (7/12), with the nutrition and the review surface under the steps.\n\nThere is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features\nship (`designAnswers.md` D1, D2): the comments row and \"Start cooking\".\n\nEvery width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the\nserver render and the hydrated page are the same page. \"Screen on\" is a labelled row, and the toggle itself renders\nnothing where the browser cannot keep the screen awake.\n\nIts orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and\nthe description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`\n§6, the first slice of 008 FR-035).\n\nThe PURE render half of the recipe page, in reading order: the hero, the back link, the rating card, the cuisine eyebrow\nand the title, the status row, the source line and byline, the fact tiles, the actions, the Screen on row, the\ndescription and the tags; then the body — one column below a 720 px body, and from 720 two columns, ingredients (5/12,\nsticky with its own scroll) beside the steps (7/12), with the review surface under the steps. The collapsed Nutrition\nrow sits before the columns, full width.\n\nThere is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features\nship (`designAnswers.md` D1, D2): the comments row and \"Start cooking\".\n\nEvery width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the\nserver render and the hydrated page are the same page. \"Screen on\" is a labelled row, and the toggle itself renders\nnothing where the browser cannot keep the screen awake.\n\nIts orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and\nthe description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7846,6 +7908,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
+                            "name": "nutritionExpanded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the collapsed Nutrition row is expanded (`RecipeDetailAndroid384`, item 12), on both platforms.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
                             "name": "onEditSection",
                             "type": "((section: DetailSection) => void)",
                             "typeDetail": null,
@@ -7870,6 +7941,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Expand or clamp the description.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onToggleNutrition",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Expand or collapse the Nutrition row.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8087,7 +8167,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Whether the collapsed Nutrition row is expanded (`RecipeDetailAndroid384`, item 12).",
+                            "description": "Whether the collapsed Nutrition row is expanded (`RecipeDetailAndroid384`, item 12), on both platforms.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8590,7 +8670,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailView.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block).\n\nThe ORCHESTRATION SHELL of the recipe page, and nothing else: it binds what the page holds for the cook — the\nsession serving scale, the cook's marks (`useCookMarks`, blueprint A13), the one \"Screen on\" state with its wake\nlock (A20), and the description's disclosure — and hands the pure render (`RecipeDetailBody.tsx`) the result. The\npublic contract (`RecipeDetailViewProps`) carries none of them, which is the point: an app composes this and cannot\nship the page with the scale, the checks or Screen on un-wired, because there is nothing for it to wire.\n\nScreen on defaults to off on each visit and is released when the cook leaves the page (the hold's effect cleanup).",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block).\n\nThe ORCHESTRATION SHELL of the recipe page, and nothing else: it binds what the page holds for the cook — the\nsession serving scale, the cook's marks (`useCookMarks`, blueprint A13), the one \"Screen on\" state with its wake\nlock (A20), and the description's and the Nutrition row's disclosures — and hands the pure render (`RecipeDetailBody.tsx`) the result. The\npublic contract (`RecipeDetailViewProps`) carries none of them, which is the point: an app composes this and cannot\nship the page with the scale, the checks or Screen on un-wired, because there is nothing for it to wire.\n\nScreen on defaults to off on each visit and is released when the cook leaves the page (the hold's effect cleanup).",
                     "moduleTags": [
                         {
                             "name": "module",

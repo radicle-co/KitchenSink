@@ -72,13 +72,15 @@ async function readControlSurface(locator: Locator): Promise<ControlSurface> {
  * regression escaped through.
  *
  * @param locator - The control to check.
+ * @param tier - `filled` (default) or `ghost`, which paints nothing at rest.
  */
-async function expectDesignSystemSurface(locator: Locator): Promise<void> {
+async function expectDesignSystemSurface(locator: Locator, tier: 'filled' | 'ghost' = 'filled'): Promise<void> {
     await expect(locator).toBeVisible();
 
     const surface = await readControlSurface(locator);
 
-    expect(surface.painted).toBe(true);
+    // A ghost button is the DS text tier: the same box, radius and padding, but no fill of its own.
+    expect(surface.painted).toBe(tier === 'filled');
     // `rounded-full` — anything a pill could be. An unstyled element is 0.
     expect(surface.borderRadiusPx).toBeGreaterThanOrEqual(16);
     // `px-5` (20px). An unstyled element is 0.
@@ -111,9 +113,10 @@ test.describe('recipe-detail owner actions', () => {
     test('Edit is a real, DS-surfaced link into the editor', async ({ page }) => {
         await openOwnRecipe(page);
 
-        // Edit is the sole PRIMARY owner control, outside the overflow menu, and a link (not a button).
+        // Edit is the sole PRIMARY owner control, outside the overflow menu, and a link (not a button). It is the ghost
+        // text action, not a filled button (buildLists.md "Supersedes buildSpec §6.1"; designAnswers D2).
         const edit = page.getByRole('link', { name: 'Edit recipe' });
-        await expectDesignSystemSurface(edit);
+        await expectDesignSystemSurface(edit, 'ghost');
 
         await edit.click();
 

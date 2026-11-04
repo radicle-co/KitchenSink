@@ -379,6 +379,12 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   (`018-FR-064`, `015-FR-001`).
 - **FR-043** `→ 018`: **Digital cookbooks.** A chef MUST be able to sell a collection of their own recipes as one
   product (`018-FR-087`), with verified constraint claims (`018-FR-088`). This is the primary sellable unit.
+  _(Amended 2026-11-03, owner ruling O14d and O14e, ADR-0082.)_ [Law] The cookbook MUST hold only sellable recipes:
+  "Written by you", "Adapted by you" in the chef's own words, and family recipes whose giver's permission covers selling
+  (`018-FR-026`). It MUST NOT hold an imported copy, a facts card, public-domain curator text or another person's text.
+  A non-sellable recipe MUST be refused when it is added. Every recipe sold passes 020's hold (`020-FR-057`). A chef
+  can also sell a single private recipe or a private collection (`012-FR-034a`). Counsel review is owed before launch
+  (`016-FR-050`).
 - **FR-044** `→ 018`: A cookbook purchase MUST deliver the licensed copies (`018-FR-089`) and a PDF or EPUB file of
   the same recipes, in one act. The file MUST name the buyer and the chef. Nothing MUST offer printing.
 - **FR-045** `→ 018`: **A chef club** _(owner ruling Q5, 2026-10-29: "Yes, earlier", so it is in phase 2)_: a monthly price

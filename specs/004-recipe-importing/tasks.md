@@ -940,7 +940,11 @@ Counsel review is owed before launch (`016-FR-050`). Each task is test-first and
 **Test-first:** true. The tests are written and confirmed **failing** before any implementation.
 
 - [ ] Count public facts cards per source (site, book by ISBN or title, paid site) over time, across every card and any
-      later Commise version. User-recipe aggregators get the tightest cap or are excluded
+      later Commise version. _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ User-recipe aggregators get NO public
+      card at all, so they are not counted. A recipe from one stays private unless the cook adapts it
+- [ ] Add an aggregator-site list as configuration, checked before any card is offered, for single and bulk imports.
+      A test imports from an aggregator host and asserts no public card is made, in a single import and in a
+      1,000-recipe file
 - [ ] Past the cap, the card is the "title, site name, link only" form (D4), and bulk recipes stay private
 - [ ] No feature lists, browses or filters public cards by site
 - [ ] **Unit and integration tests**, including a cap crossed by a 1,000-recipe file

@@ -260,6 +260,12 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     >    and _Publications International v. Meredith_, 88 F.3d 473 (7th Cir. 1996)). So the one public card for a page is
     >    now readable signed out, by anyone, where the earlier text said "other signed-in cooks". Its field list does not
     >    grow (`021-FR-014a`). _(Further amended 2026-11-03, owner ruling O2, ADR-0082.)_ The `noindex` house rule is removed. The card is indexable under the public rule (`021-FR-020`), with `Recipe` data built only from our own facts, `isBasedOn` the source and the credit (`021-FR-023`). A recipe with a public card uses no private slot (owner ruling O1), and bulk import does not pause for book or paid-site recipes (`016-FR-029a`). Counsel review is owed before launch (`016-FR-050`).
+    >    1a. **Aggregator sites get no facts card.** _(Added 2026-11-03, owner ruling O6, ADR-0082.)_ A page from a
+    >    user-recipe aggregator site (Allrecipes-type, Chefkoch, Marmiton, Cookpad-type) is never offered as a public facts
+    >    card. These are other users' recipes and carry the highest database-right risk (Directive 96/9/EC Art. 7,
+    >    _British Horseracing Board v William Hill_, C-203/02). The cook's import stays private, or the cook publishes it
+    >    in their own words as "Adapted by you". The list of such sites is plan work (`016-FR-030a`). Counsel review is
+    >    owed before launch (`016-FR-050`).
     > 2. **One facts card per page.** There is one public facts card per canonical page. Two cooks' texts are never merged
     >    into one. Matching on the URL alone misses the same recipe at another address and pasted copies. That is a
     >    product gap, not a legal one, and it is recorded in C-001. [Law] Merging or linking near-identical recipes is a
@@ -642,8 +648,9 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   keeps the full text privately (`016-FR-029a`). So a free cook with no free slot MUST be offered the facts card
   instead of a refusal, and bulk import does not pause for book or paid-site recipes. The refusal above stays only
   for a recipe the cook wants to keep private with no facts card.
-- **FR-014b** _(added 2026-11-03, owner ruling, ADR-0082, decision D5)_: System MUST offer a public **facts card** for a
-  book or paid-site recipe (`imported_physical`, `imported_paid`). [Law] The facts of a recipe are free to anyone
+- **FR-014b** _(added 2026-11-03, owner ruling, ADR-0082, decision D5. Amended 2026-11-03, owner ruling O6, ADR-0082: the
+  card offering never applies to an aggregator site, and the per-source cap below never offers a card to one)_: System
+  MUST offer a public **facts card** for a book or paid-site recipe (`imported_physical`, `imported_paid`). [Law] The facts of a recipe are free to anyone
   (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991)). The card has the same field list as the linked card
   (`021-FR-014a`): no prose, no headnote and no photo. It credits the book (title, author, publisher) or the paid site.
   It MUST NOT appear in the book's order or as a book's collection. A **per-source cap** applies, per book (by ISBN or
@@ -704,7 +711,9 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   MUST be surfaced individually for completion. A failure affecting one recipe MUST NOT discard the others.
   _(Amended 2026-11-03, owner ruling, ADR-0082, E7: a **per-source cap** also applies to bulk import. Facts cards a
   file would make public are counted per source, per book or per site, over time, together with every earlier card and
-  any later Commise version. A file past the cap keeps the extra recipes private. [Law, EU and UK] This rests on the
+  any later Commise version. A file past the cap keeps the extra recipes private. *(Amended 2026-11-03, owner ruling O6, ADR-0082.)* A recipe
+  whose source is an aggregator site gets no card at all, so it never counts toward a cap and stays private in a bulk
+  import unless the cook states it as their own words. [Law, EU and UK] This rests on the
   database right (Directive 96/9/EC Art. 7(5), repeated and systematic taking), US compilation copyright
   (17 U.S.C. §103) and goodwill. Counsel review is owed before launch (`016-FR-050`).)_
 - **FR-027**: Bulk confirmation MUST report a **per-recipe outcome** (created, already existed, or failed with

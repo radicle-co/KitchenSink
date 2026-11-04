@@ -768,3 +768,26 @@ tests in every tier come before the code. Counsel review is owed before launch (
       A restored digest a person did not approve answers `403 SOURCE_CHECK_NOT_APPROVED` on a change to public.
     - **Tests**: unit, integration, LOCAL e2e (the trigger nulls the digest on restore), deployed e2e (a signed-out
       read of a restored, held recipe answers not-available).
+- [ ] T193 An aggregator-site import gets no public facts card. Files: `packages/services/recipe-service/src/recipes/domain/`, the aggregator-site list as configuration _(added 2026-11-03, owner ruling O6, ADR-0082)_
+    - **Implements**: C-004 as amended, `016-FR-030a`, `021-FR-014e`, `004-FR-014b`
+    - **Depends on**: T191, `016` plan L082-10
+    - **Acceptance**: [House rule] Choosing Public for a recipe whose source host is on the aggregator list makes no
+      facts card. The recipe stays Private (using a slot for a free cook), or the cook publishes it as "Adapted by you".
+      The denial happens before any count. A bulk import applies the same rule per recipe. Counsel review is owed
+      before launch (`016-FR-050`).
+    - **Tests**: unit (the policy denies an aggregator host and allows another site), integration (single and bulk
+      import), LOCAL e2e (no `source_card_events` row is written for an aggregator).
+- [ ] T194 While an edit to a public recipe is checked, public reads serve the last approved version. Files: `packages/services/recipe-service/src/recipes/`, `versions/` _(added 2026-11-03, owner ruling O10, ADR-0082)_
+    - **Implements**: FR-007b as amended, `020-FR-064`, `021-FR-007`
+    - **Depends on**: T191, T192, 020 plan K082-11
+    - **Acceptance**: a signed-out and a signed-in non-owner read of an edited public recipe return the last version
+      with an allowing outcome until the new digest is allowed. With no allowing version, or after a 016 removal, the
+      read answers not-available. The owner sees the new content with its state.
+    - **Tests**: unit (version selection), integration (edit, then read), LOCAL e2e (the trigger and the pin), deployed
+      e2e (the page keeps the old text until the new text clears).
+- [ ] T195 Guard: no public bulk or list route exists, and a cook's own export stays signed in. Files: `packages/tools/repoGuards/` _(added 2026-11-03, owner ruling O12, ADR-0082)_
+    - **Implements**: `021-FR-060`, `021-FR-103`, `016-FR-033`, `016-FR-034`
+    - **Acceptance**: a guard fails if a route outside the open-to-web Specification serves recipes without a
+      credential, or if a signed-out bulk or API route for the library appears. The cook's export still needs a session.
+    - **Tests**: unit (a planted public bulk route fails the guard), integration (the export route answers `401` signed
+      out).

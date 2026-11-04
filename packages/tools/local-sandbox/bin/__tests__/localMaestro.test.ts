@@ -83,8 +83,9 @@ function run(sandbox: Sandbox, body: string, env: Readonly<Record<string, string
 
 describe('local_maestro_flows — which flows a command runs', () => {
     /**
-     * REWRITTEN 2026-10-29. It used to assert "nothing added or dropped"; four flows (`MAESTRO_SANDBOX_ONLY_FLOWS`) need
-     * the deployed sandbox's food catalog and verification worker, which the local stack cannot run. They are dropped from
+     * REWRITTEN 2026-10-29. It used to assert "nothing added or dropped"; five flows (`MAESTRO_SANDBOX_ONLY_FLOWS`) need
+     * the deployed sandbox (four its food catalog and verification worker, `auth/loginFlow` its Clerk instance's Google
+     * sign-in), which the local stack cannot run. They are dropped from
      * the LOCAL list ON PURPOSE and named on stderr, never run to fail and never counted as passed. The deployed plan is
      * untouched (`maestroSandboxOnlyFlows.test.ts`), so this still asserts CI's order for everything else.
      */
@@ -103,6 +104,7 @@ describe('local_maestro_flows — which flows a command runs', () => {
             'recipes/pasteListSettle',
             'recipes/ingredientCandidates',
             'recipes/ambiguityReview',
+            'auth/loginFlow',
         ];
 
         expect(ours.status).toBe(0);

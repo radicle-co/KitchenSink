@@ -334,7 +334,8 @@ ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM ba
 # (`maestro_shard_selection`) never reads this table, which `maestroSandboxOnlyFlows.test.ts` asserts on both platforms.
 # ⛔ Never add a flow here to get a local run green. An entry is a statement that the local stack lacks something the flow
 # needs; the guard requires the reason to name what.
-MAESTRO_SANDBOX_ONLY_FLOWS="recipes/pasteList|needs the deployed sandbox's food catalog and the ingredient-verification worker; the local stack runs neither
+MAESTRO_SANDBOX_ONLY_FLOWS="auth/loginFlow|taps Continue with Google, which only the sandbox Clerk instance has; the local run signs in with the Clerk instance the pool users live on, which offers no social sign-in
+recipes/pasteList|needs the deployed sandbox's food catalog and the ingredient-verification worker; the local stack runs neither
 recipes/pasteListSettle|needs the deployed sandbox's food catalog and the ingredient-verification worker (the settled result); the local stack runs neither
 recipes/ingredientCandidates|needs the deployed sandbox's food catalog for its candidate lists; the local stack has no catalog to match against
 recipes/ambiguityReview|needs the deployed sandbox's food catalog and the ingredient-verification worker to raise a review; the local stack runs neither"
@@ -526,6 +527,9 @@ EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
 # The flows whose reset also seeds the gate-AMBIGUOUS probe recipe (`reset.ts --mode ambiguity`). Only these hold it, so
 # every other flow's `^3 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
 AMBIGUITY_FLOWS=" recipes/ambiguityReview "
+# The flows whose reset adds the signer's filler recipes (`reset.ts --mode library`): the one flow that needs a Recipes list
+# longer than a screen. Only these hold them, so every other flow's `^3 recipes$` count stays true.
+LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #
@@ -1687,7 +1691,12 @@ maestro_run_flow_list() {
             *)
                 case "$AMBIGUITY_FLOWS" in
                     *" ${f} "*) reseed_mode=ambiguity ;;
-                    *) reseed_mode=seeded ;;
+                    *)
+                        case "$LONG_LIBRARY_FLOWS" in
+                            *" ${f} "*) reseed_mode=library ;;
+                            *) reseed_mode=seeded ;;
+                        esac
+                        ;;
                 esac
                 ;;
         esac

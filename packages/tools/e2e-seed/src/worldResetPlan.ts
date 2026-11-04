@@ -43,8 +43,11 @@ export interface WorldResetPlan {
  * `ambiguity` is `seeded` plus the gate-AMBIGUOUS probe (`ensureAmbiguityProbe`), for `recipes/ambiguityReview`
  * alone. The PLAN is the same as `seeded`'s on purpose: the probe is made after the reconcile, and an old one is
  * residue the reconcile must delete (a pick already re-pointed its lines).
+ *
+ * `library` is `seeded` plus the signer's filler recipes (`manifest.libraryFillers`), for `recipes/headerScrollsAway`
+ * alone: the one flow that needs a list longer than a screen. Every other mode treats the fillers as residue.
  */
-export type ResetMode = 'seeded' | 'empty' | 'ambiguity';
+export type ResetMode = 'seeded' | 'empty' | 'ambiguity' | 'library';
 
 /**
  * Reconcile. Pure.
@@ -54,7 +57,13 @@ export type ResetMode = 'seeded' | 'empty' | 'ambiguity';
  * `recipes/collectionsSaveCopy` asserts exactly that.
  */
 export function planWorldReset(actual: WorldSnapshot, manifest: FixtureManifest, mode: ResetMode): WorldResetPlan {
-    return reconcile(actual, mode === 'empty' ? [] : manifest.recipes.filter((recipe) => recipe.owner === 'signer'));
+    const signerRecipes = manifest.recipes.filter((recipe) => recipe.owner === 'signer');
+
+    if (mode === 'empty') {
+        return reconcile(actual, []);
+    }
+
+    return reconcile(actual, mode === 'library' ? [...signerRecipes, ...manifest.libraryFillers] : signerRecipes);
 }
 
 /** The difference between a library and the recipes it should hold. Pure. */

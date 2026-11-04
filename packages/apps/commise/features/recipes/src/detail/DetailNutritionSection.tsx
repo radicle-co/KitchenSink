@@ -23,6 +23,7 @@ import { useId, type ComponentProps, type FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
 import { nutritionSectionFacts } from './detailFacts.js';
+import { DETAIL_CARD } from './detailLayoutClasses.js';
 import { NutritionFigure } from './NutritionFigure.js';
 import type { RecipeDetailBodyProps } from './model.js';
 
@@ -57,14 +58,14 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
     );
 
     return (
-        <section aria-label={detail.nutritionHeading} className="@container/nutrition flex flex-col gap-3">
+        <section aria-label={detail.nutritionHeading} className={`@container/nutrition flex flex-col ${DETAIL_CARD}`}>
             <h2 id="nutrition" className="text-section-title text-ink">
                 <button
                     type="button"
                     aria-expanded={expanded}
                     aria-controls={panelId}
                     onClick={onToggle}
-                    className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-md text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
+                    className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-lg px-4 text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                 >
                     <span className="flex flex-col">
                         <span className="text-section-title text-ink">{detail.nutritionTitle}</span>
@@ -73,7 +74,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                     <Icon name={expanded ? 'chevronUp' : 'chevronDown'} size={20} />
                 </button>
             </h2>
-            <div id={panelId} hidden={!expanded} className="flex flex-col gap-3">
+            <div id={panelId} hidden={!expanded} className="flex flex-col gap-3 px-4 pb-4">
                 {expanded && !cells.noneCounted && (
                     <dl className="grid grid-cols-2 gap-4 @min-[35rem]/nutrition:grid-cols-4">
                         {cells.cells.map((cell) => (

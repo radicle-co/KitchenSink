@@ -7,7 +7,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-import { renderWithTamagui } from '@commise/ui/testing/tamagui';
+import { role } from '@commise/ui/colors';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb } from '@commise/ui/testing/system-color-scheme';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 
 import { makeIngredientView, makeNutrition, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { recipeMessages } from '../../messages.js';
@@ -93,5 +96,34 @@ describe('DetailNutritionSection (native) — expanded', () => {
         expect(screen.getByText(detail.nutritionNoneCounted)).toBeTruthy();
         expect(screen.queryByText('—')).toBeNull();
         expect(screen.queryByText(detail.caloriesLabel)).toBeNull();
+    });
+});
+
+/**
+ * The row is the `card accordion` of `RecipeDetailWeb390` and `RecipeDetailWeb1024` (web mirrors it): the paper ground and
+ * card radius the ingredients card wears, a 56 high row and 16 of side padding. The value stays on a second line.
+ */
+describe('DetailNutritionSection (native) — the card', () => {
+    // The press wrapper sits between the button and the card.
+    const card = (): HTMLElement => row().parentElement?.parentElement as HTMLElement;
+
+    it('is a paper card with the card radius', () => {
+        draw();
+
+        expect(resolvedColour(card(), 'backgroundColor')).toBe(rgb(role.paper));
+        expect(resolvedStyle(card(), 'borderRadius')).toBe(`${nativeTokens.radius.lg}px`);
+    });
+
+    it('pads 16 at the sides and holds a row at least 56 high, collapsed and expanded', () => {
+        for (const expanded of [false, true]) {
+            draw(counted, expanded);
+
+            const heights = [...card().querySelectorAll('*')].map((node) => resolvedStyle(node, 'minHeight'));
+
+            expect(resolvedStyle(card(), 'paddingLeft')).toBe(`${nativeTokens.spacing[4]}px`);
+            expect(resolvedStyle(card(), 'paddingRight')).toBe(`${nativeTokens.spacing[4]}px`);
+            expect(heights).toContain('56px');
+            cleanup();
+        }
     });
 });

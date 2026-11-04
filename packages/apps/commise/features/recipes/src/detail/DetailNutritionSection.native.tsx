@@ -22,10 +22,21 @@ import { styled, XStack, YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import { DetailSection } from './detailFrames.native.js';
+import { DetailCard } from './detailFrames.native.js';
 import type { RecipeDetailBodyNativeProps } from './model.js';
 import { nutritionSectionFacts } from './detailFacts.js';
 import { NutritionFigure } from './NutritionFigure.native.js';
+
+/** The row's card: the page's card ground, 16 at the sides, and 16 of air under the opened figures. */
+const NutritionCard = styled(DetailCard, {
+    name: 'NutritionCard',
+    paddingHorizontal: '$4',
+    gap: '$3',
+
+    variants: {
+        expanded: { true: { paddingBottom: '$4' } },
+    } as const,
+});
 
 /** A caveat or note under the figures: the `caption` role in `inkMuted`. */
 const Note = styled(DesignText, { name: 'NutritionNote', typeRole: 'caption', color: '$inkMuted' });
@@ -62,7 +73,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
     );
 
     return (
-        <DetailSection>
+        <NutritionCard expanded={expanded}>
             <PressScale
                 onPress={onToggle}
                 accessibilityRole="button"
@@ -73,7 +84,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                 expanded={expanded}
                 width="fill"
             >
-                <XStack alignItems="center" justifyContent="space-between" minHeight={48} gap="$3">
+                <XStack alignItems="center" justifyContent="space-between" minHeight={56} gap="$3">
                     <YStack flexShrink={1} aria-hidden>
                         <DesignText typeRole="sectionTitle" color="$ink">
                             {detail.nutritionTitle}
@@ -113,6 +124,6 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                 </YStack>
             )}
             {expanded && hasUserEnteredIngredients(recipe.ingredients) && <Note>{detail.nutritionCustomNote}</Note>}
-        </DetailSection>
+        </NutritionCard>
     );
 };

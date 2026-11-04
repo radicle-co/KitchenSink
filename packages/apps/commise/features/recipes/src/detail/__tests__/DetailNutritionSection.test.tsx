@@ -148,3 +148,44 @@ describe('DetailNutritionSection (web) — expanded', () => {
         expect(screen.queryByRole('link', { name: detail.nutritionSourcesLink })).toBeNull();
     });
 });
+
+/**
+ * The row is the `card accordion` of `RecipeDetailWeb390` and `RecipeDetailWeb1024`: the paper ground and card radius the
+ * ingredients card wears, a 56 high row and 16 of side padding, with the value on a second line under "Nutrition".
+ */
+describe('DetailNutritionSection (web) — the card', () => {
+    it('is a paper card with the card radius, like the ingredients card', () => {
+        draw();
+
+        const card = screen.getByRole('region', { name: detail.nutritionHeading });
+
+        expect(card.classList.contains('bg-paper')).toBe(true);
+        expect(card.classList.contains('rounded-lg')).toBe(true);
+    });
+
+    it('is at least 56 high with 16 of side padding, collapsed and expanded', () => {
+        for (const expanded of [false, true]) {
+            draw(counted, expanded);
+
+            const classes = row().classList;
+
+            expect(classes.contains('min-h-14')).toBe(true);
+            expect(classes.contains('px-4')).toBe(true);
+            cleanup();
+        }
+    });
+
+    it('keeps the value on its own line under the title', () => {
+        draw();
+
+        expect(screen.getByText('520 cal per serving').parentElement?.classList.contains('flex-col')).toBe(true);
+    });
+
+    it('pads the opened figures by the same 16, inside the card', () => {
+        draw(counted, true);
+
+        const panel = document.getElementById(row().getAttribute('aria-controls') ?? '');
+
+        expect(panel?.classList.contains('px-4')).toBe(true);
+    });
+});

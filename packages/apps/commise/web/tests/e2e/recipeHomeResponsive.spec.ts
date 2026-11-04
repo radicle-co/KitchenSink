@@ -369,7 +369,7 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         //
         // Re-baselined for b2b1294bc (the detail page rebuilt to the Android 384 board: buildLists.md "Supersedes
         // buildSpec §6.1 and §6.2": three fact tiles, no filled Edit recipe, no four-cell stat card), 996 px to 904 px
-        // tall. Re-taken after the Nutrition row became the collapsed full-width row before the columns (960 x 850).
+        // tall. Re-taken after the Nutrition row became the collapsed full-width row before the columns (960 x 850), then again as a paper card at 56 high (960 x 858).
         // THE DESIGNER MUST LOOK at `recipeDetailDesktop.png` before this baseline is trusted.
         //
         // Screen on has no caption (designer, iosBatch1), so no scroll is needed before the picture.

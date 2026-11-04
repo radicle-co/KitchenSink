@@ -9,18 +9,16 @@ import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
 import { styled, XStack, YStack } from 'tamagui';
 
+import { DetailCard } from './detailFrames.native.js';
+
 /**
  * The card: paper, the large radius and a hairline edge, with 4 of air above the first block and below the last. The board
  * also gives it the medium shadow; no Tamagui frame carries a shadow yet (the style guards reject a spread elevation), so
  * the hairline defines the edge until the design system has a shadow primitive.
  */
-export const IngredientsCard = styled(YStack, {
+export const IngredientsCard = styled(DetailCard, {
     name: 'IngredientsCard',
-    backgroundColor: '$paper',
-    borderRadius: '$lg',
     paddingVertical: '$1',
-    borderWidth: '$hairline',
-    borderColor: '$lineDivider',
 });
 
 /** The heading row: the heading, "for {n}", then the stepper at the end, wrapping before it squeezes. */

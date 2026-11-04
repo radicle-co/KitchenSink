@@ -227,7 +227,7 @@ AI keys.
 | Capability                                                                            | Spec + FR           | Checklist row | Free | Pro | Pro with AI | Status  | Path evidence or note                                           |
 | ------------------------------------------------------------------------------------- | ------------------- | ------------- | ---- | --- | ----------- | ------- | --------------------------------------------------------------- |
 | Apply to the Chef Program, chef page and discovery                                    | 018 groups A and B  | C26           | ?    | ?   | ?           | SPECCED | "?" because the register is silent. 3 owner clarifications open |
-| Buy a chef's recipe as a private licensed copy, or a course, with platform commission | 018-FR-029, group E | C26           | ?    | ?   | ?           | SPECCED | Bought per item, outside the plans                              |
+| Purchase a chef's recipe (the sold version, with a file to keep), subscribe to a chef for updates, or buy a course, with platform commission | 018-FR-029, FR-029h, group E | C26 | ? | ? | ? | SPECCED | Bought per item or by subscription, outside the plans. Model amended 2026-11-03, ADR-0082 §9 |
 | No display ads at v1                                                                  | 018 C-018-003       | C27           | N    | N   | N           | SPECCED | Free-visitor revenue mechanism still open (C-018-003)           |
 
 ### 019 Offline mode

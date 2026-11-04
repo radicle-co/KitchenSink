@@ -175,6 +175,13 @@ appId: ${APP_ID}
           NAME: 'System Back Guard Collection'
 
 - hideKeyboard
+# ⛔ `hideKeyboard` returns before the keyboard window has left, and a Back that arrives while it is still up is the
+# KEYBOARD's, not the app's: it closes the keyboard, and no dialog opens (measured 2026-11-04; the same Back after the
+# keyboard is gone opens it). While the keyboard is up the system bar carries a `Switch input method` button, so waiting for
+# it to go is waiting for the state Back needs. (`Overview` is no signal: the system bar keeps it either way.)
+- extendedWaitUntil:
+      notVisible: 'Switch input method'
+      timeout: 20000
 - pressKey: Back
 - assertVisible: 'Discard this collection\?'
 - tapOn: 'Keep editing'
@@ -182,6 +189,15 @@ appId: ${APP_ID}
 # The NAME, not just the sheet: a guard that closed the dialog and cleared the field would pass on the sheet alone.
 - assertVisible: 'System Back Guard Collection'
 
+# Keep editing hands the Name field its focus back, so the keyboard comes up again, and the Back below would be the
+# keyboard's (measured 2026-11-04). Wait for it to come up, close it, and wait for it to go.
+- extendedWaitUntil:
+      visible: 'Switch input method'
+      timeout: 20000
+- hideKeyboard
+- extendedWaitUntil:
+      notVisible: 'Switch input method'
+      timeout: 20000
 - pressKey: Back
 - assertVisible: 'Discard this collection\?'
 - tapOn: 'Discard'

@@ -56,7 +56,7 @@ appId: ${APP_ID}
       env:
           FIELD: 'Search your collections'
           TEXT: 'zzzznosuchcollection'
-- assertVisible: 'No collections match'
+- assertVisible: 'No collections match .*'
 - assertVisible: 'Search your collections'
 
 # Back to the top: the whole header is there again.

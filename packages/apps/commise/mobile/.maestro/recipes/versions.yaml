@@ -260,7 +260,9 @@ appId: ${APP_ID}
       timeout: 20000
 - scroll
 - tapOn: 'Back to recipe'
-- assertNotVisible: 'Version history'
+# The detail has its own "Version history" row now, so the heading no longer tells the two screens apart. `Back to recipe`
+# is the history page's pinned Back and exists on no other screen; the version title below is the detail's own.
+- assertNotVisible: 'Back to recipe'
 - extendedWaitUntil:
       visible:
           text: '${E2E_RECIPE_LAMB} .v3.*'

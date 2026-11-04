@@ -73,8 +73,8 @@ appId: ${APP_ID}
 # ⛔ THE RECIPE'S OWN SEEDED DATA — the half the headings above cannot prove. Every value here comes from the
 # lamb's row in `packages/services/recipe-service/src/database/seed.ts` (15 prep / 30 cook / 45 total, 4
 # servings, private), so a detail that rendered another recipe, a skeleton, or a partial projection fails.
-# The three durations are asserted as a SET on purpose: any one alone is also produced by a screen that
-# renders a single stat cell and drops the rest.
+# The tiles below are asserted together on purpose: any one alone is also produced by a screen that renders a single
+# tile and drops the rest.
 #
 # ⚠️ Every value here sits ABOVE the `Ingredients` heading already asserted immediately before it (title band
 # → stat strip → Ingredients), so these additions need nothing from Maestro's visibility rules that this flow
@@ -84,9 +84,13 @@ appId: ${APP_ID}
 - assertVisible: 'Herb-marinated grilled lamb.'
 # The serving count sits beside the Ingredients heading ("for 4", build spec §6.1), no longer in the stat strip.
 - assertVisible: 'for 4'
-- assertVisible: '15 min'
-- assertVisible: '30 min'
-- assertVisible: '45 min'
+# The fact tiles are Total, Prep and Difficulty (`DetailFactTiles`, `RecipeDetailAndroid384`); the cook time has no tile of
+# its own. Each tile is one group named "{label}: {value}", so the pair is asserted as one name: a tile that swapped the two
+# numbers would fail it. The lamb states no difficulty, so the Difficulty tile is only proven ABSENT here; its presence is
+# not covered by this flow.
+- assertVisible: 'Total: 45 min'
+- assertVisible: 'Prep: 15 min'
+- assertNotVisible: 'Difficulty'
 
 # ⛔ THE RECIPE'S COMPOSITION — what this flow could not assert until the shared seed grew it. The seed used
 # to insert rows into `recipes` ONLY (no `recipe_ingredients`, no `recipe_steps`), so every seeded recipe

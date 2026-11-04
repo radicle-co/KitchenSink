@@ -653,7 +653,8 @@ creator page.
   The count goes to the card as `unreadLineCount`, and the card says how many are on the site or in the book only
   (FR-014b).
 - **Save a copy is safe to retry.** The founder ruled on 2026-11-04, "Build it now," that a retry with the same
-  idempotency key returns the first copy (FR-005b).
+  idempotency key returns the first copy. The rule now lives in 001 (`001-FR-005`), because FR-005b is already taken
+  there.
 
 ## Requirements _(mandatory)_
 
@@ -742,9 +743,6 @@ creator page.
   is a facts card too, and it is never open in full. A clone of an open recipe (FR-002 rule 5) can be open. _(Amended
   2026-11-03, ADR-0082.)_ This replaces "a clone of an `imported_public` recipe is never open". A clone of public
   domain text is `imported_public` too, and it opens under rule 5.
-- **FR-005b** _(added 2026-11-04, founder ruling)_: A "Save a copy" request MUST be safe to retry. The client MUST send
-  an idempotency key with each request. A retry with the same key MUST return the first copy and MUST NOT make a second
-  one. This covers the copy in FR-014c. The scope and lifetime of the key are plan work.
 - **FR-006** _(amended 2026-11-03, owner rulings, ADR-0082)_: Text imported under the curator grant (ADR-0023 §1, as
   amended by ADR-0082) MUST be open to the web in full only while its **public domain record** passes `016-FR-015k`.
   The label "Public domain" is derived from the grant plus a passing record (`016-FR-015d`). There is no new

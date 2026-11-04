@@ -675,7 +675,8 @@ The rights label tells the cook who owns the writing.
   `FR-015d`). No step carries a label of its own. The Policy reads "holds an accepted suggestion" as one more input.
   Label 2 stays eligible to be public in full (`021-FR-002`). It is not eligible for CC BY 4.0, because CC BY needs
   label 1 (`021-FR-040a`). Label 2's credit names the source the check matched, where the flag named a page. Where the
-  flag named no page the cook can be shown (a private match, `020-FR-047`), the label shows no "Adapted from" line.
+  flag named no page the cook can be shown (a private match, `020-FR-047`), the label shows no "Adapted from" line
+  _(owner-accepted 2026-11-03)_.
   `FR-015g` row 2 says "Your words are yours", and `FR-015h` shows "You keep ownership of what you wrote". Neither is
   true of the suggested text, so for this case both MUST be replaced by words that do not claim it. The wording is
   OPEN for `staff-ux-engineer` at SPECIFY. This does not reverse the second sentence: the cook asks for

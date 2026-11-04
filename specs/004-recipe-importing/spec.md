@@ -329,8 +329,10 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     >
     > **Amended 2026-11-03 (owner ruling O16, ADR-0082): "This is my recipe, from my account".** A social import MUST
     > offer the owner statement of `FR-014a` (statement 1a), with the account it names. It sets "Written by you" like any
-    > owner statement. No proof exists yet that a cook controls a social account (`026` OPEN item OQ-026-S1). So a hit on
-    > the post the recipe came from always goes to a person, with the statement shown (`020-FR-012g`). Counsel review is
+    > owner statement. _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: no proof existed that a cook controls a
+    > social account, `026` OQ-026-S1, so a hit on the post always went to a person.)_ The proof is now a linked social
+    > account (`026-FR-061`). A hit on the post the recipe came from is cleared only when the post's author id matches
+    > the linked account. Otherwise it goes to a person, with the statement shown (`020-FR-012g`). Counsel review is
     > owed before launch (`016-FR-050`).
     >
     > **Amended 2026-11-03 (owner ruling, ADR-0082 §9): the proof is a linked account.** The cook links their social
@@ -412,8 +414,8 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
       the ownership claim: "This is my recipe, from my site" (statement 1a, `FR-014a`), with the offer to verify the
       site through 026's claim. It is never pre-ticked and never a condition of saving. With the statement, the save is
       `user_created` and labelled "Written by you", and the rule "a save is never `user_created`" above holds only
-      without it. Without a live claim the statement clears no hit (`020-FR-012g`). A cook who saved without it can
-      claim later (`FR-055`). Counsel review is owed before launch (`016-FR-050`).
+      without it. _(owner-accepted 2026-11-03)_ Without a live claim the statement clears no hit (`020-FR-012g`). A
+      cook who saved without it can claim later (`FR-055`). Counsel review is owed before launch (`016-FR-050`).
     - **020 still checks it.** A cook can make the recipe public. Then 020's source check runs before anyone else
       can see it (`020-FR-004`).
     - **Attribution.** The draft and the recipe show the source site and author, as for any link import
@@ -678,9 +680,8 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     >    as it stands then (ADR-0078 §2).
     > 7. **Paste and social.** A pasted recipe has no fetched page, and ADR-0078 §1 clears only a hit on the page fetched
     >    at import. So on paste a claim clears nothing, and a web-search hit on the cook's own page goes to a person with
-    >    the statement shown. No proof exists for a social account yet (`026` OQ-026-S1), so a social owner import also
-    >    goes to a person. Both are recorded as conflicts for the docs lead, not decided here. _(amended 2026-11-03,
-    >    owner ruling, ADR-0082 §9)_ The social half is settled: a linked social account (`026-FR-061`) clears the hit on
+    >    the statement shown. _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: no proof existed for a social
+    >    account, `026` OQ-026-S1, so a social owner import also went to a person.)_ The social half is settled: a linked social account (`026-FR-061`) clears the hit on
     >    a post whose author id matches it. Paste is unchanged, because it has no fetched post or page.
     > 8. **Markets.** Some markets keep facts and a link only on a URL import (`FR-008` ruling item 3). There an
     >    owner's URL import keeps facts and a link only. This is a conflict, not decided. A verified owner asks us to

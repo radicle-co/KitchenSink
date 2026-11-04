@@ -982,8 +982,8 @@ are kept as the record and read with these changes.
       also verify while a recipe already waits for a person. Then the person decides, and sees the claim as evidence. That
       default is OPEN for the founder, because the ruling does not say. _(amended 2026-11-03, owner ruling, ADR-0082
       §9)_ A cook can claim ownership later, on a recipe already saved (`004-FR-055`). The next check of that recipe
-      reads the claim or the linked account as it stands then. Whether a person who already holds the recipe decides
-      alone, with the claim as evidence, stays OPEN.
+      reads the claim or the linked account as it stands then. _(owner-accepted 2026-11-03)_ A person who already holds
+      the recipe decides alone, with the claim as evidence. The open default above is settled this way.
     - **Erasure.** [Law] The claim is personal data (GDPR Art. 4(1)). It is deleted with the account (`026` key entity
       "Site claim", `016-FR-069`). [House rule] An outcome that cited it keeps only the claim's opaque id, its method
       and the time it was last checked. It drops the claim's domain, because a personal blog's domain can name a person

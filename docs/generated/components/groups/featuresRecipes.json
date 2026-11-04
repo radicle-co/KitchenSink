@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 189,
-        "implementations": 322,
-        "props": 2268,
-        "documentedComponents": 189,
-        "implementationsWithModuleDoc": 322,
-        "implementationsWithComponentDoc": 213,
-        "documentedProps": 1750,
+        "components": 191,
+        "implementations": 324,
+        "props": 2270,
+        "documentedComponents": 191,
+        "implementationsWithModuleDoc": 324,
+        "implementationsWithComponentDoc": 215,
+        "documentedProps": 1752,
         "classifiedComponents": 169,
-        "componentsWithPatternTag": 90,
+        "componentsWithPatternTag": 92,
         "crossPlatformComponents": 133
     },
     "components": [
@@ -380,6 +380,130 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/card/MetaLeadContext",
+            "name": "MetaLeadContext",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/card",
+            "kind": "unclassified",
+            "patterns": [
+                "Template Method — the shared skeleton of the line; the leaf supplies its parts and its frame"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "MetaLeadContext",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/card/metaLine.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/card",
+                    "moduleDoc": "@commise/features-recipes/card — the meta line's shared logic, behind a client boundary, for both `RecipeCard`\nleaves: which parts make the run, when there is no line at all, and where the calorie figure's lead dot comes from.\n\nThe leaves differ only in the primitives they draw a part with and the frame (a `<p>` on web, a `Text` on native) the run\nsits in; everything else is decided here once, so the two cannot drift. It holds a React context, which is why it is not\npart of the pure `metaRun.ts` builder: a server page reaches that module, and `createContext` may not be called there.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/card — the meta line's shared logic, behind a client boundary, for both `RecipeCard`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Template Method — the shared skeleton of the line; the leaf supplies its parts and its frame"
+                        }
+                    ],
+                    "description": "What a part that may settle on nothing (the calorie figure) draws before itself: the separator when parts precede it, and\nnothing when it comes first. The part draws it only when it has something to say, so a figure that settles on nothing\nleaves no dot behind, on either platform.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/card/MetaLine",
+            "name": "MetaLine",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/card",
+            "kind": "unclassified",
+            "patterns": [
+                "Template Method — the shared skeleton of the line; the leaf supplies its parts and its frame"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "MetaLine",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/card/metaLine.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/card",
+                    "moduleDoc": "@commise/features-recipes/card — the meta line's shared logic, behind a client boundary, for both `RecipeCard`\nleaves: which parts make the run, when there is no line at all, and where the calorie figure's lead dot comes from.\n\nThe leaves differ only in the primitives they draw a part with and the frame (a `<p>` on web, a `Text` on native) the run\nsits in; everything else is decided here once, so the two cannot drift. It holds a React context, which is why it is not\npart of the pure `metaRun.ts` builder: a server page reaches that module, and `createContext` may not be called there.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/card — the meta line's shared logic, behind a client boundary, for both `RecipeCard`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Template Method — the shared skeleton of the line; the leaf supplies its parts and its frame"
+                        }
+                    ],
+                    "description": "The meta line: the parts that exist joined into one run, then the calorie figure. A line with no part and no figure is not\ndrawn at all, so a tile does not hold a blank row (UI Designer ruling, 2026-11-03).",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The parts and the frame."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The line, or nothing."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "Frame",
+                            "type": "ComponentType<{ readonly children: ReactNode; }>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The frame the run sits in: a paragraph on web, a text on native.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/card/metaLine.tsx"
+                        },
+                        {
+                            "name": "parts",
+                            "type": "readonly ReactNode[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's parts in reading order; a part with no data is `undefined`, `null`, `false` or `''`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/card/metaLine.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }

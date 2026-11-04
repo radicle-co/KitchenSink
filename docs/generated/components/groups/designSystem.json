@@ -14234,6 +14234,7 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"scrim\"",
+                                "\"cover\"",
                                 "\"brand\"",
                                 "\"hero\""
                             ],
@@ -14312,6 +14313,7 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"scrim\"",
+                                "\"cover\"",
                                 "\"brand\"",
                                 "\"hero\""
                             ],

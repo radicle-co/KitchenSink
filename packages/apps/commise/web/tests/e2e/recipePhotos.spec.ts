@@ -82,6 +82,11 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
 
         await openRecipeEditor(page, 'ec000000-0000-4000-8000-00000000002c');
 
+        // Listen from the start. A listener added in the same breath as the Enter lets Chromium open its own dialog before
+        // Playwright is intercepting, and a dialog already open swallows every later request, so the test then waited out
+        // its whole 60 s timeout (2 of 8 cold runs).
+        const chooserOpened = page.waitForEvent('filechooser');
+
         const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
         const addPhotos = photosRegion.getByRole('button', { name: 'Add photos' });
         await addPhotos.scrollIntoViewIfNeeded();
@@ -98,7 +103,8 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
 
         await expect(addPhotos).toBeFocused();
 
-        const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.keyboard.press('Enter')]);
+        await page.keyboard.press('Enter');
+        const chooser = await chooserOpened;
         expect(chooser.isMultiple()).toBe(true);
         await chooser.setFiles({
             name: 'ratatouille.png',

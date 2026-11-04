@@ -21,7 +21,7 @@ import { EMPTY_RECIPE_FILTERS, discoverySearchParams, recentSearchesKeyFor } fro
 import { LocaleProvider } from '@commise/i18n/react';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { recipeQueries, type RecipeSearchResponse } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
@@ -113,6 +113,9 @@ function withResults(): void {
 }
 
 afterEach(() => {
+    // Unmount FIRST. A search typed in a test leaves its debounce timer pending, and the library's own cleanup runs after
+    // this hook: by then the spies are restored, so under load the timer fired a real search on a torn-down client.
+    cleanup();
     vi.clearAllMocks();
     vi.restoreAllMocks();
     setUrlQuery('');

@@ -37,6 +37,7 @@ function inputElements(file: ts.SourceFile): readonly (ts.JsxOpeningElement | ts
 /** Every named object a module defines: `const base = {…}` and `key: {…}` (a `StyleSheet.create` entry). */
 function definitions(file: ts.SourceFile): ReadonlyMap<string, readonly ts.Expression[]> {
     const byName = new Map<string, ts.Expression[]>();
+
     const add = (name: string, value: ts.Expression): void => {
         byName.set(name, [...(byName.get(name) ?? []), value]);
     };

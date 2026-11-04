@@ -29,7 +29,7 @@ import { remoteFoodsOf, servedFoodsOf } from '../../src/hooks/foodSuggestions.mo
 import { useIngredientEntry } from '../../src/hooks/useIngredientEntry.js';
 import { useLineCommit } from '../../src/hooks/useLineCommit.js';
 import { useSourceLimit } from '../../src/hooks/useSourceLimit.js';
-import { foodProgressive, json, ndjson, twoOrigins } from './twoOrigins.js';
+import { foodProgressive, json, ndjson, twoOrigins, NAME_PROPOSALS_PATH } from './twoOrigins.js';
 
 afterEach(cleanup);
 
@@ -126,6 +126,7 @@ describe('the entry, on the create form (integration)', () => {
             ['/api/v1/foods/search/progressive', 'chickpeas'],
         ]);
         expect(origins.sentTo('recipe').map((each) => [each.method, each.path, each.body])).toEqual([
+            ['GET', NAME_PROPOSALS_PATH, undefined],
             ['POST', '/api/v1/ingredients/by-food', { foodId: 'food_chickpea' }],
         ]);
         expect(result.current.values.ingredients[0]).toMatchObject({
@@ -165,6 +166,9 @@ describe('the entry, on the create form (integration)', () => {
         expect(adopts()).toHaveLength(1);
         expect(result.current.lineCommit.limitRefusals).toBe(1);
         expect(result.current.lineCommit.settled?.outcome).toMatchObject({ kind: 'limited' });
-        expect(origins.sentTo('recipe')).toEqual([]);
+        // Only the add field's read of what is remembered: no admission.
+        expect(origins.sentTo('recipe').map((each) => [each.method, each.path])).toEqual([
+            ['GET', NAME_PROPOSALS_PATH],
+        ]);
     });
 });

@@ -59,6 +59,7 @@ describe('Avatar (native)', () => {
     describe('size', () => {
         const discOf = (): HTMLElement => {
             const disc = screen.getByRole('button').firstElementChild;
+
             if (!(disc instanceof HTMLElement)) {
                 throw new Error('The avatar has no disc.');
             }

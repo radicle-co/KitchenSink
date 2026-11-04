@@ -40,7 +40,14 @@ import { applyDraftAction } from '../../src/form/props.js';
 import { RecipeIngredientsFields } from '../../src/form/RecipeIngredientsFields.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../../src/form/values.js';
 import { useIngredientRowEditor } from '../../src/hooks/useIngredientRowEditor.js';
-import { foodProgressive, foodSearches, ndjson, twoOrigins, json as jsonAnswer } from './twoOrigins.js';
+import {
+    foodProgressive,
+    foodSearches,
+    ndjson,
+    twoOrigins,
+    json as jsonAnswer,
+    NAME_PROPOSALS_PATH,
+} from './twoOrigins.js';
 
 const en = recipeFormMessages.en;
 
@@ -209,6 +216,7 @@ describe('the row editor, composed over the real clients (integration)', () => {
             ['/api/v1/foods/search/progressive', 'chickpeas'],
         ]);
         expect(origins.sentTo('recipe').map((each) => [each.method, each.path, each.body])).toEqual([
+            ['GET', NAME_PROPOSALS_PATH, undefined],
             ['POST', '/api/v1/ingredients/by-food', { foodId: 'food_chickpea' }],
         ]);
         expect(screen.getByText('Chickpeas, canned is matched. Its nutrition now counts.')).toBeTruthy();
@@ -516,7 +524,7 @@ describe('a pick that fails while its step is away (integration, E2)', () => {
         await user.keyboard('s');
         const catalog = await screen.findByRole('group', { name: 'Food catalog' }, { timeout: 3000 });
         await user.click(within(catalog).getByRole('option', { name: 'Chickpeas, canned' }));
-        await waitFor(() => expect(origins.sentTo('recipe')).toHaveLength(1));
+        await waitFor(() => expect(origins.sentTo('recipe').filter((each) => each.method === 'POST')).toHaveLength(1));
 
         // The cook presses Previous while the pick runs, and it fails while the step is away.
         await user.click(screen.getByRole('button', { name: 'Previous' }));

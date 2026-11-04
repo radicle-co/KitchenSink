@@ -8,7 +8,7 @@
  *
  * @pattern Overlay — the field is drawn once above the list over a spacer the list holds
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, useWindowDimensions } from 'react-native';
 
 import { useOptionalScrollHost } from '../scrollHost/useOptionalScrollHost.js';
@@ -100,10 +100,18 @@ export function usePinnedSearch(searchValue: string, headerTop: number): PinnedS
         pinnedTop: PINNED_TOP_PX,
         pins: searchSticks(fieldHeight, windowHeight),
     });
-    // ONE set of nodes over the host's offset, built once. A re-measure (the spacer moves, the field grows, the window turns)
-    // writes the two inputs below; it never swaps a node, because swapping one on a native-driven view left the view showing the old
-    // node's value (qa-ios ScaleToCap). Nothing is drawn until the spacer has been measured, so the first geometry is unseen.
-    const searchPin = useMemo(() => createSearchPin(scrollY, geometry), [scrollY]); // eslint-disable-line react-hooks/exhaustive-deps -- the first geometry only; `apply` carries every later one
+    // ONE set of nodes over the host's offset, built from the first geometry and rebuilt only when the host hands a different
+    // offset. A re-measure (the spacer moves, the field grows, the window turns) writes the two inputs below; it never swaps a
+    // node, because swapping one on a native-driven view left the view showing the old node's value (qa-ios ScaleToCap).
+    // Nothing is drawn until the spacer has been measured, so the first geometry is unseen. The rebuild is set during render,
+    // the way React documents for state derived from a prop, so no render ever reads a pin made for another offset.
+    const [held, setHeld] = useState(() => ({ scrollY, pin: createSearchPin(scrollY, geometry) }));
+
+    if (held.scrollY !== scrollY) {
+        setHeld({ scrollY, pin: createSearchPin(scrollY, geometry) });
+    }
+
+    const searchPin = held.pin;
 
     useEffect(() => {
         searchPin.apply({ naturalTop: geometry.naturalTop, pinnedTop: geometry.pinnedTop });

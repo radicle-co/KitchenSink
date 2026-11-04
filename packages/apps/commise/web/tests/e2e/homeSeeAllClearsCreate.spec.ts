@@ -114,9 +114,11 @@ test.describe('Home on a short window: the New recipe button never covers a focu
         ];
 
         await expect(create).toHaveCSS('box-shadow', 'none');
+
         if (createBox === null || greetingBox === null || dateBox === null || profileBox === null) {
             throw new Error('A header control has no box.');
         }
+
         expect(createBox.y).toBeGreaterThanOrEqual(dateBox.y + dateBox.height + 15);
         expect(createBox.y).toBeLessThanOrEqual(dateBox.y + dateBox.height + 17);
         expect(createBox.x).toBeLessThanOrEqual(greetingBox.x + 1);

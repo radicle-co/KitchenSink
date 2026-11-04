@@ -413,8 +413,12 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  *
  * ⚠️ It went 92 → 91 with the Home header. `AvatarDisc.native.tsx` was rebuilt on Tamagui and now states that it is
  * presentational.
+ *
+ * ⚠️ It went 91 → 93 with the catalogue regeneration, not with a new component. `docs/generated/components` had fallen
+ * behind the tree, so `MetaLine` and `MetaLeadContext` (the card meta line, `card/metaLine.tsx`) were in no census; neither
+ * states a layer, and regenerating brought them in. Counted, not stamped: the figure is a census, not a backlog.
  */
-const LAYER_UNSTATED_CENSUS = 91;
+const LAYER_UNSTATED_CENSUS = 93;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.

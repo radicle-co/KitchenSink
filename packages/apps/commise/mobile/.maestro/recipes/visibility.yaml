@@ -98,19 +98,21 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
-# this the assertions below could vacuously pass on a non-owned detail. The owner block is in the detail's
-# TITLE BAND (it used to be at the foot); the visibility control sits behind the ⋯ "More actions for {title}" overflow there.
+# this the assertions below could vacuously pass on a non-owned detail. The visibility control sits behind the ⋯ "More actions
+# for {title}" overflow in the detail's top bar.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
 # The visibility change is a secondary owner action in the ⋯ menu (§6.4): "Make public" on a private recipe,
 # "Make private" on a public one. The recipe is seeded private.
+# The ⋯ is in the detail's TOP BAR and scrolls away with the header, so reach it the way a cook does: scroll back UP
+# (DOWN adds a nudge that would push a visible ⋯ off the top).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'More actions for .*'
-          DIRECTION: DOWN
+          DIRECTION: UP
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 # C-004 for a PREMIUM owner nothing is gated; a private recipe offers the way to public.

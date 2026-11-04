@@ -142,4 +142,15 @@ describe('the scroll position', () => {
 
         expect(state.scrollTo).not.toHaveBeenCalled();
     });
+
+    // Once per appearance: the position the panel was opened with is the only one it puts back. The cook's own scrolling
+    // after that must never be answered with a scrollTo.
+    it('is not fought while the cook scrolls an open sheet', () => {
+        render(<Sheet {...propsFor()} />);
+
+        scrollsTo(90);
+        scrollsTo(240);
+
+        expect(state.scrollTo).not.toHaveBeenCalled();
+    });
 });

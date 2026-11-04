@@ -72,6 +72,7 @@ export function tamaguiMotionPropFindings(source: string, fileName: string): rea
 
     const styledNames = tamaguiStyledNames(file);
     const findings: string[] = [];
+
     const report = (node: ts.Node, why: string): void => {
         findings.push(`${fileName}:${lineOf(file, node)} ${why}`);
     };

@@ -8,8 +8,9 @@ appId: ${APP_ID}
 # structure), and that the sticky field stays reachable. Run it once at the default text size, and once with the iOS
 # text size at its largest (Settings > Accessibility > Display & Text Size > Larger Text).
 #
-# NOT RUN yet: written with the C-2 change, which waits for the designer's shots. It needs a library of at least a
-# screenful of recipes, so it is meant for the seeded sandbox user, and it only reads (it types nothing).
+# It needs a library of at least a screenful of recipes, so its reset seeds the signer's filler recipes
+# (`e2e-seed reset --mode library`, `LONG_LIBRARY_FLOWS` in `runMaestroFlows.sh`); every other flow's library stays at three.
+# It only reads (it types nothing).
 - runFlow: ../auth/signin.yaml
 
 # 'My recipes' is drawn only on the Recipes root (audit 2026-10-19, A1.15).

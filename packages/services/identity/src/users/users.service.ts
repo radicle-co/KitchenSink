@@ -383,6 +383,7 @@ export class UsersService {
                   )
                   .returning()
             : await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+
         // Nothing matched: either the status changed since the check (the gate answers it) or there is no profile row.
         if (writesProfile && updatedProfile === undefined) {
             await this.resolver.resolveUser(userId);

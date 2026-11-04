@@ -48,11 +48,13 @@ onFlowComplete:
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: '${E2E_DOWNGRADED_RECIPE}'
+# The ⋯ is in the detail's TOP BAR and scrolls away with the header, so reach it the way a cook does: scroll back UP
+# (DOWN adds a nudge that would push a visible ⋯ off the top).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'More actions for .*'
-          DIRECTION: DOWN
+          DIRECTION: UP
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - tapOn: 'Make public'

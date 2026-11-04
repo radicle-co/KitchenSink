@@ -34,7 +34,16 @@ import { INGREDIENT_SEARCH_DEBOUNCE_MS } from '../../src/hooks/ingredientSearchD
 import { useIngredientEntry } from '../../src/hooks/useIngredientEntry.js';
 import { useLineCommit } from '../../src/hooks/useLineCommit.js';
 import { useSourceLimit } from '../../src/hooks/useSourceLimit.js';
-import { HANG, foodProgressive, json, ndjson, openStream, twoOrigins, type RouteAnswer } from './twoOrigins.js';
+import {
+    HANG,
+    foodProgressive,
+    json,
+    ndjson,
+    openStream,
+    twoOrigins,
+    type RouteAnswer,
+    NAME_PROPOSALS_PATH,
+} from './twoOrigins.js';
 
 const TRAILING = { kind: 'newLine' } as const;
 const BREAST_ID = '00000000-0000-4000-8000-0000000000e1';
@@ -173,6 +182,7 @@ describe('the entry’s food search, over the progressive answer, in the app’s
         await advance(0);
 
         expect(origins.sentTo('recipe').map((each) => [each.method, each.path, each.body])).toEqual([
+            ['GET', NAME_PROPOSALS_PATH, undefined],
             ['POST', '/api/v1/ingredients/by-food-variant', { foodVariantId: 'var_fried' }],
         ]);
         expect(result.current.values.ingredients).toEqual([

@@ -114,7 +114,7 @@ export interface FixtureRecipeDefinition {
 
 /** The recipes a run seeds, keyed the way the flows refer to them. */
 export type FixtureRecipeKey =
-    'lamb' | 'asparagus' | 'salad' | 'risotto' | 'privateFood' | 'ambiguityProbe' | 'downgradedStew';
+    'lamb' | 'asparagus' | 'salad' | 'risotto' | 'privateFood' | 'ambiguityProbe' | 'downgradedStew' | 'libraryFiller';
 
 /**
  * The world, before run-scoping.
@@ -406,6 +406,48 @@ export function deriveAmbiguityProbe(
 }
 
 /**
+ * How many filler recipes the LONG-library mode adds to the signer's three. A native recipe card is a full-bleed 4:3
+ * image, so about one fits a phone screen: nine rows are several screens, enough for the list's header to scroll away.
+ */
+export const LIBRARY_FILLER_COUNT = 6;
+
+/** The filler recipes' title before it is scoped to a run: `<base> N`, then `<base> N <runKey>`. */
+const LIBRARY_FILLER_BASE_TITLE = 'Long Library Filler';
+
+/**
+ * The signer's filler recipes, for `reset --mode library` and `recipes/headerScrollsAway` alone.
+ *
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^3 recipes$` on the signer's
+ * library, so `planWorldReset` treats the fillers as residue in every mode but `library`, BY THEIR TITLES.
+ *
+ * Private, so none shows in a Discover rail, and one line each over a food the lamb already authors.
+ *
+ * @param runKey - This run's fixture scope.
+ * @returns The run-scoped fillers, in creation order.
+ */
+function deriveLibraryFillers(runKey: string): readonly FixtureRecipe[] {
+    return Object.freeze(
+        Array.from({ length: LIBRARY_FILLER_COUNT }, (_, index) =>
+            Object.freeze({
+                key: 'libraryFiller',
+                owner: 'signer',
+                baseTitle: `${LIBRARY_FILLER_BASE_TITLE} ${index + 1}`,
+                title: runScopedTitle(`${LIBRARY_FILLER_BASE_TITLE} ${index + 1}`, runKey),
+                cuisine: 'American',
+                description: 'A recipe that only makes the library longer than a screen.',
+                visibility: 'private',
+                servings: 2,
+                prepTimeMinutes: 5,
+                cookTimeMinutes: 5,
+                totalTimeMinutes: 10,
+                ingredients: Object.freeze([Object.freeze({ name: 'Olive oil', quantity: 1, unit: 'tbsp' })]),
+                steps: Object.freeze([Object.freeze({ instruction: 'Stir.', timerSeconds: undefined })]),
+            } as const),
+        ),
+    );
+}
+
+/**
  * The fixed world. The names are plain letters and spaces, because the Maestro flow puts them inside a pattern, and they
  * share no word with any text another flow types.
  */
@@ -515,6 +557,8 @@ export interface FixtureManifest {
      * `provision` chooses, which the run key cannot derive, so the recipe is {@link deriveAmbiguityProbe}'s.
      */
     readonly ambiguityProbeTitle: string;
+    /** The signer's long-library fillers (`reset --mode library`). Kept apart from `recipes`, which every flow counts. */
+    readonly libraryFillers: readonly FixtureRecipe[];
     /** `<CAP_FOOD_BASE_NAME> <runKey>` — what the cap flow types, and the start of every name in `capFoodNames`. */
     readonly capFoodPrefix: string;
     /** The signer's cap foods, `<capFoodPrefix> N` — see {@link CAP_FOOD_BASE_NAME}. */
@@ -568,6 +612,7 @@ export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform,
         }),
         privateFoodName: PRIVATE_FOOD_NAME,
         ambiguityProbeTitle: runScopedTitle(AMBIGUITY_PROBE_BASE_TITLE, runKey),
+        libraryFillers: deriveLibraryFillers(runKey),
         capFoodPrefix,
         capFoodNames: Object.freeze(
             Array.from({ length: MAX_SEARCH_FOOD_FILTERS }, (_, index) => `${capFoodPrefix} ${index + 1}`),

@@ -81,6 +81,7 @@ describe('DetailNutritionSection (native) — expanded', () => {
         draw(counted, true);
 
         expect(row().getAttribute('aria-expanded')).toBe('true');
+
         for (const label of [detail.caloriesLabel, detail.proteinLabel, detail.carbsLabel, detail.fatLabel]) {
             expect(screen.getByLabelText(new RegExp(`^${label},`, 'u'))).toBeTruthy();
         }

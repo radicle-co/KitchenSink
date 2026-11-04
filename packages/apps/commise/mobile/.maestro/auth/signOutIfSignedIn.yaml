@@ -20,9 +20,12 @@ appId: ${APP_ID}
 - launchApp:
       permissions: {}
       stopApp: false
+# 45 s, up from 30: a cold start on a loaded machine (an emulator, Metro and other lanes sharing the CPU) took longer than
+# 30 s to paint, and `makePublicConfirm` failed here AFTER its body had passed. The wait ends on the first match, so a fast
+# start pays nothing for the longer limit.
 - extendedWaitUntil:
       visible: 'Sign in to Commise|Profile.*'
-      timeout: 30000
+      timeout: 45000
 - runFlow:
       when:
           visible: 'Profile.*'

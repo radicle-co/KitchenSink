@@ -61,6 +61,7 @@ describe('HomeGreeting (web) — the New recipe button below 400 px of height', 
 
         return screen.getByRole('button', { name: 'New recipe' });
     };
+
     const follows = (first: Element, second: Element): boolean =>
         Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
 
@@ -84,6 +85,7 @@ describe('HomeGreeting (web) — the New recipe button below 400 px of height', 
         for (const out of ['fixed', 'absolute', 'sticky', 'shadow-lg']) {
             expect(classes).not.toContain(out);
         }
+
         expect(classes).toEqual(expect.arrayContaining(['fab-floats:fixed', 'fab-floats:shadow-lg']));
     });
 });

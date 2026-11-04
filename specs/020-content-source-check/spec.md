@@ -1598,10 +1598,14 @@ this section.
     personal data (ADR-0027). [Law] Keeping it rests on GDPR Art. 17(3)(e), the defence of legal claims. Counsel review is owed
     before launch (`016-FR-050`).
 
-- **FR-064**: **An edit to a public recipe never shows unchecked content.** While a new digest is checking or in
-  review, the public surfaces MUST NOT serve the new content. 021's plan decides one of two answers (`021-FR-102`).
-  The surfaces can serve the last version whose digest has an allowing outcome, through version-pinned public reads.
-  Without those reads, they answer not-available (`021-FR-013`). An edit that touches no checked field changes no digest, so it starts no check (FR-005).
+- **FR-064** _(amended 2026-11-03, owner ruling O10, ADR-0082)_: **An edit to a public recipe never shows unchecked content.** While a new digest is checking or in
+  review, the public surfaces MUST NOT serve the new content. Decided: readers see the **last approved version**,
+  through version-pinned public reads. The surfaces serve the last version whose digest has an allowing outcome
+  (a green outcome or a person's clearance). They do not answer not-available during the check. If no version has an
+  allowing outcome, or a 016 decision removed the content (FR-066), or an exit event other than the edit applies, the
+  surfaces answer not-available (`021-FR-013`). The cook's own view shows the new content with its state. This was
+  open (the plan chose one of two answers) and is now decided. Counsel review is owed before launch (`016-FR-050`).
+  An edit that touches no checked field changes no digest, so it starts no check (FR-005).
 - **FR-065**: **A version restore is a content write.** Restoring an old version MUST compute the digest of the
   restored content (FR-058), and it is a new check moment (FR-001).
     - Rule evidence is worked out again, because the rightsholder list can change between versions. Cached model evidence for the
@@ -1660,6 +1664,9 @@ this section.
       as a photo (FR-006). A cover picked from the collection's own recipes needs no check.
     - A bio (160 characters, `012-FR-002`) and an avatar are not checked. They fall under 016's notice-and-action, and
       a removal gets a statement of reasons (`016-FR-018`).
+      _(amended 2026-11-03, owner ruling O11, ADR-0082)_ Decided: the outside-copy check does NOT run on a bio or an avatar. [House rule]
+      Notice-and-takedown (`016-FR-017`) covers them. A bio is 160 characters and an avatar is a small image, so the
+      copy risk is low and a check would cost more than it protects.
     - Counsel review is owed before launch (`016-FR-050`).
 - **FR-072**: **Household sharing is not publication.** [House rule] A household (`017-FR-030`, at most 6 accounts,
   `017-FR-034f`) is a private circle, not the public, so sharing a recipe with it starts no check. A household member

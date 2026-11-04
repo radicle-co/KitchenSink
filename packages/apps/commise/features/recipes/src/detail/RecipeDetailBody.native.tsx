@@ -12,7 +12,9 @@
  * It renders the page's ONE scroller. Every section is a direct child of the scroll content, one flat list. There is no
  * section switch: the page is one scroll, and "Screen on" is a labelled row in the page, drawn once.
  *
- * Left out until their features ship (`designAnswers.md` D1, D2): the comments row and "Start cooking".
+ * Left out until their features ship (`designAnswers.md` section
+ * "2026-11-02: card, Home header and Recipe detail build questions", bullets "8 comments" row and "Start cooking"):
+ * the comments row and "Start cooking".
  *
  * This is the PURE render half. Its orchestration shell, `RecipeDetailView.native.tsx`, binds the session state and
  * measures the layout, because a file does ONE thing (CODING_STANDARDS §1).

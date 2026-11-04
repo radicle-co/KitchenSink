@@ -5,6 +5,7 @@ import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
+import { openNutritionRow } from './utils/nutritionRow';
 import { addStep, chooseCuisine, openIngredientEditor, setServings } from './utils/recipeEditor';
 
 /**
@@ -261,7 +262,7 @@ test.describe('variant details on the read view (curated U15)', () => {
             },
         ]);
 
-        const nutrition = page.getByRole('region', { name: 'Nutrition (per serving)' });
+        const nutrition = await openNutritionRow(page);
         await expect(nutrition).toContainText('Nutrition comes from public food databases.');
         await expect(nutrition).toContainText('Custom ingredients count only the nutrition you entered for them.');
         await expect(page.getByRole('article', { name: 'Brisket and Chicken' })).not.toContainText('USDA');

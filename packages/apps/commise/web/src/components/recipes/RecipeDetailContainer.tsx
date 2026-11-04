@@ -196,7 +196,7 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // neither focusable nor announced.
     const moreActions = (appearance: 'plain' | 'disc') =>
         page.menu === undefined ? null : <ActionMenu {...page.menu} appearance={appearance} />;
-    // The page's text action (`designAnswers.md` D2, no filled button): Edit recipe for the owner, Save a copy for another cook. The two NAVIGATIONS
+    // The page's text action (`docs/design/uiRefreshWorkshop5/nativeBoards/buildLists.md`, "Recipe detail" item 8 and the paragraph under it: "no filled Edit recipe button"): Edit recipe for the owner, Save a copy for another cook. The two NAVIGATIONS
     // stay real links: a `<button onClick={router.push}>` would lose the link role, ⌘-click and open-in-new-tab.
     const primary =
         page.primary === 'edit' ? (

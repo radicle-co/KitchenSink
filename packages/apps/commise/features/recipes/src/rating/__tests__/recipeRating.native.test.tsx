@@ -9,7 +9,9 @@
  * Same two mutation-lens assertions as web: the read-only variant renders no input, and selecting a star
  * reports its EXACT value.
  *
- * REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md` item 2, `designAnswers.md` D3): the rating is a CARD at the top of
+ * REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md` item 2, `designAnswers.md` section
+ * "2026-11-02: card, Home header and Recipe detail build questions", bullet "Rating"): the rating is a CARD at the top
+ * of
  * the page, with no "Community rating" heading. It reads stars, the figure ("4.8") and the count ("12 ratings") on one
  * row; the own-recipe reason is "Only other cooks can rate your recipe."; and the heading and column-edge tests now
  * prove that the card draws no section heading of its own.

@@ -169,9 +169,10 @@ for (const scheme of ['light', 'dark'] as const) {
             await expect(sheet.getByText('No recipes match your search')).toBeVisible();
         });
 
-        // W-23 (`buildSpec.md` §5.1 "sheet header truncate:1"): "Add to {name}" with a 60-character collection name is
-        // ONE line at the narrowest width, ending in an ellipsis; the dialog is still named by the full string.
-        test('keeps the title on one line at 320 for a 60-character collection name', async ({ page }) => {
+        // Owner ruling (iosBatch1.md, textCap findings: "A sheet title wraps and never truncates"; aad01a59c moved the
+        // sheet title from `truncate` to `break-words`): "Add to {name}" with a 60-character collection name WRAPS at
+        // the narrowest width, shows every character, and Close stays beside it. This replaces W-23's one-line ellipsis.
+        test('wraps the title at 320 for a 60-character collection name, never clipping it', async ({ page }) => {
             const name = 'Weeknight dinners for the whole family and every guest too!!';
             expect(name).toHaveLength(60);
 
@@ -192,14 +193,25 @@ for (const scheme of ['light', 'dark'] as const) {
 
             const title = sheet.getByRole('heading', { name: `Add to ${name}` });
             const box = await title.boundingBox();
+            const sheetBox = await sheet.boundingBox();
             const lineHeight = await title.evaluate((element) =>
                 Number.parseFloat(getComputedStyle(element).lineHeight),
             );
             expect(box).not.toBeNull();
-            // One line: the box is a single line-height tall (sub-pixel slack), though the text needs more width.
-            expect(box?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(lineHeight + 1);
-            expect(await title.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
-            // Close stays on screen beside the clipped title.
+            expect(sheetBox).not.toBeNull();
+            // Wrapped: more than one line tall.
+            expect(box?.height ?? 0).toBeGreaterThan(lineHeight * 1.5);
+            // Not clipped, not ellipsised, and no wider than its box: every character is on screen.
+            const fit = await title.evaluate((element) => ({
+                overflowsSideways: element.scrollWidth > element.clientWidth,
+                textOverflow: getComputedStyle(element).textOverflow,
+            }));
+            expect(fit.overflowsSideways).toBe(false);
+            expect(fit.textOverflow).toBe('clip');
+            expect((box?.x ?? 0) + (box?.width ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(
+                (sheetBox?.x ?? 0) + (sheetBox?.width ?? 0),
+            );
+            // Close stays on screen beside the wrapped title.
             await expect(sheet.getByRole('button', { name: /^Close/u })).toBeInViewport();
         });
 

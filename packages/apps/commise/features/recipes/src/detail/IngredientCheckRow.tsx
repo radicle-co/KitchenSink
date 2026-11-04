@@ -66,8 +66,8 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                 onClick={() => onToggle(ingredient.ingredientId)}
                 className={`flex min-h-11 w-full items-start gap-3 rounded-md px-4 py-2 text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
             >
-                {/* The 18 px box sits on the text's 20 px first line, 1 px down to centre on it. */}
-                <span className="mt-px flex">
+                {/* The 18 px box is centred in a box as tall as the text's 24 px first line (`body`), so it follows the line. */}
+                <span className="flex h-6 items-center">
                     <CheckBoxGlyph checked={checked} />
                 </span>
                 <span

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The top of the web recipe page, as `RecipeDetailAndroid384` draws it (`nativeBoards/buildLists.md` items 2 to 9,
- * `designAnswers.md` D1 to D5): the rating card, the cuisine eyebrow, a title that never truncates, the status row, the
+ * `designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions"): the rating card, the
+ * cuisine eyebrow, a title that never truncates, the status row, the
  * source line, three fact tiles, the text actions and the Screen on row. The web twin of
  * `RecipeDetailTop.native.test.tsx`: the two pages say the same things in the same order.
  *

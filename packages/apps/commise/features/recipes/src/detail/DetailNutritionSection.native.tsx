@@ -22,15 +22,21 @@ import { styled, XStack, YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import { DetailSection } from './detailFrames.native.js';
-import {
-    needsReviewNotice,
-    rangeDerivedNotice,
-    staleNutritionNotice,
-    type RecipeDetailBodyNativeProps,
-} from './model.js';
-import { nutritionCells, nutritionStatusLine, nutritionSummary } from './detailFacts.js';
+import { DetailCard } from './detailFrames.native.js';
+import type { RecipeDetailBodyNativeProps } from './model.js';
+import { nutritionSectionFacts } from './detailFacts.js';
 import { NutritionFigure } from './NutritionFigure.native.js';
+
+/** The row's card: the page's card ground, 16 at the sides, and 16 of air under the opened figures. */
+const NutritionCard = styled(DetailCard, {
+    name: 'NutritionCard',
+    paddingHorizontal: '$4',
+    gap: '$3',
+
+    variants: {
+        expanded: { true: { paddingBottom: '$4' } },
+    } as const,
+});
 
 /** A caveat or note under the figures: the `caption` role in `inkMuted`. */
 const Note = styled(DesignText, { name: 'NutritionNote', typeRole: 'caption', color: '$inkMuted' });
@@ -59,25 +65,15 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
     const { detail } = useMessages(recipeMessages);
     const locale = useLocale();
     const sourcesLinkRef = useScreenReaderFocusOnSignal<View>(returnFocusSignal);
-    const { nutrition } = recipe;
     // "—" in each cell and one line when nothing was counted (§6.7, F17), shared with web.
-    const cells = nutritionCells(nutrition, recipe.ingredients, detail, locale);
-    // Facts about the READ, from the stored figure — not the serving count on screen.
-    const rangeNotice = rangeDerivedNotice(nutrition, {
-        low: detail.nutritionRangeDerivedLow,
-        high: detail.nutritionRangeDerivedHigh,
-    });
-    const staleNotice = staleNutritionNotice(nutrition, detail.nutritionStale);
-    const reviewNotice = needsReviewNotice(recipe.ingredients, detail);
-    const statusLine = nutritionStatusLine(
-        { noneCounted: cells.noneCounted, isComplete: nutrition.isComplete, reviewNotice },
+    const { cells, summary, statusLine, rangeNotice, staleNotice, reviewNotice } = nutritionSectionFacts(
+        recipe,
         detail,
+        locale,
     );
 
-    const summary = nutritionSummary(cells, detail);
-
     return (
-        <DetailSection>
+        <NutritionCard expanded={expanded}>
             <PressScale
                 onPress={onToggle}
                 accessibilityRole="button"
@@ -88,7 +84,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                 expanded={expanded}
                 width="fill"
             >
-                <XStack alignItems="center" justifyContent="space-between" minHeight={48} gap="$3">
+                <XStack alignItems="center" justifyContent="space-between" minHeight={56} gap="$3">
                     <YStack flexShrink={1} aria-hidden>
                         <DesignText typeRole="sectionTitle" color="$ink">
                             {detail.nutritionTitle}
@@ -101,7 +97,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                 </XStack>
             </PressScale>
             {expanded && !cells.noneCounted && (
-                <XStack flexWrap="wrap" rowGap="$4">
+                <XStack flexWrap="wrap" rowGap="$4" paddingTop="$2">
                     {cells.cells.map((cell) => (
                         <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
                     ))}
@@ -128,6 +124,6 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                 </YStack>
             )}
             {expanded && hasUserEnteredIngredients(recipe.ingredients) && <Note>{detail.nutritionCustomNote}</Note>}
-        </DetailSection>
+        </NutritionCard>
     );
 };

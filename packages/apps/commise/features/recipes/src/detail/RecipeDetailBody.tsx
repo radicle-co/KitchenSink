@@ -7,10 +7,12 @@
  * The PURE render half of the recipe page, in reading order: the hero, the back link, the rating card, the cuisine eyebrow
  * and the title, the status row, the source line and byline, the fact tiles, the actions, the Screen on row, the
  * description and the tags; then the body — one column below a 720 px body, and from 720 two columns, ingredients (5/12,
- * sticky with its own scroll) beside the steps (7/12), with the nutrition and the review surface under the steps.
+ * sticky with its own scroll) beside the steps (7/12), with the review surface under the steps. The collapsed Nutrition
+ * row sits before the columns, full width.
  *
  * There is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features
- * ship (`designAnswers.md` D1, D2): the comments row and "Start cooking".
+ * ship (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullets
+ * "8 comments" row and "Start cooking"): the comments row and "Start cooking".
  *
  * Every width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the
  * server render and the hydrated page are the same page. "Screen on" is a labelled row, and the toggle itself renders
@@ -22,7 +24,7 @@
  * @pattern Humble Object — the pure render half of the orchestration/render split whose shell is
  *     `RecipeDetailView.tsx`. It holds no fetch state and decides nothing.
  */
-import { useLocale, useMessages } from '@commise/i18n/react';
+import { useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
@@ -32,7 +34,6 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
-import { hasCatalogNutrition, hasUserEnteredIngredients } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
 import { useId, type ComponentProps, type FC } from 'react';
@@ -42,6 +43,7 @@ import { recipeMessages } from '../messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
 import { DetailEmptySection } from './DetailEmptySection.js';
+import { DetailNutritionSection } from './DetailNutritionSection.js';
 import {
     detailByline,
     detailEyebrow,
@@ -49,8 +51,6 @@ import {
     detailStatusLine,
     ingredientGroupRuns,
     isLongDescription,
-    nutritionCells,
-    nutritionStatusLine,
 } from './detailFacts.js';
 import {
     BODY_GRID,
@@ -64,16 +64,7 @@ import {
     STEPS_COLUMN,
 } from './detailLayoutClasses.js';
 import { IngredientCheckRow } from './IngredientCheckRow.js';
-import { NutritionFigure } from './NutritionFigure.js';
-import {
-    allLinesFoodRemoved,
-    detailNoticeState,
-    needsReviewNotice,
-    rangeDerivedNotice,
-    removedFoodNotice,
-    staleNutritionNotice,
-    type RecipeDetailBodyProps,
-} from './model.js';
+import { allLinesFoodRemoved, detailNoticeState, removedFoodNotice, type RecipeDetailBodyProps } from './model.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
@@ -123,10 +114,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     screenOn,
     descriptionExpanded,
     onToggleDescription,
+    nutritionExpanded,
+    onToggleNutrition,
 }) => {
     const { detail, duration, card } = useMessages(recipeMessages);
     const bylineCopy = useMessages(bylineMessages);
-    const locale = useLocale();
     const owner = viewerIsOwner === true;
     const noPhoto = recipe.photos.length === 0;
     // A retry from the refresh notice that succeeds removes the button the viewer pressed, so focus goes to the title.
@@ -143,13 +135,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const ingredientsHeadingRef = useFocusOnSignal<HTMLHeadingElement>(unreachableRetry.recoveries);
     const recoveredDescriptionId = useId();
     const descriptionId = useId();
-    // Facts about the READ, from the stored figure — not the serving count on screen.
-    const rangeNotice = rangeDerivedNotice(recipe.nutrition, {
-        low: detail.nutritionRangeDerivedLow,
-        high: detail.nutritionRangeDerivedHigh,
-    });
-    const staleNotice = staleNutritionNotice(recipe.nutrition, detail.nutritionStale);
-    const reviewNotice = needsReviewNotice(recipe.ingredients, detail);
     const removedNotice = removedFoodNotice(recipe.ingredients, detail);
     const allRemoved = allLinesFoodRemoved(recipe.ingredients);
     // ONE derivation of what the chosen serving count means; cook time and step timers stay as stored.
@@ -157,11 +142,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     const tiles = detailStatCells(scaled, recipe.difficulty, { detail, duration, card });
     const eyebrow = detailEyebrow(recipe);
     const byline = detailByline(recipe, owner, detail, bylineCopy);
-    const nutrition = nutritionCells(recipe.nutrition, recipe.ingredients, detail, locale);
-    const statusLine = nutritionStatusLine(
-        { noneCounted: nutrition.noneCounted, isComplete: recipe.nutrition.isComplete, reviewNotice },
-        detail,
-    );
     const status = detailStatusLine(recipe, owner, { detail, card });
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
     const editSectionHref = (section: string): Href | undefined =>
@@ -284,6 +264,14 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                     labels={{ failed: detail.refreshError, retry: detail.refreshRetry }}
                 />
             )}
+
+            {/* The Nutrition row comes before the columns, full width (`RecipeDetailAndroid384` item 12, `RecipeDetailWeb1024`). */}
+            <DetailNutritionSection
+                recipe={recipe}
+                expanded={nutritionExpanded}
+                onToggle={onToggleNutrition}
+                {...(dataSourcesHref === undefined ? {} : { dataSourcesHref })}
+            />
 
             <div className={BODY_GRID}>
                 {/* From 720 the ingredients stay beside the steps, sticky, with their own scroll (§6.1). */}
@@ -415,46 +403,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                                 ))}
                             </ol>
                         )}
-                    </section>
-
-                    <section aria-labelledby="nutrition" className="@container/nutrition flex flex-col gap-3">
-                        <h2 id="nutrition" tabIndex={-1} className={SECTION_HEADING}>
-                            {detail.nutritionHeading}
-                        </h2>
-                        <dl className="grid grid-cols-2 gap-4 @min-[35rem]/nutrition:grid-cols-4">
-                            {nutrition.cells.map((cell) => (
-                                <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
-                            ))}
-                        </dl>
-                        <div className="flex flex-col gap-1 text-caption text-ink-muted">
-                            {statusLine !== undefined && <p>{statusLine}</p>}
-                            {/* R38 and KTD-3b: two more admissions about the figures; both can be true at once. */}
-                            {rangeNotice !== undefined && <p>{rangeNotice}</p>}
-                            {staleNotice !== undefined && <p>{staleNotice}</p>}
-                            {/* U14 — our own doubt, and actionable: re-pick the food. */}
-                            {reviewNotice !== undefined && (
-                                <p role="note" className="font-medium text-ink">
-                                    {reviewNotice}
-                                </p>
-                            )}
-                            {hasCatalogNutrition(recipe.ingredients) && (
-                                <p>
-                                    {detail.nutritionSourceNote}
-                                    {dataSourcesHref !== undefined && (
-                                        <>
-                                            {' '}
-                                            <Link
-                                                href={dataSourcesHref as Href}
-                                                className="inline-block py-1 text-action-text underline underline-offset-2"
-                                            >
-                                                {detail.nutritionSourcesLink}
-                                            </Link>
-                                        </>
-                                    )}
-                                </p>
-                            )}
-                            {hasUserEnteredIngredients(recipe.ingredients) && <p>{detail.nutritionCustomNote}</p>}
-                        </div>
                     </section>
 
                     {/* U13 — the ambiguity review surface + the one-time clone banner, from the STORED lines. */}

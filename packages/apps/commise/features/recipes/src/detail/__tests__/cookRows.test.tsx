@@ -10,6 +10,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
+import { typeRole } from '@commise/ui/tokens/typography';
+
 import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
 import { IngredientCheckRow } from '../IngredientCheckRow.js';
 import { StepRow } from '../StepRow.js';
@@ -25,6 +27,27 @@ const lamb = makeIngredientView({
 });
 
 describe('IngredientCheckRow (web)', () => {
+    // b2b1294bc moved the row text from the 20 px `list` role to the 24 px `body` role and left the box a fixed 1 px down,
+    // 2 px above the line's centre. jsdom has no layout, so the rule is pinned: the box sits in a box as tall as the text
+    // role's line, read from the token so a role change fails here rather than shifting the box. The pixel check is
+    // `recipeDetailLineAlignment.spec.ts`.
+    it('centres the check box in a box as tall as the first line of its text role', () => {
+        render(
+            <ul>
+                <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+
+        const row = screen.getByRole('checkbox', { name: '2 kg lamb shoulder, trimmed of excess fat' });
+        const text = row.querySelector('[data-line-text]');
+        const boxSlot = row.firstElementChild;
+        const lineHeightPx = typeRole.body.lineHeight;
+
+        expect(text?.classList.contains('text-body')).toBe(true);
+        expect(boxSlot?.classList.contains(`h-${String(lineHeightPx / 4)}`)).toBe(true);
+        expect(boxSlot?.classList.contains('items-center')).toBe(true);
+    });
+
     it('is one checkbox named with the whole line', () => {
         render(
             <ul>

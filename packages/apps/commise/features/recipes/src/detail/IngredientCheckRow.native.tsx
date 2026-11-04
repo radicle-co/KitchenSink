@@ -21,7 +21,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@commise/ui/text';
 
 import { recipeMessages } from '../messages.js';
-import { IngredientRowDivider } from './ingredientFrames.native.js';
+import { IngredientCheckBoxSlot, IngredientRowDivider } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
@@ -71,10 +71,9 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     pressed ? { backgroundColor: wash } : null,
                 ]}
             >
-                {/* The 18 pt box sits on the text's 20 pt first line, 1 pt down to centre on it. */}
-                <View style={styles.box}>
+                <IngredientCheckBoxSlot>
                     <CheckBoxGlyph checked={checked} />
-                </View>
+                </IngredientCheckBoxSlot>
                 <View style={styles.text}>
                     {isStandInName(ingredient) ? (
                         <>
@@ -157,5 +156,4 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.md,
     },
     text: { flex: 1, minWidth: 0, alignItems: 'flex-start', gap: nativeTokens.spacing[1] },
-    box: { marginTop: 1 },
 });

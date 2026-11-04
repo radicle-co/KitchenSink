@@ -10,6 +10,18 @@ import { Text } from '@commise/ui/text';
 import { styled, XStack, YStack } from 'tamagui';
 
 /**
+ * The ground every card on the page wears: paper, the large radius and a hairline edge (the board's medium shadow waits
+ * for a design-system shadow primitive; the style guards reject a spread elevation). The twin of web's `DETAIL_CARD`.
+ */
+export const DetailCard = styled(YStack, {
+    name: 'DetailCard',
+    backgroundColor: '$paper',
+    borderRadius: '$lg',
+    borderWidth: '$hairline',
+    borderColor: '$lineDivider',
+});
+
+/**
  * One section of the page: its heading row, then its blocks, space-3 apart. From a 720 pt body the ingredients
  * section takes five parts of twelve of the row (build spec §6.1, the web's `col-span-5`).
  *

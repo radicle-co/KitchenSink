@@ -11,7 +11,9 @@
  * control fails). Which component the container mounts for an owner vs a rater is asserted where that decision
  * lives — `ratingModeFor` (model.test.ts) + the detail containers' tests.
  *
- * REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md` item 2, `designAnswers.md` D3): the rating is a CARD at the top of
+ * REWRITTEN IN SLICE 1 (`nativeBoards/buildLists.md` item 2, `designAnswers.md` section
+ * "2026-11-02: card, Home header and Recipe detail build questions", bullet "Rating"): the rating is a CARD at the top
+ * of
  * the page with no "Community rating" heading. It reads stars, the figure and the count on one row, and the own-recipe
  * reason is "Only other cooks can rate your recipe.". The last describe now proves the card draws no heading of its own.
  */

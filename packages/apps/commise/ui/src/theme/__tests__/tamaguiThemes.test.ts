@@ -107,7 +107,9 @@ describe('tamaguiThemes', () => {
         },
     );
 
-    // A tile that wears a cover tint (the recipe page's fact tiles, `designAnswers.md` D5) reads `$coverSteel`, so the tint
+    // A tile that wears a cover tint (the recipe page's fact tiles, `designAnswers.md` section
+    // "2026-11-02: card, Home header and Recipe detail build questions", bullet "Fact tiles") reads `$coverSteel`, so
+    // the tint
     // follows the scheme exactly as the monogram cover's does.
     it.each([
         ['light', coverTint],

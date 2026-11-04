@@ -56,6 +56,21 @@ describe('IngredientCheckRow (native)', () => {
         );
     });
 
+    // The web twin's bug (b2b1294bc): the text moved to the 24 `body` line while the box stayed a fixed 1 down, 2 high.
+    // The rule: the box is centred in a slot as tall as the body role's line, read from the token so a role change fails
+    // here. The device check is the pixel one; this pins the rule jsdom can see.
+    it('centres the check box in a slot as tall as the body line', () => {
+        render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        const slot = getComputedStyle(
+            screen.getByRole('checkbox', { name: /lamb shoulder/u }).firstElementChild as Element,
+        );
+
+        expect(slot.height).toBe(`${nativeTokens.type.body.lineHeight}px`);
+        expect(slot.alignItems).toBe('center');
+        expect(slot.marginTop).not.toBe('1px');
+    });
+
     // Parity item 16: a literal 44 gave Android a 44 dp row; the touch floor is 44 pt on iOS and 48 dp on Android
     // (`touchFloor()`, the same source Button and Chip read). Mutation lens: restore the literal and the Android row fails.
     it.each([

@@ -267,8 +267,12 @@ test.describe('the food list keeps clear of the editor’s chrome (V3-1, case B 
 
         expectClearOfChrome(landed);
         expect(landed.popup.bottom).toBeLessThanOrEqual(landed.field.top);
-        // Above its field the popup took its full height at once, so arriving options never moved its top edge (P2).
-        expect(landed.popup.top).toBeCloseTo(held.popup.top, 0);
+        // Reversed by f002ecedc ("reverses P9's fixed height above the field"): both sides size to their content. The
+        // loader is short; the arrived list is taller and grows UPWARD from the same edge against the field, so the
+        // bottom edge stays put and the top edge rises. The side was still chosen at the full height (asserted above).
+        expect(landed.popup.height).toBeGreaterThan(held.popup.height);
+        expect(landed.popup.bottom).toBeCloseTo(held.popup.bottom, 0);
+        expect(landed.popup.top).toBeLessThan(held.popup.top);
     });
 });
 

@@ -114,7 +114,7 @@ test.describe('recipe-detail owner actions', () => {
         await openOwnRecipe(page);
 
         // Edit is the sole PRIMARY owner control, outside the overflow menu, and a link (not a button). It is the ghost
-        // text action, not a filled button (buildLists.md "Supersedes buildSpec §6.1"; designAnswers D2).
+        // text action, not a filled button (buildLists.md "Supersedes buildSpec §6.1").
         const edit = page.getByRole('link', { name: 'Edit recipe' });
         await expectDesignSystemSurface(edit, 'ghost');
 

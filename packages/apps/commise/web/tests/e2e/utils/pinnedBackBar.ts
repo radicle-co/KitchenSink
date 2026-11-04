@@ -37,8 +37,9 @@ export async function expectBackPinnedWhileScrolling(page: Page, backName: strin
     // The H1 starts at the bar's bottom edge: `<main>` owns the room under the bar, so a page rendered OUTSIDE the shell's
     // `<main>` would leave it at y≈0, under the bar (and one with a leftover 24 px of padding would sit at 80). The Tab walk
     // cannot see this: the H1 is `tabIndex={-1}`.
-    // Polled, not read once: the Back is in the viewport as soon as the shell draws, which can be before the page under it has
-    // replaced its loading state, and a one-shot read then saw the H1 at y=0 on a cold run. A settled layout still has to land in the window; a real fault never does.
+    // Polled, not read once. A one-shot read saw the H1 at y=0 on one cold run, and the likely cause (not reproduced: the
+    // Back can be in view before the page under it has settled) is a read taken too early. A settled layout still has
+    // to land in the window; a real fault never does.
     await page.evaluate(() => window.scrollTo(0, 0));
     const h1Top = (): Promise<number> =>
         page

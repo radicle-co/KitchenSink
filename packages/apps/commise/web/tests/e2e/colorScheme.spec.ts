@@ -148,7 +148,7 @@ for (const [scheme, colors] of THEMES) {
             expect(await computed(menu, 'color')).toBe(rgb(colors.ink));
         });
 
-        // Owner ruling (buildLists.md "Supersedes buildSpec §6.1": no filled "Edit recipe" button; designAnswers D2): the
+        // Owner ruling (buildLists.md "Supersedes buildSpec §6.1": no filled "Edit recipe" button): the
         // owner's Edit is the ghost text action, an `actionText` label on no fill. It was the flat `action` fill before.
         test('paints the Edit action as a text action: an actionText label on no fill', async ({ page }) => {
             await openRecipe(page);

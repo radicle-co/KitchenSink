@@ -141,7 +141,9 @@ test.describe('recipe detail — configurable serving size', () => {
         await expect(page.getByText('1 h', { exact: true })).toBeVisible();
         // The page shows no Cook tile (buildLists.md Recipe detail item 6: "Total, Prep, Difficulty ... No Cook tile"), so
         // cook time is not on screen to check. What this still guards is the food-safety error of scaling every timing:
-        // a doubled batch must not show 50 minutes anywhere, and the note says the unscaled times are unchanged.
+        // a doubled batch must not show 50 minutes anywhere, and the note says the unscaled times are unchanged. Total
+        // reading "1 h" is itself the proof: 45 + the 15 minute prep delta is 60, where a scaled 50 minute cook time would
+        // make it about 1 h 25 min.
         await expect(page.getByText('25 min')).toHaveCount(0);
         await expect(page.getByText('50 min')).toHaveCount(0);
         // The step timer is likewise untouched.

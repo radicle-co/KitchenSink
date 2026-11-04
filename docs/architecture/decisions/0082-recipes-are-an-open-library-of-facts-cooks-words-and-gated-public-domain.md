@@ -195,13 +195,41 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
   stays (`016-FR-033`, `016-FR-034`, `021-FR-060`).
 - **Creators choose public or private, and can sell private work.** The founder's words: "For creator recipes, a
   creator can choose to make recipes public or private. Same for collections. They can also choose to list private
-  recipes and collections for sale." A buyer gets the access 018's licensed-copy model defines, and the creator sets
-  the price (`012-FR-034a` to `FR-034c`, `018-FR-026`). [Law] A creator can sell only content they own: "Written by
+  recipes and collections for sale." The creator sets the price (`012-FR-034a` to `FR-034c`, `018-FR-026`).
+- **A buyer gets a live view, not a copy** (owner ruling 2026-11-03, `018-FR-029` to `FR-029g`). The buyer reads the
+  creator's current recipe or collection, with no stored copy, clone or export. An edit re-runs the 020 hold, and
+  buyers see the last approved version meanwhile. A buyer can read, cook, plan and add to a grocery list, and keep
+  their own private notes. Access ends when the creator stops the sale, deletes the recipe, loses it to a takedown, or
+  erases their account. The refund rule for lost access is a founder question (FQ-018-1). [Law] The EU and UK
+  digital-content rules (Directive 2019/770, UK Consumer Rights Act 2015 Part 1 Chapter 3) apply once we list in those
+  stores (`025`). A buyer's erasure keeps the sale record de-identified (GDPR Art. 17(3)(b)), and the creator sees
+  aggregate sales only.
+- **Selling rules.** [Law] A creator can sell only content they own: "Written by
   you", "Adapted by you" in their own words, and a family recipe whose giver's permission covers selling. Never a
   copy of someone else's page, book or paid site, a facts card, or public-domain curator text (17 U.S.C. §106(3),
   `016-FR-029a`). A collection for sale holds only sellable recipes. Facts cards and other people's recipes can sit
   only in a free public collection. Selling is distribution, so every sold recipe passes the same 020 hold as
   publishing (`020-FR-057`).
+- **The copy check runs at import, and suggests fresh wording** (owner ruling 2026-11-03, `020-FR-075` to
+  `FR-078`, `004-FR-054`, `016-FR-067`, `016-FR-068`). The check runs on the steps beside the ingredient-match review.
+  A flagged step shows a suggested rewording that restates what the step does in fresh words, never a line-by-line
+  paraphrase. The cook accepts, edits or disputes it, and the check runs again. A flag blocks public and sale until it
+  is resolved. Private is never blocked. The same suggestions appear in the review of a flagged recipe. Site owners get
+  a claim flow: a DMCA-element form, ADR-0078's live-site proof, a counter-notice, and a reword-to-restore path. Until
+  the check is built, launch needs a registered DMCA agent, working takedown and counter-notice, and a live
+  repeat-infringer policy.
+- **The check uses AI and searches the wider internet** as well as the source the cook named (owner ruling
+  2026-11-03). HOW the search works (provider, method, terms) and the AI and search cost and budget are OPEN, decided
+  when feature 020 starts. ADR-0077 §4's named search provider and per-recipe cost are therefore not settled. If the
+  search or the model cannot run, the part is not green and a person decides.
+- **A cook can say "This is my recipe, from my site or account"** (owner ruling 2026-11-03, `004-FR-014a`,
+  `016-FR-069`, `020-FR-012g`). The bare statement is the cook's attestation, with the cook's own legal risk, and gives
+  the "Written by you" label. It never clears a copy flag, because anyone can claim. Verified ownership is 026's live
+  site claim and nothing else (ADR-0078). It clears only the hit on the recipe's own import page, persists per site,
+  and is read as it stands. A claim that lapses clears nothing new, and does not reopen a recipe it cleared. Proof for
+  a social account is OPEN. A verified owner can file 016's site-owner claim against copies on Commise, and a notice
+  against the owner's recipe runs the normal notice and counter-notice flow with the claim as evidence. ADR-0078 §3
+  still holds: a claim proves control of a site, not authorship of each post.
 - **The founder owns renewing the DMCA designated-agent registration every three years** (37 C.F.R. §201.38,
   `016-FR-059`).
 

@@ -286,5 +286,29 @@ and receipt validation had **no task** in this file, while `plan.md` L85-96 stat
 - [ ] **T-072** [US-002] Every sold recipe passes 020's hold before listing and delivery — `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O14e, ADR-0082)_
     - **Depends on**: T-071, `020` K082-23
     - **Implements**: FR-034c, `020-FR-057`
-    - **Acceptance**: A held recipe cannot be listed, and a listed recipe that becomes held is delisted and its sale paused until a person decides. Delivery to a buyer carries the source digest.
-    - **Tests (write first, watch them fail)**: unit (a held recipe is refused for listing). Integration (a listed recipe that is held disappears from the listing). A row in 020's deployed bypass suite (`020-FR-074`, door 38).
+    - **Acceptance**: A held recipe cannot be listed, and a listed recipe that becomes held is delisted and its sale paused until a person decides. _(amended 2026-11-03, owner ruling O15b, ADR-0082. Was: delivery to a buyer carries the source digest.)_ A buyer reads the live recipe through the same hold, and sees the last approved version while an edit is checked.
+    - **Tests (write first, watch them fail)**: unit (a held recipe is refused for listing). Integration (a listed recipe that is held disappears from the listing, and a buyer read during a check returns the last approved version). A row in 020's deployed bypass suite (`020-FR-074`, door 38).
+
+- [ ] **T-073** [US-002] The creator's confirm step says buyers lose access, on unpublish from sale, delete and account erasure — web and mobile screens, `packages/services/creator-profiles-service/src/` _(added 2026-11-03, owner ruling O15d, ADR-0082)_
+    - **Depends on**: T-070, `018-L06`
+    - **Implements**: FR-034a, `018-FR-029e`
+    - **Acceptance**: Before a creator unpublishes a sold recipe or collection from sale, deletes it, or erases their account, the screen says how many buyers lose access and that the refund question is handled by 018 (`018-FR-029e`). The creator can cancel. Every state has copy and a localisation key. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: component (every state, with and without buyers), unit (the count comes from the aggregate and names nobody). Playwright and Maestro for the unpublish-from-sale story.
+
+- [ ] **T-074** [US-002] The creator's sales view shows aggregates and no named buyer — `packages/services/creator-profiles-service/src/`, web and mobile earnings surface _(added 2026-11-03, owner ruling O15f, ADR-0082)_
+    - **Depends on**: T-070, `018-L09`
+    - **Implements**: FR-034, FR-034a, `018-FR-029g`
+    - **Acceptance**: The creator sees sales count and amount by period and by listing. The response has no buyer identifier, name, email or avatar. No existing 012 rule gave a buyer list, so none is kept.
+    - **Tests (write first, watch them fail)**: unit (the response shape has no buyer field), contract test on the schema, integration (the endpoint for a creator with sales returns only aggregates). Mutation lens: a response that adds a `buyerId` fails the shape test.
+
+- [ ] **T-075** [US-002] An edit to a sold recipe shows its checking state to the creator and keeps buyers on the last approved version — creator edit screen, `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O15b, ADR-0082)_
+    - **Depends on**: T-072, `018-L05`, `020` K082-24
+    - **Implements**: FR-034c, `018-FR-029d`, `020-FR-064`
+    - **Acceptance**: After the creator saves an edit, the screen says "Buyers still see the last approved version while this is checked". When the check allows the new digest, buyers see it. If the check holds it, the creator sees why and buyers keep the old version.
+    - **Tests (write first, watch them fail)**: unit (state mapping), integration (a buyer read during the check returns the old version, a read after approval returns the new one). A row in 020's deployed bypass suite (`020-FR-074`, door 38).
+
+- [ ] **T-076** [US-002] An owner import with statement 1a is listed on the creator page when public, and is sellable when private _(added 2026-11-03, owner ruling O16, ADR-0082)_. Files: `packages/services/creator-profiles-service/src/`, `packages/services/recipe-service/src/recipes/domain/`
+    - **Depends on**: T-067, T-071, `004` T-040
+    - **Implements**: FR-034b as amended 2026-11-03, `018-FR-026`, `021-FR-002`
+    - **Acceptance**: A public, 020-allowed recipe with statement 1a is listed on the creator page with "Written by you". The same recipe kept private can be listed for sale. Neither path reads the site claim, so a claim that fails changes neither. A recipe is never public and for sale at once. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: unit (eligibility table over statement 1a with and without a live claim gives the same answer). Integration (list the recipe on the page, then make it private and list it for sale). Mutation lens: an eligibility rule that refuses every URL-imported recipe by route fails the owner row.

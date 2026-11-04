@@ -23,7 +23,7 @@ Was: "3 owner clarifications open".)_
 | [015-publishing-rewards](../015-publishing-rewards/spec.md)                     | **Constraining** — rewards are non-monetary and non-purchasable by requirement (`015-FR-007`, `015-FR-030`). This feature must not become the paid route around them.                                                                                                                                                                                      |
 | [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md)     | **Constraining** — consumer disclosure (`016-FR-040`…`044`), the content licence (`016-FR-010`…`015b`), notice-and-action (`016-FR-016`…`019`), per-market posture (`016-FR-048`)                                                                                                                                                                          |
 | [014-notification-service](../014-notification-service/spec.md)                 | **Referenced** — application decisions, payout events, dispute deadlines and takedown notices need a delivery channel                                                                                                                                                                                                                                      |
-| [026-chef-spaces](../026-chef-spaces/spec.md)                                   | **Amends (owner rulings 2026-10-29).** Makes the digital cookbook a PDF or EPUB plus licensed copies, adds a chef club and a labelled sponsor line in phase 2, and keeps display ads refused. The chef pool and the commission (C-018-004) are deferred to the royalties and chef-payments work (026 Q4, Q6). Requirements tagged `→ 018` there merge here |
+| [026-chef-spaces](../026-chef-spaces/spec.md)                                   | **Amends (owner rulings 2026-10-29).** Makes the digital cookbook a live view of its recipes (amended 2026-11-03, ADR-0082), with a PDF or EPUB file now open (FQ-018-2), adds a chef club and a labelled sponsor line in phase 2, and keeps display ads refused. The chef pool and the commission (C-018-004) are deferred to the royalties and chef-payments work (026 Q4, Q6). Requirements tagged `→ 018` there merge here |
 | [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md) | **Amends (owner ruling 2026-10-29, 021 Q2).** The chef directory and its search are readable signed out. Paid items are never readable signed out (`FR-017`, `021-FR-008`, `021-FR-097`)                                                                                                                                                                   |
 
 > **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
@@ -278,7 +278,8 @@ recorded consumer disclosures, and that a refund reverses both the entitlement a
    the item, the amount, the date, and the reference.
 4. **Given** a purchased item that the chef later unpublishes or the platform removes on a valid notice
    (`016-FR-016`…`019`), **When** the buyer opens it, **Then** the outcome is the one the terms state, it is
-   the same outcome in every such case, and the buyer is told which it is.
+   the same outcome in every such case, and the buyer is told which it is. _(Clarified 2026-11-03, owner ruling O15d,
+   ADR-0082)_ The outcome is that access ends (`FR-029e`).
 5. **Given** a refund is granted, **When** it completes, **Then** the buyer's entitlement and the chef's net
    both reverse, the reversal is a new ledger entry rather than an edit, and both parties are notified.
 6. **Given** a payment that fails, is disputed, or is charged back, **When** the outcome is known, **Then** the
@@ -396,9 +397,10 @@ fixed regardless of the answer**:
   already says it earns nothing; selling it must be refused outright, not merely unrewarded.
 - **A chef account is erased under GDPR** while holding an unpaid balance, unsettled disputes, and live
   buyers. Erasure obligations, retention obligations for financial records, and buyers' entitlements pull in
-  three directions.
+  three directions. _(Clarified 2026-11-03, owner ruling O15d, ADR-0082)_ Buyer access ends (`FR-029e`). Financial
+  records stay (`FR-045`).
 - **A buyer erases their account** after purchasing. Their entitlement disappears; the chef's earned money and
-  the transaction record must not.
+  the transaction record must not. _(Clarified 2026-11-03, owner ruling O15f, ADR-0082)_ See `FR-029g`.
 - **A chargeback arrives after the chef has been paid out**, and the chef's balance is now zero or negative.
 - **A payout fails permanently** because the destination is closed, and the balance has nowhere to go.
 - **A chef is admitted, sells, and is then found to have misrepresented their identity at application.**
@@ -553,12 +555,16 @@ fixed regardless of the answer**:
 
 #### D. What may be sold — ✅ resolved by C-018-001 (owner, 2026-08-26)
 
-> ✅ **A purchase acquires a COPY; it does not unlock a paywall.** The owner selected the licensed-copy model.
-> **`GR-014`'s binary visibility rule stands, `AC-014-d`'s prohibition on a priced recipe audience stands, and
-> `012`'s withdrawal of the premium-recipe model stands.** Buying a chef's recipe is the digital form of
-> buying a cookbook: the buyer receives their own copy, privately, attributed — not access to a paywalled row
-> in someone else's collection. ⛔ Do not "simplify" this back into a paid visibility state; that is the model
-> `012` withdrew and burned `012-FR-035`…`012-FR-039` to stop from silently returning.
+> ✅ **A purchase grants a live view. It creates no copy and no paid visibility state.** _(amended 2026-11-03, owner
+> ruling O15, ADR-0082. Was: the licensed-copy model of 2026-08-26, where a purchase created a new recipe in the buyer's
+> collection.)_ The owner, verbatim: "The buyer gets a live view, not a copy." **`GR-014`'s binary visibility rule
+> stands, `AC-014-d`'s prohibition on a priced recipe audience stands, and `012`'s withdrawal of the premium-recipe
+> model stands.** The recipe stays PRIVATE and stays the chef's. A purchase gives one named buyer the right to read
+> the chef's current recipe, in the way a `circle` share gives a contact read access, except that the buyer pays. It is
+> an access grant on a private recipe and not a visibility state. ⛔ Do not "simplify" this back into a paid
+> visibility state, and do not bring back a delivered copy. The first is the model `012` withdrew and burned
+> `012-FR-035`…`012-FR-039` to stop from silently returning. The second is the model this ruling replaced. Counsel
+> review is owed before launch (`016-FR-050`).
 
 - **FR-026**: A chef MUST only be able to sell content whose provenance records them as its **author**
   (`004-FR-011`'s `user_created`), attested per item at the moment of listing under `004-FR-014a`'s
@@ -574,6 +580,13 @@ fixed regardless of the answer**:
   any creator, not only a chef: `012-FR-034a` to `012-FR-034c` let a creator choose public or private per recipe and
   per collection, and list private ones for sale, with 010 and this spec owning the payment. Counsel review is owed
   before launch (`016-FR-050`).
+  _(amended 2026-11-03, owner ruling O16, ADR-0082)_ "Imported" above means the `imported_public`, `imported_physical`
+  and `imported_paid` source types, not the import route. A recipe a chef imported from their own page with "This is
+  my recipe, from my site or account" (`004-FR-014a` statement 1a) is `user_created` and "Written by you", so it is
+  sellable when kept private. The statement is the per-item attestation this requirement asks for. Eligibility reads
+  the label, never the site claim, so a claim that fails later does not delist it. A verified owner's recipe still
+  passes 020's hold before listing and on every buyer read (`020-FR-057`). Counsel review is owed before launch
+  (`016-FR-050`).
 - **FR-027**: Eligibility to sell MUST be decided by a **single authoritative rule**, evaluated at listing, at
   purchase, and at delivery, so that the three can never disagree. It MUST reuse the **existing** provenance
   policy rather than state a second one: `GR-014` AC-014-e already binds a single shipped policy as the sole
@@ -581,36 +594,85 @@ fixed regardless of the answer**:
   rather than a route-level check.
 - **FR-028**: What a buyer receives MUST be stated in terms of a durable outcome — what they can see, do, and
   keep — before payment, and the delivered outcome MUST match it exactly.
-- **FR-029** _(resolved 2026-08-26 — `C-018-001`)_: A chef's sellable catalogue is exactly two things:
-  `013`'s video lessons and courses (already specified at `013-FR-001`…`013-FR-003`), and an **authored recipe
-  sold as a licensed copy**. Purchasing a recipe MUST create a **new recipe in the buyer's own collection**,
-  private to the buyer, attributed to the chef, and marked as acquired by purchase. The chef's own recipe MUST
-  be unchanged by the sale. **No paid, paywalled or third visibility state is created**, and `GR-014`'s binary
-  rule is not amended. _(Clarified 2026-11-03, owner ruling O14c, ADR-0082.)_ The recipe or collection on sale stays
-  private. "Access" for the buyer means this licensed copy.
-- **FR-029a** — _the purchased copy is bounded by provenance, not by a new mechanism_: the copy MUST carry a
-  provenance class that is **private-only and never publishable**. The shipped `sourceType` taxonomy
-  (`004-FR-011`) already contains exactly this — `imported_paid`, which `GR-014` AC-014-e states **"may never
-  be public"**. The purchased copy MUST therefore be unpublishable, un-resellable, and unclonable by anyone
-  other than its owner (`001-FR-005c`), and shareable only through the read-only `circle` scope its owner
-  already has for their own private content. ⚠️ **This is why the licensed-copy model needs no new visibility
-  state**: the constraint it requires is one the system already enforces for content acquired from a paid
-  source — which is precisely what this is.
-  _(amended 2026-11-03, owner ruling, ADR-0082: [Law] copyright cannot stop a buyer writing their own version of a
-  recipe. The facts are free (17 U.S.C. §102(b), Feist v. Rural, 499 U.S. 340 (1991)). The bar on publishing the
-  purchased copy rests on the purchase terms the buyer accepts, which MUST state it, and on the paid chef content
-  staying proprietary. Counsel review is owed before launch (`016-FR-050`).)_
+- **FR-029** _(resolved 2026-08-26 — `C-018-001`. Amended 2026-11-03, owner ruling O15, ADR-0082)_: A chef's sellable
+  catalogue is exactly two things: `013`'s video lessons and courses (already specified at `013-FR-001`…`013-FR-003`),
+  and an **authored recipe sold for a live view**. Purchasing a recipe MUST create an **access grant** for the buyer on
+  the chef's recipe. It MUST NOT create a recipe, a clone, an export or any stored copy of the chef's text in the
+  buyer's account. The chef's own recipe MUST be unchanged by the sale and stays private. **No paid, paywalled or third
+  visibility state is created**, and `GR-014`'s binary rule is not amended. The recipe or collection on sale stays
+  private (O14c). "Access" for the buyer means the live view of `FR-029a`. _(Was: a new recipe in the buyer's own
+  collection, private to the buyer, attributed to the chef, and marked as acquired by purchase.)_ Counsel review is
+  owed before launch (`016-FR-050`).
+- **FR-029a** — _what a buyer reads, does and is refused_ _(amended 2026-11-03, owner ruling O15a and O15c, ADR-0082.
+  Was: the purchased copy is bounded by provenance, `imported_paid`, unpublishable, un-resellable and unclonable)_:
+    - **Reads.** The buyer MUST read the chef's CURRENT recipe or collection. Edits the chef makes reach the buyer,
+      subject to `FR-029d`.
+    - **Can do.** The buyer MUST be able to read it, cook it in cooking mode, add it to a meal plan and add its
+      ingredients to a grocery list. A plan entry or a list entry MUST reference the live recipe. A list entry copies
+      only what a list needs, which is the ingredient lines as facts (amount, unit, name). It MUST NOT copy the
+      method, the headnote or the photos. The buyer MAY keep private notes on the recipe. The notes are the buyer's
+      own data and the chef never sees them.
+    - **Refused.** The buyer MUST NOT be able to clone the recipe, export it (print, PDF, text file or share
+      sheet of its text), copy it into another account, publish it, resell it or share it. The server MUST refuse each
+      of these. A screen that hides the control does not count. [House rule] These bars rest on the purchase terms the
+      buyer accepts, which MUST state them, and on the paid chef content staying proprietary.
+    - [Law] Copyright cannot stop a buyer writing their own version of a recipe. The facts are free (17 U.S.C.
+      §102(b), Feist v. Rural, 499 U.S. 340 (1991)). The live view does not try to. It only means Commise gives the
+      buyer no copy of the chef's words to take away.
+    - ⚠️ This needs **no new visibility state** and no `sourceType` for the buyer, because there is no buyer-side
+      recipe row. The read rule (`FR-027`, `020-FR-057`) answers who can see the chef's private recipe, and a live
+      grant is one more input to it. `GR-014` `AC-014-h` ("a private recipe is copyable only by its owner") then needs
+      **no exception**, because nothing is copied. Counsel review is owed before launch (`016-FR-050`).
+- **FR-029d** — _an edit to a sold recipe re-runs the hold_ _(added 2026-11-03, owner ruling O15b, ADR-0082)_: When the
+  chef edits a recipe that is on sale, the new content MUST pass 020's hold (`020-FR-057`, `020-FR-064`) before buyers
+  see it. While the new version is checking or in review, buyers MUST see the **last approved version**. This is the
+  same rule public recipes follow (`020-FR-064`). If no version has an allowing outcome, or a 016 decision removed the
+  content, the buyer sees "not available now" and keeps access. Access does not end because a check is running.
+  [House rule] Counsel review is owed before launch (`016-FR-050`).
+- **FR-029e** — _what ends a buyer's access, and the refund_ _(added 2026-11-03, owner ruling O15d, ADR-0082)_: A
+  buyer's access MUST end when any one of these happens:
+    1. the chef unpublishes the recipe or collection from sale, or removes a recipe from a sold collection (for that
+       recipe),
+    2. the chef deletes the recipe,
+    3. the recipe is taken down by a valid notice (`016-FR-016` to `016-FR-022`, `016-FR-060`), or
+    4. the chef erases their account.
+  Access that has ended MUST end on the server at once. It MUST NOT depend on the buyer's device syncing. The buyer's
+  notes stay (`FR-029g`). The buyer MUST be told which of the four applies and MUST be told at purchase that access
+  can end this way (`FR-046`, `FR-050`). The outcome MUST be the same in every such case (`FR-050`). **The refund
+  when access ends is NOT decided here.** `010` does not settle it (010 holds no creator payments, see its Out of
+  Scope) and `FR-049` and `FR-032a` settle only the refund path and who pays first. It is the founder's question
+  FQ-018-1 below. [Law] The EU and UK digital-content rules (Directive (EU) 2019/770, Consumer Rights Act 2015 Part 1
+  Chapter 3) give consumers conformity and remedy rights for digital content. They bind only once Commise lists in
+  those markets (`025`). They are a **precondition for listing creator sales in the EU or UK**, not a launch duty.
+  Counsel review is owed before launch (`016-FR-050`).
+- **FR-029f** — _offline_ _(added 2026-11-03, owner ruling O15e, ADR-0082)_: A buyer's cached view MUST follow `019`'s
+  rules (the held state, and nothing beyond what `019` caches). The cache holds the last approved version only. Revoked
+  access MUST clear the cached view on the next sync (`FR-029e`). Signing out clears it as it clears any stored
+  recipe (`019-FR-023`). The cache MUST NOT be a way to keep a recipe after access ends. `019` has no rule yet for a
+  recipe the cook does not own (see Tasks owed).
+- **FR-029g** — _buyer erasure and what the chef sees_ _(added 2026-11-03, owner ruling O15f, ADR-0082)_: When a buyer
+  erases their account, the system MUST delete the buyer's access grants and the buyer's private notes on bought
+  recipes. The **sale record MUST be kept**, de-identified, for tax and payment law ([Law] GDPR Art. 17(3)(b), and
+  `FR-045`, `FR-072`). The record MUST NOT keep a field that names the buyer after de-identification. The chef MUST see
+  **aggregate sales** (counts and amounts by period) and MUST NOT see a named list of buyers. No existing rule in
+  `018`, `012` or `026` gives a chef a buyer list, so nothing is kept from an earlier rule. A chef's own record
+  (`FR-070`) lists the sale as an amount and a date. A chef's erasure ends buyer access (`FR-029e`). The buyer's own
+  notes survive that and stay the buyer's data. Counsel review is owed before launch (`016-FR-050`).
 - **FR-029b**: Selling a recipe MUST NOT change that recipe's visibility, its cloneability, or its eligibility
   under `015`. A chef who sells a recipe earns money; whether that same recipe also earns a `015` reward
   depends only on whether they **published** it, exactly as for any other user (`FR-064`).
 - **FR-029c**: A recipe MUST NOT be simultaneously **public** and **for sale** — a recipe any signed-in user
   may already read and clone (`001-FR-004`, `001-FR-005`) cannot honestly be sold. A chef MUST choose, per
-  recipe. Moving between the two MUST be permitted in both directions, MUST NOT invalidate a copy a buyer
-  already holds, and the possibility MUST be disclosed at purchase (`FR-046`).
+  recipe. Moving between the two MUST be permitted in both directions, and the possibility MUST be disclosed at
+  purchase (`FR-046`). _(amended 2026-11-03, owner ruling O15, ADR-0082. Was: "MUST NOT invalidate a copy a buyer already
+  holds".)_ Moving a recipe from sale to public leaves every buyer able to read it as any public reader can. Moving it
+  from sale to private ends buyer access under `FR-029e`.
 - **FR-030**: The purchase model MUST be describable, without exception, by `001`'s visibility policy,
   `001-FR-005`…`005d`'s clone chain, and `GR-014` simultaneously. ⛔ A model that leaves the cloneability,
   publishability or survivability of a purchased item undefined MUST NOT be implemented — that ambiguity is
-  what `012`'s withdrawn model actually failed on.
+  what `012`'s withdrawn model actually failed on. _(Clarified 2026-11-03, owner ruling O15, ADR-0082.)_ Under the
+  live view the answer is stated: cloneability is refused (`FR-029a`), publishability is refused (`FR-029a`), and
+  survivability is `FR-029e`.
 - **FR-031**: Pricing MUST be bounded by a stated minimum and maximum, MUST be in a currency the platform
   settles, and a price change MUST NOT alter the amount owed on a purchase already in progress.
 
@@ -732,7 +794,8 @@ fixed regardless of the answer**:
   the chef's cooperation, their balance, or their responsiveness.
 - **FR-050**: A purchased item that is later unpublished by the chef, or removed by the platform on a valid
   notice, MUST resolve to a **single stated outcome** applied identically in every such case, and the buyer
-  MUST be told which outcome applies at purchase time, not at removal time.
+  MUST be told which outcome applies at purchase time, not at removal time. _(Clarified 2026-11-03, owner ruling O15d,
+  ADR-0082.)_ The outcome is now stated in `FR-029e`: access ends. The refund that goes with it is open (FQ-018-1).
 - **FR-051**: Purchased entitlements MUST be **independent of subscription tier**. A buyer who cancels a
   subscription MUST NOT lose access to anything they separately bought.
 - **FR-052**: Cancellation of anything recurring MUST require no more interactions than starting it did, and
@@ -954,7 +1017,7 @@ at exactly the scale where it pays least.**
 - **FR-067**: This feature MUST NOT introduce any mechanism that makes a recipe public other than an explicit,
   per-recipe, opt-in act by its owner (`015-FR-020`). Admission to the chef program MUST NOT publish anything.
 - **FR-068**: The content licence (`016-FR-010`…`016-FR-015b`) MUST be sufficient for whatever this feature
-  causes to be hosted, displayed, sold, delivered and retained — including what happens to a buyer's copy when
+  causes to be hosted, displayed, sold, delivered and retained — including what happens to a buyer's access when
   the chef deletes the item or erases their account. Where it is not, that is a **blocker on this feature**,
   recorded as such, and MUST NOT be resolved by assuming the licence already covers it.
 
@@ -1080,7 +1143,8 @@ sharpest weapon, expressed as something a chef can sell.
 
 - **FR-087** — **the sellable unit is a COLLECTION first, a recipe second**: a chef MUST be able to sell a
   **named collection of their authored recipes** (only sellable recipes, `FR-026` as amended 2026-11-03, O14d) as a single product, and this MUST be the primary sellable
-  form. Selling a single recipe (`FR-029`) remains permitted and is the weaker unit. ⚠️ `012-FR-017`…
+  form. Selling a single recipe (`FR-029`) remains permitted and is the weaker unit. _(amended 2026-11-03, owner ruling O15,
+  ADR-0082)_ A buyer of a collection gets the live view of `FR-029a` on every member recipe and owns no copy. ⚠️ `012-FR-017`…
   `012-FR-019` already own collections as a **surfacing** concept for public recipes; a **sellable** collection
   is that entity given a price and a provenance gate, not a second collections model (`GR-014` AC-014-b).
 - **FR-088** — ⛔ **a stated constraint on a paid product MUST be verified, not asserted**: where a collection
@@ -1091,13 +1155,16 @@ sharpest weapon, expressed as something a chef can sell.
   on a product someone paid for is a consumer-protection exposure and a physical-harm risk, and `016-FR-051`
   already requires allergen-relevant content to carry a reachable disclaimer. ⛔ It also MUST NOT be read as a
   medical claim (`016-FR-051`).
-- **FR-089** — **a collection purchase delivers every member recipe as a licensed copy** under `FR-029a`, as
-  one atomic act. Partial delivery MUST NOT be an observable state.
+- **FR-089** — **a collection purchase grants the live view of every member recipe** under `FR-029a`, as one atomic
+  act. Partial delivery MUST NOT be an observable state. _(amended 2026-11-03, owner ruling O15, ADR-0082. Was: delivers
+  every member recipe as a licensed copy.)_ No recipe is written into the buyer's account.
 - **FR-090** — **a collection's membership can change, and the buyer MUST be told what that means before
-  paying**: whether recipes added later are included, and what happens to a buyer's copies when a recipe is
-  removed. ⚠️ Copies already delivered are the buyer's under `FR-029a` and MUST NOT be revoked by a later
-  edit to the collection; the open question is only **future** members, and it MUST be answered on the
-  purchase surface rather than in the terms.
+  paying**: whether recipes added later are included, and what happens to the buyer's access when a recipe is
+  removed. _(amended 2026-11-03, owner ruling O15, ADR-0082. Was: copies already delivered are the buyer's and cannot be
+  revoked by a later edit.)_ The buyer reads the collection's CURRENT members. A recipe the chef removes from the sold
+  collection ends access to that recipe (`FR-029e`, item 1), and the purchase surface MUST say so. The open question is
+  still whether **future** members are included. It MUST be answered on the purchase surface rather than in the terms.
+  A chef who empties a sold collection leaves buyers with nothing, which the refund question covers (FQ-018-1).
 - **FR-091** — **the chef's own free recipes MUST remain free**: offering a collection for sale MUST NOT
   change the visibility of any recipe already public (`FR-029c` forbids a recipe being public and for sale at
   once, and `FR-067` forbids this feature publishing anything on its own). A chef assembling a paid collection
@@ -1184,12 +1251,13 @@ sharpest weapon, expressed as something a chef can sell.
   tax-status collection state, payout destination reference, withheld reason if any. Absent for a chef who
   has not onboarded (`FR-033`).
 - **ChefListing**: A chef's item offered for sale — its type (a `013` course/lesson, or an authored recipe
-  sold as a licensed copy per `FR-029`), price, what a buyer receives, provenance attestation reference, and
+  sold for a live view per `FR-029`), price, what a buyer receives, provenance attestation reference, and
   availability state. A recipe listing and a `public` visibility state are mutually exclusive (`FR-029c`).
 - **Purchase**: A buyer's completed acquisition. Attributes: buyer, listing, amount charged, currency, tax
   determination, payment reference, state, and the entitlement it produced.
 - **Entitlement**: What a buyer may access as a result of a purchase, and for how long. Independent of
-  subscription tier (`FR-051`).
+  subscription tier (`FR-051`). _(amended 2026-11-03, owner ruling O15, ADR-0082)_ For a recipe it is a revocable
+  access grant to the live recipe. It ends under `FR-029e`. It never holds a copy of the chef's text.
 - **LedgerEntry**: One append-only financial fact. Attributes: purchase or payout reference, chef, gross,
   each deduction with its reason, net, resulting balance, and the entry it corrects if it is a correction.
 - **Payout**: One attempt to move a chef's net balance to their destination. Attributes: chef, period,
@@ -1313,7 +1381,7 @@ document** — each lands on its owner spec, and `GR-003` AC-003-b requires
 
 | Target                                                 | Amendment                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Gated on      |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| `GR-014` (Audience & Sharing Model)                    | **Minor amendment only** — `C-018-001` resolved to the licensed-copy model. `AC-014-h`'s "a private recipe is copyable only by its owner" gains a **narrow, stated exception for a purchased copy**, which is _created in the buyer's collection_ under a private-only provenance rather than _cloned out of the chef's_. `AC-014-d` (no priced recipe audience), the binary-visibility rule, and `012`'s withdrawal all **stand unchanged**.                                                                                                                                   | ✅ resolved   |
+| `GR-014` (Audience & Sharing Model)                    | **No `AC-014-h` exception is needed any more** _(amended 2026-11-03, owner ruling O15, ADR-0082. Was: a narrow exception for a purchased copy.)_ A purchase grants a live view of the chef's private recipe and copies nothing, so "a private recipe is copyable only by its owner" stands unchanged. `AC-014-d` (no priced recipe audience), the binary-visibility rule, and `012`'s withdrawal all **stand unchanged**. | ✅ resolved |
 | `012-creator-profiles`                                 | `012-FR-031`…`012-FR-034` move from **DRAFT/merchant-blocked** to active, citing this feature as the marketplace-payments owner. `012`'s dependency note is updated to name `018`.                                                                                                                                                                                                                                                                                                                                                                                              | ✅ resolved   |
 | `013-cooking-school`                                   | `013-FR-010`'s "⚠️ Blocked on marketplace payments" is cleared and the 20%/80% split cites `018-FR-034`. ⚠️ **And `C-018-004` may change the rate itself**: 20% sits above every comparable creator platform (5–12%) and becomes ~50% once a platform store's commission stacks on it (`018-FR-082`). `013` owns `013-FR-010`, so `018` may only ask.                                                                                                                                                                                                                           | ⚠️ C-018-004  |
 | `010-subscriptions`                                    | `010`'s Out of Scope is amended to state that **money-out** is owned by `018`, so the boundary is recorded rather than inferred. `010-FR-044`'s staleness question gains a money-weighted case (`018-FR-020`). ⚠️ **And `C-018-003c` may ask `010` to narrow `010-FR-040`'s free tier and to add a reverse trial to `010-FR-041`** — `010` owns the tier definition, so `018` may only ask. Any such change is gated on `018-FR-058i`'s five-channel measurement and bounded by `018-FR-058j` and `018-FR-061`.                                                                 | ⚠️ C-018-003c |
@@ -1338,6 +1406,9 @@ Three questions are open. Each is scope-level or one-way; none has a defensible 
 ### C-018-001 — What may a chef actually sell?
 
 **Status**: ✅ **RESOLVED by owner, 2026-08-26 — model (b), the licensed copy.** Implemented at `FR-029`…`FR-030`.
+_(Superseded 2026-11-03, owner ruling O15, ADR-0082: "The buyer gets a live view, not a copy." The table and the reasoning
+below are kept as the record of the 2026-08-26 choice. The live rule is `FR-029` to `FR-029g`. A live view also closes
+the table's open cost for (b), because a buyer holds no copy to republish.)_
 
 Videos and courses are already purchasable and already specced (`013-FR-001`…`FR-003`). **Recipes were the
 question**, and the standing answer was "not at all": `GR-014` says visibility is binary and `AC-014-d` says a
@@ -1597,10 +1668,52 @@ risk, it is the `4d`/`4e` mechanism in Section H taken to its conclusion, and it
 
 ---
 
+### Founder questions raised by the live view _(added 2026-11-03, owner ruling O15, ADR-0082)_
+
+These are the founder's business choices. The spec does not decide them.
+
+- **FQ-018-1. What does a buyer get back when access ends?** Access ends when the chef unpublishes from sale, deletes
+  the recipe, a notice takes it down, or the chef erases their account (`FR-029e`). No spec settles the refund for that
+  case. `010` holds no creator payments. `FR-049` says a refund path must exist and reverse the entitlement and the
+  chef's net together. `FR-032a` says the platform pays the buyer first and recovers from the chef. None of them says
+  WHEN a refund is due because access was lost. Options for the founder to weigh: a full refund every time, a refund
+  only inside a window after purchase, a refund only when the loss is not the buyer's doing, or no refund beyond the
+  statutory right. The EU and UK digital-content rules would make the answer partly mandatory in those markets once we
+  list there (`025`).
+- **FQ-018-2. Does a cookbook still come with a PDF or EPUB file?** `026-FR-044` promised the buyer a file "to keep".
+  A file is an export of the chef's text, and the ruling says the buyer gets "no stored copy ... and no export of the
+  creator's text" (O15a). The two do not fit. Until the founder rules, `026-FR-044` keeps only the in-app live view.
+  The file is paused, not dropped.
+- **FQ-018-3. Does a chef club member keep anything after leaving?** `026-FR-045` said each new club recipe arrived as
+  a licensed copy. Under the live view, a member reads the club's recipes while the membership runs and loses them when
+  it ends. The founder confirms that this is the intent.
+
+### Tasks owed _(added 2026-11-03, owner ruling O15, ADR-0082)_
+
+018 has no task file yet. When it gets one, these tasks come first and each is test-first (write the test, watch it
+fail, then write the code). Tier rules are in `docs/CODING_STANDARDS.md` §7.1.
+
+| ID      | Task                                                                                                                                        | Implements        | Tests (write first)                                                                                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 018-L01 | The live-view access grant: a purchase writes a grant on the chef's private recipe and writes no recipe row in the buyer's account         | `FR-029`, `FR-029a` | unit (the read rule admits a grant holder and nobody else), integration (a purchase creates one grant and zero recipe rows), mutation check (a grant that wrote a copy fails) |
+| 018-L02 | The server refuses clone, export, copy, publish, resell and share of a bought recipe                                                        | `FR-029a`         | unit (table-driven over each refused verb), integration (each route answers a refusal for a grant holder), deployed e2e (a bought recipe has no export route)           |
+| 018-L03 | Cooking mode, meal plan and grocery list read the live recipe. A list entry copies ingredient lines only                                    | `FR-029a`         | unit (list entry holds no method or headnote), component (cooking mode on a granted recipe), Playwright and Maestro (buy, cook, plan, list)                            |
+| 018-L04 | The buyer's private notes on a bought recipe, visible only to the buyer                                                                     | `FR-029a`, `FR-029g` | unit, integration (the chef cannot read a buyer's note)                                                                                                         |
+| 018-L05 | An edit to a sold recipe goes through the hold. Buyers see the last approved version meanwhile                                              | `FR-029d`         | integration (edit, then a buyer read returns the old version until the digest allows), deployed e2e (`020` bypass row 38)                                          |
+| 018-L06 | Access ends on unpublish, delete, takedown and creator erasure, at once on the server, with one stated outcome                              | `FR-029e`, `FR-050` | unit (each of the four causes), integration (a read after each cause is refused), deployed e2e                                                                |
+| 018-L07 | The purchase surface says how access can end and whether later collection recipes are included                                              | `FR-046`, `FR-090` | component (every state), Playwright and Maestro                                                                                                              |
+| 018-L08 | Buyer erasure deletes grants and notes. The sale record stays, de-identified                                                                | `FR-029g`, `FR-045`, `FR-072` | integration (after erasure the sale row holds no buyer identifier), erasure-coverage test lists the new tables                                              |
+| 018-L09 | The chef sales view shows aggregates only, with no named buyer                                                                              | `FR-029g`, `FR-070` | unit, integration (the chef endpoint has no buyer field), contract test on the response shape                                                              |
+| 018-L10 | Offline: the cache holds the last approved version of a bought recipe and clears it on the next sync after access ends                      | `FR-029f`         | unit, integration with `019`'s sync, Maestro (offline read, revoke, reconnect)                                                                                     |
+| 018-L11 | Precondition: no creator sale lists in an EU or UK storefront until `025`'s readiness record covers the digital-content rules               | `FR-029e`, `025` | guard test (the market switch refuses a creator listing in an unready market)                                                                                      |
+| 018-L12 | An owner import with statement 1a is sellable when private, and eligibility never reads the site claim _(added 2026-11-03, owner ruling O16, ADR-0082)_ | `FR-026`, `FR-027` | unit (eligibility over statement 1a with a live, failed and absent claim gives the same answer, and an `imported_*` source type is still refused), integration (list a private owner import, fail the claim, the listing stays) |
+
+Counsel review is owed before launch (`016-FR-050`).
+
 ## Status
 
-**Two clarifications are resolved by owner ruling (2026-08-26)** — `C-018-001` (the licensed-copy model) and
-`C-018-002` (the split seller-of-record model).
+**Two clarifications are resolved by owner ruling (2026-08-26)** — `C-018-001` (the licensed-copy model, replaced
+2026-11-03 by the live view, owner ruling O15, ADR-0082) and `C-018-002` (the split seller-of-record model).
 
 **Six passes of widening have taken this from 74 requirements in eleven sections to 133 in sixteen.** Each
 addition was forced by evidence, not by scope creep:

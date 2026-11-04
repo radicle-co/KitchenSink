@@ -972,3 +972,100 @@ Counsel review is owed before launch (`016-FR-050`). Each task is test-first and
 
 - [ ] The extraction worker deletes the page image after a successful extraction unless the cook asked to keep it
 - [ ] Video frames and audio are never stored. **Unit and integration tests** assert the deletion and the keep case
+
+### T-038 · Step check and suggestions in the import match review _(FINAL, owner ruling 2026-11-03)_
+
+**Priority** P2 · **Effort** M · **Depends on** `020` tasks N-01 to N-03 · **Implements** FR-054
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] The review screen shows a step flag and its suggestion beside the ingredient matches, on web and mobile in the
+      same release. **Component tests** cover: no flag, one flag, flag with suggestion, flag with no suggestion
+      (budget spent), accepted, edited, disputed.
+- [ ] A pending step flag does not block finishing the ingredient matches, and finished matches do not clear a flag.
+      **Unit and integration tests** assert both.
+- [ ] A private import is saved while a flag is pending. A public choice or a sale is refused. **Integration test**.
+- [ ] **Playwright** and **Maestro** flows cover accept, edit and dispute.
+
+### T-039 · Step suggestions in the review of a flagged recipe _(FINAL, owner ruling 2026-11-03)_
+
+**Priority** P2 · **Effort** S · **Depends on** T-038, `020` task N-06 · **Implements** FR-054
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] The in-review screen reuses T-038's component. A private-match flag shows only the generic message and no step
+      detail. **Component and integration tests** assert it.
+
+## Phase 8: "This is my recipe" (added 2026-11-03, owner ruling O16, ADR-0082)
+
+The owner statement 1a (`FR-014a`) on paste, URL and social import, and the offer to verify the site through 026's
+claim. It builds on ADR-0078 and adds no second way to verify. Every task is test-first: the failing tests in every
+tier come before the code. Counsel review is owed before launch (`016-FR-050`).
+
+### T-040 · Owner statement 1a on paste, URL and social import
+
+**Priority** P2 · **Effort** M · **Depends on** T-014, T-032, T-019, `016` L082-08 · **Implements** FR-014a item 1 and 2, FR-008, FR-009, FR-052
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] Each channel offers statement 1a. It stores `authored` with the own origin (`016` data-model §15), sets
+      `user_created`, and the rights label derives "Written by you".
+- [ ] The own origin on a URL or social import is the page or account the server fetched or read. Any other own
+      origin is refused (`FR-025` note).
+- [ ] **Unit tests**, table-driven over the three channels, assert the stored kind and own origin. Mutation lens: a
+      build that sets `user_created` on a URL import with no statement fails.
+- [ ] **Integration test**: a URL import with statement 1a and a mismatched own origin answers a refusal and writes
+      nothing.
+- [ ] Web and mobile in lockstep (§14.1). **Component tests** for the statement choice in every state. **Playwright**
+      and **Maestro** flows for the paste and URL story.
+
+### T-041 · Offer to verify the site, at import or later
+
+**Priority** P2 · **Effort** M · **Depends on** T-040, `026-L07` · **Implements** FR-014a item 4
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] The import offers 026's claim when the own origin's domain has no live claim of this cook. The offer is never
+      pre-ticked and never blocks the save. After a decline for a domain it is not shown again for that domain.
+- [ ] The cook can start the claim later from the recipe and from settings.
+- [ ] **Component tests** for offered, in progress, live, failed and declined. **Integration test**: a save with the
+      offer declined succeeds and records no claim. **Playwright** and **Maestro** flows for verify-at-import.
+
+### T-042 · An owner import is never routed into a clone
+
+**Priority** P2 · **Effort** S · **Depends on** T-040 · **Implements** FR-008 owner note item 2
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] A URL import with statement 1a of a page that already has a public facts card by another cook creates the
+      cook's own recipe and leaves the card as it is.
+- [ ] **Unit test** on the dedup branch, and an **integration test** against the C-001 constraint: the owner import
+      succeeds, and an import of the same page without the statement still surfaces the card.
+
+### T-043 · The gate reads the claim: unverified versus verified, persistence, and loss
+
+**Priority** P1 · **Effort** M · **Depends on** T-040, `020` K082-26 to K082-28 · **Implements** FR-014a items 2, 3, 5 and 6
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] Unverified: a URL import with statement 1a, headed public, goes to a person with the statement shown. It does not
+      go public on its own.
+- [ ] Verified: the same import from a domain with this cook's live claim clears the own-origin hit. Any other signal
+      still sends it to a person.
+- [ ] Persistence: a second import from the same verified domain clears the own-origin hit without a new offer or a
+      new proof.
+- [ ] Loss: after the claim fails, an already cleared recipe stays public, and a new import from that domain goes to a
+      person.
+- [ ] **Integration tests** for all four. **Deployed e2e** for the unverified and verified pair. **Playwright** and
+      **Maestro** for the verified owner story, end to end.
+
+### T-044 · Paste and social owner imports always go to a person on an own-page hit
+
+**Priority** P2 · **Effort** S · **Depends on** T-040 · **Implements** FR-014a item 7
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] A pasted recipe with statement 1a, whose text the web search finds on the cook's own claimed page, goes to a
+      person. The claim does not clear a web-search hit (ADR-0078 §1).
+- [ ] A social import with statement 1a goes to a person on a hit on its own post, until social proof exists.
+- [ ] **Integration tests** for both. Mutation lens: a claim that clears a web-search hit fails the paste test.

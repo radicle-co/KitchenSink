@@ -200,7 +200,11 @@ retired IDs below.
 - **FR-034a** A creator MUST be able to choose public or private for each recipe and for each collection (O14b). A
   creator MAY list a PRIVATE recipe or a PRIVATE collection for sale at a price the creator sets (O14c). 010 takes the
   payment and grants the buyer access, through 018's seller model (`018-FR-026`, `018-FR-029`, `018-FR-087`) and 026's
-  cookbooks (`026-FR-043`). 012 holds no billing logic. Listing for sale does not change visibility. A public recipe or
+  cookbooks (`026-FR-043`). 012 holds no billing logic. Listing for sale does not change visibility.
+  _(amended 2026-11-03, owner ruling O15, ADR-0082)_ A buyer gets a **live view** of the creator's current recipe or
+  collection and no copy (`018-FR-029a`). The creator sees aggregate sales and no named buyer (`018-FR-029g`). The
+  creator's confirm step for unpublishing from sale, deleting or erasing MUST say that buyers lose access
+  (`018-FR-029e`). A public recipe or
   collection MUST NOT be for sale (`018-FR-029c`), and reading a public one is never paid for (O14a, `021`).
 - **FR-034b** [Law] Only content the creator owns MAY be sold (O14d). That is "Written by you", "Adapted by you" in the
   creator's own words, and a family recipe whose giver's permission covers selling. It MUST NOT be an
@@ -210,9 +214,16 @@ retired IDs below.
   person's recipe MAY sit only in a FREE public collection. 012 MUST NOT put an `isPremium` flag on collection
   membership. The one eligibility rule is owned by 018 (`018-FR-027`), and 012 reads it. [House rule] Counsel review is
   owed before launch (`016-FR-050`).
+  _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A recipe the creator imported from their own page with "This is
+  my recipe, from my site or account" (`004-FR-014a` statement 1a) is "Written by you", so it is sellable when kept
+  private. The creator page lists it like any recipe the creator wrote when it is public and 020 allows it
+  (`021-FR-002`). Neither reads the site claim. A recipe is public or for sale, never both (`018-FR-029c`). Counsel
+  review is owed before launch (`016-FR-050`).
 - **FR-034c** Every sold recipe MUST pass 020's hold before it is listed and before it is delivered, because selling is a
-  door to others like publishing (O14e, `020-FR-057`). A held recipe MUST NOT be listed. A buyer's copy carries its
-  source's checked-content digest (`020-FR-057`).
+  door to others like publishing (O14e, `020-FR-057`). A held recipe MUST NOT be listed. _(amended 2026-11-03, owner ruling O15b,
+  ADR-0082. Was: a buyer's copy carries its source's checked-content digest.)_ A buyer reads the same recipe through the
+  same hold. An edit to a sold recipe re-runs the hold, and buyers see the last approved version meanwhile
+  (`018-FR-029d`, `020-FR-064`). [House rule] Counsel review is owed before launch (`016-FR-050`).
 
 > ### ⛔ Withdrawn 2026-08-02 — there is no such thing as a premium recipe
 >

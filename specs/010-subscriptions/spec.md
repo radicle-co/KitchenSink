@@ -104,7 +104,7 @@ it, and check that the changes are still there. Then check each state in `FR-042
 
 **Subscription & Monetization**
 
-- **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. _(Added 2026-11-03, owner ruling O5, ADR-0082.)_ Reading a PUBLIC recipe or collection is free for everyone and never needs Pro (see User Story 1). _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ Buying a creator's private recipe or collection is a separate purchase (`012-FR-034a`). New recipes are public by default, and a free cook can hold up to 50 private recipes (`001-FR-003`). _(Amended 2026-10-26, owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md). Was: "All free-tier recipes are public by default; private visibility is not available on the free tier.")_
+- **FR-040**: System MUST provide a free tier with access to: recipe CRUD, sharing/cloning, basic importing, manual meal planning, grocery list generation, and cooking mode. Free-tier users may create unlimited public recipes; no recipe count cap applies. _(Added 2026-11-03, owner ruling O5, ADR-0082.)_ Reading a PUBLIC recipe or collection is free for everyone and never needs Pro (see User Story 1). _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ Buying a creator's private recipe or collection is a separate purchase (`012-FR-034a`) that grants a live view and no copy (`018-FR-029a`, amended 2026-11-03, owner ruling O15, ADR-0082). New recipes are public by default, and a free cook can hold up to 50 private recipes (`001-FR-003`). _(Amended 2026-10-26, owner ruling, [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md). Was: "All free-tier recipes are public by default; private visibility is not available on the free tier.")_
 - **FR-041** _(amended 2026-10-26, owner ruling)_: System MUST provide two paid tiers, each billed **monthly or yearly** at the cook's choice, with a small discount for yearly billing:
     - **Pro**, **$9.99/month** or **$99.99/year**: private recipe visibility with no slot limit
       ([ADR-0073 §1](../../docs/architecture/decisions/0073-free-tier-private-slots.md)) and trainer nutrition planning.
@@ -913,13 +913,18 @@ predicted Commise result.
   architecture, and no task covers family plans in this release. A dedicated spec change is required before any
   family-plan work begins." This amendment is that spec change.)_
 - **Web sells through Stripe. The phone apps sell through the stores.** Stripe Checkout and the Stripe Customer Portal are web-only. iPhone sales use App Store in-app purchase and Android sales use Google Play Billing. RevenueCat joins the three into one entitlement record per cook ([O-9](#owner-inputs-still-needed), `FR-042i`, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md)). _(Was: mobile users are deep-linked to web checkout and in-app purchase is out of scope for v1. Reversed 2026-10-27.)_
-- Imported, attributed recipes are always public regardless of subscription tier, in compliance with source Terms of Service.
+- _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A recipe copied from someone else's page, book or paid site is never
+  public in full, whatever the tier. Its public form is a facts card, which uses no slot (`021-FR-014a`, `016-FR-029a`).
+  No tier changes this.
 - **Marketplace payments are out of scope for v1 — but entitlement gating is NOT.** Keep these separate;
   conflating them over-blocks downstream work.
     - **In scope / available**: gating any feature on the caller's subscription tier. `FR-040` … `FR-044`
       cover it, and `FR-044` is what makes it enforceable outside the identity service.
     - **Out of scope**: anything that moves money **to a creator** — one-time payments (tips), per-item
-      purchases, creator-defined subscription tiers, revenue splitting, and payouts.
+      purchases, creator-defined subscription tiers, revenue splitting, and payouts. _(Clarified 2026-11-03, owner ruling
+      O15, ADR-0082.)_ 018 owns a creator's sale. A buyer of a private recipe or collection gets a live view and no copy
+      (`018-FR-029a`). 010 settles no refund for access that ends, so that is the founder's question FQ-018-1 in 018.
+      010's own subscription refund terms (`FR-041i` prorated refund on upgrade) do not cover a creator sale.
 
     **Downstream requirements that depend on the deferred half**, surfaced by the 2026-08-02 spec sweep:
     - `012-creator-profiles` `012-FR-031`–`034` (DRAFT) — tip jar and creator-earnings surface. (An

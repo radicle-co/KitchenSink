@@ -611,11 +611,17 @@ The rights label tells the cook who owns the writing.
       licence in `FR-011` covers exporting a clone (`FR-050`).
     - A recipe from a social video is label 3. The creator owns the video, its voice-over and its caption.
     - A recipe in review or not approved under 020 keeps its label. The 020 state is a separate fact.
+    - _(amended 2026-11-03, owner ruling O16, ADR-0082)_ The owner statement "This is my recipe, from my site or
+      account" (`004-FR-014a` statement 1a) gives label 1 on paste, URL and social import. The statement gives the label.
+      A site claim does not, and no claim is needed for it. A claim only clears one hit in 020's check (`FR-069`,
+      `020-FR-012g`). Counsel review is owed before launch (`FR-050`).
 
 - **FR-015d**: The label MUST be **derived**, never stored and never chosen by a surface. One pure Policy works it out,
   a sibling of `provenancePolicy.ts`. Its inputs are the recipe's source type, its statement kind (`004-FR-014a`), its
   `cloned_from_id`, any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
-  ADR-0082). Every surface,
+  ADR-0082). _(amended 2026-11-03, owner ruling O16, ADR-0082)_ The own origin of statement 1a is part of the
+  statement kind. A site claim is NOT an input, so a claim that fails never changes a label. Counsel review is owed
+  before launch (`FR-050`). Every surface,
   and every rule in another spec that depends on who owns the writing, MUST read that one Policy. `staff-architect`
   designs it at PLANNING.
 - **FR-015e**: Commise MUST take a licence and never ownership (`FR-010`, `FR-031`). The cook keeps copyright in what the
@@ -856,6 +862,11 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
     - [House rule] Business days are US federal working days. On arrival of the counter-notice, we compute the restore
       date and store it on the record. A sweep restores on that date, and a missed restore raises an alert.
     - A restore lifts the strike (`FR-020a`) and supersedes the takedown block in 020 (`020-FR-066`).
+    - _(amended 2026-11-03, owner ruling O16, ADR-0082)_ **A site claim is evidence, not a defence.** A notice against
+      a recipe whose cook held a live claim on its own origin goes through this same path. [Law] A valid notice is
+      acted on expeditiously whatever the cook's claim says (§512(c)(1)(C)). The reviewer sees the claim and the cook's
+      statement. The cook can cite the claim in a counter-notice as evidence of good faith. The restore timing does not
+      change.
     - Counsel review is owed before launch (`FR-050`).
 - **FR-062**: **Repeat infringers: counting and appeal.** This completes `FR-020` and `FR-021`.
     - [House rule] A strike is one actioned copyright notice against one account. Notices on the same work in one
@@ -1114,7 +1125,7 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
   privacy notice MUST name the categories of processor including any AI provider.
 
 - **FR-039a** _(added 2026-10-29, owner ruling, ADR-0077)_: The privacy notice MUST say that, for a recipe headed
-  public, a few sentences of its method are sent to a web search provider to look for copies (`020-FR-012d`). It MUST
+  public, a few sentences of its method are sent to the web search vendor, once chosen _(amended 2026-11-03, owner ruling, ADR-0082)_ to look for copies (`020-FR-012d`). It MUST
   name the provider, or its category under `FR-039`, and say that no name, account id or other personal data is sent.
   The record of processors under `FR-039` MUST list it. Counsel and `dpo-1` confirm the wording before the search
   ships (`FR-050`).
@@ -1437,6 +1448,73 @@ they do not create a second mechanism.
 - **FR-053**: It MUST be possible to answer, for any published item: who published it, under which terms
   version, with what attestation, through which channel, with what provenance, and whether any notice has
   been actioned against it — without reconstructing it from logs.
+
+#### Next batch: a claim flow for site owners, and launch preconditions (FINAL, owner ruling 2026-11-03)
+
+FINAL, owner ruling 2026-11-03. It follows `020-FR-075` to `020-FR-078`. Counsel
+review is owed before launch (`FR-050`).
+
+- **FR-067** _(FINAL, owner ruling 2026-11-03)_: **A claim flow for site owners.** [Law, US] A
+  site owner who finds their text or photos in a recipe MUST have a way to ask for removal that meets 17 U.S.C.
+  §512(c)(3). This adds a claim form on top of the notice form (`FR-016`, `FR-058`). It does not replace them.
+    - The form asks for every §512(c)(3) element, as `FR-058` lists them. It adds a field for the page the owner says
+      is theirs.
+    - [House rule] The owner can also prove the site is theirs with ADR-0078's live-site proof (`020-FR-012g`). The
+      proof makes the claim faster to act on. It is not required for a valid notice, because a notice that meets
+      §512(c)(3) MUST be received and acted on without it (`FR-066`).
+    - A removal made on a claim follows `FR-060` (every public surface) and sends the cook a statement of reasons
+      (`FR-018`).
+    - The cook can send a counter-notice (§512(g), `FR-019`, `FR-061`). The 10 to 14 business-day rule is unchanged.
+    - _(amended 2026-11-03, owner ruling O16, ADR-0082)_ **A verified owner can file from their account.** A cook who
+      holds a live site claim (`026-FR-001`) can file this claim against copies of their site's recipes elsewhere on
+      Commise. The live claim is attached as the ownership proof, and the §512(c)(3) elements are still required. The
+      flow can name only content that the claimant can see on a public surface. It MUST NOT search, list or reveal
+      another cook's private recipe, and it offers no "find every copy of my site" feature (ADR-0074, `020-FR-047`).
+      A claim does not prove authorship of each post (ADR-0078 §3), so a person still decides each notice.
+    - **Reword-to-restore.** [House rule] The cook can instead replace the claimed text with their own words. The new
+      text is a new version that passes `020` like any edit, including the suggestions of `020-FR-075`. If it is green
+      or cleared by a person, the recipe is restored with the new text and the owner is told. This is not a
+      counter-notice and does not wait 10 to 14 business days, because the claimed text is gone.
+    - **Conflict to settle.** A reword-to-restore MUST NOT erase the strike the claim created (`FR-062`) and MUST NOT let
+      the cook restore the old text. The founder confirms that a reworded restore still counts as a strike.
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-068** _(FINAL, owner ruling 2026-11-03)_: **Launch preconditions while the copy check is
+  unbuilt.** [Law, US] The safe harbour does not cover anything before the agent is registered (§512(c)(2),
+  `FR-025`). [House rule] Until `020`'s copy check at import (`020-FR-075`) is built and on, public launch MUST NOT
+  happen unless all of these hold:
+    - the DMCA agent is registered and the agent page matches the filing (`FR-025`, `FR-059`)
+    - the notice form and the counter-notice form work end to end (`FR-058`, `FR-061`)
+    - the repeat-infringer policy is live and its strike counting runs (`FR-020`, `FR-062`)
+    - the rest of `020`'s public-door hold is on (`020-FR-057`)
+    - `SC-009` has a green record for each item.
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-069** _(added 2026-11-03, owner ruling O16, ADR-0082)_: **"This is my recipe".** The owner said: "a user should
+  be able to mark that they are actually the owner of the recipe (i.e. a user importing from a web page they own). This
+  is important for the review process." It builds on ADR-0078 and 026's site claim. It adds no second way to verify.
+    - **The statement.** At paste, URL or social import the cook can state "This is my recipe, from my site or
+      account" (`004-FR-014a` statement 1a). It is a per-recipe attestation under `FR-014`. It gives label 1, "Written by
+      you" (`FR-015c`). [House rule] A false statement is the cook's own legal risk under the terms (`FR-055`). A bare
+      statement never clears a copy flag, because anyone can claim (`020-FR-012g`).
+    - **Verified ownership is 026's live site claim**, and only that (`026-FR-001`). Its proof is a DNS TXT record,
+      a meta tag in the home page, or a recipe plugin token. A live claim clears one hit in 020's check: the hit on the
+      page the recipe was imported from (ADR-0078 §1). No proof exists for a social account yet (`026` OQ-026-S1).
+    - **What a verified owner's recipe can do**, once 020 allows it. A recipe imported from the owner's verified site,
+      with the statement, is label 1. It can be public in full, with its own method text and the owner's own photos,
+      and open to the web (`021-FR-002`). A photo still needs its own statement (`026-FR-004`). It can instead be kept
+      private and sold, but not both at once (`018-FR-026`, `018-FR-029c`). The cook can offer it under CC BY 4.0
+      (`021-FR-040a`). Each of these reads the label and 020's outcome. None reads the claim itself.
+    - **The tension, kept in view.** [Law] A claim proves control of a site, not authorship of each post (ADR-0078 §3).
+      A guest post on the owner's blog passes the claim. So the per-recipe statement carries authorship, and the other
+      020 signals and takedown (`FR-016` to `FR-022`) still apply.
+    - **Disputes.** A notice against a verified owner's recipe goes through the normal notice and counter-notice flow,
+      with the claim as evidence (`FR-061`). A verified owner can file `FR-067`'s site-owner claim against copies of
+      their site elsewhere on Commise.
+    - **Erasure.** [Law] The site claim is personal data tied to the cook (GDPR Art. 4(1)). The cook's account erasure
+      deletes it (`FR-037`). A decision record that cited it is kept de-identified under `FR-052a` and
+      `020-FR-063`. [House rule] It keeps the claim's opaque id, method and last check time. It drops the claim's domain,
+      because a personal blog's domain can name a person. A claim the cook
+      removes (`026-FR-009`) is kept in the removed state while the account exists, because a cleared outcome cites it.
+    - Counsel review is owed before launch (`FR-050`).
 
 ### Non-Functional Requirements _(constitution-derived)_
 

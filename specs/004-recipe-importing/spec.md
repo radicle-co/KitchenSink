@@ -2,7 +2,8 @@
 
 **Feature Branch**: `004-recipe-importing`
 **Created**: 2026-04-14
-**Amended**: 2026-11-03 (open recipe library, owner rulings, ADR-0082: `FR-008` ruling, `FR-011`, `FR-013`, `FR-014`, `FR-014a`, new `FR-014b`, `FR-009`, `FR-012`, `FR-023`, `FR-026` and C-001). 2026-10-28 (`FR-053` added: the "Save to Commise" button for food blogs, gated on the WP Recipe Maker
+**Amended**: 2026-11-03 (open recipe library, owner rulings, ADR-0082: `FR-008` ruling, `FR-011`, `FR-013`, `FR-014`, `FR-014a`, new `FR-014b`, `FR-009`, `FR-012`, `FR-023`, `FR-026` and C-001). 2026-11-03 (owner ruling O16, ADR-0082: the owner statement 1a in `FR-014a`, with
+notes on `FR-008`, `FR-009`, `FR-025`, `FR-052`, `FR-053` and `FR-053a`). 2026-10-28 (`FR-053` added: the "Save to Commise" button for food blogs, gated on the WP Recipe Maker
 team, owner ruling). 2026-10-29 (recipe rights, owner rulings,
 [ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): a web
 import is private in full or public as a linked card, two new statements, and C-001 now keys the public card) 2026-10-29 (`FR-053a` added: a chef's bulk bring-in from their own claimed site, owner rulings on
@@ -294,6 +295,23 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     >    steps."
     >
     > Counsel review is owed before launch (`016-FR-050`).
+    >
+    > ⚠️ **Amended 2026-11-03 (owner ruling O16, ADR-0082): "This is my recipe".** A URL import MUST offer the owner
+    > statement of `FR-014a` (statement 1a). With it, the import is the cook's own recipe, not a copy of a page:
+    >
+    > 1. **The statement sets the label.** [House rule] The recipe is `user_created`, labelled "Written by you"
+    >    (`016-FR-015c` label 1), and the fetched page is stored as its own origin. The rights check above still runs
+    >    and its fetch log is still kept. The owner statement replaces only the label the check would have set. A block
+    >    stays a block: the paywall blocklist (`FR-014`), `robots.txt` (`FR-023`) and pirate hosts still refuse the
+    >    import.
+    > 2. **No duplicate trap.** [House rule] An owner import MUST NOT surface the existing card and offer a clone
+    >    instead. The cook gets their own recipe from their own capture. An existing facts card for the same
+    >    page by another cook is left as it is. A later notice or claim decides that card (`016-FR-067`).
+    > 3. **The per-market switch still applies.** [Law, EU and UK] Some markets keep facts and a link only. There an owner import keeps
+    >    facts and a link only, and the cook can paste their own text (`FR-052`). A verified owner's full text in those
+    >    markets is an open conflict. See `FR-014a`.
+    >
+    > Counsel review is owed before launch (`016-FR-050`).
 - **FR-009** _(GATED — see D-002)_: System MUST allow users to import recipes from public Instagram posts by
   extracting recipe content from the post caption. Import is limited to posts whose caption contains recipe
   text; video-only or image-only posts without recipe text are unsupported and the user MUST be told so.
@@ -308,6 +326,12 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     > limits retention of mining copies, and GDPR storage limitation applies where people appear. The result is a
     > facts card plus the cook's private copy where the market allows (`FR-008` ruling, D6), under the same labels as a
     > web page. Counsel review is owed before launch (`016-FR-050`).
+    >
+    > **Amended 2026-11-03 (owner ruling O16, ADR-0082): "This is my recipe, from my account".** A social import MUST
+    > offer the owner statement of `FR-014a` (statement 1a), with the account it names. It sets "Written by you" like any
+    > owner statement. No proof exists yet that a cook controls a social account (`026` OPEN item OQ-026-S1). So a hit on
+    > the post the recipe came from always goes to a person, with the statement shown (`020-FR-012g`). Counsel review is
+    > owed before launch (`016-FR-050`).
 - **FR-012** _(REASSIGNED TO 011 — see D-001, amended 2026-08-14)_: Import from physical copies via photo
   capture and OCR is owned by [011-recipe-digitization](../011-recipe-digitization/spec.md), **not by 004**.
   011's image branch routes to a dedicated stateless image-processing service and then submits its extracted
@@ -333,7 +357,10 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
   server-side** (`FR-025`): `user_created` for the user's own content, `imported_paid` when the user attests a
   paid or non-public source and supplies a citation (`FR-014a`). `imported_public` and `imported_physical`
   MUST NOT be representable on this endpoint. _(2026-10-29: paste also takes "Adapted in my own words" and "From a
-  family member or friend, with their permission", per `FR-014a`'s six statements.)_ The pasted body is user input at an untrusted boundary and MUST
+  family member or friend, with their permission", per `FR-014a`'s six statements.)_ _(amended 2026-11-03, owner
+  ruling O16, ADR-0082: paste also takes the owner statement 1a, "This is my recipe, from my site or account", with the
+  page or account address the cook names. Paste fetches no page, so a claim cannot clear a hit on a pasted recipe. See
+  `FR-014a`. Counsel review is owed before launch (`016-FR-050`).)_ The pasted body is user input at an untrusted boundary and MUST
   NOT be logged (`NFR-008`).
     > **Why this is a hole being closed, not a feature being added.** Every failure state in this feature's
     > own wireframes already offers "paste manually", and the product spec's J3 journey is entirely about
@@ -369,6 +396,10 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
       gives one of three outcomes: `imported_public`, `imported_paid` for a page allowed only as private, or blocked. So
       it is
       never open to the web (`021-FR-003`), and a book or paid-site recipe's verbatim copy is never public (C-004, amended 2026-11-03, ADR-0082).
+      _(Note 2026-11-03, owner ruling O16, ADR-0082.)_ O16 names paste, URL and social import, not this button. So the
+      save screen does not offer the owner statement 1a yet, and a save stays never `user_created`. An owner who wants
+      their own page as "Written by you" uses the URL import (`FR-008`). Whether the save screen offers it too is OPEN
+      for the founder. Counsel review is owed before launch (`016-FR-050`).
     - **020 still checks it.** A cook can make the recipe public. Then 020's source check runs before anyone else
       can see it (`020-FR-004`).
     - **Attribution.** The draft and the recipe show the source site and author, as for any link import
@@ -397,7 +428,11 @@ Drafts are owner-scoped, expire (`FR-018`), and hold no recipe row until confirm
     - **Photos need their own statement.** A photo comes in only where the chef states they own it or have the right
       to use it (`026-FR-004`).
     - **This is not the "Save to Commise" button.** A save through `FR-053` is never `user_created`. This route is the
-      only one that turns a page into the chef's own recipe, and only under a live claim.
+      only BULK route that turns pages into the chef's own recipes, and only under a live claim. _(amended 2026-11-03,
+      owner ruling O16, ADR-0082. Was: "the only route". A single paste, URL or social import can now carry the owner
+      statement 1a without a claim (`FR-014a`). Without a live claim the statement clears no hit. The bulk bring-in
+      still needs a live claim, because it lists recipes from the site itself. Counsel review is owed before launch
+      (`016-FR-050`).)_
     - **020 still checks it.** A public recipe goes through 020 as usual. A hit on its own origin page under a live
       claim is handled by `020-FR-012g`.
 - **FR-019**: System MUST allow users to import recipes from structured files (JSON, YAML, or Markdown with
@@ -595,6 +630,56 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     > (`016-FR-015b`). An AI rewrite is not the cook's own words (`016-FR-015i`). A cook who holds a verbatim book or
     > paid-site copy can write an Adapted version and publish that. Counsel review is owed before launch (`016-FR-050`).
     >
+    > ⚠️ **Statement 1a: "This is my recipe, from my site or account"** _(amended 2026-11-03, owner ruling O16,
+    > ADR-0082)_. The owner said: "a user should be able to mark that they are actually the owner of the recipe (i.e. a
+    > user importing from a web page they own). This is important for the review process." This builds on
+    > ADR-0078 and 026's site claim. It adds no second way to verify.
+    >
+    > 1. **What it is.** Statement 1a is statement 1 ("I wrote this") plus the address of the page or account the cook
+    >    says is theirs (the **own origin**). Paste (`FR-052`), URL import (`FR-008`) and social import (`FR-009`) MUST
+    >    offer it. It is the same "I wrote this" and "This is my own page" pair that `FR-053a` and `020-FR-012g` already
+    >    use. It adds no seventh statement and no new statement kind. It is stored as `authored` with the own origin
+    >    (`016` data-model §15).
+    > 2. **What a bare statement does.** It sets `user_created` and the label "Written by you" (`016-FR-015c` label 1),
+    >    as statement 1 always does. It is the cook's attestation (`016-FR-014`), made per recipe. A false statement is
+    >    the cook's legal risk (`016-FR-055`). [House rule] It MUST NOT clear a copy flag, because anyone can claim.
+    >    With no live claim, a hit on the own origin goes to a person with the statement shown. The statement never
+    >    counts against the cook on its own (`020-FR-012g`, ADR-0078 §2).
+    > 3. **What a live claim adds.** Verified ownership is 026's live site claim, the one mechanism (`026-FR-001`). The
+    >    proof is one of three: a DNS TXT record on the domain, a meta tag in the home page, or a recipe plugin token.
+    >    A live claim on the own origin's domain clears ONE hit: the hit on the page this recipe was imported from
+    >    (`020-FR-012g`). It does not change the label. The statement sets the label. [House rule] A claim proves control
+    >    of a site, not authorship of each post (ADR-0078 §3).
+    > 4. **Verify at import, or later.** The cook can make statement 1a for a web page on a domain they hold no live
+    >    claim to. Then the import MUST offer to verify the site through 026's claim. The offer is never pre-ticked, never a
+    >    condition of saving, and is not repeated after the cook declines for that domain. The cook can verify later
+    >    from the recipe or from their settings. Every state (offered, in progress, live, failed, declined) needs copy
+    >    and a localisation key on web and mobile, and `staff-ux-engineer` designs it at SPECIFY.
+    > 5. **The claim persists per site.** A claim belongs to the cook and the domain, not to a recipe. While it is live,
+    >    later imports from that domain pass the own-origin hit without asking again (`026-FR-001`). Nothing is stored
+    >    on the recipe to say it is "verified". The check reads the claim as it stands each time it runs, and its
+    >    outcome names the claim that cleared a hit (ADR-0078).
+    > 6. **Loss.** A claim that fails a scheduled re-check or is removed (`026-FR-001`, `026-FR-009`) stops clearing new
+    >    hits at once. It does not reopen a recipe it already cleared. A new edit or import is checked against the claim
+    >    as it stands then (ADR-0078 §2).
+    > 7. **Paste and social.** A pasted recipe has no fetched page, and ADR-0078 §1 clears only a hit on the page fetched
+    >    at import. So on paste a claim clears nothing, and a web-search hit on the cook's own page goes to a person with
+    >    the statement shown. No proof exists for a social account yet (`026` OQ-026-S1), so a social owner import also
+    >    goes to a person. Both are recorded as conflicts for the docs lead, not decided here.
+    > 8. **Markets.** Some markets keep facts and a link only on a URL import (`FR-008` ruling item 3). There an
+    >    owner's URL import keeps facts and a link only. This is a conflict, not decided. A verified owner asks us to
+    >    copy their own text. The creator-terms licence (`016-FR-055`, `016-FR-010`) is a candidate basis to keep it.
+    >    Counsel decides. Until then the owner pastes the text.
+    > 9. **Photos.** A photo from the own origin needs its own statement (`026-FR-004`). The cook states they own it or
+    >    can use it.
+    > 10. **Stating later is OPEN.** A cook who imported their own page without statement 1a, as a copy, cannot add it
+    >     later under this ruling. `026-FR-002` asks for the statement at the moment of bring-in, and O16 lets the cook
+    >     verify later, not state later. Whether a cook can relabel such an import later is OPEN for the founder. A claim does not replace that statement. The photo statement is never pre-ticked.
+    >
+    > [Law] A claim is evidence of control of a site. It is not proof of authorship, and a false statement is the cook's
+    > own misrepresentation (17 U.S.C. §512(f) covers a false counter-notice, and the terms cover a false statement).
+    > Counsel review is owed before launch (`016-FR-050`).
+    >
     > The statement sets the label and the rights label (`016-FR-015c`). Each channel offers the statements its own
     > rules allow. Paste (`FR-052`) still maps a book or paid-site statement to `imported_paid` and does not offer
     > statement 3, as before. It gains statements 2 and 6. Counsel confirms the wording of all six before launch
@@ -705,6 +790,13 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
     >
     > `imported_physical` and `imported_paid` remain **undeclarable by anyone** — that half is unchanged, and
     > ADR-0023 records why: the attestation and citation that must travel with them are not built there.
+    >
+    > _(Amended 2026-11-03, owner ruling O16, ADR-0082.)_ On the URL and social import routes the server sets the label
+    > from the channel it observed, except with the owner statement 1a (`FR-014a`). With it, the label is
+    > `user_created`, which this requirement already allows a caller to declare. The route MUST accept `user_created`
+    > there only with statement 1a and its own origin, and the own origin MUST be the page or account the server fetched
+    > or read. A request that pairs `user_created` with any other own origin is refused. Counsel review is owed before
+    > launch (`016-FR-050`).
 - **FR-026**: System MUST support importing a single file containing **many** recipes — up to **1,000** per
   file, rejecting a larger file with an explicit limit message — producing one draft per
   recipe. Drafts with no missing required fields MUST be confirmable in a single bulk action; drafts with gaps
@@ -777,6 +869,18 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   source image on confirm, discard, or expiry — whichever occurs first. The draft and its image share one
   lifetime: there is no state in which an image outlives the draft that references it. The retention period is
   configurable per stage but MUST NOT exceed 7 days in production (D-005).
+
+- **FR-054** _(FINAL, owner ruling 2026-11-03)_: **The step check and its suggestions sit beside
+  the ingredient-match review.** The import match review (the screen where the cook confirms each ingredient match,
+  ADR-0071, ADR-0072) MUST also show the outside-copy check on the method steps and any suggested rewording. The rules
+  are `020-FR-075` and `020-FR-076`. This spec owns only where it appears.
+    - The ingredient match and the step check are separate. A pending step flag does not stop the cook from finishing
+      the ingredient matches, and finished matches do not clear a step flag.
+    - A flag holds public and sale only. A private import is never blocked by it. `020-FR-003b` still decides whether a
+      bulk-imported private recipe waits in review.
+    - A suggestion is never a cook's own words. The label rule is `020-FR-077` and `016-FR-015i`.
+    - Counsel review is owed before launch (`016-FR-050`).
+
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -1241,6 +1345,11 @@ channel is hidden by its capability flag and its tests run against the contract 
     > Duplicates are a product choice, not a legal problem, and two cooks' texts are never merged into one. **Known
     > product gap:** matching on the URL alone misses the same recipe at another address, and it misses pasted copies.
     > The card is now readable signed out (`FR-008` ruling). Counsel review is owed before launch (`016-FR-050`).
+    >
+    > **Amended 2026-11-03 (owner ruling O16, ADR-0082).** [House rule] The unique index keys the public facts card
+    > only. An owner import with statement 1a (`FR-014a`) is a `user_created` recipe, not a facts card, so the index
+    > MUST exclude it. The owner's import never surfaces or replaces another cook's card for the same page. Counsel
+    > review is owed before launch (`016-FR-050`).
 - **C-003 (Instagram import method)**: Instagram import uses the Meta-hosted oEmbed endpoint with an app
   credential and caption-text parsing. Only posts with recipe content in the caption are supported. See D-002.
 - **C-006 (Draft-and-confirm)**: Every import channel produces a draft; confirmation creates the recipe. See

@@ -594,6 +594,13 @@ under `016-FR-048c`. They are built as that market opens, and recorded in its re
     - **UK:** a UK GDPR representative, the Online Safety Act duties (an illegal-content risk assessment, a children's
       access assessment, and age assurance where eating-disorder content can appear), and unfair-terms law
       (Consumer Rights Act 2015 Part 2) at the UK launch.
+    - **EU and UK, creator sales** _(added 2026-11-03, owner ruling O15d, ADR-0082)_: [Law] When a creator sells a
+      live view of a recipe to a buyer in these markets, the buyer is a consumer of digital content. Directive (EU)
+      2019/770 (conformity and remedies) and the UK Consumer Rights Act 2015 Part 1 Chapter 3 (digital content) then
+      give the buyer rights, including a remedy when the content stops being available. [House rule] These duties are a
+      **precondition for listing creator sales in an EU or UK storefront**, not a launch duty, because launch is US only
+      (`018-FR-029e`, `016-FR-048c`). The refund policy for lost access is the founder's question FQ-018-1 in 018.
+      Counsel review is owed before launch (`016-FR-050`).
     - **Australia:** the under-16 social media self-assessment (Online Safety Act 2021 s.63C) and the Australian
       Consumer Law fairness test.
     - **Canada:** notice-and-notice (Copyright Act s.41.25 and s.41.26) with records kept for six months.

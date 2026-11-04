@@ -9,8 +9,8 @@ import { GradientSurface } from '@commise/ui/surface';
 import type { FC } from 'react';
 import { styled, YStack } from 'tamagui';
 
-/** The wash fills the band. */
-const FILL = { flex: 1 } as const;
+/** The shared cover wash, laid over the whole band. */
+const Wash = styled(GradientSurface, { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 });
 
 const Box = styled(YStack, {
     name: 'HeroBand',
@@ -23,6 +23,6 @@ const Box = styled(YStack, {
 /** The no-photo band: presentational (props to JSX), and decorative, because the title below names the recipe. */
 export const HeroBand: FC = () => (
     <Box aria-hidden>
-        <GradientSurface gradient="cover" style={FILL} />
+        <Wash gradient="cover" />
     </Box>
 );

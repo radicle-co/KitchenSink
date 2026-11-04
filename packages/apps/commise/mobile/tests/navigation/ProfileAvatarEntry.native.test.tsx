@@ -66,6 +66,7 @@ describe('ProfileAvatarEntry (mobile)', () => {
 
     it('draws the 32 pt disc by default and the large 36 pt disc when asked (Home’s header)', () => {
         renderWithProviders(<ProfileAvatarEntry onPress={() => undefined} />);
+
         const discWidth = (): string => {
             const disc = screen.getByRole('button').firstElementChild;
 

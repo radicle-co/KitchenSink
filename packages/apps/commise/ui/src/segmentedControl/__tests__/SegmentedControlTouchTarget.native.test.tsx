@@ -48,6 +48,7 @@ describe('SegmentedControl (native) — touch target', () => {
             );
 
             const segments = pressables.seen.filter((props) => props.role === 'tab');
+
             const slop = (props: PressableProps): { top: number; bottom: number } => {
                 const edges = props.hitSlop;
 
@@ -57,6 +58,7 @@ describe('SegmentedControl (native) — touch target', () => {
             };
 
             expect(segments).toHaveLength(2);
+
             for (const segment of segments) {
                 const drawn = touchFloor() - 2 * TRACK_INSET;
 

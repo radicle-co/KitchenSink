@@ -455,6 +455,7 @@ describe('identity-webhook handler', () => {
             name: 'John Doe',
             picture: null,
         };
+
         const useDao = (syncProviderFields: ReturnType<typeof vi.fn>) => {
             vi.mocked(UserDAO).mockImplementation(function () {
                 return {

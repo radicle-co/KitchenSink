@@ -86,6 +86,7 @@ describe('Avatar (web)', () => {
     // The Home header draws a 36 px disc with a shadow and a 1 px divider ring; every other place keeps the 32 px disc.
     describe('size', () => {
         const discOf = (): Element | null => screen.getByRole('link', { name: 'Profile' }).firstElementChild;
+
         const renderAvatar = (size?: 'default' | 'large'): void => {
             render(
                 <Avatar

@@ -460,6 +460,7 @@ describe('RecipeBrowseRails (web) — a rail heading wraps "See all" under its t
 
         return screen.getByRole('heading', { name: 'Trending' }).parentElement as HTMLElement;
     };
+
     const classes = (node: Element): string[] => node.className.split(/\s+/u);
 
     it('lets the heading row wrap', () => {

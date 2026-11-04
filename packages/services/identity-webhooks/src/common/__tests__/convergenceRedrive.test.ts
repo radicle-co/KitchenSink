@@ -104,10 +104,12 @@ describe('redriveUnappliedConvergence', () => {
             { identityId: 'user_2', userId: 'usr_2', event: 'reactivation' },
             { identityId: 'user_3', userId: 'usr_3', event: 'closure' },
         ]);
+
         // The worker REJECTS a malformed message into the DLQ, so each body is parsed with its own schema here.
         for (const body of sentBodies()) {
             expect(idpDeletionMessageSchema.safeParse(body).success).toBe(true);
         }
+
         expect(vi.mocked(SendMessageCommand).mock.calls.every(([input]) => input.QueueUrl === QUEUE)).toBe(true);
     });
 

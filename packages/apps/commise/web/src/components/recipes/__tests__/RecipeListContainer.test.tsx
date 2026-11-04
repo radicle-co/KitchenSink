@@ -154,6 +154,7 @@ describe('RecipeListContainer (web)', () => {
             Object.defineProperty(main, 'clientWidth', { configurable: true, value: width });
             document.body.appendChild(main);
         };
+
         afterEach(() => document.querySelector('main')?.remove());
 
         const card = () => screen.getByRole('article', { name: 'Recipe 1' }).getAttribute('data-card-variant');

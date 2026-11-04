@@ -113,6 +113,7 @@ describe('recipe_photos.s3_key is unique (integration)', () => {
 
     it('a retry at the 10-photo cap still answers, instead of failing as over the cap', async () => {
         const keys = Array.from({ length: 10 }, (_k, i) => `recipes/${OWNER}/${recipeId}/photos/cap${i}`);
+
         for (const s3Key of keys) {
             await dal.create({ recipeId, s3Key, contentType: 'image/png', sizeBytes: 10 });
         }

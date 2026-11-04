@@ -403,6 +403,7 @@ describe('openapi coverage', () => {
 
         expect(bodyOf('/api/v1/foods/catalog/search')).toBe('#/components/schemas/CatalogSearchResponse');
         expect(bodyOf('/api/v1/foods/authored/search')).toBe('#/components/schemas/AuthoredFoodSearchResponse');
+
         for (const path of ['/api/v1/foods/catalog/search', '/api/v1/foods/authored/search']) {
             expect(Object.keys(operation(path)?.responses ?? {}).sort(), path).toStrictEqual([
                 '200',

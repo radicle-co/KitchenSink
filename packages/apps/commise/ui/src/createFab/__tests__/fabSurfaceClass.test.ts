@@ -48,6 +48,7 @@ describe.each(['icon', 'extended'] as const)('fabSurfaceClass (%s)', (presentati
         expect(classes).toEqual(
             expect.arrayContaining(['col-span-3', 'justify-self-start', 'mt-4', 'fab-floats:mt-0']),
         );
+
         for (const out of ['absolute', 'fixed', 'sticky', 'justify-self-end', 'ms-auto']) {
             expect(classes).not.toContain(out);
         }

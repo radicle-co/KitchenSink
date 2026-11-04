@@ -52,7 +52,7 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
 | Spec or decision                                                                                                                                              | Relationship                                                                                                                                                                                       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [012-creator-profiles](../012-creator-profiles/spec.md)                                                                                                       | **Required, amended.** The chef corner is the 012 page. Collections, follows, analytics, the embed widget and the tip jar live there                                                               |
-| [018-chef-program-marketplace](../018-chef-program-marketplace/spec.md)                                                                                       | **Required, amended.** Chef standing, what a chef can sell (a live view, C-018-001 replaced 2026-11-03 by ADR-0082), the seller of record (C-018-002), the ledger, payouts, tax and the store rails                              |
+| [018-chef-program-marketplace](../018-chef-program-marketplace/spec.md)                                                                                       | **Required, amended.** Chef standing, what a chef can sell (a purchase of the sold version, or a subscription with a live view, C-018-001 replaced 2026-11-03 by ADR-0082 §9), the seller of record (C-018-002), the ledger, payouts, tax and the store rails                              |
 | [013-cooking-school](../013-cooking-school/spec.md)                                                                                                           | **Amended.** Courses are a chef income line. Its 20%/80% split is 018's open C-018-004                                                                                                             |
 | [015-publishing-rewards](../015-publishing-rewards/spec.md)                                                                                                   | **Constraining, amended.** Its rewards stay non-monetary (`015-FR-007`, `015-FR-030`). Any future Pro pool (FR-040, deferred) must not become a paid route around it                               |
 | [004-recipe-importing](../004-recipe-importing/spec.md)                                                                                                       | **Required, amendment requested.** It owns source types (`004-FR-011`) and the per-item statement (`004-FR-014a`). It also owns bulk import (ADR-0072) and the "Save to Commise" button (`FR-053`) |
@@ -76,7 +76,7 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
 - **`clo` and counsel**, for the processor terms (FR-023), CAN-SPAM's postal address (FR-026), the FTC disclosure
   for affiliate links and sponsors (FR-047, FR-048), and the own-site rule in FR-005, which the owner approved subject
   to counsel review. The Pro pool and the commission go to the royalties and chef-payments work (Q4, Q6).
-- **No printed products (owner rule).** This spec proposes no printed product of any kind. A digital cookbook is a live view of its recipes in the app (FR-044). A PDF or EPUB file is paused until the founder rules (`018` FQ-018-2). _(amended 2026-11-03, owner ruling O15, ADR-0082)_ Nothing
+- **No printed products (owner rule).** This spec proposes no printed product of any kind. A buyer purchases a digital cookbook and gets the sold version of its recipes in the app, plus a PDF or EPUB file to keep where the chef offers one (FR-044). _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: a live view, with the file paused.)_ The file is a digital file, not a printed product. Nothing
   here is "print-ready" or print on demand.
 
 ## Why this feature exists
@@ -92,8 +92,8 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
    recipe is `user_created` and labelled "Written by you" (ADR-0077 §2). But the outside-copy check finds the blog
    post, and `020-FR-012g` sends every such hit to a person. It says a way to prove a site is yours "is owed by 012",
    and 016 records the same debt. Section A is that proof. Without it, 400 blog recipes mean 400 staff reviews.
-4. **The money machinery is specified but not built.** 018 already decided what a chef can sell (a live view,
-   C-018-001 as replaced by owner ruling O15, ADR-0082) and who the seller is (C-018-002). It left open how a free visit pays (C-018-003) and the commission
+4. **The money machinery is specified but not built.** 018 already decided what a chef can sell (a purchase of the sold version, or a
+   subscription with a live view, C-018-001 as replaced by the owner rulings of 2026-11-03, ADR-0082 §9) and who the seller is (C-018-002). It left open how a free visit pays (C-018-003) and the commission
    (C-018-004). This spec gives a blogger a reason to arrive before that money exists (phase 1), and a reason to stay
    once it does (phase 2).
 
@@ -101,8 +101,8 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
 
 - **No display ads.** 018 refused in-app display ads (`018` H.4, C-018-003a), and the owner kept that refusal for
   chef corners too (Q8, 2026-10-29).
-- **No paywalled recipe.** Visibility stays private or public (GR-014, `001-FR-003`). A sale grants a live view
-  (`018-FR-029`, amended 2026-11-03, ADR-0082). `012-FR-035` to `012-FR-039` stay retired.
+- **No paywalled recipe.** Visibility stays private or public (GR-014, `001-FR-003`). A purchase grants the sold version and a file,
+  and a subscription grants a live view (`018-FR-029`, `018-FR-029h`, amended 2026-11-03, ADR-0082 §9). `012-FR-035` to `012-FR-039` stay retired.
 - **No printed product.** See the owner rule above.
 - **No crawling.** Bringing in a chef's site is user-directed, from a site they proved they control (FR-004).
 - **No editorial choice by staff.** Staff review stays a rights check, never a judgement of quality or taste. That
@@ -119,7 +119,7 @@ The Pro pool (FR-040) is in no phase yet. The owner deferred it to the royalties
 | **Claimed site**     | A website the chef proved they control, by one of the methods in FR-001                                    |
 | **Home**             | Where a chef's recipe page points search engines: their blog, or Commise (FR-006)                          |
 | **Pro pool**         | A share of Pro revenue paid to chefs for Pro members cooking their recipes (section E)                     |
-| **Digital cookbook** | A sellable collection of a chef's own recipes (`018-FR-087`), read as a live view, with a file paused (FQ-018-2) |
+| **Digital cookbook** | A sellable collection of a chef's own recipes (`018-FR-087`). A buyer purchases the sold version and keeps its file. |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -198,19 +198,20 @@ priority, its test and its scenarios. The story number is kept so it is not reus
 ### User Story 5 - A chef sells a digital cookbook (Priority: P2)
 
 Dana bundles 30 gluten-free bakes into a cookbook. Commise checks the "gluten-free" claim against each recipe's
-ingredients. A buyer pays once and reads all 30 recipes as a live view in the app. They get no copies. _(amended 2026-11-03, owner ruling O15, ADR-0082)_ The PDF to keep is paused until the founder rules (`018` FQ-018-2).
+ingredients. A buyer purchases it once. They read all 30 recipes in the app as sold, and they download a PDF or EPUB to keep. _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: a live view with no copies, and the PDF paused.)_
 
 **Why this priority**: People pay for a bounded, trusted set, not a single recipe (`018` section N). It waits on 018.
 
 **Independent Test**: Build a cookbook with one recipe that fails its claim. Make sure that the claim is refused or marked
-as the chef's own statement. Buy it and make sure that the buyer can read, cook, plan and list all 30 recipes at once, and that no clone or export is possible.
+as the chef's own statement. Buy it and make sure that the buyer can read, cook, plan and list all 30 recipes at once, can download the file of the sold version, and cannot clone or otherwise export it.
 
 **Acceptance Scenarios**:
 
 1. **Given** a cookbook claim the system cannot check, **When** it is listed, **Then** the claim is removed or
    marked as the chef's statement (`018-FR-088`).
 2. **Given** a purchase, **When** it completes, **Then** the buyer can read every recipe in one act (`018-FR-089`,
-   FR-044), and no copy is written. _(amended 2026-11-03, owner ruling O15, ADR-0082)_
+   FR-044), can download the file of the sold version, and no recipe row is written. _(amended 2026-11-03, owner ruling,
+   ADR-0082 §9)_
 3. **Given** a signed-out reader, **When** they open the cookbook's page or find it in the chef directory, **Then**
    they see only its title, cover, price and the chef's description, and none of its recipes (FR-015).
 
@@ -290,6 +291,8 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   record on the domain, a meta tag in the home page, or a token from a recipe plugin the chef runs (`004-FR-053`). A
   site MUST have at most one live claim. The claim MUST be checked again on a schedule. A claim that fails MUST stop
   new bring-ins, and the chef MUST see the reason and the fix. It MUST NOT remove recipes already brought in.
+  _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ A social account is proved a different way, by FR-061. The three
+  methods here are for websites only.
 - **FR-002** `026`: A claim proves control of a site. It MUST NOT be read as proof that the chef wrote any recipe on
   it. Each recipe brought in as the chef's own MUST carry the chef's own statement, made per recipe at the moment of
   bring-in (`004-FR-014a`). A blanket statement for the whole site MUST NOT replace it (`016-FR-014`).
@@ -305,6 +308,8 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   origin page, under a live claim on that domain, MUST NOT count as a copy. Every other part of the check runs as
   usual. A hit on any other page, a model item, or a photo signal still sends the recipe to a person (ADR-0074 §2).
   Only this one hit changes. ⚠️ Counsel reviews this rule before it is built (`020-FR-012g`).
+  _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ The social twin is FR-061: an import from a post whose author id
+  matches the cook's linked account clears the hit on that post, and only that hit.
 - **FR-006** `→ 021`: Each chef MUST choose a Home: their blog or Commise. When
   Home is the blog, each recipe page with a blog origin MUST name the blog post as its canonical address. It MUST
   also show a "Read on [blog name]" link near the top. When Home is Commise, the page is canonical on Commise under
@@ -317,6 +322,8 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   be able to pull the new version, which runs the 020 check again as any edit does (`021-FR-007`).
 - **FR-009** `026`: A chef MUST be able to remove a claim at any time. Their recipes stay theirs. They can take
   everything with them through 017's export.
+  _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ The same holds for a linked social account: a cook can unlink it at
+  any time (FR-061).
 
 > _(Note 2026-11-03, owner ruling O16, ADR-0082.)_ **The claim now also serves "This is my recipe".** The owner said: "a
 > user should be able to mark that they are actually the owner of the recipe (i.e. a user importing from a web page
@@ -333,10 +340,41 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 > - **Erasure.** The claim is personal data and is deleted with the account. A decision record that cited it keeps
 >   only its opaque id, method and last check time (`016-FR-069`, `020-FR-063`). A removed claim stays in the removed
 >   state while the account exists, because cleared outcomes cite it.
-> - **OPEN: social accounts** (OQ-026-S1 below). **OPEN: the re-check interval** (OQ-026-S2 below).
+> - **Social accounts** are proved by linking the account through the platform's own sign-in (FR-061, owner ruling
+>   2026-11-03, OQ-026-S1 resolved). **OPEN: the re-check interval** (OQ-026-S2 below).
 >
 > [House rule] A claim proves control of a site, not authorship of each post (FR-002, ADR-0078 §3). Counsel review is
 > owed before launch (`016-FR-050`).
+
+- **FR-061** `026` _(added 2026-11-03, owner ruling, ADR-0082 §9)_: **A cook links a social account to prove their
+  posts are theirs.** The owner ruled out a code placed in the account's bio. The cook links the account to their
+  Commise profile through the platform's own sign-in (OAuth). The platforms are Instagram, TikTok, YouTube, Pinterest,
+  Facebook and X, where each one offers a usable identity sign-in.
+    - **What it proves.** A linked account proves ownership of the posts that account made. An import from a post whose
+      author id matches the linked account's id clears the own-post hit in 020's check (`020-FR-012g`). It is the
+      social twin of the own-site hit in FR-005 (ADR-0078 §1). Every other part of the check runs as usual. Clearing
+      needs both ids from the platform's official interface: the linked account's id and the post's author id.
+    - **OPEN per platform.** A platform with no usable OAuth identity interface is OPEN. A platform that gives no
+      author id for a post is OPEN for clearing too, even where linking works. Each is settled at build.
+    - **Least privilege.** The link asks only for the platform's minimal identity scope, chosen at build. It reads the
+      profile id and nothing else. It never posts, reads messages or reads followers.
+    - **Tokens.** Tokens MUST be stored encrypted. They MUST be used only to check the account's identity again. They
+      MUST be revoked at the platform when the cook unlinks. Whether the tokens live in Clerk's social connections or in
+      our own OAuth client is OPEN for the plan. These custody, revocation and erasure rules bind whichever one holds
+      them.
+    - **Re-check.** The link MUST be checked again on each import that relies on it, and when the platform reports the
+      token revoked. A link that fails its check clears nothing new.
+    - **Unlink.** A cook MUST be able to unlink at any time (FR-009). Unlinking stops clearing new imports at once.
+      Recipes already public stay public (ADR-0078 §2).
+    - **Later claims.** A cook can link an account after import and claim a recipe already saved (`004-FR-055`). The
+      "Save to Commise" screen offers the link too (`004-FR-054`).
+    - **Erasure.** [Law] The link and its tokens are personal data (GDPR Art. 4(1)). Account erasure MUST delete the
+      link and revoke and delete its tokens. A decision record that cited the link keeps only an opaque id, the
+      platform and the last check time (`016-FR-069`, `020-FR-063`). The privacy notice lists this data
+      (`016-FR-071`).
+    - [House rule] A link proves control of an account, not authorship of each post. A repost of someone else's work
+      passes the link, so the per-recipe statement (`004-FR-014a`) carries authorship, and takedown still applies
+      (ADR-0078 §3). Counsel review is owed before launch (`016-FR-050`).
 
 #### B. The chef corner (phase 1)
 
@@ -412,16 +450,23 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   A non-sellable recipe MUST be refused when it is added. Every recipe sold passes 020's hold (`020-FR-057`). A chef
   can also sell a single private recipe or a private collection (`012-FR-034a`). Counsel review is owed before launch
   (`016-FR-050`).
-- **FR-044** `→ 018`: A cookbook purchase MUST grant the live view of every recipe in it (`018-FR-089`, `018-FR-029a`)
-  as one act. The buyer MUST be able to read, cook, plan and list them and MUST NOT be able to clone or export them.
-  Nothing MUST offer printing. _(amended 2026-11-03, owner ruling O15, ADR-0082)_ _(Was: deliver the licensed copies and a PDF or EPUB file of the same recipes,
-  in one act, with the buyer and the chef named in the file.)_ **The PDF or EPUB file is PAUSED, not dropped.** A file is
-  an export of the chef's text, which the live-view ruling refuses (O15a). The founder rules on it (`018` FQ-018-2).
-  Until then no file ships. [House rule] Counsel review is owed before launch (`016-FR-050`).
+- **FR-044** `→ 018`: A cookbook purchase MUST grant the sold version of every recipe in it (`018-FR-089`, `018-FR-029`)
+  as one act. The buyer MUST be able to read, cook, plan and list them and MUST NOT be able to clone them. Nothing MUST
+  offer printing. _(amended 2026-11-03, owner ruling O15, ADR-0082. Amended again the same day, owner ruling, ADR-0082
+  §9.)_ _(Was, first: deliver the licensed copies and a PDF or EPUB file of the same recipes, in one act, with the buyer
+  and the chef named in the file. Then, for one round: a live view, with the file paused.)_ **The PDF or EPUB file is
+  UN-PAUSED.** The founder ruled that downloads stay (FQ-018-1 to FQ-018-3 resolved in `018`). A chef can offer a PDF
+  or EPUB with a cookbook or a recipe, and the buyer keeps the file. The file MUST hold only content the chef can sell
+  (`018-FR-026`) and only a version with an allowing 020 outcome (`020-FR-079`). Each download is an event in the
+  commerce record (`018-FR-029l`). After a takedown, every user who downloaded it gets the notice of `018-FR-029k`. A
+  subscriber to the chef reads the current version instead (`018-FR-029h`). [House rule] Counsel review is owed before
+  launch (`016-FR-050`).
 - **FR-045** `→ 018`: **A chef club** _(owner ruling Q5, 2026-10-29: "Yes, earlier", so it is in phase 2)_: a monthly price
   paid to one chef. Each new club
-  recipe is readable by each member as a live view while the membership runs, and club courses or live sessions (013) are open to
-  members. It creates no paywalled recipe and no third visibility state.
+  recipe is readable by each member while the membership runs, in its current version, and club courses or live
+  sessions (013) are open to members. It creates no paywalled recipe and no third visibility state. _(amended 2026-11-03,
+  owner ruling, ADR-0082 §9)_ A member keeps nothing after leaving. Access ends with the membership. Whether the club
+  is the creator subscription of `018-FR-029h` or a separate product is OPEN for the founder (`018` FQ-018-4).
 - **FR-046** `→ 012, 018`: Tips (`012-FR-031` to `012-FR-034`) and courses (`013-FR-001` to `013-FR-010`) are chef
   income lines, settled through 018.
 - **FR-047** `→ 018`: A chef MUST be able to add their own affiliate links to equipment and ingredients on their own
@@ -494,18 +539,25 @@ Every number below is a target with a test. None is a forecast. The evidence beh
 
 026 has no task file yet. When it gets one, these come first and each is test-first (red, then green).
 
-- **026-L01**: A cookbook purchase grants the live view of every recipe in one act, with no partial state (`FR-044`,
-  `018-L01`). Tests: unit, integration (one grant per recipe or none), Playwright and Maestro for buy, then read all.
-- **026-L02**: A cookbook buyer cannot clone or export any recipe in it (`FR-044`, `018-L02`). Tests: integration (each
-  refused route answers a refusal), deployed e2e (no export route exists).
-- **026-L03**: The cookbook listing page says how access can end and that the buyer owns no copy (`FR-043`, `018-L07`).
-  Tests: component (every state), Playwright and Maestro.
-- **026-L04**: A recipe added to or removed from a sold cookbook reaches buyers, and a removed recipe ends access to it
-  (`FR-043`, `018-FR-090`). Tests: integration (add, remove, then a buyer read).
-- **026-L05**: Chef club membership is a live grant that ends when the membership ends (`FR-045`). Tests: unit,
-  integration (a read after the membership ends is refused).
-- **026-L06**: The PDF or EPUB file stays unbuilt until the founder rules (`018` FQ-018-2). Guard test: no export route
-  exists for a cookbook.
+- **026-L01**: A cookbook purchase grants the sold version of every recipe in one act, with no partial state
+  (`FR-044`, `018-L01`). _(rewritten 2026-11-03, ADR-0082 §9, to prove the new behaviour. Was: a live view of every
+  recipe.)_ Tests: unit, integration (one grant per recipe on its sold version, or none), Playwright and Maestro for
+  buy, then read all.
+- **026-L02**: A cookbook buyer cannot clone any recipe in it, and the only export is the file of the sold version
+  (`FR-044`, `018-L02`). _(rewritten 2026-11-03, ADR-0082 §9. Was: no export at all.)_ Tests: integration (each refused
+  route answers a refusal, the download route returns the sold version only), deployed e2e.
+- **026-L03**: The cookbook listing page says what a purchase gives, what a subscription gives, and the two ways access
+  can end (`FR-043`, `018-L07`, `018-FR-029i`, `018-FR-029j`). Tests: component (every state), Playwright and Maestro.
+- **026-L04**: A recipe added to a sold cookbook reaches subscribers only, and a recipe removed from it is a creator
+  removal for that recipe (`FR-043`, `018-FR-090`, `018-FR-029i`). _(rewritten 2026-11-03, ADR-0082 §9. Was: every
+  change reaches every buyer.)_ Tests: integration (add, then a buyer who only purchased does not see it and a
+  subscriber does. Remove, then the 30-day download opens).
+- **026-L05**: Chef club membership is a live grant that ends when the membership ends, and the member keeps nothing
+  (`FR-045`). Tests: unit, integration (a read and a download after the membership ends are both refused).
+- **026-L06**: The PDF or EPUB file of a cookbook holds only sellable content, only an approved version, and records a
+  download event per download (`FR-044`, `018-FR-029l`). _(rewritten 2026-11-03, ADR-0082 §9. Was: a guard that no
+  export route exists.)_ Tests: unit (a file built from a version in review fails), integration (each download writes
+  one event with the version id), Playwright and Maestro (buy, download).
 - **026-L07** _(added 2026-11-03, owner ruling O16, ADR-0082)_: Any cook can start a claim from an import or later, by
   the three FR-001 methods only. One live claim per domain, refused for a second cook. Tests: unit (the method set is
   closed at three), integration (claim at import, then a second import from the domain needs no new proof),
@@ -517,6 +569,19 @@ Every number below is a target with a test. None is a forecast. The evidence beh
   account, and a removed claim stays in the removed state until then. Tests: integration, LOCAL e2e, and the
   erasure-coverage test lists the claim table (`020` K082-29, `016` L083-10).
 
+- **026-L10** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: Link a social account through the platform's own
+  sign-in with the minimal identity scope (`FR-061`). Tests: unit (the requested scope set is the minimal identity
+  scope and nothing more), integration (a link stores the profile id and an encrypted token only), Playwright and
+  Maestro for link.
+- **026-L11** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: An import from a post whose author id matches the linked
+  account clears the own-post hit, and nothing else (`FR-061`, `020-FR-012g`). Tests: unit (matching id clears, a
+  different author id does not, a missing author id does not), integration (the link is checked again on each import).
+- **026-L12** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: Unlink and token revocation (`FR-061`, `FR-009`). Tests:
+  integration (unlink revokes the token at the platform and the next import from that account is not cleared, a
+  recipe already public stays public), integration (a platform revocation event stops clearing at once).
+- **026-L13** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: Erasure deletes the link and its tokens (`FR-061`). Tests:
+  integration (after erasure no link row or token remains, and a decision record keeps only the opaque id, the
+  platform and the last check time), erasure-coverage test lists the link table.
 Counsel review is owed before launch (`016-FR-050`).
 
 ## Owner questions
@@ -524,18 +589,19 @@ Counsel review is owed before launch (`016-FR-050`).
 All nine were answered on 2026-10-29. The answers are in Clarifications, and the trade-offs that were weighed are in
 [`incomeModel.md`](./incomeModel.md) §6.
 
-_(Added 2026-11-03, owner ruling O16, ADR-0082.)_ Two items are OPEN:
+_(Added 2026-11-03, owner ruling O16, ADR-0082.)_ Two items were OPEN. One is now resolved:
 
-- **OQ-026-S1. Proof for a social account.** 026 has no way to prove a cook controls an Instagram, TikTok or YouTube
-  account. Until one exists, no claim clears a social owner import. A hit on its own post goes to a person
-  (`020-FR-012g`). A candidate: a code placed in the account's bio or in a post, checked through the platform's
-  official API under its terms (`004-FR-009`). Not decided.
+- **OQ-026-S1. Proof for a social account.** RESOLVED 2026-11-03, owner ruling: the cook links the account through
+  the platform's own sign-in (OAuth), FR-061. The earlier candidate, a code placed in the account's bio or in a post, is
+  replaced and is not used. Still OPEN: which platforms offer a usable identity sign-in and a post author id. Each is
+  settled at build.
 - **OQ-026-S2. The re-check interval.** FR-001 says a claim is checked again on a schedule, and sets no interval.
   ADR-0078 names a domain that changes hands as a residual risk for the length of that interval. Not decided.
 
-_(Added 2026-11-03, owner ruling O15, ADR-0082.)_ Two questions are open for the founder and live in 018: whether a cookbook
-still comes with a PDF or EPUB file (`018` FQ-018-2), and whether a chef club member keeps anything after leaving
-(`018` FQ-018-3).
+_(Added 2026-11-03, owner ruling O15, ADR-0082. Amended the same day, ADR-0082 §9.)_ Both questions that lived in 018 are
+answered. A cookbook still comes with a PDF or EPUB file (`018` FQ-018-2), and a chef club member keeps nothing after
+leaving (`018` FQ-018-3). One is still OPEN for the founder: whether the chef club is the creator subscription
+(`018` FQ-018-4).
 
 ## Assumptions
 

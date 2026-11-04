@@ -53,7 +53,7 @@ blog's RPM for the same readers before phase 3 makes sense. SC-004 tests exactly
 | Line                         | Benchmark from the research                                                                                                         | Proposed for Commise                                                               | Status                                      |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
 | **Pro pool** (pay for cooks) | YouTube gives creators 55% of watch-page ad revenue and 45% of the Shorts pool [P]. Medium pays by member reading time, formula GAP | A stated share of Pro revenue, split by Pro members' cooks, per member first (Q4)  | Deferred to the royalties work (Q4)         |
-| **Digital cookbook**         | KDP ebook royalty 70% (after VAT and delivery) or 35% [P]. Gumroad keeps 10% + $0.50 [P]. Print royalty 10% to 15% [S]              | 018's sellable collection, a live view (amended 2026-11-03, ADR-0082), PDF or EPUB paused (026-FR-043, FR-044) | Phase 2. The cut is set with royalties (Q6) |
+| **Digital cookbook**         | KDP ebook royalty 70% (after VAT and delivery) or 35% [P]. Gumroad keeps 10% + $0.50 [P]. Print royalty 10% to 15% [S]              | 018's sellable collection, purchased as the sold version with a PDF or EPUB to keep (amended 2026-11-03, ADR-0082 §9, 026-FR-043, FR-044) | Phase 2. The cut is set with royalties (Q6) |
 | **Single recipe**            | No benchmark found                                                                                                                  | Allowed by 018-FR-029. The weaker unit                                             | Phase 2                                     |
 | **Chef club** (monthly)      | Substack keeps 10% [P, via search summary], Patreon 10%, Beehiiv and Ghost 0% before card fees [P]                                  | New recipes arrive as copies each month, plus member courses (Q5)                  | Phase 2 (owner ruling Q5)                   |
 | **Courses**                  | Teachable 0% to 7.5% plus plan fee, Kajabi 0% plus plan fee and 2.7% to 2.9% processing [P]                                         | 013. Its 20%/80% split is open as C-018-004                                        | Phase 2                                     |
@@ -170,6 +170,9 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
   creators know.
 - 012 retired paid follows. A club is not a paid follow, because it delivers copies and creates no paywalled recipe,
   but it sits close. A recipe in the club cannot also be public (`018-FR-029c`).
+- _(Note 2026-11-03, owner ruling, ADR-0082 §9.)_ The copies above are replaced. A member reads the club's current
+  recipes while the membership runs and keeps nothing after leaving (`026-FR-045`). Whether the club is 018's creator
+  subscription is OPEN (`018` FQ-018-4).
 - **Recommendation: yes, in phase 3, after cookbooks prove that people pay a chef here.**
 - **Owner ruling, 2026-10-29:** "Yes, earlier". The club is in phase 2, beside digital cookbooks.
 

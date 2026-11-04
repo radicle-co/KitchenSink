@@ -927,8 +927,9 @@ predicted Commise result.
       (`018-FR-029`, `018-FR-029a`). A buyer can also subscribe to a creator for the live view of the current versions
       (`018-FR-029h`). 018 settles the refunds for creator sales: a creator removal gives a 30-day download and no refund
       (`018-FR-029i`), and a takedown gives a full refund recovered from the seller (`018-FR-029j`). Public recipes involve
-      no payment, so there is no refund. 010 settles no creator refund and no pro-rating. So whether a creator
-      subscription's current period is pro-rated on creator removal is OPEN (`018` FQ-018-5). 010's own subscription
+      no payment, so there is no refund. 010 settles no creator refund and no pro-rating. 018 settles pro-rating
+      (owner ruling 2026-11-03, `018` FQ-018-5): removing one item does not pro-rate, and removing everything or closing
+      the account refunds the current period pro-rated. 010's own subscription
       refund terms (`FR-041i` prorated refund on upgrade) do not cover a creator sale or a creator subscription. The buyer
       and seller terms for removed downloads, the clawback and the indemnity live in `018-FR-029m` and `016-FR-070`, not
       here. _(Was: a buyer gets a live view and no copy, and the refund is FQ-018-1.)_

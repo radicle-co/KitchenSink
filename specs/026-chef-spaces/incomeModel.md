@@ -168,11 +168,12 @@ blog post, and `020-FR-012g` sends that hit to a person. The site claim in secti
 
 - Members get each new recipe as a private copy and member courses. It is the Substack and Patreon shape, which
   creators know.
-- 012 retired paid follows. A club is not a paid follow, because it delivers copies and creates no paywalled recipe,
-  but it sits close. A recipe in the club cannot also be public (`018-FR-029c`).
-- _(Note 2026-11-03, owner ruling, ADR-0082 §9.)_ The copies above are replaced. A member reads the club's current
-  recipes while the membership runs and keeps nothing after leaving (`026-FR-045`). Whether the club is 018's creator
-  subscription is OPEN (`018` FQ-018-4).
+- 012 retired paid follows. A club is not a paid follow, because it creates no paywalled recipe, but it sits close. A
+  recipe in the club cannot also be public (`018-FR-029c`). _(amended 2026-11-03, owner rulings, ADR-0082 §9. Was: "it
+  delivers copies". The club delivers no copies.)_
+- _(Owner ruling 2026-11-03, `018` FQ-018-4.)_ The club IS 018's creator subscription, one product. A member reads the
+  chef's current recipes while the membership runs, covering everything the chef sells, and keeps nothing after
+  leaving (`026-FR-045`).
 - **Recommendation: yes, in phase 3, after cookbooks prove that people pay a chef here.**
 - **Owner ruling, 2026-10-29:** "Yes, earlier". The club is in phase 2, beside digital cookbooks.
 

@@ -231,8 +231,9 @@ retired IDs below.
   products by these names. **Purchase** gives the sold version, to read in the app and to download and keep
   (`018-FR-029`, `018-FR-029a`). **Subscribe** gives the live view of the creator's current versions while the
   subscription runs, and nothing after it ends (`018-FR-029h`). Each button MUST say what it gives, before payment
-  (`018-FR-046`). The copy goes through the localization path. 012 holds no billing logic (FR-034a). What a
-  subscription covers is OPEN for the founder (`018` FQ-018-4). [House rule] A subscription is an access grant on
+  (`018-FR-046`). The copy goes through the localization path. 012 holds no billing logic (FR-034a). A
+  subscription covers everything the creator sells while it is active, and the chef club is this subscription (owner
+  ruling 2026-11-03, `018` FQ-018-4). [House rule] A subscription is an access grant on
   private items for sale. It is not the paid follow tier that FR-038 retired, because following stays free and no
   public recipe is withheld. Counsel review is owed before launch (`016-FR-050`).
 - _(Note 2026-11-03, owner ruling, ADR-0082 §9.)_ A profile can show the creator's linked social accounts. Linking

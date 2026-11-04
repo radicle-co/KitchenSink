@@ -206,21 +206,26 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
   current versions while it runs, and the subscriber keeps nothing after it ends. Neither writes a recipe, a clone or a
   paid visibility state. An edit re-runs the 020 hold, and subscribers see the last approved version meanwhile. A buyer
   can read, cook, plan and add to a grocery list, and keep their own private notes. Clone, publish, resale, share and
-  every other export are refused. What a subscription covers, and whether `026`'s chef club is that subscription, are
-  founder questions (FQ-018-4). [Law] The EU and UK digital-content rules (Directive 2019/770, UK Consumer Rights Act
+  every other export are refused. A subscription covers everything the creator sells while it is active, and `026`'s
+  chef club IS this subscription, one product (owner ruling 2026-11-03, FQ-018-4). [Law] The EU and UK digital-content rules (Directive 2019/770, UK Consumer Rights Act
   2015 Part 1 Chapter 3) apply once we list in those stores (`025`). A buyer's erasure keeps the sale record
   de-identified (GDPR Art. 17(3)(b)), and the creator sees aggregate sales only.
 - **Creator removal gives a 30-day download and no refund** (owner ruling 2026-11-03, `018-FR-029i`). When a creator
   takes a recipe down, stops selling it, or erases their account, the subscription ends. Every buyer and subscriber can
   download the last approved version for 30 days, and gets an email with the link. The download works after the
   creator's account is gone. [Law] Keeping only the files buyers are owed, for 30 days, rests on legitimate interest
-  (GDPR Art. 6(1)(f)). Whether a subscriber's current period is pro-rated is a founder question (FQ-018-5).
+  (GDPR Art. 6(1)(f)). Removing one item does not pro-rate a subscription. Removing everything, or closing or erasing the
+  account, ends every subscription and refunds the unused part of the current period, pro-rated (owner ruling
+  2026-11-03, FQ-018-5).
 - **A takedown gives a full refund and no download** (owner ruling 2026-11-03, `018-FR-029j`). When content is taken
   down for infringement or found illegal, every buyer gets a full refund. Commise pays first and claws the amount back
   from the seller's balance or payouts. When that fails, Commise refunds from its own funds and pursues the seller. The
   seller terms grant the clawback and an indemnity. [Law] No download is offered. A host that keeps distributing
   content after notice that it infringes loses the safe harbor (17 U.S.C. §512(c)(1)(A)(iii) and (C)). A takedown
-  closes an open 30-day window at once. Whether those buyers also get the refund is a founder question (FQ-018-6).
+  closes an open 30-day window at once, and those buyers get the full refund like any buyer (owner ruling 2026-11-03,
+  FQ-018-6). A subscriber gets a pro-rated refund of the current period for the removed item's share. When that share
+  cannot be computed, the subscriber gets a full refund of the current month. Both are clawed back from the seller under
+  the same rule (owner ruling 2026-11-03, FQ-018-7).
 - **Past downloaders are told** (owner ruling 2026-11-03, `018-FR-029k`). When content is taken down for legal
   reasons, everyone who downloaded it gets a notification and an email. It says the content was removed for legal
   reasons, says why in plain words, and asks them to delete their copies. It states what happened, not a judgement.

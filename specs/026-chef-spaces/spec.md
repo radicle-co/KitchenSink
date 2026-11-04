@@ -465,8 +465,9 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
   paid to one chef. Each new club
   recipe is readable by each member while the membership runs, in its current version, and club courses or live
   sessions (013) are open to members. It creates no paywalled recipe and no third visibility state. _(amended 2026-11-03,
-  owner ruling, ADR-0082 §9)_ A member keeps nothing after leaving. Access ends with the membership. Whether the club
-  is the creator subscription of `018-FR-029h` or a separate product is OPEN for the founder (`018` FQ-018-4).
+  owner ruling, ADR-0082 §9)_ A member keeps nothing after leaving. Access ends with the membership. _(amended again
+  2026-11-03, owner ruling, `018` FQ-018-4)_ The club IS the creator subscription of `018-FR-029h`, one product. It
+  covers everything the chef sells while it is active. Its refunds follow `018-FR-029i` and `018-FR-029j`.
 - **FR-046** `→ 012, 018`: Tips (`012-FR-031` to `012-FR-034`) and courses (`013-FR-001` to `013-FR-010`) are chef
   income lines, settled through 018.
 - **FR-047** `→ 018`: A chef MUST be able to add their own affiliate links to equipment and ingredients on their own
@@ -552,8 +553,11 @@ Every number below is a target with a test. None is a forecast. The evidence beh
   removal for that recipe (`FR-043`, `018-FR-090`, `018-FR-029i`). _(rewritten 2026-11-03, ADR-0082 §9. Was: every
   change reaches every buyer.)_ Tests: integration (add, then a buyer who only purchased does not see it and a
   subscriber does. Remove, then the 30-day download opens).
-- **026-L05**: Chef club membership is a live grant that ends when the membership ends, and the member keeps nothing
-  (`FR-045`). Tests: unit, integration (a read and a download after the membership ends are both refused).
+- **026-L05**: Chef club membership is the creator subscription grant of `018-FR-029h`. It covers everything the chef
+  sells while active, ends when the membership ends, and the member keeps nothing (`FR-045`, `018-L25`). _(rewritten
+  2026-11-03, owner ruling FQ-018-4, to prove one product. Was: a separate live grant.)_ Tests: unit (a club membership
+  is the subscription grant type), integration (a member reads a newly listed item, and a read and a download after the
+  membership ends are both refused).
 - **026-L06**: The PDF or EPUB file of a cookbook holds only sellable content, only an approved version, and records a
   download event per download (`FR-044`, `018-FR-029l`). _(rewritten 2026-11-03, ADR-0082 §9. Was: a guard that no
   export route exists.)_ Tests: unit (a file built from a version in review fails), integration (each download writes
@@ -600,8 +604,8 @@ _(Added 2026-11-03, owner ruling O16, ADR-0082.)_ Two items were OPEN. One is no
 
 _(Added 2026-11-03, owner ruling O15, ADR-0082. Amended the same day, ADR-0082 §9.)_ Both questions that lived in 018 are
 answered. A cookbook still comes with a PDF or EPUB file (`018` FQ-018-2), and a chef club member keeps nothing after
-leaving (`018` FQ-018-3). One is still OPEN for the founder: whether the chef club is the creator subscription
-(`018` FQ-018-4).
+leaving (`018` FQ-018-3). The last one is now answered too (owner ruling 2026-11-03, `018` FQ-018-4): the chef club IS the creator
+subscription, one product, covering everything the chef sells while it is active.
 
 ## Assumptions
 

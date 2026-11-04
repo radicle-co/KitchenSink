@@ -111,6 +111,8 @@ The owner's rulings set what happens next:
   a recipe nobody else can see costs money and sends the cook's content out for no gain. Two exceptions: every
   bulk-imported recipe, public or private, is checked (owner ruling, 2026-10-26, FR-003b), and a private recipe a cook
   elects to donate when they erase their account is checked, because donation makes it public (FR-018a).
+  _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ A private bulk-imported recipe is now usable at once. It waits for
+  review only when the cook makes it public or lists it for sale (FR-003b).
 - **It does not take content down after a notice.** That stays with 016's human notice process.
 - **It cannot catch a copy with no markers.** A cookbook recipe typed out by hand, with no ISBN, publisher or page
   number, usually looks like any other recipe. We say so, measure it (SC-003) and do not claim otherwise. The web
@@ -127,7 +129,7 @@ The owner's rulings set what happens next:
 | **Outcome**          | The result for one recipe and one version of its checked content: `clear`, `possible`, `detected` or `unchecked`. It depends on the evidence and on the recipe's label and citation                                                                                                                                       |
 | **Publication hold** | The fact that a recipe cannot be publicly visible now, because of its outcome. It is separate from the label, and a person can lift it. The cook sees it as "Checking" or "In review"                                                                                                                                     |
 | **Checking**         | The short state after a publish, before the outcome is revealed. Visible only to the cook                                                                                                                                                                                                                                 |
-| **In review**        | A recipe that waits for a person: one the cook wants public, or any bulk import. Owner-only and neither public nor private. A public one uses no slot; a private one holds its slot until a person checks it (FR-014a)                                                                                                    |
+| **In review**        | A recipe that waits for a person: one the cook wants public, or any bulk import. Owner-only and neither public nor private. A public one uses no slot. A private one holds its slot until a person checks it (FR-014a). _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ A private bulk import no longer waits in review. It is usable at once (FR-003b) |
 | **Not approved**     | A recipe the rules blocked, or that a person did not approve. It becomes the cook's private recipe and is never published with that content (FR-014a)                                                                                                                                                                     |
 | **Referral**         | A recipe sent to a person to decide: automatically for `possible` and `unchecked`, or by the cook's appeal                                                                                                                                                                                                                |
 | **Appeal**           | The cook asking a person to decide on a hold                                                                                                                                                                                                                                                                              |
@@ -182,6 +184,11 @@ slot until a person checks it, and the screen says so. Their private slots run s
 pauses. They choose to make the rest public: one list of the remaining recipes with their sources, two unticked, and
 one confirmation that records a statement for each.
 
+_(amended 2026-11-03, owner ruling, ADR-0082 §9)_ The private half of this story changed. A private bulk-imported
+recipe is usable at once, uses its slot like any private recipe, and does not wait in review. Only the items the cook
+chose public, or later makes public or lists for sale, wait for a person. Scenarios 3 and 4 below read with that
+change (FR-003b).
+
 **Why this priority**: The owner named this case. Bulk import is where the volume is, and the owner ruled that every
 imported recipe, public or private, is checked and sits in review until it is approved.
 
@@ -198,11 +205,13 @@ in review use no slot; private ones hold theirs. The import pauses before privat
    keep it private (needing a free slot), skip it or stop the import.
 3. **Given** an item that is not `detected`, **When** it is saved, **Then** it is saved published with the chosen
    visibility, shows "Checking" to the cook, and goes straight to that visibility if every part is green, or to "In
-   review" otherwise. This holds for private items too (FR-003b, FR-024a).
+   review" otherwise. This holds for private items too (FR-003b, FR-024a). _(amended 2026-11-03, owner ruling,
+   ADR-0082 §9)_ A private item is now saved private and usable at once. It shows no "In review" state (FR-003b).
 4. **Given** a recipe in review from an import, **When** the cook looks at their library, **Then** it is labelled "In
    review" and cannot be added to a collection, a meal plan, a shopping list, cooking mode or the AI assistant
    (`001-FR-003b`). If it is public it uses no slot. If it is private it holds a slot, and the screen says it "holds a
-   slot until a person checks it".
+   slot until a person checks it". _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ Only a public item reaches this
+   state now. A private item is usable at once (FR-003b).
 5. **Given** a free cook whose private items left would exceed their free slots, counting the private recipes they
    already hold in review, **When** the import reaches the next private item, **Then** it pauses. The cook can stop
    there, or make the rest public: one list of the remaining recipes with their sources, which they may untick, and one
@@ -701,6 +710,21 @@ records the decision.
 - **What is not decided here.** Reverse image search of the cook's own photos, which the research also suggested, is
   not part of these rulings.
 
+### Session 2026-11-03 (owner rulings: private bulk import, rewording, social proof, purchase and download)
+
+The founder answered the open questions the same day (ADR-0082 §9). Each changes a rule above, so the earlier rounds
+are kept as the record and read with these changes.
+
+- **A private bulk-imported recipe is usable at once.** Only going public or on sale waits for review (FR-003b). This
+  replaces the private half of the seventh and eighth rounds above. A private bulk import holds its slot like any
+  private recipe, with no draft restrictions. It settles Q-3.
+- **A step from an accepted rewording makes the recipe "Adapted by you"** (FR-077). It settles Q-1.
+- **Rewording a flagged recipe before any takedown is not a strike.** An upheld takedown is (FR-075, `016-FR-062`).
+- **Social ownership proof is a linked account, through the platform's own sign-in (OAuth)**, never a code in a bio
+  (FR-012g, `026-FR-061`).
+- **A purchase gives the sold version and a file to keep. A subscription gives the live view.** Every file passes the
+  hold, and a takedown closes every download door (FR-057, FR-079, `018-FR-029` to `018-FR-029k`).
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -744,6 +768,13 @@ records the decision.
     - Until it is approved it is visible only to the cook and has the same restrictions as a draft (`001-FR-003b`). A
       public one uses no slot. A private one holds its slot from the save until a person checks it, and the screens
       say so (owner ruling, 2026-10-26).
+    - _(amended 2026-11-03, owner ruling, ADR-0082 §9. This replaces the private half of the rule above. Was: a
+      private bulk import waits in review and holds its slot until a person checks it.)_ [House rule] A private
+      bulk-imported recipe is usable at once. It is saved private and published, it uses its slot like any private
+      recipe (ADR-0073), and it has no draft restrictions. It does not wait in review. Only going public or on sale
+      waits for review. When the cook later makes it public or lists it for sale, that door is checked like any other
+      (FR-001, FR-057), and a flag holds it from public or sale until it is resolved. This settles Q-3. ADR-0074 §3a's
+      text is not edited. This spec carries the change. Counsel review is owed before launch (`016-FR-050`).
     - It stays subject to review until its content is first approved: switching its visibility while it is in review
       does not end review, and a trip through Draft does not either. Its next publish is checked again, private or
       public. After its content is approved, it follows the editor's rules like any other recipe.
@@ -937,8 +968,9 @@ records the decision.
     - **A live claim clears only the own-origin hit.** The cleared hit is on the page this recipe was imported from, on
       a domain where the cook holds a live claim (ADR-0078 §1). A hit on another page of the same site, a web-search
       hit, a model item and a photo signal still go to a person. So a pasted recipe, which has no fetched page, is never
-      cleared by a claim. A social import is never cleared either, because 026 has no proof for a social account yet
-      (`026` OQ-026-S1).
+      cleared by a claim. A social import is cleared only through a linked social account, below. _(amended
+      2026-11-03, owner ruling, ADR-0082 §9. Was: a social import is never cleared, because 026 had no proof for a
+      social account yet, `026` OQ-026-S1.)_
     - **The claim persists per site, and is read as it stands.** One live claim covers every later import from that
       domain while it stays live. The check reads the claim each time it runs. Nothing on the recipe stores that it is
       "verified". The outcome records the claim that cleared the hit, by the claim's opaque id.
@@ -948,12 +980,38 @@ records the decision.
       changes hands is ADR-0078's residual risk, and takedown is the control (`016-FR-016`).
     - **Verified later.** A cook can verify after import. A recipe checked after that reads the live claim. The cook can
       also verify while a recipe already waits for a person. Then the person decides, and sees the claim as evidence. That
-      default is OPEN for the founder, because the ruling does not say.
+      default is OPEN for the founder, because the ruling does not say. _(amended 2026-11-03, owner ruling, ADR-0082
+      §9)_ A cook can claim ownership later, on a recipe already saved (`004-FR-055`). The next check of that recipe
+      reads the claim or the linked account as it stands then. Whether a person who already holds the recipe decides
+      alone, with the claim as evidence, stays OPEN.
     - **Erasure.** [Law] The claim is personal data (GDPR Art. 4(1)). It is deleted with the account (`026` key entity
       "Site claim", `016-FR-069`). [House rule] An outcome that cited it keeps only the claim's opaque id, its method
       and the time it was last checked. It drops the claim's domain, because a personal blog's domain can name a person
       (FR-063). The data model owes the outcome field that names the claim (ADR-0078). Records keyed on a page or host
       (`recipe_source_keys`, `content_source_decisions`) are about the source, not the claim, and keep their own rules.
+    - Counsel review is owed before launch (`016-FR-050`).
+
+    _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ **A linked social account clears the own-post hit.** The proof
+    for a social account is the platform's own sign-in (OAuth), never a code placed in a bio or a post (`026-FR-061`).
+    It is the social twin of ADR-0078's own-origin hit:
+
+    - **What clears.** An import from a post whose author id, read from the platform's official API, matches the
+      account the cook linked clears the own-post copy match. Only that one hit changes. A web-search hit, a hit on any
+      other post or page, a model item and a photo signal still go to a person (ADR-0074 §2). The outcome records the
+      linked account that cleared the hit, by its opaque id.
+    - **What does not clear.** A post whose author id does not match the linked account, a post with no author id from
+      the official API, or a cook with no linked account is checked as usual. A bare statement never clears it.
+    - **Re-checked, never stored as verified.** The check re-reads the link on each import and each check. When the
+      platform reports a token as revoked, the link stops clearing new hits at once until the cook links again.
+    - **Unlinking.** It stops clearing new imports. Recipes already public stay public, and a recipe the link already
+      cleared is not reopened (ADR-0078 §2).
+    - **Per platform.** A platform with no usable OAuth identity API, or no official way to read a post's author id, is
+      OPEN. Its imports are checked as usual until it is settled (`026-FR-061`).
+    - **The same tension.** [Law] A linked account proves control of an account, not authorship of each post. A
+      reposted or shared recipe on the cook's own account can pass. The per-recipe statement, the label and takedown
+      remain the controls (`016-FR-015j`).
+    - **Erasure.** The link and its tokens are deleted with the account (`016-FR-069`). An outcome that cited it keeps
+      only the link's opaque id, its platform and the last check time (FR-063).
     - Counsel review is owed before launch (`016-FR-050`).
 - **FR-012h**: **A copy of a private source cannot be detected.** A family card, a friend's email or a book that is not
   online has no page to find. For those, the controls are the cook's statement, the rights label and takedown
@@ -1537,9 +1595,12 @@ this section.
       collection for sale (`012-FR-034a`, `018-FR-026`). Selling is distribution (17 U.S.C. §106(3)), so a sold recipe
       MUST pass this same hold before it is listed and before any buyer reads it, and a listed recipe that becomes held
       MUST be delisted. _(amended 2026-11-03, owner ruling O15b, ADR-0082. Was: before it is delivered.)_ A buyer gets a
-      live view of the recipe (`018-FR-029a`) and no copy, so there is no delivery step. The buyer's read goes through
-      the read rule like any other read. An edit to a sold recipe changes the digest, and buyers see the last approved
-      version until the new digest has an allowing outcome (FR-064, `018-FR-029d`). Only a recipe with an allowing outcome on its current digest can be sold, and only a sellable
+      live view of the recipe (`018-FR-029a`) and no copy, so there is no delivery step. _(amended again 2026-11-03,
+      owner ruling, ADR-0082 §9. A buyer who purchases gets the sold version and a file of it to keep. A subscriber
+      gets the live view, `018-FR-029`, `018-FR-029h`. The file is a delivery step, and FR-079 gates it.)_ The buyer's
+      in-app read goes through the read rule like any other read. An edit to a sold recipe changes the digest, and
+      subscribers see the last approved version until the new digest has an allowing outcome (FR-064,
+      `018-FR-029d`). Only a recipe with an allowing outcome on its current digest can be sold, and only a sellable
       label can be sold at all (O14d). [House rule] Counsel review is owed before launch (`016-FR-050`).
     - A door that is missing from FR-001's list leaves the recipe held. A sweep MUST find every recipe whose current
       digest has no outcome and request its check (FR-022's sweep).
@@ -1549,7 +1610,9 @@ this section.
       already meets this rule. _(amended 2026-11-03, owner ruling O15, ADR-0082. Was: the main case is a 018 or 026 sale
       that delivers a licensed copy.)_ A sale now writes no copy, so it is no longer a case of this bullet. If any
       route ever writes a bought recipe into a buyer's account, it falls under this bullet and under the refusal in
-      `018-FR-029a`. Counsel review is owed before launch (`016-FR-050`).
+      `018-FR-029a`. _(amended again 2026-11-03, ADR-0082 §9)_ A purchase still writes no recipe row. Its file leaves
+      Commise, so it is gated at the download door instead (FR-079). Counsel review is owed before launch
+      (`016-FR-050`).
     - [House rule] This is the airtight property. A new door can be slow. It can never be open.
 - **FR-058**: **The digest always matches the content.** Database triggers MUST keep `checked_content_digest`
   (data-model §0) from going stale:
@@ -1734,10 +1797,25 @@ this section.
     - It holds a row only for a door whose gate exists on that stage.
     - A positive control: a household member can read the shared private copy, and a non-member cannot.
     - The suite scopes its test data and cleans it up.
+- **FR-079** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: **The download doors.** A file leaves Commise, so the
+  read rule cannot follow it. Each download is therefore a door of its own, gated at the moment the file is made:
+    - The doors are the purchase file of the sold version (`018-FR-029a`), the 30-day file after a creator removal
+      (`018-FR-029i`), and a cookbook PDF or EPUB (`026-FR-044`).
+    - A file MUST hold only a version whose digest has an allowing outcome (FR-064). A version that is checking, in
+      review or not approved MUST NOT be put in a file. For the 30-day file that is the last approved version.
+    - A file MUST hold only a sellable label (`018-FR-026`, O14d).
+    - A takedown (`016-FR-060`) MUST close every download door for that content at once. The route refuses, also inside
+      an open 30-day window. [Law] A host that keeps distributing content after notice that it infringes loses the safe
+      harbor (17 U.S.C. §512(c)(1)(A)(iii), §512(c)(1)(C)).
+    - A missing or unknown input reads as closed, as for every door in this section.
+    - Each served file is a download event in 018's commerce record (`018-FR-029l`), with its version id, so the
+      notice to past downloaders can find every holder (`018-FR-029k`).
+    - The deployed bypass suite (FR-074) holds one row per download door.
+    - [House rule] Counsel review is owed before launch (`016-FR-050`).
 
 #### L. Next batch: the copy check at import, with suggested rewording (FINAL, owner ruling 2026-11-03)
 
-FINAL, owner ruling 2026-11-03. The founder confirmed this design as final _(amended 2026-11-03, owner ruling, ADR-0082)_. Only Q-1 and Q-3 below stay open.
+FINAL, owner ruling 2026-11-03. The founder confirmed this design as final _(amended 2026-11-03, owner ruling, ADR-0082)_. Q-1 and Q-3 below were settled on 2026-11-03 (owner rulings, ADR-0082 §9).
 The check uses AI, and it searches the wider internet as well as the source the cook named. The founder's words: "The review process was already planned to use AI and to search not just the provided source but search the internet." How the internet search works, and the AI and search cost and budget, are OPEN (owner ruling 2026-11-03): decided when feature 020 starts.
 Counsel review is owed before launch (`016-FR-050`).
 
@@ -1759,9 +1837,12 @@ Counsel review is owed before launch (`016-FR-050`).
       live claim, the step is flagged as usual. The cook sees the offer to verify the site beside the flag
       (`004-FR-014a`). A suggestion to reword the cook's own text is still shown, and the cook can dispute it.
       [House rule] Counsel review is owed before launch (`016-FR-050`).
-    - **Conflict to settle.** FR-003b and ADR-0074 hold a bulk-imported PRIVATE recipe in review until a person checks
-      it. The proposal says private is never blocked. This section reads "never blocked" as "the cook can always use a
-      private recipe". It does not change FR-003b. The founder still owes Q-3.
+    - **Settled (owner ruling 2026-11-03, ADR-0082 §9).** Private is never blocked. A private bulk-imported recipe is
+      usable at once, and only going public or on sale waits for review (FR-003b as amended). _(Was: a conflict with
+      FR-003b, which held a private bulk import in review, left for the founder as Q-3.)_
+    - _(added 2026-11-03, owner ruling, ADR-0082 §9)_ [House rule] Rewording a flagged step before any takedown is not
+      a strike. Accepting, editing or disputing a suggestion records no strike. Only an upheld takedown is a strike
+      (`016-FR-062`).
     - [Law] This check lowers the chance of a copy going public. It is not a legal shield (17 U.S.C. §512 safe harbour
       still depends on notice and takedown, `016-FR-058` to `016-FR-061`).
     - Counsel review is owed before launch (`016-FR-050`).
@@ -1780,10 +1861,14 @@ Counsel review is owed before launch (`016-FR-050`).
   [Law, US] Text a model wrote is not the cook's authorship (US Copyright Office, _Copyright and Artificial
   Intelligence, Part 2_, Jan 2025). `016-FR-015i` already says a method rewritten by an AI feature is not the cook's own
   words and MUST NOT make a recipe "Written by you".
-    - Until the founder rules (Q-1 below), a step that holds an accepted suggestion MUST NOT count toward "Written by
-      you". The recipe is labelled "Adapted by you" with the cook's own edits, or it stays at the label it had.
-    - A step the cook edited after accepting counts as the cook's only if the edit is more than a trivial change. The
-      test for "more than trivial" is also open (Q-1).
+    - _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: a holding rule until the founder ruled on Q-1, with an
+      open test for an edit that is "more than trivial".)_ A recipe that holds any step from an accepted suggestion is
+      labelled "Adapted by you". The label is the recipe's one derived label (`016-FR-015c`, `016-FR-015d`). No step
+      carries a label of its own. AI text is never the cook's own words, so the recipe can never be "Written by you"
+      while it holds that step (`016-FR-015i`). The cook's acceptance of a fresh restatement of their own method makes
+      it "Adapted by you", which stays eligible to be public and to be sold (`018-FR-026`). It is not eligible for CC BY
+      4.0, which needs "Written by you" (`021-FR-040a`). An edit by the cook does not restore "Written by you". Where
+      the method came from a named source, the adapted credit still applies. This settles Q-1.
     - Counsel review is owed before launch (`016-FR-050`).
 - **FR-078** _(FINAL, owner ruling 2026-11-03)_: **The suggestion call, its cost and its budget.** _(amended 2026-11-03, owner ruling, ADR-0082)_
   [House rule] The suggestion call MUST have an explicit `maxTokens` and a hard input cap. Its cost, its budget, whether it
@@ -1791,14 +1876,17 @@ Counsel review is owed before launch (`016-FR-050`).
   suggestion is shown (FR-076), the recipe waits for a person, and the cook can still edit by hand (fail closed).
     - Counsel review is owed before launch (`016-FR-050`).
 
-**Founder questions (Q-1 and Q-3 still open).**
+**Founder questions (Q-1 and Q-3 settled 2026-11-03, owner rulings, ADR-0082 §9).**
 
 - **Q-1 (D-c).** Does an accepted suggestion keep the recipe out of "Written by you" for that step (FR-077)? Options:
   (a) yes, "Adapted by you" for any step with an accepted suggestion. (b) yes, but an edit past a set size restores
   "Written by you". (c) no, the cook's act of accepting makes it theirs. Option (c) conflicts with `016-FR-015i`.
+  SETTLED 2026-11-03, owner ruling: option (a). The recipe is labelled "Adapted by you" (FR-077).
 - **Q-2 (D-f).** Now part of the OPEN cost and budget item (owner ruling 2026-11-03): the monthly amount for AI and
   search, and whether it shares the $100 pool (ADR-0024) or has its own ceiling, are decided when feature 020 starts.
-- **Q-3.** Does "private is never blocked" mean private bulk-import recipes skip review (FR-003b)?
+- **Q-3.** Does "private is never blocked" mean private bulk-import recipes skip review (FR-003b)? SETTLED
+  2026-11-03, owner ruling: yes. A private bulk-imported recipe is usable at once. Only going public or on sale waits
+  for review (FR-003b as amended).
 
 ### Non-Functional Requirements _(constitution-derived)_
 

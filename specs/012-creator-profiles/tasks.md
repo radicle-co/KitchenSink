@@ -292,7 +292,7 @@ and receipt validation had **no task** in this file, while `plan.md` L85-96 stat
 - [ ] **T-073** [US-002] The creator's confirm step says buyers lose access, on unpublish from sale, delete and account erasure — web and mobile screens, `packages/services/creator-profiles-service/src/` _(added 2026-11-03, owner ruling O15d, ADR-0082)_
     - **Depends on**: T-070, `018-L06`
     - **Implements**: FR-034a, `018-FR-029e`
-    - **Acceptance**: Before a creator unpublishes a sold recipe or collection from sale, deletes it, or erases their account, the screen says how many buyers lose access and that the refund question is handled by 018 (`018-FR-029e`). The creator can cancel. Every state has copy and a localisation key. Counsel review is owed before launch (`016-FR-050`).
+    - **Acceptance**: Before a creator unpublishes a sold recipe or collection from sale, deletes it, or erases their account, the screen says how many buyers and subscribers lose in-app access, that each gets a 30-day download of the last approved version and an email, and that no refund is given (`018-FR-029e`, `018-FR-029i`). _(rewritten 2026-11-03, ADR-0082 §9, to prove the new behaviour. Was: the refund question is handled by 018.)_ The creator can cancel. Every state has copy and a localisation key. Counsel review is owed before launch (`016-FR-050`).
     - **Tests (write first, watch them fail)**: component (every state, with and without buyers), unit (the count comes from the aggregate and names nobody). Playwright and Maestro for the unpublish-from-sale story.
 
 - [ ] **T-074** [US-002] The creator's sales view shows aggregates and no named buyer — `packages/services/creator-profiles-service/src/`, web and mobile earnings surface _(added 2026-11-03, owner ruling O15f, ADR-0082)_
@@ -304,7 +304,7 @@ and receipt validation had **no task** in this file, while `plan.md` L85-96 stat
 - [ ] **T-075** [US-002] An edit to a sold recipe shows its checking state to the creator and keeps buyers on the last approved version — creator edit screen, `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O15b, ADR-0082)_
     - **Depends on**: T-072, `018-L05`, `020` K082-24
     - **Implements**: FR-034c, `018-FR-029d`, `020-FR-064`
-    - **Acceptance**: After the creator saves an edit, the screen says "Buyers still see the last approved version while this is checked". When the check allows the new digest, buyers see it. If the check holds it, the creator sees why and buyers keep the old version.
+    - **Acceptance**: After the creator saves an edit, the screen says "Subscribers still see the last approved version while this is checked". When the check allows the new digest, subscribers see it. A buyer who only purchased keeps the sold version (`018-FR-029`). _(amended 2026-11-03, ADR-0082 §9. Was: every buyer sees the edit.)_ If the check holds it, the creator sees why and buyers keep the old version.
     - **Tests (write first, watch them fail)**: unit (state mapping), integration (a buyer read during the check returns the old version, a read after approval returns the new one). A row in 020's deployed bypass suite (`020-FR-074`, door 38).
 
 - [ ] **T-076** [US-002] An owner import with statement 1a is listed on the creator page when public, and is sellable when private _(added 2026-11-03, owner ruling O16, ADR-0082)_. Files: `packages/services/creator-profiles-service/src/`, `packages/services/recipe-service/src/recipes/domain/`
@@ -312,3 +312,9 @@ and receipt validation had **no task** in this file, while `plan.md` L85-96 stat
     - **Implements**: FR-034b as amended 2026-11-03, `018-FR-026`, `021-FR-002`
     - **Acceptance**: A public, 020-allowed recipe with statement 1a is listed on the creator page with "Written by you". The same recipe kept private can be listed for sale. Neither path reads the site claim, so a claim that fails changes neither. A recipe is never public and for sale at once. Counsel review is owed before launch (`016-FR-050`).
     - **Tests (write first, watch them fail)**: unit (eligibility table over statement 1a with and without a live claim gives the same answer). Integration (list the recipe on the page, then make it private and list it for sale). Mutation lens: an eligibility rule that refuses every URL-imported recipe by route fails the owner row.
+
+- [ ] **T-077** [US-002] The sale page offers "Purchase" and "Subscribe", each saying what it gives before payment — web and mobile sale page, `packages/services/creator-profiles-service/src/` _(added 2026-11-03, owner ruling, ADR-0082 §9)_
+    - **Depends on**: T-070, `018-L01`, `018-L13`
+    - **Implements**: FR-034d, `018-FR-029`, `018-FR-029h`, `018-FR-046`
+    - **Acceptance**: The page shows a Purchase button with the base rate and "Read this version and download it to keep", and a Subscribe button with the recurring price and "Read every update while you subscribe". Both name the two ways access can end (`018-FR-029i`, `018-FR-029j`). Every state has copy and a localisation key: loading, priced, subscribe not offered, already purchased, already subscribed, held by 020, and error. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: component (every state, and a page that labels the purchase "live view" or omits the download line fails), unit (the offered products come from the listing and the creator's subscription setting). Playwright and Maestro: purchase, then download the sold version. Subscribe, then read an approved update.

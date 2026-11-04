@@ -581,15 +581,15 @@ The rights label tells the cook who owns the writing.
   owner, on web and mobile. There are seven labels. This table is the one authority for who owns the writing and for
   what the cook can do under each label. Other specs cite it and do not restate it.
 
-    | #   | Label                                                    | Who owns the writing and photos                                                       | Keep it | Share with the household | Publish                                                                                                                                                                                                                                                                                   | Export                          |
-    | --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-    | 1   | Written by you                                           | The cook                                                                              | Yes     | Yes                      | Yes, in full                                                                                                                                                                                                                                                                              | Yes                             |
-    | 2   | Adapted by you from a credited source, in your own words | The cook owns their words. The source keeps its own words and photos                  | Yes     | Yes                      | Yes, in full, with "Adapted from [source]"                                                                                                                                                                                                                                                | Yes                             |
-    | 3   | Copied from a public web page                            | The page's author                                                                     | Yes     | Yes                      | Only as a facts card (the linked card, `021-FR-014a`), readable signed out and indexable under the public rule (`021-FR-020`, amended 2026-11-03, owner ruling O2, ADR-0082), under the per-site cap (`FR-030a`). In full only where the page states a licence that allows it (`FR-012b`) | Yes, as the cook's own copy     |
-    | 4   | From a cookbook, magazine or paid site                   | The publisher, or the author                                                          | Yes     | Yes                      | Its words and photos, never. A facts card with a credit to the book or site, under the per-source cap (`FR-030a`). The cook can publish their own version under label 2                                                                                                                   | Yes, as the cook's own copy     |
-    | 5   | From a family member or friend, with their permission    | The person who wrote it                                                               | Yes     | Yes                      | Yes, in full, after 020's check, and open to the web when the giver's permission covers the web (`021-FR-002`)                                                                                                                                                                            | Yes                             |
-    | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"                                                                                                                                                                                                          | Yes, inside the cook's own file |
-    | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full, and open to the web, only under the curator grant with a passing `FR-015k` record (`021-FR-006`)                                                                                                                                                                            | Yes                             |
+    | #   | Label                                                    | Who owns the writing and photos                                                       | Keep it | Share with the household | Publish                                                                                                                                                                                                                                                                                                                                                                        | Export                          |
+    | --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+    | 1   | Written by you                                           | The cook                                                                              | Yes     | Yes                      | Yes, in full                                                                                                                                                                                                                                                                                                                                                                   | Yes                             |
+    | 2   | Adapted by you from a credited source, in your own words | The cook owns their words. The source keeps its own words and photos                  | Yes     | Yes                      | Yes, in full, with "Adapted from [source]"                                                                                                                                                                                                                                                                                                                                     | Yes                             |
+    | 3   | Copied from a public web page                            | The page's author                                                                     | Yes     | Yes                      | Only as a facts card (the linked card, `021-FR-014a`), readable signed out and indexable under the public rule (`021-FR-020`, amended 2026-11-03, owner ruling O2, ADR-0082), under the per-site cap (`FR-030a`), and never from an aggregator site (_amended 2026-11-03, owner ruling O6, ADR-0082_). In full only where the page states a licence that allows it (`FR-012b`) | Yes, as the cook's own copy     |
+    | 4   | From a cookbook, magazine or paid site                   | The publisher, or the author                                                          | Yes     | Yes                      | Its words and photos, never. A facts card with a credit to the book or site, under the per-source cap (`FR-030a`). The cook can publish their own version under label 2                                                                                                                                                                                                        | Yes, as the cook's own copy     |
+    | 5   | From a family member or friend, with their permission    | The person who wrote it                                                               | Yes     | Yes                      | Yes, in full, after 020's check, and open to the web when the giver's permission covers the web (`021-FR-002`)                                                                                                                                                                                                                                                                 | Yes                             |
+    | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"                                                                                                                                                                                                                                                                                               | Yes, inside the cook's own file |
+    | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full, and open to the web, only under the curator grant with a passing `FR-015k` record (`021-FR-006`)                                                                                                                                                                                                                                                                 | Yes                             |
     - _(amended 2026-11-03, owner ruling, ADR-0082)_ Rows 3, 4, 5 and 7 changed. Row 3's facts card is now readable
       signed out, by anyone. Row 4 gains a facts card and the cook's own adapted version. Row 5 and row 7 open to the
       web, under their conditions. [Law] Nobody owns a recipe's facts: the dish name, ingredients, amounts, times,
@@ -797,6 +797,9 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
   company's legal name. [Law] The safe harbor does not cover anything before registration (17 U.S.C. §512(c)(2)).
   The repeat-infringer policy MUST be actually applied, not only written (§512(i), _BMG v. Cox_, 881 F.3d 293 (4th
   Cir. 2018)). Counsel review is owed before launch (`FR-050`).
+  _(Amended 2026-11-03, owner ruling O13, ADR-0082.)_ The founder owns the three-year renewal of the registration
+  ([Law] 37 C.F.R. §201.38). The renewal goes on the operations doc's recurring tasks, with an alarm set well before
+  the due date. This was an open question and is now decided.
 - **FR-026**: `012-FR-022`'s DMCA route MUST be re-pointed at this mechanism rather than duplicating it. There
   MUST be exactly one notice-and-action pipeline in the portfolio.
 
@@ -825,6 +828,8 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
   every page footer, MUST name the designated agent: name, postal address, phone number and email (§512(c)(2)). The
   same details MUST be filed in the US Copyright Office's online directory. The filing MUST be renewed every three
   years (37 C.F.R. §201.38). The page and the filing MUST match, and `FR-025`'s alert watches the renewal.
+  _(Amended 2026-11-03, owner ruling O13, ADR-0082.)_ The founder owns the renewal and records it as a recurring task
+  in the operations doc.
     - **Owed by the founder, not by software:** the agent registration in the company's legal name. [Law] Nothing
       before the registration is inside the safe harbor (§512(c)(2)).
     - Counsel review is owed before launch (`FR-050`).
@@ -1045,7 +1050,10 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
       tell where a site was made.
     - **Aggregators.** User-recipe aggregator sites (Allrecipes-type, Chefkoch, Marmiton, Cookpad-type) and edited
       publishers' collections are where the right most likely sits (_British Horseracing Board v William Hill_,
-      C-203/02). They get the tightest cap, or no public cards at all. Counsel sets which (`FR-050`).
+      C-203/02). _(amended 2026-11-03, owner ruling O6, ADR-0082)_ They get NO public facts cards. Their recipes are other
+      users' work and carry the highest database-right risk. A cook's import from one stays private, or the cook
+      publishes it in their own words as "Adapted by you" (`FR-015b`). This replaces "the tightest cap, or no public
+      cards at all". The cap numbers for other sites stay with counsel. Counsel review is owed before launch (`FR-050`).
     - **Books and paid sites.** The facts card of label 4 has its own per-source cap: per book, keyed by ISBN or by
       title, and per paid site. It credits the book (title, author, publisher) or the site. It is never shown in the
       book's order or as a book's collection. Our servers never fetch paid sites.
@@ -1075,8 +1083,9 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
     - **Closed.** The app, the code, ranking, ingredient-matching mappings and confidence scores (`FR-032`), the food
       catalog (ADR-0052 unchanged), user data, the brand, and 018's paid chef content. Third-party text and photos
       are never licensed by us.
-    - **Bulk download.** A cook's bulk download of their own recipes is `FR-034`. A public bulk download or API of the
-      library is not specified. If one is ever built, it carries only the open layers, keeps every credit, and never
+    - **Bulk download.** A cook's bulk download of their own recipes is `FR-034`. _(Amended 2026-11-03, owner ruling O12, ADR-0082.)_ There is NO public bulk download and NO public API of the open
+      layers for now. This is decided. A cook's own export stays (`FR-034`). A public bulk download or API of the
+      library would need a new ruling. If one is ever built, it carries only the open layers, keeps every credit, and never
       carries facts cards, third-party text, photos, 018 content or a "by site" slice.
 
     Counsel review is owed before launch (`FR-050`).
@@ -1087,7 +1096,8 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
   machine-readable form, from the app, and MUST be told the deadline and notified on completion. The deadline
   MUST be no longer than one month from the request.
   _(amended 2026-11-03, owner ruling, ADR-0082)_ The export is offered from launch. [Law] A cook's bulk download of
-  their own recipes is required once GDPR Art. 20 or the CCPA applies. It includes the cook's private imported
+  their own recipes is required once GDPR Art. 20 or the CCPA applies. _(Amended 2026-11-03, owner ruling O12, ADR-0082.)_ The personal
+  export of a cook's own recipes stays. It is not a public bulk download, and no public bulk route exists for now. It includes the cook's private imported
   copies, which is fine because it goes to that cook. It never includes another cook's private recipe. Counsel review
   is owed before launch (`FR-050`).
 - **FR-035**: The system MUST provide a consent-withdrawal surface covering every purpose recorded under
@@ -1173,6 +1183,12 @@ they do not create a second mechanism.
     - [Law] **"US-only" is not a defence.** An app listed in EU or UK app stores serves them (DSA Recital 8, GDPR Art.
       3(2), UK Online Safety Act s.4(5) and s.4(6)). So the product MUST either restrict its store territories and
       record that it did, or treat the UK as a day-one market for the light duties.
+    - _(Amended 2026-11-03, owner ruling O9, ADR-0082.)_ **At launch the app is listed only in US app stores.** That
+      is the restriction, and it is recorded here and in `025`. The statement "US-only is not a defence" stays true
+      for any listing outside the US, and is not true of this launch, because the listings are US-only. The EU and UK
+      lists above MUST be met before the app is listed in any EU or UK store, and `025` gates that listing on them.
+      The web site is a separate matter and follows the market posture in `FR-048a`. Counsel review is owed before
+      launch (`FR-050`).
 
     Counsel review is owed before launch (`FR-050`).
 
@@ -1198,8 +1214,9 @@ they do not create a second mechanism.
       stored verbatim copy with no exception behind it.
     - **The data-mining opt-out signals** (`FR-024a`), and whether a cook's paste cures an EU opt-out for our own LLM
       analysis. **What breaks:** an EU reservation we failed to honour.
-    - **The aggregator cap** (`FR-030a`). Whether aggregators get the tightest cap or no cards. **What breaks:** the
-      database right of the sites most likely to hold one.
+    - **The aggregator list** (`FR-030a`). _(amended 2026-11-03, owner ruling O6, ADR-0082)_ Decided: aggregators get no
+      public cards. Counsel checks which sites count as aggregators. **What breaks:** the database right of the sites
+      most likely to hold one.
     - **The family permission wording** (`FR-015g` row 5), which must cover the open web. **What breaks:** a giver's
       words shown more widely than they agreed.
     - **DSM Directive Art. 17 (EU).** Whether Commise is an online content-sharing service provider. **What breaks:**
@@ -1879,6 +1896,21 @@ before launch (`FR-050`).
 - **C-016-013: book and paid-site recipes get a facts card** under a per-source cap (`FR-015c` row 4, `FR-030a`).
 - **C-016-014: URL import is per market.** The EU and UK keep facts and a link only. The US keeps a private full copy
   (`FR-027f`).
+- **C-016-015: aggregator sites get no facts cards** (O6, `FR-030a`, `FR-015c` row 3). Their recipes are other users'
+  work and carry the highest database-right risk. A cook's import stays private, or the cook adapts it in their own
+  words. This replaced "the tightest cap, or no public cards at all". Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-016: creator pages list recipes the cook wrote or adapted, never facts cards, and licensed and public domain
+  pages are indexable** (O7, O8, `021-FR-015`, `021-FR-014f`, `021-FR-020`). Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-017: at launch the app is listed only in US app stores** (O9, `FR-048c`, `025-FR-088`). The EU and UK
+  duties are met before any listing there. Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-018: an edited public recipe shows its last approved version while it is checked, and bios and avatars get
+  no outside-copy check** (O10, O11, `020-FR-064`, `020-FR-071`). [House rule] Notice-and-takedown covers bios and
+  avatars. Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-019: no public bulk download and no public API of the open layers for now, and the founder owns the DMCA
+  agent renewal** (O12, O13, `FR-033`, `FR-034`, `FR-025`, `FR-059`). A cook's own export stays. The renewal is a
+  recurring task in the operations doc. Decided _(owner rulings 2026-11-03, ADR-0082)_.
+
+Counsel review is owed before launch (`FR-050`).
 
 ## Owner decisions required
 
@@ -1893,8 +1925,9 @@ All three clarifications are resolved (C-016-001 … C-016-003). These remain op
    (`FR-020`).
 3. **Do we publish transparency numbers voluntarily?** Cheap, differentiating against a competitor whose
    documents contradict their marketing, and it commits us to keeping the numbers clean.
-4. **Who owns the registered-agent renewal?** A named human, not a team. _(2026-11-03)_ The first registration is
-   also still owed by the founder (`FR-025`).
+4. **Registered-agent renewal.** _(Decided 2026-11-03, owner ruling O13, ADR-0082.)_ The founder owns the renewal every
+   three years (37 C.F.R. §201.38), as a recurring task in the operations doc. The first registration is also still
+   owed by the founder (`FR-025`).
 5. **The Commise version pilot** _(added 2026-11-03, owner ruling, ADR-0082)_. This is where 016 tracks the one
    future feature it gates. An AI rewrite of another site's recipe, published by Commise, is NOT built at launch
    (`FR-015i`). It can ship later only as a pilot, and only when ALL of these hold:

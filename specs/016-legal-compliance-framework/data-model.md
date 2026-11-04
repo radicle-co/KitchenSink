@@ -284,7 +284,7 @@ New columns on `recipes`:
   (Art. 7(5)), not what is live today. Counsel confirms this reading (`spec FR-050`).
 - The count is taken live with `COUNT(*)` under a per-source advisory lock, in the same transaction as the write,
   the shape ADR-0073 uses for private slots. There is no counter column.
-- The cap numbers are configuration per `source_class`, set by counsel. `aggregator` can be zero.
+- The cap numbers are configuration per `source_class`, set by counsel. _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ `aggregator` is fixed at zero: no card is ever made for it, so the policy denies before it counts.
 - Past the cap, the card is the title, the source's name and the link, and a restriction statement is written
   (section 14).
 

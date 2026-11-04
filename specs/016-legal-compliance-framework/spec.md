@@ -7,21 +7,22 @@
 
 ## Dependencies
 
-| Spec                                                          | Relationship                                                                                                                                                                   |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — owns recipe visibility (`FR-003`), public read (`FR-004`), the clone chain (`FR-005`), soft-delete/erasure (`C-007`) and the C-004 policy                       |
-| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — owns account creation, the only moment an agreement can be presented, and the erasure cascade. **Has no terms-acceptance, consent or age surface today**        |
-| [004-recipe-importing](../004-recipe-importing/spec.md)       | **Required** — owns provenance (`FR-011`), attribution (`FR-010`), per-item attestation (`FR-014a`), photo extraction (`FR-008`), robots handling (`FR-023`)                   |
-| [010-subscriptions](../010-subscriptions/spec.md)             | **Required** — owns the tier model and billing. **Has no auto-renewal disclosure or cancellation surface today**                                                               |
-| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Referenced** — owns digitization provenance and its mandatory attribution (`FR-021b`)                                                                                        |
-| [012-creator-profiles](../012-creator-profiles/spec.md)       | **Referenced** — currently the ONLY spec containing a DMCA route (`FR-022`). This feature takes ownership of takedown portfolio-wide; 012 becomes a consumer                   |
-| [015-publishing-rewards](../015-publishing-rewards/spec.md)   | **Referenced** — its inducement hazard is a direct input here; 015's `FR-016`–`FR-018` consume the takedown process this feature specifies                                     |
-| [005-ai-integration](../005-ai-integration/spec.md)           | **Referenced** — owns AI features **and the shared disclosure component**. `GR-010` owns the obligation; this feature contributes Art. 50(2) marking and cites both            |
-| [017-recime-parity](../017-recime-parity/spec.md)             | **Downstream** — its video-import wedge depends on `FR-027f`'s transient-extraction permission. 017 blocked on this feature and it is resolved (C-016-002, amended 2026-08-22) |
-| `GR-014` Audience and Sharing Model                           | **Governs** — owns cloning, derived copies, deletion and erasure (AC-014-e/g/h/i), amended to v3.5.0 from C-016-003. This feature cites it and MUST NOT restate it             |
-| `GR-010` EU AI Act Compliance Propagation                     | **Governs** — owns the AI disclosure obligation (AC-010-a…f), amended to v3.5.0 from this feature. Group H cites it                                                            |
-| `GR-003` FR Identifier Namespace                              | **Governs** — every cross-feature citation here is qualified `{feature}-FR-{NNN}`, and `cross-feature-FR-index.md` carries this feature's rows                                 |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md)   | **Referenced** — already flags GDPR Article 9 special-category data; this feature owns the lawful-basis surface for it                                                         |
+| Spec                                                                            | Relationship                                                                                                                                                                   |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                     | **Required** — owns recipe visibility (`FR-003`), public read (`FR-004`), the clone chain (`FR-005`), soft-delete/erasure (`C-007`) and the C-004 policy                       |
+| [002-user-auth](../002-user-auth/spec.md)                                       | **Required** — owns account creation, the only moment an agreement can be presented, and the erasure cascade. **Has no terms-acceptance, consent or age surface today**        |
+| [004-recipe-importing](../004-recipe-importing/spec.md)                         | **Required** — owns provenance (`FR-011`), attribution (`FR-010`), per-item attestation (`FR-014a`), photo extraction (`FR-008`), robots handling (`FR-023`)                   |
+| [010-subscriptions](../010-subscriptions/spec.md)                               | **Required** — owns the tier model and billing. **Has no auto-renewal disclosure or cancellation surface today**                                                               |
+| [011-recipe-digitization](../011-recipe-digitization/spec.md)                   | **Referenced** — owns digitization provenance and its mandatory attribution (`FR-021b`)                                                                                        |
+| [012-creator-profiles](../012-creator-profiles/spec.md)                         | **Referenced** — currently the ONLY spec containing a DMCA route (`FR-022`). This feature takes ownership of takedown portfolio-wide; 012 becomes a consumer                   |
+| [015-publishing-rewards](../015-publishing-rewards/spec.md)                     | **Referenced** — its inducement hazard is a direct input here; 015's `FR-016`–`FR-018` consume the takedown process this feature specifies                                     |
+| [005-ai-integration](../005-ai-integration/spec.md)                             | **Referenced** — owns AI features **and the shared disclosure component**. `GR-010` owns the obligation; this feature contributes Art. 50(2) marking and cites both            |
+| [017-recime-parity](../017-recime-parity/spec.md)                               | **Downstream** — its video-import wedge depends on `FR-027f`'s transient-extraction permission. 017 blocked on this feature and it is resolved (C-016-002, amended 2026-08-22) |
+| `GR-014` Audience and Sharing Model                                             | **Governs** — owns cloning, derived copies, deletion and erasure (AC-014-e/g/h/i), amended to v3.5.0 from C-016-003. This feature cites it and MUST NOT restate it             |
+| `GR-010` EU AI Act Compliance Propagation                                       | **Governs** — owns the AI disclosure obligation (AC-010-a…f), amended to v3.5.0 from this feature. Group H cites it                                                            |
+| `GR-003` FR Identifier Namespace                                                | **Governs** — every cross-feature citation here is qualified `{feature}-FR-{NNN}`, and `cross-feature-FR-index.md` carries this feature's rows                                 |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md)                     | **Referenced** — already flags GDPR Article 9 special-category data; this feature owns the lawful-basis surface for it                                                         |
+| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md) | **Downstream** _(added 2026-11-03, ADR-0082)_. Owns what is open to the web and the facts card. It cites `FR-015c`, `FR-015k`, `FR-030a` and `FR-033`                          |
 
 ---
 
@@ -60,14 +61,20 @@ from safe harbour, from being the host rather than the copier, and from respondi
 
 **3. Where the bytes come from decides whether we are a host or a copier.**
 §512(c) protects storage "at the direction of a user." Paste (`004-FR-052`) is safest — the user brings the
-bytes. Share-sheet capture is strong. **Server-side URL fetch (`004-FR-008`) is the weak one**: our server
-performs the reproduction, which makes us a direct actor rather than an intermediary. This is an architecture
-consequence, not a paperwork one, and the safest channels are ones we have already specified.
+bytes. Share-sheet capture is strong. **Server-side URL fetch (`004-FR-008`) is the weak one.**
+_(amended 2026-11-03, owner ruling, ADR-0082)_ [Law, US] A server fetch is not what makes Commise a "direct actor".
+Automated action at a user's request usually lacks volitional conduct (_Cartoon Network v. CSC Holdings_, 536 F.3d
+121 (2d Cir. 2008), _VHT v. Zillow_, 918 F.3d 723 (9th Cir. 2019)). The copy we keep and show decides most of the
+risk. A server fetch adds contract risk and a closer copyright question. Paste is still the cleanest channel. Counsel
+review is owed before launch (`FR-050`).
 
 **4. A reward for publishing is an inducement to publish.**
-`015` turns on this. It also moves §512(c)(1)(B)'s "direct financial benefit … right and ability to control"
-prong from theoretical to arguable, which is an independent reason not to monetise tightly around imported
-content.
+`015` turns on this. _(amended 2026-11-03, owner ruling, ADR-0082)_ [Law] Rewarding cooks for publishing their own
+recipes is not inducement. Inducement needs intent to promote infringement (_MGM v. Grokster_, 545 U.S. 913 (2005),
+_Cox v. Sony_, 2026). So the risk is low while rewards stay on the cook's own recipes. [House rule] "Only Written by
+you recipes earn rewards" stays as cheap hygiene, and a Commise version never earns one. The §512(c)(1)(B) point
+stands only as a reason not to monetise tightly around imported content (`FR-029a`). Counsel review is owed before
+launch (`FR-050`).
 
 ### ⛔ What this feature is NOT
 
@@ -134,7 +141,7 @@ generated by connected products — **it does not affect us.**
 we must not tell anyone we hold one. Whether to create an EU establishment in order to hold it is a business
 decision listed under Owner Decisions, not a requirement.
 
-### Layer 4 — Contract: the fence that actually holds
+### Layer 4: Contract, one fence, strongest against account holders
 
 _hiQ v LinkedIn_ (9th Cir. 2022), following _Van Buren_ (2021), holds the CFAA does **not** reach scraping of
 publicly available data — violating terms alone is not "without authorization." **But LinkedIn won on breach
@@ -142,6 +149,12 @@ of contract**, and the case ended in a permanent injunction requiring hiQ to sto
 taken. The lesson is precise: **against a scraper, our terms are the cause of action and the CFAA is not.**
 That makes the anti-extraction term in the ToS a real asset — and it makes it worth writing carefully, because
 it only binds parties who accepted it (`FR-030`–`FR-032`).
+
+_(amended 2026-11-03, owner ruling, ADR-0082)_ The heading said "the fence that actually holds". That overstated it.
+[Law] Terms bind account holders. They rarely bind a logged-out scraper (_Meta v. Bright Data_, N.D. Cal. 2024, _X
+Corp. v. Bright Data_, N.D. Cal. 2024). So the contract is one fence, strongest against account holders. Technical
+controls, such as rate limits and bot management, carry the rest (`FR-030`). The terms also cannot forbid what a
+Creative Commons licence on a layer allows (`FR-033`). Counsel review is owed before launch (`FR-050`).
 
 ### Layer 5 — Trade secret: for the layer nobody sees
 
@@ -151,10 +164,20 @@ as such. This is nearly free and it protects the part of the corpus that is genu
 
 ### What we will NOT do
 
-**Publish the corpus under an open licence (CC BY-SA or similar).** It is the obvious-looking answer to "own
-public data" and it is backwards: it would license the corpus to our competitors in perpetuity, and it cannot
-be revoked. The corpus is a strategic asset (`docs/competitive/02GapAnalysisAndStrategy.md` §0); we license
-_in_, not _out_.
+_(amended 2026-11-03, owner ruling, ADR-0082)_ The earlier text refused any open licence for the corpus. That is
+reversed for the open layers only. The corpus was never well protected: its facts are free, and the §103 right in it
+is thin. So open licences on the layers below cost little and make the library useful. `FR-033` is the authority.
+
+- **Open:** "free to read" on every open page. CC0 1.0 on text Commise itself writes: its own notes and the
+  nutrition text it writes. CC BY 4.0, opt-in per recipe, for a cook's checked "Written by you" recipe (`FR-010`).
+  The Creative Commons Public Domain Mark on label 7 text (`FR-015k`).
+- **Never CC0 on collected facts as a class.** [Law] Facts taken from another site's EU or UK database are not ours
+  to waive (Directive 96/9/EC). So ingredient lists and facts cards are never marked CC0.
+- **Still closed:** the app, the code, ranking, ingredient-matching mappings and confidence scores, the food catalog
+  (ADR-0052 unchanged), user data, the brand, and 018's paid chef content. Third-party text and photos are never
+  licensed by us.
+
+Counsel review is owed before launch (`FR-050`).
 
 > **Verification note.** Layers 2–5 were verified against primary and secondary sources on 2026-08-22 and are
 > cited above. The findings carried forward from the 2026-08-21 analysis — _Publications Int'l v. Meredith_
@@ -210,8 +233,14 @@ whose content is repeatedly removed on valid notices are terminated under a writ
 policy.
 
 **Why this priority**: This is D24. It is the single largest missing item, it requires no product decision,
-and its absence is what disqualifies us from DMCA §512 safe harbour and breaches DSA Art. 16 simultaneously.
-It also has a hard prerequisite this feature cannot satisfy in software: a **registered agent**.
+and its absence is what disqualifies us from DMCA §512 safe harbour. It also has a hard prerequisite this
+feature cannot satisfy in software: a **registered agent**.
+
+_(amended 2026-11-03, owner ruling, ADR-0082)_ [Law] DSA Art. 16 binds once we serve the EU. An app listed in EU
+app stores can serve the EU from day one (DSA Recital 8). So the same gap breaches Art. 16 as soon as we serve the
+EU, which can be launch day. [Law] The DMCA safe harbor does not cover anything before the agent is registered
+(17 U.S.C. §512(c)(2)). The founder still owes the DMCA agent registration, in the company's legal name. Counsel
+review is owed before launch (`FR-050`).
 
 **Independent Test**: Submit a notice as a signed-out party against a published recipe; verify acknowledgement,
 removal, a statement of reasons delivered to the uploader, a working counter-notice path, and an incremented
@@ -414,7 +443,9 @@ the policy's recommendation are both visible.
   Existing clones are not retroactively destroyed; the notice-and-action path (`FR-022`) is what reaches them.
 - **A user in one market is served content lawful in another.** Markets are gated (C-016-001: US at v1), and
   the gate must be
-  evaluated at read time, not only at publish time.
+  evaluated at read time, not only at publish time. _(amended 2026-11-03, ADR-0082)_ [Law] "US-only" is not a
+  defence. An app listed in EU or UK app stores serves them (`FR-048c`). Open-web pages cannot be gated by market,
+  which is why the public-domain gate is one global rule (`FR-015k`).
 - **The registered agent registration lapses.** It expires every three years and a lapse is a lapse in safe
   harbour. This must be an owned, alarmed calendar item, not tribal knowledge.
 - **A minor creates an account and publishes.** The age floor must be enforced before the first publication,
@@ -470,11 +501,36 @@ the policy's recommendation are both visible.
   sublicensable** licence to host, store, reproduce, adapt for display, and publicly display the user's
   content **for the purpose of operating, securing, improving and promoting the service**. The licence MUST
   NOT be an assignment and MUST NOT be exclusive.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ Two more rules bind this licence and the CC BY grant below.
+    - **Drafting standard.** [Law] French consumer law and French CPI L131-3 require each right, its scope, its place
+      and its duration to be stated (_UFC-Que Choisir v Twitter_, TGI Paris, 7 August 2018). The UK Consumer Rights Act
+      2015 Part 2 and the Australian Consumer Law test the terms for fairness. The cook licence and the CC BY grant
+      MUST be drafted once, to that stricter standard, in every market.
+    - **The cook's open licence (CC BY 4.0).** A cook can choose to license a recipe under CC BY 4.0. The cook is the
+      licensor, not Commise. The choice is per recipe and opt-in. It is offered only on a label 1 ("Written by you")
+      recipe that passed 020's outside-copy check. It is not offered on labels 2 to 7 at v1. It is a separate, clear
+      choice at publish: off by default, or asked once with buttons of equal weight. A separate choice covers the
+      cook's photos. Only an adult can make it (`FR-008`). The cook warrants that the recipe is their own work. The
+      publish screen MUST say that copies others make cannot be recalled, that CC BY lets the cook ask re-users to
+      remove their name, and that the grant is "irrevocable as far as the law allows". [Law] The French moral right of
+      withdrawal (CPI L121-4) survives a licence. A free licence can be revocable in England for want of
+      consideration. 17 U.S.C. §203 lets a US author end a grant after 35 years. Public pages carry the licence in
+      schema.org `license` ([data-model.md §11](./data-model.md)).
+    - **Erasure after CC BY.** [Law] Where a cook's name was made public under CC BY and the cook asks for erasure,
+      Commise MUST take reasonable steps to tell other controllers (GDPR Art. 17(2)), for example a deletion signal on
+      any feed.
+
+    Counsel review is owed before launch (`FR-050`).
+
 - **FR-011**: The licence MUST be sufficient to permit the clone chain (`001-FR-005`) — that is, it MUST
   extend to permitting other users to copy published content into their own collections — and this MUST be
   stated in terms a non-lawyer can understand at the point of publication, not only in the document.
-- **FR-012**: The system MUST NOT display, syndicate or permit cloning of any content whose author has not
-  granted the licence.
+- **FR-012**: The system MUST NOT display, syndicate or permit cloning of any protected expression a user
+  contributed, unless that user granted the licence. _(amended 2026-11-03, owner ruling, ADR-0082: the earlier text
+  said "any content whose author has not granted the licence".)_ [Law] Facts and public-domain text need no licence
+  (17 U.S.C. §102(b), `FR-015k`). So a facts card (`021-FR-014a`) and a label 7 text can be shown without one. The
+  words, headnote and photos of a third party are never licensed by us. Counsel review is owed before launch
+  (`FR-050`).
 - **FR-012a**: The licence MUST state what happens to copies already distributed when the author deletes the
   content or erases the account, and the product MUST behave the way the licence says. **Derived copies
   survive both** (C-016-003): a clone is a modified work in the cloner's own collection, not a carbon copy of
@@ -482,8 +538,13 @@ the policy's recommendation are both visible.
 - **FR-012b** _(added 2026-10-29, owner ruling, ADR-0077)_: Where a source page states its own licence, for example in
   its schema.org `license` field, the product MUST follow that licence, including its attribution terms. A page whose
   licence allows it, such as some Creative Commons licences, MAY be shown in full. Any other imported web page is shown
-  to other cooks only as a linked card (`021-FR-014a`). Counsel confirms which licences allow full display by a
+  to anyone else only as a linked card (`021-FR-014a`). Counsel confirms which licences allow full display by a
   commercial service (`FR-050`). Markup with no stated licence is not a licence.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ A page shown in full under its licence is open to the web, with its
+  attribution, only if the licence allows commercial use and the curator or the fetch recorded the licence. [Law]
+  Software can find a STATED licence (schema.org `license`, a Creative Commons mark). It cannot find "no copyright",
+  because every page is protected from creation (Berne Art. 5(2), 17 U.S.C. §102, §408). So a surface or document
+  MUST NOT say that the server checks a page's copyright. Counsel review is owed before launch (`FR-050`).
 - **FR-013**: The terms MUST include a representation that the user has the rights necessary to upload the
   content and to grant the licence, recorded per-account at acceptance.
 - **FR-014**: For content classified as **not authored by the uploader**, the per-item attestation of
@@ -520,18 +581,30 @@ The rights label tells the cook who owns the writing.
   owner, on web and mobile. There are seven labels. This table is the one authority for who owns the writing and for
   what the cook can do under each label. Other specs cite it and do not restate it.
 
-    | #   | Label                                                    | Who owns the writing and photos                                                       | Keep it | Share with the household | Publish                                                                                    | Export                          |
-    | --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------- |
-    | 1   | Written by you                                           | The cook                                                                              | Yes     | Yes                      | Yes, in full                                                                               | Yes                             |
-    | 2   | Adapted by you from a credited source, in your own words | The cook owns their words. The source keeps its own words and photos                  | Yes     | Yes                      | Yes, in full, with "Adapted from [source]"                                                 | Yes                             |
-    | 3   | Copied from a public web page                            | The page's author                                                                     | Yes     | Yes                      | Only as a linked card (`021-FR-014a`). In full only where the page's own licence allows it | Yes, as the cook's own copy     |
-    | 4   | From a cookbook, magazine or paid site                   | The publisher, or the author                                                          | Yes     | Yes                      | Never (C-004)                                                                              | Yes, as the cook's own copy     |
-    | 5   | From a family member or friend, with their permission    | The person who wrote it                                                               | Yes     | Yes                      | Yes, in full, after 020's check. Never open to the web (`021-FR-002`)                      | Yes                             |
-    | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"           | Yes, inside the cook's own file |
-    | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full. Never open to the web (`021-FR-006`)                                         | Yes                             |
+    | #   | Label                                                    | Who owns the writing and photos                                                       | Keep it | Share with the household | Publish                                                                                                                                                                                                                                                                                                                                                                        | Export                          |
+    | --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+    | 1   | Written by you                                           | The cook                                                                              | Yes     | Yes                      | Yes, in full                                                                                                                                                                                                                                                                                                                                                                   | Yes                             |
+    | 2   | Adapted by you from a credited source, in your own words | The cook owns their words. The source keeps its own words and photos                  | Yes     | Yes                      | Yes, in full, with "Adapted from [source]"                                                                                                                                                                                                                                                                                                                                     | Yes                             |
+    | 3   | Copied from a public web page                            | The page's author                                                                     | Yes     | Yes                      | Only as a facts card (the linked card, `021-FR-014a`), readable signed out and indexable under the public rule (`021-FR-020`, amended 2026-11-03, owner ruling O2, ADR-0082), under the per-site cap (`FR-030a`), and never from an aggregator site (_amended 2026-11-03, owner ruling O6, ADR-0082_). In full only where the page states a licence that allows it (`FR-012b`) | Yes, as the cook's own copy     |
+    | 4   | From a cookbook, magazine or paid site                   | The publisher, or the author                                                          | Yes     | Yes                      | Its words and photos, never. A facts card with a credit to the book or site, under the per-source cap (`FR-030a`). The cook can publish their own version under label 2                                                                                                                                                                                                        | Yes, as the cook's own copy     |
+    | 5   | From a family member or friend, with their permission    | The person who wrote it                                                               | Yes     | Yes                      | Yes, in full, after 020's check, and open to the web when the giver's permission covers the web (`021-FR-002`)                                                                                                                                                                                                                                                                 | Yes                             |
+    | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                      | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"                                                                                                                                                                                                                                                                                               | Yes, inside the cook's own file |
+    | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                      | Yes, in full, and open to the web, only under the curator grant with a passing `FR-015k` record (`021-FR-006`)                                                                                                                                                                                                                                                                 | Yes                             |
+    - _(amended 2026-11-03, owner ruling, ADR-0082)_ Rows 3, 4, 5 and 7 changed. Row 3's facts card is now readable
+      signed out, by anyone. Row 4 gains a facts card and the cook's own adapted version. Row 5 and row 7 open to the
+      web, under their conditions. [Law] Nobody owns a recipe's facts: the dish name, ingredients, amounts, times,
+      temperatures, yield and the order of steps (17 U.S.C. §102(b), _Feist v. Rural_, 499 U.S. 340 (1991),
+      _Publications International v. Meredith_, 88 F.3d 473 (7th Cir. 1996)). The words and photos are protected. Where
+      a recipe came from is not the test. What we show is. Counsel review is owed before launch (`FR-050`).
+    - [Law] Label 3's source type, `imported_public`, means "copied from a publicly reachable page". Such a page is
+      fully protected from creation (Berne Art. 5(2), 17 U.S.C. §102). It is the opposite of public domain. Public
+      domain text is label 7, and only `FR-015k` makes it so.
+    - [Law] A verbatim copy from a book, magazine, paid site or other non-public source stays private. The cook can
+      publish their own version, in their own words, with credit, under label 2. The method must be rewritten, not
+      trimmed (`FR-015b`). Family recipes are the exception and can be public as themselves (label 5).
     - "Keep it" means a private copy. A free cook keeps it within the 50 private slots (ADR-0073), like any private
       recipe. That includes label 3: the owner ruled on 2026-10-29 that any cook can keep a web import private, using a
-      slot (ADR-0077 §6, `001` C-004). The cook always sees their own full copy while its public form is a card.
+      slot (ADR-0077 §6, `001` C-004). The cook always sees their own full copy while its public form is a card. _(Amended 2026-11-03, owner ruling O1, ADR-0082.)_ Any cook, using a slot holds only for a recipe kept private with no public card. A recipe with a public facts card is a public recipe and uses no slot, even when the cook keeps the full text privately. Counsel review is owed before launch (`FR-050`).
     - "Share with the household" means the cook's household under 017. Counsel confirms that sharing labels 3 and 4
       with a household is still private use (`FR-050`).
     - "Export" means the cook's own data export (`FR-034`). It is for the cook's own use. Counsel confirms that the
@@ -541,7 +614,8 @@ The rights label tells the cook who owns the writing.
 
 - **FR-015d**: The label MUST be **derived**, never stored and never chosen by a surface. One pure Policy works it out,
   a sibling of `provenancePolicy.ts`. Its inputs are the recipe's source type, its statement kind (`004-FR-014a`), its
-  `cloned_from_id`, any licence its source page states (`FR-012b`), and the curator grant (ADR-0023 §1). Every surface,
+  `cloned_from_id`, any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
+  ADR-0082). Every surface,
   and every rule in another spec that depends on who owns the writing, MUST read that one Policy. `staff-architect`
   designs it at PLANNING.
 - **FR-015e**: Commise MUST take a licence and never ownership (`FR-010`, `FR-031`). The cook keeps copyright in what the
@@ -553,26 +627,74 @@ The rights label tells the cook who owns the writing.
 - **FR-015g**: These are the draft words, for `staff-ux-engineer` to refine at SPECIFY and for counsel to confirm. Each
   gets a localisation key (`FR-049`).
 
-    | #   | On the recipe                                                                  | When the cook publishes                                                                                    |
-    | --- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-    | 1   | You told us you wrote this. You keep ownership of what you wrote.              | You keep ownership of what you wrote.                                                                      |
-    | 2   | Your version, adapted from [source]. Your words are yours.                     | Other cooks will see "Adapted from [source]". You keep ownership of what you wrote.                        |
-    | 3   | Saved from [site]. The words and photos belong to the page's author.           | Other cooks will see the ingredients and a link to [site]. The method and photos stay on [site].           |
-    | 4   | From [book or site]. The words belong to [author or publisher]. Kept private.  | Recipes from books and paid sites stay private, out of respect for the people who wrote them.              |
-    | 5   | From [giver], shared with their permission. Their words stay theirs.           | Other cooks will see this recipe and "From [giver]". Make sure [giver] is happy for you to share it.       |
-    | 6   | Adapted from [cook]'s recipe. Their words stay theirs. Your changes are yours. | Change the ingredients or steps to make it your version first. Other cooks will see "Adapted from [cook]". |
-    | 7   | From [title, year]. Its copyright has ended in the US.                         | Other cooks will see this recipe and its source.                                                           |
+    | #   | On the recipe                                                                                                                               | When the cook publishes                                                                                                                                                   |
+    | --- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | 1   | You told us you wrote this. You keep ownership of what you wrote.                                                                           | You keep ownership of what you wrote.                                                                                                                                     |
+    | 2   | Your version, adapted from [source]. Your words are yours.                                                                                  | Other cooks will see "Adapted from [source]". You keep ownership of what you wrote.                                                                                       |
+    | 3   | Saved from [site]. The words and photos belong to the page's author. Nobody owns the ingredient list or the bare steps.                     | Anyone will see the ingredients, the times and a link to [site]. The method and photos stay on [site].                                                                    |
+    | 4   | From [book or site]. The words belong to [author or publisher]. Your copy stays private. Nobody owns the ingredient list or the bare steps. | Anyone will see the ingredients, the times and "From [book or site]". The words and photos stay private. To share your own version, rewrite the method in your own words. |
+    | 5   | From [giver], shared with their permission. Their words stay theirs.                                                                        | Anyone will see this recipe, on Commise and on the web. Make sure [giver] agreed to sharing it publicly, on Commise and on the web.                                       |
+    | 6   | Adapted from [cook]'s recipe. Their words stay theirs. Your changes are yours.                                                              | Change the ingredients or steps to make it your version first. Other cooks will see "Adapted from [cook]".                                                                |
+    | 7   | Public domain: first published [year], author died [year].                                                                                  | Anyone will see this recipe and its source, on Commise and on the web.                                                                                                    |
+    - _(amended 2026-11-03, owner ruling, ADR-0082)_ Rows 3, 4, 5 and 7 have new words. Row 3 and row 4 add "Nobody
+      owns the ingredient list or the bare steps." Row 5's permission now covers the open web. Naming the giver is
+      optional and needs the giver's permission, because a name can be personal data. Row 7 shows the basis the
+      `FR-015k` record holds, for example "Public domain: first published 1919, author died 1915". A book with no named
+      author shows "Public domain: first published [year], no named author". Counsel review is owed before launch
+      (`FR-050`).
     - A family or friend recipe with no credit given says "From a family member or friend".
-    - Label 7's words state a US fact only. Counsel confirms them for each market before it opens (`025`).
+    - Label 7's words come from the `FR-015k` record. They are true in every market, because that gate is one
+      global rule. Commise's own notes on a public-domain page are CC0 (`FR-033`). The old text carries the Creative
+      Commons Public Domain Mark.
 
 - **FR-015h**: ⛔ "You keep ownership of what you wrote" MUST be shown only for labels 1 and 2. The licence panel
   (`021-FR-040`) MUST show the line for the recipe's own label, never a blanket ownership line. This closes the research's
   gap G2, where every cook publishing a clone or a copy was told "The cook keeps ownership".
 - **FR-015i**: A method rewritten by an AI feature is not the cook's own words. It MUST NOT turn a recipe into label 2.
   An AI feature MUST NOT rewrite a source's method for anyone other than the cook who saved it (`005`).
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ The first sentence is an honesty rule [House rule]. It stays. The
+  second sentence is a launch decision, not a claim that the law forbids it [House rule]. An AI rewrite that Commise
+  publishes for other people (the "Commise version") is not built at launch. It is specified only as a gated later
+  pilot, and its gate is in [Owner decisions required](#owner-decisions-required) item 5. [Law] The reason is risk:
+  Commise is the publisher of such text, outside the §512(c) safe harbor (the text is not stored "at the direction of a
+  user") and outside DSA Art. 6. _Thomson Reuters v. Ross_ (3d Cir. 2026, No. 25-2153) weighs a commercial substitute
+  against fair use. The EU and UK database right still applies to rewritten text. At launch, the facts card with a
+  link and the cook's own "Adapted by you" version are the public forms. Counsel review is owed before launch
+  (`FR-050`).
 - **FR-015j**: A copy of a private source cannot be detected. A family card, a friend's email or a book that is not
   online has no page to find. For those, the controls are the cook's own statement (`FR-014`), the label, and fast
   takedown (`FR-016` to `FR-022`). The product MUST NOT claim more.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ [Law] A copy-check flag creates knowledge. So a flag MUST hold the
+  recipe from publication until a person decides, and a person MUST NOT publish a confirmed copy. The cook cannot
+  click past the hold. DSA Art. 7 keeps the hosting defence for good-faith checks, but the knowledge they produce
+  must be acted on. ADR-0074 already holds a recipe that is not all green. Where a document says an outside hit is
+  "never blocking", it means this: the hit does not reject the recipe automatically, and it holds it for a person.
+  Counsel review is owed before launch (`FR-050`).
+- **FR-015k** _(added 2026-11-03, owner ruling, ADR-0082)_: **The public-domain gate.** This requirement is the one
+  authority for when an old text is public domain on Commise. Every other spec, ADR and surface cites it and MUST NOT
+  restate its years. It replaces the earlier "open both" ruling, which tested only that the authors died 70 years ago.
+  A text opens in full to the web as label 7 only when ALL of these hold. The rule rolls forward each 1 January.
+    1. **Published.** The work was first published in or before the current year minus 96 (1930 or earlier, as of
+       2026). The test uses the FIRST publication date, never a manuscript date. [Law] US terms for older works run
+       from publication (17 U.S.C. §304), and works first published from 1978 to 2002 run to at least 2047 (§303).
+       The product MUST NOT infer US renewal status for a later work. Those stay closed.
+    2. **People.** Every named author, translator and illustrator died in or before the current year minus 81 (1945
+       or earlier, as of 2026). [Law] This clears life plus 70 everywhere (Term Directive 2006/116/EC). It also clears
+       Spain's life plus 80 for authors who died before 7 December 1987, and Germany's refusal to apply the
+       shorter-term rule to US works (the 1892 US-Germany agreement). A translation carries the translator's own term.
+    3. **France.** No author is recorded as "mort pour la France". [Law] French CPI L123-10 adds 30 years.
+    4. **No named person.** For an anonymous, corporate or test-kitchen book, test 1 alone is enough.
+    5. **The old text only.** The text comes from the old edition. Modern notes, introductions and a modern edition's
+       layout stay out.
+    6. **The record.** The curator records, per book, the public-domain record of ADR-0023's curator grant (amended by
+       ADR-0082, [data-model.md §10](./data-model.md)). It holds the first publication year and place, each creator
+       with their role and death year (or "no named author"), the "mort pour la France" check per creator, the edition
+       used, the markets checked, who checked and when, and the rule version it was judged under. Label 7 is derived
+       from the grant plus a passing record (`FR-015d`). There is no new source type.
+
+    [House rule] The gate is stricter than US law needs. The open web cannot be gated by market, so one global rule is
+    the safe one. Counsel checks the rule table once before the first public page, and again each year. The label
+    shows the basis (`FR-015g` row 7). Counsel review is owed before launch (`FR-050`).
 
 _Rationale, the owner's ruling in full, and the three blockers it surfaced are in
 [Clarifications](#clarifications) C-016-003 and in [Cross-spec amendments](#cross-spec-amendments-this-feature-requires)._
@@ -596,6 +718,18 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
 - **FR-018**: When content is removed, disabled, demoted or restricted, the system MUST deliver the uploader a
   **statement of reasons** identifying the action, the ground relied on (legal provision or terms clause), the
   facts relied on, whether automated means were used, and the redress available.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ [Law] DSA Art. 17(1)(a) covers every restriction of visibility, with
+  no size exemption, not only a removal after a notice. So a statement of reasons MUST also go to the cook for each
+  restriction that does not start from a notice:
+    - a refusal to publish, or a hold, under 020's source check (including "Not approved").
+    - a demotion or a visibility limit, for example a recipe left out of discovery.
+    - a facts card cut back to the title, the site's name and the link because its site opted out (`FR-024a`) or
+      passed its cap (`FR-030a`).
+
+    Each statement carries an "automated: yes/no" flag. 020's automated hold reads "yes". A person's decision reads
+    "no". These statements are recorded in their own record, not in a notice decision ([data-model.md §14](./data-model.md)).
+    Counsel review is owed before launch (`FR-050`).
+
 - **FR-018a**: The statement MUST be delivered over **both** channels: by **email**, which is the channel that
   discharges the obligation because it reaches an uploader who never signs in again; and **in-app**, which
   carries the full detail and the route to the counter-notice. Delivery MUST be recorded **per channel**, so a
@@ -604,7 +738,9 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
   an operational alert if it remains undelivered. An uploader who cannot be reached is a compliance exposure,
   not a dropped notification.
 - **FR-019**: The system MUST provide a counter-notice path, record it, and record the restoration decision
-  and its date.
+  and its date. _(amended 2026-11-03, owner ruling, ADR-0082)_ Each restriction that `FR-018` now covers without a
+  notice MUST also offer a route to challenge it, and the outcome MUST be recorded with its date (DSA Art. 17(3)(f), once we
+  serve the EU). Counsel review is owed before launch (`FR-050`).
 - **FR-020**: The system MUST maintain a per-account record of actioned notices and MUST terminate an account
   on its **third live strike within a rolling 12 months**, applying the policy to every account without
   exception and retaining the trail. A single threshold, one implementation, no per-case discretion — because
@@ -624,15 +760,160 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
   earned.
 - **FR-024**: The system MUST rate-limit or otherwise resist abuse of the notice mechanism **without** refusing
   to receive notices, and MUST record any notice it declines to process along with the reason.
+  _(Amended 2026-11-03, ADR-0082.)_ `FR-066` states how a misuse finding can delay processing without refusing to
+  receive.
 - **FR-024a** _(added 2026-10-29, owner ruling, ADR-0077)_: A site MUST be able to opt out of public linked cards,
   without an account, through the notice mechanism of `FR-016` or a standing request. The opt-out list is data, with
   the admin-managed lifecycle and audit trail of `020-FR-011`. A card from an opted-out site shows only the title, the
   site's name and the link (`021-FR-014e`). The add-to actions stay for the cook who saved it. Opting out never removes
   any cook's own private copy.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ A site also opts out by machine-readable signals, which the fetcher
+  MUST read and honour on every fetch:
+    - **robots.txt, per RFC 9309.** The group that names our user-agent binds us. If no group names us, the `*` group
+      binds us. Honouring only groups that name us is wrong. [Law] robots.txt is not US law, but ignoring it weakens
+      implied-licence arguments (_Field v. Google_, 412 F. Supp. 2d 1106 (D. Nev. 2006)). In the EU it can be a
+      machine-readable reservation under DSM Directive Art. 4(3).
+    - **Data-mining opt-outs.** TDMRep (`/.well-known/tdmrep.json` and the `tdm-reservation` header), `noai` and
+      `noimageai` tags, robots blocks on AI crawlers (GPTBot, ClaudeBot, Google-Extended, CCBot), and Content Signals
+      `ai-input=no`. Our parse uses an LLM, so these signals reach us. [Law, judgement, strong, not settled] No court
+      has ruled on TDMRep, and the law on prose-only opt-outs is not settled (_Kneschke v. LAION_, OLG Hamburg,
+      10 December 2025, further appeal pending, and _Boligportal v Redata_, Danish Eastern High Court). [House rule] We
+      honour them in every market from v1.
+    - **A per-fetch signal log.** Each fetch records what each signal said, including "none found"
+      ([data-model.md §13](./data-model.md)). It is our evidence.
+    - [Law, EU] A cook's paste does not cure an EU opt-out for our own LLM analysis. It moves the stored copy to the
+      cook's side only. This is a counsel item (`FR-050`).
+    - Known pirate hosts are blocked. [Law] A pirated copy is not "lawfully accessible" (DSM Directive Art. 4(1)).
+
+    [Law] The fetcher MUST NOT pass a paywall, login or meter, use a cook's password or cookies, pose as another bot,
+    or rotate addresses (17 U.S.C. §1201, the CFAA after a revocation in _Facebook v. Power Ventures_, 844 F.3d 1058
+    (9th Cir. 2016), the UK Computer Misuse Act, and German StGB §202a). Video from TikTok, Instagram or YouTube is not
+    downloaded server-side against their terms. Official APIs are used under their terms, with the cook's paste,
+    share sheet or screenshot as the fallback. Counsel review is owed before launch (`FR-050`).
+
 - **FR-025**: The operator MUST maintain a registered designated agent and MUST treat its three-yearly renewal
   as a monitored obligation with an owner and an alert, since a lapse is a lapse in protection.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ The founder still owes the DMCA agent registration, in the
+  company's legal name. [Law] The safe harbor does not cover anything before registration (17 U.S.C. §512(c)(2)).
+  The repeat-infringer policy MUST be actually applied, not only written (§512(i), _BMG v. Cox_, 881 F.3d 293 (4th
+  Cir. 2018)). Counsel review is owed before launch (`FR-050`).
+  _(Amended 2026-11-03, owner ruling O13, ADR-0082.)_ The founder owns the three-year renewal of the registration
+  ([Law] 37 C.F.R. §201.38). The renewal goes on the operations doc's recurring tasks, with an alarm set well before
+  the due date. This was an open question and is now decided.
 - **FR-026**: `012-FR-022`'s DMCA route MUST be re-pointed at this mechanism rather than duplicating it. There
   MUST be exactly one notice-and-action pipeline in the portfolio.
+
+_The requirements FR-058 to FR-066 below were added 2026-11-03 (owner ruling, ADR-0082) to complete the notice path.
+They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owed before launch (`FR-050`) for each._
+
+- **FR-058**: **What a notice must contain.** The notice form (`FR-016`) MUST ask for every element both laws name,
+  as separate fields, so a notice is complete by construction.
+    - [Law, US] A DMCA notice (17 U.S.C. §512(c)(3)(A)) has six elements:
+        1. a physical or electronic signature of a person who can act for the owner
+        2. the work claimed to be infringed
+        3. the material and where it is, with enough to find it (the page address)
+        4. the notifier's contact details
+        5. a statement of good-faith belief that the use is not authorised
+        6. a statement that the notice is accurate and, under penalty of perjury, that the notifier can act for the
+           owner
+    - [Law, EU] A DSA notice (Art. 16(2)) needs a reasoned explanation, the exact electronic location, the notifier's
+      name and email, and a statement of good-faith belief that it is accurate and complete.
+    - [Law, US] A notice that fails some elements but meets the work, the material and the contact details is not
+      ignored. We MUST promptly try to contact the notifier, or take other reasonable steps, to get the rest
+      (§512(c)(3)(B)(ii)).
+    - [Law, EU] Each notice gets a confirmation of receipt without undue delay, and a decision notice that names the
+      redress (Art. 16(5)). Where automated means helped the decision, the decision says so (Art. 16(6)).
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-059**: **The designated agent page.** [Law, US] A public page, reachable without an account and linked from
+  every page footer, MUST name the designated agent: name, postal address, phone number and email (§512(c)(2)). The
+  same details MUST be filed in the US Copyright Office's online directory. The filing MUST be renewed every three
+  years (37 C.F.R. §201.38). The page and the filing MUST match, and `FR-025`'s alert watches the renewal.
+  _(Amended 2026-11-03, owner ruling O13, ADR-0082.)_ The founder owns the renewal and records it as a recurring task
+  in the operations doc.
+    - **Owed by the founder, not by software:** the agent registration in the company's legal name. [Law] Nothing
+      before the registration is inside the safe harbor (§512(c)(2)).
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-060**: **Expeditious removal, with a stated target.** [Law] On a valid notice we MUST remove or disable access
+  expeditiously (§512(c)(1)(C), DSA Art. 6(1)(b)). [House rule] The internal target is `FR-017a`'s 24 hours from
+  acknowledgement. "Removed" means every public surface answers not-available within `021-FR-061`'s purge bound. That
+  includes clones (`FR-022`), facts cards, preview images, the embed widget and the CDN copy. A decision recorded with
+  a surface still serving MUST raise an alert.
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-061**: **Counter-notice and restore.** This completes `FR-019`.
+    - [Law, US] A counter-notice (§512(g)(3)) has four elements:
+        1. a signature
+        2. the material removed, and where it was
+        3. a statement, under penalty of perjury, of good-faith belief that it was removed by mistake or
+           misidentification
+        4. the person's name, address and phone. It also gives consent to the jurisdiction of the federal district
+           court, and to accept service from the notifier. For an address outside the US, the court is any district
+           where we can be found.
+    - [Law, US] We MUST take reasonable steps to tell the uploader promptly about a removal (§512(g)(2)(A)).
+    - [Law, US] On a valid counter-notice we MUST promptly send a copy to the notifier. We MUST tell them we will
+      restore in 10 business days (§512(g)(2)(B)).
+    - [Law, US] We MUST restore 10 to 14 business days after we receive the counter-notice. The one exception is a
+      notice to our agent, first, that the notifier filed a court action (§512(g)(2)(C)).
+    - [House rule] Business days are US federal working days. On arrival of the counter-notice, we compute the restore
+      date and store it on the record. A sweep restores on that date, and a missed restore raises an alert.
+    - A restore lifts the strike (`FR-020a`) and supersedes the takedown block in 020 (`020-FR-066`).
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-062**: **Repeat infringers: counting and appeal.** This completes `FR-020` and `FR-021`.
+    - [House rule] A strike is one actioned copyright notice against one account. Notices on the same work in one
+      decision count once. The threshold is `FR-020`'s third live strike, counted over a rolling 12 months.
+    - [House rule] A termination MUST be open to one appeal, decided by a different reviewer where one is available
+      (`020-FR-026a`). The appeal confirms that each strike was live and was a valid notice. It does not reweigh the
+      policy. A reversed strike falls out of the count (`FR-020a`).
+    - [Law] The policy MUST be applied as written to every account (§512(i)(1)(A), _BMG v. Cox_, 881 F.3d 293 (4th
+      Cir. 2018)). [House rule] A new sign-up is refused where it matches a terminated account's verified email or
+      payment instrument. Only that match key is kept after erasure, under `FR-052a` and GDPR Art. 17(3)(e).
+    - [Law, EU] A termination carries a statement of reasons (DSA Art. 17).
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-063**: **Which DSA articles apply at our size.** [Law, EU] The hosting duties apply to every hosting provider,
+  whatever its size: Art. 16 (notice and action) and Art. 17 (statements of reasons). Art. 19 exempts micro and small
+  enterprises from the online-platform section, Arts. 20 to 28, except Art. 24(3). So at micro or small size these
+  do not bind us:
+    - Art. 20 (the internal complaint system)
+    - Art. 21 (out-of-court dispute settlement)
+    - Art. 22 (trusted flaggers)
+    - Art. 23 (measures against misuse)
+
+    [House rule] We still build three of them, because each is cheap and each lowers risk. They are:
+
+    - the challenge path (`FR-019`)
+    - the fast lane (`FR-065`)
+    - the misuse rules (`FR-066`)
+
+    When we stop qualifying as small
+    (Commission Recommendation 2003/361/EC), Arts. 20 to 28 bind. Then the challenge path MUST meet Art. 20's rules,
+    and each statement of reasons MUST name the certified Art. 21 bodies. The size test MUST be a dated record on the
+    market posture (`FR-048c`), reviewed each year. Counsel review is owed before launch (`FR-050`).
+
+- **FR-064**: **UK Online Safety Act complaints.** [Law, UK] A user-to-user service has a duty to let users and
+  affected persons report illegal content easily (OSA 2023 s.20). It also has a duty to run complaints procedures
+  (s.21). A complaint can be about content, or about a restriction of the user's own content. It can also be about
+  our use of technology. Each complaint MUST get a response and an outcome, and the procedure MUST be in the terms. The Act
+  does not count an offence about intellectual property as "illegal content" (s.59(10)). So a copyright notice stays in
+  the DMCA and DSA path. The two paths share `FR-016`'s one form. This duty binds at the UK launch. It binds from day
+  one where the app store serves the UK (`FR-048c`).
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-065**: **A fast lane for large publishers.** [House rule] DSA Art. 22 does not bind at small size (`FR-063`). A
+  verified rightsholder with many works can still apply for a fast lane. A fast-lane notice goes to the top of the
+  queue. It is judged by the same standard and the same person rules as every notice. It never removes anything
+  automatically. The lane is revoked after `FR-066`'s misuse finding. When Art. 22 binds, a certified trusted flagger
+  gets the same lane by law.
+    - Counsel review is owed before launch (`FR-050`).
+- **FR-066**: **Misuse of the notice process.** This reconciles `FR-024`.
+    - [Law, US] A person who knowingly materially misrepresents that material infringes, or that it was removed by
+      mistake, is liable for the damages that cause (§512(f), _Lenz v. Universal_, 815 F.3d 1145 (9th Cir. 2016)). The
+      notice form and the counter-notice form MUST say so.
+    - [House rule, mirroring DSA Art. 23] A notifier who often sends manifestly unfounded notices gets a warning
+      first. After the warning, we can suspend processing of their notices for a stated period. The same rule covers
+      a user who often sends manifestly unfounded counter-notices or challenges. Each step is recorded with its
+      reason, and the person can challenge it.
+    - [Law] We MUST NOT refuse to RECEIVE a notice that meets §512(c)(3). A suspension delays processing only, and a
+      compliant notice about a new work is still logged and acknowledged. This keeps `FR-024`'s rule.
+    - [Law, EU] Art. 23 replaces this house rule on the day it binds (`FR-063`).
+    - Counsel review is owed before launch (`FR-050`).
 
 #### D. Reproduction controls — being the host, not the copier
 
@@ -669,23 +950,60 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
     4. What is retained is the **extracted result** (text, quantities, steps, confidence), never the frame, the
        still, the audio, or the source media file.
 
+    _(amended 2026-11-03, owner ruling, ADR-0082)_ "Lawful because the purpose is to extract facts" was too broad.
+    The legal basis for extraction is per market, and the product reads it from the market posture (`FR-048`):
+    - [Law, US] Fair use. This is a judgement, weakened for a commercial substitute by _Thomson Reuters v. Ross_
+      (3d Cir. 2026).
+    - [Law, EU] Text and data mining under DSM Directive Art. 4, unless the rightsholder opted out in a
+      machine-readable way (`FR-024a`). Art. 4(2) limits how long the copies can be kept.
+    - [Law, UK] Only the transient-copy exception (CDPA s.28A): transient, facts only, nothing kept. Server-side
+      parsing for commercial use has no s.29A basis. This basis is weak.
+    - [Law, Australia] No matching exception.
+
+    The UK and Australian bases are counsel items (`FR-050`). [Law, EU and UK] A URL import keeps facts and a link
+    only, never a private verbatim copy, because our server makes the copy and hosting defences do not apply. The UK
+    has no private-copy exception (s.28B was quashed, _R (BASCA) v Secretary of State_ [2015] EWHC 2041 (Admin)). The
+    CJEU in _VCAST_ (C-265/16) puts a commercial service's private copies outside the private-copy exception. [Law, US]
+    A URL import can keep a private full copy. This is defensible but untested (_Cartoon Network v. CSC Holdings_, 536
+    F.3d 121 (2d Cir. 2008) for it, _UMG v. MP3.com_, 92 F. Supp. 2d 349 (S.D.N.Y. 2000) against it). One per-market
+    switch, keyed on the cook's market and closed for any market counsel has not cleared, decides this (`004-FR-008`).
+    A cook who wants the full text pastes it. Paste and image storage is user-provided (UK reg. 19, DSA Art. 6).
+    - [House rule] Commise MUST NOT train or fine-tune any model on imported third-party content. The law is not
+      settled (_Bartz v. Anthropic_, N.D. Cal. 2025, _Thomson Reuters v. Ross_, _GEMA v. OpenAI_, LG München I,
+      11 November 2025, not final). [Law] The terms MUST say what Commise does with content before it does it (FTC
+      guidance, February 2024).
+    - [Law] Extraction MUST NOT run face recognition on video frames or photos (Illinois BIPA, 740 ILCS 14).
+
+    Counsel review is owed before launch (`FR-050`).
+
 - **FR-027g**: ⛔ An extracted frame or still MUST NOT become the recipe's image. It is the most tempting
   shortcut in the whole import pipeline — a good frame is right there — and taking it converts a permitted
   transient extraction into exactly the persisted third-party copy `FR-027` prohibits. Recipe images follow
   `FR-027a`/`FR-027b`: reference the source, or the user supplies their own.
 - **FR-027h**: The **source media file** MUST NOT be retained after extraction completes, whether the
-  extraction succeeded or failed.
+  extraction succeeded or failed. _(amended 2026-11-03, owner ruling, ADR-0082)_ A page image the cook uploaded is
+  deleted after extraction unless the cook asks to keep it. A page photo the cook took and chose to keep is
+  user-provided content, stored like a replacement photo (`FR-027b`). `FR-027` and `SC-005` cover media our pipeline
+  obtains from a third party's host, so a kept page photo does not breach them. Video frames and audio are never kept. [Law, EU] DSM
+  Directive Art. 4(2) limits retention, and GDPR storage limitation applies where people appear. Counsel review is
+  owed before launch (`FR-050`).
 - **FR-028**: Every imported item MUST record the **channel** it arrived through, and channels MUST be
   classified as _user-supplied bytes_ or _operator-performed retrieval_, with the classification queryable.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ Stored text MUST keep its source, its credit and any copyright notice.
+  [Law] Stripping copyright management information is its own wrong (17 U.S.C. §1202, InfoSoc Directive Art. 7, CDPA
+  s.296ZG, Canada Copyright Act s.41.22). Counsel review is owed before launch (`FR-050`).
 - **FR-029**: Where more than one channel can satisfy a user's intent, the product MUST prefer a
   user-supplied-bytes channel, and MUST NOT silently upgrade a user-supplied action into an
   operator-performed retrieval.
 - **FR-029a**: The operator MUST NOT price, package or gate a paid tier on access to imported third-party
-  content, so that no financial benefit is directly attributable to it.
+  content, so that no financial benefit is directly attributable to it. _(amended 2026-11-03, owner ruling,
+  ADR-0082)_ The rule is unchanged. It is labelled [House rule], built on the [Law] of 17 U.S.C. §512(c)(1)(B). The
+  facts cards of labels 3 and 4 are free to anyone and never sit behind a paid tier. Counsel review is owed before
+  launch (`FR-050`).
 
     **Import guardrails** _(owner ruling 2026-10-25, restored 2026-10-27)_. Every import channel is open on every plan
-    (`004-FR-028`). A book or paid-site recipe uses one of a free cook's 50 private slots, and Pro removes that limit
-    for every private recipe alike ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).
+    (`004-FR-028`). A book or paid-site recipe kept private with no card uses one of a free cook's 50 private slots, and Pro removes that limit
+    for every private recipe alike (a recipe with a public card uses none, owner ruling O1, 2026-11-03, ADR-0082) ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)).
     So that imported content is never the draw:
     1. Pro is never marketed, priced or described in terms of importing. No "import your cookbooks with Pro", no
        import-specific offer, and no Pro benefit that names a source.
@@ -706,6 +1024,12 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
   and re-utilisation of the corpus, drafted as a contractual restriction on parties who accept the terms. The
   provision MUST NOT cover food values the operator holds under an attribution licence (ADR-0052), because such a
   licence forbids adding terms that restrict what others can do with the licensed material (owner, 2026-09-30).
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ The provision MUST also carve out everything a Creative Commons
+  licence on an open layer allows (`FR-033`). [Law] Terms cannot forbid what CC allows, because CC 4.0 Section 2(a)(5)(B)
+  bars added restrictions on the licensed material. [Law] Terms bind account holders, rarely a logged-out scraper
+  (_Meta v. Bright Data_, N.D. Cal. 2024, _X Corp. v. Bright Data_, N.D. Cal. 2024). So the provision is backed by
+  technical controls: rate limits on public reads, bot management at the edge, and no bulk listing of facts cards.
+  Counsel review is owed before launch (`FR-050`).
 - **FR-030a** _(added 2026-10-29, owner ruling, ADR-0077)_: The EU database right protects a site's catalogue against
   "repeated and systematic" re-use of small parts (Directive 96/9/EC Art 7(5)). Across many cooks, public linked cards
   could add up to that, and that act is ours, not the cook's. So:
@@ -714,19 +1038,68 @@ _Rationale, the owner's ruling in full, and the three blockers it surfaced are i
       site shows only the title, the site's name and the link, as for an opted-out site (`FR-024a`).
     - A surface MUST NOT list, browse, filter, rank or search public linked cards by source site. A source name on a card
       links only to the source site, never to a Commise list.
+
+    _(amended 2026-11-03, owner ruling, ADR-0082)_ The cap is tightened and its grounds are corrected:
+    - **Counted over time.** The cap counts every public card from a site, and any later Commise version from it,
+      together and over time, not per import. [Law] The database right protects the CONTENTS of a site's collection,
+      not its words (Directive 96/9/EC Art. 7, Art. 7(5) repeated and systematic taking, UK SI 1997/3032, _CV-Online
+      Latvia v Melons_, C-762/19). Rewording does not cure it. The counter is in [data-model.md §12](./data-model.md).
+    - **Grounds.** The EU and UK database right binds from the UK launch for UK-made sites and from the EU launch for
+      EU-made ones. [Law] US compilation copyright (17 U.S.C. §103) protects one site's selection. [House rule]
+      Goodwill toward source sites is the third ground. We apply the cap to every site from day one, because we cannot
+      tell where a site was made.
+    - **Aggregators.** User-recipe aggregator sites (Allrecipes-type, Chefkoch, Marmiton, Cookpad-type) and edited
+      publishers' collections are where the right most likely sits (_British Horseracing Board v William Hill_,
+      C-203/02). _(amended 2026-11-03, owner ruling O6, ADR-0082)_ They get NO public facts cards. Their recipes are other
+      users' work and carry the highest database-right risk. A cook's import from one stays private, or the cook
+      publishes it in their own words as "Adapted by you" (`FR-015b`). This replaces "the tightest cap, or no public
+      cards at all". The cap numbers for other sites stay with counsel. Counsel review is owed before launch (`FR-050`).
+    - **Books and paid sites.** The facts card of label 4 has its own per-source cap: per book, keyed by ISBN or by
+      title, and per paid site. It credits the book (title, author, publisher) or the site. It is never shown in the
+      book's order or as a book's collection. Our servers never fetch paid sites.
+    - **Bulk import.** A bulk import applies the same per-source cap to the public cards it creates
+      (ADR-0072). Past the cap, a card shows only the title, the source's name and the link.
+    - One public facts card stands per canonical page. Merging near-identical recipes is a product choice, not a
+      legal one. [Law] Independent creation is a full defence (_Sheldon v. Metro-Goldwyn_, 81 F.2d 49 (2d Cir. 1936),
+      _Morrissey v. Procter & Gamble_, 379 F.2d 675 (1st Cir. 1967)). Two cooks' texts are never merged into one.
+
+    Counsel review is owed before launch (`FR-050`).
+
 - **FR-031**: The operator MUST NOT assert, in product surfaces, documentation or marketing, ownership of
   users' recipes, nor any database right it does not hold. Claims about the corpus MUST be limited to the
   compilation and to contractual restrictions.
 - **FR-032**: Derived, non-published artefacts — ingredient-resolution mappings, per-field confidence scores,
   dedup keys and ranking signals — MUST be treated as confidential and MUST NOT be exposed through public
   surfaces or exports.
-- **FR-033**: The corpus MUST NOT be published under an open content licence.
+- **FR-033**: The corpus MUST NOT be published under an open content licence, except for the open layers below.
+  _(amended 2026-11-03, owner ruling, ADR-0082: the earlier text had no exception.)_ This requirement is the one
+  authority for which layers are open.
+    - **Open.** Every open page is "free to read". CC0 1.0 applies to text Commise itself writes: its own notes, the
+      nutrition text it writes, and later, if the pilot ships, a Commise version's method (Owner decisions item 5).
+      CC BY 4.0 applies, opt-in, to a cook's checked label 1 recipe, with the cook as licensor (`FR-010`). The
+      Creative Commons Public Domain Mark applies to label 7 text (`FR-015k`).
+    - **Never CC0.** Collected facts as a class, ingredient lists and facts cards. [Law] Facts from another site's EU
+      or UK database are not ours to waive (Directive 96/9/EC).
+    - **Closed.** The app, the code, ranking, ingredient-matching mappings and confidence scores (`FR-032`), the food
+      catalog (ADR-0052 unchanged), user data, the brand, and 018's paid chef content. Third-party text and photos
+      are never licensed by us.
+    - **Bulk download.** A cook's bulk download of their own recipes is `FR-034`. _(Amended 2026-11-03, owner ruling O12, ADR-0082.)_ There is NO public bulk download and NO public API of the open
+      layers for now. This is decided. A cook's own export stays (`FR-034`). A public bulk download or API of the
+      library would need a new ruling. If one is ever built, it carries only the open layers, keeps every credit, and never
+      carries facts cards, third-party text, photos, 018 content or a "by site" slice.
+
+    Counsel review is owed before launch (`FR-050`).
 
 #### F. Data protection surfaces
 
 - **FR-034**: A signed-in user MUST be able to request an export of their content and account data in a
   machine-readable form, from the app, and MUST be told the deadline and notified on completion. The deadline
   MUST be no longer than one month from the request.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ The export is offered from launch. [Law] A cook's bulk download of
+  their own recipes is required once GDPR Art. 20 or the CCPA applies. _(Amended 2026-11-03, owner ruling O12, ADR-0082.)_ The personal
+  export of a cook's own recipes stays. It is not a public bulk download, and no public bulk route exists for now. It includes the cook's private imported
+  copies, which is fine because it goes to that cook. It never includes another cook's private recipe. Counsel review
+  is owed before launch (`FR-050`).
 - **FR-035**: The system MUST provide a consent-withdrawal surface covering every purpose recorded under
   `FR-007`, and dependent features MUST degrade gracefully rather than fail when a consent is withdrawn.
 - **FR-036**: Processing of special-category data — dietary restriction, allergy, health goal, religious
@@ -796,7 +1169,29 @@ they do not create a second mechanism.
   either impossible to retrofit or requires re-prompting the entire existing user base to correct.
 - **FR-048c**: Obligations whose cost is a **capability** — an EU representative, a hosting-service point of
   contact, market-specific accessibility conformance statements, per-market document variants — MUST NOT be
-  built at v1, and MUST be recorded as enabling work attached to the market that triggers them.
+  built for a market that is not served, and MUST be recorded as enabling work attached to the market that triggers
+  them. _(amended 2026-11-03, owner ruling, ADR-0082: the earlier text said "MUST NOT be built at v1".)_ Each of
+  these is a precondition of serving its market. The product MUST NOT serve a market until its list is met.
+    - **EU:** an EU legal representative (DSA Art. 13), a GDPR Art. 27 representative, DSA Art. 11 and Art. 12
+      contact points, and statements of reasons for removal, demotion and visibility limits (DSA Art. 17(1)(a), no
+      size exemption, `FR-018`).
+    - **UK:** a UK GDPR representative, the Online Safety Act duties (an illegal-content risk assessment, a children's
+      access assessment, and age assurance where eating-disorder content can appear), and unfair-terms review under
+      the Consumer Rights Act 2015 Part 2.
+    - **Australia:** the under-16 social media self-assessment (Online Safety Act 2021 s.63C).
+    - **Canada:** notice-and-notice (Copyright Act s.41.25, s.41.26), with records kept for six months.
+    - [Law] **"US-only" is not a defence.** An app listed in EU or UK app stores serves them (DSA Recital 8, GDPR Art.
+      3(2), UK Online Safety Act s.4(5) and s.4(6)). So the product MUST either restrict its store territories and
+      record that it did, or treat the UK as a day-one market for the light duties.
+    - _(Amended 2026-11-03, owner ruling O9, ADR-0082.)_ **At launch the app is listed only in US app stores.** That
+      is the restriction, and it is recorded here and in `025`. The statement "US-only is not a defence" stays true
+      for any listing outside the US, and is not true of this launch, because the listings are US-only. The EU and UK
+      lists above MUST be met before the app is listed in any EU or UK store, and `025` gates that listing on them.
+      The web site is a separate matter and follows the market posture in `FR-048a`. Counsel review is owed before
+      launch (`FR-050`).
+
+    Counsel review is owed before launch (`FR-050`).
+
 - **FR-049**: Every legal surface, document, disclaimer and notice-mechanism string MUST route through the
   localization path and MUST NOT be a hard-coded literal.
 - **FR-050**: The specification MUST carry a list of items requiring counsel's confirmation before launch,
@@ -806,6 +1201,44 @@ they do not create a second mechanism.
   `004-FR-023`'s deliberate decision to import despite a wildcard `Disallow`, and which `FR-027f` now makes
   load-bearing for **video and audio import** rather than URL import alone, since TDM is the basis on which
   frame sampling is permitted at all; and the drafting of every document surface here.
+  _(amended 2026-11-03, owner ruling, ADR-0082)_ The reference to importing "despite a wildcard `Disallow`" is
+  corrected. Under RFC 9309 the `*` group binds us when no group names our user-agent (`FR-024a`). `004-FR-023` is
+  owed the same correction. The list below gains these items. Each one states what breaks.
+    - **The public-domain rule table** (`FR-015k`). Counsel checks it once before the first public page, and again
+      each year. **What breaks:** a protected text open to the web in a market where it is still protected.
+    - **The CC BY grant and the cook licence wording** (`FR-010`), to the CPI L131-3 and CRA 2015 standard. **What
+      breaks:** an unfair or void licence term, and a grant a cook can undo.
+    - **The per-market basis for extraction** (`FR-027f`), above all the UK s.28A basis and Australia, which has no
+      matching exception. **What breaks:** every server-side parse in that market lacks a basis.
+    - **The per-market URL-import switch** (`FR-027f`). Which markets keep a private full copy. **What breaks:** a
+      stored verbatim copy with no exception behind it.
+    - **The data-mining opt-out signals** (`FR-024a`), and whether a cook's paste cures an EU opt-out for our own LLM
+      analysis. **What breaks:** an EU reservation we failed to honour.
+    - **The aggregator list** (`FR-030a`). _(amended 2026-11-03, owner ruling O6, ADR-0082)_ Decided: aggregators get no
+      public cards. Counsel checks which sites count as aggregators. **What breaks:** the database right of the sites
+      most likely to hold one.
+    - **The family permission wording** (`FR-015g` row 5), which must cover the open web. **What breaks:** a giver's
+      words shown more widely than they agreed.
+    - **DSM Directive Art. 17 (EU).** Whether Commise is an online content-sharing service provider. **What breaks:**
+      the hosting defence for EU uploads, replaced by a duty to license or to prevent.
+    - **Canada's notice-and-notice and s.31.1.** **What breaks:** a lost Canadian hosting defence.
+    - **The UK Online Safety Act duties** (`FR-048c`). **What breaks:** a regulator's action at the UK launch.
+    - _(Added 2026-11-03, ADR-0082.)_ **The notice and counter-notice forms** (`FR-058`, `FR-061`), and the
+      business-day count for the restore. **What breaks:** a restore on the wrong day loses the §512(g)(4) shield.
+    - **The repeat-infringer count and its appeal** (`FR-062`). **What breaks:** a policy applied unevenly, which costs
+      the safe harbor (§512(i)).
+    - **Which DSA articles bind at our size** (`FR-063`), and the date we stop qualifying as small. **What breaks:**
+      Arts. 20 to 28 binding without the systems they need.
+    - **The UK complaints procedures** (`FR-064`), with the section numbers of the Act. **What breaks:** a complaints
+      duty unmet at the UK launch.
+    - **Notice misuse** (`FR-066`). Whether a suspension of processing can ever touch a compliant §512 notice. **What
+      breaks:** a lost safe harbor for a notice we did not act on.
+    - **The household as a private circle** (`020-FR-072`), in each market. **What breaks:** a shared private copy of
+      a book recipe becomes a making available to the public.
+    - **A takedown as a block on other cooks' copies** (`020-FR-066`). **What breaks:** an over-wide block that
+      restricts a cook's own independent version.
+    - **The market preconditions** (`FR-048c`), including the store-territory record. **What breaks:** a market served
+      by accident, without its duties met.
     - **The bulk-import attestation wording.** Owner ruling, 2026-10-26, recorded in
       [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §9. A bulk import asks for a source
       statement on every recipe, not one statement for the file. The statement has two forms: "I wrote this", with
@@ -1127,6 +1560,15 @@ pages cited under `FR-057` are the inputs. They are not legal advice.
 - **Infringement Strike**: the per-account tally of actioned notices that drives termination.
 - **Provenance Channel**: how an item's bytes reached us, classified user-supplied or operator-retrieved.
 - **Market Posture**: the per-market configuration governing publication, discovery and feature availability.
+  _(2026-11-03)_ It also holds the URL-import switch and the market preconditions (`FR-027f`, `FR-048c`).
+- **Public-Domain Record** _(added 2026-11-03, ADR-0082)_: the curator's per-book record behind label 7 (`FR-015k`).
+- **Recipe Licence Choice** _(added 2026-11-03, ADR-0082)_: a recipe's licence (`commise` or `cc-by-4.0`), its
+  version, and a separate photo licence (`FR-010`).
+- **Restriction Statement** _(added 2026-11-03, ADR-0082)_: a statement of reasons for a restriction that did not
+  start from a notice (`FR-018`).
+- **Source Cap Count** _(added 2026-11-03, ADR-0082)_: the per-source count of public facts cards and Commise
+  versions, over time (`FR-030a`).
+- **Fetch Signal Record** _(added 2026-11-03, ADR-0082)_: what each opt-out signal said on one fetch (`FR-024a`).
 
 ## Success Criteria _(mandatory)_
 
@@ -1158,7 +1600,8 @@ pages cited under `FR-057` are the inputs. They are not legal advice.
 - **SC-010**: 100% of AI-generated content carries both a machine-readable marking and a visible label at
   display time.
 - **SC-011**: Zero product surfaces, documents or marketing claims assert ownership of users' recipes or a
-  database right the operator does not hold, and the corpus is under no open content licence.
+  database right the operator does not hold, and the corpus is under no open content licence beyond the open
+  layers `FR-033` names (amended 2026-11-03, ADR-0082). The food catalog stays under none (ADR-0052).
 - **SC-012**: Zero published clones exist without a substantive edit, and zero clones exist of a recipe whose
   provenance forbids redistribution. Both are defects, not data-quality issues.
 - **SC-013**: After an account erasure, no surviving derived copy names the erased user, and 100% of them
@@ -1199,7 +1642,8 @@ pages cited under `FR-057` are the inputs. They are not legal advice.
   _user-facing_ features; this is operator tooling. Recorded so nobody "fixes" it by building a mobile
   adjudication surface.
 - **A human decides notices.** Volume is low; no automated adjudication is specified, and `FR-018`'s
-  "whether automated means were used" is therefore expected to read "no" at launch.
+  "whether automated means were used" is therefore expected to read "no" at launch for a notice decision.
+  _(amended 2026-11-03, ADR-0082)_ A hold placed by 020's automated source check reads "yes" (`FR-018`).
 - **At launch that human is the founder, with a paid backup** (`FR-053h`, owner ruling, 2026-10-27). `FR-053i`'s trigger
   starts the hire of a half-time reviewer.
 - **The federal US auto-renewal rule is absent, not pending.** It was vacated in July 2025 and re-proposed in
@@ -1324,6 +1768,10 @@ are specified in `001/data-model.md`, and both are implementation work requiring
   Australia remains the sharpest of the target markets — neither fair use nor a commercial-platform safe
   harbour — and that is a sequencing input for when global expansion is planned, not a v1 obligation.
 
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** The ruling stands, but "US at v1" does not keep the other
+    > markets out by itself. An app listed in EU or UK app stores serves them. So either the store territories are
+    > restricted and recorded, or the UK is a day-one market for its light duties (`FR-048c`).
+
 - **C-016-002 — Q2 answered: reference the source photograph, and let the user replace it.** No third-party
   image bytes reach our storage (`FR-027`); the image is rendered from the original host, and a one-tap
   replacement converts it into user content we do own (`FR-027b`). Three consequences are accepted rather than
@@ -1353,6 +1801,10 @@ are specified in `001/data-model.md`, and both are implementation work requiring
     reservation** by the rightsholder — the _same_ open question `004-FR-023` already carries, so this inherits
     an existing risk rather than creating a new one. It is now load-bearing for the video wedge and not only for
     URL import, and is escalated in `FR-050`.
+
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** The basis is per market, not TDM everywhere (`FR-027f`). Under
+    > RFC 9309 the `*` group binds us when no group names us, so "despite a wildcard `Disallow`" no longer holds
+    > (`FR-024a`).
 
 - **C-016-003 — Q3 answered, and the model replaced the question.** The owner did not pick from the options;
   they changed what a clone _is_. **A clone must be modified, references its source, and is therefore not a
@@ -1412,9 +1864,53 @@ records the decision.
   (`020-FR-012`). This spec adds the privacy notice line (`FR-039a`).
 - **C-016-008: staff review is a rights check only** (`FR-053j`). This keeps review on the screening side of
   _Mavrix_.
+
+    > **Amended 2026-11-03 (owner ruling, ADR-0082).** C-016-006's two states stand for the cook's copy. The linked
+    > card is now readable signed out, by anyone. _(Further amended 2026-11-03, owner ruling O2, ADR-0082.)_ The
+    > `noindex` house rule for facts cards is removed. A facts card is indexable under the public rule, with `Recipe`
+    > data built only from our own facts (`021-FR-023`). The per-site cap, the visible credit and the facts-only field
+    > list stay. Counsel review is owed before launch (`FR-050`).
+
 - **Owed by specs this session does not edit.** 012 owed a way for a cook to prove a site is their own, so a blogger who imports their own posts is not treated as a copier (`020-FR-012g`). 026's site claim now provides it (`FR-055`, [ADR-0078](../../docs/architecture/decisions/0078-a-live-site-claim-clears-the-own-site-hit.md)). 015 still lists D4b, making `imported_public`
   private by default, as open. This ruling settles what a public web import shows to other cooks. The owner then ruled on
   2026-10-29 that any cook can keep one private, using a slot (ADR-0077 §6). 015 is aligned in its own next revision.
+
+### Session 2026-11-03: recipes are an open library (owner rulings)
+
+ADR-0082 records the decision. It amends ADR-0077, ADR-0072, ADR-0023, ADR-0073 and ADR-0052. Counsel review is owed
+before launch (`FR-050`).
+
+- **C-016-009: the facts of any recipe are public and free, signed out, for anyone.** The facts card replaces the
+  signed-out source card. _(Amended 2026-11-03, owner ruling O2, ADR-0082.)_ It is indexable under the public rule
+  (`021-FR-020`), with the caps, the credit and the facts-only list kept (`FR-015c` row 3, `FR-012`).
+- **C-016-009a: a public card uses no private slot, and reading is never paid for** (owner rulings O1 and O5,
+  2026-11-03, ADR-0082). A recipe with a public facts card is a public recipe and uses no slot, even when the cook
+  keeps the full text privately. A recipe kept private with no card still uses a slot. No Pro plan or other paywall
+  applies to reading a public or creator recipe. Counsel review is owed before launch (`FR-050`).
+- **C-016-010: family recipes and gated public-domain text open to the web** (`FR-015c` rows 5 and 7, `FR-015g`).
+  The public-domain gate is `FR-015k`. It replaces the earlier "open both" ruling.
+- **C-016-011: open licences on the open layers** (`FR-033`, `FR-010`). CC0 on Commise's own text, CC BY 4.0 opt-in
+  for a cook's checked own recipe, the Public Domain Mark on old text. The terms carve them out (`FR-030`).
+- **C-016-012: the Commise version is not at launch.** It is a gated pilot ([Owner decisions](#owner-decisions-required)
+  item 5, `FR-015i`).
+- **C-016-013: book and paid-site recipes get a facts card** under a per-source cap (`FR-015c` row 4, `FR-030a`).
+- **C-016-014: URL import is per market.** The EU and UK keep facts and a link only. The US keeps a private full copy
+  (`FR-027f`).
+- **C-016-015: aggregator sites get no facts cards** (O6, `FR-030a`, `FR-015c` row 3). Their recipes are other users'
+  work and carry the highest database-right risk. A cook's import stays private, or the cook adapts it in their own
+  words. This replaced "the tightest cap, or no public cards at all". Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-016: creator pages list recipes the cook wrote or adapted, never facts cards, and licensed and public domain
+  pages are indexable** (O7, O8, `021-FR-015`, `021-FR-014f`, `021-FR-020`). Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-017: at launch the app is listed only in US app stores** (O9, `FR-048c`, `025-FR-088`). The EU and UK
+  duties are met before any listing there. Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-018: an edited public recipe shows its last approved version while it is checked, and bios and avatars get
+  no outside-copy check** (O10, O11, `020-FR-064`, `020-FR-071`). [House rule] Notice-and-takedown covers bios and
+  avatars. Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-019: no public bulk download and no public API of the open layers for now, and the founder owns the DMCA
+  agent renewal** (O12, O13, `FR-033`, `FR-034`, `FR-025`, `FR-059`). A cook's own export stays. The renewal is a
+  recurring task in the operations doc. Decided _(owner rulings 2026-11-03, ADR-0082)_.
+
+Counsel review is owed before launch (`FR-050`).
 
 ## Owner decisions required
 
@@ -1422,13 +1918,39 @@ All three clarifications are resolved (C-016-001 … C-016-003). These remain op
 
 1. **Do we create an EU establishment to hold a database right?** It is the only route to the one right that
    would protect the corpus against extraction, and it carries tax, data-protection and corporate consequences
-   far outside this feature. Recommendation: **no, not for this reason alone** — Layer 4's contractual fence
-   is what actually gets enforced.
+   far outside this feature. Recommendation: **no, not for this reason alone**. _(amended 2026-11-03, ADR-0082)_
+   Layer 4's contract is one fence, strongest against account holders, and technical controls carry the rest. The
+   database right still does not protect the open layers, which `FR-033` licenses out on purpose.
 2. ~~**Repeat-infringer threshold.**~~ **RESOLVED 2026-08-22** — three live strikes in a rolling 12 months
    (`FR-020`).
 3. **Do we publish transparency numbers voluntarily?** Cheap, differentiating against a competitor whose
    documents contradict their marketing, and it commits us to keeping the numbers clean.
-4. **Who owns the registered-agent renewal?** A named human, not a team.
+4. **Registered-agent renewal.** _(Decided 2026-11-03, owner ruling O13, ADR-0082.)_ The founder owns the renewal every
+   three years (37 C.F.R. §201.38), as a recurring task in the operations doc. The first registration is also still
+   owed by the founder (`FR-025`).
+5. **The Commise version pilot** _(added 2026-11-03, owner ruling, ADR-0082)_. This is where 016 tracks the one
+   future feature it gates. An AI rewrite of another site's recipe, published by Commise, is NOT built at launch
+   (`FR-015i`). It can ship later only as a pilot, and only when ALL of these hold:
+    1. US users only, behind a per-market feature flag (`FR-048`), until EU and UK counsel sign off.
+    2. Open-web blog sources only. No paid sites, cookbooks, magazines, user-recipe aggregators or test-kitchen
+       publishers.
+    3. Extraction to structured fields only: quantities, temperatures, times and a short verb list. No tips, reasons,
+       asides or unusual phrasing. The parsing copy is transient (`FR-027f`).
+    4. A sentence-level similarity check AND a structure check, each with a low threshold, each logged. Either one
+       blocks publication.
+    5. Human review for registered or high-value publishers.
+    6. The per-site cap counts Commise versions and cards together, over time (`FR-030a`).
+    7. Every opt-out is honoured, the AI signals included (`FR-024a`).
+    8. CC0 only on the Commise-written text (`FR-033`). The page says "written by Commise, AI-made" (`FR-046`). No CC0
+       on facts. No rewards.
+    9. Media and IP liability insurance is in place, a publisher opt-out contact is live, and counsel signs off.
+    10. A decision on evidence: it ships widely only if it adds real search traffic over facts cards and cooks'
+        adaptations.
+
+    [Law] Commise is the publisher of that text, outside the §512(c) safe harbor and outside DSA Art. 6. The EU
+    and UK database right still applies to rewritten text. Small bloggers are realistic claimants (the US Copyright
+    Claims Board, §1202 damages without registration, and no registration needed abroad). Counsel review is owed
+    before launch (`FR-050`).
 
 ---
 
@@ -1462,4 +1984,7 @@ feature raised against this one is settled. Nothing here blocks planning.
 agent (`FR-025`) and counsel-drafted documents. `FR-050` carries the items needing counsel's confirmation, each
 naming what breaks if the assumption is wrong.
 
-**85 functional requirements · 7 non-functional · 17 success criteria · 8 user stories · 0 clarification markers.**
+**105 functional requirements · 7 non-functional · 17 success criteria · 8 user stories · 0 clarification markers.**
+_(2026-11-03: `FR-015k` added, ADR-0082. The earlier figure of 85 was stale before that. A grep over the bold `FR-`
+IDs counts 105.)_ _(The founder still owes the DMCA agent registration and the counsel
+review.)_

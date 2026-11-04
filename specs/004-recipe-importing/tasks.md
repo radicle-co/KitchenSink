@@ -254,12 +254,16 @@ half (GR-017 §17-f).
 - [ ] Pure total function `(channel, attestation, citationReachable) → RecipeSourceType`
 - [ ] `url`/`instagram` → `imported_public`; `file` → `user_created` (`FR-011`); `text` → `user_created`, or `imported_paid` when attested (`FR-014a`); attested non-public source →
       `imported_paid` (D-003)
+- [ ] _(amended 2026-11-03, owner ruling, ADR-0082)_ `imported_public` means "copied from a publicly reachable page",
+      which is fully protected and the opposite of public domain. The policy also maps the D3 statement kinds
+      (`authored`, `adapted`, `source`, `family`, `publicDomain`), and `family` and `adapted` are not `imported_paid`.
 - [ ] Detection heuristics return a **review flag only** — they never change the returned classification
 - [ ] **Does not** decide visibility; that is the shipped `evaluateVisibility` (REQ-015)
 - [ ] **Unit tests** cover the full cartesian product of inputs, including every path that must NOT yield
       `imported_public`
-- [ ] **Integration test** asserts a recipe created from an `imported_paid` draft is refused public visibility
-      by the **shipped** policy — proving the delegation actually holds
+- [ ] **Integration test** asserts the **verbatim copy** of an `imported_paid` draft is refused public visibility
+      by the **shipped** policy, proving the delegation holds. _(Amended 2026-11-03, ADR-0082: the cook's Adapted
+      version and a family recipe are not refused.)_
 
 **Files** `src/imports/policy/provenance.policy.ts`, `src/imports/__tests__/provenance.policy.test.ts`
 
@@ -317,6 +321,8 @@ half (GR-017 §17-f).
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `UTP-023-A, ITP-014-A`
 
 - [ ] DAL + service over `paywalled_domains` with audit fields (`added_by`, `created_at`, `reason`)
+- [ ] _(added 2026-11-03, ADR-0082)_ Known pirate hosts are seeded as blocked hosts (DSM Art. 4(1)), and the reason
+      field names the law basis (17 U.S.C. §1201, CFAA)
 - [ ] Matching is **exact host or registrable suffix — never substring** (`notnytimes.com` must not match `nytimes.com`)
 - [ ] Host normalized (lowercase, strip `www.`) before lookup
 - [ ] Bounded-TTL cache; a cache miss fails **closed** (blocked) rather than open
@@ -344,8 +350,9 @@ The previous task list specified **none** of this. Security tests are written fi
       html content types only
 - [ ] Per-registrable-domain circuit breaker + bounded-concurrency bulkhead (`cockatiel`)
 - [ ] Retry: idempotent GET only, transient only, ≤2 attempts, exponential backoff **with full jitter**
-- [ ] `robots.txt` per D-007: agent-named group honoured in full; path-specific wildcard `Disallow` honoured;
-      bare wildcard `Disallow: /` does **not** block; unreachable/unparseable robots is permissive; blocks counted
+- [ ] `robots.txt` per RFC 9309 _(amended 2026-11-03, ADR-0082)_: the group naming our agent binds, else the `*` group
+      binds, including a bare `Disallow: /`; unreachable/unparseable robots is permissive; blocks counted
+- [ ] TDMRep, `noai`, AI-crawler blocks and `ai-input=no` honoured, one signal log row per fetch (T-033)
 - [ ] No credentials, cookies, or `Authorization` on any outbound request
 - [ ] Response bodies are **never logged** (REQ-NF-012)
 - [ ] **Unit tests** (adversarial, written first): `127.0.0.1`, `[::1]`, `10.x`, `192.168.x`, `169.254.169.254`,
@@ -427,6 +434,11 @@ The previous task list specified **none** of this. Security tests are written fi
 
 - [ ] `POST /api/v1/import/url` → `202 { jobId }`; `GET /import/jobs/{id}` → status
 - [ ] Duplicate canonical URL resolves to the existing recipe with `cloneAvailable: true` — **200, not an error**
+- [ ] _(amended 2026-11-03, ADR-0082)_ The existing public item is the page's one **facts card**, readable signed out.
+      URL-only matching misses the same recipe at another address and pasted copies. That is a recorded product gap
+      (C-001), not a legal bar
+- [ ] _(amended 2026-11-03, ADR-0082)_ The stored copy follows `MarketCopyPolicy` (T-034): EU and UK keep facts and a
+      link only
 - [ ] Constraint violation on insert is caught and resolved to the winning recipe (HAZ-018)
 - [ ] **Integration test** for the concurrent-duplicate race: two simultaneous imports ⇒ exactly one recipe
 - [ ] **e2e** `import-url.e2e.test.ts` against real Postgres + LocalStack + a local fixture server
@@ -486,6 +498,7 @@ Touches **001's shipped code**, not 004's. Additive: `POST /api/v1/recipes` beha
 - [ ] File parser detects a collection and yields **one draft per recipe**, sharing one import job
 - [ ] Bounded: **max 1,000 recipes per file** (D-013) and max file size; streamed parse, chunked persistence (HAZ-060)
 - [ ] A bulk file import counts as **one** import against the D-006 daily allowance, not one per recipe
+- [ ] _(added 2026-11-03, ADR-0082, E7)_ A per-source cap applies to the facts cards a file would make public (T-035)
 - [ ] `POST /import/drafts/confirm-bulk` → `207` with a per-draft outcome (`created` / `already_existed` / `failed` + reason)
 - [ ] Deduplication applies **per recipe**; an already-present recipe is `already_existed`, **not** a failure
 - [ ] One recipe's failure does not discard the others (HAZ-058)
@@ -642,6 +655,8 @@ That is a hole, not a new feature. It is also what the OCR transfer makes load-b
 **Test-first:** true — these tests are written and confirmed **failing** before any implementation: `ATP-005-A, ATP-005-B, ITP-012-A`
 
 - [ ] `oembed-provider.port.ts` + Meta-hosted adapter using an app credential from SSM/Secrets
+- [ ] _(added 2026-11-03, ADR-0082)_ Official API only. No server-side video download. No frames or audio kept. No face
+      recognition. The fallback is the cook's paste, share sheet or screenshot
 - [ ] **Capability flag defaults OFF.** With it off the endpoints return `404`, the channel is absent from
       `GET /import/sources`, and neither UI offers it — no dead affordance
 - [ ] `429` classified explicitly as throttled, not a generic failure (HAZ-010); response shape validated (HAZ-012)
@@ -885,3 +900,75 @@ SC-002 is unverifiable without this; the number is meaningless until the corpus 
 
 **No §14.1 single-platform waiver is claimed.** Every user-facing task (T-021..T-024) delivers web and mobile
 together.
+
+---
+
+## Phase 7 — Open recipe library (added 2026-11-03, owner ruling, ADR-0082)
+
+Counsel review is owed before launch (`016-FR-050`). Each task is test-first and needs no UI change except T-036.
+
+### T-033 · FetchSignalPolicy and the per-fetch signal log
+
+**Priority** P1 · **Effort** M · **Depends on** T-010 · **Implements** FR-023
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] Pure `FetchSignalPolicy`: from robots.txt, TDMRep, `tdm-reservation`, `noai`, `noimageai`, AI-crawler blocks and
+      `ai-input=no`, return allow or deny with the winning signal
+- [ ] Table-driven unit tests, including a `*` group `Disallow: /` that now denies, and a group naming us that wins
+- [ ] One signal log row per fetch with each signal's reading, including "none found". It holds no page body
+- [ ] **Integration test** against real Postgres asserts the log row on allow, on deny and on "none found"
+
+**Files** `src/imports/fetch/fetchSignal.policy.ts`, `src/imports/fetch/__tests__/fetchSignal.policy.test.ts`
+
+### T-034 · MarketCopyPolicy (the per-market URL-import switch, D6)
+
+**Priority** P1 · **Effort** M · **Depends on** T-014 · **Implements** FR-008 ruling
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] Pure `MarketCopyPolicy`: US gives `keepPrivateCopy`. EU, UK and any market counsel has not cleared give
+      `factsAndLinkOnly`. The default is closed
+- [ ] The extractor stores no verbatim method, headnote or photo reference when the policy says `factsAndLinkOnly`
+- [ ] **Unit tests** for every market and for an unknown market. **Integration test** that a UK cook's URL import
+      leaves no verbatim method row
+
+### T-035 · Per-source cap for facts cards (single imports and bulk)
+
+**Priority** P1 · **Effort** M · **Depends on** T-030 · **Implements** FR-014b, FR-026
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] Count public facts cards per source (site, book by ISBN or title, paid site) over time, across every card and any
+      later Commise version. _(Amended 2026-11-03, owner ruling O6, ADR-0082.)_ User-recipe aggregators get NO public
+      card at all, so they are not counted. A recipe from one stays private unless the cook adapts it
+- [ ] Add an aggregator-site list as configuration, checked before any card is offered, for single and bulk imports.
+      A test imports from an aggregator host and asserts no public card is made, in a single import and in a
+      1,000-recipe file
+- [ ] Past the cap, the card is the "title, site name, link only" form (D4), and bulk recipes stay private
+- [ ] No feature lists, browses or filters public cards by site
+- [ ] **Unit and integration tests**, including a cap crossed by a 1,000-recipe file
+
+### T-036 · Facts card for book and paid-site recipes (D5)
+
+**Priority** P2 · **Effort** M · **Depends on** T-035 · **Implements** FR-014b
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] Public projection with the linked card's field list, no prose, headnote or photo, a credit to the book or site,
+      never in the book's order or as a book's collection
+- [ ] Web and mobile in lockstep (§14.1). Component tests for each state, a Playwright test and a Maestro flow
+- [ ] _(added 2026-11-03, owner ruling, ADR-0082 §2)_ A recipe with a public facts card counts as public and uses no
+      private slot. Unit test on the slot count, and an integration test in which a free cook at 50 private recipes
+      saves a book recipe as a facts card and is not refused (`FR-028`)
+- [ ] Bulk import offers the facts card for a book or paid-site recipe and does not pause for it. Integration test
+      with a free cook at the limit importing a book file
+
+### T-037 · Delete the page image after extraction
+
+**Priority** P1 · **Effort** S · **Depends on** T-018 transfer to 011 · **Implements** FR-012 note
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] The extraction worker deletes the page image after a successful extraction unless the cook asked to keep it
+- [ ] Video frames and audio are never stored. **Unit and integration tests** assert the deletion and the keep case

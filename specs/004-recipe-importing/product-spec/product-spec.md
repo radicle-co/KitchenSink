@@ -89,14 +89,14 @@ the attestation flow states the consequence at the point of entry.
 Creating a recipe that is not public requires a subscription — applied consistently, including where the
 privacy is imposed by policy rather than chosen by the user.
 
-| Channel                      | Result                     | Free | Premium |
-| ---------------------------- | -------------------------- | ---- | ------- |
-| URL import                   | public, attributed         | ✅   | ✅      |
-| Instagram import _(gated)_   | public, attributed         | ✅   | ✅      |
-| File / migration import      | `user_created`             | ✅   | ✅      |
-| Photo (OCR) import           | **private** by policy      | ❌   | ✅      |
-| Cookbook / paid-source paste | **never public** by policy | ❌   | ✅      |
-| Setting any recipe private   | private                    | ❌   | ✅      |
+| Channel                      | Result                                                                                                                                | Free | Premium |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------- |
+| URL import                   | public, attributed                                                                                                                    | ✅   | ✅      |
+| Instagram import _(gated)_   | public, attributed                                                                                                                    | ✅   | ✅      |
+| File / migration import      | `user_created`                                                                                                                        | ✅   | ✅      |
+| Photo (OCR) import           | **private** by policy                                                                                                                 | ❌   | ✅      |
+| Cookbook / paid-source paste | verbatim copy **stays private**. The cook can publish an Adapted version, and a facts card is possible (amended 2026-11-03, ADR-0082) | ❌   | ✅      |
+| Setting any recipe private   | private                                                                                                                               | ❌   | ✅      |
 
 Free-tier users see the upgrade path rather than a failure, and the gated channels are not offered to them at
 all — no affordance that cannot succeed. Two consequences worth stating: OCR spend is confined to paying users

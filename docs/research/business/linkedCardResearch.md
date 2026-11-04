@@ -1,5 +1,12 @@
 # The linked recipe card: what Commise can show for a recipe from someone else's page
 
+> **Superseded in part, 2026-11-03 (owner ruling, ADR-0082).** This is a dated research record. Read the current rules in
+> `specs/021-public-discovery-and-sharing/spec.md` and ADR-0082. Where this record says a source card hides ingredients,
+> that a linked card is for signed-in cooks only, that web, book and paid-site recipes can never be public, that
+> "US only" avoids EU or UK duties, or that "no copyright" can be detected on a page, those lines are replaced.
+> Facts are free and open, signed out. Words and photos stay protected. Counsel review is owed before launch
+> (`016-FR-050`).
+
 **For:** Commise. Follow-up to `recipeOwnershipResearch.md` in this folder (its section 4, row 3, and gap G1).
 **Asked by:** the owner, via the coordinator, 2026-10-29.
 **Prepared:** 2026-10-29, by the CLO agent.

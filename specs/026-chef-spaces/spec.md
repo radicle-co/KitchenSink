@@ -271,6 +271,12 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 
 ### Functional Requirements
 
+> _(added 2026-11-03, owner ruling, ADR-0082)_ **Every door to public passes 020's hold.** Any recipe text, lesson
+> text, photo or video description this feature shows to anyone other than its owner counts as "publicly visible" for
+> `020-FR-001`. It goes through 020's one hold before it is shown, and fails closed (020 section K). A copy delivered
+> to a buyer carries its source's checked-content digest (`020-FR-057`). [House rule] This keeps every path to public
+> behind one gate. Counsel review is owed before launch (`016-FR-050`).
+
 #### A. Claim your site and bring your recipes in (phase 1)
 
 - **FR-001** `→ 012`: A chef MUST be able to claim a website by proving they control it, by one of three methods. The methods are a DNS TXT
@@ -410,7 +416,10 @@ The owner answered Q1 to Q9 on 2026-10-29, relayed by the business-plan session.
 | 016  | Processor terms for the email list (FR-023). Creator terms that cover the site claim and the sponsor line. FTC disclosure rules for affiliate links and sponsor lines | Applied 2026-10-29: `016-FR-054` to `FR-057` |
 
 The linked card (`021-FR-014a` to `FR-014h`) is for a recipe from someone else's page. It does not apply to a chef's
-own page under a live claim. This spec does not edit 016 or 010.
+own page under a live claim. This spec does not edit 016 or 010. _(Note 2026-11-03, owner ruling, ADR-0082: the
+linked card is now a signed-out facts card, indexable under 021's public rule (owner ruling O2, amended 2026-11-03). A chef's public pages list every open label
+(written, adapted, family, public domain, clone) and show each label, and the licence where the chef chose CC BY 4.0.
+They never list a linked card. Owner ruling O7, 2026-11-03, ADR-0082, confirms it: no creator or chef page lists a facts card. Counsel review is owed before launch (`016-FR-050`).)_
 
 ### Key Entities
 

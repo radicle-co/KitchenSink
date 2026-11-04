@@ -680,7 +680,9 @@ Launch has no date yet (`v1-launch-plan.md`, D2), so later steps are dated "laun
   "can download it directly from your In-App Event card". Rules:
     - Apple reviews each event. It MUST be a real thing in the app, with no fake urgency (`022-FR-036`).
     - The event's deep link opens the collection on both platforms. A collection used by an event holds only recipes
-      that are open to the web (`021-FR-002`) or that Commise wrote. A person who is signed out reaches sign-in or
+      that are open to the web (`021-FR-002`) or that Commise wrote. _(Note 2026-11-03, owner ruling, ADR-0082: "open
+      to the web" now includes family and public-domain recipes and clones of open recipes. A linked facts card is not
+      a recipe here. Counsel review is owed before launch (`016-FR-050`).)_ A person who is signed out reaches sign-in or
       sign-up first, then the collection, through the parsed return path.
     - The collection and its states need `staff-ux-engineer` DESIGN and SPECIFY.
     - **Kill rule**: three events in a row with no installs on their tokens stops the program.

@@ -43,7 +43,12 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 > indexing and sharing as you note." The accepted recommendation allows signed-out reading of public recipes that
 > cooks wrote themselves, and of creator pages. Everything else stays behind sign-in. `001-FR-045` now names this page
 > as an exception. To a signed-out visitor the page lists only recipes that are **open to the web** (`021-FR-002`):
-> recipes the cook wrote, never imported ones. A signed-in visitor sees every public recipe the creator owns. Public
+> recipes that carry an open rights label: Written by you, Adapted by you, From a family member or friend, Public
+> domain, and clones of those. _(Amended 2026-11-03, owner ruling, ADR-0082. Was: "recipes the cook wrote, never
+> imported ones". A linked facts card is never listed on a creator page. Counsel review is owed before launch
+> (`016-FR-050`).)_ _(amended 2026-11-03, owner ruling O7, ADR-0082)_ Decided: the page lists recipes the cook wrote or adapted (and their clones where the label
+> carries), and still lists family and public domain recipes by the existing open-recipe rule. It lists no facts
+> card, to anyone. This was an open question. A signed-in visitor sees every public recipe the creator owns. Public
 > collection pages stay behind sign-in until the owner answers 021's Q2 (`021-FR-008`). 021 owns the page's search,
 > preview, privacy and takedown rules. The requirements below are amended to match.
 >
@@ -112,7 +117,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-007** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Profile pages MUST be server-side rendered with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields. Indexing, `ProfilePage` structured data, canonical addresses and sitemaps follow `021-FR-020` to `021-FR-029a`. A page with no indexable recipe answers `noindex` (`021-FR-025`). The HTML response is the same for every viewer and sets no cookie (`021-FR-012`).
 
-- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
+- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`) under every open label (written, adapted, family, public domain, clone), each showing its label (_(amended 2026-11-03, owner ruling O7, ADR-0082)_: never a facts card, signed in or out), and its licence where the cook chose CC BY 4.0 (`016-FR-010`, schema.org `license` on the recipe page, owned by 021), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
 
 - **FR-009** Follower lists MUST NOT be publicly visible; only the aggregate `followerCount` is exposed.
 
@@ -136,7 +141,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Content Publishing (FR-017 … FR-019)
 
-- **FR-017** A creator MUST be able to organise public recipes into named collections (max 20 collections per creator in v1; max 60-char name, max 200-char description).
+- **FR-017** A creator MUST be able to organise public recipes into named collections (max 20 collections per creator in v1; max 60-char name, max 200-char description). _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A public collection's description is public text, so 020 checks it (`020-FR-071`). A hit hides the description, not the page, until a person decides. A cover the creator uploads is checked as a photo. The shipped schema allows a 1000-character description (`collections.schema.ts`), against this 200. Counsel review is owed before launch (`016-FR-050`).
 
 - **FR-018** Collections MUST support manual ordering of recipes; the order MUST be persisted and returned in API responses.
 

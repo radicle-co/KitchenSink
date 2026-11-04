@@ -63,6 +63,12 @@ functional-requirement enumeration. The crosswalk from `product-spec/product-spe
 
 ## Functional Requirements
 
+> _(added 2026-11-03, owner ruling, ADR-0082)_ **Every door to public passes 020's hold.** Any recipe text, lesson
+> text, photo or video description this feature shows to anyone other than its owner counts as "publicly visible" for
+> `020-FR-001`. It goes through 020's one hold before it is shown, and fails closed (020 section K). A copy delivered
+> to a buyer carries its source's checked-content digest (`020-FR-057`). [House rule] This keeps every path to public
+> behind one gate. Counsel review is owed before launch (`016-FR-050`).
+
 Canonical enumeration — crosswalked from `product-spec/product-spec.md` §Functional Requirements
 (2026-08-02). `plan.md`, `tasks.md`, and `v-model/` trace to these IDs. Prior to this crosswalk
 `spec.md` carried **no** FR definitions at all while 20 FR IDs were cited across those artifacts.

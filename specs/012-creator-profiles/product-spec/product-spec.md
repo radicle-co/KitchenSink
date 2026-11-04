@@ -175,11 +175,11 @@ Aggregated snapshots written by a scheduled Lambda (daily cron). Metrics stored 
 
 > _(monetization handled by 010 Subscriptions; out of scope for 012)_ The table below documents the integration boundary only; 012 exposes thin delegation endpoints but owns no billing, payment, or subscription logic.
 
-| Feature             | Owner                    | 012's Role                                                                             |
-| ------------------- | ------------------------ | -------------------------------------------------------------------------------------- |
-| Tip jar             | 010 (payment processing) | 012 exposes `POST /api/v1/creators/:handle/tip`; delegates to 010's payment intent API |
-| Premium recipe gate | 010 (paywall)            | 012 sets `isPremium` flag on recipe-collection membership; 010 enforces access         |
-| Paid follow tier    | 010 (billing)            | 012 defines follow tiers (`free`, `paid`); 010 handles subscription lifecycle          |
+| Feature             | Owner                    | 012's Role                                                                                                                                                       |
+| ------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tip jar             | 010 (payment processing) | 012 exposes `POST /api/v1/creators/:handle/tip`; delegates to 010's payment intent API                                                                           |
+| Premium recipe gate | none                     | _(Removed 2026-11-03, owner ruling O5, ADR-0082.)_ There is no read paywall on a public or creator recipe. 012 sets no `isPremium` flag on collection membership |
+| Paid follow tier    | 010 (billing)            | 012 defines follow tiers (`free`, `paid`); 010 handles subscription lifecycle                                                                                    |
 
 ---
 

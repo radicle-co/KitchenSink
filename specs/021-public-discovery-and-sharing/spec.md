@@ -1043,6 +1043,14 @@ creator page.
     MUST be signed-out server-rendered HTML with one canonical address (FR-026) and a place in the sitemap (FR-027).
     [House rule] Counsel review is owed before launch (`016-FR-050`).
 
+    _(Added 2026-11-03, owner ruling, ADR-0082.)_ A page shown under its own stated open licence (FR-014f) MUST carry
+    `Recipe` data only for what that licence lets us show. Its `license` MUST be the source's own licence address, not
+    the Commise terms. Its `author` MUST be the source's author as the licence's attribution names them, and it MUST
+    include `isBasedOn`, pointing at the source page. The page MUST show the same attribution and licence line. Where
+    the licence covers the text but not the photo, the data MUST NOT include the source's `image`, and a page with no
+    other image carries no `Recipe` data. [Law] A CC licence requires the credit, a link to the licence and a note of
+    any changes (CC BY 4.0 §3(a)). Counsel review is owed before launch (`016-FR-050`).
+
 - **FR-024**: The structured data's `author`, and the page's author line, MUST come from the cook's active creator
   profile: its display name, and its address as the URL. A cook with no active creator profile MUST have no author
   name on the page and no `author` in the data. The name from the sign-in provider MUST never be used. _(Added

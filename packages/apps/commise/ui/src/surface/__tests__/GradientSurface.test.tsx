@@ -6,7 +6,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { gradient, gradientCss } from '../../tokens/gradients.js';
+import { coverGradient, gradient, gradientCss } from '../../tokens/gradients.js';
 import { GradientSurface } from '../GradientSurface.js';
 
 /**
@@ -64,5 +64,15 @@ describe('GradientSurface (web)', () => {
         render(<GradientSurface accessibilityLabel="Welcome banner">x</GradientSurface>);
 
         expect(screen.getByLabelText('Welcome banner')).toBeDefined();
+    });
+
+    // The cover tints are theme custom properties on web, so the wash follows the theme without a second code path.
+    it('paints the cover wash from the themed cover tint properties', () => {
+        const { container } = render(<GradientSurface gradient="cover">x</GradientSurface>);
+        const expected = gradientCss(
+            coverGradient({ sky: 'var(--color-cover-sky)', cream: 'var(--color-cover-cream)' }),
+        );
+
+        expect((container.firstChild as HTMLElement).style.backgroundImage).toBe(expected);
     });
 });

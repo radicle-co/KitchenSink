@@ -14,7 +14,7 @@ import type { FC } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
-import { gradient as gradientTokens, toNativeGradient } from '../tokens/gradients.js';
+import { coverGradient, gradient as gradientTokens, toNativeGradient } from '../tokens/gradients.js';
 import type { GradientSurfaceProps } from './props.js';
 
 /** The Commise gradient background surface — the brand gradient painted behind arbitrary hero content. */
@@ -24,9 +24,12 @@ export const GradientSurface: FC<GradientSurfaceProps> = ({
     style,
     accessibilityLabel,
 }) => {
-    const { hero } = useTheme();
-    // The canvas wash comes from the theme (D15); the brand and scrim ramps are the same in both themes.
-    const spec = toNativeGradient(gradient === 'hero' ? hero : gradientTokens[gradient]);
+    const { hero, covers } = useTheme();
+    // The canvas wash and the cover wash come from the theme (D15); the brand and scrim ramps are the same in both themes.
+    const themed = { hero, cover: coverGradient(covers) };
+    const spec = toNativeGradient(
+        gradient === 'hero' || gradient === 'cover' ? themed[gradient] : gradientTokens[gradient],
+    );
 
     return (
         <LinearGradient

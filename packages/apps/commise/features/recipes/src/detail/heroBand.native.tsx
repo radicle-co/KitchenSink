@@ -5,13 +5,12 @@
  * this file goes when that lands, the hero then rendering `<RecipeCover aspect="band" />`.
  */
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
-import { LinearGradient } from 'expo-linear-gradient';
+import { GradientSurface } from '@commise/ui/surface';
 import type { FC } from 'react';
 import { styled, YStack } from 'tamagui';
 
-/** The gradient's slant: 170 degrees is a slight lean from straight down. The cards' cover uses the same pair of points. */
-const SLANT = { start: { x: 0.45, y: 0 }, end: { x: 0.55, y: 1 } } as const;
+/** The wash fills the band. */
+const FILL = { flex: 1 } as const;
 
 const Box = styled(YStack, {
     name: 'HeroBand',
@@ -21,15 +20,9 @@ const Box = styled(YStack, {
     overflow: 'hidden',
 });
 
-const Wash = styled(LinearGradient, { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 });
-
 /** The no-photo band: presentational (props to JSX), and decorative, because the title below names the recipe. */
-export const HeroBand: FC = () => {
-    const { covers } = useTheme();
-
-    return (
-        <Box aria-hidden>
-            <Wash colors={[covers.sky, covers.cream]} {...SLANT} />
-        </Box>
-    );
-};
+export const HeroBand: FC = () => (
+    <Box aria-hidden>
+        <GradientSurface gradient="cover" style={FILL} />
+    </Box>
+);

@@ -79,6 +79,21 @@ export const heroDark = {
     ],
 } as const satisfies GradientSpec;
 
+/**
+ * The no-photo cover wash (designer ruling C2): the sky tint into the cream tint, leaning 170 degrees. The tints come from
+ * the caller because the theme picks them (`useTheme().covers` on native, the `--color-cover-*` properties on web); the slant
+ * is the token. Pure.
+ */
+export function coverGradient(tints: { readonly sky: string; readonly cream: string }): GradientSpec {
+    return {
+        angle: 170,
+        stops: [
+            { color: tints.sky, position: 0 },
+            { color: tints.cream, position: 100 },
+        ],
+    };
+}
+
 /** The name of a brand gradient (`brand` | `hero`). */
 export type GradientName = keyof typeof gradient;
 

@@ -7,7 +7,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { gradient, heroDark, toNativeGradient } from '../../tokens/gradients.js';
+import { coverTint, coverTintDark } from '../../tokens/covers.js';
+import { coverGradient, gradient, heroDark, toNativeGradient } from '../../tokens/gradients.js';
 
 /** The system colour scheme the next render sees. */
 const scheme = vi.hoisted(() => ({ current: null as 'light' | 'dark' | null }));
@@ -48,5 +49,23 @@ describe('GradientSurface (native)', () => {
         const node = container.querySelector('[data-commise-stub="linear-gradient"]');
 
         expect(node?.getAttribute('data-colors')).toBe(toNativeGradient(gradient.brand).colors.join('|'));
+    });
+
+    it('paints the cover wash from the LIGHT cover tints (sky to cream)', () => {
+        const { container } = render(<GradientSurface gradient="cover">x</GradientSurface>);
+
+        expect(container.querySelector('[data-commise-stub="linear-gradient"]')?.getAttribute('data-colors')).toBe(
+            toNativeGradient(coverGradient(coverTint)).colors.join('|'),
+        );
+    });
+
+    it('paints the cover wash from the DARK cover tints when the system is dark', () => {
+        scheme.current = 'dark';
+        const { container } = render(<GradientSurface gradient="cover">x</GradientSurface>);
+
+        expect(container.querySelector('[data-commise-stub="linear-gradient"]')?.getAttribute('data-colors')).toBe(
+            toNativeGradient(coverGradient(coverTintDark)).colors.join('|'),
+        );
+        scheme.current = null;
     });
 });

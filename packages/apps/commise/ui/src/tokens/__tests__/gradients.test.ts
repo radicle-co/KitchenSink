@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { palette, role, roleDark } from '../colors.js';
 import * as gradients from '../gradients.js';
-import { gradient, gradientCss, toNativeGradient } from '../gradients.js';
+import { coverGradient, gradient, gradientCss, toNativeGradient } from '../gradients.js';
 
 describe('gradient specs', () => {
     it('threads the SAME brand CTA gradient the web Button carries (steel → ocean-dark, 135°)', () => {
@@ -152,5 +152,28 @@ describe('gradient specs — the flat canvas wash', () => {
 describe('no card glass', () => {
     it('exports no frosted-glass tier or projection', () => {
         expect(Object.keys(gradients).filter((name) => /glass|blur/iu.test(name))).toEqual([]);
+    });
+});
+
+describe('coverGradient', () => {
+    // The no-photo cover wash (designer ruling C2): sky to cream, leaning 170 degrees. The colours come from the caller
+    // because the theme picks them; the slant is the token.
+    it('runs the sky tint into the cream tint at 170 degrees', () => {
+        expect(coverGradient({ sky: '#aaa', cream: '#bbb' })).toEqual({
+            angle: 170,
+            stops: [
+                { color: '#aaa', position: 0 },
+                { color: '#bbb', position: 100 },
+            ],
+        });
+    });
+
+    it('projects to a slight lean from straight down, top to bottom', () => {
+        const { start, end } = toNativeGradient(coverGradient({ sky: '#aaa', cream: '#bbb' }));
+
+        expect(start.y).toBeLessThan(0.05);
+        expect(end.y).toBeGreaterThan(0.95);
+        expect(end.x).toBeGreaterThan(start.x);
+        expect(end.x - start.x).toBeLessThan(0.2);
     });
 });

@@ -88,3 +88,13 @@ export const RemovedFoodNotice = styled(Text, {
     paddingHorizontal: '$3',
     paddingVertical: '$2',
 });
+
+/**
+ * The slot the check box sits in: as tall as the `body` role's first line, with the box centred in it, so the box
+ * follows the line when the role changes. It replaces a fixed 1 pt `marginTop`, which centred on the old 20 pt line.
+ */
+export const IngredientCheckBoxSlot = styled(XStack, {
+    name: 'IngredientCheckBoxSlot',
+    height: nativeTokens.type.body.lineHeight,
+    alignItems: 'center',
+});

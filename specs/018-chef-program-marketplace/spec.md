@@ -697,15 +697,17 @@ fixed regardless of the answer**:
   `FR-029i`. When the subscriber cancels or stops paying, access MUST end at the end of the paid period. The
   subscriber keeps nothing from the subscription (as a chef-club member keeps nothing, `026-FR-045`). A file they
   purchased separately stays theirs (`FR-051`). Renewals and ends MUST be events in the commerce record (`FR-029l`).
-  [House rule] Two parts are OPEN for the founder (FQ-018-4): whether a subscription covers every item the creator
-  has on sale or only items the subscriber also purchased, and whether `026`'s chef club is this subscription. 010 does
+  _(amended 2026-11-03, owner ruling, FQ-018-4)_ A subscription covers EVERYTHING the creator sells while it is
+  active. `026`'s chef club IS this subscription. They are one product, not two. 010 does
   not own creator subscriptions (its Out of Scope lists "creator-defined subscription tiers"), so this spec owns them.
   Counsel review is owed before launch (`016-FR-050`).
 - **FR-029i**: _creator removal: a 30-day download and an email, no refund_ _(added 2026-11-03, owner ruling, ADR-0082
   §9)_: When the creator takes a recipe or collection down, stops selling it, or erases their account, the system MUST:
-    1. End in-app access under `FR-029e`. When the creator erases their account, every subscription to the creator
-       ends at once. When the creator removes one item, whether the whole subscription ends depends on what a
-       subscription covers, which is OPEN (FQ-018-4).
+    1. End in-app access to the item under `FR-029e`. _(amended 2026-11-03, owner rulings, FQ-018-4 and FQ-018-5)_
+       When the creator removes ONE item, the subscription goes on, because it covers everything the creator sells,
+       and the current period is NOT pro-rated. When the creator removes everything they sell, or closes or erases
+       their account, every subscription to the creator ends at once, and the system MUST refund the unused part of
+       the current period, pro-rated by time.
     2. Let every buyer and every subscriber of the item download its most recent version for 30 days. "Most recent"
        means the last approved version (`020-FR-064`). A version that is checking, in review or not approved MUST NOT
        be in the file. This stops a creator from editing, then erasing, to ship unchecked text. The file passes the
@@ -718,18 +720,21 @@ fixed regardless of the answer**:
   days, rests on legitimate interest (GDPR Art. 6(1)(f)): the buyers paid for them, and the creator's erasure right
   (Art. 17(1)) yields where processing is needed for a contract with the buyer and the interest is limited in time and
   scope. The balancing test MUST be recorded. A takedown during the 30 days MUST close the window at once, and the
-  download route MUST refuse (`FR-029j`). Whether buyers who lost the window to a takedown get the full refund of
-  `FR-029j` is OPEN for the founder (FQ-018-6). Whether a subscriber's current period is pro-rated on creator removal
-  is OPEN (FQ-018-5), because 010 does not settle creator payments. Each step is an event in the commerce record
+  download route MUST refuse (`FR-029j`). _(amended 2026-11-03, owner rulings, FQ-018-5 and FQ-018-6)_ A buyer still
+  inside the 30-day window when a takedown lands gets the full refund of `FR-029j`, like any buyer. Item 4's "no
+  refund" binds the purchase price only. The pro-rated subscription refund of item 1 is separate. Each step is an event in the commerce record
   (`FR-029l`). Counsel review is owed before launch (`016-FR-050`).
 - **FR-029j**: _takedown: a full refund, a clawback, and no download_ _(added 2026-11-03, owner ruling, ADR-0082 §9)_:
   When content on sale is taken down for infringement (`016-FR-060`) or found illegal, the system MUST:
     1. End access at once (`FR-029e`, cause 3), with no download of any kind. [Law] After notice that content
        infringes, a host that keeps distributing it loses the safe harbor (17 U.S.C. §512(c)(1)(A)(iii) and
        §512(c)(1)(C), DSA Art. 6(1)(b)). The founder agrees. That is why a refund is offered instead.
-    2. Give every buyer a **full refund**, through the refund path of `FR-049`. What a subscriber gets back is OPEN,
-       because it depends on what a subscription covers (FQ-018-4) and on pro-rating (FQ-018-5). See FQ-018-7.
-    3. Pay the buyer first (`FR-032a`), then collect the amount from the seller by **clawback** from the seller's
+    2. Give every buyer a **full refund**, through the refund path of `FR-049`, including a buyer still inside a
+       30-day window of `FR-029i` (FQ-018-6). _(amended 2026-11-03, owner ruling, FQ-018-7)_ Give every subscriber a
+       refund of the removed item's share of the current period, pro-rated. When that share cannot be computed, give
+       a full refund of the current month. The method that computes the share is a plan item, and its result MUST
+       be recorded on the refund event (`FR-029l`).
+    3. Pay the buyer and the subscriber first (`FR-032a`), then collect each amount from the seller by **clawback** from the seller's
        balance or future payouts (`FR-041`, `FR-042`).
     4. When the clawback cannot recover it, refund from Commise's own funds and pursue the seller under the seller
        terms. The loss MUST be booked, never silently zeroed (`FR-042`).
@@ -1307,7 +1312,7 @@ sharpest weapon, expressed as something a chef can sell.
   revoked by a later edit.)_ _(amended again 2026-11-03, owner ruling, ADR-0082 §9)_ A buyer who
   purchased keeps the members of the sold version. A subscriber reads the collection's CURRENT members (`FR-029h`). A
   recipe the chef removes from the sold collection is a creator removal for that recipe (`FR-029i`), and the purchase
-  surface MUST say so. Future members reach subscribers only. A purchase alone does not include them.
+  surface MUST say so. Future members reach subscribers only. A purchase alone does not include them. _(owner-accepted 2026-11-03)_
 - **FR-091** — **the chef's own free recipes MUST remain free**: offering a collection for sale MUST NOT
   change the visibility of any recipe already public (`FR-029c` forbids a recipe being public and for sale at
   once, and `FR-067` forbids this feature publishing anything on its own). A chef assembling a paid collection
@@ -1827,15 +1832,16 @@ These are the founder's business choices. The spec does not decide them. The fir
   keeps nothing after leaving (`026-FR-045`).
 - **What does a purchase alone give?** DECIDED 2026-11-03, owner ruling. The founder, verbatim: "The purchase gives
   download ability of the sold version." A subscription adds the live view (`FR-029`, `FR-029h`).
-- **FQ-018-4. What does a subscription cover?** OPEN. Every item the creator has on sale, or only items the subscriber
-  also purchased. And is `026`'s chef club this subscription, or a separate product (`FR-029h`)?
-- **FQ-018-5. Is a subscriber's current period pro-rated on creator removal?** OPEN. 010 does not settle creator
-  payments (its Out of Scope), so no spec settles it (`FR-029i`).
-- **FQ-018-6. Does a takedown during a 30-day download window give those buyers the full refund?** OPEN. The window
-  closes at once and no file is offered (`FR-029i`, `FR-029j`). Whether the takedown refund then also reaches buyers
-  who were already in a creator-removal window is the founder's choice.
-- **FQ-018-7. What does a subscriber get back on a takedown?** OPEN. A buyer gets a full refund (`FR-029j`). For a
-  subscriber, the amount depends on FQ-018-4 and FQ-018-5. The spec does not pick a figure.
+- **FQ-018-4. What does a subscription cover?** RESOLVED 2026-11-03, owner ruling. Everything the creator sells while
+  the subscription is active. The chef club IS this subscription, one product (`FR-029h`, `026-FR-045`).
+- **FQ-018-5. Is a subscriber's current period pro-rated on creator removal?** RESOLVED 2026-11-03, owner ruling.
+  Removing ONE item does not pro-rate the period. Removing everything, or closing or erasing the account, pro-rates and
+  refunds the current period (`FR-029i`).
+- **FQ-018-6. Does a takedown during a 30-day download window give those buyers the full refund?** RESOLVED
+  2026-11-03, owner ruling. Yes, like any buyer (`FR-029i`, `FR-029j`).
+- **FQ-018-7. What does a subscriber get back on a takedown?** RESOLVED 2026-11-03, owner ruling. A pro-rated refund
+  of the current period for the removed item's share. When that share cannot be computed, a full refund of the current
+  month. It is clawed back from the seller under the same rule as a buyer's refund (`FR-029j`).
 - **Counsel and the accountant, not the founder:** the retention period per purpose and per market for the commerce
   record (`FR-029l`), the legitimate-interest balancing tests (`FR-029i`, `FR-029l`), the wording of the past-downloader
   notice (`FR-029k`) and the buyer and seller clauses (`FR-029m`, `016-FR-070`). The technology for the commerce
@@ -1860,17 +1866,19 @@ fail, then write the code). Tier rules are in `docs/CODING_STANDARDS.md` §7.1.
 | 018-L10 | Offline: the cache holds the last approved version of a bought recipe and clears it on the next sync after access ends                      | `FR-029f`         | unit, integration with `019`'s sync, Maestro (offline read, revoke, reconnect)                                                                                     |
 | 018-L11 | Precondition: no creator sale lists in an EU or UK storefront until `025`'s readiness record covers the digital-content rules               | `FR-029e`, `025` | guard test (the market switch refuses a creator listing in an unready market)                                                                                      |
 | 018-L12 | An owner import with statement 1a is sellable when private, and eligibility never reads the site claim _(added 2026-11-03, owner ruling O16, ADR-0082)_ | `FR-026`, `FR-027` | unit (eligibility over statement 1a with a live, failed and absent claim gives the same answer, and an `imported_*` source type is still refused), integration (list a private owner import, fail the claim, the listing stays) |
-| 018-L13 | Subscribe: a subscription reads the creator's current version, gives no file, renews and ends as events, and keeps nothing after it ends _(added 2026-11-03, ADR-0082 §9)_ | `FR-029h` | unit (a subscriber sees an approved edit and a buyer who only purchased does not), integration (cancel, then the read is refused at the end of the paid period, and a separately purchased file stays downloadable), Playwright and Maestro (subscribe, read an update, cancel) |
+| 018-L13 | Subscribe: a subscription reads the creator's current version, gives no file, renews and ends as events, covers everything the creator sells, and keeps nothing after it ends _(added 2026-11-03, ADR-0082 §9)_ | `FR-029h` | unit (a subscriber sees an approved edit and a buyer who only purchased does not), integration (cancel, then the read is refused at the end of the paid period, and a separately purchased file stays downloadable), Playwright and Maestro (subscribe, read an update, cancel) |
 | 018-L14 | Creator removal: every buyer and subscriber can download the last APPROVED version for 30 days, and the route refuses on day 31 _(added 2026-11-03, ADR-0082 §9)_ | `FR-029i` | unit (the file holds the last approved version, and a version in review is never chosen), integration (stop the sale, then download succeeds inside the window and is refused after it), mutation check (a file built from the newest unapproved version fails) |
 | 018-L15 | Creator removal sends an email and an in-app notice with the link, over both channels, retried, with no refund _(added 2026-11-03, ADR-0082 §9)_ | `FR-029i` | integration (one email and one notice per buyer and subscriber, a failed email is retried and is not marked delivered, and no refund event is written) |
 | 018-L16 | Creator erasure: the 30-day download still works after the creator's account is erased, and the owed files are deleted when the window closes _(added 2026-11-03, ADR-0082 §9)_ | `FR-029i` | integration (erase the creator, then a buyer downloads the file, then the window closes and the file is gone), erasure-coverage test (the owed files are listed as retained for 30 days on legitimate interest) |
-| 018-L17 | Takedown: a full refund to every buyer through `FR-049`, with no download offered. The subscriber case waits on FQ-018-7 _(added 2026-11-03, ADR-0082 §9)_ | `FR-029j` | unit (refund amount equals the price paid, tax included), integration (a takedown writes one refund event per buyer and the download route refuses, also inside an open 30-day window) |
+| 018-L17 | Takedown: a full refund to every buyer through `FR-049`, a buyer inside an open 30-day window included, and a pro-rated refund of the removed item's share for every subscriber, falling back to a full refund of the current month when the share cannot be computed. No download is offered _(added 2026-11-03, ADR-0082 §9. Amended the same day for FQ-018-6 and FQ-018-7)_ | `FR-029j` | unit (buyer amount equals the price paid, tax included, subscriber amount equals the computed share, and an uncomputable share yields the full month), integration (one refund event per buyer and per subscriber, each clawed back from the seller, and the download route refuses inside an open window), mutation check (a subscriber refund of zero, or of the full period when a share exists, fails) |
 | 018-L18 | Takedown clawback: Commise pays the buyer first, then claws the amount back from the seller's balance or payouts. When that fails, the loss is booked and the fallback refund comes from Commise's own funds _(added 2026-11-03, ADR-0082 §9)_ | `FR-029j`, `FR-032a`, `FR-042` | unit (balance covers it, balance partly covers it, balance is zero), integration (the buyer's refund never waits on the clawback, and a shortfall writes a booked-loss event, never a silent zero) |
 | 018-L19 | The past-downloader notice reaches every user who downloaded any version of the item, by in-app notice and email, with the fixed reason and the request to delete _(added 2026-11-03, ADR-0082 §9)_ | `FR-029k` | integration (seed downloads of three versions, the 30-day file and a cookbook EPUB, then the lookup returns every downloader, and a lookup that misses one download event fails the test), integration (an erased downloader appears as an opaque id with "no contact" and the notice is recorded as not sendable), component (the notice copy states facts only) |
 | 018-L20 | The commerce record is append-only: the service role cannot update or delete an event, and a correction is a new event that names the one it corrects _(added 2026-11-03, ADR-0082 §9)_ | `FR-029l` | LOCAL e2e against a real database (an UPDATE and a DELETE from the service role are refused), unit (a correction event references the original and leaves it unchanged) |
 | 018-L21 | Erasure keeps the financial events and removes the identity: after a buyer's erasure every money event remains, and no buyer identifier is resolvable from any event _(added 2026-11-03, ADR-0082 §9)_ | `FR-029l`, `FR-029g`, `FR-045` | integration (erase a buyer, then the event count is unchanged and the opaque id maps to no person), integration (a seller under an open clawback keeps the mapping under legal hold), erasure-coverage test |
 | 018-L22 | Least-privilege access to the commerce record: only the owning service writes, and each staff role reads only its events _(added 2026-11-03, ADR-0082 §9)_ | `FR-029l` | integration (a write from any other service is refused, finance cannot read notice events, analytics reads only the aggregated view), contract test (no other service holds a write route) |
 | 018-L23 | The buyer and seller terms carry the removed-download clauses, the clawback and the indemnity, and acceptance is recorded per version _(added 2026-11-03, ADR-0082 §9)_ | `FR-029m`, `016-FR-070` | unit (a sale cannot list without a recorded seller acceptance of the current terms version), component (the purchase surface shows both outcomes before payment) |
+| 018-L24 | Creator removal and subscriptions: removing one item keeps the subscription with no pro-rating, and removing everything, closing or erasing the account ends every subscription and refunds the unused part of the current period _(added 2026-11-03, owner rulings FQ-018-4 and FQ-018-5)_ | `FR-029h`, `FR-029i` | unit (one item removed gives no refund event, all items removed gives a time-pro-rated refund), integration (erase the creator mid-period, then every subscriber gets one refund event and the 30-day download), mutation check (a pro-rated refund on a one-item removal fails) |
+| 018-L25 | The chef club is the creator subscription: one product, one grant, covering everything the creator sells _(added 2026-11-03, owner ruling FQ-018-4)_ | `FR-029h`, `026-FR-045` | unit (a club membership and a subscription resolve to the same grant type), integration (a club member reads a newly listed item without a separate purchase) |
 
 Counsel review is owed before launch (`016-FR-050`).
 

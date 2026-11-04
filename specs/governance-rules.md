@@ -629,7 +629,7 @@ All shareable entities (recipes, collections, meal plans, lessons, profiles) **M
 **Recipe visibility is binary.** A recipe is `private` or `public`. There is **no premium, paywalled, or
 purchasable recipe state**, and no feature may introduce one. _(Clarified 2026-11-03, owner ruling O14, ADR-0082.)_ A
 creator's sale of a PRIVATE recipe or collection is not a visibility state. The recipe stays private. The buyer gets
-access or a licensed copy (`018-FR-029`). Only sellable content can be listed (`012-FR-034a`).
+a live view of the recipe and no copy (`018-FR-029`, amended 2026-11-03, owner ruling O15, ADR-0082). Only sellable content can be listed (`012-FR-034a`).
 
 - `private` — owner only. It MAY be shared with contacts **read-only** via `circle`; sharing grants read
   access, never write access, and is never a sale.

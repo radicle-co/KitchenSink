@@ -684,6 +684,13 @@ creator page.
         open it. [Law] Where a recipe came from is not the test. What we show is. Counsel review is owed before launch
         (`016-FR-050`).
 
+        _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A recipe the cook imported from their own page with "This
+        is my recipe, from my site or account" (`004-FR-014a` statement 1a) is "Written by you". Once 020 allows it, it
+        is open to the web in full: its own method text, the owner's own photos (each with its photo statement,
+        `026-FR-004`), its structured data, and indexing under FR-010a's canonical rule. This rule reads the label and rule 4. It never reads the
+        site claim. A claim only clears one hit inside 020 (`020-FR-012g`). Counsel review is owed before launch
+        (`016-FR-050`).
+
     6. Its owner accepted the licence version that covers showing it on the web (FR-040, FR-041).
     7. Its owner's account is active: not suspended, not terminated (`016-FR-020`), not closed and not erased.
     8. No decision under 016 removed or restricted it.
@@ -786,7 +793,11 @@ creator page.
   one. Whether the path carries a locale is a plan decision. Either way there is one canonical address per recipe.
 - **FR-010a** _(added 2026-10-29, owner ruling Q2 on [026](../026-chef-spaces/spec.md): "Their blog")_: A chef chooses a
   **Home**, their blog or Commise (`026-FR-006`). Home starts as the blog. While Home is the blog, an open recipe that
-  has an origin on the chef's claimed site (`004-FR-053a`) MUST follow these rules:
+  has an origin on the chef's claimed site (`004-FR-053a`) MUST follow these rules. _(amended 2026-11-03, owner ruling
+  O16, ADR-0082)_ The origin can also come from a single paste or URL import with the owner statement
+  (`004-FR-014a` statement 1a). [House rule] The rules below apply only while the cook holds a live claim on that
+  origin's domain. An owner import with no live claim follows FR-010, so its canonical address is on `commise.app`.
+  Counsel review is owed before launch (`016-FR-050`). The rules:
     - **The canonical address is the blog post.** The page MUST declare its origin address as its canonical address,
       in place of FR-010's address on `commise.app`. Its own address on `commise.app` still exists and still serves the
       page. FR-026's rule about query parameters still holds.
@@ -1188,7 +1199,10 @@ creator page.
     holds, or that a person does not approve, never carries CC BY. 020's result arrives after publish, so the page and
     its markup show CC BY only from that moment.
 
-    It is not offered at v1 on an adapted, family, clone or public domain recipe, or on a facts card. These rules hold:
+    It is not offered at v1 on an adapted, family, clone or public domain recipe, or on a facts card.
+    _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A verified owner's own-site import with the owner statement is
+    "Written by you", so it is offered CC BY once 020 allows it. The cook is the licensor and warrants the work is
+    theirs. A claim does not prove that (ADR-0078 §3). These rules hold:
     - **It is opt-in.** The choice is off by default, or asked once with equal buttons. It is never pre-selected and
       never a condition of publishing.
     - **Photos are a separate box.** The cook chooses CC BY for their photos apart from the text. Its default is the

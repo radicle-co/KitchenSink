@@ -270,3 +270,21 @@ and receipt validation had **no task** in this file, while `plan.md` L85-96 stat
     - **Implements**: FR-002, FR-008, `020-FR-071` as amended 2026-11-03
     - **Acceptance**: [House rule] Saving a bio or an avatar starts no 020 check. An actioned 016 notice (`016-FR-017`) removes a bio or avatar from every public surface (page, widget, preview image) within `021-FR-061`'s purge bound, and the cook gets a statement of reasons (`016-FR-018`). Counsel review is owed before launch (`016-FR-050`).
     - **Tests**: unit (the bio save path does not call the check), integration (a notice on an avatar removes it from the page and the widget), deployed e2e row in 020's bypass suite is NOT added, because there is no gate to bypass.
+
+- [ ] **T-070** [US-002] Creator chooses public or private per collection, and lists a private recipe or collection for sale — `packages/services/creator-profiles-service/src/collections/`, `packages/services/recipe-service/src/collections/`, `packages/schemas/recipe` _(added 2026-11-03, owner ruling O14, ADR-0082)_
+    - **Depends on**: T-020, T-022
+    - **Implements**: FR-017 and FR-019 as amended 2026-11-03, FR-034a, `018-FR-087`
+    - **Acceptance**: A creator can set each recipe and each collection public or private. A private recipe or collection can carry a price through 018's listing, and 012 holds no billing logic and no `isPremium` flag on membership. A public recipe or collection cannot be listed for sale. A signed-out reader of a paid collection sees only its title, cover, price and description (`026-FR-015`). Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: unit (listing a public collection for sale is refused, and a price on a private one is accepted). Integration (the collection endpoint rejects `isPremium` on membership, and a paid collection read by a signed-out caller returns no recipes). Playwright and Maestro for the set-private and list-for-sale story.
+
+- [ ] **T-071** [US-002] A non-sellable label is refused for sale, and a paid collection rejects a non-sellable recipe — `packages/services/recipe-service/src/collections/`, `packages/services/recipe-service/src/recipes/domain/` _(added 2026-11-03, owner ruling O14d, ADR-0082)_
+    - **Depends on**: T-070
+    - **Implements**: FR-034b, `018-FR-026`, `018-FR-027`
+    - **Acceptance**: [Law] Only "Written by you", "Adapted by you" in the creator's own words, and family recipes with a selling permission can be listed. `imported_public`, `imported_physical`, `imported_paid`, a facts card, public-domain curator text and any recipe holding another person's text are refused. Adding one to a collection for sale is refused, and a recipe that turns non-sellable after listing delists the collection until it is removed. Facts cards and others' recipes can sit in a FREE public collection. The rule is read from 018's single eligibility policy and not copied. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: unit (each non-sellable label is refused for sale, table-driven over every label, and the mutation lens: a rule that checked only `sourceType` fails the facts-card row). Integration (a paid collection rejects a non-sellable recipe on add and on a later label change, and a free public collection accepts a facts card).
+
+- [ ] **T-072** [US-002] Every sold recipe passes 020's hold before listing and delivery — `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O14e, ADR-0082)_
+    - **Depends on**: T-071, `020` K082-23
+    - **Implements**: FR-034c, `020-FR-057`
+    - **Acceptance**: A held recipe cannot be listed, and a listed recipe that becomes held is delisted and its sale paused until a person decides. Delivery to a buyer carries the source digest.
+    - **Tests (write first, watch them fail)**: unit (a held recipe is refused for listing). Integration (a listed recipe that is held disappears from the listing). A row in 020's deployed bypass suite (`020-FR-074`, door 38).

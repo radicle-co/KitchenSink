@@ -127,3 +127,14 @@ describe('DetailNutritionSection (native) — the card', () => {
         }
     });
 });
+
+describe('DetailNutritionSection (native) — space under the summary', () => {
+    it('puts 8 above the first row of figures when the row is open', () => {
+        draw(counted, true);
+
+        const figures = screen.getByLabelText(new RegExp(`^${detail.caloriesLabel},`, 'u'))
+            .parentElement as HTMLElement;
+
+        expect(resolvedStyle(figures, 'paddingTop')).toBe(`${nativeTokens.spacing[2]}px`);
+    });
+});

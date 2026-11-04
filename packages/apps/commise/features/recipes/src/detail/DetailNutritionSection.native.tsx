@@ -97,7 +97,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                 </XStack>
             </PressScale>
             {expanded && !cells.noneCounted && (
-                <XStack flexWrap="wrap" rowGap="$4">
+                <XStack flexWrap="wrap" rowGap="$4" paddingTop="$2">
                     {cells.cells.map((cell) => (
                         <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
                     ))}

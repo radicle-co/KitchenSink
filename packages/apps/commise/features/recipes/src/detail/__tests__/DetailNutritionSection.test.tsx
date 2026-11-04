@@ -189,3 +189,13 @@ describe('DetailNutritionSection (web) — the card', () => {
         expect(panel?.classList.contains('px-4')).toBe(true);
     });
 });
+
+describe('DetailNutritionSection (web) — space under the summary', () => {
+    it('puts 8 above the first row of figures when the row is open', () => {
+        draw(counted, true);
+
+        const figures = screen.getByText(detail.caloriesLabel).closest('dl');
+
+        expect(figures?.classList.contains('pt-2')).toBe(true);
+    });
+});

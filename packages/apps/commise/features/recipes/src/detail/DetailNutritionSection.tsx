@@ -76,7 +76,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
             </h2>
             <div id={panelId} hidden={!expanded} className="flex flex-col gap-3 px-4 pb-4">
                 {expanded && !cells.noneCounted && (
-                    <dl className="grid grid-cols-2 gap-4 @min-[35rem]/nutrition:grid-cols-4">
+                    <dl className="grid grid-cols-2 gap-4 pt-2 @min-[35rem]/nutrition:grid-cols-4">
                         {cells.cells.map((cell) => (
                             <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
                         ))}

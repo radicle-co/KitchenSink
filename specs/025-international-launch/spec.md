@@ -595,11 +595,14 @@ under `016-FR-048c`. They are built as that market opens, and recorded in its re
       access assessment, and age assurance where eating-disorder content can appear), and unfair-terms law
       (Consumer Rights Act 2015 Part 2) at the UK launch.
     - **EU and UK, creator sales** _(added 2026-11-03, owner ruling O15d, ADR-0082)_: [Law] When a creator sells a
-      live view of a recipe to a buyer in these markets, the buyer is a consumer of digital content. Directive (EU)
+      recipe to a buyer in these markets, by purchase or by subscription (`018-FR-029`, `018-FR-029h`), the buyer is a consumer of digital content. Directive (EU)
       2019/770 (conformity and remedies) and the UK Consumer Rights Act 2015 Part 1 Chapter 3 (digital content) then
       give the buyer rights, including a remedy when the content stops being available. [House rule] These duties are a
       **precondition for listing creator sales in an EU or UK storefront**, not a launch duty, because launch is US only
-      (`018-FR-029e`, `016-FR-048c`). The refund policy for lost access is the founder's question FQ-018-1 in 018.
+      (`018-FR-029e`, `016-FR-048c`). _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ The refund rule is now
+      set in 018: a creator removal gives a 30-day download and no refund (`018-FR-029i`), and a takedown gives a full
+      refund (`018-FR-029j`). [Law] In the EU and UK the no-refund path can fall short of a consumer's statutory remedy
+      when content stops being available, so counsel MUST check it against these rules before any such listing.
       Counsel review is owed before launch (`016-FR-050`).
     - **Australia:** the under-16 social media self-assessment (Online Safety Act 2021 s.63C) and the Australian
       Consumer Law fairness test.

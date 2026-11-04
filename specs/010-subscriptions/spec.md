@@ -922,9 +922,16 @@ predicted Commise result.
       cover it, and `FR-044` is what makes it enforceable outside the identity service.
     - **Out of scope**: anything that moves money **to a creator** — one-time payments (tips), per-item
       purchases, creator-defined subscription tiers, revenue splitting, and payouts. _(Clarified 2026-11-03, owner ruling
-      O15, ADR-0082.)_ 018 owns a creator's sale. A buyer of a private recipe or collection gets a live view and no copy
-      (`018-FR-029a`). 010 settles no refund for access that ends, so that is the founder's question FQ-018-1 in 018.
-      010's own subscription refund terms (`FR-041i` prorated refund on upgrade) do not cover a creator sale.
+      O15, ADR-0082. Amended the same day, owner ruling, ADR-0082 §9.)_ 018 owns a creator's purchases and a creator's
+      subscriptions. A buyer purchases a private recipe or collection and gets the sold version to read and download
+      (`018-FR-029`, `018-FR-029a`). A buyer can also subscribe to a creator for the live view of the current versions
+      (`018-FR-029h`). 018 settles the refunds for creator sales: a creator removal gives a 30-day download and no refund
+      (`018-FR-029i`), and a takedown gives a full refund recovered from the seller (`018-FR-029j`). Public recipes involve
+      no payment, so there is no refund. 010 settles no creator refund and no pro-rating. So whether a creator
+      subscription's current period is pro-rated on creator removal is OPEN (`018` FQ-018-5). 010's own subscription
+      refund terms (`FR-041i` prorated refund on upgrade) do not cover a creator sale or a creator subscription. The buyer
+      and seller terms for removed downloads, the clawback and the indemnity live in `018-FR-029m` and `016-FR-070`, not
+      here. _(Was: a buyer gets a live view and no copy, and the refund is FQ-018-1.)_
 
     **Downstream requirements that depend on the deferred half**, surfaced by the 2026-08-02 spec sweep:
     - `012-creator-profiles` `012-FR-031`–`034` (DRAFT) — tip jar and creator-earnings surface. (An

@@ -44,7 +44,7 @@
 
 **Iteration 2 (2026-08-26)** — owner ruling + research applied:
 
-- **`C-018-001` RESOLVED — the licensed-copy model** _(replaced 2026-11-03 by the live view, owner ruling O15, ADR-0082)_. `FR-029`…`FR-030` written; `FR-029a`…`FR-029c` added.
+- **`C-018-001` RESOLVED — the licensed-copy model** _(replaced 2026-11-03 by the live view, owner ruling O15, ADR-0082, and the same day by the purchase and subscription model, ADR-0082 §9: a purchase gives the sold version and a file to keep, a subscription gives the live view, `FR-029h` to `FR-029m` added, FQ-018-1 to FQ-018-3 resolved)_. `FR-029`…`FR-030` written; `FR-029a`…`FR-029c` added.
   A finding emerged while writing it that reduced the governance cost below what the option table estimated:
   the constraint a purchased copy needs (private-only, never publishable, never re-sellable) is **already
   enforced** by the shipped `imported_paid` provenance class, which `GR-014` AC-014-e states "may never be

@@ -1067,5 +1067,53 @@ tier come before the code. Counsel review is owed before launch (`016-FR-050`).
 
 - [ ] A pasted recipe with statement 1a, whose text the web search finds on the cook's own claimed page, goes to a
       person. The claim does not clear a web-search hit (ADR-0078 §1).
-- [ ] A social import with statement 1a goes to a person on a hit on its own post, until social proof exists.
+- [ ] A social import with statement 1a and no matching linked account goes to a person on a hit on its own post.
+      _(rewritten 2026-11-03, owner ruling, ADR-0082 §9, to prove the new behaviour. Was: "until social proof exists".
+      The matching-link case is T-047.)_
 - [ ] **Integration tests** for both. Mutation lens: a claim that clears a web-search hit fails the paste test.
+
+### T-045 · The "Save to Commise" screen offers the ownership claim
+
+**Priority** P2 · **Effort** S · **Depends on** T-040, T-041 · **Implements** FR-053 (amended 2026-11-03), FR-014a
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] The save screen offers "This is my recipe, from my site", never pre-ticked and never a condition of saving.
+- [ ] With the statement the save is `user_created` and "Written by you". Without it the save is never `user_created`.
+- [ ] **Unit test** over the two cases. Mutation lens: a build that sets `user_created` on a save with no statement
+      fails.
+- [ ] **Component tests** for every state of the offer. **Playwright** and **Maestro** flows for a save with and
+      without the claim, in lockstep (§14.1).
+
+### T-046 · Claim ownership later, on a recipe already saved
+
+**Priority** P2 · **Effort** M · **Depends on** T-040, T-041 · **Implements** FR-055
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] A saved recipe without statement 1a offers the claim from the recipe and from settings.
+- [ ] Claiming later records a new attestation with its own time and keeps the earlier statement. The label derives
+      "Written by you" from then on.
+- [ ] The claim changes no outcome by itself. The next door to public or sale reads the claim or link as it stands then,
+      and a recipe already public is not reopened.
+- [ ] **Unit tests** for the label before and after. **Integration test**: claim later, then publish, and the gate
+      reads the live claim. Mutation lens: a build that rewrites the earlier statement in place fails.
+- [ ] **Component tests** for offered, claimed, verifying, verified, failed and declined. **Playwright** and
+      **Maestro** flows for claim-later.
+
+### T-047 · A social import clears its own-post hit only with a matching linked account
+
+**Priority** P1 · **Effort** M · **Depends on** T-040, `026-FR-061`, `020` K082-31 and K082-32 · **Implements** FR-009
+(amended 2026-11-03), FR-014a item 7
+
+**Test-first:** true. The tests are written and confirmed **failing** before any implementation.
+
+- [ ] A social import whose post author id matches the cook's linked account clears the own-post hit. Any other signal
+      still sends it to a person.
+- [ ] A mismatched author id, a post with no author id, or no linked account clears nothing.
+- [ ] A revoked token or an unlink stops clearing new imports at once. A recipe already public stays public.
+- [ ] The import offers the link when the cook makes statement 1a and holds no link for that platform. The offer is
+      never pre-ticked.
+- [ ] **Unit tests**, table-driven over match, mismatch, no author id and no link. **Integration tests** for revoke and
+      unlink. **Playwright** and **Maestro** flows for link-at-import. Mutation lens: a rule that clears on the bare
+      statement fails.

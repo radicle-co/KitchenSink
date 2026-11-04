@@ -190,7 +190,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-034** 012 MUST present a creator's earnings read-only (tip revenue, aggregated by period). 012 MUST NOT compute revenue splits, hold balances, or initiate disbursement.
 
-### Creator sales: private recipes and collections (FR-034a to FR-034c)
+### Creator sales: private recipes and collections (FR-034a to FR-034d)
 
 _(Added 2026-11-03, owner ruling O14, ADR-0082.)_ The owner, verbatim: "For creator recipes, a creator can choose to make recipes public or private. Same for
 collections. They can also choose to list private recipes and collections for sale." These requirements merge the
@@ -201,10 +201,13 @@ retired IDs below.
   creator MAY list a PRIVATE recipe or a PRIVATE collection for sale at a price the creator sets (O14c). 010 takes the
   payment and grants the buyer access, through 018's seller model (`018-FR-026`, `018-FR-029`, `018-FR-087`) and 026's
   cookbooks (`026-FR-043`). 012 holds no billing logic. Listing for sale does not change visibility.
-  _(amended 2026-11-03, owner ruling O15, ADR-0082)_ A buyer gets a **live view** of the creator's current recipe or
-  collection and no copy (`018-FR-029a`). The creator sees aggregate sales and no named buyer (`018-FR-029g`). The
-  creator's confirm step for unpublishing from sale, deleting or erasing MUST say that buyers lose access
-  (`018-FR-029e`). A public recipe or
+  _(amended 2026-11-03, owner ruling O15, ADR-0082. Amended again the same day, owner ruling, ADR-0082 §9. Was: every
+  buyer gets a live view of the creator's current recipe or collection and no copy.)_ A buyer **purchases** the sold
+  version and can download it to keep (`018-FR-029`, `018-FR-029a`). A buyer can also **subscribe** to the creator for
+  the live view of the creator's current versions (`018-FR-029h`, FR-034d). The creator sees aggregate sales and no
+  named buyer (`018-FR-029g`). The creator's confirm step for unpublishing from sale, deleting or erasing MUST say that
+  buyers and subscribers lose in-app access, get a 30-day download of the last approved version, and get no refund
+  (`018-FR-029e`, `018-FR-029i`). A public recipe or
   collection MUST NOT be for sale (`018-FR-029c`), and reading a public one is never paid for (O14a, `021`).
 - **FR-034b** [Law] Only content the creator owns MAY be sold (O14d). That is "Written by you", "Adapted by you" in the
   creator's own words, and a family recipe whose giver's permission covers selling. It MUST NOT be an
@@ -224,6 +227,17 @@ retired IDs below.
   ADR-0082. Was: a buyer's copy carries its source's checked-content digest.)_ A buyer reads the same recipe through the
   same hold. An edit to a sold recipe re-runs the hold, and buyers see the last approved version meanwhile
   (`018-FR-029d`, `020-FR-064`). [House rule] Counsel review is owed before launch (`016-FR-050`).
+- **FR-034d** _(added 2026-11-03, owner ruling, ADR-0082 §9)_ The sale page of a recipe or collection MUST offer two
+  products by these names. **Purchase** gives the sold version, to read in the app and to download and keep
+  (`018-FR-029`, `018-FR-029a`). **Subscribe** gives the live view of the creator's current versions while the
+  subscription runs, and nothing after it ends (`018-FR-029h`). Each button MUST say what it gives, before payment
+  (`018-FR-046`). The copy goes through the localization path. 012 holds no billing logic (FR-034a). What a
+  subscription covers is OPEN for the founder (`018` FQ-018-4). [House rule] A subscription is an access grant on
+  private items for sale. It is not the paid follow tier that FR-038 retired, because following stays free and no
+  public recipe is withheld. Counsel review is owed before launch (`016-FR-050`).
+- _(Note 2026-11-03, owner ruling, ADR-0082 §9.)_ A profile can show the creator's linked social accounts. Linking
+  proves ownership of that account's posts through the platform's own sign-in, and is specified in `026-FR-061`. 012
+  shows the link only. It does not verify it.
 
 > ### ⛔ Withdrawn 2026-08-02 — there is no such thing as a premium recipe
 >

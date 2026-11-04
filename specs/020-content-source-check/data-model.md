@@ -209,6 +209,10 @@ CREATE INDEX recipe_source_checks_budget ON recipe_source_checks (budget_period)
   visibility value. A public one is hidden by the read rule and uses no slot. A private one is owner-only anyway, and it
   **holds its slot** from the save until a person checks it, because ADR-0073 §2 counts every private, published
   recipe (owner ruling, 2026-10-26). Either way it has the same restrictions as a draft (`001-FR-003b`).
+  _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ A private bulk-import recipe is now usable at once (spec FR-003b).
+  Its save writes no non-allowing `enforced` row that puts it in review, so the classifier answers `private`, not
+  `inReview`. Only a public save, a later move to public, or a sale listing is checked and can be held. A held sale
+  listing is delisted (spec FR-057), and the recipe stays usable to its owner. The derivation itself does not change.
 - **Not approved moves the recipe to private.** A `detected` save (with a free slot), a reviewer's `referralNotApproved`
   and an `appealUpheld` each set `recipes.visibility = 'private'` in the same transaction as the decision, under
   ADR-0073's per-user lock. For a person's decision the move never refuses: with no free slot, the cook is over the

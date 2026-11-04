@@ -1886,7 +1886,10 @@ before launch (`FR-050`).
 - **C-016-009a: a public card uses no private slot, and reading is never paid for** (owner rulings O1 and O5,
   2026-11-03, ADR-0082). A recipe with a public facts card is a public recipe and uses no slot, even when the cook
   keeps the full text privately. A recipe kept private with no card still uses a slot. No Pro plan or other paywall
-  applies to reading a public or creator recipe. Counsel review is owed before launch (`FR-050`).
+  applies to reading a PUBLIC recipe or collection. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ A creator can
+  sell PRIVATE recipes and collections they own (`012-FR-034a`). [Law] Selling is distribution (17 U.S.C. §106(3)), so
+  only content the creator owns can be sold (`FR-029a`) and every sold recipe passes 020's hold (`020-FR-057`).
+  Counsel review is owed before launch (`FR-050`).
 - **C-016-010: family recipes and gated public-domain text open to the web** (`FR-015c` rows 5 and 7, `FR-015g`).
   The public-domain gate is `FR-015k`. It replaces the earlier "open both" ruling.
 - **C-016-011: open licences on the open layers** (`FR-033`, `FR-010`). CC0 on Commise's own text, CC BY 4.0 opt-in

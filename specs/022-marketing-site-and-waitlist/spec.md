@@ -275,8 +275,8 @@ canonical addresses, a sitemap and Organization data. The pages are fast on a ph
 **Why this priority**: Brand search matters at launch, and these basics cost little. Broad search traffic comes from
 021's recipe pages, not from here. _(Note 2026-11-03, owner ruling, ADR-0082: those pages are the open recipes. A
 linked facts card is open to a signed-out reader and is indexable under 021's public rule (`021-FR-020`, owner ruling
-O2, amended 2026-11-03). Public and creator recipes are the core of discovery, and reading them is never paid for
-(owner ruling O5). Nothing here can promise a search ranking. Counsel review is owed before launch (`016-FR-050`).)_
+O2, amended 2026-11-03). Public recipes and public collections are the core of discovery, and reading them is never paid for
+(owner ruling O5, amended 2026-11-03, O14). Creators can sell private recipes and collections, and the site must say so only as the creators' own offer (`012-FR-034a`). Nothing here can promise a search ranking. Counsel review is owed before launch (`016-FR-050`).)_
 
 **Independent Test**: Every page has a unique title and description and a canonical address on the site's one host.
 The sitemap lists every page. Preview hosts answer `noindex`.

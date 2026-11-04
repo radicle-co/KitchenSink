@@ -124,12 +124,13 @@ order of steps (17 U.S.C. §102(b), Feist v. Rural, 499 U.S. 340 (1991), Publica
 473 (7th Cir. 1996)). The words and photos around them are protected. So the facts of any recipe can open. A cook
 with the right to share the words can open them too. Counsel review is owed before launch (`016-FR-050`).
 
-_(Added 2026-11-03, owner ruling O5, ADR-0082.)_ **Reading a public or creator recipe is never paid for.** The owner,
+_(Added 2026-11-03, owner ruling O5, ADR-0082.)_ **Reading a PUBLIC recipe or collection is never paid for.** The owner,
 verbatim: "Our competitors rely on making users pay to access any recipe. I want to undercut them and I believe recipes
 are like a library and so I want people to find public and creator recipes on our app over all others." No Pro plan or
-other paywall ever applies to reading a public or creator recipe, signed in or signed out. Pro sells private capacity
-and tools, never access. A chef's paid content (`018`) is a separate product that a chef sells. It is not a public
-recipe. Counsel review is owed before launch (`016-FR-050`).
+other paywall ever applies to reading a public recipe or a public collection, signed in or signed out. Pro sells
+private capacity and tools, never access. A creator can also list a PRIVATE recipe or collection for sale (O14c). That is the creator's own sale at the creator's price, and 010, 018 and 026 own the payment. It is not a Commise paywall. Only content the creator owns can be sold (O14d, `012-FR-034a`). It is not a public recipe, so a signed-out reader never sees its
+content (FR-008). _(Amended 2026-11-03, owner ruling O14, ADR-0082. Was: "a public or creator recipe", with the chef's paid
+content called a separate product.)_ Counsel review is owed before launch (`016-FR-050`).
 
 Everything else stays behind sign-in. The app root still opens on sign-in (`001-FR-045a`). Public pages live on
 their own routes, and a person reaches them only through a link or a search result.
@@ -629,9 +630,10 @@ creator page.
   a visible credit and link to the source, and no source prose, headnote or photo. Indexing is not a separate
   permission. It follows the public rule (FR-014g, FR-020). [House rule] Counsel review is owed before launch
   (`016-FR-050`).
-- **Reading: no paywall on reading** _(owner ruling O5, 2026-11-03, ADR-0082)_. No Pro or other paywall applies to
-  reading a public or creator recipe, signed in or out. Pro sells private capacity and tools, never access. `018` paid
-  chef content is a separate product (FR-008).
+- **Reading: no paywall on reading** _(owner ruling O5, 2026-11-03, ADR-0082. Amended 2026-11-03, owner ruling O14)_. No
+  Pro or other paywall applies to reading a PUBLIC recipe or a PUBLIC collection, signed in or out. Pro sells private
+  capacity and tools, never access. A creator can list PRIVATE recipes and collections for sale (`012-FR-034a`, O14c).
+  That is the creator's own sale, run by 010, 018 and 026 (FR-008). Counsel review is owed before launch (`016-FR-050`).
 - **Reading: public domain pages are indexable** _(amended 2026-11-03, owner ruling O8, ADR-0082)_. This was a default
   the founder could change. It is now decided (FR-020).
 - **Reading: "signed in" was never the legal line.** Signed in and signed out are the same "public" in law. The

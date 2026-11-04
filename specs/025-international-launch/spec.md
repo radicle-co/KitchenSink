@@ -42,7 +42,7 @@ international sources. Mindset, the same brief: "assume that we can do this and 
 
 ## Overview
 
-Commise launches in the US only (`016-FR-048`). "US only" is a launch plan, not a legal defence (FR-088). The owner wants it to go international in full: other markets, other
+Commise launches in the US only (`016-FR-048`). _(amended 2026-11-03, owner ruling O9, ADR-0082)_ At launch the app is listed only in US app stores, and that restriction is recorded (FR-088). "US only" is a launch plan, and it is only true while the store territories are restricted (FR-088). The owner wants it to go international in full: other markets, other
 languages, local units, local food data, local store pages and local prices.
 
 ### What already exists
@@ -364,6 +364,7 @@ and how long a reply takes.
   asks for no country.
 - **FR-005**: The app's availability in each store MUST match the served markets exactly. A test MUST compare the
   stores' availability settings with the market switch before each release.
+  _(Amended 2026-11-03, owner ruling O9, ADR-0082.)_ At launch the served market is the US, so the app is listed only in US storefronts. The EU and UK storefronts stay off until the market's `016-FR-048c` duties are met (FR-089, FR-100). Counsel review is owed before launch (`016-FR-050`).
 - **FR-006**: The English-speaking wave needs no new language. It MUST still ship the regional English locales of
   FR-011, because spelling and food words differ.
 
@@ -581,6 +582,10 @@ under `016-FR-048c`. They are built as that market opens, and recorded in its re
   `016-FR-048` MUST do one of two things, and the readiness record shows which. Either store availability is
   restricted to the launch markets and the restriction is recorded (FR-005), or the UK is treated as a day-one market
   for the light duties below. Counsel review is owed before launch (`016-FR-050`).
+  _(amended 2026-11-03, owner ruling O9, ADR-0082)_ Decided: at launch the app is listed ONLY in US app stores, and the readiness record shows
+  that restriction. So the first branch applies. A listing in any EU or UK store MUST NOT be created until every duty
+  in FR-089 for that market is met and the market's readiness record is green (FR-100). `016-FR-048c` holds the same
+  rule. The web site follows `016-FR-048a`. [Law] Without the restriction, the EU and UK duties would already bind.
 - **FR-089**: **Duties before a market is served.** [Law] Before Commise serves a market, its readiness record shows
   these, where they apply:
     - **EU:** a legal representative under DSA Art. 13, a GDPR Art. 27 representative, DSA Art. 11 and 12 contact
@@ -617,7 +622,8 @@ under `016-FR-048c`. They are built as that market opens, and recorded in its re
     2. The privacy notice, processors and transfers for the market are published (FR-085).
     3. The terms and consumer notices for the market are published (FR-080 to FR-083).
     4. The age floor and its basis are set (FR-086).
-    5. Store availability is set and matches the switch (FR-005).
+    5. Store availability is set and matches the switch (FR-005). _(amended 2026-11-03, owner ruling O9, ADR-0082)_ No EU or UK storefront is enabled before that
+       market's FR-089 duties are met. The launch setting is US storefronts only.
     6. Prices are set in both stores and recorded in 010's register (FR-060).
     7. The tax status on each store is checked, and web checkout stays US only (FR-070, FR-071).
     8. The market's default locale is complete, reviewed and through the pseudo-locale check (section B).

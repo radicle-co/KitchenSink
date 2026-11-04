@@ -1,12 +1,15 @@
 /**
- * @module @commise/ui/pushed-page — the pinned bar's height as the browser renders it.
+ * @module @commise/ui/layout — an element's height as the browser renders it (web). The pushed-page bar and the snackbar
+ * region both read theirs through it.
+ *
+ * @pattern Observer — a `ResizeObserver` and the window's resize over the element
  */
 import { useEffect, useState } from 'react';
 
 /**
  * The element's rendered height, px, kept current while it is mounted.
  *
- * The bar is `var(--pinned-bar-height) + env(safe-area-inset-top)` tall, and `IntersectionObserver`'s margin takes px (not
+ * For the pushed-page bar: it is `var(--pinned-bar-height) + env(safe-area-inset-top)` tall, and `IntersectionObserver`'s margin takes px (not
  * `calc()`, `rem` or `env()`), so the number has to be read from the laid-out element. It is 0 where the bar is
  * `display: none` (from 840), which is also right: there is nothing to measure the heading from under.
  *

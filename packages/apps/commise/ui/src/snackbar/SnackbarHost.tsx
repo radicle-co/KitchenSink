@@ -21,12 +21,12 @@
  */
 import { useContext, useState, type FC } from 'react';
 
+import { useRenderedHeight } from '../layout/useRenderedHeight.js';
 import { PopupInsetsContext } from '../popupInsets/popupInsetsContext.js';
 import { SNACKBAR_GAP, type SnackbarHostProps } from './props.js';
 import { SnackbarClearanceContext } from './snackbarClearanceContext.js';
 import { SnackbarContext } from './snackbarContext.js';
 import { UndoSnackbar } from './UndoSnackbar.js';
-import { useMeasuredHeight } from './useMeasuredHeight.js';
 import { useSnackbarQueue } from './useSnackbarQueue.js';
 
 /** The web snackbar host. */
@@ -36,7 +36,8 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const [bottom, setBottom] = useState(SNACKBAR_GAP);
     const { current } = queue;
     const action = current?.input.action;
-    const [regionHeight, regionRef] = useMeasuredHeight(current?.id);
+    const [region, setRegion] = useState<HTMLElement | null>(null);
+    const regionHeight = useRenderedHeight(region, 0);
 
     return (
         <SnackbarContext
@@ -50,7 +51,7 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
             {/* The measured height, or 0 when nothing shows, so the floating create button can rise above the bar. */}
             <SnackbarClearanceContext value={current === null ? 0 : regionHeight}>{children}</SnackbarClearanceContext>
             <div
-                ref={regionRef}
+                ref={setRegion}
                 role="status"
                 className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4"
                 style={{ bottom }}

@@ -198,18 +198,13 @@ export class ParseJobMatchView {
         view: ParseJobResponse,
         deadline: AbortSignal | undefined,
     ): Promise<ReadonlyMap<string, ParseJobMatch>> {
-        let stored: readonly ParseJobMatch[];
-
-        try {
-            stored = await within(deadline, () => this.matches.findForJob(ownerId, view.id));
-        } catch (error) {
-            this.logger.warn(
-                `parse-job ${view.id}: matches could not be read; the view shows none`,
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return new Map();
-        }
+        const stored = await this.readOrEmpty(
+            view.id,
+            deadline,
+            () => this.matches.findForJob(ownerId, view.id),
+            [],
+            'matches could not be read; the view shows none',
+        );
 
         const lines = new Map(view.lines.map((line) => [line.lineIndex, line]));
 
@@ -240,62 +235,73 @@ export class ParseJobMatchView {
         );
     }
 
+    /**
+     * One store read that the view survives losing: bounded by the request's deadline, and on any failure the logged
+     * `failure` and `empty` (rule 4: an unreadable fact is the absence of the fact, never a failed poll).
+     */
+    private async readOrEmpty<T>(
+        jobId: string,
+        deadline: AbortSignal | undefined,
+        read: () => Promise<T>,
+        empty: T,
+        failure: string,
+    ): Promise<T> {
+        try {
+            return await within(deadline, read);
+        } catch (error) {
+            this.logger.warn(`parse-job ${jobId}: ${failure}`, error instanceof Error ? error.stack : String(error));
+
+            return empty;
+        }
+    }
+
     /** The gate's verdicts by key; an unreadable table is "no verdict yet". */
-    private async readVerdicts(
+    private readVerdicts(
         jobId: string,
         keys: readonly string[],
         deadline: AbortSignal | undefined,
     ): Promise<ReadonlyMap<string, LineVerdictRow>> {
-        try {
-            return await within(deadline, () => this.verdicts.findBandsByKeys(keys));
-        } catch (error) {
-            this.logger.warn(
-                `parse-job ${jobId}: verdicts could not be read; proposals read as awaiting review`,
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return new Map();
-        }
+        return this.readOrEmpty(
+            jobId,
+            deadline,
+            () => this.verdicts.findBandsByKeys(keys),
+            new Map(),
+            'verdicts could not be read; proposals read as awaiting review',
+        );
     }
 
     /** The keys the gate gave up on; an unreadable table is none. */
-    private async readExhausted(
+    private readExhausted(
         jobId: string,
         keys: readonly string[],
         deadline: AbortSignal | undefined,
     ): Promise<ReadonlySet<string>> {
-        try {
-            return await within(deadline, () => this.verdicts.findExhaustedKeys(keys));
-        } catch (error) {
-            this.logger.warn(
-                `parse-job ${jobId}: verification attempts could not be read`,
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return new Set();
-        }
+        return this.readOrEmpty(
+            jobId,
+            deadline,
+            () => this.verdicts.findExhaustedKeys(keys),
+            new Set(),
+            'verification attempts could not be read',
+        );
     }
 
     /**
      * The keys whose review the spend ceiling refused in the CURRENT period (ADR-0024 §3); an unreadable table is none,
      * so a poll never fails on it and a food reads as it did before the budget was spent.
      */
-    private async readBudgetSpent(
+    private readBudgetSpent(
         jobId: string,
         keys: readonly string[],
         period: string,
         deadline: AbortSignal | undefined,
     ): Promise<ReadonlySet<string>> {
-        try {
-            return await within(deadline, () => this.verdicts.findBudgetSpentKeys(keys, period));
-        } catch (error) {
-            this.logger.warn(
-                `parse-job ${jobId}: budget-spent facts could not be read`,
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return new Set();
-        }
+        return this.readOrEmpty(
+            jobId,
+            deadline,
+            () => this.verdicts.findBudgetSpentKeys(keys, period),
+            new Set(),
+            'budget-spent facts could not be read',
+        );
     }
 
     /** Food's answer about every proposed and candidate food, in one batched read as the caller. */
@@ -356,7 +362,8 @@ export class ParseJobMatchView {
             proposalIsDefault:
                 proposed !== null &&
                 candidates.some(
-                    (candidate) => candidate.isDefault && candidate.kind === proposed.kind && candidate.id === proposed.id,
+                    (candidate) =>
+                        candidate.isDefault && candidate.kind === proposed.kind && candidate.id === proposed.id,
                 ),
             verdict:
                 verdict === undefined

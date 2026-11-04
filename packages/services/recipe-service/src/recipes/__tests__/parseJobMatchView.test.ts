@@ -12,6 +12,7 @@
  *  - **A stale row is ignored**: a line edited since it was matched shows no match until it is matched again.
  *  - **The view stays total**: an unreadable match store degrades every food to `match: null`, never a failed poll.
  */
+import { Logger } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { lineDigest, parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
@@ -168,7 +169,16 @@ function setup(options: Setup = {}) {
         metric,
     );
 
-    return { view, findForJob, resolve, metric, claimCurationReport, findBudgetSpentKeys };
+    return {
+        view,
+        findForJob,
+        resolve,
+        metric,
+        claimCurationReport,
+        findBandsByKeys,
+        findExhaustedKeys,
+        findBudgetSpentKeys,
+    };
 }
 
 /** The match on food 0 of line 0 of a decorated view. */
@@ -232,7 +242,12 @@ describe('ParseJobMatchView.decorate', () => {
             const { view } = setup({
                 matches: [
                     matchOf({
-                        proposal: { matchedBy: 'memo', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
+                        proposal: {
+                            matchedBy: 'memo',
+                            food: { kind: 'root', id: 'F-whole' },
+                            rung: null,
+                            margin: null,
+                        },
                         candidates: [...withDefault],
                     }),
                 ],
@@ -251,7 +266,12 @@ describe('ParseJobMatchView.decorate', () => {
             const { view } = setup({
                 matches: [
                     matchOf({
-                        proposal: { matchedBy: 'memo', food: { kind: 'root', id: 'F-default' }, rung: null, margin: null },
+                        proposal: {
+                            matchedBy: 'memo',
+                            food: { kind: 'root', id: 'F-default' },
+                            rung: null,
+                            margin: null,
+                        },
                         candidates: [...withDefault],
                     }),
                 ],
@@ -266,7 +286,12 @@ describe('ParseJobMatchView.decorate', () => {
             const { view } = setup({
                 matches: [
                     matchOf({
-                        proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-default' }, rung: null, margin: null },
+                        proposal: {
+                            matchedBy: 'curated',
+                            food: { kind: 'root', id: 'F-default' },
+                            rung: null,
+                            margin: null,
+                        },
                         candidates: [...withDefault],
                     }),
                 ],
@@ -767,5 +792,43 @@ describe('ParseJobMatchView.decorate — under a request deadline', () => {
         await vi.waitFor(() => expect(metric).toHaveBeenCalledTimes(1));
 
         expect(firstMatch(decorated)?.reviewNote).toBe('reviewDisagreed');
+    });
+});
+
+describe('ParseJobMatchView.decorate — every store read degrades on its own and says so', () => {
+    const readFails = new Error('connection terminated');
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    // One row per read. The degradation and the logged sentence are what an operator sees, so both are pinned: folding
+    // the four reads into one helper must not lose either.
+    it.each([
+        ['matches', /matches could not be read; the view shows none/u],
+        ['verdicts', /verdicts could not be read; proposals read as awaiting review/u],
+        ['exhausted', /verification attempts could not be read/u],
+        ['budgetSpent', /budget-spent facts could not be read/u],
+    ] as const)('an unreadable %s table is logged and never fails the poll', async (which, message) => {
+        const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        const parts = setup();
+
+        if (which === 'matches') {
+            parts.findForJob.mockRejectedValue(readFails);
+        } else if (which === 'verdicts') {
+            parts.findBandsByKeys.mockRejectedValue(readFails);
+        } else if (which === 'exhausted') {
+            parts.findExhaustedKeys.mockRejectedValue(readFails);
+        } else {
+            parts.findBudgetSpentKeys.mockRejectedValue(readFails);
+        }
+
+        const decorated = await parts.view.decorate(COOK, CALLER, viewOf());
+
+        expect(warn).toHaveBeenCalledOnce();
+        expect(String(warn.mock.calls[0]?.[0])).toMatch(message);
+        expect(String(warn.mock.calls[0]?.[0])).toContain('parse-job ');
+        expect(warn.mock.calls[0]?.[1]).toBe(readFails.stack);
+        expect(firstMatch(decorated) === null).toBe(which === 'matches');
     });
 });

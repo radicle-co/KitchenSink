@@ -703,7 +703,9 @@ fixed regardless of the answer**:
   Counsel review is owed before launch (`016-FR-050`).
 - **FR-029i**: _creator removal: a 30-day download and an email, no refund_ _(added 2026-11-03, owner ruling, ADR-0082
   §9)_: When the creator takes a recipe or collection down, stops selling it, or erases their account, the system MUST:
-    1. End every subscription to that item at once, and end in-app access under `FR-029e`.
+    1. End in-app access under `FR-029e`. When the creator erases their account, every subscription to the creator
+       ends at once. When the creator removes one item, whether the whole subscription ends depends on what a
+       subscription covers, which is OPEN (FQ-018-4).
     2. Let every buyer and every subscriber of the item download its most recent version for 30 days. "Most recent"
        means the last approved version (`020-FR-064`). A version that is checking, in review or not approved MUST NOT
        be in the file. This stops a creator from editing, then erasing, to ship unchecked text. The file passes the
@@ -725,8 +727,8 @@ fixed regardless of the answer**:
     1. End access at once (`FR-029e`, cause 3), with no download of any kind. [Law] After notice that content
        infringes, a host that keeps distributing it loses the safe harbor (17 U.S.C. §512(c)(1)(A)(iii) and
        §512(c)(1)(C), DSA Art. 6(1)(b)). The founder agrees. That is why a refund is offered instead.
-    2. Give every buyer, and every subscriber for the period they paid in which the item was available, a **full
-       refund**, through the refund path of `FR-049`.
+    2. Give every buyer a **full refund**, through the refund path of `FR-049`. What a subscriber gets back is OPEN,
+       because it depends on what a subscription covers (FQ-018-4) and on pro-rating (FQ-018-5). See FQ-018-7.
     3. Pay the buyer first (`FR-032a`), then collect the amount from the seller by **clawback** from the seller's
        balance or future payouts (`FR-041`, `FR-042`).
     4. When the clawback cannot recover it, refund from Commise's own funds and pursue the seller under the seller
@@ -784,7 +786,8 @@ fixed regardless of the answer**:
       through that service's contract (ADR-0014).
     - **Technology.** Database tables, or a data lake or warehouse fed from them, is OPEN for this feature's plan.
     - **Links.** The privacy notice MUST list this record, its purposes and its retention (`016-FR-071`). Analytics use
-      MUST follow `023`'s measurement rules ([023](../023-referrals-and-growth-measurement/spec.md)).
+      MUST follow `023`'s privacy floor and its aggregate-only reporting
+      ([023](../023-referrals-and-growth-measurement/spec.md)).
   Counsel review is owed before launch (`016-FR-050`).
 - **FR-029m**: _what the buyer and seller terms say about removed downloads_ _(added 2026-11-03, owner ruling, ADR-0082
   §9)_: [House rule] The buyer terms MUST say that users are told when content they downloaded is removed for legal
@@ -1831,6 +1834,8 @@ These are the founder's business choices. The spec does not decide them. The fir
 - **FQ-018-6. Does a takedown during a 30-day download window give those buyers the full refund?** OPEN. The window
   closes at once and no file is offered (`FR-029i`, `FR-029j`). Whether the takedown refund then also reaches buyers
   who were already in a creator-removal window is the founder's choice.
+- **FQ-018-7. What does a subscriber get back on a takedown?** OPEN. A buyer gets a full refund (`FR-029j`). For a
+  subscriber, the amount depends on FQ-018-4 and FQ-018-5. The spec does not pick a figure.
 - **Counsel and the accountant, not the founder:** the retention period per purpose and per market for the commerce
   record (`FR-029l`), the legitimate-interest balancing tests (`FR-029i`, `FR-029l`), the wording of the past-downloader
   notice (`FR-029k`) and the buyer and seller clauses (`FR-029m`, `016-FR-070`). The technology for the commerce
@@ -1859,7 +1864,7 @@ fail, then write the code). Tier rules are in `docs/CODING_STANDARDS.md` §7.1.
 | 018-L14 | Creator removal: every buyer and subscriber can download the last APPROVED version for 30 days, and the route refuses on day 31 _(added 2026-11-03, ADR-0082 §9)_ | `FR-029i` | unit (the file holds the last approved version, and a version in review is never chosen), integration (stop the sale, then download succeeds inside the window and is refused after it), mutation check (a file built from the newest unapproved version fails) |
 | 018-L15 | Creator removal sends an email and an in-app notice with the link, over both channels, retried, with no refund _(added 2026-11-03, ADR-0082 §9)_ | `FR-029i` | integration (one email and one notice per buyer and subscriber, a failed email is retried and is not marked delivered, and no refund event is written) |
 | 018-L16 | Creator erasure: the 30-day download still works after the creator's account is erased, and the owed files are deleted when the window closes _(added 2026-11-03, ADR-0082 §9)_ | `FR-029i` | integration (erase the creator, then a buyer downloads the file, then the window closes and the file is gone), erasure-coverage test (the owed files are listed as retained for 30 days on legitimate interest) |
-| 018-L17 | Takedown: a full refund to every buyer, and to every subscriber for the paid period, through `FR-049`, with no download offered _(added 2026-11-03, ADR-0082 §9)_ | `FR-029j` | unit (refund amount equals the price paid, tax included), integration (a takedown writes one refund event per buyer and the download route refuses, also inside an open 30-day window) |
+| 018-L17 | Takedown: a full refund to every buyer through `FR-049`, with no download offered. The subscriber case waits on FQ-018-7 _(added 2026-11-03, ADR-0082 §9)_ | `FR-029j` | unit (refund amount equals the price paid, tax included), integration (a takedown writes one refund event per buyer and the download route refuses, also inside an open 30-day window) |
 | 018-L18 | Takedown clawback: Commise pays the buyer first, then claws the amount back from the seller's balance or payouts. When that fails, the loss is booked and the fallback refund comes from Commise's own funds _(added 2026-11-03, ADR-0082 §9)_ | `FR-029j`, `FR-032a`, `FR-042` | unit (balance covers it, balance partly covers it, balance is zero), integration (the buyer's refund never waits on the clawback, and a shortfall writes a booked-loss event, never a silent zero) |
 | 018-L19 | The past-downloader notice reaches every user who downloaded any version of the item, by in-app notice and email, with the fixed reason and the request to delete _(added 2026-11-03, ADR-0082 §9)_ | `FR-029k` | integration (seed downloads of three versions, the 30-day file and a cookbook EPUB, then the lookup returns every downloader, and a lookup that misses one download event fails the test), integration (an erased downloader appears as an opaque id with "no contact" and the notice is recorded as not sendable), component (the notice copy states facts only) |
 | 018-L20 | The commerce record is append-only: the service role cannot update or delete an event, and a correction is a new event that names the one it corrects _(added 2026-11-03, ADR-0082 §9)_ | `FR-029l` | LOCAL e2e against a real database (an UPDATE and a DELETE from the service role are refused), unit (a correction event references the original and leaves it unchanged) |

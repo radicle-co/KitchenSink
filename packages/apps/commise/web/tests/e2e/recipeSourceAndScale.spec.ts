@@ -123,7 +123,7 @@ test.describe('recipe detail — configurable serving size', () => {
         await expect(page.getByText(/Amounts scaled from 4 servings/)).toBeVisible();
     });
 
-    test('scales prep and total but NOT cook time, and says so', async ({ page }) => {
+    test('scales prep and total, shows no cook time, and says timers are unchanged', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', recipes: [scalable(viewerId)] });
@@ -139,10 +139,10 @@ test.describe('recipe detail — configurable serving size', () => {
         // minutes through `formatDuration` (§6.1), so the total reads "1 h" …
         await expect(page.getByText('30 min')).toBeVisible();
         await expect(page.getByText('1 h', { exact: true })).toBeVisible();
-        // … and cook time is STILL 25. This is the assertion that fails if anyone "finishes the job" by
-        // scaling every timing: a doubled batch does not bake twice as long, and saying it does is a
-        // food-safety error, not a rounding difference.
-        await expect(page.getByText('25 min')).toBeVisible();
+        // The page shows no Cook tile (buildLists.md Recipe detail item 6: "Total, Prep, Difficulty ... No Cook tile"), so
+        // cook time is not on screen to check. What this still guards is the food-safety error of scaling every timing:
+        // a doubled batch must not show 50 minutes anywhere, and the note says the unscaled times are unchanged.
+        await expect(page.getByText('25 min')).toHaveCount(0);
         await expect(page.getByText('50 min')).toHaveCount(0);
         // The step timer is likewise untouched.
         await expect(page.getByText('10 min', { exact: true })).toBeVisible();

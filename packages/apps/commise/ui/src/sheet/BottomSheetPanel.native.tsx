@@ -22,7 +22,7 @@
  *
  * @pattern Template Method — the fixed chrome, with host-supplied steps (heading, controls, children, footer)
  */
-import { useEffect, useRef, type FC, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FC, type ReactNode } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { TamaguiTextElement } from 'tamagui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -94,14 +94,16 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     // The one node handle: putting a scroll position back has no declarative form.
     const scroller = useRef<ScrollView>(null);
 
+    // The position the panel opened with. Held in state so a later change of the prop (the cook's own scrolling is reported
+    // back as it settles) is not read again: it must not be fought.
+    const [initialScrollY] = useState(restoreScrollY);
+
     // @sideEffect Puts the scroll region back where the cook left it, once, when the panel appears.
     useEffect(() => {
-        if (restoreScrollY > 0) {
-            scroller.current?.scrollTo({ y: restoreScrollY, animated: false });
+        if (initialScrollY > 0) {
+            scroller.current?.scrollTo({ y: initialScrollY, animated: false });
         }
-        // Once per appearance: a later change is the cook's own scrolling, which must not be fought.
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-    }, []);
+    }, [initialScrollY]);
     // With a keyboard open, the keyboard, not the navigation bar, sits under the sheet: its inset is wasted space.
     const endPadding = { paddingBottom: SHEET_EDGE_PADDING_DP + (keyboardShown ? 0 : insets.bottom) };
     // ONE footer view, placed below the scroll region while pinned and as its last child once unpinned. It carries the

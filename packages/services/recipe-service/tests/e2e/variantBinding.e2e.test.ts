@@ -95,6 +95,17 @@ async function json<T>(method: string, path: string, expected: number, body?: un
     return JSON.parse(text) as T;
 }
 
+/** What the add-by-name field SUGGESTS for a typed phrase (`GET /ingredients/by-name/proposals`, ADR-0071). */
+async function nameProposalsFor(phrase: string): Promise<readonly { kind: string; id: string; source: string }[]> {
+    const answer = await json<{ proposals: { kind: string; id: string; source: string }[] }>(
+        'GET',
+        `/api/v1/ingredients/by-name/proposals?name=${encodeURIComponent(phrase)}`,
+        200,
+    );
+
+    return answer.proposals;
+}
+
 /** Bind a variant through the picker's door. */
 async function bindVariant(foodVariantId: string): Promise<IngredientBody> {
     return json<IngredientBody>('POST', '/api/v1/ingredients/by-food-variant', 200, { foodVariantId });
@@ -440,10 +451,15 @@ describe('variant-bound recipe lines (e2e, LOCAL: assembled app, real Postgres, 
         const next = await json<IngredientBody>('POST', '/api/v1/ingredients/by-name', 202, { name: phrase });
 
         expect(rows).toStrictEqual([{ food_id: null, food_variant_id: PASTE }]);
-        expect(next).toMatchObject({ foodId: TOMATO, variant: { id: PASTE, parts: PASTE_PARTS } });
+        // ADR-0071 (owner rulings 2026-11-03): the cook's own correction is PROPOSED on the next add of that phrase,
+        // never bound. `by-name` asks food alone, so the same phrase still comes back unresolved.
+        expect(await nameProposalsFor(phrase)).toMatchObject([
+            { kind: 'variant', id: PASTE, source: 'ownCorrection' },
+        ]);
+        expect(next).not.toHaveProperty('variant');
     });
 
-    it('a memo naming a variant binds that variant on the next add of its phrase', async () => {
+    it('a memo naming a variant is PROPOSED as that variant on the next add of its phrase, and binds nothing', async () => {
         const phrase = `${SCOPE} concentrate`;
 
         await pool.query(
@@ -454,6 +470,7 @@ describe('variant-bound recipe lines (e2e, LOCAL: assembled app, real Postgres, 
 
         const bound = await json<IngredientBody>('POST', '/api/v1/ingredients/by-name', 202, { name: phrase });
 
-        expect(bound).toMatchObject({ foodId: TOMATO, variant: { id: PASTE, parts: PASTE_PARTS } });
+        expect(await nameProposalsFor(phrase)).toMatchObject([{ kind: 'variant', id: PASTE, source: 'remembered' }]);
+        expect(bound).not.toHaveProperty('variant');
     });
 });

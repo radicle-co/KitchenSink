@@ -11,7 +11,8 @@
  * row sits before the columns, full width.
  *
  * There is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features
- * ship (`designAnswers.md` D1, D2): the comments row and "Start cooking".
+ * ship (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullets
+ * "8 comments" row and "Start cooking"): the comments row and "Start cooking".
  *
  * Every width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the
  * server render and the hydrated page are the same page. "Screen on" is a labelled row, and the toggle itself renders

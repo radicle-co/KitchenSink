@@ -980,7 +980,9 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
         expect(screen.getByRole('menuitem', { name: t.deleteRecipe })).toBeTruthy();
     });
 
-    // REWRITTEN IN SLICE 1 (`designAnswers.md` D2): Edit recipe is a TEXT action, the DS ghost tier. It carries no fill at
+    // REWRITTEN IN SLICE 1 (`designAnswers.md` section
+    // "2026-11-02: card, Home header and Recipe detail build questions", bullet "Start cooking", and `buildLists.md`
+    // "Recipe detail" item 8): Edit recipe is a TEXT action, the DS ghost tier. It carries no fill at
     // all, where it used to carry the primary tier's flat `action` fill, and no gradient.
     it('draws the Edit action as a text action, with no action fill and no gradient', () => {
         render(<RecipeDetailScreen recipeId="rec_1" />);

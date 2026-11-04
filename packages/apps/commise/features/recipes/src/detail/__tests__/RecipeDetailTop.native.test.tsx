@@ -1,6 +1,7 @@
 /**
  * The top of the native recipe page, as `RecipeDetailAndroid384` draws it (`nativeBoards/buildLists.md` items 2 to 9,
- * `designAnswers.md` D1 to D5): the rating card, the cuisine eyebrow, a title that never truncates, the status row,
+ * `designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions"): the rating card, the
+ * cuisine eyebrow, a title that never truncates, the status row,
  * the source line, three fact tiles, the text actions and the Screen on row. react-native-web under jsdom.
  *
  * Left out on purpose, and asserted absent so a later slice must change this file: the "8 comments" row and "Start

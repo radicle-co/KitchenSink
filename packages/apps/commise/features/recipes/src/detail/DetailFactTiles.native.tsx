@@ -1,6 +1,7 @@
 /**
  * @module @commise/features-recipes — the native recipe page's fact tiles: Total, Prep and Difficulty, each a `cover-steel`
- * tile with its glyph and label and its value (`RecipeDetailAndroid384`, `designAnswers.md` D5). A missing time hides its
+ * tile with its glyph and label and its value (`RecipeDetailAndroid384`, `designAnswers.md` section
+ * "2026-11-02: card, Home header and Recipe detail build questions", bullet "Fact tiles"). A missing time hides its
  * tile; with no tile to show nothing is drawn. A tile is one group, so a screen reader says "Total: 1 h 50 min".
  *
  * Three go across only while each tile has 100 pt per unit of text scale (`columnsKeepingMinOf`, designer iosBatch2); below that

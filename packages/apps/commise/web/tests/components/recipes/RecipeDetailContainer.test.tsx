@@ -1111,7 +1111,9 @@ describe('RecipeDetailContainer', () => {
             return client;
         };
 
-        // REWRITTEN IN SLICE 1: Edit recipe is a TEXT action, the DS ghost tier, not the filled primary (`designAnswers.md` D2).
+        // REWRITTEN IN SLICE 1: Edit recipe is a TEXT action, the DS ghost tier, not the filled primary
+        // (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullet
+        // "Start cooking", and `buildLists.md` "Recipe detail" item 8).
         it('gives the OWNER Edit recipe as a real DS link, and Version history in the ⋯ menu', async () => {
             const user = userEvent.setup();
             renderOwnerDetail();

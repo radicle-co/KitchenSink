@@ -244,7 +244,9 @@ function SettledRecipeDetail({
         return <RecipeDetailSkeleton label={loadCopy.loadingLabel} />;
     }
 
-    // The page's text action, Edit recipe or Save a copy (`designAnswers.md` D2: no filled button, no Start cooking). Back
+    // The page's text action, Edit recipe or Save a copy (`designAnswers.md` section
+    // "2026-11-02: card, Home header and Recipe detail build questions", bullet "Start cooking", and `buildLists.md`
+    // "Recipe detail" item 8: no filled button, no Start cooking). Back
     // and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
     // there is no Back to its start.
     const primary =

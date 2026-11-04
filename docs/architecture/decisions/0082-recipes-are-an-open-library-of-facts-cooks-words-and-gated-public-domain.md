@@ -71,9 +71,10 @@ clone of one of those. Open to the web reads the LABEL, never the source type al
 - **One canonical page per dish from one source page.** Where many cards, or a card and a cook's own recipe, describe
   one dish from the same page, one canonical page wins and the others declare it, so we never publish thin duplicates
   (`021-FR-026a`). Two cooks' texts are never merged.
-- **No paywall on reading** (owner ruling 2026-11-03). No Pro gate ever applies to reading a public or creator
-  recipe, signed in or out. Pro sells private capacity and tools, never access. 018's paid chef content is a separate
-  product a chef sells, not a public recipe.
+- **No paywall on reading a public recipe** (owner ruling 2026-11-03). No Pro gate or other charge ever applies to
+  reading a PUBLIC recipe or collection, signed in or out. Commise never charges anyone to read a recipe. Pro sells
+  private capacity and tools, never access. A creator's sale of a private recipe or collection (§9) is the creator's
+  own offer, not a Commise paywall.
 - **A public facts card is a public recipe.** It uses no private slot (ADR-0073). The cook's full copy behind it is
   visible only to the cook and their household. This matches ADR-0077 §3 for web imports, and `016-FR-029a` forbids
   pricing on imported content in any case. A free cook can therefore import a whole cookbook, publish each recipe as a
@@ -192,6 +193,15 @@ Owner rulings of 2026-11-03, each accepting the recommendation put to the founde
   (`020-FR-071`).
 - **No public bulk download and no public API of the open layers for now.** A cook's export of their own recipes
   stays (`016-FR-033`, `016-FR-034`, `021-FR-060`).
+- **Creators choose public or private, and can sell private work.** The founder's words: "For creator recipes, a
+  creator can choose to make recipes public or private. Same for collections. They can also choose to list private
+  recipes and collections for sale." A buyer gets the access 018's licensed-copy model defines, and the creator sets
+  the price (`012-FR-034a` to `FR-034c`, `018-FR-026`). [Law] A creator can sell only content they own: "Written by
+  you", "Adapted by you" in their own words, and a family recipe whose giver's permission covers selling. Never a
+  copy of someone else's page, book or paid site, a facts card, or public-domain curator text (17 U.S.C. §106(3),
+  `016-FR-029a`). A collection for sale holds only sellable recipes. Facts cards and other people's recipes can sit
+  only in a free public collection. Selling is distribution, so every sold recipe passes the same 020 hold as
+  publishing (`020-FR-057`).
 - **The founder owns renewing the DMCA designated-agent registration every three years** (37 C.F.R. §201.38,
   `016-FR-059`).
 

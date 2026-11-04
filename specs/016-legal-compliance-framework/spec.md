@@ -667,6 +667,20 @@ The rights label tells the cook who owns the writing.
   against fair use. The EU and UK database right still applies to rewritten text. At launch, the facts card with a
   link and the cook's own "Adapted by you" version are the public forms. Counsel review is owed before launch
   (`FR-050`).
+  _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ **An accepted rewording suggestion.** The founder ruled that a
+  step from an accepted rewording suggestion (`020-FR-075` to `FR-078`) is "Adapted by you". This fits the first
+  sentence. [House rule] The suggested text is AI text, so it is never the cook's own words, and a recipe that holds an
+  accepted suggestion can never show label 1, "Written by you". The cook's acceptance of a fresh restatement of a
+  method makes the whole recipe label 2, "Adapted by you". The label stays one derived label per recipe (`FR-015c`,
+  `FR-015d`). No step carries a label of its own. The Policy reads "holds an accepted suggestion" as one more input.
+  Label 2 stays eligible to be public in full (`021-FR-002`). It is not eligible for CC BY 4.0, because CC BY needs
+  label 1 (`021-FR-040a`). Label 2's credit names the source the check matched, where the flag named a page. Where the
+  flag named no page the cook can be shown (a private match, `020-FR-047`), the label shows no "Adapted from" line.
+  `FR-015g` row 2 says "Your words are yours", and `FR-015h` shows "You keep ownership of what you wrote". Neither is
+  true of the suggested text, so for this case both MUST be replaced by words that do not claim it. The wording is
+  OPEN for `staff-ux-engineer` at SPECIFY. This does not reverse the second sentence: the cook asks for
+  the suggestion on their own recipe, and Commise publishes nothing for anyone else. Counsel review is owed before
+  launch (`FR-050`).
 - **FR-015j**: A copy of a private source cannot be detected. A family card, a friend's email or a book that is not
   online has no page to find. For those, the controls are the cook's own statement (`FR-014`), the label, and fast
   takedown (`FR-016` to `FR-022`). The product MUST NOT claim more.
@@ -878,6 +892,12 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
       Cir. 2018)). [House rule] A new sign-up is refused where it matches a terminated account's verified email or
       payment instrument. Only that match key is kept after erasure, under `FR-052a` and GDPR Art. 17(3)(e).
     - [Law, EU] A termination carries a statement of reasons (DSA Art. 17).
+    - _(added 2026-11-03, owner ruling, ADR-0082 §9)_ [House rule] **What is and is not a strike.** A cook who rewords
+      a recipe that 020 flagged, before any takedown, earns no strike. That covers a reword at import and in review,
+      with or without an accepted suggestion (`020-FR-075` to `FR-078`). A flag is not a notice, and nothing was
+      removed. An upheld takedown is a strike: a valid notice that led to removal, including a removal on a
+      site-owner claim (`FR-067`). It stays a strike unless a counter-notice restores the content (`FR-061`) or an
+      appeal reverses it, as `FR-020a` already says.
     - Counsel review is owed before launch (`FR-050`).
 - **FR-063**: **Which DSA articles apply at our size.** [Law, EU] The hosting duties apply to every hosting provider,
   whatever its size: Art. 16 (notice and action) and Art. 17 (statements of reasons). Art. 19 exempts micro and small
@@ -1129,6 +1149,26 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
   name the provider, or its category under `FR-039`, and say that no name, account id or other personal data is sent.
   The record of processors under `FR-039` MUST list it. Counsel and `dpo-1` confirm the wording before the search
   ships (`FR-050`).
+- **FR-071** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: **The privacy notice covers linked accounts and the
+  commerce record.** [Law] The notice MUST state each purpose, its legal basis and its retention (GDPR Art. 13(1)(c),
+  Art. 13(2)(a)). It MUST add three entries:
+    1. **A linked social account** (`026-FR-061`, `FR-069`). The data is the platform's account id and the OAuth
+       tokens. The purpose is to prove that the cook owns the posts they import. The basis is the contract the cook
+       asks for when they link (Art. 6(1)(b)). The data is kept until the cook unlinks or erases the account. The notice
+       MUST name the platform as the source of the data (Art. 14 where it applies) and say that tokens are revoked at
+       unlink.
+    2. **The commerce transaction record** (`018-FR-029l`). The notice MUST list its purposes and the basis for each:
+       contract for purchases, subscriptions, downloads and refunds (Art. 6(1)(b)), legal obligation for tax,
+       accounting and payouts (Art. 6(1)(c)), and legitimate interest for takedown notices, fraud detection,
+       chargebacks, legal holds, audit and aggregated analytics (Art. 6(1)(f)). It MUST say that financial events
+       survive erasure under a pseudonymous id, with the link to the person removed (Art. 17(3)(b)). Retention is
+       stated per purpose, and the periods are OPEN for counsel and the accountant.
+    3. **Files kept for buyers after a creator leaves** (`018-FR-029i`). The notice MUST say that when a creator
+       erases their account, Commise keeps only the files their buyers are owed, for 30 days, on legitimate interest
+       (Art. 6(1)(f)), and then deletes them.
+  The record of processing (`FR-039`) MUST list all three. Analytics use follows `023`'s measurement rules and reads
+  only aggregated or pseudonymised data. Counsel and `dpo-1` confirm the wording, including each legitimate-interest
+  balancing test (`FR-050`).
 
 #### G. Consumer and subscription disclosures
 
@@ -1355,6 +1395,24 @@ they do not create a second mechanism.
       handles a chef's subscribers with no contract, and a regulator can treat Commise as a controller. A site claim
       read as proof of authorship clears a copy. An unlabelled affiliate link or sponsor line is a deceptive
       endorsement, and the FTC can act against the chef and against Commise.
+    - **Paid content, removed downloads and linked accounts** _(added 2026-11-03, owner ruling, ADR-0082 §9)_.
+      Counsel drafts or confirms each of these. The accountant joins on retention.
+        - _The user-agreement clause on removed downloads_ (`FR-070`, `018-FR-029m`). Counsel drafts the actual clause.
+          **What breaks:** an unfair term under `FR-044`, or a promise the product cannot keep.
+        - _The seller clawback and indemnity clause_ (`018-FR-029j`, `018-FR-029m`). Whether it binds a seller who is a
+          consumer (`FR-015`), and how far the indemnity can reach. **What breaks:** Commise carries every takedown
+          refund with no recovery.
+        - _The past-downloader notice wording_ (`018-FR-029k`). That it states only recorded facts and is not
+          defamatory toward the seller. **What breaks:** a defamation claim by a seller whose content was removed.
+        - _The legitimate-interest balancing tests_ for the 30-day files kept after a creator's erasure
+          (`018-FR-029i`) and for each legitimate-interest purpose of the commerce record (`018-FR-029l`, `FR-071`).
+          **What breaks:** a retention with no lawful basis.
+        - _Retention periods per purpose and per market_ for the commerce record (`018-FR-029l`). Tax and accounting
+          records are commonly kept for about 7 years. Counsel and the accountant set the exact periods. **What
+          breaks:** records deleted too early for a tax audit, or kept too long under GDPR Art. 5(1)(e).
+        - _OAuth token custody_ (`026-FR-061`, `FR-069`, `FR-071`). Where the tokens live (Clerk's social connections or
+          our own OAuth client), how they are encrypted, and each platform's developer terms on keeping an account id.
+          **What breaks:** a token leak, or a breach of a platform's terms that ends the link for every cook.
 - **FR-051**: Nutrition figures and allergen-relevant content MUST carry a reachable disclaimer, and the
   product MUST NOT state or imply a medical claim.
 
@@ -1475,8 +1533,11 @@ review is owed before launch (`FR-050`).
       text is a new version that passes `020` like any edit, including the suggestions of `020-FR-075`. If it is green
       or cleared by a person, the recipe is restored with the new text and the owner is told. This is not a
       counter-notice and does not wait 10 to 14 business days, because the claimed text is gone.
-    - **Conflict to settle.** A reword-to-restore MUST NOT erase the strike the claim created (`FR-062`) and MUST NOT let
-      the cook restore the old text. The founder confirms that a reworded restore still counts as a strike.
+    - **The strike.** _(resolved 2026-11-03, owner ruling, ADR-0082 §9. Was: "Conflict to settle", for the founder to
+      confirm.)_ [House rule] A removal on a claim is an upheld takedown, so it is a strike (`FR-062`). A
+      reword-to-restore after the removal MUST NOT erase that strike, and MUST NOT let the cook restore the old text.
+      Only a counter-notice that restores the content (`FR-061`), or an appeal, reverses it. A reword made before any
+      takedown, while the recipe is only flagged by 020, is not a strike.
     - Counsel review is owed before launch (`FR-050`).
 - **FR-068** _(FINAL, owner ruling 2026-11-03)_: **Launch preconditions while the copy check is
   unbuilt.** [Law, US] The safe harbour does not cover anything before the agent is registered (§512(c)(2),
@@ -1497,7 +1558,19 @@ review is owed before launch (`FR-050`).
       statement never clears a copy flag, because anyone can claim (`020-FR-012g`).
     - **Verified ownership is 026's live site claim**, and only that (`026-FR-001`). Its proof is a DNS TXT record,
       a meta tag in the home page, or a recipe plugin token. A live claim clears one hit in 020's check: the hit on the
-      page the recipe was imported from (ADR-0078 §1). No proof exists for a social account yet (`026` OQ-026-S1).
+      page the recipe was imported from (ADR-0078 §1).
+    - **A linked social account** _(amended 2026-11-03, owner ruling, ADR-0082 §9. Was: "No proof exists for a social
+      account yet (`026` OQ-026-S1)", with a code in the account's bio as a candidate.)_ The proof for a social account
+      is NOT a code in the bio. The cook links the account to their Commise profile through the platform's own sign-in
+      (OAuth), as `026-FR-061` specifies: Instagram, TikTok, YouTube, Pinterest, Facebook and X, where available. A
+      linked account proves ownership of that account's posts. An import from a post whose author id, read from the
+      platform's official API, matches the linked account id clears the own-post copy match in 020's check. This is the
+      social twin of ADR-0078's own-origin hit (`020-FR-012g`). [House rule] The link asks only for the platform's
+      minimal identity scope, chosen at build (the profile id only). Tokens are stored encrypted, used only to re-check
+      identity, and revoked at unlink. The link is re-checked on each import and when a token is revoked. Unlinking
+      stops clearing new imports. A recipe already public stays public (ADR-0078 §2). A platform with no usable OAuth
+      identity API, or with no official way to read a post's author id, is OPEN for that platform. The link and its
+      tokens are personal data (see **Erasure** below, and `FR-071`). Counsel review is owed before launch (`FR-050`).
     - **What a verified owner's recipe can do**, once 020 allows it. A recipe imported from the owner's verified site,
       with the statement, is label 1. It can be public in full, with its own method text and the owner's own photos,
       and open to the web (`021-FR-002`). A photo still needs its own statement (`026-FR-004`). It can instead be kept
@@ -1514,7 +1587,21 @@ review is owed before launch (`FR-050`).
       `020-FR-063`. [House rule] It keeps the claim's opaque id, method and last check time. It drops the claim's domain,
       because a personal blog's domain can name a person. A claim the cook
       removes (`026-FR-009`) is kept in the removed state while the account exists, because a cleared outcome cites it.
+      _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ Erasure also deletes every linked social account and its
+      tokens, and revokes the tokens with the platform where the platform allows it. A decision record that cited the
+      link keeps only the link's opaque id, the platform name and the last check time.
     - Counsel review is owed before launch (`FR-050`).
+- **FR-070** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: **What every user agrees to about removed downloads.**
+  [House rule] The terms of service (`FR-001`) MUST say three things to every user:
+    - Users are told when content they downloaded from Commise is removed for legal reasons (`018-FR-029k`).
+    - Users agree to delete content they are told is illegal or infringing.
+    - A user who knowingly keeps or uses such content after that notice accepts responsibility for it.
+  [House rule] The clause binds account holders through acceptance (`FR-002`). It is a contract term, not a technical
+  control. Commise cannot reach into a device, and the notice does not claim it can. The buyer and seller terms of
+  `018-FR-029m` carry the same clause, with the seller's clawback and indemnity. A material revision that adds it
+  follows `FR-004` and `FR-005`. [Law] The clause MUST pass the consumer fairness tests of `FR-044` (UK Consumer Rights
+  Act 2015 Part 2, Directive 93/13/EEC) and MUST NOT shift to the user a liability the law puts on Commise. Counsel MUST
+  draft the actual clause (`FR-050`).
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -1990,6 +2077,19 @@ before launch (`FR-050`).
 - **C-016-019: no public bulk download and no public API of the open layers for now, and the founder owns the DMCA
   agent renewal** (O12, O13, `FR-033`, `FR-034`, `FR-025`, `FR-059`). A cook's own export stays. The renewal is a
   recurring task in the operations doc. Decided _(owner rulings 2026-11-03, ADR-0082)_.
+- **C-016-020: an accepted rewording makes the recipe "Adapted by you", and a reword before any takedown is not a
+  strike** (`FR-015i`, `FR-062`, `FR-067`). The label stays one derived label per recipe. An upheld takedown is a
+  strike. This answers `FR-067`'s "Conflict to settle". Decided _(owner rulings 2026-11-03, ADR-0082 §9)_.
+- **C-016-021: social ownership is proved by linking the account through the platform's own sign-in, never by a code
+  in the bio** (`FR-069`, `FR-071`, `026-FR-061`). It answers `026` OQ-026-S1 for the method. Which platforms offer a
+  usable identity API and a post's author id stays OPEN per platform. Decided _(owner rulings 2026-11-03, ADR-0082
+  §9)_.
+- **C-016-022: paid content, refunds and removed downloads** (`FR-070`, `FR-071`, `018-FR-029` to `018-FR-029m`). A
+  public recipe involves no payment, so it has no refund. A purchase gives the sold version and a file to keep. A
+  subscription gives the creator's current versions. A creator removal gives a 30-day download and no refund. A
+  takedown gives a full refund, a clawback from the seller and no download, and every past downloader is told and
+  asked to delete. The user agreement says so (`FR-070`). A private bulk-imported recipe is usable at once, and only
+  public or sale waits for review (`020-FR-003b`). Decided _(owner rulings 2026-11-03, ADR-0082 §9)_.
 
 Counsel review is owed before launch (`FR-050`).
 

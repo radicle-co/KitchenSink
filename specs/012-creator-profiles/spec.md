@@ -89,7 +89,8 @@ Six capabilities frame the feature. They are narrative groupings, **not** requir
   saves, and collection click-through, aggregated with no individual visitor tracking.
 - **Monetization surface (extends 010)** — a **tip jar** (one-time tips via 010's payment flow) and a
   read-only earnings view. There are **no premium recipes and no paid follows**: recipe visibility is
-  binary private/public and owned by 001, so 012 has no gated content to sell. Following is free.
+  binary private/public and owned by 001. Following is free. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ A
+  creator can list PRIVATE recipes and collections for sale (FR-034a). That is a sale, not a visibility state.
 
 > **Monetization is now enumerated** as `FR-031` … `FR-034` below (tip jar + earnings), **marked DRAFT** and
 > blocked on marketplace payments. An earlier revision of this PR also invented premium recipes and paid
@@ -141,11 +142,11 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Content Publishing (FR-017 … FR-019)
 
-- **FR-017** A creator MUST be able to organise public recipes into named collections (max 20 collections per creator in v1; max 60-char name, max 200-char description). _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A public collection's description is public text, so 020 checks it (`020-FR-071`). A hit hides the description, not the page, until a person decides. A cover the creator uploads is checked as a photo. The shipped schema allows a 1000-character description (`collections.schema.ts`), against this 200. Counsel review is owed before launch (`016-FR-050`).
+- **FR-017** A creator MUST be able to organise recipes into named collections, each public or private (max 20 collections per creator in v1; max 60-char name, max 200-char description). _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A public collection's description is public text, so 020 checks it (`020-FR-071`). A hit hides the description, not the page, until a person decides. A cover the creator uploads is checked as a photo. The shipped schema allows a 1000-character description (`collections.schema.ts`), against this 200. Counsel review is owed before launch (`016-FR-050`).
 
 - **FR-018** Collections MUST support manual ordering of recipes; the order MUST be persisted and returned in API responses.
 
-- **FR-019** Only recipes with `visibility = public` (owned by 001) and authored by the creator MAY be added to a collection.
+- **FR-019** Only recipes with `visibility = public` (owned by 001) and authored by the creator MAY be added to a collection. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ This holds for a PUBLIC collection. A PRIVATE collection MAY hold the creator's private recipes, and a collection for sale MUST hold only sellable recipes (FR-034b). A FREE public collection MAY also hold a facts card or another person's recipe that the open-recipe rule allows (`021-FR-002`, O14d). A paid collection never holds one.
 
 ### Moderation (FR-020 … FR-022)
 
@@ -189,7 +190,35 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-034** 012 MUST present a creator's earnings read-only (tip revenue, aggregated by period). 012 MUST NOT compute revenue splits, hold balances, or initiate disbursement.
 
+### Creator sales: private recipes and collections (FR-034a to FR-034c)
+
+_(Added 2026-11-03, owner ruling O14, ADR-0082.)_ The owner, verbatim: "For creator recipes, a creator can choose to make recipes public or private. Same for
+collections. They can also choose to list private recipes and collections for sale." These requirements merge the
+product-spec row "Creator-priced private recipes and collections". They add no visibility state and reverse none of the
+retired IDs below.
+
+- **FR-034a** A creator MUST be able to choose public or private for each recipe and for each collection (O14b). A
+  creator MAY list a PRIVATE recipe or a PRIVATE collection for sale at a price the creator sets (O14c). 010 takes the
+  payment and grants the buyer access, through 018's seller model (`018-FR-026`, `018-FR-029`, `018-FR-087`) and 026's
+  cookbooks (`026-FR-043`). 012 holds no billing logic. Listing for sale does not change visibility. A public recipe or
+  collection MUST NOT be for sale (`018-FR-029c`), and reading a public one is never paid for (O14a, `021`).
+- **FR-034b** [Law] Only content the creator owns MAY be sold (O14d). That is "Written by you", "Adapted by you" in the
+  creator's own words, and a family recipe whose giver's permission covers selling. It MUST NOT be an
+  `imported_public`, `imported_physical` or `imported_paid` copy, a facts card, public-domain curator text, or anything
+  holding another person's text, because selling is distribution (17 U.S.C. §106(3), `016-FR-029a`). A collection for
+  sale MUST hold only sellable recipes, and adding a non-sellable recipe MUST be refused. A facts card or another
+  person's recipe MAY sit only in a FREE public collection. 012 MUST NOT put an `isPremium` flag on collection
+  membership. The one eligibility rule is owned by 018 (`018-FR-027`), and 012 reads it. [House rule] Counsel review is
+  owed before launch (`016-FR-050`).
+- **FR-034c** Every sold recipe MUST pass 020's hold before it is listed and before it is delivered, because selling is a
+  door to others like publishing (O14e, `020-FR-057`). A held recipe MUST NOT be listed. A buyer's copy carries its
+  source's checked-content digest (`020-FR-057`).
+
 > ### ⛔ Withdrawn 2026-08-02 — there is no such thing as a premium recipe
+>
+> _(Clarified 2026-11-03, owner ruling O14, ADR-0082.)_ What is withdrawn is a paywalled **visibility state**, a paid
+> follow tier and server-side withholding of a public recipe. A creator selling a PRIVATE recipe or collection is a
+> different thing. It is FR-034a to FR-034c. The retired IDs below stay retired and are not reused.
 >
 > An earlier revision of this section (in this same PR, never ratified) invented **premium recipes** and
 > **paid follows**: a creator marking a recipe premium, server-side withholding of its ingredients and
@@ -198,7 +227,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 > content model.
 >
 > **The visibility model is binary, and 001 owns it**: a recipe is **private** or **public**
-> (`001-FR-003`, `001-FR-004`). There is no third, paywalled state, and 012 does not get to introduce one.
+> (`001-FR-003`, `001-FR-004`). There is no third, paywalled state, and 012 does not get to introduce one. _(Clarified 2026-11-03, O14: a sale of a private recipe is not a visibility state, FR-034a.)_
 > A **private** recipe may be shared with contacts **read-only** — that is 011's `circle` audience scope
 > (`{ scope: 'circle', ref_id }`) with member read-only access per `011` US-006, **not** a purchase.
 >

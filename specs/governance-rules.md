@@ -627,7 +627,9 @@ All shareable entities (recipes, collections, meal plans, lessons, profiles) **M
 (2026-11-03).
 
 **Recipe visibility is binary.** A recipe is `private` or `public`. There is **no premium, paywalled, or
-purchasable recipe state**, and no feature may introduce one.
+purchasable recipe state**, and no feature may introduce one. _(Clarified 2026-11-03, owner ruling O14, ADR-0082.)_ A
+creator's sale of a PRIVATE recipe or collection is not a visibility state. The recipe stays private. The buyer gets
+access or a licensed copy (`018-FR-029`). Only sellable content can be listed (`012-FR-034a`).
 
 - `private` — owner only. It MAY be shared with contacts **read-only** via `circle`; sharing grants read
   access, never write access, and is never a sale.
@@ -722,7 +724,7 @@ citing the modification requirement as a copyright defence.
 - **The `public` scope and AC-014-e come from the 2026-11-03 owner rulings**, recorded in ADR-0082 and applied in
   `021` (FR-002 to FR-006, FR-014 to FR-014h, FR-096) and `001` (FR-004, FR-005, FR-045, C-004).
 - **Signed out is not a legal line.** [Law] Signed in and signed out are the same "public" in law. Facts cards are indexable
-  (owner ruling 2026-11-03, `021-FR-014g`), and no paywall ever applies to reading a public or creator recipe.
+  (owner ruling 2026-11-03, `021-FR-014g`), and no paywall ever applies to reading a PUBLIC recipe or collection _(amended 2026-11-03, owner ruling O14, ADR-0082)_. A creator can sell PRIVATE recipes and collections they own (`012-FR-034a`). Counsel review is owed before launch (`016-FR-050`).
 - ⛔ **The code still implements the pre-amendment rule.** `evaluateVisibility`
   (`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts`) refuses `public` for `imported_paid` and
   `imported_physical` through its `privateOnly` rule. No rights label Policy (`016-FR-015d`), facts card projection,

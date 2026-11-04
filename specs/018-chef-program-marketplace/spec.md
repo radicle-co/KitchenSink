@@ -565,6 +565,15 @@ fixed regardless of the answer**:
   contemporaneous, specific, citation-bearing form. A blanket terms-level representation MUST NOT substitute
   for it (`016-FR-014`). Imported, digitised, paid-source and cloned content MUST NOT be sellable under any
   circumstances.
+  _(Amended 2026-11-03, owner ruling O14d, ADR-0082.)_ [Law] Selling is distribution (17 U.S.C. §106(3)), so a chef can
+  sell only content they own. That is "Written by you", "Adapted by you" in their own words, and a family recipe whose
+  giver's permission covers selling. It is never an `imported_public`, `imported_physical` or `imported_paid` copy, a
+  facts card, public-domain curator text, or anything holding another person's text (`016-FR-029a`). A sellable
+  collection holds only sellable recipes. Facts cards and other people's recipes can sit only in a FREE public
+  collection. Every sold recipe passes 020's hold before listing and delivery (O14e, `020-FR-057`). The same rule binds
+  any creator, not only a chef: `012-FR-034a` to `012-FR-034c` let a creator choose public or private per recipe and
+  per collection, and list private ones for sale, with 010 and this spec owning the payment. Counsel review is owed
+  before launch (`016-FR-050`).
 - **FR-027**: Eligibility to sell MUST be decided by a **single authoritative rule**, evaluated at listing, at
   purchase, and at delivery, so that the three can never disagree. It MUST reuse the **existing** provenance
   policy rather than state a second one: `GR-014` AC-014-e already binds a single shipped policy as the sole
@@ -577,7 +586,8 @@ fixed regardless of the answer**:
   sold as a licensed copy**. Purchasing a recipe MUST create a **new recipe in the buyer's own collection**,
   private to the buyer, attributed to the chef, and marked as acquired by purchase. The chef's own recipe MUST
   be unchanged by the sale. **No paid, paywalled or third visibility state is created**, and `GR-014`'s binary
-  rule is not amended.
+  rule is not amended. _(Clarified 2026-11-03, owner ruling O14c, ADR-0082.)_ The recipe or collection on sale stays
+  private. "Access" for the buyer means this licensed copy.
 - **FR-029a** — _the purchased copy is bounded by provenance, not by a new mechanism_: the copy MUST carry a
   provenance class that is **private-only and never publishable**. The shipped `sourceType` taxonomy
   (`004-FR-011`) already contains exactly this — `imported_paid`, which `GR-014` AC-014-e states **"may never
@@ -1069,7 +1079,7 @@ USDA nutrition rather than asserted by an author. That is the differentiator `do
 sharpest weapon, expressed as something a chef can sell.
 
 - **FR-087** — **the sellable unit is a COLLECTION first, a recipe second**: a chef MUST be able to sell a
-  **named collection of their authored recipes** as a single product, and this MUST be the primary sellable
+  **named collection of their authored recipes** (only sellable recipes, `FR-026` as amended 2026-11-03, O14d) as a single product, and this MUST be the primary sellable
   form. Selling a single recipe (`FR-029`) remains permitted and is the weaker unit. ⚠️ `012-FR-017`…
   `012-FR-019` already own collections as a **surfacing** concept for public recipes; a **sellable** collection
   is that entity given a price and a provenance gate, not a second collections model (`GR-014` AC-014-b).

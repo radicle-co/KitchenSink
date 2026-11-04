@@ -1501,6 +1501,11 @@ this section.
     - 021's open-to-web Specification MUST import the hold Specification. So no public route can compile, and no
       public route can ship, before the hold is in the read rule.
     - A guard MUST fail any SQL that reads `visibility = 'public'` outside the hold Specification (FR-018).
+    - **Selling is a door** _(added 2026-11-03, owner ruling O14e, ADR-0082)_. A creator can list a PRIVATE recipe or
+      collection for sale (`012-FR-034a`, `018-FR-026`). Selling is distribution (17 U.S.C. §106(3)), so a sold recipe
+      MUST pass this same hold before it is listed and before it is delivered, and a listed recipe that becomes held
+      MUST be delisted. Only a recipe with an allowing outcome on its current digest can be sold, and only a sellable
+      label can be sold at all (O14d). [House rule] Counsel review is owed before launch (`016-FR-050`).
     - A door that is missing from FR-001's list leaves the recipe held. A sweep MUST find every recipe whose current
       digest has no outcome and request its check (FR-022's sweep).
     - **A copy delivered into another account carries its source's digest.** A reader who becomes an owner skips

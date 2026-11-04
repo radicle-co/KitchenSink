@@ -87,8 +87,10 @@ Copying one site's or one book's selection wholesale engages compilation copyrig
 Goodwill. So:
 
 - the cap is counted over time, across every public card and any later Commise version together, never per import.
-- user-recipe aggregator sites and edited publishers' collections get the tightest cap, or no public cards
-  (_British Horseracing Board_, C-203/02).
+- user-recipe aggregator sites get NO public facts cards (owner ruling 2026-11-03). Their recipes are other users'
+  work, and they carry the highest database-right risk (_British Horseracing Board_, C-203/02). A cook's import from one
+  stays private, or the cook publishes it in their own words as "Adapted by you". Edited publishers' collections get
+  the tightest cap.
 - book and paid-site cards have a per-source cap, and bulk import has a per-source public cap (`004-FR-026`).
 - no surface lists, browses or filters public cards by site or by book.
 - a site or book past its cap shows only the title, its name and the link.
@@ -174,6 +176,25 @@ as held. A later change outside the recipe (an opt-out, a cap, a failed public-d
 read live. The door list and its failure modes live in `020` section K. Notice and takedown, counter-notice, repeat
 infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
 
+### 9. The founder's rulings on the remaining questions
+
+Owner rulings of 2026-11-03, each accepting the recommendation put to the founder:
+
+- **Creator pages** list only recipes the cook wrote or adapted, never their facts cards (`012-FR-008`,
+  `021-FR-015`).
+- **Pages shown under their own stated open licence are indexable**, and so are public-domain pages (`021-FR-014f`,
+  `021-FR-006`).
+- **At launch the app is listed only in US app stores.** The EU and UK duties (`016-FR-048c`) must be met before any
+  listing in those stores, and `025` gates that listing on them. [Law] A store listing is enough to serve a market
+  (DSA Recital 8, GDPR Art. 3(2)).
+- **While an edited public recipe is being checked, readers see the last approved version** (`020-FR-064`).
+- **Bios and avatars are not checked by the outside-copy check.** [House rule] Notice and takedown covers them
+  (`020-FR-071`).
+- **No public bulk download and no public API of the open layers for now.** A cook's export of their own recipes
+  stays (`016-FR-033`, `016-FR-034`, `021-FR-060`).
+- **The founder owns renewing the DMCA designated-agent registration every three years** (37 C.F.R. §201.38,
+  `016-FR-059`).
+
 ## Consequences
 
 - Anyone can read the facts of every public recipe, and every cook's own words, with no account.
@@ -198,8 +219,8 @@ infringers and the DSA and UK OSA duties live in `016-FR-016` to `FR-066`.
 
 - **Counsel has not reviewed any of this.** Every rule is subject to `016-FR-050`.
 - **The founder has not registered the DMCA agent.** Until then there is no safe harbor for anything users post.
-- **"US-only" is not true while the app is listed in EU or UK stores** (DSA Recital 8, GDPR Art. 3(2), UK OSA
-  s.4(5)). `025` holds the market preconditions.
+- **UK traffic can still reach the open web pages.** At launch the app is listed only in US stores (§9), but the UK
+  OSA can attach through a significant number of UK users (s.4(5)). `025` holds the market preconditions.
 - **The cap numbers are not set.** A cap set too high does not answer Art. 7(5).
 - **The law on prose-only opt-outs is not settled** (_Kneschke v. LAION_, further appeal pending).
 - **Shipped code is behind this decision.** `visibilityPolicy.ts` still lets a full `imported_public` copy go public,

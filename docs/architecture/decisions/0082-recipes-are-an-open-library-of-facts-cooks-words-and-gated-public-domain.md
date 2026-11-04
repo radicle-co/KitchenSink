@@ -8,8 +8,11 @@
   blocking" wording means "never rejected automatically". Every other part of ADR-0077 stands.
   [ADR-0072](0072-bulk-recipe-import.md) §9 and its Related work: a recipe whose source is not a public web page can be
   public as the cook's own "Adapted" version or as a facts card, and the server looks for a STATED licence, never for
-  "no copyright". [ADR-0073](0073-free-tier-private-slots.md): a public facts card is a public recipe and uses no slot.
-  [ADR-0074](0074-content-source-check.md): the hold covers every door to public, and fails closed (§8 below).
+  "no copyright". [ADR-0073](0073-free-tier-private-slots.md): a public facts card is a public recipe and uses no slot. A private
+  bulk-imported recipe no longer waits in review, so it uses its slot like any private recipe (§9 below).
+  [ADR-0074](0074-content-source-check.md): the hold covers every door to public, and fails closed (§8 below). Its §3a
+  rule that a private bulk import waits in review is replaced: a private bulk import is usable at once, and only going
+  public or on sale waits for review (§9 below, `020-FR-003b`).
   [ADR-0023](0023-curator-declared-provenance.md) §1: the curator grant carries a public-domain record.
   [ADR-0052](0052-food-data-sources.md): its citation of `016-FR-033` now reads the amended FR-033. The food catalog
   rule does not change.

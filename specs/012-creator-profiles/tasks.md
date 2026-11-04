@@ -237,7 +237,7 @@ Phase 1, so the first endpoint must not land before the contract it serves is au
 - [ ] **T-067** [US-001] Public profile lists every open label and shows each recipe's label and CC BY licence — `packages/services/creator-profiles-service/src/`, web and mobile profile screens _(added 2026-11-03, owner ruling, ADR-0082)_
     - **Depends on**: T-044
     - **Implements**: FR-008 as amended 2026-11-03, `021-FR-002`
-    - **Acceptance**: A signed-out profile lists recipes under Written by you, Adapted by you, From a family member or friend, Public domain and clones of those, each with its label, and never a linked facts card. A recipe the cook put under CC BY 4.0 shows that licence.
+    - **Acceptance**: A signed-out profile lists recipes under Written by you, Adapted by you, From a family member or friend, Public domain and clones of those, each with its label, and never a linked facts card. A recipe the cook put under CC BY 4.0 shows that licence. _(Amended 2026-11-03, owner ruling O7, ADR-0082.)_ The list never includes a facts card, for any viewer, signed in or out. A test seeds a cook with a facts card and asserts it is absent from every creator page read, the widget (`FR-026`) and the sitemap list.
     - **Tests**: unit (the list filter by label), integration (signed-out read of a mixed profile), vitest component tests for the label states on both platforms, Playwright and Maestro for the signed-out profile.
 
 ---
@@ -265,3 +265,8 @@ and receipt validation had **no task** in this file, while `plan.md` L85-96 stat
     - **Implements**: FR-017 as amended 2026-11-03, `020-FR-071`
     - **Acceptance**: `MAX_COLLECTION_DESCRIPTION_LENGTH` is 200, as FR-017 states, or FR-017 is amended to the shipped 1000 by the owner. A public collection's description passes the rule detectors and, past `020-FR-012f`'s minimum length, the web search. A hit hides the description until a person decides. An uploaded cover is checked as a photo.
     - **Tests**: unit (the limit at its edge, and a description with a valid ISBN is hidden). Integration (a public collection read hides a held description). A row in 020's deployed bypass suite (`020-FR-074`).
+
+- [ ] **T-069** [US-001] Bio and avatar skip the outside-copy check and stay reachable by notice-and-takedown — `packages/services/creator-profiles-service/src/`, `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O11, ADR-0082)_
+    - **Implements**: FR-002, FR-008, `020-FR-071` as amended 2026-11-03
+    - **Acceptance**: [House rule] Saving a bio or an avatar starts no 020 check. An actioned 016 notice (`016-FR-017`) removes a bio or avatar from every public surface (page, widget, preview image) within `021-FR-061`'s purge bound, and the cook gets a statement of reasons (`016-FR-018`). Counsel review is owed before launch (`016-FR-050`).
+    - **Tests**: unit (the bio save path does not call the check), integration (a notice on an avatar removes it from the page and the widget), deployed e2e row in 020's bypass suite is NOT added, because there is no gate to bypass.

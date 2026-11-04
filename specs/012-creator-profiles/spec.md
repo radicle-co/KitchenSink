@@ -46,7 +46,9 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 > recipes that carry an open rights label: Written by you, Adapted by you, From a family member or friend, Public
 > domain, and clones of those. _(Amended 2026-11-03, owner ruling, ADR-0082. Was: "recipes the cook wrote, never
 > imported ones". A linked facts card is never listed on a creator page. Counsel review is owed before launch
-> (`016-FR-050`).)_ A signed-in visitor sees every public recipe the creator owns. Public
+> (`016-FR-050`).)_ _(amended 2026-11-03, owner ruling O7, ADR-0082)_ Decided: the page lists recipes the cook wrote or adapted (and their clones where the label
+> carries), and still lists family and public domain recipes by the existing open-recipe rule. It lists no facts
+> card, to anyone. This was an open question. A signed-in visitor sees every public recipe the creator owns. Public
 > collection pages stay behind sign-in until the owner answers 021's Q2 (`021-FR-008`). 021 owns the page's search,
 > preview, privacy and takedown rules. The requirements below are amended to match.
 >
@@ -115,7 +117,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-007** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Profile pages MUST be server-side rendered with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields. Indexing, `ProfilePage` structured data, canonical addresses and sitemaps follow `021-FR-020` to `021-FR-029a`. A page with no indexable recipe answers `noindex` (`021-FR-025`). The HTML response is the same for every viewer and sets no cookie (`021-FR-012`).
 
-- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`) under every open label (written, adapted, family, public domain, clone), each showing its label, and its licence where the cook chose CC BY 4.0 (`016-FR-010`, schema.org `license` on the recipe page, owned by 021), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
+- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`) under every open label (written, adapted, family, public domain, clone), each showing its label (_(amended 2026-11-03, owner ruling O7, ADR-0082)_: never a facts card, signed in or out), and its licence where the cook chose CC BY 4.0 (`016-FR-010`, schema.org `license` on the recipe page, owned by 021), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
 
 - **FR-009** Follower lists MUST NOT be publicly visible; only the aggregate `followerCount` is exposed.
 

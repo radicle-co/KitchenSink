@@ -59,7 +59,7 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
 
     return (
         <section aria-label={detail.nutritionHeading} className={`@container/nutrition flex flex-col ${DETAIL_CARD}`}>
-            <h2 id="nutrition" className="text-section-title text-ink">
+            <h2 id="nutrition" tabIndex={-1} className="text-section-title text-ink">
                 <button
                     type="button"
                     aria-expanded={expanded}
@@ -74,15 +74,15 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                     <Icon name={expanded ? 'chevronUp' : 'chevronDown'} size={20} />
                 </button>
             </h2>
-            <div id={panelId} hidden={!expanded} className="flex flex-col gap-3 px-4 pb-4">
-                {expanded && !cells.noneCounted && (
-                    <dl className="grid grid-cols-2 gap-4 pt-2 @min-[35rem]/nutrition:grid-cols-4">
-                        {cells.cells.map((cell) => (
-                            <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
-                        ))}
-                    </dl>
-                )}
-                {expanded && (
+            {expanded && (
+                <div id={panelId} className="flex flex-col gap-3 px-4 pb-4">
+                    {!cells.noneCounted && (
+                        <dl className="grid grid-cols-2 gap-4 pt-2 @min-[35rem]/nutrition:grid-cols-4">
+                            {cells.cells.map((cell) => (
+                                <NutritionFigure key={cell.label} label={cell.label} value={cell.value} />
+                            ))}
+                        </dl>
+                    )}
                     <div className="flex flex-col gap-1 text-caption text-ink-muted">
                         {statusLine !== undefined && <p>{statusLine}</p>}
                         {/* R38 and KTD-3b: two more admissions about the figures; both can be true at once. */}
@@ -112,8 +112,8 @@ export const DetailNutritionSection: FC<DetailNutritionSectionProps> = ({
                         )}
                         {hasUserEnteredIngredients(recipe.ingredients) && <p>{detail.nutritionCustomNote}</p>}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </section>
     );
 };

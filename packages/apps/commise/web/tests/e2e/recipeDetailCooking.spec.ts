@@ -223,6 +223,13 @@ test.describe('the recipe page’s layout', () => {
                 .getByRole('region', { name: 'Ingredients' })
                 .evaluate((section) => getComputedStyle(section).position),
         ).toBe('sticky');
+        // Sticky needs a ceiling to scroll inside: `100dvh - 6rem` (900 - 96 = 804). A malformed class string once dropped
+        // it, so the column never scrolled on its own.
+        expect(
+            await page
+                .getByRole('region', { name: 'Ingredients' })
+                .evaluate((section) => getComputedStyle(section).maxHeight),
+        ).toBe('804px');
         await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toHaveCount(0);
         await expect(page.getByRole('switch', { name: 'Screen on' })).toHaveText('Screen on');
     });

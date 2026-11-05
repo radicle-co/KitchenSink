@@ -71,6 +71,12 @@ appId: ${APP_ID}
       timeout: 20000
 - assertVisible: 'My recipes'
 
+# Close the keyboard before the cleanup. "New collection" is the floating button, and by design (`createFabPolicy.ts`:
+# `keyboardOpen` -> `hidden`) it is not drawn while the keyboard is up, so the cleanup's wait for it never ends on iOS,
+# where the search field keeps its focus through the delete dialogs (Android drops it when the dialog opens). The search
+# key on this field only blurs it (`searchNavigation.yaml`); never `hideKeyboard` (a BACK event on Android).
+- pressKey: Enter
+
 # CLEANUP (hermetic): drain the eight collections from the top of the list.
 - repeat:
       times: 12

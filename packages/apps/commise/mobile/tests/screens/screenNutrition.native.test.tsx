@@ -320,7 +320,9 @@ describe('which ids each screen batches', () => {
         // a new promise, a new request, and every figure on screen dropping back to a skeleton mid-typing.
         useNutritionMock.mockClear();
         await act(async () => {
-            fireEvent.change(screen.getByLabelText('Search your recipes', { selector: 'input' }), { target: { value: 'Chana' } });
+            fireEvent.change(screen.getByLabelText('Search your recipes', { selector: 'input' }), {
+                target: { value: 'Chana' },
+            });
         });
 
         expect(screen.queryByRole('link', { name: 'Weeknight Pasta' }), 'the row really was filtered out').toBeNull();

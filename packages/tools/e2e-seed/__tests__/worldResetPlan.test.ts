@@ -327,7 +327,9 @@ describe('planWorldReset — library mode', () => {
 
     it('holds more than a screenful of recipes: the signer three plus at least six fillers', () => {
         expect(manifest.libraryFillers.length).toBeGreaterThanOrEqual(6);
-        expect(new Set(manifest.libraryFillers.map((recipe) => recipe.title)).size).toBe(manifest.libraryFillers.length);
+        expect(new Set(manifest.libraryFillers.map((recipe) => recipe.title)).size).toBe(
+            manifest.libraryFillers.length,
+        );
     });
 
     it('plans nothing against a library that already holds the fillers', () => {

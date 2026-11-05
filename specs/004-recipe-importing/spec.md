@@ -919,7 +919,6 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
       mobile, and `staff-ux-engineer` designs it at SPECIFY.
     - Counsel review is owed before launch (`016-FR-050`).
 
-
 ### Non-Functional Requirements _(constitution-derived)_
 
 - **NFR-001**: All TypeScript MUST compile with `strict: true`; no `any` outside explicitly marked test doubles.

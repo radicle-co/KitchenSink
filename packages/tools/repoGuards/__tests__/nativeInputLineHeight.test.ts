@@ -24,24 +24,64 @@ const found = (source: string): number => inputsWithLineHeight(`${HEAD}${source}
 
 describe('inputsWithLineHeight', () => {
     it.each([
-        ['a type-role spread in a named style', `const A = () => <TextInput style={styles.f} />;\nconst styles = StyleSheet.create({ f: { ...nativeTokens.type.body, flex: 1 } });`, 1],
-        ['a type-role spread in an inline style', `const A = () => <TextInput style={{ ...nativeTokens.type.label }} />;`, 1],
-        ['a spread inside a style array', `const A = () => <TextInput style={[styles.f, { color: 'red' }]} />;\nconst styles = StyleSheet.create({ f: { ...nativeTokens.type.meta } });`, 1],
+        [
+            'a type-role spread in a named style',
+            `const A = () => <TextInput style={styles.f} />;\nconst styles = StyleSheet.create({ f: { ...nativeTokens.type.body, flex: 1 } });`,
+            1,
+        ],
+        [
+            'a type-role spread in an inline style',
+            `const A = () => <TextInput style={{ ...nativeTokens.type.label }} />;`,
+            1,
+        ],
+        [
+            'a spread inside a style array',
+            `const A = () => <TextInput style={[styles.f, { color: 'red' }]} />;\nconst styles = StyleSheet.create({ f: { ...nativeTokens.type.meta } });`,
+            1,
+        ],
         ['a literal lineHeight', `const A = () => <TextInput style={{ lineHeight: 24 }} />;`, 1],
-        ['a lineHeight read from a token', `const A = () => <TextInput style={[{ lineHeight: nativeTokens.type.body.lineHeight }]} />;`, 1],
-        ['a style reached through a local constant', `const base = { ...nativeTokens.type.body };\nconst A = () => <TextInput style={base} />;`, 1],
-        ['a style spread from a local constant', `const base = { lineHeight: 20 };\nconst A = () => <TextInput style={[{ ...base }]} />;`, 1],
-        ['an aliased React Native input', `import { TextInput as NativeTextInput } from 'react-native';\nconst A = () => <NativeTextInput style={{ ...nativeTokens.type.body }} />;`, 1],
+        [
+            'a lineHeight read from a token',
+            `const A = () => <TextInput style={[{ lineHeight: nativeTokens.type.body.lineHeight }]} />;`,
+            1,
+        ],
+        [
+            'a style reached through a local constant',
+            `const base = { ...nativeTokens.type.body };\nconst A = () => <TextInput style={base} />;`,
+            1,
+        ],
+        [
+            'a style spread from a local constant',
+            `const base = { lineHeight: 20 };\nconst A = () => <TextInput style={[{ ...base }]} />;`,
+            1,
+        ],
+        [
+            'an aliased React Native input',
+            `import { TextInput as NativeTextInput } from 'react-native';\nconst A = () => <NativeTextInput style={{ ...nativeTokens.type.body }} />;`,
+            1,
+        ],
     ])('refuses %s', (_name, source, count) => {
         expect(found(source)).toBe(count);
     });
 
     it.each([
-        ['a box-only style', `const A = () => <TextInput style={styles.f} />;\nconst styles = StyleSheet.create({ f: { minHeight: 48, borderWidth: 1 } });`],
+        [
+            'a box-only style',
+            `const A = () => <TextInput style={styles.f} />;\nconst styles = StyleSheet.create({ f: { minHeight: 48, borderWidth: 1 } });`,
+        ],
         ['no style', `const A = () => <TextInput value="x" />;`],
-        ['a type-role spread on a Text, not an input', `import { Text } from 'react-native';\nconst A = () => <Text style={{ ...nativeTokens.type.body }} />;`],
-        ['a type role in a style the input does not use', `const A = () => <TextInput style={styles.box} />;\nconst styles = StyleSheet.create({ box: { flex: 1 }, label: { ...nativeTokens.type.label } });`],
-        ['a caller style passed through unread', `const A = ({ style }: { style: object }) => <TextInput style={style} />;`],
+        [
+            'a type-role spread on a Text, not an input',
+            `import { Text } from 'react-native';\nconst A = () => <Text style={{ ...nativeTokens.type.body }} />;`,
+        ],
+        [
+            'a type role in a style the input does not use',
+            `const A = () => <TextInput style={styles.box} />;\nconst styles = StyleSheet.create({ box: { flex: 1 }, label: { ...nativeTokens.type.label } });`,
+        ],
+        [
+            'a caller style passed through unread',
+            `const A = ({ style }: { style: object }) => <TextInput style={style} />;`,
+        ],
     ])('allows %s', (_name, source) => {
         expect(found(source)).toBe(0);
     });

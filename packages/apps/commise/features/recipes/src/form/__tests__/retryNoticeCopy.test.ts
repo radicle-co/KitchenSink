@@ -24,6 +24,6 @@ describe('form notices that sit above a Try again button', () => {
         ],
     ])('%s says what went wrong and does not ask for a retry', (_key, actual, expected) => {
         expect(actual).toBe(expected);
-        expect(actual).not.toMatch(/try again in a moment|try again\.?$/i);
+        expect(actual).not.toMatch(/(?:try again in a moment|try again\.?$)/i);
     });
 });

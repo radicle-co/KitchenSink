@@ -199,3 +199,23 @@ describe('DetailNutritionSection (web) — space under the summary', () => {
         expect(figures?.classList.contains('pt-2')).toBe(true);
     });
 });
+
+describe('DetailNutritionSection (web) — the scroll target', () => {
+    it('keeps #nutrition focusable by script (tabIndex -1), as the page’s scroll host expects', () => {
+        draw();
+
+        const heading = document.getElementById('nutrition');
+
+        expect(heading?.tagName).toBe('H2');
+        expect(heading?.getAttribute('tabindex')).toBe('-1');
+    });
+
+    it('draws no panel while collapsed and one panel while open', () => {
+        draw(counted, false);
+        expect(document.getElementById(row().getAttribute('aria-controls') ?? 'none')).toBeNull();
+        cleanup();
+
+        draw(counted, true);
+        expect(document.getElementById(row().getAttribute('aria-controls') ?? 'none')).not.toBeNull();
+    });
+});

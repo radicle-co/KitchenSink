@@ -307,7 +307,7 @@ export function nutritionCells(
  * @param detail - The detail copy.
  * @returns The summary.
  */
-export function nutritionSummary(
+function nutritionSummary(
     cells: NutritionCells,
     detail: Pick<RecipeDetailMessages, 'nutritionSummary' | 'nutritionSummaryNone'>,
 ): string {

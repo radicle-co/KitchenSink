@@ -166,7 +166,7 @@ describe('matchStateOf — the truth table', () => {
             { state: 'confident', reason: 'curatedMapping' },
         ],
         [
-            'a CURATED mapping that names the default food is still a person\'s decision',
+            "a CURATED mapping that names the default food is still a person's decision",
             facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true, proposalIsDefault: true }),
             { state: 'confident', reason: 'curatedMapping' },
         ],

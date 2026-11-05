@@ -22,7 +22,9 @@ const walk = (node: ts.Node, visit: (node: ts.Node) => boolean): boolean =>
 export function rendersTextInput(source: string, fileName: string): boolean {
     return walk(
         parseModule(fileName, source),
-        (node) => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText() === 'TextInput',
+        (node) =>
+            (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+            node.tagName.getText() === 'TextInput',
     );
 }
 
@@ -35,6 +37,7 @@ export function rendersTextInput(source: string, fileName: string): boolean {
 export function revealsFocus(source: string, fileName: string): boolean {
     return walk(
         parseModule(fileName, source),
-        (node) => ts.isCallExpression(node) && ts.isIdentifier(node.expression) && REVEAL_HOOKS.has(node.expression.text),
+        (node) =>
+            ts.isCallExpression(node) && ts.isIdentifier(node.expression) && REVEAL_HOOKS.has(node.expression.text),
     );
 }

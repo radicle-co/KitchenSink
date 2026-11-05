@@ -50,7 +50,11 @@ export function deferredEventReads(text: string, file: string): readonly Deferre
     const found: DeferredEventRead[] = [];
 
     const visit = (node: ts.Node): void => {
-        if (ts.isPropertyAccessExpression(node) && node.name.text === 'nativeEvent' && ts.isIdentifier(node.expression)) {
+        if (
+            ts.isPropertyAccessExpression(node) &&
+            node.name.text === 'nativeEvent' &&
+            ts.isIdentifier(node.expression)
+        ) {
             const name = node.expression.text;
             let crossed = false;
 

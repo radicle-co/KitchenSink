@@ -19,7 +19,7 @@ import { presentFiles } from './serviceSources.js';
 
 /** The directories and file shapes no app guard reads: tests, fixtures, build output, native projects. */
 export const APP_SOURCE_EXCLUDED =
-    /(?:^|\/)(?:__tests__|__fixtures__|tests|test|node_modules|dist|\.expo|android|ios|\.next|\.turbo|coverage)\/|\.(?:test|spec)\.tsx?$/u;
+    /(?:(?:^|\/)(?:__tests__|__fixtures__|tests|test|node_modules|dist|\.expo|android|ios|\.next|\.turbo|coverage)\/|\.(?:test|spec)\.tsx?$)/u;
 
 /**
  * The app modules the guards read: TypeScript under `packages/apps/**`, present in the working tree (committed or not,

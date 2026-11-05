@@ -304,11 +304,19 @@ describe('the head reader is linear on adversarial input', () => {
         ['a long run of " in" with no trailing whitespace', ' in'.repeat(100_000)],
         ['a long run of mixed whitespace', ' \t\n'.repeat(100_000)],
     ])('%s completes within budget', (_name, input) => {
-        const started = performance.now();
+        // Best of three: a shared CI runner can stall one run for 25x its real cost (330 ms observed for a
+        // ~13 ms input), while a quadratic reader is slow on EVERY run, so the minimum still fails it.
+        const fastest = Math.min(
+            ...[0, 1, 2].map(() => {
+                const started = performance.now();
 
-        rankingHeadOf(input);
+                rankingHeadOf(input);
 
-        expect(performance.now() - started).toBeLessThan(BUDGET_MS);
+                return performance.now() - started;
+            }),
+        );
+
+        expect(fastest).toBeLessThan(BUDGET_MS);
     });
 });
 

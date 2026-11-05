@@ -643,9 +643,9 @@ describe('the surface tone, compiled', () => {
         const css = squashed(await compileAppCss());
         const fill = 'background-color:var(--cm-press,var(--color-press-canvas))';
 
-        expect(css).toMatch(new RegExp(`:hover\\{[^}]*${fill.replace(/[()]/gu, '\\$&')}`, 'u'));
-        expect(css).toMatch(new RegExp(`:active\\{[^}]*${fill.replace(/[()]/gu, '\\$&')}`, 'u'));
-        expect(css).toMatch(new RegExp(`\\[data-highlighted\\]\\{[^}]*${fill.replace(/[()]/gu, '\\$&')}`, 'u'));
+        expect(css).toMatch(new RegExp(`:hover\\{[^}]*${fill.replace(/[\\()]/gu, '\\$&')}`, 'u'));
+        expect(css).toMatch(new RegExp(`:active\\{[^}]*${fill.replace(/[\\()]/gu, '\\$&')}`, 'u'));
+        expect(css).toMatch(new RegExp(`\\[data-highlighted\\]\\{[^}]*${fill.replace(/[\\()]/gu, '\\$&')}`, 'u'));
     });
 
     it('lets a chip rest on the surface’s chip fill and press to its chip press, each with a fallback', async () => {
@@ -710,7 +710,7 @@ describe('the surface tone, compiled', () => {
     it('lets the Clerk card state the surface it paints from 480 up and the canvas again at the wide layout', async () => {
         const css = squashed(await compileAppCss());
         const at = (query: string, declaration: string): boolean =>
-            new RegExp(`@media\\(${query}\\)\\{[^@]*?${declaration.replace(/[()]/gu, '\\$&')}`, 'u').test(css);
+            new RegExp(`@media\\(${query}\\)\\{[^@]*?${declaration.replace(/[\\()]/gu, '\\$&')}`, 'u').test(css);
 
         expect(at('width>=480px', '--cm-surface:var(--color-paper)')).toBe(true);
         expect(at('width>=480px', '--cm-press:var(--color-press-paper)')).toBe(true);

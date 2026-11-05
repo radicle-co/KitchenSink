@@ -81,7 +81,9 @@ function service(db: NodePgDatabase, avatarMedia: AvatarMediaPort): UsersService
     return new UsersService(
         db,
         {} as unknown as SqsService,
-        { resolveUser: () => Promise.resolve({ user: EXISTING[0], account: ACCOUNT[0] }) } as unknown as ResolveUserService,
+        {
+            resolveUser: () => Promise.resolve({ user: EXISTING[0], account: ACCOUNT[0] }),
+        } as unknown as ResolveUserService,
         noopHandleSyncPublisher,
         avatarMedia,
         false,

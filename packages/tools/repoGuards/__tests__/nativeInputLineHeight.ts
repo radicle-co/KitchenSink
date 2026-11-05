@@ -22,7 +22,10 @@ function inputElements(file: ts.SourceFile): readonly (ts.JsxOpeningElement | ts
     const found: (ts.JsxOpeningElement | ts.JsxSelfClosingElement)[] = [];
 
     const visit = (node: ts.Node): void => {
-        if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && INPUT_TAGS.has(node.tagName.getText(file))) {
+        if (
+            (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+            INPUT_TAGS.has(node.tagName.getText(file))
+        ) {
             found.push(node);
         }
 
@@ -66,7 +69,11 @@ function reachesLineHeight(
     defined: ReadonlyMap<string, readonly ts.Expression[]>,
     seen: Set<string>,
 ): boolean {
-    if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isSatisfiesExpression(expression)) {
+    if (
+        ts.isParenthesizedExpression(expression) ||
+        ts.isAsExpression(expression) ||
+        ts.isSatisfiesExpression(expression)
+    ) {
         return reachesLineHeight(expression.expression, file, defined, seen);
     }
 
@@ -93,7 +100,9 @@ function reachesLineHeight(
     }
 
     if (ts.isConditionalExpression(expression)) {
-        return [expression.whenTrue, expression.whenFalse].some((branch) => reachesLineHeight(branch, file, defined, seen));
+        return [expression.whenTrue, expression.whenFalse].some((branch) =>
+            reachesLineHeight(branch, file, defined, seen),
+        );
     }
 
     const name = ts.isIdentifier(expression)
@@ -124,7 +133,8 @@ export function inputsWithLineHeight(source: string, fileName: string): readonly
 
     return inputElements(file).flatMap((element) => {
         const attribute = element.attributes.properties.find(
-            (property): property is ts.JsxAttribute => ts.isJsxAttribute(property) && property.name.getText(file) === 'style',
+            (property): property is ts.JsxAttribute =>
+                ts.isJsxAttribute(property) && property.name.getText(file) === 'style',
         );
         const value = attribute?.initializer;
 

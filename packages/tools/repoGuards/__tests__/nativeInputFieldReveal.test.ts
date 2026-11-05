@@ -50,8 +50,18 @@ const HEAD = `import { TextInput } from '@commise/ui/text-input';\n`;
 describe('the reader', () => {
     it.each([
         ['an input with no hook', `const A = () => <TextInput />;`, true, false],
-        ['an input with useFocusReveal', `const A = () => { useFocusReveal(node, f); return <TextInput />; };`, true, true],
-        ['an input with useRevealedField', `const A = () => { const r = useRevealedField(); return <TextInput {...r} />; };`, true, true],
+        [
+            'an input with useFocusReveal',
+            `const A = () => { useFocusReveal(node, f); return <TextInput />; };`,
+            true,
+            true,
+        ],
+        [
+            'an input with useRevealedField',
+            `const A = () => { const r = useRevealedField(); return <TextInput {...r} />; };`,
+            true,
+            true,
+        ],
         ['a hook and no input', `const A = () => { useFocusReveal(node, f); return null; };`, false, true],
         ['no input, no hook', `const A = () => <View />;`, false, false],
         ['a hook named in a comment only', `// useFocusReveal\nconst A = () => <TextInput />;`, true, false],
@@ -87,7 +97,9 @@ describe('every native module that renders a text input', () => {
         const missing = Object.entries(EXEMPT).flatMap(([file, { container }]) => {
             const source = sources.find(([candidate]) => candidate === file)?.[1] ?? '';
 
-            return container === undefined || source.includes(`'${container}'`) ? [] : [`${file} does not import ${container}`];
+            return container === undefined || source.includes(`'${container}'`)
+                ? []
+                : [`${file} does not import ${container}`];
         });
 
         expect(missing).toEqual([]);

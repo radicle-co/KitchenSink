@@ -1167,9 +1167,9 @@ They fill gaps in FR-016 to FR-026 and do not repeat them. Counsel review is owe
     3. **Files kept for buyers after a creator leaves** (`018-FR-029i`). The notice MUST say that when a creator
        erases their account, Commise keeps only the files their buyers are owed, for 30 days, on legitimate interest
        (Art. 6(1)(f)), and then deletes them.
-  The record of processing (`FR-039`) MUST list all three. Analytics use follows `023`'s measurement rules and reads
-  only aggregated or pseudonymised data. Counsel and `dpo-1` confirm the wording, including each legitimate-interest
-  balancing test (`FR-050`).
+       The record of processing (`FR-039`) MUST list all three. Analytics use follows `023`'s measurement rules and reads
+       only aggregated or pseudonymised data. Counsel and `dpo-1` confirm the wording, including each legitimate-interest
+       balancing test (`FR-050`).
 
 #### G. Consumer and subscription disclosures
 
@@ -1597,12 +1597,12 @@ review is owed before launch (`FR-050`).
     - Users are told when content they downloaded from Commise is removed for legal reasons (`018-FR-029k`).
     - Users agree to delete content they are told is illegal or infringing.
     - A user who knowingly keeps or uses such content after that notice accepts responsibility for it.
-  [House rule] The clause binds account holders through acceptance (`FR-002`). It is a contract term, not a technical
-  control. Commise cannot reach into a device, and the notice does not claim it can. The buyer and seller terms of
-  `018-FR-029m` carry the same clause, with the seller's clawback and indemnity. A material revision that adds it
-  follows `FR-004` and `FR-005`. [Law] The clause MUST pass the consumer fairness tests of `FR-044` (UK Consumer Rights
-  Act 2015 Part 2, Directive 93/13/EEC) and MUST NOT shift to the user a liability the law puts on Commise. Counsel MUST
-  draft the actual clause (`FR-050`).
+      [House rule] The clause binds account holders through acceptance (`FR-002`). It is a contract term, not a technical
+      control. Commise cannot reach into a device, and the notice does not claim it can. The buyer and seller terms of
+      `018-FR-029m` carry the same clause, with the seller's clawback and indemnity. A material revision that adds it
+      follows `FR-004` and `FR-005`. [Law] The clause MUST pass the consumer fairness tests of `FR-044` (UK Consumer Rights
+      Act 2015 Part 2, Directive 93/13/EEC) and MUST NOT shift to the user a liability the law puts on Commise. Counsel MUST
+      draft the actual clause (`FR-050`).
 
 ### Non-Functional Requirements _(constitution-derived)_
 

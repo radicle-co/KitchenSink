@@ -453,9 +453,7 @@ describe('variant-bound recipe lines (e2e, LOCAL: assembled app, real Postgres, 
         expect(rows).toStrictEqual([{ food_id: null, food_variant_id: PASTE }]);
         // ADR-0071 (owner rulings 2026-11-03): the cook's own correction is PROPOSED on the next add of that phrase,
         // never bound. `by-name` asks food alone, so the same phrase still comes back unresolved.
-        expect(await nameProposalsFor(phrase)).toMatchObject([
-            { kind: 'variant', id: PASTE, source: 'ownCorrection' },
-        ]);
+        expect(await nameProposalsFor(phrase)).toMatchObject([{ kind: 'variant', id: PASTE, source: 'ownCorrection' }]);
         expect(next).not.toHaveProperty('variant');
     });
 

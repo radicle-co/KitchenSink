@@ -24,13 +24,22 @@ describe('deferredEventReads', () => {
     });
 
     it.each([
-        ['a synchronous read in the handler', 'const h = (event) => { const { layout } = event.nativeEvent; setX(layout); };'],
+        [
+            'a synchronous read in the handler',
+            'const h = (event) => { const { layout } = event.nativeEvent; setX(layout); };',
+        ],
         [
             'the value read first, then passed to the updater',
             'const h = (event) => { const { layout } = event.nativeEvent; setBox((previous) => nextBox(previous, layout)); };',
         ],
-        ['a destructured parameter', 'const h = ({ nativeEvent }) => { setBox((previous) => nextBox(previous, nativeEvent.layout)); };'],
-        ['a nativeEvent that is not a handler parameter', 'const a = (() => { const o = { nativeEvent: 1 }; return () => o.nativeEvent; })();'],
+        [
+            'a destructured parameter',
+            'const h = ({ nativeEvent }) => { setBox((previous) => nextBox(previous, nativeEvent.layout)); };',
+        ],
+        [
+            'a nativeEvent that is not a handler parameter',
+            'const a = (() => { const o = { nativeEvent: 1 }; return () => o.nativeEvent; })();',
+        ],
         ['an arrow that returns the value directly', 'const h = (event) => event.nativeEvent.layout;'],
     ])('does not flag %s', (_name, code) => {
         expect(reads(code)).toBe(0);

@@ -645,6 +645,17 @@ creator page.
     - O8: a full page shown under its own stated licence is indexable, and so are public domain pages (FR-014f, FR-020).
     - O12: no public bulk download and no public API of the open layers for now (FR-060, FR-103, `016-FR-033`).
 
+### Session 2026-11-04
+
+- **Facts card rating.** The founder ruled on 2026-11-04 that the facts card shows Commise's own rating and rating
+  count. It uses the detail page's rating card for another cook's recipe. Comments stay off the card (FR-014a).
+- **Facts card unread lines.** The founder ruled on 2026-11-04 that the card leaves out lines it cannot show as facts.
+  The count goes to the card as `unreadLineCount`, and the card says how many are on the site or in the book only
+  (FR-014b).
+- **Save a copy is safe to retry.** The founder ruled on 2026-11-04, "Build it now," that a retry with the same
+  idempotency key returns the first copy. The rule now lives in 001 (`001-FR-005`), because FR-005b is already taken
+  there.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -853,12 +864,14 @@ creator page.
 - **FR-014a** _(added 2026-10-29, owner ruling, ADR-0077, amended 2026-11-03, owner rulings, ADR-0082)_: The **linked
   card** MUST be what everyone other than the owner and the owner's household sees for a public recipe copied from
   someone else's web page. That includes signed-out visitors. It is a public projection with exactly the fields below
-  (FR-102). The 2026-11-03 change is who can read it, not what it shows. Its field list does not grow. It shows exactly
-  these, and nothing else:
+  (FR-102). The 2026-11-03 change is who can read it, not what it shows. Its field list changes only by a dated ruling
+  (_amended 2026-11-04_). It shows exactly these, and nothing else:
     - the title
     - servings, prep time, cook time, total time and yield
     - the step count, for example "8 steps on [site]"
     - our own computed nutrition, labelled "Estimated by Commise"
+    - Commise's own rating and rating count (`averageRating` and `ratingCount`). The card uses the rating card of the
+      detail page for another cook's recipe. Comments stay off the card. _(Added 2026-11-04, founder ruling.)_
     - the ingredients in our normalized form: quantity, unit and our food name
     - the owner's own notes, labelled as theirs, and the owner's own photos
     - "Saved from [site]" and a prominent "Open the full recipe on [site]" link
@@ -872,7 +885,11 @@ creator page.
 - **FR-014b**: The linked card MUST NOT show the source's method text, its headnote or description, its photo, its
   ratings, or any of its lines word for word. An ingredient line with no food match (ADR-0045) shows only the
   quantity, unit and ingredient name the parse read, never the raw line, its prep words or its notes. A line the parse
-  could not read is left out, and the card says how many lines are on the site only. With no photo of the owner's own,
+  could not read is left out, and the card says how many lines are on the site only. The card also leaves out a
+  hand-typed line bound to no catalogue food, and a line with no name. The API sends the count of all left-out lines as
+  `unreadLineCount`. When that count is above 0, the card MUST say "{n} more ingredients are on {site} only", or "in the
+  book only" for a book card. When the count is 0, the card MUST say nothing about them. _(Added 2026-11-04, founder
+  ruling.)_ With no photo of the owner's own,
   the card shows a neutral placeholder, never the source's photo (`016-FR-027a`).
 - **FR-014c**: The owner, and the owner's household where the recipe is shared, MUST see the full private copy, whether
   or not the card is public. A clone or "save my own copy" of a linked card MUST copy only what the card shows, plus the

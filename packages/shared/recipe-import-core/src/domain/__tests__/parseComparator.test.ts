@@ -1089,6 +1089,28 @@ describe('compareParses — KTD-11b placement, canonicalised before comparing', 
         expect(onlyFood(result)).toEqual({ name: 'large onion', prep: null });
     });
 
+    it('keeps a form the cook buys in the name, so the line names the food it means', () => {
+        // Dogfooding PR 132: `2 tablespoons unsalted butter, melted` was stored as `butter` / `melted unsalted` and bound
+        // to salted butter, because `unsalted` fell through to the `-ed` suffix rule.
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'unsalted butter', prep: 'melted' }] }),
+            llm: llmParse({ foods: [{ name: 'unsalted butter', prep: 'melted' }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'unsalted butter', prep: 'melted' });
+    });
+
+    it('moves a purchasable form out of the preparation into the name', () => {
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'salmon', prep: 'smoked' }] }),
+            llm: llmParse({ foods: [{ name: 'smoked salmon', prep: null }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'smoked salmon', prep: null });
+    });
+
     it('treats a colour as identity, not preparation', () => {
         const red = compareParses({
             crf: crfParse({ foods: [{ name: 'peppers', prep: 'red' }] }),

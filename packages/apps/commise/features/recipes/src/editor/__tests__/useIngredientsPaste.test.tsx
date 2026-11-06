@@ -14,7 +14,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { makePasteIntoIngredients, makePasteMatching } from '../../__fixtures__/pasteMatching.js';
 import { makeIngredientRowEditor } from '../../__fixtures__/index.js';
 import { makeConfidentLine, makeNeedsChoiceLine } from '../../ingredientMatching/__fixtures__/matchLines.js';
-import type { PastedLine } from '../pastedLines.js';
+import {
+    makeParseJob,
+    makeParseJobLine,
+    makeParseProposal,
+    makeParseProposalFood,
+} from '../../__fixtures__/parseJobs.js';
+import { pastedLinesOf, readerLinesOf, type PastedLine } from '../pastedLines.js';
 import type { PasteIntoIngredients } from '../usePasteIntoIngredients.js';
 import type { PasteMatching, UsePasteMatchingOptions } from '../usePasteMatching.js';
 
@@ -173,8 +179,10 @@ describe('useIngredientsPaste — what it hands the field group', () => {
             onAddAsWritten: addAsWritten,
             onAddRestAsWritten: addRestAsWritten,
             focusSignal: 4,
-            added: { count: 3, occurrence: 2 },
         });
+        // What a finished paste added is the EDITOR's to say (one message with the section's completion), not the section's.
+        expect(result.current.added).toEqual({ count: 3, occurrence: 2 });
+        expect(result.current.view).not.toHaveProperty('added');
     });
 
     it('⛔ hands the matched lines the paste list draws, and the draft keys the ordinary rows must leave out', () => {
@@ -290,5 +298,160 @@ describe('useIngredientsPaste — the hold', () => {
         view.rerender();
         view.unmount();
         expect(released).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Every way a paste ends, and what `pending` (Publish waits) and `reading` (Ingredients says "Reading…") then read. The
+ * lines are the REAL projection (`pastedLinesOf`, `readerLinesOf`); the Mediator joins every line that settled (its own
+ * suite proves that), so a settled line is joined here. A path that leaves either flag true would leave Ingredients on
+ * "Reading…" for good (designer condition 3).
+ */
+describe('useIngredientsPaste — every end of a paste clears pending and reading', () => {
+    const NOW = Date.parse('2026-10-09T10:05:00.000Z');
+    const pendingLine = (lineIndex: number) =>
+        makeParseJobLine({ lineIndex, sourceLine: `${String(lineIndex)} cup rice` });
+    const parsedLine = (lineIndex: number) =>
+        makeParseJobLine({
+            lineIndex,
+            status: 'parsed',
+            proposal: makeParseProposal({ foods: [makeParseProposalFood({ name: 'rice' })] }),
+        });
+
+    /** A paste over `lines`, with every settled line joined, as the Mediator does. */
+    const pasteOf = (lines: readonly PastedLine[], over: Partial<PasteIntoIngredients> = {}) =>
+        makePasteIntoIngredients({
+            sessionKey: 'job-1',
+            lines,
+            joined: new Set(lines.filter((line) => line.kind === 'settled').map((line) => line.lineIndex)),
+            ...over,
+        });
+
+    const flagsOf = (paste: PasteIntoIngredients) => {
+        const { result } = render(paste, 0);
+
+        return {
+            pending: result.current.pending,
+            reading: result.current.reading,
+            needYou: result.current.needYou,
+        };
+    };
+
+    const projected = (job = makeParseJob(), over: { jobFailed?: boolean; now?: number } = {}) =>
+        pastedLinesOf({ job, jobFailed: over.jobFailed ?? false, now: over.now ?? NOW, typedByCook: new Set() });
+
+    it.each([
+        [
+            'every line parsed (success)',
+            () => pasteOf(projected(makeParseJob({ lines: [parsedLine(0), parsedLine(1)] }))),
+        ],
+        ['the create failed for a reason that is not the limit', () => makePasteIntoIngredients({ failed: true })],
+        [
+            'the job is gone or refused (a terminal read failure)',
+            () => pasteOf(projected(makeParseJob({ lines: [pendingLine(0), pendingLine(1)] }), { jobFailed: true })),
+        ],
+        [
+            'the service says the job expired',
+            () => pasteOf(projected(makeParseJob({ status: 'expired', lines: [pendingLine(0), pendingLine(1)] }))),
+        ],
+        [
+            'the job passes its deadline on the clock',
+            () =>
+                pasteOf(
+                    projected(makeParseJob({ lines: [pendingLine(0)] }), {
+                        now: Date.parse('2026-10-10T10:00:01.000Z'),
+                    }),
+                ),
+        ],
+        [
+            'the daily limit refused the paste (every line lands as written)',
+            () => pasteOf(readerLinesOf(['2 cups flour', '1 tsp salt'])),
+        ],
+        [
+            'the spend ceiling denied the model (the line keeps the engine answer, or none)',
+            () =>
+                pasteOf(
+                    projected(
+                        makeParseJob({
+                            lines: [
+                                makeParseJobLine({ lineIndex: 0, status: 'parsed', proposal: null }),
+                                makeParseJobLine({ lineIndex: 1, status: 'unparseable' }),
+                            ],
+                        }),
+                    ),
+                ),
+        ],
+        [
+            'the cook withdrew a line (Add as written)',
+            () => pasteOf(projected(makeParseJob({ lines: [makeParseJobLine({ status: 'withdrawn' })] }))),
+        ],
+    ])('%s', (_path, paste) => {
+        expect(flagsOf(paste())).toEqual({ pending: false, reading: false, needYou: 0 });
+    });
+
+    it('a closed sheet cancels nothing it does not hold: after a refused create, closing the sheet leaves both false', () => {
+        const { result } = render({ failed: true }, 0);
+
+        act(() => result.current.sheet.setOpen(true));
+        act(() => result.current.sheet.setOpen(false));
+
+        expect({ pending: result.current.pending, reading: result.current.reading }).toEqual({
+            pending: false,
+            reading: false,
+        });
+        expect(result.current.needYou).toBe(0);
+    });
+
+    it('unmounting releases the hold and the flags are not read again', () => {
+        const hold = createPasteHold();
+        const view = render({ lines: [READING] }, 0, false, hold);
+
+        expect(hold.get()).toBe(true);
+        view.unmount();
+        expect(hold.get()).toBe(false);
+    });
+
+    it('a line that FAILED and waits on the cook still holds Publish, but is no longer "Reading…"', () => {
+        const retryable = projected(
+            makeParseJob({ lines: [makeParseJobLine({ lineIndex: 0, status: 'failed_retryable', progress: null })] }),
+        );
+        const flags = flagsOf(pasteOf(retryable));
+
+        expect(retryable[0]?.kind).toBe('awaitingCook');
+        expect(flags).toEqual({ pending: true, reading: false, needYou: 1 });
+    });
+
+    it('a failed lookup waits on the cook too: not "Reading…"', () => {
+        const settled = projected(makeParseJob({ lines: [parsedLine(0)] }));
+
+        expect(flagsOf(makePasteIntoIngredients({ sessionKey: 'job-1', lines: settled, failedAt: 0 }))).toEqual({
+            pending: true,
+            reading: false,
+            needYou: 1,
+        });
+    });
+
+    it('one line failed while another is still read: still "Reading…"', () => {
+        const mixed = projected(
+            makeParseJob({
+                lines: [makeParseJobLine({ lineIndex: 0, status: 'failed_retryable', progress: null }), pendingLine(1)],
+            }),
+        );
+
+        expect(flagsOf(pasteOf(mixed))).toEqual({ pending: true, reading: true, needYou: 0 });
+    });
+
+    it('a stalled line, and work parked for a connection, are not failures: still "Reading…"', () => {
+        const stalled = projected(
+            makeParseJob({ lines: [makeParseJobLine({ lineIndex: 0, progress: { phase: 'stalled' } })] }),
+        );
+
+        expect(flagsOf(pasteOf(stalled)).reading).toBe(true);
+        expect(flagsOf(pasteOf(projected(), { pollPaused: true })).reading).toBe(true);
+    });
+
+    it('the paste being sent is "Reading…", and so is a pick being sent or a line joining', () => {
+        expect(flagsOf(makePasteIntoIngredients({ submitting: true })).reading).toBe(true);
+        expect(render({}, 0, false, createPasteHold(), { joining: true }).result.current.reading).toBe(true);
     });
 });

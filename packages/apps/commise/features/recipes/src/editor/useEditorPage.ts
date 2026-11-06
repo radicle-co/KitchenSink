@@ -25,13 +25,16 @@ import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import { publishNoteOf, readyLineOf, type ReadyLine } from './publishNote.js';
 import { sectionIndexEntries, type SectionIndexEntries } from './sectionIndexEntries.js';
 import { EDITOR_SECTIONS, isEditorSectionId, type EditorSectionId } from './sections.js';
-import { newlyComplete, sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
+import { pageAnnouncementOf, type PasteAdded } from './pageAnnouncement.js';
+import { sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
 
 /** A section the cook's own edit completed, to announce; `n` advances once per announcement. */
 interface Announcement {
     /** The status kinds it was derived at (`statusKey`). */
     readonly key: string;
     readonly statuses: SectionStatuses;
+    /** The paste's count when last looked at. */
+    readonly added: PasteAdded | undefined;
     readonly text: string;
     readonly n: number;
 }
@@ -114,6 +117,9 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         onRefused,
         onOpenMyRecipes,
         openChoices,
+        pasteReading,
+        pasteNeedsYou,
+        pasteAdded,
     } = props;
     const m = useMessages(editorMessages);
     const locale = useLocale();
@@ -122,6 +128,8 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         values: editor.values,
         pendingEntryText,
         publishAttempted: editor.publishAttempted,
+        pasteReading: pasteReading === true,
+        pasteNeedsYou: pasteNeedsYou ?? 0,
     });
     const chrome = editorChromeOf({ editor, mode, keep, statuses, messages: m, locale });
     const current = host.current !== undefined && isEditorSectionId(host.current) ? host.current : 'details';
@@ -174,16 +182,30 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
 
     // A section the cook's own edit completed is announced, politely (§7.2), and never one the page opened complete.
     // Derived during render from the statuses last seen, keyed on their kinds (the object is new every render).
-    const key = statusKey(statuses);
-    const [announced, setAnnounced] = useState<Announcement>(() => ({ key, statuses, text: '', n: 0 }));
+    const key = `${statusKey(statuses)}|${String(pasteAdded?.occurrence ?? 0)}`;
+    const [announced, setAnnounced] = useState<Announcement>(() => ({
+        key,
+        statuses,
+        added: pasteAdded,
+        text: '',
+        n: 0,
+    }));
 
     if (key !== announced.key) {
-        const [first] = newlyComplete(announced.statuses, statuses);
+        // ONE message: a paste finishing and Ingredients completing in the same render are said together.
+        const text = pageAnnouncementOf({
+            previous: announced.statuses,
+            next: statuses,
+            previousAdded: announced.added,
+            nextAdded: pasteAdded,
+            messages: m,
+            locale,
+        });
 
         setAnnounced(
-            first === undefined
-                ? { ...announced, key, statuses }
-                : { key, statuses, text: m.index.announce[first], n: announced.n + 1 },
+            text === undefined
+                ? { ...announced, key, statuses, added: pasteAdded }
+                : { key, statuses, added: pasteAdded, text, n: announced.n + 1 },
         );
     }
 

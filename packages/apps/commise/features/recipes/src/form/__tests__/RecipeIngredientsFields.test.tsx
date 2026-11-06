@@ -969,7 +969,6 @@ describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Re
         focusRow: undefined,
         onRowFocusHandled: noop,
         announcement: undefined,
-        added: undefined,
         onOpen: undefined,
     };
     const pastedList = (): HTMLElement => screen.getByRole('list', { name: en.pasteReadingListLabel });
@@ -1072,14 +1071,6 @@ describe('RecipeIngredientsFields (web) — pasted lines (build spec §7.5.1 "Re
         });
 
         expect(screen.getAllByRole('status').some((region) => region.textContent === 'Reading 2 pasted lines.')).toBe(
-            true,
-        );
-    });
-
-    it('says politely how many ingredients a finished paste added', () => {
-        renderLeaf({ paste: { ...PASTE, reading: [], added: { count: 2, occurrence: 1 } } });
-
-        expect(screen.getAllByRole('status').some((region) => region.textContent === 'Added 2 ingredients.')).toBe(
             true,
         );
     });

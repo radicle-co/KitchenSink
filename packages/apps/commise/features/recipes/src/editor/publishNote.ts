@@ -86,6 +86,9 @@ export function readyLineOf(input: PublishNoteInput, messages: EditorMessages, l
         values: input.values,
         pendingEntryText: input.pendingEntryText,
         publishAttempted: true,
+        // Only the Fix counts are read below, and a paste being read never changes a Fix.
+        pasteReading: false,
+        pasteNeedsYou: 0,
     });
     const fixes = EDITOR_SECTIONS.reduce((sum, id) => {
         const status = statuses[id];

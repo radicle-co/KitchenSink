@@ -81,6 +81,19 @@ export interface IngredientsPaste {
     readonly failed: boolean;
     /** A paste is being sent, its lines are still joining the recipe, or a pick is being sent: Publish waits. */
     readonly pending: boolean;
+    /**
+     * Lines are still being read, joined or matched, so Ingredients is not done. Narrower than `pending`: a line that
+     * FAILED (`retryable`, a failed lookup) waits on the cook, holds Publish, and is no longer "Reading…". Stalled and
+     * offline lines are not failures and stay reading.
+     */
+    readonly reading: boolean;
+    /**
+     * How many unjoined lines failed (`retryable`, a failed lookup) and wait on the cook, with nothing in flight: 0
+     * while anything is still being read. Ingredients says "Needs you" for them.
+     */
+    readonly needYou: number;
+    /** What the last finished paste added; the EDITOR says it (with the section's completion, in one message). */
+    readonly added: { readonly count: number; readonly occurrence: number } | undefined;
     /** The lines with no food yet, for the publish sheet (R23). */
     readonly openChoices: PasteOpenChoices;
 }
@@ -143,6 +156,14 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
     const empty = options.lineKeys.length === 0 && reading.length === 0;
     const open = (): void => sheet.setOpen(true);
     const pending = paste.submitting || reading.length > 0 || matching.joining || matching.pending.size > 0;
+    const stillReading =
+        paste.submitting ||
+        matching.joining ||
+        matching.pending.size > 0 ||
+        reading.some((row) => row.state !== 'retryable' && row.state !== 'lookupFailed');
+    const needYou = stillReading
+        ? 0
+        : reading.filter((row) => row.state === 'retryable' || row.state === 'lookupFailed').length;
     const { hold } = options;
 
     // A layout effect: the hold is current once this state commits, before any passive effect or event can run a
@@ -172,7 +193,6 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
                 announcement?.milestone === 'offline' && presentation.view.notice?.kind === 'offline'
                     ? undefined
                     : announcement,
-            added: paste.added,
             onOpen: paste.available && empty ? open : undefined,
         },
         inHeading: paste.available && !empty,
@@ -181,6 +201,9 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
         submitting: paste.submitting,
         failed: paste.failed,
         pending,
+        reading: stillReading,
+        needYou,
+        added: paste.added,
         openChoices: { facts: presentation.facts, chooseNow: presentation.chooseNow },
     };
 }

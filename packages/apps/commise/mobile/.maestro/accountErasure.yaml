@@ -113,12 +113,16 @@ appId: ${APP_ID}
           platform: Android
       commands:
           - assertNotVisible: '${E2E_SIGNIN_EMAIL}'
-# ⛔ `centerElement: true`, not a bare scroll: the scroll stops as soon as the row is "visible", which is while it still
-# sits under the tab bar, and the tap below then lands on the Recipes tab (iOS run, 2026-10-31: the sheet never opened).
-- scrollUntilVisible:
-      element: 'Erase my data'
-      direction: DOWN
-      centerElement: true
+# ⛔ `scrollIntoTapView`, not a bare scroll and not `centerElement`. A bare scroll stops as soon as the row is "visible",
+# which is while it still sits under the tab bar, and the tap below then lands on the Recipes tab (iOS run, 2026-10-31:
+# the sheet never opened). `centerElement` cannot centre a row that ends the page, so on iOS it reported "No visible
+# element found" with the row fully on screen (deployed run 42134419670). The helper scrolls to the row, centres only if
+# it can, and then lifts it clear of the tab bar and asserts it is still visible.
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Erase my data'
+          DIRECTION: DOWN
 
 - assertVisible: 'Erase my data'
 - tapOn: 'Erase my data'

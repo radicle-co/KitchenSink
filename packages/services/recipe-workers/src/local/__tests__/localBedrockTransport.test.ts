@@ -105,6 +105,35 @@ describe('the local Bedrock substitute', () => {
         expect(normalized.statedUnit).toBe('cups');
     });
 
+    /**
+     * PR 132 device pass, on the local stack: the fake read only ONE amount token, so `1 1/2 cups whole milk` came
+     * back as amount `1`, unit `1/2` and the food `cups whole milk`. The merge takes the measure from the CRF
+     * (`1 1/2 cups`) and the foods from this leg, so the line was saved and drawn as `1½ cups cups whole milk`. The
+     * amount is read with the house measure reader, so a mixed number and a spoken range are one amount, as a model
+     * reads them.
+     */
+    it.each([
+        ['1 1/2 cups whole milk', '1 1/2', 'cups', 'whole milk'],
+        ['2 to 3 cups rice', '2 to 3', 'cups', 'rice'],
+        ['2-3 cups chicken stock', '2-3', 'cups', 'chicken stock'],
+        ['3 eggs', '3', null, 'eggs'],
+    ])('reads %j as amount %j, unit %j and the food %j', async (line, quantity, unit, food) => {
+        const prompt = buildParsePrompt(line);
+        const outcome = await clientFor().converse({
+            invocationId: 'amazon.nova-2-lite-v1:0',
+            systemPrompt: prompt.systemPrompt,
+            userMessage: prompt.userMessage,
+            maxOutputTokens: PARSE_MAX_OUTPUT_TOKENS,
+        });
+        const normalized = normalizeParseAnswer(
+            modelParseAnswerSchema.parse(JSON.parse((outcome as { readonly text: string }).text)),
+        );
+
+        expect(normalized.foods.map((entry) => entry.name)).toEqual([food]);
+        expect(normalized.statedQuantity).toBe(quantity);
+        expect(normalized.statedUnit).toBe(unit);
+    });
+
     it('answers the RETRY leg too — its system prompt is the parse prompt plus a suffix', async () => {
         const prompt = buildParseRetryPrompt('1 pinch salt', [{ kind: 'measurement', statedByModel: '1 pinch' }]);
 

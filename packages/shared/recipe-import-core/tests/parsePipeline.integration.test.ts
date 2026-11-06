@@ -14,6 +14,8 @@
  * | U36 — an absent CRF unit is rescued through the REAL measure reader | "the merged line keeps the unit the CRF never named" |
  * | U36 — and the rescued unit survives the `jsonb` round trip | "a warm run serves the rescued unit from the cache" |
  * | U22 — a flag only a validator could raise survives the `jsonb` round trip | "a warm run serves back a flag" |
+ * | `ParsedFacts.statedMeasure` — the cook's words reach the pasted row | "the cook`s own measure words" |
+ * | `PARSE_KEY_VERSION` `v3` — a row the old CRF adapter wrote is a miss, and enumerable | "a `v2` row" |
  *
  * What this tier proves that the unit tier structurally cannot:
  *
@@ -42,11 +44,14 @@ import {
 } from '@kitchensink/recipe-core';
 import {
     lineDigest,
+    parseStoredLineDigest,
+    PARSE_KEY_VERSION,
     type HexDigest,
     type LineDigest,
     type ParseEngine,
 } from '@kitchensink/recipe-core/parsing/parse-key';
 import type { FoodnessReading } from '@kitchensink/recipe-core/parsing/foodness-answer';
+import { pastedLineRowOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/normalized-key';
 import { describe, it, expect } from 'vitest';
 
@@ -1213,5 +1218,181 @@ describe('R1 and R5 — silence loses, and the line itself is the last resort', 
         // exact defect the previous two forms of this check both had. The rescued line IS stored, once per
         // engine, so the same predicate must find it.
         expect(digestsStored.filter((digest) => digest === lineDigest(RESCUED_LINE, sha256))).toHaveLength(2);
+    });
+});
+
+/**
+ * ⛔ THE COOK'S OWN MEASURE WORDS, from the engines' answers to the row the editor saves (PR 132 device pass).
+ *
+ * `ingredient-parser-nlp` 2.3.0 re-renders its amount text, so its `measure` for `2-3 cups chicken stock` is
+ * `2-3 cup` (measured 2026-11-06), and the CRF wins the stated measure whenever both engines name a unit (KTD-11). The
+ * editor saves a pasted row's unit from those words (`pastedLineRowOf`, recipe-core), so the row was saved as `2–3 cup`
+ * while the cook wrote `cups`; the match list drew the same words as `2-3 cup` + `s chicken stock`. The unit tier pins
+ * the adapter; only this tier crosses the adapter, the merge and the row rule together, which is where the cook lost
+ * the word.
+ *
+ * Each CRF row below is the engine's REAL answer; each LLM answer is the reading a model gives the line.
+ */
+describe('the cook`s own measure words reach the pasted row, whichever engine wins the measure', () => {
+    const LINES = [
+        { line: '2-3 cups chicken stock', crfMeasure: '2-3 cup', words: '2-3 cups', name: 'chicken stock' },
+        { line: '2 to 3 cups rice', crfMeasure: '2-3 cup', words: '2 to 3 cups', name: 'rice' },
+        { line: '1 1/2 cups whole milk', crfMeasure: '1 1/2 cups', words: '1 1/2 cups', name: 'whole milk' },
+    ] as const;
+
+    /** The engines, answering each line as measured: the CRF re-renders, the model keeps the cook's words. */
+    function makeMeasuredEngines(): ParseEnginePorts {
+        const byLine = new Map<string, (typeof LINES)[number]>(LINES.map((entry) => [entry.line, entry]));
+
+        const entryFor = (line: string): (typeof LINES)[number] => {
+            const entry = byLine.get(line);
+
+            if (entry === undefined) {
+                throw new Error(`no measured answer for ${JSON.stringify(line)}`);
+            }
+
+            return entry;
+        };
+
+        return {
+            crf: {
+                engine: 'crf',
+                engineVersion: CRF_VERSION,
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((line) =>
+                        promoteCrfReading(
+                            {
+                                sentence: line,
+                                measure: entryFor(line).crfMeasure,
+                                names: [entryFor(line).name],
+                                size: null,
+                                preparation: null,
+                                comment: null,
+                            },
+                            line,
+                        ),
+                    );
+                },
+            },
+            llm: {
+                engine: 'llm',
+                engineVersion: LLM_VERSION,
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((line) =>
+                        promoteLlmParse(
+                            { statedMeasure: entryFor(line).words, foods: [{ name: entryFor(line).name, prep: null }] },
+                            line,
+                        ),
+                    );
+                },
+            },
+        };
+    }
+
+    it.each(LINES)('$line is saved with its own unit word and drawn with its own measure', async (entry) => {
+        const [outcome] = await runParsePipeline(
+            [entry.line],
+            { corrections: NO_CORRECTIONS, cache: makeJsonCache(), engines: makeMeasuredEngines(), digest: sha256 },
+            { userId: undefined },
+            makeObservers(),
+        );
+        const parsed = outcome?.parsed;
+
+        expect(parsed?.statedMeasure).toBe(entry.words);
+        // The two engines read the same measure, so the census must not report a disagreement about its words.
+        expect(outcome === undefined ? undefined : agreementOf(outcome)).toEqual({ kind: 'agree' });
+        expect(
+            parsed === undefined || parsed === null
+                ? undefined
+                : pastedLineRowOf(parsed, 0, parsed.foods[0]?.name ?? '').unit,
+        ).toBe('cups');
+    });
+
+    // The ceiling denied the model (ADR-0024), or its Lambda threw: the CRF answers alone, in words not the cook's.
+    it('keeps the cook`s words when the CRF is the only engine that answered', async () => {
+        const engines = makeMeasuredEngines();
+        const [outcome] = await runParsePipeline(
+            ['2-3 cups chicken stock'],
+            {
+                corrections: NO_CORRECTIONS,
+                cache: makeJsonCache(),
+                engines: {
+                    ...engines,
+                    llm: {
+                        ...engines.llm,
+                        async parse(lines): Promise<readonly EngineAnswer[]> {
+                            return lines.map(() => ({ unavailable: true }));
+                        },
+                    },
+                },
+                digest: sha256,
+            },
+            { userId: undefined },
+            makeObservers(),
+        );
+
+        expect(outcome === undefined ? undefined : agreementOf(outcome)).toEqual({
+            kind: 'single-engine',
+            engine: 'crf',
+        });
+        expect(outcome?.parsed?.statedMeasure).toBe('2-3 cups');
+    });
+
+    /**
+     * ⛔ `v3` (parseKey.ts): a row the old adapter wrote carries the CRF's re-rendered words, and the cache is written
+     * `ON CONFLICT DO NOTHING`, so without the bump a line cached before the fix would keep `2-3 cup` forever. The two
+     * planted rows are what `v2` wrote for this line, keyed by `v2`'s own derivation (the preimages `parseKey.ts`
+     * documents), so this asserts what a deployed `v2` row meets rather than what the current code would write.
+     */
+    it('a `v2` row is a miss, so the fix reaches a line cached before it, and it is enumerable', async () => {
+        const line = '2-3 cups chicken stock';
+        const v2Digest = `v2:${sha256(JSON.stringify(['v2', line]))}`;
+        const v2Key = (engine: ParseEngine, engineVersion: string): string =>
+            `v2:${sha256(JSON.stringify(['v2', v2Digest, engine, engineVersion]))}`;
+        const v2Payload = (statedMeasure: string): string =>
+            JSON.stringify({
+                statedMeasure,
+                quantity: { kind: 'range', low: 2, high: 3 },
+                unit: 'cup',
+                foods: [{ name: 'chicken stock', prep: null }],
+                reviewReasons: [],
+            });
+        const cache = makeJsonCache();
+
+        cache.rows.set(v2Key('crf', CRF_VERSION), {
+            engine: 'crf',
+            engineVersion: CRF_VERSION,
+            lineDigest: parseStoredLineDigest(v2Digest),
+            parse: v2Payload('2-3 cup'),
+        });
+        cache.rows.set(v2Key('llm', LLM_VERSION), {
+            engine: 'llm',
+            engineVersion: LLM_VERSION,
+            lineDigest: parseStoredLineDigest(v2Digest),
+            parse: v2Payload('2-3 cups'),
+        });
+
+        const [outcome] = await runParsePipeline(
+            [line],
+            { corrections: NO_CORRECTIONS, cache, engines: makeMeasuredEngines(), digest: sha256 },
+            { userId: undefined },
+            makeObservers(),
+        );
+
+        // A miss: both engines were asked again, and the stored measure is the cook's words.
+        expect(outcome !== undefined && 'fromCache' in outcome ? outcome.fromCache : null).toEqual([]);
+        expect(outcome?.parsed?.statedMeasure).toBe('2-3 cups');
+
+        // Enumerable: `LIKE 'v2:%'` finds exactly the two superseded rows, and none the run wrote.
+        const keys = [...cache.rows.keys()];
+
+        expect(keys.filter((key) => key.startsWith('v2:'))).toEqual([
+            v2Key('crf', CRF_VERSION),
+            v2Key('llm', LLM_VERSION),
+        ]);
+        expect(keys.filter((key) => !key.startsWith('v2:'))).toHaveLength(2);
+        expect(
+            keys.filter((key) => !key.startsWith('v2:')).every((key) => key.startsWith(`${PARSE_KEY_VERSION}:`)),
+        ).toBe(true);
     });
 });

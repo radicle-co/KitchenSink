@@ -102,20 +102,22 @@ const OpenControl: FC<{
                 breaks only between words while the run has the row's full width. No amount: no span and no space,
                 never an invented "1" (F5). A stand-in is a chip, not text, so the amount sits above it. */}
             <View style={styles.name}>
-                {(amount !== null || !row.standIn) && (
+                {row.standIn ? (
+                    <>
+                        {amount !== null && <View>{amount}</View>}
+                        <View nativeID={ingredientStandInId(row.index)}>
+                            <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
+                        </View>
+                    </>
+                ) : (
                     <Text style={[styles.body, { color: colors.ink }]}>
                         {amount}
-                        {amount !== null && !row.standIn && ' '}
-                        {!row.standIn && row.displayName}
-                        {!row.standIn && row.prepText !== undefined && (
+                        {amount !== null && ' '}
+                        {row.displayName}
+                        {row.prepText !== undefined && (
                             <Text style={{ color: colors.inkMuted }}>{`\u00A0· ${row.prepText}`}</Text>
                         )}
                     </Text>
-                )}
-                {row.standIn && (
-                    <View nativeID={ingredientStandInId(row.index)}>
-                        <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
-                    </View>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}
             </View>

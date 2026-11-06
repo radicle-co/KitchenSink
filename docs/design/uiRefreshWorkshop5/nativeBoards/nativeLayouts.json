@@ -1,0 +1,843 @@
+{
+    "note": "Per-page tablet rules for states that have no tablet board to start from. Each op is applied to the phone body, in order. 'pair' puts two sections side by side as the tablet board does; 'columns' sets a grid's column count; 'fillTo' repeats a placeholder so a loading row has as many cells as the populated one; 'copyFrom' replaces an element with the same element from a tablet board, so a populated state shows the tablet's own data. 'styleFrom' names the page's tablet board, whose rules a generated tablet board gains where the phone board lacks them. This is hand-authored design, one entry per page. 'tabletBase' names, by state prefix, the tablet board a modal state's sheet is laid over on the iPad. 'css' adds native-only rules by state prefix. 'tabletCss' is the page's iPad design for a state with no tablet board of its own (longest state prefix wins): the iPad board leaves the holding 640 column and takes these rules; it also applies to the page's own tablet boards, and never to a phone board. A keyboard-up board is looked up by its own name. 'tabletOwn' holds ops for the page's own iPad boards (and the base under an overlay), by state prefix. A null 'tabletBase' entry keeps a specimen state (several examples on one board) off the overlay, so every example stays. 'ops' are hand edits ('appleButton' adds Sign in with Apple on iOS). 'keyboard' adds a keyboard-up board for a state with a field the cook types in. 'webOnly' lists states with no native screen, with the reason; they get no mobile board.",
+    "home": {
+        "tabletSource": {
+            "suffix": "834Mobile",
+            "styleFrom": "Home834Mobile"
+        },
+        "tablet": {
+            "*": [
+                {
+                    "op": "pair",
+                    "first": "Today’s nutrition",
+                    "second": "Pick up where you left off"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 4
+                }
+            ],
+            "HomeLoading": [
+                {
+                    "op": "pair",
+                    "first": "Today’s nutrition",
+                    "second": "Pick up where you left off"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 4
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .week",
+                    "n": 4
+                },
+                {
+                    "op": "fillTo",
+                    "select": ".rd .week",
+                    "n": 4
+                }
+            ],
+            "HomeSubscriptionNudge": [
+                {
+                    "op": "copyFrom",
+                    "board": "Home834Mobile",
+                    "select": ".rd .grid"
+                },
+                {
+                    "op": "pair",
+                    "first": "Today’s nutrition",
+                    "second": "Pick up where you left off"
+                },
+                {
+                    "op": "copyFrom",
+                    "board": "Home834Mobile",
+                    "select": ".rd .weekWrap"
+                }
+            ]
+        }
+    },
+    "recipeDetail": {
+        "tabletBase": {
+            "Recipe": "RecipeDetail834Mobile",
+            "RecipeVersion": "RecipeVersions834Mobile"
+        },
+        "keyboard": [
+            {
+                "state": "RecipeComments",
+                "name": "RecipeCommentsTyping",
+                "title": "typing a comment"
+            }
+        ],
+        "phoneOnly": {
+            "RecipeDetailIngredientsOpen": "On iPad the ingredients are always on screen beside the steps, so there is no ingredients sheet (designer, 2026-11-02)."
+        },
+        "tabletBoard": {
+            "RecipeDetailNutritionOpen": "RecipeDetail834Mobile",
+            "RecipeDetailScrolled": "RecipeDetailCooking834Mobile",
+            "RecipeSaveCopy": "RecipeDetailReaderMobile"
+        },
+        "tabletOwn": {
+            "RecipeDetailNutritionOpen": [
+                {
+                    "op": "copyFrom",
+                    "board": "RecipeDetailIngredientNoticesMobile",
+                    "select": ".nutCard",
+                    "target": "a.card.accordion"
+                }
+            ],
+            "RecipeSaveCopy": [
+                {
+                    "op": "remove",
+                    "select": ".hero .btnC"
+                },
+                {
+                    "op": "insertHtml",
+                    "before": ".hero",
+                    "html": "<div class=\"navRow\"><a class=\"crumb\" href=\"#\" aria-label=\"Back to My recipes\"><svg class=\"ic sm\" aria-hidden=\"true\"><use href=\"#chevL\" /></svg> My recipes</a><a class=\"moreBtn\" href=\"#\" aria-label=\"More actions\"><span><svg class=\"ic\" aria-hidden=\"true\"><use href=\"#dots\" /></svg></span></a></div>"
+                },
+                {
+                    "op": "group",
+                    "select": [".sheet > .rateBlock"],
+                    "class": "card rateCard"
+                },
+                {
+                    "op": "attr",
+                    "select": ".sheet",
+                    "name": "class",
+                    "value": "sheet flat card"
+                },
+                {
+                    "op": "group",
+                    "select": [".hero", ".card.rateCard", "a.card.accordion"],
+                    "class": "sideCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".sheet"],
+                    "class": "leftCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".leftCol", ".sideCol"],
+                    "class": "topCols"
+                },
+                {
+                    "op": "remove",
+                    "select": ".ingSpace"
+                },
+                {
+                    "op": "attr",
+                    "select": ".rd > div:first-child",
+                    "name": "class",
+                    "value": "tabMain"
+                },
+                {
+                    "op": "group",
+                    "select": ["div.card.ingCard"],
+                    "class": "pinCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".secHead", "ol.steps"],
+                    "class": "stepsCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".pinCol", ".stepsCol"],
+                    "class": "bodyCols c300"
+                },
+                {
+                    "op": "attr",
+                    "select": ".quietActs a:nth-of-type(2)",
+                    "name": "aria-disabled",
+                    "value": "true"
+                },
+                {
+                    "op": "attr",
+                    "select": ".quietActs a:nth-of-type(2)",
+                    "name": "style",
+                    "value": "opacity: 0.5"
+                }
+            ]
+        },
+        "tabletSource": {
+            "styleFrom": "RecipeDetail834Mobile"
+        },
+        "tablet": {
+            "RecipeDetailReader": [
+                {
+                    "op": "remove",
+                    "select": ".hero .btnC"
+                },
+                {
+                    "op": "insertHtml",
+                    "before": ".hero",
+                    "html": "<div class=\"navRow\"><a class=\"crumb\" href=\"#\" aria-label=\"Back to My recipes\"><svg class=\"ic sm\" aria-hidden=\"true\"><use href=\"#chevL\" /></svg> My recipes</a><a class=\"moreBtn\" href=\"#\" aria-label=\"More actions\"><span><svg class=\"ic\" aria-hidden=\"true\"><use href=\"#dots\" /></svg></span></a></div>"
+                },
+                {
+                    "op": "group",
+                    "select": [".sheet > .rateBlock"],
+                    "class": "card rateCard"
+                },
+                {
+                    "op": "attr",
+                    "select": ".sheet",
+                    "name": "class",
+                    "value": "sheet flat card"
+                },
+                {
+                    "op": "group",
+                    "select": [".hero", ".card.rateCard", "a.card.accordion"],
+                    "class": "sideCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".sheet"],
+                    "class": "leftCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".leftCol", ".sideCol"],
+                    "class": "topCols"
+                },
+                {
+                    "op": "remove",
+                    "select": ".ingSpace"
+                },
+                {
+                    "op": "attr",
+                    "select": ".rd > div:first-child",
+                    "name": "class",
+                    "value": "tabMain"
+                },
+                {
+                    "op": "group",
+                    "select": ["div.card.ingCard"],
+                    "class": "pinCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".secHead", "ol.steps"],
+                    "class": "stepsCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".pinCol", ".stepsCol"],
+                    "class": "bodyCols c300"
+                }
+            ],
+            "RecipeDetailScaled": [
+                {
+                    "op": "attr",
+                    "select": ".rd > div:first-child",
+                    "name": "class",
+                    "value": "tabMain"
+                },
+                {
+                    "op": "group",
+                    "select": ["div.card.ingCard"],
+                    "class": "pinCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".secHead", "ol.steps"],
+                    "class": "stepsCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".pinCol", ".stepsCol"],
+                    "class": "bodyCols c300"
+                }
+            ],
+            "RecipeDetailRefreshFailed": [
+                {
+                    "op": "attr",
+                    "select": ".rd > div:first-child",
+                    "name": "class",
+                    "value": "tabMain"
+                },
+                {
+                    "op": "group",
+                    "select": ["div.card.ingCard"],
+                    "class": "pinCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".secHead", "ol.steps"],
+                    "class": "stepsCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".pinCol", ".stepsCol"],
+                    "class": "bodyCols c300"
+                }
+            ],
+            "RecipeDetailEmptySections": [
+                {
+                    "op": "attr",
+                    "select": ".rd > div:first-child",
+                    "name": "class",
+                    "value": "tabMain"
+                },
+                {
+                    "op": "group",
+                    "select": ["div.card.ingCard"],
+                    "class": "pinCol"
+                },
+                {
+                    "op": "group",
+                    "select": ["div.card:not(.ingCard):not(.nutCard)", ".nutCard"],
+                    "class": "stepsCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".pinCol", ".stepsCol"],
+                    "class": "bodyCols c300"
+                }
+            ],
+            "RecipeDetailIngredientNotices": [
+                {
+                    "op": "group",
+                    "select": [
+                        "div.card.ingCard",
+                        "div.card.ingCard ~ div.card:not(.nutCard)",
+                        "div.card.ingCard ~ .annot"
+                    ],
+                    "class": "pinCol"
+                },
+                {
+                    "op": "group",
+                    "select": [".pinCol", ".nutCard"],
+                    "class": "bodyCols c300"
+                }
+            ],
+            "RecipeDetailRemovedFoods": [],
+            "RecipeDetailCopiedPrivateFoods": [],
+            "RecipeDetailNutritionStates": [],
+            "RecipeRatingStates": [],
+            "RecipeDetailReviewMatches": [],
+            "RecipeVisibilityFailed": [],
+            "RecipeDeleteDialog": [],
+            "RecipeMakePublicDialog": [],
+            "RecipeDetailLoading": [
+                {
+                    "op": "remove",
+                    "select": ".rd > div:first-child > .skel"
+                },
+                {
+                    "op": "remove",
+                    "select": ".rd > div:first-child > div"
+                },
+                {
+                    "op": "insertHtml",
+                    "after": ".rd > div:first-child > p",
+                    "html": "<div class=\"nvSkel\" style=\"display: flex; flex-direction: column; gap: 24px\"><div style=\"display: flex; flex-direction: row; gap: 32px\"><div style=\"flex: 1.35 1 0%; min-width: 0; display: flex; flex-direction: column; gap: 12px\"><div class=\"skel\" style=\"width: 30%; height: 14px\"></div><div class=\"skel\" style=\"width: 85%; height: 28px\"></div><div class=\"skel\" style=\"width: 60%; height: 16px\"></div><div class=\"skel\" style=\"width: 100%; height: 62px; border-radius: 14px\"></div><div class=\"skel\" style=\"width: 100%; height: 44px; border-radius: 12px\"></div></div><div style=\"flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; gap: 14px\"><div class=\"skel\" style=\"width: 100%; height: 260px; border-radius: 18px\"></div><div class=\"skel\" style=\"width: 100%; height: 64px; border-radius: 18px\"></div><div class=\"skel\" style=\"width: 100%; height: 56px; border-radius: 18px\"></div></div></div><div class=\"skel\" style=\"width: 100%; height: 120px; border-radius: 18px\"></div><div style=\"display: flex; flex-direction: row; gap: 24px\"><div class=\"skel\" style=\"flex: none; width: 300px; height: 420px; border-radius: 18px\"></div><div style=\"flex: 1 1 0%; min-width: 0; display: flex; flex-direction: column; gap: 10px\"><div class=\"skel\" style=\"width: 100%; height: 88px; border-radius: 18px\"></div><div class=\"skel\" style=\"width: 100%; height: 88px; border-radius: 18px\"></div><div class=\"skel\" style=\"width: 100%; height: 88px; border-radius: 18px\"></div></div></div></div>"
+                }
+            ],
+            "RecipeDetailDeleted": [],
+            "RecipeLoadError": [],
+            "RecipeNotFound": [],
+            "RecipeVersionsEmpty": [],
+            "RecipeVersionsLoading": [],
+            "RecipeVersionsError": [],
+            "RecipeVersionsRestore": [],
+            "RecipeVersionPreview": [
+                {
+                    "op": "group",
+                    "within": "div:has(> h3):not(.nvSteps):not(.nvIng)",
+                    "select": [":scope > h3:nth-of-type(2)", ":scope > h3:nth-of-type(2) + div"],
+                    "class": "nvSteps"
+                },
+                {
+                    "op": "group",
+                    "within": "div:has(> h3):not(.nvSteps):not(.nvIng)",
+                    "select": [":scope > h3", ":scope > h3 + div"],
+                    "class": "nvIng"
+                },
+                {
+                    "op": "group",
+                    "within": "div:has(> .nvIng)",
+                    "select": [":scope > .nvIng", ":scope > .nvSteps"],
+                    "class": "nvSplit"
+                }
+            ],
+            "RecipeVersionCompare": []
+        },
+        "tabletCss": {
+            "RecipeDetailReader": ".topCols .hero { height: 260px; border-radius: 22px; overflow: hidden; } .tabMain > .prep { margin-top: 24px; } .rd .topCols { grid-template-columns: 1.35fr 1fr; }",
+            "RecipeSaveCopy": ".topCols .hero { height: 260px; border-radius: 22px; overflow: hidden; } .tabMain > .prep { margin-top: 24px; } .rd .topCols { grid-template-columns: 1.35fr 1fr; }",
+            "RecipeDetailIngredientNotices": ".rd .ingCard, .rd .ingCard ~ .card:not(.nutCard), .rd .ingCard ~ .notice, .rd .ingCard ~ .annot { width: 100%; max-width: 300px; box-sizing: border-box; } .rd .nutCard { max-width: 322px; } .rd .bodyCols > .nutCard { margin-left: auto; } .rd .pinCol > * + * { margin-top: 12px; }",
+            "RecipeDetailRemovedFoods": ".rd .ingCard, .rd .ingCard ~ .card:not(.nutCard), .rd .ingCard ~ .notice, .rd .ingCard ~ .annot { width: 100%; max-width: 300px; box-sizing: border-box; } .rd .nutCard { max-width: 322px; }",
+            "RecipeDetailCopiedPrivateFoods": ".rd .ingCard, .rd .ingCard ~ .card:not(.nutCard), .rd .ingCard ~ .notice, .rd .ingCard ~ .annot { width: 100%; max-width: 300px; box-sizing: border-box; } .rd .nutCard { max-width: 322px; }",
+            "RecipeDetailReviewMatches": ".rd > div > div > :not(.cap) { max-width: 300px; }",
+            "RecipeDetailNutritionStates": ".rd .nutCard { max-width: 322px; margin-left: auto; }",
+            "RecipeRatingStates": ".rd > div > div > .card { max-width: 322px; margin-left: auto; }",
+            "RecipeVisibilityFailed": ".rd > div > div > .card { max-width: 434px; }",
+            "RecipeVersionPreview": ".nvSplit { display: flex; flex-direction: row; gap: 24px; align-items: flex-start; } .nvIng { flex: none; width: 300px; display: flex; flex-direction: column; gap: 16px; } .nvSteps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }",
+            "RecipeVersionCompare": ".nv-legacy { max-width: 640px; margin: 0 auto; }",
+            "RecipeDetailLoading": ".rd.vp { height: auto !important; min-height: 100%; } .rd.vp > div { overflow: visible !important; }",
+            "RecipeDeleteDialog": ".rd .stage.sheetStage { padding: 28px 16px !important; display: flex; flex-direction: column; align-items: center; } .rd .sheetStage > .bsheet { width: 100%; max-width: 448px; border-radius: 24px !important; box-sizing: border-box; } .rd .sheetStage .grab { display: none; }",
+            "RecipeMakePublicDialog": ".rd .stage.sheetStage { padding: 28px 16px !important; display: flex; flex-direction: column; align-items: center; } .rd .sheetStage > .bsheet { width: 100%; max-width: 448px; border-radius: 24px !important; box-sizing: border-box; } .rd .sheetStage .grab { display: none; }",
+            "RecipeDetailEmptySections": ".rd .stepsCol > * + * { margin-top: 12px; }"
+        },
+        "tabletNote": "iPad 820 design (T32), with the designer's rulings of 2026-11-02. Full recipe pages follow the iPad board's split: the title card beside the photo, rating and nutrition, then ingredients in a 300 column beside the steps (Reader, Scaled, Empty sections, Refresh failed, Save a copy, the version preview). Examples that live in one region are drawn at that region's width: ingredient examples at 300, nutrition and rating at the side card's 322, the title card at 434. Nutrition opens in place in the side card. Cooking in progress, scrolled, is the iPad cooking board. The ingredients sheet is phone only. Loading copies the iPad board's layout. Version lists and notices run full width; Compare stays one 640 column. Delete and Make public are a 448 dialog card, centred, as on every iPad page."
+    },
+    "editor": {
+        "keyboard": [
+            {
+                "state": "RecipeEditor",
+                "name": "RecipeEditorTyping",
+                "title": "typing the title"
+            },
+            {
+                "state": "RecipeEditorFoodSearchResults",
+                "name": "RecipeEditorFoodSearchTyping",
+                "title": "typing a food"
+            }
+        ],
+        "tablet": {
+            "RecipeEditor": [
+                {
+                    "op": "attr",
+                    "select": "x-import[component-from-global-scope='Commise.Native.SectionIndex'] + div",
+                    "name": "class",
+                    "value": "nvForm"
+                }
+            ]
+        },
+        "tabletOwn": {
+            "RecipeEditor": [
+                {
+                    "op": "attr",
+                    "select": "x-import[component-from-global-scope='Commise.Native.SectionIndex'] + div",
+                    "name": "class",
+                    "value": "nvForm"
+                }
+            ]
+        },
+        "tabletCss": {
+            "RecipeEditor": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; }",
+            "RecipeEditorSheet": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } html, body, x-dc { height: 1180px !important; } div[style*=' height: 844px'] { height: 1156px !important; }",
+            "RecipeEditorPreview": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } html, body, x-dc { height: 1180px !important; } div[style*=' height: 844px'] { height: 1156px !important; }",
+            "RecipeEditorPasteSteps": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } html, body, x-dc { height: 1180px !important; } div[style*=' height: 844px'] { height: 1156px !important; }",
+            "RecipeEditorLoading": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorCuisine": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorPhotosErrors": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorVisibility": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorSaveStatus": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorSaveFailed": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorConflict": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorNutritionTotal": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorPasteRefused": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; }",
+            "RecipeEditorFoodDetails": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; } .sheet { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; }",
+            "RecipeEditorPhotosUploading": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; } .sheet { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; }",
+            "RecipeEditorPhotoSource": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; } .sheet { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; }",
+            "RecipeEditorDiscardDraft": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; } .sheet { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; }",
+            "RecipeEditorDiscardChanges": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; } .sheet { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; }",
+            "RecipeEditorRow": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; } .sheet { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; }",
+            "RecipeEditorCreateFood": ".nvForm { width: 100%; max-width: 640px !important; margin-left: auto !important; margin-right: auto !important; padding-left: 16px !important; padding-right: 16px !important; box-sizing: border-box; } .nv-legacy { max-width: 640px; margin-left: auto; margin-right: auto; } .sheet { max-width: 560px !important; margin-left: auto !important; margin-right: auto !important; }"
+        },
+        "tabletNote": "iPad 820 design (T32), approved 2026-11-02: the editor's header, section tabs and action bar span the iPad, and the form sits in one 640 column, centred. This applies to the editor's own iPad board too. Examples with no editor around them (conflict, save status, photos errors and the like) are the same 640 column, centred. One-screen examples are one iPad screen tall. Every editor example board (rows with their sheets, photo, discard, create food, edit details) is drawn on its own in the 640 column, with each sheet a 560 card centred: laying them over the iPad editor board kept only the first example and, for Edit details, drew a render error."
+    },
+    "library": {
+        "tabletBase": {
+            "Recipes": "Recipes834Mobile",
+            "Collections": "Collections834Mobile",
+            "NewCollection": "Collections834Mobile",
+            "Collection": "CollectionDetail834Mobile"
+        },
+        "keyboard": [
+            {
+                "state": "NewCollectionSheet",
+                "name": "NewCollectionSheetTyping",
+                "title": "typing the name"
+            },
+            {
+                "state": "CollectionRenameSheet",
+                "name": "CollectionRenameSheetTyping",
+                "title": "typing the name"
+            }
+        ],
+        "tabletSource": {
+            "styleFrom": ["Recipes834Mobile", "Collections834Mobile", "CollectionDetail834Mobile"]
+        },
+        "tablet": {
+            "Recipes": [
+                {
+                    "op": "insertFrom",
+                    "board": "Recipes834Mobile",
+                    "select": ".srow > a.btn.primary",
+                    "into": ".srow"
+                },
+                {
+                    "op": "remove",
+                    "select": ".fab"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ],
+            "Collections": [
+                {
+                    "op": "insertFrom",
+                    "board": "Collections834Mobile",
+                    "select": ".srow > a.btn.primary",
+                    "into": ".srow"
+                },
+                {
+                    "op": "remove",
+                    "select": ".fab"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ],
+            "CollectionDetail": [
+                {
+                    "op": "copyFrom",
+                    "board": "CollectionDetail834Mobile",
+                    "select": ".pbRow"
+                },
+                {
+                    "op": "group",
+                    "select": [".pg > h1.title", ".pg > .dmeta"],
+                    "class": "dtitle"
+                },
+                {
+                    "op": "group",
+                    "select": [".pg > .dtitle", ".pg > .acts"],
+                    "class": "dhead"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ],
+            "CollectionDetailNotFound": [
+                {
+                    "op": "copyFrom",
+                    "board": "CollectionDetail834Mobile",
+                    "select": ".pbRow"
+                }
+            ],
+            "RecipesEmpty": [],
+            "CollectionsEmpty": [],
+            "CollectionDetailLoading": [
+                {
+                    "op": "copyFrom",
+                    "board": "CollectionDetail834Mobile",
+                    "select": ".pbRow"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                },
+                {
+                    "op": "fillTo",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ],
+            "RecipesLoading": [
+                {
+                    "op": "insertFrom",
+                    "board": "Recipes834Mobile",
+                    "select": ".srow > a.btn.primary",
+                    "into": ".srow"
+                },
+                {
+                    "op": "remove",
+                    "select": ".fab"
+                },
+                {
+                    "op": "copyFrom",
+                    "board": "CollectionDetailLoadingMobile",
+                    "select": ".grid",
+                    "target": ".rows"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                },
+                {
+                    "op": "fillTo",
+                    "select": ".rd .grid",
+                    "n": 6
+                }
+            ],
+            "CollectionsLoading": [
+                {
+                    "op": "insertFrom",
+                    "board": "Collections834Mobile",
+                    "select": ".srow > a.btn.primary",
+                    "into": ".srow"
+                },
+                {
+                    "op": "remove",
+                    "select": ".fab"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                },
+                {
+                    "op": "fillTo",
+                    "select": ".rd .grid",
+                    "n": 6
+                }
+            ],
+            "CollectionPullUpdates": [
+                {
+                    "op": "copyFrom",
+                    "board": "CollectionDetail834Mobile",
+                    "select": ".pbRow"
+                },
+                {
+                    "op": "group",
+                    "select": [".frame .pg > h1.title", ".frame .pg > .dmeta"],
+                    "class": "dtitle"
+                },
+                {
+                    "op": "group",
+                    "select": [".frame .pg > .dtitle", ".frame .pg > .acts"],
+                    "class": "dhead"
+                },
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ],
+            "CollectionPullUpdatesStates": []
+        },
+        "tabletCss": {
+            "Recipes": ".rd > .shell > .pg { padding-left: 0 !important; padding-right: 0 !important; padding-top: 32px !important; } .rd .srow .field { flex: 1; } .rd .notice { width: 100%; max-width: 560px; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box; } .rd .dhead { margin-top: 0; } .rd .dhead .acts { margin-top: 0 !important; } .rd .dhead .acts .btn.primary { flex: none !important; } .rd .scroll { margin-left: 0; margin-right: 0; } .rd .scroll .in { flex-wrap: wrap; overflow: visible; padding: 0; row-gap: 8px; } .rd .scroll .cv { display: none; }",
+            "Collections": ".rd > .shell > .pg { padding-left: 0 !important; padding-right: 0 !important; padding-top: 32px !important; } .rd .srow .field { flex: 1; } .rd .notice { width: 100%; max-width: 560px; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box; } .rd .dhead { margin-top: 0; } .rd .dhead .acts { margin-top: 0 !important; } .rd .dhead .acts .btn.primary { flex: none !important; } .rd .scroll { margin-left: 0; margin-right: 0; } .rd .scroll .in { flex-wrap: wrap; overflow: visible; padding: 0; row-gap: 8px; } .rd .scroll .cv { display: none; }",
+            "CollectionDetail": ".rd > .shell > .pg { padding-left: 0 !important; padding-right: 0 !important; padding-top: 32px !important; } .rd .srow .field { flex: 1; } .rd .notice { width: 100%; max-width: 560px; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box; } .rd .dhead { margin-top: 0; } .rd .dhead .acts { margin-top: 0 !important; } .rd .dhead .acts .btn.primary { flex: none !important; }",
+            "CollectionDeleteDialog": "/* each example at full width: the dialog is its own 448 card centred over the scrim */",
+            "CollectionRecipePickerStates": ".rd .panM .bsheet { max-width: 560px; margin-left: auto; margin-right: auto; }",
+            "CollectionPullUpdates": ".rd > .shell > .pg { padding-left: 0 !important; padding-right: 0 !important; padding-top: 32px !important; } .rd .srow .field { flex: 1; } .rd .notice { width: 100%; max-width: 560px; margin-left: auto !important; margin-right: auto !important; box-sizing: border-box; } .rd .dhead { margin-top: 0; } .rd .dhead .acts { margin-top: 0 !important; } .rd .dhead .acts .btn.primary { flex: none !important; } .rd > .frame ~ .frame .pg { padding-left: max(16px, calc((100% - 560px) / 2)) !important; padding-right: max(16px, calc((100% - 560px) / 2)) !important; }",
+            "CollectionPullUpdatesStates": ".rd .panM .bsheet { max-width: 560px; margin-left: auto; margin-right: auto; }"
+        },
+        "tabletNote": "iPad 820 design (T32). Every state uses the iPad Recipes, Collections and Collection boards: 16 pt sides (T31), the New button in the search row instead of a floating button, recipe and collection cards three across, about 250 wide, on the iPad boards too (loading placeholders too), a collection's title row with Add recipes beside it, and the back label. Filter chips wrap onto a second line, as the iPad Recipes board draws them, instead of scrolling. Notices are a 560 card centred under the header. Sheets are a 560 card and dialogs a 448 card, centred; Pull updates is a 560 column.",
+        "css": {
+            "CollectionPullUpdates": ".rd > .frame .pg > h2 { font-size: 18px !important; line-height: 24px !important; }",
+            "Recipes": ".rd .cnt { flex-wrap: wrap; row-gap: 8px; } .rd .cnt > *, .rd .cnt .tools > * { flex: 0 0 auto; min-width: min(max-content, 100%); }",
+            "CollectionDeleteDialog": ".rd .dlg .acts { flex-wrap: wrap-reverse; } .rd .dlg .acts > .btn { flex: 1 1 auto !important; min-width: min(max-content, 100%) !important; }"
+        },
+        "tabletOwn": {
+            "Recipes": [
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ],
+            "Collections": [
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ],
+            "CollectionDetail": [
+                {
+                    "op": "columns",
+                    "select": ".rd .grid",
+                    "n": 3
+                }
+            ]
+        },
+        "cssNote": "A control label never wraps: when a row has no room, the row stacks. The recipe count row puts Sort and the view switch on their own line, and dialog buttons go full width, one above the other (designer, 2026-11-02). Stacked, the dismissive button goes at the bottom (iOS stacked alerts end with Cancel; Material stacked dialogs put the confirming action on top), so the row wraps in reverse."
+    },
+    "discover": {
+        "tabletBase": {
+            "Discover": "Discover834Mobile",
+            "DiscoverFilters": null
+        },
+        "keyboard": [
+            {
+                "state": "DiscoverRecentSearches",
+                "name": "DiscoverSearchTyping",
+                "title": "typing a search"
+            }
+        ],
+        "tablet": {
+            "DiscoverRecentSearches": [
+                {
+                    "op": "columns",
+                    "select": "div[style*='grid-template-columns: repeat(2']",
+                    "n": 3
+                },
+                {
+                    "op": "attr",
+                    "select": "x-import[component-from-global-scope='Commise.Native.RecipeDiscoveryCard'][variant=compact]",
+                    "name": "variant",
+                    "value": "grid"
+                },
+                {
+                    "op": "wrapEach",
+                    "select": "div[style*='grid-template-columns'] > x-import[component-from-global-scope='Commise.Native.RecipeDiscoveryCard']",
+                    "style": "min-width: 0"
+                }
+            ],
+            "DiscoverLoading": [],
+            "DiscoverNoMatch": [
+                {
+                    "op": "columns",
+                    "select": "div[style*='grid-template-columns: repeat(2']",
+                    "n": 3
+                },
+                {
+                    "op": "attr",
+                    "select": "x-import[component-from-global-scope='Commise.Native.RecipeDiscoveryCard'][variant=compact]",
+                    "name": "variant",
+                    "value": "grid"
+                },
+                {
+                    "op": "wrapEach",
+                    "select": "div[style*='grid-template-columns'] > x-import[component-from-global-scope='Commise.Native.RecipeDiscoveryCard']",
+                    "style": "min-width: 0"
+                }
+            ],
+            "DiscoverFilters": []
+        },
+        "tabletCss": {
+            "DiscoverLoading": "[aria-label='Loading recipes'] > div { width: calc((100% - 24px) / 3) !important; } .nv-legacy div[style^='height:'] { height: auto !important; } div[style*='space-between'][style*='max-width: 560px'] { max-width: none !important; }",
+            "DiscoverRecentSearches": ".nv-legacy div[style^='height:'] { height: auto !important; } div[style*='space-between'][style*='max-width: 560px'] { max-width: none !important; }",
+            "DiscoverNoMatch": ".nv-legacy div[style^='height:'] { height: auto !important; } div[style*='space-between'][style*='max-width: 560px'] { max-width: none !important; }",
+            "Discover": "div[style*='space-between'][style*='max-width: 560px'] { max-width: none !important; }",
+            "DiscoverFilters": "div[style*='space-between'][style*='max-width: 560px'] { max-width: none !important; } .nv-legacy div[style*=' height: 844px'] { height: 1136px !important; } .scrim + div { align-items: center; } .scrim + div > div { width: 100%; max-width: 560px; }"
+        },
+        "tabletNote": "iPad 820 design (T32). The Discover states take the iPad Discover board's grid: recipe cards three across in its grid variant (each about 250 wide), loading placeholders three across, at the full width with 16 pt sides. The recent searches list and the no-match messages span the same width. The Browse row spans the width, so Filters sits at its right end on the 16 pt edge. The Filters sheet example is one iPad screen tall with the sheet as a 560 card centred over the results, tall enough for every filter group, instead of laid over the iPad board (whose logic has no filter data).",
+        "css": {
+            "Discover": "div[style^='align-self: flex-start'] [aria-label^='Sort:'] { margin-left: -12px; } div[style*='space-between'] > :last-child > [aria-label^='Sort:'] { margin-right: -12px; }"
+        },
+        "cssNote": "The Sort control's text lines up with the page edge and its press area extends 12 past it, as ruled for See all (designAnswers.md, 2026-11-01)."
+    },
+    "account": {
+        "tabletBase": {
+            "Profile": "Profile834Mobile",
+            "Account": "Profile834Mobile",
+            "AccountEraseDialogStates": null,
+            "ProfileDisplayNameStates": null
+        },
+        "css": {
+            "SignIn": "main.wash { width: 100% !important; min-height: 100% !important; margin: 0 !important; padding: 32px 16px !important; border-radius: 0 !important; background: var(--canvas) !important; background-image: none !important; box-shadow: none !important; }",
+            "SignUp": "main.wash { width: 100% !important; min-height: 100% !important; margin: 0 !important; padding: 32px 16px !important; border-radius: 0 !important; background: var(--canvas) !important; background-image: none !important; box-shadow: none !important; }",
+            "AuthSession": "main.wash { width: 100% !important; min-height: 100% !important; margin: 0 !important; padding: 32px 16px !important; border-radius: 0 !important; background: var(--canvas) !important; background-image: none !important; box-shadow: none !important; }",
+            "SignInVerifyCode": ".codeRow { display: flex; flex-direction: row; gap: 8px; justify-content: space-between; } .codeBox { width: 44px; height: 52px; box-sizing: border-box; padding: 0; text-align: center; font: 600 16px/20px var(--font-body); color: var(--ink); background: var(--paper-raised); border: 1px solid var(--line-control); border-radius: var(--radius-md); }",
+            "AccountEraseDialog": "[role='textbox'][aria-label='Confirmation phrase'] { align-self: stretch !important; box-sizing: border-box; min-height: 44px !important; } [role='dialog'] [role='checkbox'] { align-self: flex-start !important; justify-content: flex-start !important; text-align: left !important; } .stage { flex-direction: column; justify-content: flex-end; align-items: center; padding: 160px 0 0 !important; } .stage > [role='dialog'] { position: relative !important; width: 100% !important; }"
+        },
+        "ops": [
+            {
+                "op": "appleButton",
+                "states": ["SignIn", "SignUp"],
+                "os": ["ios"],
+                "note": "Exact states SignIn and SignUp only (prefix match also catches SignInErrors and SignUpFinish, which have no Google button)"
+            }
+        ],
+        "keyboard": [
+            {
+                "state": "SignIn",
+                "name": "SignInTyping",
+                "title": "typing the email"
+            },
+            {
+                "state": "SignInVerifyCode",
+                "name": "SignInVerifyCodeTyping",
+                "title": "typing the code"
+            },
+            {
+                "state": "SignUp",
+                "name": "SignUpTyping",
+                "title": "typing the email"
+            }
+        ],
+        "tabletCss": {
+            "Profile": "main, .crop, .screen { padding-left: 16px !important; padding-right: max(16px, calc(100% - 656px)) !important; } .cap { max-width: 640px; box-sizing: border-box; } .gate > p { max-width: 560px; } .scrim + div { align-items: center; }",
+            "Account": "main, .crop, .screen { padding-left: 16px !important; padding-right: max(16px, calc(100% - 656px)) !important; } .cap { max-width: 640px; box-sizing: border-box; } .gate > p { max-width: 560px; } .scrim + div { align-items: center; } .nv-legacy > .scrim + .card { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); } .stage { justify-content: center; padding: 48px 16px !important; }",
+            "LegalSources": "main, .crop, .screen { padding-left: 16px !important; padding-right: max(16px, calc(100% - 656px)) !important; } .cap { max-width: 640px; box-sizing: border-box; } .gate > p { max-width: 560px; }",
+            "AuthSession": "/* The session check fills the whole iPad screen, centred, as on the phone. */",
+            "SignIn": "main.wash, .crop { padding-left: max(16px, calc((100% - 560px) / 2)) !important; padding-right: max(16px, calc((100% - 560px) / 2)) !important; } .cap { margin-left: max(16px, calc((100% - 560px) / 2)) !important; margin-right: max(16px, calc((100% - 560px) / 2)) !important; padding-left: 0 !important; padding-right: 0 !important; } .codeRow { justify-content: flex-start !important; } main.wash > :first-child { margin-top: auto !important; } main.wash > :last-child { margin-bottom: auto !important; } main.wash { display: flex; flex-direction: column; box-sizing: border-box; min-height: 1136px !important; }",
+            "SignUp": "main.wash, .crop { padding-left: max(16px, calc((100% - 560px) / 2)) !important; padding-right: max(16px, calc((100% - 560px) / 2)) !important; } .cap { margin-left: max(16px, calc((100% - 560px) / 2)) !important; margin-right: max(16px, calc((100% - 560px) / 2)) !important; padding-left: 0 !important; padding-right: 0 !important; } .codeRow { justify-content: flex-start !important; } main.wash > :first-child { margin-top: auto !important; } main.wash > :last-child { margin-bottom: auto !important; } main.wash { display: flex; flex-direction: column; box-sizing: border-box; min-height: 1136px !important; }",
+            "SignInTyping": "main.wash, .crop { padding-left: max(16px, calc((100% - 560px) / 2)) !important; padding-right: max(16px, calc((100% - 560px) / 2)) !important; } .cap { margin-left: max(16px, calc((100% - 560px) / 2)) !important; margin-right: max(16px, calc((100% - 560px) / 2)) !important; padding-left: 0 !important; padding-right: 0 !important; } .codeRow { justify-content: flex-start !important; }",
+            "SignUpTyping": "main.wash, .crop { padding-left: max(16px, calc((100% - 560px) / 2)) !important; padding-right: max(16px, calc((100% - 560px) / 2)) !important; } .cap { margin-left: max(16px, calc((100% - 560px) / 2)) !important; margin-right: max(16px, calc((100% - 560px) / 2)) !important; padding-left: 0 !important; padding-right: 0 !important; } .codeRow { justify-content: flex-start !important; }",
+            "SignInVerifyCodeTyping": "main.wash, .crop { padding-left: max(16px, calc((100% - 560px) / 2)) !important; padding-right: max(16px, calc((100% - 560px) / 2)) !important; } .cap { margin-left: max(16px, calc((100% - 560px) / 2)) !important; margin-right: max(16px, calc((100% - 560px) / 2)) !important; padding-left: 0 !important; padding-right: 0 !important; } .codeRow { justify-content: flex-start !important; }"
+        },
+        "tabletCssNote": "iPad 820 design (T32). Profile, Account and Legal sources: one 640 column left-aligned with the title at the 16 pt side (T31), as the iPad Profile board draws it, so lists and settings rows keep a readable length; a full-screen gate centres on the whole screen with its text capped at 560. Sign in and sign up: the form is one 560 column centred on the screen, the web 768 grouping without the card, since native sign-in is full screen. The session check fills the screen. Specimen boards keep one state under another. Over the Profile board, a bottom sheet is centred on the iPad and a dialog is a centred card over the first screen, as sheetPresentation.ts places them, instead of sitting below the page. A sign-in or sign-up form that fits on the screen is centred vertically (auto margins, so a form taller than the screen stays top-aligned), and each whole-screen example is one iPad screen tall. With the keyboard up (the …Typing boards) the form stays top-aligned above the keyboard."
+    },
+    "cookingMode": {
+        "css": {
+            "CookingModeTimerDone": ".nv-status { color: var(--inverse-ink); }",
+            "CookingModeOtherRecipeTimer": ".nv-status { color: var(--inverse-ink); }",
+            "CookingModeTimerDoneLocked": ".nv-status { color: #FFFFFF; }",
+            "CookingModeTimerNotice": ".osCard > .nv-row + .nv-row { flex-direction: column !important; gap: 2px !important; padding-left: 52px; } .osCard > .nv-row + .nv-row > .osTitle { width: auto !important; }",
+            "CookingModeTimerBanner": ".osCard > .nv-row + .nv-row { flex-direction: column !important; gap: 2px !important; padding-left: 52px; } .osCard > .nv-row + .nv-row > .osTitle { width: auto !important; }"
+        },
+        "cssNote": "The alarm screens sit on the inverse surface, and the lock-screen schematics on the OS wallpaper, so the status bar text takes their ink. The OS draws the status bar; #FFFFFF is its colour on the lock screen, not one of our roles.",
+        "tabletCss": {
+            "CookingModeOtherRecipeTimer": ".screen.alarm { padding-left: max(16px, calc((100% - 640px) / 2)) !important; padding-right: max(16px, calc((100% - 640px) / 2)) !important; }",
+            "CookingModeTimerDoneLocked": ".osBanner, .osStack, .sysAlert, .sysNote, .osNote { margin-left: max(16px, calc((100% - 448px) / 2)) !important; margin-right: max(16px, calc((100% - 448px) / 2)) !important; left: 0 !important; right: 0 !important; box-sizing: border-box; } .osApp { padding-left: 16px !important; padding-right: 16px !important; }",
+            "CookingModeTimerNotice": ".osBanner, .osStack, .sysAlert, .sysNote, .osNote { margin-left: max(16px, calc((100% - 448px) / 2)) !important; margin-right: max(16px, calc((100% - 448px) / 2)) !important; left: 0 !important; right: 0 !important; box-sizing: border-box; } .osApp { padding-left: 16px !important; padding-right: 16px !important; }",
+            "CookingModeTimerBanner": ".osBanner, .osStack, .sysAlert, .sysNote, .osNote { margin-left: max(16px, calc((100% - 448px) / 2)) !important; margin-right: max(16px, calc((100% - 448px) / 2)) !important; left: 0 !important; right: 0 !important; box-sizing: border-box; } .osApp { padding-left: 16px !important; padding-right: 16px !important; }"
+        },
+        "tabletNote": "iPad 820 design (T32). Another recipe's alarm uses the iPad alarm board's 640 column, centred. The lock-screen alert, the notification and the banner are the system's own and are drawn as likenesses: a card at most 448 wide, centred, with its note under it (approximate; iPadOS sets the real width)."
+    },
+    "appWide": {
+        "webOnly": {
+            "AppNotFound": "The mobile board says it: mobile has no URLs, so there is no page-not-found screen.",
+            "AppRouteLoading": "The mobile board says it: mobile has no route-loading fallback."
+        },
+        "tablet": {
+            "*": [
+                {
+                    "op": "wrapEach",
+                    "select": "x-import[component-from-global-scope='Commise.Native.UndoSnackbar']",
+                    "style": "width: 100%; max-width: 560px"
+                },
+                {
+                    "op": "remove",
+                    "select": "x-import[component-from-global-scope='Commise.Native.CreateFab']"
+                },
+                {
+                    "op": "insertHtml",
+                    "after": "x-import[component-from-global-scope='Commise.Native.SearchField'][id='recipes-search']",
+                    "html": "<x-import component-from-global-scope=\"Commise.Native.Button\" variant=\"primary\" icon=\"plus\" accessibility-label=\"New recipe: choose how to add it\" on-press=\"{{noop}}\">New recipe</x-import>"
+                },
+                {
+                    "op": "group",
+                    "select": [
+                        "x-import[component-from-global-scope='Commise.Native.SearchField'][id='recipes-search']",
+                        "x-import[component-from-global-scope='Commise.Native.SearchField'][id='recipes-search'] + x-import[component-from-global-scope='Commise.Native.Button']"
+                    ],
+                    "class": "nv-srow"
+                }
+            ],
+            "AppRouteError": []
+        },
+        "tabletCss": {
+            "AppOfflineRead": ".nv-legacy div[style*=' height: 844px'] { height: 1095px !important; } .nv-legacy div[style*='height: 746px'] { height: 997px !important; } .nv-srow { display: flex; flex-direction: row; align-items: center; gap: 16px; } .nv-srow > :first-child, .nv-srow > :first-child > :only-child { flex: 1; min-width: 0; }",
+            "AppSyncOffline": ".nv-legacy div[style*=' height: 844px'] { height: 1095px !important; } .nv-legacy div[style*='height: 746px'] { height: 997px !important; } .nv-srow { display: flex; flex-direction: row; align-items: center; gap: 16px; } .nv-srow > :first-child, .nv-srow > :first-child > :only-child { flex: 1; min-width: 0; }",
+            "AppSyncSyncing": ".nv-legacy div[style*=' height: 844px'] { height: 1095px !important; } .nv-legacy div[style*='height: 746px'] { height: 997px !important; } .nv-srow { display: flex; flex-direction: row; align-items: center; gap: 16px; } .nv-srow > :first-child, .nv-srow > :first-child > :only-child { flex: 1; min-width: 0; }",
+            "AppUnreadableWork": ".nv-legacy div[style*=' height: 844px'] { height: 1095px !important; } .nv-legacy div[style*='height: 746px'] { height: 997px !important; } .nv-srow { display: flex; flex-direction: row; align-items: center; gap: 16px; } .nv-srow > :first-child, .nv-srow > :first-child > :only-child { flex: 1; min-width: 0; }",
+            "AppSnackbars": ".nv-srow { display: flex; flex-direction: row; align-items: center; gap: 16px; } .nv-srow > :first-child, .nv-srow > :first-child > :only-child { flex: 1; min-width: 0; }"
+        },
+        "tabletNote": "iPad 820 design (T32). App-wide states at the iPad's full width with 16 pt sides: the sync and offline notices span the page, the backdrop screen fills the iPad's one screen, a crashed screen's notice centres on the whole screen, and a snackbar is at most 560 wide, centred above the tab bar. On the Recipes backdrop, New recipe sits in the search row, as the iPad Recipes board draws it, instead of floating.",
+        "css": {
+            "App": ".r-r3d3ba { font-size: 28px !important; line-height: 32px !important; }"
+        },
+        "cssNote": "The recipe card's cover letter is drawn by RecipeCard at 32, off the 14/16/18/28 scale; the board sets it to 28 through react-native-web's class for that text style (r-r3d3ba). The component itself still owes the fix."
+    }
+}

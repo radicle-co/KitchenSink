@@ -89,7 +89,7 @@ function rowOf(page: Page, name: string): Locator {
  * `Range`), and the checkbox's target.
  *
  * A text node is found with its whitespace folded to plain spaces. The read view joins an amount to its unit with a
- * no-break space (UI Designer ruling Q5), so the quantity's node reads "2 lb", and this spec measures where a text
+ * no-break space (UI Designer ruling Q5), so the quantity's node reads "2", a no-break space, "lb", and this spec measures where a text
  * sits, not which space joins it.
  */
 async function measure(row: Locator, texts: { quantity: string; name: string; firstPart?: string }) {

@@ -1428,24 +1428,38 @@ here", `index.done` "{done} of 4 done", `index.hint.details` … `index.hint.pho
 #### 7.5.1 The read row
 
 ```
- 2–2.5 kg   Lamb shoulder, bone-in · trimmed of excess fat                       ⋯
- 2          Preserved lemons · rind only, finely chopped                         ⋯
- 500 g      Chicken thighs, boneless skinless · roasted                          ⋯
-            ⚠ Choose a match
+ 2–2.5 kg Lamb shoulder, bone-in · trimmed of excess fat                         ⋯
+ 2 Preserved lemons · rind only, finely chopped                                   ⋯
+ 500 g Chicken thighs, boneless skinless · roasted                                ⋯
+ ⚠ Choose a match
 ```
 
-- **Amount first, in a fixed column:** 72 px below a 600 container, 96 px from 600, in `figure-inline` 600. "12–14 tbsp"
-  fits 96. No amount: the column is empty (never an invented "1", F5).
-- **Name and prep** together: the name in `ink`, then " · " and the prep in `inkMuted`, clamped to 2 lines, then
-  truncate. The full text is in the open editor and in the row's name.
+Amended 2026-11-06 for #144 (`docs/design/uiRefreshWorkshop5/nativeBoards/designAnswers.md`, "2026-11-06: editor
+ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount column and no 2-line clamp**.
+
+- **Amount and food are one text run** (item 1): the amount in `figure-inline` 600 (the row's strong weight), a
+  no-break space between the amount and its unit (item 2), an ordinary space before the food, then " · " and the
+  preparation in `inkMuted`. The run wraps only between words, on every platform and at every text size. A line that
+  wraps starts at the row's start edge, under the amount. No amount: the run starts with the food (never an invented
+  "1", F5). The full text is in the open editor and in the row's name.
+- **The cook's words** (item 3): "tablespoons", "cups". No short unit forms, so the editor and the detail page show
+  the same text.
+- **No nowrap, no clipping and no smaller text** (item 4). The ⋯ button keeps its place at the row end.
 - **A healthy row is quiet:** no status glyph (owner, overturning `ingredientStatusExplanation.md` §3a). A row that
   needs action adds a second line in `attention` with ⚠ and the state word. That line is a button that opens the
-  existing shortlist or panel.
+  existing shortlist or panel. The line starts at the row's start edge, the same edge as the run, with its own style
+  and icon (item 6).
+- **A stand-in row** (a private ingredient, item 7) shows the amount on its own line above the chip, both at the
+  row's start edge. With no amount there is no empty line. The open control's name reads the amount, then the chip's
+  label.
 - **⋯** (44 × 44, "Actions for {food}"): Edit · Food details · Change food · Move to group… · Move up · Move down ·
   divider · Remove. Remove is never a row button.
 - Row: min-height 48 for one line, 64 for two. Hairline `lineDivider` between rows.
 - Semantics: a `list` named "Ingredients". The row's open target is a button named "Edit {amount} {food}". Removing a
   row moves focus to the next row (existing `removalFocusTarget.ts`).
+- **Control names carry the visible amount.** A control names the amount as shown ("1½ cups whole milk"), and spoken
+  words are only for non-interactive text (`designAnswers.md` "2026-11-06: fractions in ingredient amounts", item 5).
+  This covers the ingredient checkbox (§6.3) and the editor row's open control.
 
 **Row states** (the panel contents stay as `ingredientStatusExplanation.md` §SPECIFY.1):
 

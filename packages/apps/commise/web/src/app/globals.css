@@ -19,6 +19,8 @@
    discovery, collections, …) is rendered from the shared @commise/features-recipes building blocks, so
    scan their source too — otherwise the utility classes they use are never generated. */
 @source "../../../features/recipes/src/**/*.{ts,tsx}";
+/* A test file spells classes in prose; it must never build a utility. */
+@source not "../../../features/recipes/src/**/__tests__/**";
 /* The account surfaces (profile, danger zone, erase and close dialogs) render from @commise/features-account. */
 @source "../../../features/account/src/**/*.{ts,tsx}";
 /* The cross-feature surfaces (Home, route boundaries) render from @commise/features-core. */

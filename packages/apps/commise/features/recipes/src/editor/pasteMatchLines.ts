@@ -70,13 +70,23 @@ export function boundByOf(reason: string): Exclude<BoundBy, 'cook'> {
     return REVIEW_REASONS.has(reason) ? 'review' : 'server';
 }
 
-/** The line as the cook wrote it: the stated measure when it starts the line, and the words after it. Pure. */
+/**
+ * The line as the cook wrote it: the stated measure when it starts the line and ends on a word of it, and the words
+ * after it (a separator between them is not a word). The measure ends before any character that is not a letter or
+ * digit, as `promoteCrfReading` cuts it. A measure ending inside a word (`2-3 cup` against `2-3 cups`) would draw
+ * `cup s`, so the line stays whole.
+ * Pure.
+ */
 function lineTextOf(proposal: WireProposal): LineText {
     const measure = proposal.statedMeasure?.trim() ?? '';
     const raw = proposal.raw.trim();
+    const endsOnAWord = !/[\p{L}\p{N}]/u.test(raw.charAt(measure.length));
 
-    return measure !== '' && raw.toLowerCase().startsWith(measure.toLowerCase())
-        ? { measure: raw.slice(0, measure.length), words: raw.slice(measure.length).trim() }
+    return measure !== '' && endsOnAWord && raw.toLowerCase().startsWith(measure.toLowerCase())
+        ? {
+              measure: raw.slice(0, measure.length),
+              words: raw.slice(measure.length).replace(/^[\s,;]+/u, ''),
+          }
         : { measure: '', words: raw };
 }
 

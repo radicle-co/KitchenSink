@@ -66,10 +66,15 @@ const readsAsFraction = (locale: string, unit: string | undefined): boolean => {
  * @param value - A positive amount.
  * @param locale - The active BCP-47 locale.
  * @param unit - The unit it is stated in, as the cook wrote it, or none for a count.
- * @returns "1½", "⅓", "0.3", "1.5", or "1,5" outside English. Pure.
+ * @returns "1½", "⅓", "0.3", "1.5", or "1,5" outside English; a positive amount is never "0". Pure.
  */
 export const formatAmountNumber = (value: number, locale: string, unit: string | undefined): string => {
     const decimal = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+
+    // A positive amount (⅛ tsp scaled down) never reads as nothing: it floors at the smallest step shown.
+    if (value > 0 && value <= SNAP_TOLERANCE) {
+        return decimal.format(SNAP_TOLERANCE);
+    }
 
     if (!readsAsFraction(locale, unit)) {
         return decimal.format(value);

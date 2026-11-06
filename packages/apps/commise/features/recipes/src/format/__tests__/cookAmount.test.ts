@@ -68,6 +68,29 @@ describe('formatAmountNumber — a cook’s fraction (rules 1 and 2)', () => {
     });
 });
 
+/** GATE bug, PR 132: a scaled amount (⅛ tsp ÷ 16) is positive, so it never reads as nothing. */
+describe('formatAmountNumber — a positive amount never shows 0', () => {
+    it.each([
+        [0.008, 'tsp'],
+        [0.004, 'g'],
+        [0.0001, undefined],
+    ] as const)('shows %s %s as 0.01, and says it the same', (value, unit) => {
+        const shown = formatAmountNumber(value, 'en-US', unit);
+
+        expect(shown).toBe('0.01');
+        expect(speakAmounts(`${shown}\u00A0tsp salt`, WORDS)).toBe('0.01 tsp salt');
+    });
+
+    it('keeps a true 0 as 0', () => {
+        expect(formatAmountNumber(0, 'en-US', 'tsp')).toBe('0');
+        expect(formatAmountNumber(0, 'en-US', 'g')).toBe('0');
+    });
+
+    it('uses the locale’s decimal mark for the floor', () => {
+        expect(formatAmountNumber(0.008, 'de-DE', 'tsp')).toBe('0,01');
+    });
+});
+
 describe('formatAmountNumber — units (rule 3)', () => {
     it.each(['g', 'grams', 'kg', 'mg', 'milligrams', 'ml', 'mL', 'cl', 'dl', 'l', 'L', 'litres'])(
         'keeps a metric amount decimal in %s',

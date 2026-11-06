@@ -496,3 +496,16 @@ describe('readLeadingMeasure — a form the cook buys stays in the food search',
         expect(readLeadingMeasure(typed)).toMatchObject({ search, preparation });
     });
 });
+
+/**
+ * Owner ruling 2026-11-06: `whipped` before the food is part of the food a cook typed, and after the first comma it is
+ * the preparation. The paste row (`pastedLines.test.ts`) answers the same two lines the same way.
+ */
+describe('readLeadingMeasure — whipped is placed by where the cook typed it', () => {
+    it.each([
+        ['1 cup whipped cream', 'whipped cream', ''],
+        ['1 cup heavy cream, whipped', 'heavy cream', 'whipped'],
+    ])('reads "%s" with the food %j', (typed, search, preparation) => {
+        expect(readLeadingMeasure(typed)).toMatchObject({ search, preparation });
+    });
+});

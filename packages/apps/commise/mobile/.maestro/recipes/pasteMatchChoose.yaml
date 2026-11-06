@@ -34,7 +34,8 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Choose the milk you use'
       timeout: 240000
-- assertVisible: 'Default'
+# iOS merges the default's tag into the row's name ("whole milk, Default"); Android draws the tag alone.
+- assertVisible: '.*Default.*'
 - assertNotVisible:
       text: '.*your choice.*'
 - assertVisible: 'Search for a food for 2 cups milk'

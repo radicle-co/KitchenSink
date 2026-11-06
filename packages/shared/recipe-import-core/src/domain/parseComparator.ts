@@ -240,8 +240,12 @@ function destinations(tokens: readonly string[], field: Field): readonly Field[]
 /**
  * Put every word of one food where KTD-11b says it belongs.
  *
- * ⛔ This is the ONE normalisation that also applies to what is STORED, because it deletes nothing — it
- * only decides which field holds a word the line already wrote. Two consequences are deliberate:
+ * ⛔ This is the ONE normalisation that also applies to what is STORED, because it deletes no word of the
+ * source — it only decides which field holds a word the line already wrote. The one thing it drops is a list
+ * separator (`,` `;`) the ENGINE wrote beside a word it moves: an LLM joins its preparations with ", ", so
+ * `blueberries | frozen, thawed` would otherwise store the name `frozen, blueberries`. That separator is the
+ * engine's punctuation between two fields' worth of words, not the cook's, so R1 is untouched. Two
+ * consequences are deliberate:
  *
  *  - **A name is never emptied.** If every word of the name wants to leave and nothing arrives to replace
  *    it, nothing moves. Identity is what the food catalog resolves; a food with an empty name is not a

@@ -1315,8 +1315,6 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         expect(rebind.mock.calls[0]?.[2]).toMatchObject({ target: { kind: 'catalogFood', foodId: 'food_skim' } });
         // The command carries the food itself, so no separate admission is made.
         expect(byFood).not.toHaveBeenCalled();
-        await new Promise((r) => setTimeout(r, 800));
-        console.log('DBG', document.body.textContent?.slice(600, 1200));
         // And the line is still the paste list's, now the cook's.
         expect(await screen.findByText(/Skim milk\s+· your choice/u)).toBeTruthy();
         expect(screen.queryByText('Choose the milk you use')).toBeNull();

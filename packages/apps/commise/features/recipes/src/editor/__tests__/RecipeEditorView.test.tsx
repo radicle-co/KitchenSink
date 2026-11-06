@@ -127,20 +127,22 @@ describe('the frame', () => {
         expect(ingredients.textContent).toContain('Complete');
     });
 
-    it('falls back to what the lines say once the paste has failed: Publish waits, but Ingredients is not "Reading…"', () => {
+    it('shows Needs you, not Complete, while a pasted line that failed waits on the cook; Publish waits too', () => {
         render(
             view(makeEditorResult({ values: makeFilledRecipeFormValues() }), {
                 pastePending: true,
                 pasteReading: false,
+                pasteNeedsYou: 2,
             }),
         );
 
         const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
         const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
-
-        expect(ingredients.textContent).not.toContain('Reading…');
         const publish = screen.getByRole('button', { name: 'Publish' });
 
+        expect(ingredients.textContent).toContain('Needs you');
+        expect(ingredients.textContent).not.toContain('Complete');
+        expect(ingredients.textContent).not.toContain('Needs a match');
         expect(publish.getAttribute('aria-disabled') === 'true' || publish.hasAttribute('disabled')).toBe(true);
     });
 
@@ -1096,5 +1098,59 @@ describe('a Discard storage refused', () => {
 
         fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
         expect(cancelDiscard).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * What the cook hears when a paste settles (designer rulings): ONE string, "Added 6 ingredients. Ingredients complete.",
+ * composed in the editor's one polite region (the section no longer speaks the count itself); "Needs you" is never
+ * announced (the block already says "N lines need you"); a typed completion and a resolved last line still say
+ * "Ingredients complete", once.
+ */
+describe('the polite region when a paste settles (web)', () => {
+    const FILLED = makeEditorResult({ values: makeFilledRecipeFormValues() });
+    const NO_LINES = makeEditorResult({ values: makeFilledRecipeFormValues({ ingredients: [] }) });
+    const said = () => screen.queryAllByText(/Added \d|Ingredients complete/u).map((node) => node.textContent);
+
+    it('says exactly one string at settle: the count and the completion together', () => {
+        const { rerender } = render(view(NO_LINES, { pasteReading: true }));
+
+        rerender(view(FILLED, { pasteReading: false, pasteAdded: { count: 6, occurrence: 1 } }));
+
+        expect(said()).toEqual(['Added 6 ingredients. Ingredients complete.']);
+    });
+
+    it('says only the count when the settle does not complete Ingredients', () => {
+        const { rerender } = render(view(NO_LINES, { pasteReading: true }));
+
+        rerender(view(NO_LINES, { pasteReading: false, pasteNeedsYou: 2, pasteAdded: { count: 4, occurrence: 1 } }));
+
+        expect(said()).toEqual(['Added 4 ingredients.']);
+    });
+
+    it('says nothing when a failed line starts to wait on the cook: Needs you has no announcement', () => {
+        const { rerender } = render(view(FILLED, { pasteReading: true }));
+
+        rerender(view(FILLED, { pasteReading: false, pasteNeedsYou: 1 }));
+
+        expect(said()).toEqual([]);
+    });
+
+    it('says "Ingredients complete" once when the last waiting line is resolved', () => {
+        const { rerender } = render(view(FILLED, { pasteNeedsYou: 1 }));
+
+        rerender(view(FILLED, { pasteNeedsYou: 0 }));
+        expect(said()).toEqual(['Ingredients complete']);
+
+        rerender(view(FILLED, { pasteNeedsYou: 0, pastePending: true }));
+        expect(said()).toEqual(['Ingredients complete']);
+    });
+
+    it('still says "Ingredients complete" once for a line the cook typed', () => {
+        const { rerender } = render(view(NO_LINES));
+
+        rerender(view(FILLED));
+
+        expect(said()).toEqual(['Ingredients complete']);
     });
 });

@@ -486,8 +486,6 @@ export interface IngredientsPasteView {
     /** The milestone to say politely, once per occurrence; the leaf words it. */
     readonly announcement:
         { readonly milestone: PasteMilestone; readonly count: number; readonly occurrence: number } | undefined;
-    /** How many ingredients the last finished paste added, said politely once per paste. */
-    readonly added: { readonly count: number; readonly occurrence: number } | undefined;
     /** The empty section's Paste a list, beside the add field; `undefined` when paste is not offered. */
     readonly onOpen: (() => void) | undefined;
 }

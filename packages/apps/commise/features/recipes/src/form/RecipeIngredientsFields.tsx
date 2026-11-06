@@ -22,7 +22,6 @@ import { useEffect, useEffectEvent, type FC, type ReactNode } from 'react';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.js';
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '../format/plural.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.js';
@@ -248,9 +247,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     {model.listError}
                 </p>
             )}
-            <p role="status" className="sr-only">
-                {paste?.added === undefined ? '' : pluralOf(editor.pasteAdded, paste.added.count, locale)}
-            </p>
             {/* The paste's ONE polite region: milestones only, never a row (plan 2026-10-15-011). The visible block is
                 not live. Always rendered, so the region exists before its text changes. */}
             <p role="status" className="sr-only">

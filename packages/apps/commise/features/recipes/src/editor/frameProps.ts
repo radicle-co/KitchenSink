@@ -133,6 +133,13 @@ export interface RecipeEditorViewProps {
      * {@link pastePending}: false once every unjoined line failed and waits on the cook (`useIngredientsPaste`).
      */
     readonly pasteReading?: boolean;
+    /** How many pasted lines failed and wait on the cook, nothing in flight: Ingredients says "Needs you". */
+    readonly pasteNeedsYou?: number;
+    /**
+     * What the last finished paste added (`useIngredientsPaste`'s `added`). The editor's one polite region says it, with
+     * "Ingredients complete" when the same settle completes the section.
+     */
+    readonly pasteAdded?: { readonly count: number; readonly occurrence: number };
     /**
      * The paste's lines that have no food yet (R23): Publish asks first. `facts` is `undefined` while no line needs a pick,
      * and Publish goes straight through; `chooseNow` opens the first of them.

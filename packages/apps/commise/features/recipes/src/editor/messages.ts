@@ -73,6 +73,11 @@ export interface EditorMessages {
         readonly barCount: string;
         /** Announced politely when the cook's own edit completes a section. */
         readonly announce: Readonly<Record<EditorSectionId, string>>;
+        /**
+         * A paste settling AND completing Ingredients: ONE message ("Added 6 ingredients. Ingredients complete."), because
+         * two announcements in one breath are heard as one garbled one.
+         */
+        readonly announceAddedComplete: PluralText;
     };
 
     /** Save status (header caption). Keyed by where the draft is kept where that changes the words. */
@@ -344,6 +349,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 ingredientsPendingText: 'Add or clear the line you typed',
                 // The paste's own wording for a line being read (form `rowStateReading`).
                 ingredientsReading: 'Reading…',
+                ingredientsNeedYou: 'Needs you',
                 ingredientsUnresolved: { one: '{count} needs a match', other: '{count} need a match' },
                 ingredientsQuantityInvalid: { one: '{count} amount to fix', other: '{count} amounts to fix' },
                 stepBlank: 'Fill in or remove the empty step',
@@ -353,6 +359,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             barName: 'Sections. Current: {current}.',
             barNameAttention: { one: ' {count} needs attention.', other: ' {count} need attention.' },
             barCount: '⚠ {count}',
+            announceAddedComplete: {
+                one: 'Added {count} ingredient. Ingredients complete.',
+                other: 'Added {count} ingredients. Ingredients complete.',
+            },
             announce: {
                 details: 'Details complete',
                 ingredients: 'Ingredients complete',

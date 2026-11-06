@@ -808,7 +808,6 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
         focusRow: undefined,
         onRowFocusHandled: noop,
         announcement: undefined,
-        added: undefined,
         onOpen: undefined,
     };
 

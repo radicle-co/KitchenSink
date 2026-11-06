@@ -87,6 +87,13 @@ export interface IngredientsPaste {
      * offline lines are not failures and stay reading.
      */
     readonly reading: boolean;
+    /**
+     * How many unjoined lines failed (`retryable`, a failed lookup) and wait on the cook, with nothing in flight: 0
+     * while anything is still being read. Ingredients says "Needs you" for them.
+     */
+    readonly needYou: number;
+    /** What the last finished paste added; the EDITOR says it (with the section's completion, in one message). */
+    readonly added: { readonly count: number; readonly occurrence: number } | undefined;
     /** The lines with no food yet, for the publish sheet (R23). */
     readonly openChoices: PasteOpenChoices;
 }
@@ -154,6 +161,9 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
         matching.joining ||
         matching.pending.size > 0 ||
         reading.some((row) => row.state !== 'retryable' && row.state !== 'lookupFailed');
+    const needYou = stillReading
+        ? 0
+        : reading.filter((row) => row.state === 'retryable' || row.state === 'lookupFailed').length;
     const { hold } = options;
 
     // A layout effect: the hold is current once this state commits, before any passive effect or event can run a
@@ -183,7 +193,6 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
                 announcement?.milestone === 'offline' && presentation.view.notice?.kind === 'offline'
                     ? undefined
                     : announcement,
-            added: paste.added,
             onOpen: paste.available && empty ? open : undefined,
         },
         inHeading: paste.available && !empty,
@@ -193,6 +202,8 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
         failed: paste.failed,
         pending,
         reading: stillReading,
+        needYou,
+        added: paste.added,
         openChoices: { facts: presentation.facts, chooseNow: presentation.chooseNow },
     };
 }

@@ -71,7 +71,6 @@ const Section: FC<{ readonly done: number; readonly state?: PasteReadingRow['sta
                 focusRow: undefined,
                 onRowFocusHandled: vi.fn(),
                 announcement,
-                added: undefined,
                 onOpen: undefined,
             }}
         />
@@ -128,5 +127,36 @@ describe('the paste’s polite regions while six lines are read one by one', () 
         await act(() => vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS * 2));
 
         expect(spoken(container)).toEqual([]);
+    });
+});
+
+describe('Reading again after an offline recovery', () => {
+    it('is said once per recovery, never on the way back from a stall that cleared by itself', async () => {
+        const { container, rerender } = render(<Section done={1} />);
+        const history: string[] = [];
+
+        const note = () => {
+            const now = spoken(container).join(' | ');
+
+            if (now !== '' && history.at(-1) !== now) {
+                history.push(now);
+            }
+        };
+
+        const step = async (state: PasteReadingRow['state']) => {
+            rerender(<Section done={1} state={state} />);
+            await act(() => vi.advanceTimersByTimeAsync(PASTE_ANNOUNCE_INTERVAL_MS * 2));
+            note();
+        };
+
+        await act(() => vi.advanceTimersByTimeAsync(0));
+        note();
+        await step('waiting');
+        await step('reading');
+        await step('waiting');
+        await step('reading');
+
+        expect(history.filter((text) => text === 'Reading again.')).toHaveLength(2);
+        expect(history.filter((text) => /^Reading \d+ pasted lines\.$/u.test(text))).toHaveLength(1);
     });
 });

@@ -1169,7 +1169,7 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste a list' })).toBeNull());
         expect(
             await screen.findByText(
-                (_, node) => node?.textContent === 'Added 1 ingredient.' && node.getAttribute('role') === 'status',
+                (_, node) => node?.textContent === 'Added 1 ingredient. Ingredients complete.' && node.getAttribute('role') === 'status',
             ),
         ).toBeTruthy();
         expect(await screen.findByText('Plain flour')).toBeTruthy();

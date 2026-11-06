@@ -179,8 +179,10 @@ describe('useIngredientsPaste — what it hands the field group', () => {
             onAddAsWritten: addAsWritten,
             onAddRestAsWritten: addRestAsWritten,
             focusSignal: 4,
-            added: { count: 3, occurrence: 2 },
         });
+        // What a finished paste added is the EDITOR's to say (one message with the section's completion), not the section's.
+        expect(result.current.added).toEqual({ count: 3, occurrence: 2 });
+        expect(result.current.view).not.toHaveProperty('added');
     });
 
     it('⛔ hands the matched lines the paste list draws, and the draft keys the ordinary rows must leave out', () => {
@@ -328,7 +330,11 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
     const flagsOf = (paste: PasteIntoIngredients) => {
         const { result } = render(paste, 0);
 
-        return { pending: result.current.pending, reading: result.current.reading };
+        return {
+            pending: result.current.pending,
+            reading: result.current.reading,
+            needYou: result.current.needYou,
+        };
     };
 
     const projected = (job = makeParseJob(), over: { jobFailed?: boolean; now?: number } = {}) =>
@@ -380,7 +386,7 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
             () => pasteOf(projected(makeParseJob({ lines: [makeParseJobLine({ status: 'withdrawn' })] }))),
         ],
     ])('%s', (_path, paste) => {
-        expect(flagsOf(paste())).toEqual({ pending: false, reading: false });
+        expect(flagsOf(paste())).toEqual({ pending: false, reading: false, needYou: 0 });
     });
 
     it('a closed sheet cancels nothing it does not hold: after a refused create, closing the sheet leaves both false', () => {
@@ -393,6 +399,7 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
             pending: false,
             reading: false,
         });
+        expect(result.current.needYou).toBe(0);
     });
 
     it('unmounting releases the hold and the flags are not read again', () => {
@@ -411,7 +418,7 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
         const flags = flagsOf(pasteOf(retryable));
 
         expect(retryable[0]?.kind).toBe('awaitingCook');
-        expect(flags).toEqual({ pending: true, reading: false });
+        expect(flags).toEqual({ pending: true, reading: false, needYou: 1 });
     });
 
     it('a failed lookup waits on the cook too: not "Reading…"', () => {
@@ -420,6 +427,7 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
         expect(flagsOf(makePasteIntoIngredients({ sessionKey: 'job-1', lines: settled, failedAt: 0 }))).toEqual({
             pending: true,
             reading: false,
+            needYou: 1,
         });
     });
 
@@ -430,7 +438,7 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
             }),
         );
 
-        expect(flagsOf(pasteOf(mixed))).toEqual({ pending: true, reading: true });
+        expect(flagsOf(pasteOf(mixed))).toEqual({ pending: true, reading: true, needYou: 0 });
     });
 
     it('a stalled line, and work parked for a connection, are not failures: still "Reading…"', () => {

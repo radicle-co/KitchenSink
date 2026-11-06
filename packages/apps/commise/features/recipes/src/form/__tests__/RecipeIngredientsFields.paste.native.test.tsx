@@ -89,7 +89,6 @@ const BASE_PASTE: IngredientsPasteView = {
     focusRow: undefined,
     onRowFocusHandled: vi.fn(),
     announcement: undefined,
-    added: undefined,
     onOpen: undefined,
 };
 

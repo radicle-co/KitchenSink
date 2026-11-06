@@ -24,6 +24,8 @@
  * A paste still being read (`pasteReading`) turns a would-be Complete or Not started into In progress ("Reading…"):
  * the lines in the draft are not all the lines there will be, so the section is not done. It never hides 1 or 2, which
  * the cook can already act on.
+ * Pasted lines that failed and wait on the cook (`pasteNeedsYou`, nothing in flight) turn it into Needs you instead, at
+ * the rank of 2.
  *
  * The counts read the same predicates the validator does (`isResolvedIngredientId`, `draftQuantityVerdict`): the
  * validator reports one code per field, and the index says how many lines it is about.
@@ -53,7 +55,8 @@ export type AttentionReason =
     | 'servingsPositive'
     | 'timesNonNegative'
     | 'ingredientsUnresolved'
-    | 'ingredientsQuantityInvalid';
+    | 'ingredientsQuantityInvalid'
+    | 'ingredientsNeedYou';
 
 /** Something entered, but a field Publish needs is missing. */
 export type InProgressReason =
@@ -84,6 +87,11 @@ export interface SectionStatusInput {
      * but is no longer being read. Required, so a caller cannot forget it.
      */
     readonly pasteReading: boolean;
+    /**
+     * How many pasted lines failed and wait on the cook with nothing in flight (`useIngredientsPaste`'s `needYou`). Their
+     * block already says "N lines need you", so this status is never announced. Required, like `pasteReading`.
+     */
+    readonly pasteNeedsYou: number;
 }
 
 const COMPLETE: SectionStatus = { kind: 'complete' };
@@ -105,9 +113,21 @@ export function lineNeedsAttention(line: RowPolicyLine): boolean {
 const NOT_STARTED: SectionStatus = { kind: 'notStarted' };
 const READING: SectionStatus = { kind: 'inProgress', reason: 'ingredientsReading' };
 
-/** Ingredients while a paste is read: no better than In progress, but never worse than what the cook can act on. */
-function readingOverride(status: SectionStatus, pasteReading: boolean): SectionStatus {
-    return pasteReading && (status.kind === 'complete' || status.kind === 'notStarted') ? READING : status;
+/**
+ * Ingredients while a paste is unfinished: lines being read make it In progress; lines that failed and wait on the cook
+ * make it Needs you (attention, the rank of "needs a match"). Only a Complete or Not started changes: a Fix or a
+ * needs-a-match stands, because the cook can already act on it.
+ */
+function pasteOverride(status: SectionStatus, reading: boolean, needsYou: number): SectionStatus {
+    if (status.kind !== 'complete' && status.kind !== 'notStarted') {
+        return status;
+    }
+
+    if (reading) {
+        return READING;
+    }
+
+    return needsYou > 0 ? { kind: 'attention', reason: 'ingredientsNeedYou', count: needsYou } : status;
 }
 
 /**
@@ -119,7 +139,7 @@ function readingOverride(status: SectionStatus, pasteReading: boolean): SectionS
 export function sectionStatusesOf(input: SectionStatusInput): SectionStatuses {
     const errors = validateRecipeForm(input.values, input.pendingEntryText);
     const details = detailsStatus(input, errors);
-    const ingredients = readingOverride(ingredientsStatus(input, errors), input.pasteReading);
+    const ingredients = pasteOverride(ingredientsStatus(input, errors), input.pasteReading, input.pasteNeedsYou);
     const steps = stepsStatus(input, errors);
     const ready = [details, ingredients, steps].every((status) => status.kind === 'complete');
 

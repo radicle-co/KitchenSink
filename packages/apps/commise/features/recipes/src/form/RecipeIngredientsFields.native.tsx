@@ -24,7 +24,6 @@ import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '../format/plural.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';
@@ -242,9 +241,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     {model.listError}
                 </Text>
             )}
-            <LiveRegion politeness="polite" visuallyHidden>
-                {paste?.added === undefined ? '' : pluralOf(editor.pasteAdded, paste.added.count, locale)}
-            </LiveRegion>
             {/* The paste's ONE polite region: milestones only, never a row (plan 2026-10-15-011). */}
             <LiveRegion politeness="polite" visuallyHidden>
                 {paste?.announcement === undefined ? '' : pasteAnnouncementTextOf(paste.announcement, m, locale)}

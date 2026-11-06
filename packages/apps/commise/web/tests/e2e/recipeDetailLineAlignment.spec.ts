@@ -87,6 +87,10 @@ function rowOf(page: Page, name: string): Locator {
 /**
  * Measure a row: the FIRST line box of the quantity, of the name and of the first part (each a text node, through a
  * `Range`), and the checkbox's target.
+ *
+ * A text node is found with its whitespace folded to plain spaces. The read view joins an amount to its unit with a
+ * no-break space (UI Designer ruling Q5), so the quantity's node reads "2 lb", and this spec measures where a text
+ * sits, not which space joins it.
  */
 async function measure(row: Locator, texts: { quantity: string; name: string; firstPart?: string }) {
     return row.evaluate((item, wanted): RowGeometry => {
@@ -98,7 +102,8 @@ async function measure(row: Locator, texts: { quantity: string; name: string; fi
             const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
 
             for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-                if (node.textContent?.trim() === text) {
+                // `\s` takes in U+00A0.
+                if (node.textContent?.replace(/\s+/gu, ' ').trim() === text) {
                     const range = document.createRange();
 
                     range.selectNodeContents(node);

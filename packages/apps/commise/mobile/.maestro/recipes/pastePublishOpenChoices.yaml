@@ -4,8 +4,9 @@ appId: ${APP_ID}
 # "Save"), on a device. Mobile mirror of the web Playwright `pastePublishOpenChoices.spec.ts`: the sheet names the open
 # lines and says they are saved as written; Choose now opens the first open line and publishes nothing.
 #
-# ⚠️ WRITTEN WITH THE SLICE AND NOT RUN (no device in this build). It depends on the stage's seeded default for "milk";
-# recorded in `KNOWN_UNRUN_FLOWS`. Promote it to `FLOW_PLAN` in the PR whose Maestro tier is watched.
+# ⚠️ Written with the slice and not run; first passed ONCE on the local Android stack (2026-11-06), which seeds the same
+# default. It depends on the stage's seeded default for "milk"; recorded in `KNOWN_UNRUN_FLOWS`. Promote it to
+# `FLOW_PLAN` in the PR whose Maestro tier is watched.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'
@@ -35,8 +36,22 @@ appId: ${APP_ID}
       visible: 'Choose the milk you use'
       timeout: 240000
 
+# A recipe publishes only with a step, as the web spec adds one. Without it Publish asks the cook to fix the missing step,
+# and the open-choices sheet never opens (Android device pass, 2026-11-06: "Add at least one step.").
 - runFlow:
-      file: scrollIntoTapView.yaml
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Soak the bread.'
+# The soft keyboard unpins the action bar; closing it pins Publish again.
+- runFlow: common/closeEditorKeyboard.yaml
+
+- runFlow:
+      file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'Publish'
           DIRECTION: DOWN
@@ -54,7 +69,6 @@ appId: ${APP_ID}
 - assertVisible: 'Close editor'
 - assertVisible: 'Search for a food for 2 cups milk'
 
-- runFlow:
-      file: common/discardDraft.yaml
-      env:
-          SETTLED: 'Saved on this device'
+# The typed title gave the draft a server row, so it settles as "Saved", the helper's default (the device pass read
+# "Saved" in the header after the Publish tap).
+- runFlow: common/discardDraft.yaml

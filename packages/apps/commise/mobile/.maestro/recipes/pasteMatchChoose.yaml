@@ -5,8 +5,9 @@ appId: ${APP_ID}
 # and NOTHING is selected for the cook; the first open line is expanded with a direct Search; choosing a food binds it as
 # the cook's and opens the next open line.
 #
-# ⚠️ WRITTEN WITH THE SLICE AND NOT RUN (no device in this build). It depends on the stage's catalog holding the seeded
-# defaults; recorded in `KNOWN_UNRUN_FLOWS`. Promote it to `FLOW_PLAN` in the PR whose Maestro tier is watched.
+# ⚠️ Written with the slice and not run; first passed ONCE on the local Android stack (2026-11-06), which seeds the same
+# defaults. It depends on the stage's catalog holding them; recorded in `KNOWN_UNRUN_FLOWS`. Promote it to `FLOW_PLAN` in
+# the PR whose Maestro tier is watched.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'
@@ -38,11 +39,22 @@ appId: ${APP_ID}
 - assertNotVisible:
       text: '.*your choice.*'
 - assertVisible: 'Search for a food for 2 cups milk'
-# The other open line is a collapsed row that names what it needs.
+# The other open line is a collapsed row that names what it needs. The first line's options fill a phone's screen, so
+# the row sits below them (Android device pass, 2026-11-06: the list ran to the action bar, and the row was off screen).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Choose the salt you use.*'
+          DIRECTION: DOWN
 - assertVisible:
       text: 'Choose the salt you use.*'
 
 # Choose a food: it binds as the cook's, and the next open line opens.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '.*Default.*'
+          DIRECTION: UP
 - tapOn:
       text: '.*Default.*'
 - extendedWaitUntil:

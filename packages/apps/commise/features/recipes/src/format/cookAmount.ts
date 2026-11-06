@@ -125,8 +125,8 @@ const speakFractions = (text: string, words: AmountWordMessages): string =>
 
 /**
  * The accessible name of a CONTROL that shows amounts: its visible text, glyph and dash included, so the name holds the
- * visible label by construction (WCAG 2.5.3, option C, amending Q5). Words are for text that is not a control
- * ({@link speakAmounts}). The no-break space before a unit, which only stops a line breaking, reads as a plain space.
+ * visible label by construction (WCAG 2.5.3; ruling in `docs/design/uiOverhaul/buildSpec.md` §7.5.1, "Control names
+ * carry the visible amount"). Words are for text that is not a control ({@link speakAmounts}). The no-break space before a unit, which only stops a line breaking, reads as a plain space.
  *
  * @param text - What the control shows.
  * @returns Its name. Pure.

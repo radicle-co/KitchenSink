@@ -9,6 +9,7 @@
  * | ----------- | ---- |
  * | HAZ-041 — `raw` is the input byte-identical, unconditionally | "raw is the SOURCE line" |
  * | U16 — `null` is the ONE representation of "no measure stated" | "the measure the row states" |
+ * | `ParsedFacts.statedMeasure` — the source's words, not the engine's | "the stated measure is the SOURCE`s words" |
  * | U16 / KTD-11b — `size` is IDENTITY and there is no `size` member | "size, which is identity" |
  * | U16 — a preparation belongs to the foods the line named | "the preparation the row states" |
  * | U16 — the foods are a fact; an empty list is not a failure | "a row that named no food" |
@@ -90,6 +91,110 @@ describe('promoteCrfReading', () => {
 
             expect(promoted.reviewReasons).toEqual(['quantity_bounds_inverted']);
             expect(promoted.quantity).toEqual({ kind: 'absent' });
+        });
+    });
+
+    /**
+     * ⛔ `statedMeasure` is the measure "EXACTLY as the source stated it" (`ParsedFacts`), and the engine's `measure`
+     * is not: `ingredient-parser-nlp` 2.3.0 re-renders its amount text. Every engine text below is that engine's REAL
+     * answer for the line, measured 2026-11-06, unless the case says it is built to test one rule. Two readers trust
+     * the contract: the editor saves a pasted row's unit from these words (`pastedLineRowOf`), and the match list draws
+     * the line's leading measure from them (`lineTextOf`). Fed `2-3 cup` for `2-3 cups chicken stock`, the first saved
+     * the unit `cup` and the second drew `2-3 cup` + `s chicken stock`.
+     */
+    describe('the stated measure is the SOURCE`s words, never the engine`s re-rendering of them', () => {
+        it.each([
+            ['2-3 cups chicken stock', '2-3 cup', '2-3 cups', { kind: 'range', low: 2, high: 3 }, 'cup'],
+            ['2 to 3 cups rice', '2-3 cup', '2 to 3 cups', { kind: 'range', low: 2, high: 3 }, 'cup'],
+            ['2–3 cups stock', '2-3 cup', '2–3 cups', { kind: 'range', low: 2, high: 3 }, 'cup'],
+            ['1½ cups flour', '1 1/2 cups', '1½ cups', { kind: 'exact', value: 1.5 }, 'cup'],
+            ['½ cup sugar', '1/2 cups', '½ cup', { kind: 'exact', value: 0.5 }, 'cup'],
+            [
+                '2 to 3 heaping cups flour',
+                '2-3 heaping cup',
+                '2 to 3 heaping cups',
+                { kind: 'range', low: 2, high: 3 },
+                null,
+            ],
+            [
+                '1-2 cups plus 1 tablespoon broth',
+                '1-2 cup plus 1 tablespoon',
+                '1-2 cups plus 1 tablespoon',
+                { kind: 'range', low: 1, high: 2 },
+                'cup',
+            ],
+            // The engine adds an `s` to an abbreviation it pluralises, a spelling no reader knows, so it reads no unit.
+            ['2 Tbsp olive oil', '2 Tbsps', '2 Tbsp', { kind: 'exact', value: 2 }, null],
+            ['2 Tbsp. butter', '2 Tbsps', '2 Tbsp.', { kind: 'exact', value: 2 }, null],
+            ['1/2 tsp vanilla', '1/2 tsps', '1/2 tsp', { kind: 'exact', value: 0.5 }, null],
+        ] as const)('%j, read by the engine as %j, states %j', (line, measure, words, quantity, unit) => {
+            const promoted = promoteCrfReading(makeCrfReading({ sentence: line, measure }), line);
+
+            expect(promoted.statedMeasure).toBe(words);
+            // Only the words move: the amount and the unit are still the engine's own reading.
+            expect(promoted.quantity).toEqual(quantity);
+            expect(promoted.unit).toBe(unit);
+        });
+
+        it('keeps the source`s own spacing inside the measure', () => {
+            const line = '2-3  cups chicken stock';
+
+            expect(promoteCrfReading(makeCrfReading({ sentence: line, measure: '2-3 cup' }), line).statedMeasure).toBe(
+                '2-3  cups',
+            );
+        });
+
+        // A list separator after the measure is the line's punctuation, not the cook's unit.
+        it.each([
+            ['2 cups, sifted flour', '2 cups', '2 cups'],
+            ['2-3 cups, warmed stock', '2-3 cup', '2-3 cups'],
+            [
+                '3 tablespoons, plus 1 tablespoon, butter',
+                '3 tablespoons plus 1 tablespoon',
+                '3 tablespoons, plus 1 tablespoon',
+            ],
+        ])('ends %j`s measure before the separator that follows it', (line, measure, words) => {
+            expect(promoteCrfReading(makeCrfReading({ sentence: line, measure }), line).statedMeasure).toBe(words);
+        });
+
+        it.each([
+            ['2 cups and 1 tablespoon flour', '2 cups and 1 tablespoon'],
+            ['6 thin slices lemon or orange', '6 thin slices'],
+            ['2 small cans tuna', '2 small cans'],
+        ])('keeps %j`s measure %j, which the source already states in those words', (line, measure) => {
+            expect(promoteCrfReading(makeCrfReading({ sentence: line, measure }), line).statedMeasure).toBe(measure);
+        });
+
+        /**
+         * Where the line's words cannot be lined up with the engine's one for one, the engine's text stands, which is
+         * what every line stored before this. Naming a span anyway is the worse failure: the editor would save a food's
+         * words as the unit, and the match list would draw them heavier as the measure.
+         */
+        it.each([
+            // The engine joined two amounts from two places in the line (measured on a 2010 cookbook).
+            ['1 yeast roll recipe (p. 59)', '1 59'],
+            ['½ cup ice cream = ¼ cup milk', '1/2 cups 1/4 cups'],
+            ['1 (14 oz) can tomatoes', '1 can 14 oz'],
+            // The line leads with the food, so nothing before the measure is an amount like the engine's.
+            ['Chicken stock, 2-3 cups', '2-3 cup'],
+            ['Flour, 2 cups', '2 cups'],
+            // One cup is not one to two cups: the amounts must be the same amount.
+            ['1 cup or 2 cups flour', '1-2 cup'],
+            // The engine read the unit and no amount, past the article the line leads with.
+            ['a cup of water', 'cup'],
+            // The house amount reader reads digits, not number words; the editor reads a saved measure with it too.
+            ['one cup sugar', '1 cup'],
+            // Built to test one rule each: a word must state the same unit, and a word that states no measure must be
+            // the same word.
+            ['2 large eggs', '2 small'],
+            ['6 thick slices bread', '6 thin slices'],
+            // Built: only a word that states a unit takes the engine's `s`; `thins` is not `thin` pluralised.
+            ['6 thin slices bread', '6 thins slices'],
+            // The engine read no amount, so the line's `2` must not ride into the measure: the editor reads the amount
+            // it saves out of these words, and would save one the parse never read.
+            ['2 cups flour', 'cups'],
+        ])('keeps the engine`s text for %j, whose words do not line up with %j', (line, measure) => {
+            expect(promoteCrfReading(makeCrfReading({ sentence: line, measure }), line).statedMeasure).toBe(measure);
         });
     });
 

@@ -29,6 +29,9 @@
  * requires `ParsedLine.raw` to be the input byte-identical. So the caller — which holds the line it sent —
  * supplies it, and this adapter never has to decide which docstring to believe.
  */
+import { quantitiesEqual } from '@kitchensink/recipe-core';
+import { leadingAmount, quantityOf, type AmountRead } from '@kitchensink/recipe-core/parsing/measure-reader';
+
 import type { ParsedFood, ParsedLine, ParseProvenance } from '../parsedLine.js';
 
 import { readStatedMeasure } from './readStatedMeasure.js';
@@ -131,6 +134,80 @@ function foodsOf(reading: CrfReading): readonly ParsedFood[] {
     });
 }
 
+/** A list separator the line writes after a word (`2 cups, sifted`): its punctuation, never part of the measure. */
+const TRAILING_SEPARATOR = /[,;]+$/u;
+
+/**
+ * Whether the line's word says what the engine's word says.
+ *
+ * A word that states an amount or a unit is compared by what it states (`cups` and `cup`, `½` and `1/2`). A word that
+ * states neither (`heaping`, `plus`, `thin`) must be the same word, or any two such words would line up. The engine
+ * keeps such a word as the line wrote it, case included (`2 Heaping Cups` → `2 Heaping Cups`).
+ *
+ * @param engineWord - One word of the engine's measure text.
+ * @param lineWord - The line's word in the same place.
+ * @returns `true` when the two say the same thing. Pure.
+ */
+function sameWord(engineWord: string, lineWord: string): boolean {
+    const engine = readStatedMeasure(engineWord);
+    const line = readStatedMeasure(lineWord);
+    const statesNothing = engine.quantity.kind === 'absent' && engine.unit === null;
+    // The engine pluralises an abbreviation by adding `s` (`Tbsp` and `Tbsp.` → `Tbsps`), a spelling no reader knows.
+    const pluralised = line.unit !== null && engineWord === `${lineWord.replace(/\.$/u, '')}s`;
+
+    return (
+        pluralised ||
+        (quantitiesEqual(engine.quantity, line.quantity) &&
+            engine.unit === line.unit &&
+            (!statesNothing || engineWord === lineWord))
+    );
+}
+
+/** Whether two leading amounts are the same amount, or both absent. Pure. */
+function sameAmount(engine: AmountRead | undefined, line: AmountRead | undefined): boolean {
+    return engine === undefined || line === undefined
+        ? engine === line
+        : quantitiesEqual(quantityOf(engine), quantityOf(line));
+}
+
+/**
+ * The source's own words for the measure the engine read.
+ *
+ * ⛔ `ParsedFacts.statedMeasure` is the measure "EXACTLY as the source stated it", and the engine's `measure` is its
+ * own re-rendering (measured on `ingredient-parser-nlp` 2.3.0: `2-3 cups` → `2-3 cup`, `2 to 3 cups` → `2-3 cup`,
+ * `½ cup` → `1/2 cups`, `2 Tbsp` → `2 Tbsps`). The editor saves a pasted row's unit from these words and the match
+ * list draws the line's measure from them, so the engine's text cost a cook `cup` for `cups` and a line drawn `cup s`.
+ *
+ * The engine's words are lined up with the line's, one for one, from the line's first word: the leading amounts must
+ * be the same amount (read by the measure reader the editor reads a saved measure with), and every word after must say
+ * what the engine's word says ({@link sameWord}). Where they line up, the line's span is the measure; anywhere else the
+ * engine's text stands, which is what every line stored before this. That covers a line that leads with its food, and
+ * an engine text joined from two amounts in two places (`1 59` for `1 yeast roll recipe (p. 59)`), where any span
+ * would carry food words into the measure. The amount and the unit are still read from the engine's text, so neither
+ * can move.
+ *
+ * @param text - The engine's measure text, non-blank.
+ * @param sourceLine - The line as it was submitted.
+ * @returns The span of `sourceLine` that states the measure, or `text` when the words do not line up. Pure.
+ */
+function sourceWordsOf(text: string, sourceLine: string): string {
+    const lineWords = [...sourceLine.matchAll(/\S+/gu)];
+    const engineWords = text.split(/\s+/u);
+    const engineAmount = leadingAmount(engineWords);
+    const lineAmount = leadingAmount(lineWords.map(([word]) => word));
+    const rest = engineWords.slice(engineAmount?.taken ?? 0);
+    const from = lineAmount?.taken ?? 0;
+    const [first] = lineWords;
+    const last = lineWords[from + rest.length - 1];
+    const linesUp =
+        sameAmount(engineAmount, lineAmount) &&
+        rest.every((word, offset) => sameWord(word, lineWords[from + offset]?.[0] ?? ''));
+
+    return first === undefined || last === undefined || !linesUp
+        ? text
+        : sourceLine.slice(first.index, last.index + last[0].length).replace(TRAILING_SEPARATOR, '');
+}
+
 /**
  * Promote one CRF reading to the canonical parse.
  *
@@ -147,12 +224,12 @@ function foodsOf(reading: CrfReading): readonly ParsedFood[] {
  *   failure.
  */
 export function promoteCrfReading(reading: CrfReading, sourceLine: string): ParsedLine {
-    const statedMeasure = stated(reading.measure);
-    const measure = readStatedMeasure(statedMeasure);
+    const engineText = stated(reading.measure);
+    const measure = readStatedMeasure(engineText);
 
     return {
         raw: sourceLine,
-        statedMeasure,
+        statedMeasure: engineText === null ? null : sourceWordsOf(engineText, sourceLine),
         quantity: measure.quantity,
         unit: measure.unit,
         foods: foodsOf(reading),

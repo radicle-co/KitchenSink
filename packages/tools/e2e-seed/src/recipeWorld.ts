@@ -200,16 +200,22 @@ export interface AuthoredFoodRetry {
 const DEFAULT_AUTHORED_FOOD_RETRY: AuthoredFoodRetry = { retries: 4, minTimeoutMs: 1_000, maxTimeoutMs: 8_000 };
 
 /**
- * The create, retried on "food is not usably available" and nothing else (see {@link ensureAuthoredFood}).
+ * The authoring create, with the probe's macros.
  *
- * @sideEffect May author one food. Sleeps between retries.
+ * @sideEffect May author one food.
  */
-async function createAuthoredFoodRetried(
-    clients: Pick<ProbeFoodClients, 'food'>,
-    name: string,
-    retry: AuthoredFoodRetry,
-): Promise<CreateAuthoredFoodResult> {
-    return pRetry(() => clients.food.createAuthoredFood({ name, macros: PROBE_FOOD_MACROS }), {
+const createProbeFood = (clients: Pick<ProbeFoodClients, 'food'>, name: string): Promise<CreateAuthoredFoodResult> =>
+    clients.food.createAuthoredFood({ name, macros: PROBE_FOOD_MACROS });
+
+/**
+ * One authoring write to food, retried on "food is not usably available" and nothing else (see
+ * {@link ensureAuthoredFood}). A busy answer means food did not act, so a repeat is safe. A transport failure may have
+ * acted: a repeated create answers the same food, and a repeated withdraw answers `404`, which fails loudly.
+ *
+ * @sideEffect Calls food. Sleeps between retries.
+ */
+async function whileFoodBusy<T>(write: () => Promise<T>, retry: AuthoredFoodRetry): Promise<T> {
+    return pRetry(write, {
         retries: retry.retries,
         minTimeout: retry.minTimeoutMs,
         maxTimeout: retry.maxTimeoutMs,
@@ -284,7 +290,7 @@ async function ensureAuthoredFood(
     label: string,
     retry: AuthoredFoodRetry = DEFAULT_AUTHORED_FOOD_RETRY,
 ): Promise<FoodBinding> {
-    const authored = await createAuthoredFoodRetried(clients, name, retry);
+    const authored = await whileFoodBusy(() => createProbeFood(clients, name), retry);
 
     return bindAuthoredFood(clients, authored, name, label);
 }
@@ -448,24 +454,26 @@ export const DEFAULT_AMBIGUITY_TIMING: AmbiguityTiming = {
  * @param recipe - The run-scoped fixture (`deriveAmbiguityProbe`).
  * @param foodName - The food both lines are bound to: the ambiguity word `provision` chose.
  * @param timing - How the verdict is waited on.
+ * @param retry - How a busy food is retried, for the create and the withdraw alike.
  * @returns The recipe's id.
  * @throws {Error} When the food is not a food or has another name, or when the lines are not all AMBIGUOUS by the deadline.
- * @sideEffect May author a food; creates one recipe; polls the recipe service.
+ * @sideEffect May author and withdraw a food; creates one recipe; polls the recipe service.
  */
 export async function ensureAmbiguityProbe(
     clients: AmbiguityProbeClients,
     recipe: FixtureRecipe,
     foodName: string,
     timing: AmbiguityTiming = DEFAULT_AMBIGUITY_TIMING,
+    retry: AuthoredFoodRetry = DEFAULT_AUTHORED_FOOD_RETRY,
 ): Promise<string> {
     const label = 'the ambiguity probe food';
-    const first = await createAuthoredFoodRetried(clients, foodName, DEFAULT_AUTHORED_FOOD_RETRY);
+    const create = (): Promise<CreateAuthoredFoodResult> =>
+        whileFoodBusy(() => createProbeFood(clients, foodName), retry);
+    const first = await create();
     const authored =
         first.kind === 'created'
             ? first
-            : await clients.food
-                  .deleteAuthoredFood(first.existingId)
-                  .then(() => createAuthoredFoodRetried(clients, foodName, DEFAULT_AUTHORED_FOOD_RETRY));
+            : await whileFoodBusy(() => clients.food.deleteAuthoredFood(first.existingId), retry).then(create);
     const binding = await bindAuthoredFood(clients, authored, foodName, label);
     const created = await clients.recipe.createRecipe(toCreateRequest(recipe, new Map([[foodName, binding.id]])));
     const startedAt = timing.now();

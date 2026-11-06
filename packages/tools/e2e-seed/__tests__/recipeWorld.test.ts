@@ -445,6 +445,7 @@ describe('ensureAmbiguityProbe', () => {
     const AMBIGUOUS: Line = { resolutionStatus: 'AMBIGUOUS' };
     const PENDING: Line = { resolutionStatus: 'PENDING_VERIFICATION' };
     const timing = { intervalMs: 1_000, deadlineMs: 5_000 };
+    const QUICK_RETRY = { retries: 2, minTimeoutMs: 1, maxTimeoutMs: 2 };
 
     it('authors the food, binds it, and creates the recipe with both lines on that ONE binding and their source lines', async () => {
         const { clients, spies } = probeClients([[AMBIGUOUS, AMBIGUOUS]]);
@@ -551,6 +552,22 @@ describe('ensureAmbiguityProbe', () => {
             /forbidden/u,
         );
         expect(spies.create).not.toHaveBeenCalled();
+        // A refusal is the service's answer, not load: it is not retried.
+        expect(food.deleteAuthoredFood).toHaveBeenCalledOnce();
+    });
+
+    /** GATE, PR 132: the withdraw sheds load with a 503 like the create beside it, so it gets the same bound. */
+    it('retries a busy answer to the withdraw, then authors the new food', async () => {
+        const { clients, spies, food } = probeClients([[AMBIGUOUS, AMBIGUOUS]], bound({ name }), [
+            { kind: 'duplicate', existingId: 'food_old' },
+            created('food_new', name),
+        ]);
+        food.deleteAuthoredFood.mockRejectedValueOnce(new SourceBusyError());
+
+        await ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() }, QUICK_RETRY);
+
+        expect(food.deleteAuthoredFood).toHaveBeenCalledTimes(2);
+        expect(spies.byFood).toHaveBeenCalledExactlyOnceWith('food_new');
     });
 
     it('⛔ says a stored verdict was reused when the very first read is already final', async () => {

@@ -1384,7 +1384,7 @@ describe('RecipeDetailView (native) — ranged and absent quantities (U9)', () =
             />,
         );
 
-        expect(screen.getByLabelText('2 to 3 cups Flour')).toBeTruthy();
+        expect(screen.getByLabelText('2–3 cups Flour')).toBeTruthy();
     });
 
     it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {

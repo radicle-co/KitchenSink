@@ -40,10 +40,11 @@ export interface PageAnnouncementInput {
  */
 export function pageAnnouncementOf(input: PageAnnouncementInput): string | undefined {
     const { previous, next, previousAdded, nextAdded, messages, locale } = input;
-    const [first] = newlyComplete(previous, next);
+    const complete = newlyComplete(previous, next);
+    const [first] = complete;
     const finished = nextAdded !== undefined && nextAdded.occurrence !== (previousAdded?.occurrence ?? 0);
 
-    if (finished && newlyComplete(previous, next).includes('ingredients')) {
+    if (finished && complete.includes('ingredients')) {
         return pluralOf(messages.index.announceAddedComplete, nextAdded.count, locale);
     }
 

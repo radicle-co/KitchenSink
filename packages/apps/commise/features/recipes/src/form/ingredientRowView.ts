@@ -25,7 +25,7 @@ import { isStandInName, lineAmountName } from '../detail/lineName.js';
 import { formatQuantity, lineSummary } from '../detail/model.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
-import { speakAmounts } from '../format/cookAmount.js';
+import { controlName } from '../format/cookAmount.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeMessages } from '../messages.js';
 import {
@@ -90,7 +90,7 @@ export interface IngredientRowContext {
     readonly rowEditor: IngredientRowEditor;
     readonly focus: RowFocus;
     readonly m: RecipeFormMessages;
-    readonly shared: Pick<RecipeMessages, 'ingredientLineName' | 'ingredientDetails' | 'amountWords'>;
+    readonly shared: Pick<RecipeMessages, 'ingredientLineName' | 'ingredientDetails'>;
     readonly locale: Locale;
     readonly commitCopy: RowCommitCopy;
     /** The failure line a settled pick shows at `target`, unless the cook has moved past it. */
@@ -658,12 +658,9 @@ export const ingredientRowViewOf = (
     // D21: a count of one reads in the singular. DISPLAY only; `line` keeps the name as stored.
     const displayName = lineAmountName(line, quantity, line.unit, ctx.shared.ingredientLineName);
     const amountText = formatQuantity(quantity, ctx.locale, line.unit);
-    // A stand-in row is named by its amount too; a name says a fraction in words (Q5).
+    // A stand-in row is named by its amount too, as the row shows it (WCAG 2.5.3, option C).
     const triggerFood = presentation.standIn
-        ? speakAmounts(
-              lineSummary({ ...line, quantity }, ctx.locale, ctx.shared.ingredientLineName),
-              ctx.shared.amountWords,
-          )
+        ? controlName(lineSummary({ ...line, quantity }, ctx.locale, ctx.shared.ingredientLineName))
         : displayName;
     const failure = ctx.failureOf(target);
     const pendingText = rowPendingSentence(
@@ -734,10 +731,7 @@ export const ingredientRowViewOf = (
         // A stand-in row shows no preparation (the leaves draw it only beside a real name), so its name carries none.
         openLabel: presentation.standIn
             ? rowOpenLabelOf(m, triggerFood, undefined)
-            : speakAmounts(
-                  rowOpenLabelOf(m, `${amountText} ${displayName}`.trim(), prep === '' ? undefined : prep),
-                  ctx.shared.amountWords,
-              ),
+            : controlName(rowOpenLabelOf(m, `${amountText} ${displayName}`.trim(), prep === '' ? undefined : prep)),
         secondLine,
         amountInvalidNote: marks.quantityInvalid ? m.rowAmountInvalid : undefined,
         inEntry: changing,

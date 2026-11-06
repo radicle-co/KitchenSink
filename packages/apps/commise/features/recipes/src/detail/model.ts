@@ -173,7 +173,8 @@ export const ingredientCheckLabel = (
 ): string => {
     const parts = variantPartTexts(line.variant?.parts);
 
-    // The amount as a reader sees it (`formatAmount`), because the name must contain the visible text (SC 2.5.3).
+    // The amount as a reader sees it (`formatAmount`), glyph included: a checkbox is a CONTROL, and a control's name
+    // holds its visible text (SC 2.5.3, option C). Words ("1 and a half") are only for text that is not a control.
     if (parts === undefined) {
         return `${formatAmount(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
     }

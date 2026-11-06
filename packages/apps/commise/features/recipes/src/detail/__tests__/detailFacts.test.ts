@@ -30,7 +30,7 @@ import {
     nutritionStatusLine,
 } from '../detailFacts.js';
 
-const { detail, duration, card, ingredientLineName, ingredientDetails, amountWords } = recipeMessages.en;
+const { detail, duration, card, ingredientLineName, ingredientDetails } = recipeMessages.en;
 
 describe('detailStatCells', () => {
     it('reads Total, Prep and Difficulty, in that order, through the duration templates — never a Cook tile', () => {
@@ -159,13 +159,16 @@ describe('ingredientRowName', () => {
             preparation: 'trimmed of excess fat',
         });
 
-        expect(
-            ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails, amountWords),
-        ).toBe('2 kg lamb shoulder, trimmed of excess fat');
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '2 kg lamb shoulder, trimmed of excess fat',
+        );
     });
 
-    /** UI Designer ruling Q5: the row shows "1½ cups", and a screen reader hears the words, never the character. */
-    it('says a fraction in words, with plain spaces', () => {
+    /**
+     * REWRITTEN for WCAG 2.5.3, option C (UI Designer, amending Q5): this is a checkbox's name, so it carries the
+     * visible glyph. Words are for text that is not a control. The no-break space reads as a plain space.
+     */
+    it('names a fraction by its glyph, with plain spaces', () => {
         const line = makeIngredientView({
             quantity: { kind: 'exact', value: 1.5 },
             unit: 'cups',
@@ -173,12 +176,12 @@ describe('ingredientRowName', () => {
             preparation: 'warmed',
         });
 
-        expect(
-            ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails, amountWords),
-        ).toBe('1 and a half cups whole milk, warmed');
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '1½ cups whole milk, warmed',
+        );
     });
 
-    it('says a range with the range words', () => {
+    it('names a range by its visible dash', () => {
         const line = makeIngredientView({
             quantity: { kind: 'range', low: 0.75, high: 1 },
             unit: 'tsp',
@@ -186,13 +189,13 @@ describe('ingredientRowName', () => {
             preparation: undefined,
         });
 
-        expect(
-            ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails, amountWords),
-        ).toBe('three quarters to 1 tsp salt');
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '¾–1 tsp salt',
+        );
     });
 
-    /** UI Designer condition: a mixed fraction inside a range is said in words on both ends of "to". */
-    it('says a mixed fraction inside a range in words', () => {
+    /** A mixed fraction inside a range keeps its glyph on the low end, as the row shows it. */
+    it('names a mixed fraction inside a range by its glyph', () => {
         const line = makeIngredientView({
             quantity: { kind: 'range', low: 1.5, high: 2 },
             unit: 'cups',
@@ -200,9 +203,9 @@ describe('ingredientRowName', () => {
             preparation: undefined,
         });
 
-        expect(
-            ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails, amountWords),
-        ).toBe('1 and a half to 2 cups flour');
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '1½–2 cups flour',
+        );
     });
 
     it('a line with no preparation is its amount and food', () => {
@@ -213,9 +216,9 @@ describe('ingredientRowName', () => {
             preparation: undefined,
         });
 
-        expect(
-            ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails, amountWords),
-        ).toBe('3 eggs');
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '3 eggs',
+        );
     });
 });
 

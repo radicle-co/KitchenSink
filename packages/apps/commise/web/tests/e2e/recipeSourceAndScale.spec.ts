@@ -233,7 +233,8 @@ test.describe('recipe detail — configurable serving size', () => {
             await page.getByRole('button', { name: 'More servings' }).click();
         }
 
-        await expect(page.getByRole('checkbox', { name: '1 and a half cups flour' })).toBeVisible();
-        await expect(page.getByRole('checkbox', { name: '1 and a half tbsp oil' })).toBeVisible();
+        // A checkbox is a control, so its name is its visible text, glyph included (WCAG 2.5.3, option C).
+        await expect(page.getByRole('checkbox', { name: '1½ cups flour' })).toBeVisible();
+        await expect(page.getByRole('checkbox', { name: '1½ tbsp oil' })).toBeVisible();
     });
 });

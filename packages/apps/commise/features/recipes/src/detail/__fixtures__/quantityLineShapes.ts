@@ -62,7 +62,7 @@ export const QUANTITY_LINE_SHAPES: readonly QuantityLineShape[] = [
         line: makeRootBoundLine({ quantity: { kind: 'range', low: 2, high: 3 }, unit: 'cups' }),
         quantity: '2–3 cups',
         name: 'beef brisket',
-        // The row's name says the range in words (UI Designer ruling Q5).
-        checkbox: '2 to 3 cups beef brisket',
+        // The checkbox is named by its visible text, dash included (WCAG 2.5.3, option C).
+        checkbox: '2–3 cups beef brisket',
     },
 ];

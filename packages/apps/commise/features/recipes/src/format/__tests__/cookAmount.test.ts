@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { recipeMessages } from '../../messages.js';
-import { formatAmountNumber, speakAmounts } from '../cookAmount.js';
+import { controlName, formatAmountNumber, speakAmounts } from '../cookAmount.js';
 
 /** The shipped English words, so the spoken cases also pin the copy a screen reader hears. */
 const WORDS = recipeMessages.en.amountWords;
@@ -68,6 +68,29 @@ describe('formatAmountNumber — a cook’s fraction (rules 1 and 2)', () => {
     });
 });
 
+/** GATE bug, PR 132: a scaled amount (⅛ tsp ÷ 16) is positive, so it never reads as nothing. */
+describe('formatAmountNumber — a positive amount never shows 0', () => {
+    it.each([
+        [0.008, 'tsp'],
+        [0.004, 'g'],
+        [0.0001, undefined],
+    ] as const)('shows %s %s as 0.01, and says it the same', (value, unit) => {
+        const shown = formatAmountNumber(value, 'en-US', unit);
+
+        expect(shown).toBe('0.01');
+        expect(speakAmounts(`${shown}\u00A0tsp salt`, WORDS)).toBe('0.01 tsp salt');
+    });
+
+    it('keeps a true 0 as 0', () => {
+        expect(formatAmountNumber(0, 'en-US', 'tsp')).toBe('0');
+        expect(formatAmountNumber(0, 'en-US', 'g')).toBe('0');
+    });
+
+    it('uses the locale’s decimal mark for the floor', () => {
+        expect(formatAmountNumber(0.008, 'de-DE', 'tsp')).toBe('0,01');
+    });
+});
+
 describe('formatAmountNumber — units (rule 3)', () => {
     it.each(['g', 'grams', 'kg', 'mg', 'milligrams', 'ml', 'mL', 'cl', 'dl', 'l', 'L', 'litres'])(
         'keeps a metric amount decimal in %s',
@@ -91,6 +114,14 @@ describe('formatAmountNumber — locales (rule 4)', () => {
         expect(formatAmountNumber(1.5, 'de-DE', 'Tassen')).toBe('1,5');
         expect(formatAmountNumber(1 / 3, 'fr-FR', 'tasse')).toBe('0,33');
         expect(formatAmountNumber(1.5, 'es', undefined)).toBe('1,5');
+    });
+});
+
+/** WCAG 2.5.3, option C (UI Designer, amending Q5): a control is named by what it shows, so its name keeps the glyph. */
+describe('controlName — a control’s name', () => {
+    it('keeps the fraction glyph and the range dash, and reads the no-break space as a space', () => {
+        expect(controlName('Edit 1½\u00A0cups whole milk, warmed')).toBe('Edit 1½ cups whole milk, warmed');
+        expect(controlName('2–3\u00A0cups flour')).toBe('2–3 cups flour');
     });
 });
 

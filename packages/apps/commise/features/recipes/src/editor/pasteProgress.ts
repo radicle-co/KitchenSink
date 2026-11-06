@@ -43,6 +43,16 @@ function ownStateOf(line: PastedLine, isNext: boolean): PasteRowState {
 }
 
 /**
+ * Whether a row waits on the cook: it can go no further until they retry it or pick a food.
+ *
+ * @param row - One reading row.
+ * @returns True for a retryable or lookup-failed row. Pure.
+ */
+export function waitsOnCook(row: PasteReadingRow): boolean {
+    return row.state === 'retryable' || row.state === 'lookupFailed';
+}
+
+/**
  * The rows for the lines not in the recipe yet, in paste order.
  *
  * @param input - The lines and what the session knows about them.
@@ -81,7 +91,7 @@ function isStep(state: PasteRowState): state is StepState {
 
 /** The status line, first match wins (UX spec). Pure. */
 function statusOf(rows: readonly PasteReadingRow[]): PasteProgressStatus {
-    const needsYou = rows.filter((row) => row.state === 'retryable' || row.state === 'lookupFailed').length;
+    const needsYou = rows.filter(waitsOnCook).length;
 
     if (needsYou > 0) {
         return { kind: 'needsYou', count: needsYou };

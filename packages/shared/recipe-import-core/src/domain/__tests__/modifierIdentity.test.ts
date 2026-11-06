@@ -6,6 +6,18 @@ import { classifyModifier } from '../modifierLexicon.js';
  * thyme. The catalog names them as foods of their own (`dried thyme`, `frozen spinach`, `canned tomatoes`), with their
  * own nutrition. `dried` was KTD-11b's accepted edge and `frozen` a temperature; this ruling reverses both.
  */
+/**
+ * Owner ruling 2026-11-06 (replaces the 2026-08-26 "a cook whips cream" test that lived in the last block of this
+ * file, for the BEFORE-the-food case): `whipped` is a sold-as word like `dried`, so it is identity and "1 cup whipped
+ * cream" stores the food `whipped cream`. After the comma ("heavy cream, whipped") it is still the cook's step, which
+ * the comparator decides by the field the word arrived in (`parseComparator.test.ts`), not by this lexicon.
+ */
+describe('whipped is identity (owner ruling 2026-11-06)', () => {
+    it.each(['whipped', 'Whipped', 'well-whipped'])('%s stays in the name', (word) => {
+        expect(classifyModifier(word)).toBe('identity');
+    });
+});
+
 describe('dried, frozen and canned are identity (owner ruling 2026-11-06)', () => {
     it.each(['dried', 'Dried', 'frozen', 'Frozen', 'canned', 'freeze-dried'])('%s stays in the name', (word) => {
         expect(classifyModifier(word)).toBe('identity');
@@ -51,7 +63,7 @@ describe('a purchasable form is identity, not preparation', () => {
     });
 
     /** ⛔ THE ANTI-OVER-REACH ASSERTION. These are things a cook DOES, and must stay preparation. */
-    it.each(['sifted', 'chopped', 'grated', 'melted', 'beaten', 'boiled', 'minced', 'whipped', 'mixed'])(
+    it.each(['sifted', 'chopped', 'grated', 'melted', 'beaten', 'boiled', 'minced', 'mixed'])(
         '%s names something DONE to the food, so it stays preparation',
         (word) => {
             expect(classifyModifier(word)).toBe('preparation');

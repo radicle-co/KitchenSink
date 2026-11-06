@@ -246,9 +246,16 @@ The participle row has one exception (owner ruling 2026-11-06). **A form the coo
 that includes a participle. The words are `dried`, `frozen` and `canned`. The parse prompt's other product
 descriptors follow the same rule (`unsalted`, `smoked`, `condensed`, `sun-dried` and the rest). Each names a different catalog food
 with its own nutrition. So "1 tsp dried thyme" binds dried thyme, and "unsalted butter" never binds salted
-butter. `frozen` is therefore not a temperature. Two participles stay preparation by ruling. The first is
-`whipped` (owner ruling 2026-08-26). The second is `mixed`, which in this corpus almost always names the cook's
-action. `promptDescriptorParity.test.ts` holds the lexicon equal to the prompt's list, with those two named.
+butter. `frozen` is therefore not a temperature. `whipped` is on the same list, but only BEFORE the food (owner
+ruling 2026-11-06): "1 cup whipped cream" is stored as the food `whipped cream`, so it binds the whipped cream
+food and not plain cream at the liquid cup weight. After the comma ("1 cup heavy cream, whipped") `whipped` is the
+cook's step and stays preparation. Position decides, and the engines already encode it by the field they put the
+word in, so `canonicaliseFood` leaves a `whipped` that arrived in the preparation where it is
+(`staysInPreparation` in `modifierLexicon.ts`). One participle stays preparation by ruling: `mixed`, which in this
+corpus almost always names the cook's action. `promptDescriptorParity.test.ts` holds the lexicon equal to the
+prompt's list, with `mixed` named. On the 1919 corpus, CRF leg (2,490 lines), the `whipped` ruling moves 2 lines,
+both with `whipped` before the food: "a tablespoon of whipped cream" and "Then put a layer of whipped cream over".
+No line with `whipped` after the food moved.
 
 ⛔ **The obvious fix a future reader will reach for is a part-of-speech tagger, and it is wrong.** This is
 recorded here because the library-first instinct is otherwise correct and the counter-evidence is easy to

@@ -287,6 +287,40 @@ describe('pastedLinesOf', () => {
     });
 
     /**
+     * Owner ruling 2026-11-06: `whipped` before the food is part of the row's name, after the comma it is the row's
+     * preparation. The typed reader (`leadingMeasure.test.ts`) answers the same two lines the same way.
+     */
+    it.each([
+        ['1 cup whipped cream', 'whipped cream', null, 'whipped cream', ''],
+        ['1 cup heavy cream, whipped', 'heavy cream', 'whipped', 'heavy cream', 'whipped'],
+    ] as const)(
+        'keeps %j as the name %j and the preparation %j',
+        (sourceLine, name, prep, sourcePhrase, preparation) => {
+            const job = makeParseJob({
+                lines: [
+                    makeParseJobLine({
+                        sourceLine,
+                        status: 'parsed',
+                        proposal: makeParseProposal({
+                            quantity: { kind: 'exact', value: 1 },
+                            unit: 'cup',
+                            statedMeasure: '1 cup',
+                            foods: [makeParseProposalFood({ name, prep })],
+                        }),
+                    }),
+                ],
+            });
+            const [settled] = pastedLinesOf(input({ job }));
+
+            expect(settled?.kind === 'settled' ? settled.rows[0] : undefined).toMatchObject({
+                name,
+                measure: { preparation },
+                sourcePhrase,
+            });
+        },
+    );
+
+    /**
      * 2026-10-09 review, Medium 1: the heading test ran only on the reader path, so a parse that proposed a food for a
      * heading ("dough" for "For the dough:") still added a food row. The heading is tested before the status decides.
      */

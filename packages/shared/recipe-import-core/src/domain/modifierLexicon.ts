@@ -184,6 +184,9 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     // `dried` and `frozen` are here by owner ruling 2026-11-06 ("1 tsp dried thyme" binds dried thyme). `dried` was
     // KTD-11b's accepted edge and `frozen` sat with the temperatures; ADR-0026 §5 records the carve-out. Consulted before
     // the `-ed` rule and before `head()`, so `freeze-dried` and `sun-dried` follow.
+    //
+    // `whipped` is here by owner ruling 2026-11-06 ("1 cup whipped cream" binds whipped cream), but only BEFORE the
+    // food: `canonicaliseFood` leaves it in the preparation field (see `STAYS_IN_PREPARATION`).
     'condensed',
     'dried',
     'frozen',
@@ -196,6 +199,7 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     'sweetened',
     'unbleached',
     'unsalted',
+    'whipped',
     'pastry',
     'plain',
     'raw',
@@ -245,6 +249,24 @@ function head(word: string): string {
     const lastHyphen = word.lastIndexOf('-');
 
     return lastHyphen > 0 && lastHyphen < word.length - 1 ? word.slice(lastHyphen + 1) : word;
+}
+
+/**
+ * Words that are identity written BEFORE the food and preparation written AFTER it (owner ruling 2026-11-06):
+ * "1 cup whipped cream" is the food `whipped cream`, "1 cup heavy cream, whipped" is heavy cream the cook whips.
+ * Position is the signal, and the engines already encode it by the field they put the word in.
+ */
+const STAYS_IN_PREPARATION: ReadonlySet<string> = new Set(['whipped']);
+
+/**
+ * Whether a word an engine put in the PREPARATION field is the cook's step even though {@link classifyModifier} calls
+ * it identity.
+ *
+ * @param word - The word as an engine returned it.
+ * @returns True when the comparator must leave it in the preparation. Pure and TOTAL.
+ */
+export function staysInPreparation(word: string): boolean {
+    return STAYS_IN_PREPARATION.has(head(fold(word)));
 }
 
 /**

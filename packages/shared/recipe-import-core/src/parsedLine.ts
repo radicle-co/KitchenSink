@@ -72,7 +72,8 @@ export interface ParsedFood {
      *
      *  - a **past participle is preparation** — `chopped`, `grated`, `melted`, `sifted`, `minced`,
      *    `stoned`, `beaten` — except a **form the cook buys**, which is identity: `dried`, `frozen`,
-     *    `canned`, `unsalted`, `smoked` (owner ruling 2026-11-06; `modifierLexicon.ts` lists them);
+     *    `canned`, `unsalted`, `smoked`, and `whipped` before the food (owner ruling 2026-11-06;
+     *    `modifierLexicon.ts` lists them);
      *  - an **adjective is identity** and belongs in {@link ParsedFood.name} — `sweet`, `brown`,
      *    `Italian`, `fresh`, `red`, `green`;
      *  - **temperature is preparation** — `hot`, `cold`, `boiling`, `lukewarm`, `warm`. The middle case,

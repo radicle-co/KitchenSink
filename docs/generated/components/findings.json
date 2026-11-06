@@ -4,12 +4,12 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 21,
-        "missing-component-doc": 164,
+        "missing-component-doc": 165,
         "missing-module-doc": 21,
-        "platform-singleton": 93,
+        "platform-singleton": 94,
         "ref-api": 19,
-        "unclassified-layer": 93,
-        "undocumented-prop": 193
+        "unclassified-layer": 94,
+        "undocumented-prop": 194
     },
     "findings": [
         {
@@ -3928,6 +3928,42 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/format/AmountText",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/format/AmountText",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresRecipes/format/AmountText",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/format/AmountText",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "text"
             ]
         },
         {

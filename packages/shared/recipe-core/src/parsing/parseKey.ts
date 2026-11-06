@@ -85,8 +85,26 @@ export type { HexDigest };
  *
  * ⚠️ The cost is one re-earn per line at engine cost, taken deliberately. It is bounded and one-time;
  * declining the bump was unbounded and permanent.
+ *
+ * ## `v3` (2026-11-06) — the CRF's `statedMeasure` became the SOURCE'S words
+ *
+ * The payload's shape did not change; what one member MEANS did. `statedMeasure` is defined as the measure "exactly as
+ * the source stated it", but `promoteCrfReading` stored the engine's own re-rendering of it (`ingredient-parser-nlp`
+ * 2.3.0 answers `2-3 cup` for `2-3 cups`, `1/2 cups` for `½ cup`, `2 Tbsps` for `2 Tbsp`). The editor saves a pasted
+ * row's unit from these words, so a cook who wrote `cups` was saved `cup`. The adapter now stores the line's own span
+ * wherever the engine's words line up with it. That is the trigger this constant exists for: a stored payload that no
+ * longer means what its reader takes it to mean. Because the write is `ON CONFLICT (parse_key) DO NOTHING`, a line
+ * cached before the fix would otherwise keep the engine's words forever.
+ *
+ * ⛔ What a `v2` row means to a future reader: its CRF row's `statedMeasure` may be the engine's re-rendering rather
+ * than the source's words. Its amount and unit are what `v3` would compute, and its LLM row is unchanged, but both
+ * are retired together because they are addressed by one line digest. `v2` rows are inert and enumerable
+ * (`WHERE parse_key LIKE 'v2:%'`).
+ *
+ * ⚠️ The cost is again one re-earn per line. Production was not live when this moved, so it fell on non-production
+ * stages.
  */
-export const PARSE_KEY_VERSION = 'v2';
+export const PARSE_KEY_VERSION = 'v3';
 
 /**
  * The two engines the comparison pipeline adjudicates between (U17, U18).

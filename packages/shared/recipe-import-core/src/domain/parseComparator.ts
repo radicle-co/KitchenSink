@@ -167,6 +167,19 @@ const COMPARISON_STOPWORDS: ReadonlySet<string> = new Set([
     'which',
 ]);
 
+/** A list separator an engine writes between preparations (the LLM joins them with ", "). */
+const SEPARATOR_EDGE = /^[,;]+|[,;]+$/gu;
+
+/**
+ * Join the words a field keeps, without the separator a moved word left behind.
+ *
+ * @param tokens - The words, in order.
+ * @returns The phrase, with no separator at either end. Pure.
+ */
+function joinKept(tokens: readonly string[]): string {
+    return tokens.join(' ').replace(SEPARATOR_EDGE, '');
+}
+
 /** Everything that is not a letter, a digit or an internal hyphen. */
 const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
 
@@ -264,8 +277,13 @@ export function canonicaliseFood(food: ParsedFood): ParsedFood {
     const alreadyNamed = new Set(keptName.map(fold));
     const alreadyPrepared = new Set(prepStays.map(fold));
 
-    const name = [...toName.filter((token) => !alreadyNamed.has(fold(token))), ...keptName].join(' ');
-    const prep = [...prepStays, ...movedToPrep.filter((token) => !alreadyPrepared.has(fold(token)))].join(' ');
+    // A moved word travels without the separator it sat beside in its old field.
+    const unseparated = (token: string): string => token.replace(SEPARATOR_EDGE, '');
+    const name = joinKept([...toName.filter((token) => !alreadyNamed.has(fold(token))).map(unseparated), ...keptName]);
+    const prep = joinKept([
+        ...prepStays,
+        ...movedToPrep.filter((token) => !alreadyPrepared.has(fold(token))).map(unseparated),
+    ]);
 
     return { name, prep: prep === '' ? null : prep };
 }

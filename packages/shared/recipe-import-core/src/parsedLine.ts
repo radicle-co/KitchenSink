@@ -71,7 +71,8 @@ export interface ParsedFood {
      * claim about English:
      *
      *  - a **past participle is preparation** — `chopped`, `grated`, `melted`, `sifted`, `minced`,
-     *    `stoned`, `beaten`;
+     *    `stoned`, `beaten` — except a **form the cook buys**, which is identity: `dried`, `frozen`,
+     *    `canned`, `unsalted`, `smoked` (owner ruling 2026-11-06; `modifierLexicon.ts` lists them);
      *  - an **adjective is identity** and belongs in {@link ParsedFood.name} — `sweet`, `brown`,
      *    `Italian`, `fresh`, `red`, `green`;
      *  - **temperature is preparation** — `hot`, `cold`, `boiling`, `lukewarm`, `warm`. The middle case,
@@ -81,8 +82,8 @@ export interface ParsedFood {
      * so a suffix test mis-files them; and `-ed` alone is not a participle test, because `cut`, `ground`
      * and `beaten` are irregular. Whatever classifies a modifier needs an explicit vocabulary, not a regex.
      *
-     * ⚠️ Accepted edge: `cooked green peas` files `cooked` as preparation and `green` as identity, and
-     * `dried figs` files `dried` as preparation. Both are arguably identity to a cook.
+     * ⚠️ Accepted edge: `cooked green peas` files `cooked` as preparation and `green` as identity.
+     * `cooked` is arguably identity to a cook. `dried figs` was the second edge until the 2026-11-06 ruling.
      */
     readonly prep: string | null;
 }

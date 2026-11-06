@@ -261,6 +261,31 @@ describe('pastedLinesOf', () => {
         ]);
     });
 
+    /** Owner ruling 2026-11-06: a form the cook buys is part of the row's name, never its preparation. */
+    it('keeps `dried` in the row’s name', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine: '1 tsp dried thyme',
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: 'teaspoon',
+                        statedMeasure: '1 tsp',
+                        foods: [makeParseProposalFood({ name: 'dried thyme', prep: null })],
+                    }),
+                }),
+            ],
+        });
+        const [settled] = pastedLinesOf(input({ job }));
+
+        expect(settled?.kind === 'settled' ? settled.rows[0] : undefined).toMatchObject({
+            name: 'dried thyme',
+            measure: { preparation: '' },
+            sourcePhrase: 'dried thyme',
+        });
+    });
+
     /**
      * 2026-10-09 review, Medium 1: the heading test ran only on the reader path, so a parse that proposed a food for a
      * heading ("dough" for "For the dough:") still added a food row. The heading is tested before the status decides.

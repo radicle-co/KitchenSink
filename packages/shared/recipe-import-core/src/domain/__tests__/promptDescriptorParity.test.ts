@@ -20,10 +20,6 @@ import { classifyModifier } from '../modifierLexicon.js';
 
 /** The prompt words the lexicon files as preparation on purpose, each with the ruling that says so. */
 const RULED_PREPARATION: Readonly<Record<string, string>> = {
-    // `parsedLine.ts` ParsedFood.prep: "`dried figs` files `dried` as preparation" (accepted edge). Owner question open.
-    dried: 'accepted edge, ParsedFood.prep (KTD-11b)',
-    // KTD-11b: temperature is preparation, and `frozen` is in TEMPERATURES. Owner question open.
-    frozen: 'KTD-11b temperature is preparation',
     // Owner ruling 2026-08-23 as refined 2026-08-26 (modifierIdentity.test.ts): a cook whips cream.
     whipped: 'owner ruling 2026-08-26, something a cook does',
     // The 1919 corpus diff (2026-11-06): as identity it moved 9 lines, and on 8 of them `mixed` FOLLOWS the food as the

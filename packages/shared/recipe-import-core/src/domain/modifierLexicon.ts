@@ -71,7 +71,6 @@ const TEMPERATURES: ReadonlySet<string> = new Set([
     'boiling',
     'chilled',
     'cold',
-    'frozen',
     'hot',
     'iced',
     'lukewarm',
@@ -181,7 +180,13 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     // `unsalted butter` was stored as `butter` and bound to salted butter. The prompt keeps these in the name, and this
     // list must agree with it: `promptDescriptorParity.test.ts` reads the prompt's list and fails on any word filed
     // here as preparation, except the ones that test lists with their reason.
+    //
+    // `dried` and `frozen` are here by owner ruling 2026-11-06 ("1 tsp dried thyme" binds dried thyme). `dried` was
+    // KTD-11b's accepted edge and `frozen` sat with the temperatures; ADR-0026 §5 records the carve-out. Consulted before
+    // the `-ed` rule and before `head()`, so `freeze-dried` and `sun-dried` follow.
     'condensed',
+    'dried',
+    'frozen',
     'evaporated',
     'refried',
     'roasted',

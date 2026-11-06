@@ -78,3 +78,85 @@ describe('a purchasable form survives the parse pipeline', () => {
         });
     });
 });
+
+/**
+ * Owner ruling 2026-11-06: `dried`, `frozen` and `canned` stay in the name through the whole pipeline. Each CRF row is
+ * the engine's real answer (`ingredient-parser-nlp` 2.3.0, run 2026-11-06); each LLM answer is what the parse prompt's
+ * rule 7 tells the model to give ("ONLY these product descriptors stay in the name: dried, canned, … frozen").
+ */
+describe('dried, frozen and canned survive the parse pipeline', () => {
+    const cases: readonly {
+        line: string;
+        crf: CrfReading;
+        llm: { statedMeasure: string; name: string; prep: string | null };
+    }[] = [
+        {
+            line: '1 tsp dried thyme',
+            crf: {
+                sentence: '1 tsp dried thyme',
+                measure: '1 tsp',
+                names: ['dried thyme'],
+                size: null,
+                preparation: null,
+                comment: null,
+            },
+            llm: { statedMeasure: '1 tsp', name: 'dried thyme', prep: null },
+        },
+        {
+            line: '2 cups frozen blueberries, thawed',
+            crf: {
+                sentence: '2 cups frozen blueberries, thawed',
+                measure: '2 cups',
+                names: ['frozen blueberries'],
+                size: null,
+                preparation: 'thawed',
+                comment: null,
+            },
+            llm: { statedMeasure: '2 cups', name: 'frozen blueberries', prep: 'thawed' },
+        },
+        {
+            line: '2 cups canned tomatoes',
+            crf: {
+                sentence: '2 cups canned tomatoes',
+                measure: '2 cups',
+                names: ['canned tomatoes'],
+                size: null,
+                preparation: null,
+                comment: null,
+            },
+            llm: { statedMeasure: '2 cups', name: 'canned tomatoes', prep: null },
+        },
+    ];
+
+    it.each(cases)('$line keeps the word in the food’s name', async ({ line, crf, llm }) => {
+        const ports: ParseEnginePorts = {
+            crf: {
+                engine: 'crf',
+                engineVersion: 'ingredient-parser-nlp==2.3.0',
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((sourceLine) => promoteCrfReading(crf, sourceLine));
+                },
+            },
+            llm: {
+                engine: 'llm',
+                engineVersion: 'test-llm@v1',
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((sourceLine) =>
+                        promoteLlmParse(
+                            { statedMeasure: llm.statedMeasure, foods: [{ name: llm.name, prep: llm.prep }] },
+                            sourceLine,
+                        ),
+                    );
+                },
+            },
+        };
+        const [outcome] = await runParsePipeline(
+            [line],
+            { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines: ports, digest: sha256 },
+            { userId: undefined },
+            { onTierFailure: () => undefined, onUnreadablePayload: () => undefined },
+        );
+
+        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep }]);
+    });
+});

@@ -15,6 +15,7 @@
  * | U36 — and the rescued unit survives the `jsonb` round trip | "a warm run serves the rescued unit from the cache" |
  * | U22 — a flag only a validator could raise survives the `jsonb` round trip | "a warm run serves back a flag" |
  * | `ParsedFacts.statedMeasure` — the cook's words reach the pasted row | "the cook`s own measure words" |
+ * | `PARSE_KEY_VERSION` `v3` — a row the old CRF adapter wrote is a miss, and enumerable | "a `v2` row" |
  *
  * What this tier proves that the unit tier structurally cannot:
  *
@@ -43,6 +44,8 @@ import {
 } from '@kitchensink/recipe-core';
 import {
     lineDigest,
+    parseStoredLineDigest,
+    PARSE_KEY_VERSION,
     type HexDigest,
     type LineDigest,
     type ParseEngine,
@@ -1333,5 +1336,63 @@ describe('the cook`s own measure words reach the pasted row, whichever engine wi
             engine: 'crf',
         });
         expect(outcome?.parsed?.statedMeasure).toBe('2-3 cups');
+    });
+
+    /**
+     * ⛔ `v3` (parseKey.ts): a row the old adapter wrote carries the CRF's re-rendered words, and the cache is written
+     * `ON CONFLICT DO NOTHING`, so without the bump a line cached before the fix would keep `2-3 cup` forever. The two
+     * planted rows are what `v2` wrote for this line, keyed by `v2`'s own derivation (the preimages `parseKey.ts`
+     * documents), so this asserts what a deployed `v2` row meets rather than what the current code would write.
+     */
+    it('a `v2` row is a miss, so the fix reaches a line cached before it, and it is enumerable', async () => {
+        const line = '2-3 cups chicken stock';
+        const v2Digest = `v2:${sha256(JSON.stringify(['v2', line]))}`;
+        const v2Key = (engine: ParseEngine, engineVersion: string): string =>
+            `v2:${sha256(JSON.stringify(['v2', v2Digest, engine, engineVersion]))}`;
+        const v2Payload = (statedMeasure: string): string =>
+            JSON.stringify({
+                statedMeasure,
+                quantity: { kind: 'range', low: 2, high: 3 },
+                unit: 'cup',
+                foods: [{ name: 'chicken stock', prep: null }],
+                reviewReasons: [],
+            });
+        const cache = makeJsonCache();
+
+        cache.rows.set(v2Key('crf', CRF_VERSION), {
+            engine: 'crf',
+            engineVersion: CRF_VERSION,
+            lineDigest: parseStoredLineDigest(v2Digest),
+            parse: v2Payload('2-3 cup'),
+        });
+        cache.rows.set(v2Key('llm', LLM_VERSION), {
+            engine: 'llm',
+            engineVersion: LLM_VERSION,
+            lineDigest: parseStoredLineDigest(v2Digest),
+            parse: v2Payload('2-3 cups'),
+        });
+
+        const [outcome] = await runParsePipeline(
+            [line],
+            { corrections: NO_CORRECTIONS, cache, engines: makeMeasuredEngines(), digest: sha256 },
+            { userId: undefined },
+            makeObservers(),
+        );
+
+        // A miss: both engines were asked again, and the stored measure is the cook's words.
+        expect(outcome !== undefined && 'fromCache' in outcome ? outcome.fromCache : null).toEqual([]);
+        expect(outcome?.parsed?.statedMeasure).toBe('2-3 cups');
+
+        // Enumerable: `LIKE 'v2:%'` finds exactly the two superseded rows, and none the run wrote.
+        const keys = [...cache.rows.keys()];
+
+        expect(keys.filter((key) => key.startsWith('v2:'))).toEqual([
+            v2Key('crf', CRF_VERSION),
+            v2Key('llm', LLM_VERSION),
+        ]);
+        expect(keys.filter((key) => !key.startsWith('v2:'))).toHaveLength(2);
+        expect(
+            keys.filter((key) => !key.startsWith('v2:')).every((key) => key.startsWith(`${PARSE_KEY_VERSION}:`)),
+        ).toBe(true);
     });
 });

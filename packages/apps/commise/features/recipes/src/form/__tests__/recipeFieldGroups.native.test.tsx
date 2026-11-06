@@ -342,7 +342,7 @@ describe('the recipe field groups (native) — preparation (U26)', () => {
             />,
         );
 
-        expect(screen.getByRole('button', { name: 'Edit 1 Onion, diced' }).textContent).toContain('Onion · diced');
+        expect(screen.getByRole('button', { name: 'Edit 1 Onion, diced' }).textContent).toContain('Onion\u00A0· diced');
 
         const sheet = openEditor('Edit 1 Onion, diced', 'Onion');
         fireEvent.change(within(sheet).getByLabelText(en.rowPrepLabel), { target: { value: 'sliced' } });

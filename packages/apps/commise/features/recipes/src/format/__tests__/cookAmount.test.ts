@@ -5,7 +5,7 @@
  * | ---- | ---- |
  * | 1. one fraction glyph joined to the whole, no space | "shows a cook's fraction" |
  * | 2. only ½ ⅓ ⅔ ¼ ¾ ⅛ ⅜ ⅝ ⅞, snapped within 0.01, else at most 2 decimals | "snaps within 0.01 and no further" |
- * | 3. g, kg, ml, l stay decimal; spoons, cups, oz, lb and counts use fractions | "keeps a metric amount decimal" |
+ * | 3. g, kg, mg, ml, cl, dl, l stay decimal; spoons, cups, oz, lb and counts use fractions | "keeps a metric amount decimal" |
  * | 4. en-* locales use fractions, every other locale a decimal with its own mark | "every other locale" |
  * | 5. the spoken form uses localized words, never the glyph | "speaks" |
  *
@@ -69,10 +69,13 @@ describe('formatAmountNumber — a cook’s fraction (rules 1 and 2)', () => {
 });
 
 describe('formatAmountNumber — units (rule 3)', () => {
-    it.each(['g', 'grams', 'kg', 'ml', 'mL', 'l', 'L', 'litres'])('keeps a metric amount decimal in %s', (unit) => {
-        expect(formatAmountNumber(1.5, 'en-US', unit)).toBe('1.5');
-        expect(formatAmountNumber(0.25, 'en-GB', unit)).toBe('0.25');
-    });
+    it.each(['g', 'grams', 'kg', 'mg', 'milligrams', 'ml', 'mL', 'cl', 'dl', 'l', 'L', 'litres'])(
+        'keeps a metric amount decimal in %s',
+        (unit) => {
+            expect(formatAmountNumber(1.5, 'en-US', unit)).toBe('1.5');
+            expect(formatAmountNumber(0.25, 'en-GB', unit)).toBe('0.25');
+        },
+    );
 
     it.each(['cup', 'tbsp', 'teaspoons', 'oz', 'lb', 'pinch'])('uses fractions in %s', (unit) => {
         expect(formatAmountNumber(1.5, 'en-US', unit)).toBe('1½');

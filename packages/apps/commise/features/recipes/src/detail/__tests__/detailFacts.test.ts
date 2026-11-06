@@ -191,6 +191,20 @@ describe('ingredientRowName', () => {
         ).toBe('three quarters to 1 tsp salt');
     });
 
+    /** UI Designer condition: a mixed fraction inside a range is said in words on both ends of "to". */
+    it('says a mixed fraction inside a range in words', () => {
+        const line = makeIngredientView({
+            quantity: { kind: 'range', low: 1.5, high: 2 },
+            unit: 'cups',
+            name: 'flour',
+            preparation: undefined,
+        });
+
+        expect(
+            ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails, amountWords),
+        ).toBe('1 and a half to 2 cups flour');
+    });
+
     it('a line with no preparation is its amount and food', () => {
         const line = makeIngredientView({
             quantity: { kind: 'exact', value: 3 },

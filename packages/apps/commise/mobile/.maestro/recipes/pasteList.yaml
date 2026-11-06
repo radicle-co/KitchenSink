@@ -4,9 +4,14 @@ appId: ${APP_ID}
 # slice 8). Mobile mirror of the web Playwright `ingredientPasteList.spec.ts`. REPLACES `parseIngredients.yaml`: the
 # paste and review screens are retired, and the flow ends inside the recipe.
 #
-# What only this tier proves: on a device the pasted lines go to the parse job, each line is a row reading at once, and
-# the POLL advances them into the recipe while the app is foregrounded (the parse worker answers; nothing is tapped
-# between), where they are matched (ADR-0071). The field's own system paste menu is the native paste (Settled 34), so the flow types the lines.
+# What only this tier proves: on a device the pasted lines go to the parse job, and the POLL advances them into the recipe
+# while the app is foregrounded (the parse worker answers; nothing is tapped between), where they are matched (ADR-0071).
+# The field's own system paste menu is the native paste (Settled 34), so the flow types the lines.
+#
+# It asserts the SETTLED outcome only, never the progress block's "Added N of 2 lines" (lead ruling on issue #143,
+# 2026-11-06): once a stage has parsed these lines, its parse cache settles the paste before Maestro can see that state,
+# so the check passed only on a stage's first run. The reading state and its block are the component tests' subject on
+# both platforms (`RecipeIngredientsFields.test.tsx`, `RecipeIngredientsFields.native.test.tsx`).
 #
 # It discards its draft, so it leaves the library as it found it. It needs the parse worker running (the local
 # runner starts `recipe-workers`).
@@ -42,13 +47,9 @@ appId: ${APP_ID}
 - assertVisible: '2 lines'
 - tapOn: 'Add 2 ingredients'
 
-# The sheet closes once the job is accepted, and the one progress block says where the paste is (plan 2026-10-15-011).
+# The sheet closes once the job is accepted.
 - extendedWaitUntil:
       notVisible: 'Ingredient lines'
-      timeout: 30000
-- extendedWaitUntil:
-      visible:
-          text: 'Added [0-2] of 2 lines.*'
       timeout: 30000
 # ⛔ REWRITTEN for ADR-0071 (2026-10-26). The pasted lines used to join as ordinary rows ("Edit 2 cups flour") through a
 # by-name lookup, which bound a ranked guess. They are now MATCHED: the poll brings the parse, the app asks for the

@@ -18,8 +18,7 @@ Sentry.init({
     beforeSend: scrubEvent,
     beforeSendLog: scrubLog,
     // One release-health session per DOCUMENT LOAD. The default (`lifecycle: 'route'`) starts a new session on every
-    // history write that changes the address, and here those are not visits: Next writes the address on hydration,
-    // Clerk strips its ticket and handshake parameters, and Discover writes its criteria on each keystroke. An array
+    // history write that changes the address, and this app writes the address for state, not for visits. An array
     // (not a function) keeps every other default integration; this one replaces the default of the same name.
     integrations: [Sentry.browserSessionIntegration({ lifecycle: 'page' })],
 });

@@ -2,9 +2,8 @@
  * The browser Sentry config keeps ONE release-health session per document load.
  *
  * The SDK's default `browserSessionIntegration` uses `lifecycle: 'route'`: every history write that changes the address
- * ends the session and starts a new one. In this app a history write is not a visit — Next writes the address on
- * hydration, Clerk strips its ticket and handshake parameters, and Discover writes its criteria on each keystroke — so a
- * sandbox load of `/en/discover` sent a chain of session envelopes, each new `sid` starting when the last one ended.
+ * ends the session and starts a new one. In this app a history write records state, not a visit, so each page load
+ * sent a chain of session envelopes, each new `sid` starting when the last one ended.
  *
  * This runs the REAL browser SDK over the real config, so it proves the override takes effect (a user integration
  * replaces the default of the same name), not just that the config mentions it.
@@ -28,7 +27,10 @@ describe('instrumentation-client', () => {
     beforeAll(async () => {
         vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', 'https://public@o0.ingest.sentry.io/1');
         // A sent envelope must not reach the network.
-        vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(null, { status: 200 }))));
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() => Promise.resolve(new Response(null, { status: 200 }))),
+        );
         await import('../instrumentation-client');
     });
 

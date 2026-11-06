@@ -11,6 +11,7 @@ import {
     formatChangedFromCurrent,
     resolveVersionPreview,
     toVersionPreviewIngredientLines,
+    versionLineAccessibilityLabel,
 } from '../preview.js';
 
 const conflict = recipeVersionMessages.en.conflict;
@@ -41,8 +42,8 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
         );
 
         expect(lines).toEqual([
-            { key: 'ri_1', text: '200 g Pasta' },
-            { key: 'ri_2', text: '1 cup Cherry tomatoes' },
+            { key: 'ri_1', text: '200\u00A0g Pasta' },
+            { key: 'ri_2', text: '1\u00A0cup Cherry tomatoes' },
         ]);
     });
 
@@ -55,7 +56,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line?.text).toBe(`200 g ${lineNames.notSavedInVersion}`);
+        expect(line?.text).toBe(`200\u00A0g ${lineNames.notSavedInVersion}`);
         expect(line?.text).not.toContain('undefined');
     });
 
@@ -86,7 +87,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
 
         expect(line).toEqual({
             key: 'ri_1',
-            text: '2 lb beef brisket',
+            text: '2\u00A0lb beef brisket',
             variantParts: ['flat half', 'select', 'braised'],
         });
     });
@@ -147,7 +148,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta', calories: '0 cal' });
+        expect(line).toEqual({ key: 'ri_1', text: '200\u00A0g Pasta', calories: '0 cal' });
         expect('calories' in (line as object)).toBe(true);
         expect(line?.calories).toBe('0 cal');
     });
@@ -161,7 +162,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta' });
+        expect(line).toEqual({ key: 'ri_1', text: '200\u00A0g Pasta' });
         expect('calories' in (line as object)).toBe(false);
         expect(line?.calories).toBeUndefined();
     });
@@ -182,7 +183,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line?.text).toBe('2 tbsp Olive oil (extra virgin)');
+        expect(line?.text).toBe('2\u00A0tbsp Olive oil (extra virgin)');
     });
 
     it('renders the bare ingredient name when displayText is absent', () => {
@@ -194,7 +195,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line?.text).toBe('3 oz Basil');
+        expect(line?.text).toBe('3\u00A0oz Basil');
     });
 });
 
@@ -430,5 +431,43 @@ describe('resolveVersionPreview', () => {
         resolveVersionPreview({ previewTarget: 1, versions, currentVersion: 2, restoringVersion: null });
 
         expect(versions).toStrictEqual([v2, v1]);
+    });
+});
+
+/** UI Designer ruling Q5: the native preview line says a fraction in words, and labels nothing it need not. */
+describe('versionLineAccessibilityLabel', () => {
+    const words = recipeMessages.en.amountWords;
+
+    it('says a fraction in words', () => {
+        expect(versionLineAccessibilityLabel({ key: 'ri_1', text: '1½\u00A0cups Milk' }, words)).toBe(
+            '1 and a half cups Milk',
+        );
+    });
+
+    it('carries the inline refusal marker, which the label replaces', () => {
+        expect(
+            versionLineAccessibilityLabel(
+                { key: 'ri_1', text: '¾\u00A0tsp Salt', cannotRestore: 'can’t be restored' },
+                words,
+            ),
+        ).toBe('three quarters tsp Salt can’t be restored');
+    });
+
+    it('leaves the marker to its own line when the line has details', () => {
+        expect(
+            versionLineAccessibilityLabel(
+                {
+                    key: 'ri_1',
+                    text: '½\u00A0lb Beef',
+                    cannotRestore: 'can’t be restored',
+                    variantParts: ['flat half'],
+                },
+                words,
+            ),
+        ).toBe('a half lb Beef');
+    });
+
+    it('labels nothing when the text already says itself', () => {
+        expect(versionLineAccessibilityLabel({ key: 'ri_1', text: '200\u00A0g Pasta' }, words)).toBeUndefined();
     });
 });

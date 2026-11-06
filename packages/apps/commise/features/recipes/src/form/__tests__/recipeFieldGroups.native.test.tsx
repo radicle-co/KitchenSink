@@ -201,7 +201,7 @@ describe('the recipe field groups (native) — error wiring (WCAG 3.3.1)', () =>
 
         expect(screen.getAllByText(en.rowAmountInvalid)).toHaveLength(1);
 
-        openEditor('Edit 2–100,000,000 Stock', 'Stock');
+        openEditor('Edit 2 to 100,000,000 Stock', 'Stock');
 
         // REWRITTEN: this asserted `aria-invalid` in the DOM, which a device ignores. Both bounds say the note.
         expect(recordedTextInputLabelled(en.rowAmountLabel).accessibilityHint).toBe(en.rowAmountInvalid);
@@ -233,7 +233,7 @@ describe('the recipe field groups (native) — the amount in the row editor (U9/
     it('a stated range shows BOTH bounds; the visible "to" is hidden from assistive tech', () => {
         renderForm({ values: ranged(2, 3) });
 
-        const sheet = openEditor('Edit 2–3 cup Stock', 'Stock');
+        const sheet = openEditor('Edit 2 to 3 cup Stock', 'Stock');
 
         expect((within(sheet).getByLabelText(en.rowAmountLabel) as HTMLInputElement).value).toBe('2');
         expect((within(sheet).getByLabelText(en.rowAmountHighLabel) as HTMLInputElement).value).toBe('3');
@@ -252,7 +252,7 @@ describe('the recipe field groups (native) — the amount in the row editor (U9/
         const onValues = vi.fn<(values: RecipeFormValues) => void>();
         render(<Stateful initial={ranged(2, 3)} onValues={onValues} />);
 
-        const sheet = openEditor('Edit 2–3 cup Stock', 'Stock');
+        const sheet = openEditor('Edit 2 to 3 cup Stock', 'Stock');
 
         fireEvent.change(within(sheet).getByLabelText(en.rowAmountHighLabel), { target: { value: '' } });
         expect(onValues.mock.lastCall?.[0].ingredients[0]).not.toHaveProperty('quantityHigh');

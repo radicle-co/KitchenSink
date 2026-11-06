@@ -12,7 +12,8 @@ import { variantPartTexts } from '../detail/lineName.js';
 import { formatIngredientLine } from '../detail/model.js';
 import { formatRecipeCount } from '../list/model.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import type { IngredientLineNameMessages } from '../messages.js';
+import { spokenAmountsLabel } from '../format/cookAmount.js';
+import type { AmountWordMessages, IngredientLineNameMessages } from '../messages.js';
 import { diffSnapshots, type SnapshotDiff } from './diff.js';
 import { snapshotFieldLabel } from './diffLabels.js';
 import type { RecipeVersionRestoreError } from './history.js';
@@ -83,6 +84,33 @@ export interface VersionPreviewIngredientLine {
      */
     readonly variantParts?: readonly [string, ...string[]];
 }
+
+/**
+ * A preview line's native accessibility label: its text with each fraction in words (UI Designer ruling Q5), and the
+ * refusal marker the line reads inline when it has no details. `undefined` when the text already says itself, so the
+ * native leaf labels nothing and its nested text is read as it is. Pure.
+ *
+ * ⚠️ Native only. React Native reads a nested `Text` as part of its parent, so the label must carry the whole line; the
+ * web leaf puts the words beside the text (`AmountText`) and reads the marker as its own node.
+ *
+ * @param line - The projected line.
+ * @param words - The localized words for an amount's fractions.
+ * @returns The label, or `undefined`.
+ */
+export const versionLineAccessibilityLabel = (
+    line: VersionPreviewIngredientLine,
+    words: AmountWordMessages,
+): string | undefined => {
+    const spoken = spokenAmountsLabel(line.text, words);
+
+    if (spoken === undefined) {
+        return undefined;
+    }
+
+    return line.cannotRestore !== undefined && line.variantParts === undefined
+        ? `${spoken} ${line.cannotRestore}`
+        : spoken;
+};
 
 /**
  * Project a version snapshot's ingredient lines into the pre-formatted rows the preview modal renders.

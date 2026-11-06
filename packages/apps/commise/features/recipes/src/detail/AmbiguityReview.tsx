@@ -34,6 +34,7 @@ import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { useId, useState, type FC, type JSX } from 'react';
 
 import { useAmbiguityPick, type AmbiguityPickController } from '../hooks/useAmbiguityPick.js';
+import { AmountText } from '../format/AmountText.js';
 import { recipeMessages } from '../messages.js';
 import {
     ambiguityReviewLines,
@@ -91,7 +92,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
             {/* Named by the line's summary (`AmbiguityReviewRowModel.summary`). */}
             <div role="group" aria-labelledby={nameId} className="flex flex-col gap-2">
                 <span id={nameId} className="text-body-sm font-semibold text-ink">
-                    {row.summary}
+                    <AmountText text={row.summary} />
                 </span>
 
                 {row.groups.map((group) => (

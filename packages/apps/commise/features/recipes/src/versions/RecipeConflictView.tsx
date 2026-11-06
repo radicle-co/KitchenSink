@@ -43,6 +43,7 @@ import type { ChangeEvent, FC } from 'react';
 
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { AmountText } from '../format/AmountText.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import {
     type ConflictOptionCardProps,
@@ -333,7 +334,9 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 {row.base !== undefined && (
                                     <SideValue parts={conflictSideParts(row, 'base')}>
                                         <span className="text-body-sm text-ink-muted">
-                                            {fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                            <AmountText
+                                                text={fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                            />
                                         </span>
                                     </SideValue>
                                 )}
@@ -341,7 +344,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                 {(['theirs', 'mine'] as const).map((side) => (
                                     <SideValue key={side} parts={conflictSideParts(row, side)}>
                                         <span className="text-body-sm text-ink">
-                                            {conflictOptionLabel(row, side, conflict)}
+                                            <AmountText text={conflictOptionLabel(row, side, conflict)} />
                                         </span>
                                     </SideValue>
                                 ))}

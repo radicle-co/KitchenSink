@@ -43,7 +43,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     onToggle,
     divided = false,
 }) => {
-    const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
+    const { detail, ingredientLineName, ingredientDetails, amountWords } = useMessages(recipeMessages);
     const locale = useLocale();
     const statusId = useId();
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
@@ -61,6 +61,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     locale,
                     ingredientLineName,
                     ingredientDetails.checkLabelWithDetails,
+                    amountWords,
                 )}
                 aria-describedby={statuses.length > 0 ? statusId : undefined}
                 onClick={() => onToggle(ingredient.ingredientId)}

@@ -9,7 +9,9 @@
 import type { Locale } from '@commise/i18n';
 
 import { formatQuantity } from '../detail/model.js';
+import { speakAmounts } from '../format/cookAmount.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import type { AmountWordMessages } from '../messages.js';
 import { readLeadingMeasure } from './leadingMeasure.js';
 
 /** The four part templates, already localised (`editorMessages.ingredients.reading`). */
@@ -32,9 +34,15 @@ export interface LiveReading {
  * @param text - The field's text.
  * @param locale - The active locale, for the amount.
  * @param copy - The part templates.
+ * @param words - The words for an amount's fractions, so the spoken amount never says a fraction character.
  * @returns The reading, or `undefined` when the text is only a food: the field already shows that.
  */
-export function liveReadingOf(text: string, locale: Locale, copy: LiveReadingCopy): LiveReading | undefined {
+export function liveReadingOf(
+    text: string,
+    locale: Locale,
+    copy: LiveReadingCopy,
+    words: AmountWordMessages,
+): LiveReading | undefined {
     const { quantity, unit, search, preparation, measureText } = readLeadingMeasure(text);
 
     if (measureText === '' && preparation === '') {
@@ -42,7 +50,9 @@ export function liveReadingOf(text: string, locale: Locale, copy: LiveReadingCop
     }
 
     const spokenParts = [
-        quantity.kind === 'absent' ? '' : fillTemplate(copy.amount, { amount: formatQuantity(quantity, locale) }),
+        quantity.kind === 'absent'
+            ? ''
+            : fillTemplate(copy.amount, { amount: speakAmounts(formatQuantity(quantity, locale), words) }),
         unit === '' ? '' : fillTemplate(copy.unit, { unit }),
         search === '' ? '' : fillTemplate(copy.food, { food: search }),
         preparation === '' ? '' : fillTemplate(copy.prep, { prep: preparation }),

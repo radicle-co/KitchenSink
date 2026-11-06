@@ -63,11 +63,11 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         // VIEW — the detail renders the SPAN, not its lower bound. The checkbox's accessible name is composed
-        // from the same formatted quantity the sighted row shows, so asserting on it covers both.
+        // from the same formatted quantity the sighted row shows ("2–3"), said with the range words (Q5).
         await expect(page.getByRole('heading', { name: 'E2E Range Loaf' })).toBeVisible();
         const createdId = new URL(page.url()).pathname.split('/recipes/')[1]?.split('/')[0];
         expect(createdId).toBeTruthy();
-        await expect(page.getByRole('checkbox', { name: '2–3 cups Salt' })).toBeVisible();
+        await expect(page.getByRole('checkbox', { name: '2 to 3 cups Salt' })).toBeVisible();
         // The narrowing failure, stated as its own assertion so a regression names itself.
         await expect(page.getByRole('checkbox', { name: '2 cups Salt' })).toHaveCount(0);
 
@@ -82,7 +82,7 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         // Published now, so its one write is Save changes (slice 7, D1).
         await page.getByRole('button', { name: 'Save changes' }).click();
 
-        await expect(page.getByRole('checkbox', { name: '2–4 cups Salt' })).toBeVisible();
+        await expect(page.getByRole('checkbox', { name: '2 to 4 cups Salt' })).toBeVisible();
     });
 
     test('states NO quantity, and the recipe stays editable and saveable (R40)', async ({ page }) => {

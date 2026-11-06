@@ -214,7 +214,7 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         const [rice, salt] = rowItems();
 
         expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
-            '300 gArborio rice · rinsed',
+            '300\u00A0gArborio rice · rinsed',
         );
         // No amount: the column is empty, never an invented "1" (F5).
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
@@ -233,7 +233,7 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         const [one, two] = rowItems();
 
         expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
-            '1 largeonion · diced',
+            '1\u00A0largeonion · diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });

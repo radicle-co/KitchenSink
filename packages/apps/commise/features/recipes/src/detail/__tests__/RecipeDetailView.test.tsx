@@ -517,7 +517,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
 
         const ingredients = screen.getByRole('region', { name: 'Ingredients' });
         expect(within(ingredients).getByText('Lamb leg')).toBeTruthy();
-        expect(within(ingredients).getByText('1.5 lbs')).toBeTruthy();
+        expect(within(ingredients).getByText('1½ lbs')).toBeTruthy();
     });
 
     it('renders ingredient notes when present', () => {
@@ -1559,7 +1559,7 @@ describe('RecipeDetailView (web) — serving scale', () => {
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
 
         expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('5')).toBeTruthy();
-        expect(screen.getByText('2.5 tbsp')).toBeTruthy();
+        expect(screen.getByText('2½ tbsp')).toBeTruthy();
         expect(screen.getByText(/Amounts scaled from 4 servings/)).toBeTruthy();
     });
 
@@ -1683,7 +1683,7 @@ describe('RecipeDetailView (web) — ranged and absent quantities (U9)', () => {
             />,
         );
 
-        expect(screen.getByRole('checkbox', { name: '2–3 cups Flour' })).toBeTruthy();
+        expect(screen.getByRole('checkbox', { name: '2 to 3 cups Flour' })).toBeTruthy();
     });
 
     it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {

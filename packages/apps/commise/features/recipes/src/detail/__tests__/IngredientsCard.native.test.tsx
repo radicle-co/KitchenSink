@@ -181,7 +181,7 @@ describe('an ingredient row (native)', () => {
         // column of blocks.
         expect(line.contains(screen.getByText('3 tbsp'))).toBe(true);
         expect(line).not.toBe(rowOf(/unsalted butter/u).lastElementChild);
-        expect(line.textContent).toMatch(/3 tbsp.*unsalted butter.*softened/u);
+        expect(line.textContent).toMatch(/3\stbsp.*unsalted butter.*softened/u);
         expect(within(rowOf(/unsalted butter/u)).getByText('softened')).toBe(note);
     });
 
@@ -191,7 +191,7 @@ describe('an ingredient row (native)', () => {
         const note = screen.getByText('quartered');
 
         expect(note.parentElement).not.toBe(rowOf(/waxy potatoes/u).lastElementChild);
-        expect(note.parentElement?.textContent).toMatch(/800 g.*waxy potatoes.*quartered/u);
+        expect(note.parentElement?.textContent).toMatch(/800\sg.*waxy potatoes.*quartered/u);
         expect(resolvedColour(note, 'color')).toBe(rgb(rolesFor('light').inkMuted));
     });
 

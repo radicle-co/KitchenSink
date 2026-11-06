@@ -19,6 +19,7 @@ import { useState, type FC, type JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAmbiguityPick, type AmbiguityPickController } from '../hooks/useAmbiguityPick.js';
+import { spokenAmountsLabel } from '../format/cookAmount.js';
 import { recipeMessages } from '../messages.js';
 import {
     ambiguityReviewLines,
@@ -60,14 +61,18 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
     review,
     picker,
 }): JSX.Element => {
-    const { detail } = useMessages(recipeMessages);
+    const { detail, amountWords } = useMessages(recipeMessages);
     const row = useAmbiguityReviewRow(review, picker);
     const paint = paintOf(useTheme());
 
     return (
         // Named by the line's summary, its header (`AmbiguityReviewRowModel.summary`; `nativeContainerNames.md` N1).
         <View style={[styles.row, paint.card]}>
-            <Text accessibilityRole="header" style={[styles.rowPhrase, paint.ink]}>
+            <Text
+                accessibilityRole="header"
+                accessibilityLabel={spokenAmountsLabel(row.summary, amountWords)}
+                style={[styles.rowPhrase, paint.ink]}
+            >
                 {row.summary}
             </Text>
 

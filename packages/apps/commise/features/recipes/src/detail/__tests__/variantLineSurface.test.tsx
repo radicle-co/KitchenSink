@@ -130,7 +130,8 @@ describe('RecipeDetailView (web) — the quantity flows with the name (D1)', () 
 
         expect(item.children).toHaveLength(2);
         expect(block?.contains(quantity)).toBe(true);
-        expect(block?.textContent?.startsWith('2 lb beef brisket')).toBe(true);
+        // The amount is joined to its unit by a no-break space (Q5); the order is what this pins.
+        expect(block?.textContent?.replace(/\u00A0/gu, ' ').startsWith('2 lb beef brisket')).toBe(true);
     });
 
     it('aligns the row’s items to the top, so a two-line row keeps its checkbox by the first line', () => {
@@ -164,8 +165,11 @@ describe('RecipeDetailView (web) — the quantity flows with the name (D1)', () 
 
             expect(item.children).toHaveLength(2);
             expect(block?.contains(name)).toBe(true);
+            // The amount is joined to its unit by a no-break space (Q5); the order is what this pins.
             expect(
-                block?.textContent?.startsWith(shape.quantity === '' ? shape.name : `${shape.quantity} ${shape.name}`),
+                block?.textContent
+                    ?.replace(/\u00A0/gu, ' ')
+                    .startsWith(shape.quantity === '' ? shape.name : `${shape.quantity} ${shape.name}`),
             ).toBe(true);
 
             if (shape.quantity !== '') {

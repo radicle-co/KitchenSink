@@ -2,8 +2,8 @@
 
 /**
  * @module @commise/features-recipes/form — `IngredientRow` (web): one ingredient row (build spec §7.5.1). At rest it
- * READS: the amount in a fixed column (72 px below a 600 container, 96 px from 600), then the name in `ink` and " · "
- * the preparation in `inkMuted`, clamped to two lines, then its `⋯`. The amount and name together are the row's open
+ * READS as one text run (#144): the amount in the strong weight, an ordinary space, then the name in `ink` and " · "
+ * the preparation in `inkMuted`, wrapping only between words, then its `⋯`. The amount and name together are the row's open
  * control, "Edit {amount} {food}". A healthy row is quiet; a row that needs the cook adds a second line in `attention`,
  * which opens the row's panel (or, for a line with no food, its food search). While its food search is open (Change
  * food, Find a food, a line with no food), the name is the entry combobox instead. Its inline editor (from 600) sits
@@ -75,30 +75,36 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
             aria-label={row.openLabel}
             aria-expanded={expanded}
             onClick={row.onOpen}
-            className={`flex min-h-12 min-w-0 flex-1 items-start gap-3 rounded-md py-3 text-left transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
+            className={`flex min-h-12 min-w-0 flex-1 items-start rounded-md py-3 text-left transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
         >
-            {/* No amount: the column stays empty, never an invented "1" (F5). */}
-            <span className="w-[4.5rem] shrink-0 break-words text-body-md text-figure-inline font-semibold text-ink @regular/main:w-24">
-                {row.amountText}
-            </span>
+            {/* One text run: the amount in the strong weight, an ordinary space, then the food (#144). It wraps only
+                between words; the no-break space inside the amount keeps "2 tablespoons" whole. No amount: no span
+                and no space, never an invented "1" (F5). */}
             <span className="flex min-w-0 flex-1 flex-col gap-1">
-                {row.standIn ? (
-                    <span id={ingredientStandInId(row.index)}>
-                        <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
-                    </span>
-                ) : (
-                    <span className="line-clamp-2 break-words text-body-md text-ink">
-                        {row.displayName}
-                        {row.prepText !== undefined && (
-                            <span className="text-ink-muted">
-                                {/* The "·" is never spoken: a screen reader hears the hidden comma (UI Designer). */}
-                                <span aria-hidden="true">{'\u00A0· '}</span>
-                                <span className="sr-only">, </span>
-                                {row.prepText}
-                            </span>
-                        )}
-                    </span>
-                )}
+                <span className="break-words text-body-md text-ink">
+                    {row.amountText !== '' && (
+                        <>
+                            <span className="text-figure-inline font-semibold">{row.amountText}</span>{' '}
+                        </>
+                    )}
+                    {row.standIn ? (
+                        <span id={ingredientStandInId(row.index)}>
+                            <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
+                        </span>
+                    ) : (
+                        <>
+                            {row.displayName}
+                            {row.prepText !== undefined && (
+                                <span className="text-ink-muted">
+                                    {/* The "·" is never spoken: a screen reader hears the hidden comma (UI Designer). */}
+                                    <span aria-hidden="true">{'\u00A0· '}</span>
+                                    <span className="sr-only">, </span>
+                                    {row.prepText}
+                                </span>
+                            )}
+                        </>
+                    )}
+                </span>
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}
             </span>
         </button>
@@ -169,8 +175,8 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                     />
                 </span>
             </div>
-            {/* The second line sits under the name, past the amount column. */}
-            <div className="flex flex-col gap-1 pb-2 pl-[calc(4.5rem+0.75rem)] empty:hidden @regular/main:pl-[calc(6rem+0.75rem)]">
+            {/* The second line starts at the row's start edge, under the amount. */}
+            <div className="flex flex-col gap-1 pb-2 empty:hidden">
                 {secondLine.kind === 'working' && (
                     <span className="inline-flex items-center gap-1 text-caption text-ink-muted">
                         <span aria-hidden="true" className="inline-flex motion-safe:animate-spin">

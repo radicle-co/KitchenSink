@@ -165,7 +165,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             </Button>
         ) : null;
     const pasteBesideField = pasteButton !== null && addFieldHere && inline;
-    const amountColumn = inline ? 96 : 72;
     // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
     const { wide, sections, matching } = usePasteLayout(model.sections, paste);
     const rows = sections.flatMap((section) => section.rows);
@@ -200,7 +199,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             entryCopy={model.entryCopy}
             panel={panelOf(row)}
             expanded={inline ? row.editorOpen : undefined}
-            amountColumn={amountColumn}
             arrived={model.arrival?.key === row.line.key}
             {...(model.arrival?.key === row.line.key
                 ? {

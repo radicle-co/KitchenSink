@@ -5,6 +5,9 @@
  * the previous suite's coverage went. The two leaves are separate files with no compiler edge between them, which is
  * why §14 asks the same assertions of both.
  *
+ * Issue #144: the amount and the food are one text run joined by an ordinary space (the column is gone), so two
+ * `textContent` expectations carry that space; `RecipeIngredientsFields.rowRun.native` owns the structure.
+ *
  * REWRITTEN for the UI overhaul's read rows, as the web suite was. Native's own cases: the row editor is a sheet on a
  * phone and inline on a tablet (§7.12, by the window's content width), the amount field keeps the text the cook is
  * typing ("1." on the way to "1.5") rather than the number it parses to, and Android back leaves a row's food search.
@@ -261,7 +264,7 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
 
         expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
             // UI Designer condition: a no-break space keeps the "·" on the name's line; the label above says a comma.
-            '300\u00A0gArborio rice\u00A0· rinsed',
+            '300\u00A0g Arborio rice\u00A0· rinsed',
         );
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
     });
@@ -279,7 +282,7 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         const [one, two] = rowItems();
 
         expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
-            '1\u00A0largeonion\u00A0· diced',
+            '1\u00A0large onion\u00A0· diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });

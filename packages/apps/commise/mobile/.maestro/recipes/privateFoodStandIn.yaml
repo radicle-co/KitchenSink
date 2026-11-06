@@ -41,16 +41,22 @@ appId: ${APP_ID}
       text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
 
 # The stand-in is shown where the name would be.
+# The row is one checkbox named by amount and stand-in together (iOS exposes no separate "Private ingredient" node
+# inside it), so the whole string is what both platforms can find: drop or break the label and this fails.
 - scrollUntilVisible:
       element:
-          text: '^Private ingredient$'
+          text: '^2 tbsp Private ingredient$'
       direction: DOWN
       timeout: 20000
-# The row's checkbox is named by amount and stand-in together. "2 tbsp" and "Private ingredient" are two separate
-# text nodes, so this whole string exists ONLY as the checkbox's accessibility label: drop or break the label and
-# this fails.
 - assertVisible:
       text: '^2 tbsp Private ingredient$'
+# Android also draws the stand-in as its own node, so it is shown and not only spoken; iOS folds it into the row.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '^Private ingredient$'
 # The food's real name is not on screen. ⚠️ `assertNotVisible` sees only the current viewport, which is the
 # ingredients card here: it proves the row does not leak the name, not that no other part of the page does.
 - assertNotVisible:

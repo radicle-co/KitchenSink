@@ -26,13 +26,13 @@ import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine, type VariantPartsLineProps } from '@commise/ui/variant-parts-line';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
 
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import { spokenAmountsLabel } from '../format/cookAmount.js';
 import { fillTemplate } from '../format/fillTemplate.js';
-import { recipeMessages } from '../messages.js';
+import { recipeMessages, type AmountWordMessages } from '../messages.js';
 import {
     type ConflictOptionCardProps,
     type DiscardAndCloseProps,
@@ -126,6 +126,17 @@ const SideValue: FC<SideValueProps> = ({ children, parts }) => (
         {children}
         {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
     </View>
+);
+
+/** One side's value as text, its amounts said in words (WCAG option C: words for non-interactive text). */
+const ValueText: FC<{ text: string; words: AmountWordMessages; style: StyleProp<TextStyle> }> = ({
+    text,
+    words,
+    style,
+}) => (
+    <Text style={style} accessibilityLabel={spokenAmountsLabel(text, words)}>
+        {text}
+    </Text>
 );
 
 /**
@@ -359,29 +370,21 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                             </View>
                             {row.base !== undefined && (
                                 <SideValue parts={conflictSideParts(row, 'base')}>
-                                    <Text
+                                    <ValueText
+                                        text={fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                        words={amountWords}
                                         style={[styles.changedFieldValue, ink]}
-                                        accessibilityLabel={spokenAmountsLabel(
-                                            fillTemplate(conflict.wasValueLabel, { value: row.base }),
-                                            amountWords,
-                                        )}
-                                    >
-                                        {fillTemplate(conflict.wasValueLabel, { value: row.base })}
-                                    </Text>
+                                    />
                                 </SideValue>
                             )}
                             {/* Server value FIRST, then Yours (X7). */}
                             {(['theirs', 'mine'] as const).map((side) => (
                                 <SideValue key={side} parts={conflictSideParts(row, side)}>
-                                    <Text
+                                    <ValueText
+                                        text={conflictOptionLabel(row, side, conflict)}
+                                        words={amountWords}
                                         style={[styles.changedFieldValue, ink]}
-                                        accessibilityLabel={spokenAmountsLabel(
-                                            conflictOptionLabel(row, side, conflict),
-                                            amountWords,
-                                        )}
-                                    >
-                                        {conflictOptionLabel(row, side, conflict)}
-                                    </Text>
+                                    />
                                 </SideValue>
                             ))}
                         </View>

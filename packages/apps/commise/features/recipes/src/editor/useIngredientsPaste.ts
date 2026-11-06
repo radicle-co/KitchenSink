@@ -26,7 +26,7 @@ import { reviewReasonOf } from '../ingredientMatching/reviewReason.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import type { PasteHold } from './pasteHold.js';
-import { pasteMilestoneOf, pasteProgressOf, pasteRowsOf } from './pasteProgress.js';
+import { pasteMilestoneOf, pasteProgressOf, pasteRowsOf, waitsOnCook } from './pasteProgress.js';
 import type { DraftKeep } from './saveStatus.js';
 import { useAppFocused } from '../hooks/useAppFocused.js';
 import { usePasteAnnouncement } from './usePasteAnnouncement.js';
@@ -157,13 +157,8 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
     const open = (): void => sheet.setOpen(true);
     const pending = paste.submitting || reading.length > 0 || matching.joining || matching.pending.size > 0;
     const stillReading =
-        paste.submitting ||
-        matching.joining ||
-        matching.pending.size > 0 ||
-        reading.some((row) => row.state !== 'retryable' && row.state !== 'lookupFailed');
-    const needYou = stillReading
-        ? 0
-        : reading.filter((row) => row.state === 'retryable' || row.state === 'lookupFailed').length;
+        paste.submitting || matching.joining || matching.pending.size > 0 || reading.some((row) => !waitsOnCook(row));
+    const needYou = stillReading ? 0 : reading.filter(waitsOnCook).length;
     const { hold } = options;
 
     // A layout effect: the hold is current once this state commits, before any passive effect or event can run a

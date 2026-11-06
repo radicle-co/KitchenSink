@@ -302,4 +302,9 @@ describe('the committed curated seed', () => {
 
         expect(stillSynonyms).toEqual([]);
     });
+
+    it('gives abiyuch no synonym: "sacred garlic pear" is not a well-known US name (naming rule 16)', () => {
+        // Its synonym put abiyuch, a tropical fruit, in the catalog results for "garlic" (PR 132 dogfooding).
+        expect(image.roots.get(fdcKey(167782))).toMatchObject({ name: 'abiyuch', synonyms: [] });
+    });
 });

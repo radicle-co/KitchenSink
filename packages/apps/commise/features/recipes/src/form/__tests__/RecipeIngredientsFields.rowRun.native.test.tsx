@@ -13,6 +13,9 @@ import { cleanup, screen, within } from '@testing-library/react';
 
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
 import { render as renderBare } from '@commise/ui/testing/tamagui';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
+
+import { recipeMessages } from '../../messages.js';
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.native.js';
 import { defaultRecipeFormValues } from '../values.js';
 import {
@@ -122,5 +125,40 @@ describe('IngredientRow (native) — amount and food are ONE text run (#144)', (
         expect(run.style.webkitLineClamp).toBe('');
         // WCAG 2.5.3: the visible words are in the accessible name.
         expect(button.getAttribute('aria-label')).toBe(c.name);
+    });
+});
+
+describe('IngredientRow (native) — a stand-in row (#144, UI Designer)', () => {
+    const label = recipeMessages.en.ingredientLineName.privateFood;
+    const standIn = (over: Partial<UnkeyedFormIngredient>): UnkeyedFormIngredient => ({
+        ingredientId: 'ing_9',
+        isUserEntered: false,
+        resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        quantity: 2,
+        unit: 'tbsp',
+        ...over,
+    });
+
+    it('WITH an amount: the amount is its own line above the chip, and the name reads amount then chip', () => {
+        const button = rowButton(standIn({}), `Edit 2 tbsp ${label}`);
+        const amount = within(button).getByText(
+            (_, el) => el?.textContent === '2\u00A0tbsp' && el.children.length === 0,
+        );
+        const chip = within(button).getByText(label);
+
+        // The amount's line holds the amount alone: the chip is not inside it, so it cannot sit beside it.
+        expect(amount.parentElement!.textContent).toBe('2\u00A0tbsp');
+        expect(button.textContent!.indexOf('tbsp')).toBeLessThan(button.textContent!.indexOf(label));
+        expect(amount.parentElement!.contains(chip)).toBe(false);
+    });
+
+    it('WITHOUT an amount: no empty line, and the chip comes first', () => {
+        const button = rowButton(standIn({ quantity: Number.NaN, unit: '' }), `Edit ${label}`);
+        const chip = within(button).getByText(label);
+        const column = button.firstElementChild!;
+
+        expect(Array.from(column.children).every((child) => (child.textContent ?? '') !== '')).toBe(true);
+        expect(column.firstElementChild!.contains(chip)).toBe(true);
+        expect(button.textContent).toBe(label);
     });
 });

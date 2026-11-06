@@ -11,6 +11,8 @@
  *  - "Remove is direct" and the field-width (W-1) classes → deleted (Remove is a `⋯` item, `rowMenu.test.ts`; the fields
  *    moved into the row editor, sized here);
  *  - the name as a read-only group → the open control "Edit {amount} {food}".
+ * Issue #144: the amount and the food are one text run joined by an ordinary space (the column is gone), so the two
+ * `textContent` expectations below carry that space; `RecipeIngredientsFields.rowRun` owns the structure.
  *
  * ⛔ U28's control sweep is kept: whatever a cook can press or type here, no line may lose its food and the list may
  * never grow. It is STATEFUL, so what a test types comes back as new `values`.
@@ -214,7 +216,7 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         const [rice, salt] = rowItems();
 
         expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
-            '300\u00A0gArborio rice\u00A0· , rinsed',
+            '300\u00A0g Arborio rice\u00A0· , rinsed',
         );
         // No amount: the column is empty, never an invented "1" (F5).
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
@@ -250,7 +252,7 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         const [one, two] = rowItems();
 
         expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
-            '1\u00A0largeonion\u00A0· , diced',
+            '1\u00A0large onion\u00A0· , diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });

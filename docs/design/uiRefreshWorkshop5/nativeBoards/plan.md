@@ -314,13 +314,27 @@ These are questions, not changes made here. The full list is `tamaguiAudit.md` P
 
 Differences where the board, not the app, is wrong. Fix each in the board source at the next rebuild.
 
+- Cover letter (2026-11-03): on every cover with a chip band, centre the letter in the space above the band, not in
+  the whole cover. At 1x the letter sits about 20 pt higher.
+- Recipe detail Nutrition row (2026-11-04): draw the value under "Nutrition" ("612 cal per serving" on a second line),
+  inside the card, on web and native. The board draws it on one line at the row's end.
+- Recipe detail visibility row (2026-11-03): remove the "·" between "Public" and "Version history". The two items sit
+  in a wrapping row with a 16 gap, on web and native.
+
 - Sign-in boards (every size) title the screen "Sign in". `buildSpec.md` §8 and the app say "Sign in to Commise".
   Found reviewing Thing 1's Google label (925e3bffe), 2026-11-01.
-- No recipe board draws the Pro pill or the Pro cover chip. Add one Pro recipe to the Recipes list and grid boards,
-  per `designAnswers.md` 2026-11-02. Asked by Nova Squad, 2026-11-02.
 - Recipes list row boards: padding 10 and thumb 84 are off the scale. Draw 12 and 80.
 - Home boards: the greeting is 16/24 at 500. Draw it in `cardTitle`. The widget heading's 28 and 10 become 24
   and 8.
 - Card boards (list row and tiles, Home included): add the calorie figure to the meta line (owner, 2026-11-02).
 - Profile boards: the header shows the handle and the email, against owner rulings S2 and T8. Draw the name only
   (or @username with no name), and keep the Username and Email rows.
+- Editor food search boards and `designArtifact/docs/stateCoverage.md`: the end of a slow search says "Finished
+  searching other food databases.", not "No more foods found." (2026-11-06).
+- Editor boards: the Ingredients section status reads "Reading…" while a paste reads lines, and "Needs you" while
+  a failed line waits on the cook (2026-11-06).
+- Ingredient amounts on every board: show fractions as one character ("1½ cups") per `designAnswers.md`
+  2026-11-06. Lines kept as written stay verbatim.
+- Recipes list and grid boards: the view-save notice sits directly above the count, sort and view row (#133).
+- Editor ingredient row boards: no amount column. The amount and the food are one text run that wraps between
+  words (#144, `designAnswers.md` 2026-11-06).

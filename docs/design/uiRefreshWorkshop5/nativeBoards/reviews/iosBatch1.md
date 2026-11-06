@@ -31,7 +31,7 @@ Passes: the list row (gradient thumb with the photo disc, wrapped title, "time Â
 ## collScroll: fix needed
 
 **The title and the segments stay fixed.** At the cap, "Recipes" and My recipes / Collections hold their place
-while the empty state scrolls under them. Collections has no search, so nothing sticks there. The whole header
+while the empty state scrolls under them. (Corrected 2026-11-02: Collections does have a search field, so it pins on the band like Recipes.) The whole header
 scrolls away with the content (`designAnswers.md`, the Recipes tab ruling). At 1x the empty state passes.
 
 ## Lanes 4 to 9

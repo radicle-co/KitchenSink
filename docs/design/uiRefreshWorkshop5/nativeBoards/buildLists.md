@@ -49,7 +49,8 @@ step, delete, version history and states. Section gap 32, page end 48 (`designAn
    `inkMuted`).
 6. Three tinted fact tiles in one row: Total, Prep, Difficulty. Label `caption` with its glyph, value under it. A
    missing time hides its tile. No Cook tile.
-7. "Start cooking": primary, full width.
+7. "Start cooking": primary, full width, when cooking mode (feature 008) ships. Until then, leave it out on both
+   platforms (`designAnswers.md`, 2026-11-02, "Start cooking").
 8. Text actions: "Add to plan" and, on an own recipe, "Edit recipe". Others' recipe: "Save a copy" in place of Edit.
    "Add to plan" is not built yet, so leave it out until meal plans ship.
 9. "Screen on" switch row.

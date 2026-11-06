@@ -35,6 +35,20 @@ appId: ${APP_ID}
       visible: 'Choose the milk you use'
       timeout: 240000
 
+# A recipe publishes only with a step, as the web spec adds one. Without it Publish asks the cook to fix the missing step,
+# and the open-choices sheet never opens (Android device pass, 2026-11-06: "Add at least one step.").
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add step'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add step'
+- tapOn: 'Step 1'
+- inputText: 'Soak the bread.'
+# The soft keyboard unpins the action bar; closing it pins Publish again.
+- runFlow: common/closeEditorKeyboard.yaml
+
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
@@ -54,7 +68,6 @@ appId: ${APP_ID}
 - assertVisible: 'Close editor'
 - assertVisible: 'Search for a food for 2 cups milk'
 
-- runFlow:
-      file: common/discardDraft.yaml
-      env:
-          SETTLED: 'Saved on this device'
+# The typed title gave the draft a server row, so it settles as "Saved", the helper's default (the device pass read
+# "Saved" in the header after the Publish tap).
+- runFlow: common/discardDraft.yaml

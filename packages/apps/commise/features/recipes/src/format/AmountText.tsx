@@ -4,6 +4,8 @@
  * The eye reads "1½ cups"; a screen reader hears "1 and a half cups". The visible text is hidden from assistive
  * technology and the words sit beside it, visually hidden. A text with nothing to say differently renders as it is.
  *
+ * Presentational: props to text, with the message lookup as its only input beyond `text`.
+ *
  * Web only. A native leaf puts the same words in its own `accessibilityLabel`, because React Native reads a nested
  * `Text` as part of its parent and would ignore a label on the inner one.
  */

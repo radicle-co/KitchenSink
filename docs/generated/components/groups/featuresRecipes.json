@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 326,
         "implementationsWithComponentDoc": 216,
         "documentedProps": 1763,
-        "classifiedComponents": 169,
+        "classifiedComponents": 170,
         "componentsWithPatternTag": 92,
         "crossPlatformComponents": 134
     },
@@ -21303,7 +21303,7 @@
             "packageName": "@commise/features-recipes",
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/format",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -21317,7 +21317,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/format",
-                    "moduleDoc": "@commise/features-recipes/format — a text that shows recipe amounts, on the web (UI Designer ruling Q5).\n\nThe eye reads \"1½ cups\"; a screen reader hears \"1 and a half cups\". The visible text is hidden from assistive\ntechnology and the words sit beside it, visually hidden. A text with nothing to say differently renders as it is.\n\nWeb only. A native leaf puts the same words in its own `accessibilityLabel`, because React Native reads a nested\n`Text` as part of its parent and would ignore a label on the inner one.",
+                    "moduleDoc": "@commise/features-recipes/format — a text that shows recipe amounts, on the web (UI Designer ruling Q5).\n\nThe eye reads \"1½ cups\"; a screen reader hears \"1 and a half cups\". The visible text is hidden from assistive\ntechnology and the words sit beside it, visually hidden. A text with nothing to say differently renders as it is.\n\nPresentational: props to text, with the message lookup as its only input beyond `text`.\n\nWeb only. A native leaf puts the same words in its own `accessibilityLabel`, because React Native reads a nested\n`Text` as part of its parent and would ignore a label on the inner one.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21342,7 +21342,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

@@ -100,7 +100,6 @@ describe('local_maestro_flows — which flows a command runs', () => {
             .filter((line) => line.startsWith('flow='))
             .map((line) => line.slice('flow='.length));
         const sandboxOnly = [
-            'recipes/pasteList',
             'recipes/pasteListSettle',
             'recipes/ingredientCandidates',
             'recipes/ambiguityReview',
@@ -118,10 +117,10 @@ describe('local_maestro_flows — which flows a command runs', () => {
     });
 
     it('`flows` still runs a sandbox-only flow when it is NAMED - the developer asked for exactly that', () => {
-        const result = run(makeSandbox(), 'local_maestro_flows flows recipes/pasteList');
+        const result = run(makeSandbox(), 'local_maestro_flows flows recipes/pasteListSettle');
 
         expect(result.status).toBe(0);
-        expect(result.stdout.trim()).toBe('recipes/pasteList');
+        expect(result.stdout.trim()).toBe('recipes/pasteListSettle');
     });
 
     it('`flows` runs exactly the named flows, in the order given', () => {

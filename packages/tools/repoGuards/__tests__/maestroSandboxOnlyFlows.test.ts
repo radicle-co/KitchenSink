@@ -1,14 +1,18 @@
 /**
- * FIVE FLOWS NEED THE DEPLOYED SANDBOX; THE LOCAL SUITE SAYS SO AND THE DEPLOYED RUN STILL RUNS THEM.
+ * SOME FLOWS NEED THE DEPLOYED SANDBOX; THE LOCAL SUITE SAYS SO AND THE DEPLOYED RUN STILL RUNS THEM.
  *
- * `recipes/pasteList`, `recipes/pasteListSettle`, `recipes/ingredientCandidates` and `recipes/ambiguityReview` depend on
- * the shared sandbox's food catalog and on the ingredient-verification worker, neither of which `npm run local:up` can
- * stand up. `auth/loginFlow` taps Continue with Google, which only the sandbox Clerk instance offers. Run locally they cannot pass, and a skip is never a pass (owner rulings 2026-09-05, 2026-10-03; the e2e rule
- * that nothing fakes a remote source). So the LOCAL selection (`local-flows`) leaves them out and PRINTS that it did, as
- * "needs sandbox" lines the local summary repeats; it is the deployed selection (`shard-selection`) that keeps running them.
+ * `recipes/pasteListSettle`, `recipes/ingredientCandidates` and `recipes/ambiguityReview` depend on the shared sandbox's
+ * food catalog and on the ingredient-verification worker, neither of which `npm run local:up` can stand up.
+ * `auth/loginFlow` taps Continue with Google, which only the sandbox Clerk instance offers. Run locally they cannot pass,
+ * and a skip is never a pass (owner rulings 2026-09-05, 2026-10-03; the e2e rule that nothing fakes a remote source). So
+ * the LOCAL selection (`local-flows`) leaves them out and PRINTS that it did, as "needs sandbox" lines the local summary
+ * repeats; it is the deployed selection (`shard-selection`) that keeps running them.
+ *
+ * `recipes/pasteList` left the table on 2026-11-06: it passes on the local stack, which seeds the curated catalog (issue
+ * #143).
  *
  * ⛔ The second half is the one that matters: a flow quietly dropped from the DEPLOYED plan is a green run over a
- * check nobody ran. This guard holds the table to the flows that exist, to exactly these five, and asserts the deployed
+ * check nobody ran. This guard holds the table to the flows that exist, to exactly these, and asserts the deployed
  * composition still selects every one on both platforms.
  *
  * Asserted by EXECUTING the script's pure subcommands, as `maestroPlatformExclusions.test.ts` does.
@@ -24,7 +28,6 @@ const SCRIPT = path.join(repoRoot, 'packages/apps/commise/mobile/tests/e2e/runMa
 
 const SANDBOX_ONLY = [
     'auth/loginFlow',
-    'recipes/pasteList',
     'recipes/pasteListSettle',
     'recipes/ingredientCandidates',
     'recipes/ambiguityReview',
@@ -53,7 +56,7 @@ const PLANNED = run({}, 'plan')
     .map((entry) => entry.slice(entry.indexOf(':') + 1));
 
 describe('the flows that need the deployed sandbox', () => {
-    it('are exactly the five the local stack cannot serve, and each is a planned flow', () => {
+    it('are exactly the ones the local stack cannot serve, and each is a planned flow', () => {
         const rows = run({}, 'sandbox-only').stdout.split('\n').filter(Boolean);
 
         expect(rows.map((row) => row.split('|')[0])).toEqual([...SANDBOX_ONLY]);
@@ -71,7 +74,7 @@ describe('the flows that need the deployed sandbox', () => {
 });
 
 describe('local-flows', () => {
-    it('keeps every other flow, in order, and reports the five as needing the sandbox', () => {
+    it('keeps every other flow, in order, and reports them as needing the sandbox', () => {
         const out = run({}, 'local-flows', ...PLANNED);
 
         expect(out.status).toBe(0);
@@ -95,7 +98,7 @@ describe('local-flows', () => {
     });
 });
 
-describe('⛔ the DEPLOYED selection still runs all five, on both platforms', () => {
+describe('⛔ the DEPLOYED selection still runs all of them, on both platforms', () => {
     it.each(['android', 'ios'])('%s, on one shard, selects every one of them', (platform) => {
         const out = run({ MAESTRO_PLATFORM: platform }, 'shard-selection', '1', '1');
 

@@ -270,15 +270,14 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // device); it needs the deployed stage's catalog and a food the cook has corrected before. Promote it to FLOW_PLAN, in the
     // sandbox-only list, once an emulator run has passed it.
     'recipes/ingredientSuggested',
-    // The matched paste (ADR-0071; owner rulings 2026-10-25): confident, choosing a food, a line still being checked, and
-    // publishing with open choices. Written with the slice and NOT run (it was built without a device); each depends on
-    // what the stage's catalog and review gate answer (a foundation food by exact name, the seeded milk and salt defaults,
-    // a review that answers late). Promote them to FLOW_PLAN in the PR whose Maestro tier is watched, once an emulator run
-    // has passed them.
+    // The matched paste (ADR-0071; owner rulings 2026-10-25), the two flows still unplanned. Choosing a food and
+    // publishing with open choices passed on the local Android stack and were promoted (2026-11-06). These two depend on
+    // what the stage's catalog and review gate answer. `pasteMatchConfident` assumes a catalog food named "Egg, whole,
+    // raw, fresh", and the curated catalog names it "eggs" (issue #140), so it cannot pass until its line is re-chosen.
+    // `pasteMatchChecking` needs a review that answers late; it passed one local Android run (2026-11-06) and waits on the
+    // lead's call to promote it. Promote `pasteMatchConfident` to FLOW_PLAN once an emulator run has passed it.
     'recipes/pasteMatchConfident',
-    'recipes/pasteMatchChoose',
     'recipes/pasteMatchChecking',
-    'recipes/pastePublishOpenChoices',
     // The offline write path: the editor saves through the outbox (ADR-0057), and these flows assert the cook-visible
     // half (a save that succeeds offline, a queued write surviving an app restart). Android-bound like their siblings
     // (`setAirplaneMode` has no iOS Simulator equivalent), so they run by hand on an emulator.

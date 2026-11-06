@@ -265,6 +265,8 @@ recipes:recipes/publishFeedback
 recipes:recipes/cuisineField
 recipes:recipes/pasteList
 recipes:recipes/pasteListSettle
+recipes:recipes/pasteMatchChoose
+recipes:recipes/pastePublishOpenChoices
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups
@@ -335,7 +337,6 @@ ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM ba
 # ⛔ Never add a flow here to get a local run green. An entry is a statement that the local stack lacks something the flow
 # needs; the guard requires the reason to name what.
 MAESTRO_SANDBOX_ONLY_FLOWS="auth/loginFlow|taps Continue with Google, which only the sandbox Clerk instance has; the local run signs in with the Clerk instance the pool users live on, which offers no social sign-in
-recipes/pasteList|needs the deployed sandbox's food catalog and the ingredient-verification worker; the local stack runs neither
 recipes/pasteListSettle|needs the deployed sandbox's food catalog and the ingredient-verification worker (the settled result); the local stack runs neither
 recipes/ingredientCandidates|needs the deployed sandbox's food catalog for its candidate lists; the local stack has no catalog to match against
 recipes/ambiguityReview|needs the deployed sandbox's food catalog and the ingredient-verification worker to raise a review; the local stack runs neither"

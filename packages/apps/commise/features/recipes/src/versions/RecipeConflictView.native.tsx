@@ -26,7 +26,7 @@ import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine, type VariantPartsLineProps } from '@commise/ui/variant-parts-line';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
@@ -129,12 +129,8 @@ const SideValue: FC<SideValueProps> = ({ children, parts }) => (
 );
 
 /** One side's value as text, its amounts said in words (WCAG option C: words for non-interactive text). */
-const ValueText: FC<{ text: string; words: AmountWordMessages; style: StyleProp<TextStyle> }> = ({
-    text,
-    words,
-    style,
-}) => (
-    <Text style={style} accessibilityLabel={spokenAmountsLabel(text, words)}>
+const ValueText: FC<{ text: string; words: AmountWordMessages; ink: TextStyle }> = ({ text, words, ink }) => (
+    <Text style={[styles.changedFieldValue, ink]} accessibilityLabel={spokenAmountsLabel(text, words)}>
         {text}
     </Text>
 );
@@ -373,7 +369,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                     <ValueText
                                         text={fillTemplate(conflict.wasValueLabel, { value: row.base })}
                                         words={amountWords}
-                                        style={[styles.changedFieldValue, ink]}
+                                        ink={ink}
                                     />
                                 </SideValue>
                             )}
@@ -383,7 +379,7 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                                     <ValueText
                                         text={conflictOptionLabel(row, side, conflict)}
                                         words={amountWords}
-                                        style={[styles.changedFieldValue, ink]}
+                                        ink={ink}
                                     />
                                 </SideValue>
                             ))}

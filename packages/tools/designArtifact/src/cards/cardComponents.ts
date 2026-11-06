@@ -223,7 +223,7 @@ export type CardUi<Used extends CardComponentName> = Pick<CardComponents, Used>;
  *   `@commise/ui/hero-button`), so it is the shared {@link HeroButtonProps} plus that one prop.
  * - `EditorHeader`, `EditorActionBar` and `IngredientRow` take their own native contracts from the `.native.tsx` leaf
  *   (the web header and bar also take the `placeRef` the page measures them by, and the web bar `pinned`; the native
- *   row has `amountColumn`, `onLayout`, `m` and `speak`).
+ *   row has `m` and `onLayout`).
  * - `HomeTabBar` is a different component on each platform: the web bar is a router-driven `nav` of links, the mobile
  *   bar takes `onPress`, the insets and `compact`.
  *

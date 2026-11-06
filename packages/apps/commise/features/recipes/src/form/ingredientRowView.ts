@@ -233,7 +233,7 @@ export interface IngredientRowView {
     /** A variant-bound line's parts, from its own binding, so a retired variant still shows them (§S1). */
     readonly variantParts: readonly [string, ...string[]] | undefined;
     readonly changing: boolean;
-    /** The amount column's text ("2–2.5 kg"); `''` for no amount, never an invented "1" (F5). */
+    /** The amount's text ("2–2.5 kg"); `''` for no amount, never an invented "1" (F5). */
     readonly amountText: string;
     /** The preparation after the name, or `undefined` when there is none. */
     readonly prepText: string | undefined;

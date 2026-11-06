@@ -876,7 +876,7 @@ describe('ingredientRowViewOf — the read row (build spec §7.5.1)', () => {
         expect(row.openLabel).toBe('Edit 1½ cups beef brisket');
     });
 
-    it('a line with no amount leaves the amount column empty: never an invented "1" (F5)', () => {
+    it('a line with no amount has an empty amount: never an invented "1" (F5)', () => {
         const { row } = onlyRow({ lines: [bound({ quantity: Number.NaN, unit: undefined, preparation: '  ' })] });
 
         expect(row.amountText).toBe('');

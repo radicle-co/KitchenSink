@@ -342,6 +342,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 cuisineRequired: 'Cuisine needed',
                 cuisineTooLong: 'Cuisine too long',
                 ingredientsPendingText: 'Add or clear the line you typed',
+                // The paste's own wording for a line being read (form `rowStateReading`).
+                ingredientsReading: 'Reading…',
                 ingredientsUnresolved: { one: '{count} needs a match', other: '{count} need a match' },
                 ingredientsQuantityInvalid: { one: '{count} amount to fix', other: '{count} amounts to fix' },
                 stepBlank: 'Fill in or remove the empty step',

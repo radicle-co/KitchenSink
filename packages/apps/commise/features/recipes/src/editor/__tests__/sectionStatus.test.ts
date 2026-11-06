@@ -22,10 +22,14 @@ const RESOLVED = {
 };
 const UNRESOLVED = { isUserEntered: false, ingredientId: null, name: 'Kale', quantity: 1 };
 
-function statuses(values: RecipeFormValues, over: { pending?: string; attempted?: boolean } = {}): SectionStatuses {
+function statuses(
+    values: RecipeFormValues,
+    over: { pending?: string; attempted?: boolean; pastePending?: boolean } = {},
+): SectionStatuses {
     return sectionStatusesOf({
         values,
         pendingEntryText: over.pending ?? '',
+        pastePending: over.pastePending ?? false,
         publishAttempted: over.attempted ?? false,
     });
 }
@@ -293,5 +297,58 @@ describe('newlyComplete', () => {
         expect(newlyComplete(before, after)).toEqual(['steps', 'photos']);
         expect(newlyComplete(after, after)).toEqual([]);
         expect(newlyComplete(after, before)).toEqual([]);
+    });
+});
+
+/**
+ * A paste whose lines are still being read, joined or matched is not done (dogfooding PR 132: Ingredients said
+ * "Complete" with 2 of 6 lines read). `pastePending` is `useIngredientsPaste`'s `pending`.
+ */
+describe('Ingredients while a paste is still being read', () => {
+    it('is in progress, not complete, when the lines already in the recipe would be complete', () => {
+        const filled = makeFilledRecipeFormValues();
+
+        expect(statuses(filled, { pastePending: false }).ingredients).toEqual({ kind: 'complete' });
+        expect(statuses(filled, { pastePending: true }).ingredients).toEqual({
+            kind: 'inProgress',
+            reason: 'ingredientsReading',
+        });
+    });
+
+    it('is in progress, not "not started", when no line has joined yet', () => {
+        expect(statuses(defaultRecipeFormValues(), { pastePending: true }).ingredients).toEqual({
+            kind: 'inProgress',
+            reason: 'ingredientsReading',
+        });
+    });
+
+    it('keeps a line that needs a match as attention: something the cook can already act on wins', () => {
+        const values = makeFilledRecipeFormValues({ ingredients: withLineKeys([UNRESOLVED]) });
+
+        expect(statuses(values, { pastePending: true }).ingredients).toEqual({
+            kind: 'attention',
+            reason: 'ingredientsUnresolved',
+            count: 1,
+        });
+    });
+
+    it('holds Photos & publish at optional, because a section it depends on is not done', () => {
+        expect(statuses(makeFilledRecipeFormValues(), { pastePending: true }).photos).toEqual({ kind: 'optional' });
+    });
+
+    it('does not touch the other sections', () => {
+        const done = statuses(makeFilledRecipeFormValues(), { pastePending: true });
+
+        expect([done.details, done.steps]).toEqual([{ kind: 'complete' }, { kind: 'complete' }]);
+    });
+
+    it('does not report Ingredients as newly complete until the paste settles', () => {
+        const filled = makeFilledRecipeFormValues();
+
+        expect(newlyComplete(statuses(filled, { pastePending: true }), statuses(filled))).toEqual([
+            'ingredients',
+            'photos',
+        ]);
+        expect(newlyComplete(statuses(filled), statuses(filled, { pastePending: true }))).toEqual([]);
     });
 });

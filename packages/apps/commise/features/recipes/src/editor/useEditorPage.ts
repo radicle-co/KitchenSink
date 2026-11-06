@@ -114,6 +114,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         onRefused,
         onOpenMyRecipes,
         openChoices,
+        pastePending,
     } = props;
     const m = useMessages(editorMessages);
     const locale = useLocale();
@@ -122,6 +123,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         values: editor.values,
         pendingEntryText,
         publishAttempted: editor.publishAttempted,
+        pastePending: pastePending === true,
     });
     const chrome = editorChromeOf({ editor, mode, keep, statuses, messages: m, locale });
     const current = host.current !== undefined && isEditorSectionId(host.current) ? host.current : 'details';

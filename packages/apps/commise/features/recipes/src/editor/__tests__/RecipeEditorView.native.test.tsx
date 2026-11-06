@@ -128,6 +128,38 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
     );
 }
 
+/**
+ * A paste whose lines are still being read must not read as done (dogfooding PR 132). The same fact as the web leaf's:
+ * `pastePending` reaches the one section policy, so the native index and its polite announcement follow it.
+ */
+describe('Ingredients while a paste is still being read', () => {
+    it('shows Reading… for Ingredients in the sections sheet', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: true }));
+        fireEvent.click(screen.getByRole('button', { name: /^Sections\. Current:/u }));
+
+        expect(screen.getAllByText('Reading…').length).toBeGreaterThan(0);
+    });
+
+    it('does not show Reading… once nothing is pending', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: false }));
+        fireEvent.click(screen.getByRole('button', { name: /^Sections\. Current:/u }));
+
+        expect(screen.queryByText('Reading…')).toBeNull();
+    });
+
+    it('says "Ingredients complete" only when the paste has settled', () => {
+        const noLines = makeEditorResult({ values: makeFilledRecipeFormValues({ ingredients: [] }) });
+        const filled = makeEditorResult({ values: makeFilledRecipeFormValues() });
+        const { rerender } = render(view(noLines, { pastePending: true }));
+
+        rerender(view(filled, { pastePending: true }));
+        expect(screen.queryByText('Ingredients complete')).toBeNull();
+
+        rerender(view(filled, { pastePending: false }));
+        expect(screen.getByText('Ingredients complete')).toBeTruthy();
+    });
+});
+
 describe('the content gutter (buildSpec §1.2)', () => {
     /** The first ancestor of the Details heading that pads its content, i.e. the scroller's content container. */
     const paddingOf = (): string => {

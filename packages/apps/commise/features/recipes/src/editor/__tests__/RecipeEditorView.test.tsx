@@ -103,6 +103,43 @@ describe('the frame', () => {
         expect(screen.getByRole('button', { name: 'Sections. Current: Details.', hidden: true })).toBeTruthy();
     });
 
+    /**
+     * A paste whose lines are still being read must not read as done (dogfooding PR 132: "Ingredients complete" with 2
+     * of 6 lines read). The page's `pastePending` is the paste's own pending fact; the wording is the paste's "Reading…".
+     */
+    it('shows Ingredients as Reading… in the section index while a paste is pending, never Complete', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: true }));
+
+        const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
+        const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
+
+        expect(ingredients.textContent).toContain('Reading…');
+        expect(ingredients.textContent).not.toContain('Complete');
+    });
+
+    it('shows Ingredients as Complete once nothing is pending', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: false }));
+
+        const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
+        const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
+
+        expect(ingredients.textContent).not.toContain('Reading…');
+        expect(ingredients.textContent).toContain('Complete');
+    });
+
+    it('says "Ingredients complete" only when the paste has settled, not while lines are still being read', () => {
+        const filled = makeEditorResult({ values: makeFilledRecipeFormValues() });
+        // Details and Steps are already done, so Ingredients is the first section to become complete.
+        const noLines = makeEditorResult({ values: makeFilledRecipeFormValues({ ingredients: [] }) });
+        const { rerender } = render(view(noLines, { pastePending: true }));
+
+        rerender(view(filled, { pastePending: true }));
+        expect(screen.queryByText('Ingredients complete')).toBeNull();
+
+        rerender(view(filled, { pastePending: false }));
+        expect(screen.getByText('Ingredients complete')).toBeTruthy();
+    });
+
     it('× never asks: it checkpoints the exit, then leaves', () => {
         const checkpoint = vi.fn();
         const onClose = vi.fn();

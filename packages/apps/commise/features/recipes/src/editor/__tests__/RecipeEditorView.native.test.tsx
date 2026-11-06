@@ -134,14 +134,14 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
  */
 describe('Ingredients while a paste is still being read', () => {
     it('shows Reading… for Ingredients in the sections sheet', () => {
-        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: true }));
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pasteReading: true }));
         fireEvent.click(screen.getByRole('button', { name: /^Sections\. Current:/u }));
 
         expect(screen.getAllByText('Reading…').length).toBeGreaterThan(0);
     });
 
     it('does not show Reading… once nothing is pending', () => {
-        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: false }));
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pasteReading: false }));
         fireEvent.click(screen.getByRole('button', { name: /^Sections\. Current:/u }));
 
         expect(screen.queryByText('Reading…')).toBeNull();
@@ -150,13 +150,18 @@ describe('Ingredients while a paste is still being read', () => {
     it('says "Ingredients complete" only when the paste has settled', () => {
         const noLines = makeEditorResult({ values: makeFilledRecipeFormValues({ ingredients: [] }) });
         const filled = makeEditorResult({ values: makeFilledRecipeFormValues() });
-        const { rerender } = render(view(noLines, { pastePending: true }));
+        const { rerender } = render(view(noLines, { pasteReading: true }));
 
-        rerender(view(filled, { pastePending: true }));
+        rerender(view(filled, { pasteReading: true }));
         expect(screen.queryByText('Ingredients complete')).toBeNull();
 
-        rerender(view(filled, { pastePending: false }));
-        expect(screen.getByText('Ingredients complete')).toBeTruthy();
+        rerender(view(filled, { pasteReading: false }));
+        expect(screen.getAllByText('Ingredients complete')).toHaveLength(1);
+
+        // Said once: a later render, even one that holds Publish for a line that needs the cook, says nothing more.
+        rerender(view(filled, { pasteReading: false, pastePending: true }));
+        rerender(view(filled, { pasteReading: false }));
+        expect(screen.getAllByText('Ingredients complete')).toHaveLength(1);
     });
 });
 

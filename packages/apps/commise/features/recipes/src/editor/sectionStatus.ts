@@ -21,7 +21,7 @@
  * 4. **Not started** — the section is empty;
  * 5. Photos & publish has no field of its own: **Optional** until the other three are complete, then **Complete**.
  *
- * A paste still being read (`pastePending`) turns a would-be Complete or Not started into In progress ("Reading…"):
+ * A paste still being read (`pasteReading`) turns a would-be Complete or Not started into In progress ("Reading…"):
  * the lines in the draft are not all the lines there will be, so the section is not done. It never hides 1 or 2, which
  * the cook can already act on.
  *
@@ -79,10 +79,11 @@ export interface SectionStatusInput {
     /** Whether Publish (or Save changes) has been refused in this editor. */
     readonly publishAttempted: boolean;
     /**
-     * A paste's lines are still being read, joined or matched (`useIngredientsPaste`'s `pending`). Required, so a caller
-     * cannot forget it: the lines in `values` are then not all the lines there will be.
+     * A paste's lines are still being read, joined or matched (`useIngredientsPaste`'s `reading`), so the lines in
+     * `values` are not all the lines there will be. Not `pending`: a line that failed and waits on the cook holds Publish
+     * but is no longer being read. Required, so a caller cannot forget it.
      */
-    readonly pastePending: boolean;
+    readonly pasteReading: boolean;
 }
 
 const COMPLETE: SectionStatus = { kind: 'complete' };
@@ -105,8 +106,8 @@ const NOT_STARTED: SectionStatus = { kind: 'notStarted' };
 const READING: SectionStatus = { kind: 'inProgress', reason: 'ingredientsReading' };
 
 /** Ingredients while a paste is read: no better than In progress, but never worse than what the cook can act on. */
-function readingOverride(status: SectionStatus, pastePending: boolean): SectionStatus {
-    return pastePending && (status.kind === 'complete' || status.kind === 'notStarted') ? READING : status;
+function readingOverride(status: SectionStatus, pasteReading: boolean): SectionStatus {
+    return pasteReading && (status.kind === 'complete' || status.kind === 'notStarted') ? READING : status;
 }
 
 /**
@@ -118,7 +119,7 @@ function readingOverride(status: SectionStatus, pastePending: boolean): SectionS
 export function sectionStatusesOf(input: SectionStatusInput): SectionStatuses {
     const errors = validateRecipeForm(input.values, input.pendingEntryText);
     const details = detailsStatus(input, errors);
-    const ingredients = readingOverride(ingredientsStatus(input, errors), input.pastePending);
+    const ingredients = readingOverride(ingredientsStatus(input, errors), input.pasteReading);
     const steps = stepsStatus(input, errors);
     const ready = [details, ingredients, steps].every((status) => status.kind === 'complete');
 

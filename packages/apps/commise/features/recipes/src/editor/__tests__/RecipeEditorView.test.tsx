@@ -108,7 +108,7 @@ describe('the frame', () => {
      * of 6 lines read). The page's `pastePending` is the paste's own pending fact; the wording is the paste's "Reading…".
      */
     it('shows Ingredients as Reading… in the section index while a paste is pending, never Complete', () => {
-        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: true }));
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pasteReading: true }));
 
         const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
         const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
@@ -118,7 +118,7 @@ describe('the frame', () => {
     });
 
     it('shows Ingredients as Complete once nothing is pending', () => {
-        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pastePending: false }));
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pasteReading: false }));
 
         const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
         const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
@@ -127,17 +127,39 @@ describe('the frame', () => {
         expect(ingredients.textContent).toContain('Complete');
     });
 
+    it('falls back to what the lines say once the paste has failed: Publish waits, but Ingredients is not "Reading…"', () => {
+        render(
+            view(makeEditorResult({ values: makeFilledRecipeFormValues() }), {
+                pastePending: true,
+                pasteReading: false,
+            }),
+        );
+
+        const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
+        const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
+
+        expect(ingredients.textContent).not.toContain('Reading…');
+        const publish = screen.getByRole('button', { name: 'Publish' });
+
+        expect(publish.getAttribute('aria-disabled') === 'true' || publish.hasAttribute('disabled')).toBe(true);
+    });
+
     it('says "Ingredients complete" only when the paste has settled, not while lines are still being read', () => {
         const filled = makeEditorResult({ values: makeFilledRecipeFormValues() });
         // Details and Steps are already done, so Ingredients is the first section to become complete.
         const noLines = makeEditorResult({ values: makeFilledRecipeFormValues({ ingredients: [] }) });
-        const { rerender } = render(view(noLines, { pastePending: true }));
+        const { rerender } = render(view(noLines, { pasteReading: true }));
 
-        rerender(view(filled, { pastePending: true }));
+        rerender(view(filled, { pasteReading: true }));
         expect(screen.queryByText('Ingredients complete')).toBeNull();
 
-        rerender(view(filled, { pastePending: false }));
-        expect(screen.getByText('Ingredients complete')).toBeTruthy();
+        rerender(view(filled, { pasteReading: false }));
+        expect(screen.getAllByText('Ingredients complete')).toHaveLength(1);
+
+        // Said once: a later render, even one that holds Publish for a line that needs the cook, says nothing more.
+        rerender(view(filled, { pasteReading: false, pastePending: true }));
+        rerender(view(filled, { pasteReading: false }));
+        expect(screen.getAllByText('Ingredients complete')).toHaveLength(1);
     });
 
     it('× never asks: it checkpoints the exit, then leaves', () => {

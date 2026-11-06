@@ -22,7 +22,7 @@ function chrome(over: Partial<Parameters<typeof makeEditorResult>[0]> = {}, inpu
             values: editor.values,
             pendingEntryText: '',
             publishAttempted: editor.publishAttempted,
-            pastePending: false,
+            pasteReading: false,
         }),
         messages: editorMessages.en,
         locale: 'en',

@@ -129,6 +129,11 @@ export interface RecipeEditorViewProps {
     /** A paste is being sent, or its lines are still joining the recipe: Publish waits (`useIngredientsPaste`). */
     readonly pastePending?: boolean;
     /**
+     * A paste's lines are still being read or matched, so Ingredients says "Reading…" and is not complete. Narrower than
+     * {@link pastePending}: false once every unjoined line failed and waits on the cook (`useIngredientsPaste`).
+     */
+    readonly pasteReading?: boolean;
+    /**
      * The paste's lines that have no food yet (R23): Publish asks first. `facts` is `undefined` while no line needs a pick,
      * and Publish goes straight through; `chooseNow` opens the first of them.
      */

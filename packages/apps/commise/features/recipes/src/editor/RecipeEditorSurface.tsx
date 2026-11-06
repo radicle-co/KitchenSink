@@ -196,6 +196,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 pendingEntryText={session.rowEditor.entry.pendingEntryText}
                 pendingEntryFieldId={pendingFieldId}
                 pastePending={paste.pending}
+                pasteReading={paste.reading}
                 openChoices={paste.openChoices}
                 sections={sections}
                 // §7.2 and §7.5.6: the rail's foot shows the Ingredients total too, from the same draft and read.

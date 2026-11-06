@@ -43,9 +43,11 @@ appId: ${APP_ID}
 # The rows settle, once the parse job answers and its foods are matched (there is no client stall bound: plan
 # 2026-10-15-011; ADR-0071 — a line joins only when its match has arrived, so the hold lets go after the match, not the
 # parse)...
+# iOS publishes the whole summary as ONE node ("Added 2 lines, 2 to choose. Matched lines are ready...") and Maestro matches the
+# WHOLE text, so the sentence ends in `.*`; "Added 0 of 2 lines" still does not match it (deployed run 42134419670).
 - extendedWaitUntil:
       visible:
-          text: 'Added 2 lines'
+          text: 'Added 2 lines.*'
       timeout: 240000
 - assertNotVisible:
       text: 'Added [0-2] of 2 lines.*'

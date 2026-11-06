@@ -54,9 +54,11 @@ appId: ${APP_ID}
 # by-name lookup, which bound a ranked guess. They are now MATCHED: the poll brings the parse, the app asks for the
 # matches, and the lines join in paste order as the paste list (a summary, then one row per line). Nothing is tapped
 # between. A stage whose worker cannot answer is the hand-run `pasteListStalled.yaml`'s subject.
+# iOS publishes the whole summary as ONE node ("Added 2 lines, 2 to choose. Matched lines are ready...") and Maestro matches the
+# WHOLE text, so the sentence ends in `.*`; "Added 0 of 2 lines" still does not match it (deployed run 42134419670).
 - extendedWaitUntil:
       visible:
-          text: 'Added 2 lines'
+          text: 'Added 2 lines.*'
       timeout: 240000
       label: 'both pasted lines joined the recipe once the parse job answered and the foods were matched'
 - assertNotVisible:

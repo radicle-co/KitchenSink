@@ -100,24 +100,22 @@ const OpenControl: FC<{
         >
             {/* One text run (#144): the amount in the strong weight, an ordinary space, then the food. React Native
                 breaks only between words while the run has the row's full width. No amount: no span and no space,
-                never an invented "1" (F5). A stand-in is a chip, not text, so it wraps beside the amount as a unit. */}
+                never an invented "1" (F5). A stand-in is a chip, not text, so the amount sits above it. */}
             <View style={styles.name}>
-                {row.standIn ? (
-                    <View style={styles.standInRun}>
-                        {amount}
-                        <View nativeID={ingredientStandInId(row.index)}>
-                            <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
-                        </View>
-                    </View>
-                ) : (
+                {(amount !== null || !row.standIn) && (
                     <Text style={[styles.body, { color: colors.ink }]}>
                         {amount}
-                        {amount !== null && ' '}
-                        {row.displayName}
-                        {row.prepText !== undefined && (
+                        {amount !== null && !row.standIn && ' '}
+                        {!row.standIn && row.displayName}
+                        {!row.standIn && row.prepText !== undefined && (
                             <Text style={{ color: colors.inkMuted }}>{`\u00A0· ${row.prepText}`}</Text>
                         )}
                     </Text>
+                )}
+                {row.standIn && (
+                    <View nativeID={ingredientStandInId(row.index)}>
+                        <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
+                    </View>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}
             </View>
@@ -255,8 +253,7 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.md,
     },
-    amount: { ...nativeTokens.type.label, fontVariant: ['tabular-nums'] },
-    standInRun: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
+    amount: { ...nativeTokens.type.figureInline },
     name: { flex: 1, gap: nativeTokens.spacing[1] },
     body: { ...nativeTokens.type.body },
     entry: { flex: 1, gap: nativeTokens.spacing[1], paddingVertical: nativeTokens.spacing[2] },

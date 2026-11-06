@@ -5,9 +5,8 @@ appId: ${APP_ID}
 # and NOTHING is selected for the cook; the first open line is expanded with a direct Search; choosing a food binds it as
 # the cook's and opens the next open line.
 #
-# ⚠️ Written with the slice and not run; first passed ONCE on the local Android stack (2026-11-06), which seeds the same
-# defaults. It depends on the stage's catalog holding them; recorded in `KNOWN_UNRUN_FLOWS`. Promote it to `FLOW_PLAN` in
-# the PR whose Maestro tier is watched.
+# It depends on the stage's catalog holding the seeded defaults. In `FLOW_PLAN` since it passed on the local Android stack
+# (2026-11-06), which seeds them.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'

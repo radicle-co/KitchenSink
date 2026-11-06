@@ -265,6 +265,8 @@ recipes:recipes/publishFeedback
 recipes:recipes/cuisineField
 recipes:recipes/pasteList
 recipes:recipes/pasteListSettle
+recipes:recipes/pasteMatchChoose
+recipes:recipes/pastePublishOpenChoices
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups

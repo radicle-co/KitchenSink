@@ -4,9 +4,8 @@ appId: ${APP_ID}
 # "Save"), on a device. Mobile mirror of the web Playwright `pastePublishOpenChoices.spec.ts`: the sheet names the open
 # lines and says they are saved as written; Choose now opens the first open line and publishes nothing.
 #
-# ⚠️ Written with the slice and not run; first passed ONCE on the local Android stack (2026-11-06), which seeds the same
-# default. It depends on the stage's seeded default for "milk"; recorded in `KNOWN_UNRUN_FLOWS`. Promote it to
-# `FLOW_PLAN` in the PR whose Maestro tier is watched.
+# It depends on the stage's seeded default for "milk". In `FLOW_PLAN` since it passed on the local Android stack
+# (2026-11-06), which seeds it.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'

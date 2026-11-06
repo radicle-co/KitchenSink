@@ -260,7 +260,8 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         const [rice, salt] = rowItems();
 
         expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
-            '300 gArborio rice · rinsed',
+            // UI Designer condition: a no-break space keeps the "·" on the name's line; the label above says a comma.
+            '300\u00A0gArborio rice\u00A0· rinsed',
         );
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
     });
@@ -278,7 +279,7 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         const [one, two] = rowItems();
 
         expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
-            '1 largeonion · diced',
+            '1\u00A0largeonion\u00A0· diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });
@@ -531,7 +532,7 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
     it('names the amount, the range’s upper bound and the preparation by their labels, which iOS reads', () => {
         render(<StatefulLeaf initial={[{ ...RICE, quantityHigh: 400 }]} seen={[]} />);
 
-        press('Edit 300–400 g Arborio rice');
+        press('Edit 300 to 400 g Arborio rice');
 
         expect(recordedTextInputLabelled(en.rowAmountLabel)).toBeDefined();
         expect(recordedTextInputLabelled(en.rowAmountHighLabel)).toBeDefined();

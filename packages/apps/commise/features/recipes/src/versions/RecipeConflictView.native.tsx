@@ -30,7 +30,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { spokenAmountsLabel } from '../format/cookAmount.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { recipeMessages } from '../messages.js';
 import {
     type ConflictOptionCardProps,
     type DiscardAndCloseProps,
@@ -214,6 +216,8 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     neverPublished = false,
 }) => {
     const conflict = conflictCopyOf(useMessages(recipeVersionMessages).conflict, neverPublished);
+    // A fraction is said in words, never as its character (Q5).
+    const { amountWords } = useMessages(recipeMessages);
     const locale = useLocale();
     const view = useConflictView({ server, base, versionsBehind, neverPublished, selections, onSelectionsChange });
     const { colors } = useTheme();
@@ -355,7 +359,13 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                             </View>
                             {row.base !== undefined && (
                                 <SideValue parts={conflictSideParts(row, 'base')}>
-                                    <Text style={[styles.changedFieldValue, ink]}>
+                                    <Text
+                                        style={[styles.changedFieldValue, ink]}
+                                        accessibilityLabel={spokenAmountsLabel(
+                                            fillTemplate(conflict.wasValueLabel, { value: row.base }),
+                                            amountWords,
+                                        )}
+                                    >
                                         {fillTemplate(conflict.wasValueLabel, { value: row.base })}
                                     </Text>
                                 </SideValue>
@@ -363,7 +373,13 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                             {/* Server value FIRST, then Yours (X7). */}
                             {(['theirs', 'mine'] as const).map((side) => (
                                 <SideValue key={side} parts={conflictSideParts(row, side)}>
-                                    <Text style={[styles.changedFieldValue, ink]}>
+                                    <Text
+                                        style={[styles.changedFieldValue, ink]}
+                                        accessibilityLabel={spokenAmountsLabel(
+                                            conflictOptionLabel(row, side, conflict),
+                                            amountWords,
+                                        )}
+                                    >
                                         {conflictOptionLabel(row, side, conflict)}
                                     </Text>
                                 </SideValue>

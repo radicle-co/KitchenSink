@@ -72,8 +72,9 @@ const SPOON = makeIngredientView({
     unit: 'tbsp',
     resolutionStatus: FoodResolutionStatus.AMBIGUOUS,
 });
-const CUP_ROW = '1 cup apple sauce';
-const SPOON_ROW = '2 tbsp apple sauce';
+// Each row is named by its summary, which joins the amount to its unit with a no-break space (Q5).
+const CUP_ROW = '1\u00A0cup apple sauce';
+const SPOON_ROW = '2\u00A0tbsp apple sauce';
 
 /** A recipe whose lines are `ingredients`. */
 const recipeOf = (ingredients: RecipeDetail['ingredients'], extra: Partial<RecipeDetail> = {}): RecipeDetail =>
@@ -697,7 +698,7 @@ describe('AmbiguityReview (web) — a candidate carrying a variant (curated U15)
         const candidate = screen.getByRole('button', { name: 'beef brisket' });
 
         expect(commaJoinedTexts(document.body, BRISKET_FLAT_HALF_PARTS)).toEqual([
-            '2 lb flat half, separable lean and fat',
+            '2\u00A0lb flat half, separable lean and fat',
         ]);
         expect(commaJoinedTexts(candidate, BRISKET_FLAT_HALF_PARTS)).toEqual([]);
     });

@@ -214,10 +214,27 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         const [rice, salt] = rowItems();
 
         expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
-            '300 gArborio rice · rinsed',
+            '300\u00A0gArborio rice\u00A0· , rinsed',
         );
         // No amount: the column is empty, never an invented "1" (F5).
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
+    });
+
+    /**
+     * UI Designer condition: a screen reader never says the "·". It hears a comma instead, from visually hidden
+     * text, and the no-break space keeps the "·" on the name's line.
+     */
+    it('POPULATED: the "·" before a preparation is hidden from a screen reader, which hears a comma', () => {
+        renderLeaf({ values: valuesWith(withLineKeys([{ ...RICE, preparation: 'rinsed' }])) });
+
+        const [rice] = rowItems();
+        const button = within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' });
+        const dot = within(button).getByText((_, element) => element?.textContent === '\u00A0· ');
+        const comma = within(button).getByText((_, element) => element?.textContent === ', ');
+
+        expect(dot.getAttribute('aria-hidden')).toBe('true');
+        expect(comma.getAttribute('aria-hidden')).toBeNull();
+        expect(comma.className).toContain('sr-only');
     });
 
     it('D21: a count of one reads in the singular, and the stored name stays plural', () => {
@@ -233,7 +250,7 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         const [one, two] = rowItems();
 
         expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
-            '1 largeonion · diced',
+            '1\u00A0largeonion\u00A0· , diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });

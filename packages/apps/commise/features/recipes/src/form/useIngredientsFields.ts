@@ -144,7 +144,7 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     const { entry, naming } = rowEditor;
     const focus = useRowFocus(rowEditor);
     const trailingText = entry.textOf(TRAILING);
-    const reading = liveReadingOf(trailingText, locale, addCopy.reading);
+    const reading = liveReadingOf(trailingText, locale, addCopy.reading, shared.amountWords);
     // Said once the cook pauses: the debounced text's reading, and only while it is still the field's text.
     const pausedText = useDebouncedValue(trailingText, LIVE_READING_PAUSE_MS);
     const readingSpoken = pausedText === trailingText ? (reading?.spoken ?? '') : '';

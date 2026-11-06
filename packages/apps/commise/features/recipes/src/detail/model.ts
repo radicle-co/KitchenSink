@@ -38,6 +38,7 @@ import {
     type RemotePart,
 } from '../hooks/foodSuggestions.model.js';
 import type { RemoteFoodPick } from '../hooks/lineCommit.js';
+import { formatAmountNumber } from '../format/cookAmount.js';
 import { formatDuration } from '../format/duration.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type {
@@ -74,17 +75,20 @@ import {
  */
 const RANGE_SEPARATOR = '–';
 
+/** What joins an amount to its unit: a no-break space (UI Designer ruling Q5). Punctuation, not copy. */
+const AMOUNT_UNIT_JOINER = '\u00A0';
+
 /**
- * Format an ingredient quantity with its optional unit for the active locale via {@link Intl.NumberFormat}
- * (never string concatenation of the NUMBERS, so grouping/decimal separators stay locale-correct). Mirrors
- * `card/model.ts`'s `formatCalories`. Pure.
+ * Format an ingredient quantity with its optional unit for the active locale. Each number goes through
+ * `format/cookAmount.ts` (a cook's fraction in English, a locale decimal elsewhere, never string concatenation of the
+ * NUMBERS). Pure.
  *
  * Each of the value object's three members renders differently, and the third is the one to be careful
  * about:
  *
  * | Member   | Example input                 | Renders     |
  * | -------- | ----------------------------- | ----------- |
- * | `exact`  | `{ value: 1.5 }`, `'lbs'`     | `1.5 lbs`   |
+ * | `exact`  | `{ value: 1.5 }`, `'lbs'`     | `1½ lbs`    |
  * | `range`  | `{ low: 2, high: 3 }`, `'cups'` | `2–3 cups`  |
  * | `absent` | `—`, `'pinch'`                | `pinch`     |
  *
@@ -100,7 +104,7 @@ const RANGE_SEPARATOR = '–';
  *   are).
  */
 export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, unit?: string): string => {
-    const format = (value: number): string => new Intl.NumberFormat(locale).format(value);
+    const format = (value: number): string => formatAmountNumber(value, locale, unit);
     const formattedQuantity =
         quantity.kind === 'exact'
             ? format(quantity.value)
@@ -113,7 +117,8 @@ export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, uni
         return hasUnit ? unit : '';
     }
 
-    return hasUnit ? `${formattedQuantity} ${unit}` : formattedQuantity;
+    // A no-break space, so a line never wraps between an amount and its unit (Q5, as in the meta line).
+    return hasUnit ? `${formattedQuantity}${AMOUNT_UNIT_JOINER}${unit}` : formattedQuantity;
 };
 
 /**

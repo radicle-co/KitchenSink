@@ -64,11 +64,11 @@ function range(low: number, high: number): IngredientQuantity {
 
 describe('formatQuantity — an exact quantity', () => {
     it('joins a quantity and unit', () => {
-        expect(formatQuantity(exact(2), 'en-US', 'tbsp')).toBe('2 tbsp');
+        expect(formatQuantity(exact(2), 'en-US', 'tbsp')).toBe('2\u00A0tbsp');
     });
 
     it('preserves fractional quantities', () => {
-        expect(formatQuantity(exact(1.5), 'en-US', 'lbs')).toBe('1.5 lbs');
+        expect(formatQuantity(exact(1.5), 'en-US', 'lbs')).toBe('1½\u00A0lbs');
     });
 
     it('omits the unit when absent', () => {
@@ -84,7 +84,7 @@ describe('formatQuantity — an exact quantity', () => {
     });
 
     it('formats a fractional quantity with a unit correctly for en-US', () => {
-        expect(formatQuantity(exact(2.5), 'en-US', 'cups')).toBe('2.5 cups');
+        expect(formatQuantity(exact(2.5), 'en-US', 'cups')).toBe('2½\u00A0cups');
     });
 });
 
@@ -92,54 +92,54 @@ describe('formatQuantity — an exact quantity', () => {
 // ("tbsp", "g", "oz") is a symbol and does not.
 describe('formatAmount — the plural of a word unit (D11)', () => {
     it.each([
-        [1.5, 'cup', '1.5 cups'],
-        [2, 'cup', '2 cups'],
-        [0.5, 'cup', '0.5 cup'],
-        [1, 'cup', '1 cup'],
-        [2, 'tablespoon', '2 tablespoons'],
-        [3, 'pinch', '3 pinches'],
-        [2, 'fluid ounce', '2 fluid ounces'],
-        [2, 'clove', '2 cloves'],
-        [2, 'handful', '2 handfuls'],
+        [1.5, 'cup', '1½\u00A0cups'],
+        [2, 'cup', '2\u00A0cups'],
+        [0.5, 'cup', '½\u00A0cup'],
+        [1, 'cup', '1\u00A0cup'],
+        [2, 'tablespoon', '2\u00A0tablespoons'],
+        [3, 'pinch', '3\u00A0pinches'],
+        [2, 'fluid ounce', '2\u00A0fluid ounces'],
+        [2, 'clove', '2\u00A0cloves'],
+        [2, 'handful', '2\u00A0handfuls'],
     ])('%s of the word unit %j reads %j', (value, unit, shown) => {
         expect(formatAmount(exact(value), 'en-US', unit)).toBe(shown);
     });
 
     it.each(['tbsp', 'tsp', 'g', 'kg', 'mg', 'oz', 'lb', 'ml'])('leaves the abbreviation %j alone', (unit) => {
-        expect(formatAmount(exact(2), 'en-US', unit)).toBe(`2 ${unit}`);
+        expect(formatAmount(exact(2), 'en-US', unit)).toBe(`2\u00A0${unit}`);
     });
 
     it('leaves a unit that is already plural, and one it does not know, as the cook wrote it', () => {
-        expect(formatAmount(exact(2), 'en-US', 'cups')).toBe('2 cups');
-        expect(formatAmount(exact(2), 'en-US', 'bunch')).toBe('2 bunch');
-        expect(formatAmount(exact(2), 'en-US', 'large')).toBe('2 large');
+        expect(formatAmount(exact(2), 'en-US', 'cups')).toBe('2\u00A0cups');
+        expect(formatAmount(exact(2), 'en-US', 'bunch')).toBe('2\u00A0bunch');
+        expect(formatAmount(exact(2), 'en-US', 'large')).toBe('2\u00A0large');
     });
 
     it('pluralises a RANGE, which states no one', () => {
-        expect(formatAmount(range(2, 3), 'en-US', 'cup')).toBe('2–3 cups');
-        expect(formatAmount(range(0.5, 1), 'en-US', 'cup')).toBe('0.5–1 cups');
+        expect(formatAmount(range(2, 3), 'en-US', 'cup')).toBe('2–3\u00A0cups');
+        expect(formatAmount(range(0.5, 1), 'en-US', 'cup')).toBe('½–1\u00A0cups');
     });
 
     it('keeps the cook’s capitals', () => {
-        expect(formatAmount(exact(2), 'en-US', 'Cup')).toBe('2 Cups');
+        expect(formatAmount(exact(2), 'en-US', 'Cup')).toBe('2\u00A0Cups');
     });
 
     it('leaves a unit that names no amount at all alone, never "2 to tastes"', () => {
-        expect(formatAmount(exact(2), 'en-US', 'to taste')).toBe('2 to taste');
+        expect(formatAmount(exact(2), 'en-US', 'to taste')).toBe('2\u00A0to taste');
     });
 });
 
 describe('formatAmount vs formatQuantity (D11)', () => {
     // The editor and the parsed-line preview print the unit as typed; only the read page pluralises it.
     it('leaves formatQuantity printing the unit exactly as the cook wrote it', () => {
-        expect(formatQuantity(exact(2), 'en-US', 'cup')).toBe('2 cup');
-        expect(formatQuantity(range(2, 3), 'en-US', 'cup')).toBe('2–3 cup');
+        expect(formatQuantity(exact(2), 'en-US', 'cup')).toBe('2\u00A0cup');
+        expect(formatQuantity(range(2, 3), 'en-US', 'cup')).toBe('2–3\u00A0cup');
     });
 });
 
 describe('formatQuantity — a stated range (R36/R42)', () => {
     it('renders BOTH bounds with ONE unit', () => {
-        expect(formatQuantity(range(2, 3), 'en-US', 'cups')).toBe('2–3 cups');
+        expect(formatQuantity(range(2, 3), 'en-US', 'cups')).toBe('2–3\u00A0cups');
     });
 
     it('renders a range with no unit', () => {
@@ -149,11 +149,38 @@ describe('formatQuantity — a stated range (R36/R42)', () => {
     // Each bound goes through Intl separately, so a grouped thousand stays grouped at both ends. A
     // concatenated `${low}-${high}` would print `1000-2000` and lose the locale's separator.
     it('locale-formats each bound rather than concatenating the pair', () => {
-        expect(formatQuantity(range(1000, 2000), 'en-US', 'g')).toBe('1,000–2,000 g');
+        expect(formatQuantity(range(1000, 2000), 'en-US', 'g')).toBe('1,000–2,000\u00A0g');
     });
 
     it('preserves fractional bounds', () => {
-        expect(formatQuantity(range(0.5, 0.75), 'en-US', 'tsp')).toBe('0.5–0.75 tsp');
+        expect(formatQuantity(range(0.5, 0.75), 'en-US', 'tsp')).toBe('½–¾\u00A0tsp');
+    });
+});
+
+/**
+ * UI Designer ruling Q5 (2026-11-06): one fraction character joined to the whole, a no-break space before the unit,
+ * metric decimal, and every non-English locale a decimal with its own mark. The number rules themselves are
+ * `format/cookAmount.ts`'s and are tested there; these pin that every line formatter goes through them.
+ */
+describe('formatQuantity — a cook’s fraction (Q5)', () => {
+    it('reads 1.5 cups as 1½ cups, joined to the unit by a no-break space', () => {
+        expect(formatQuantity(exact(1.5), 'en-US', 'cups')).toBe('1½\u00A0cups');
+    });
+
+    it('keeps a metric amount decimal', () => {
+        expect(formatQuantity(exact(1.5), 'en-US', 'l')).toBe('1.5\u00A0l');
+    });
+
+    it('does not snap 0.3', () => {
+        expect(formatQuantity(exact(0.3), 'en-US', 'cup')).toBe('0.3\u00A0cup');
+    });
+
+    it('reads a range bound by bound', () => {
+        expect(formatQuantity(range(1.5, 2), 'en-US', 'cups')).toBe('1½–2\u00A0cups');
+    });
+
+    it('reads a decimal with the locale’s own mark outside English', () => {
+        expect(formatQuantity(exact(1.5), 'de-DE', 'Tassen')).toBe('1,5\u00A0Tassen');
     });
 });
 
@@ -249,7 +276,7 @@ describe('ingredientCheckLabel — the amount as the page shows it (D11, SC 2.5.
     it('names a scaled row with the plural its visible text carries, so the name contains the label', () => {
         const line = makeIngredientView({ name: 'flour', quantity: exact(1.5), unit: 'cup' });
 
-        expect(ingredientCheckLabel(line, 'en', names, template.checkLabelWithDetails)).toBe('1.5 cups flour');
+        expect(ingredientCheckLabel(line, 'en', names, template.checkLabelWithDetails)).toBe('1½\u00A0cups flour');
     });
 });
 
@@ -261,12 +288,12 @@ describe('ingredientCheckLabel (curated U15, §S5)', () => {
         const line = makeRootBoundLine();
 
         expect(ingredientCheckLabel(line, 'en', names, template)).toBe(lineSummary(line, 'en', names));
-        expect(ingredientCheckLabel(line, 'en', names, template)).toBe('1 lb beef brisket');
+        expect(ingredientCheckLabel(line, 'en', names, template)).toBe('1\u00A0lb beef brisket');
     });
 
     it('adds every part, comma-joined, on a variant-bound line (R27)', () => {
         expect(ingredientCheckLabel(makeVariantBoundLine(), 'en', names, template)).toBe(
-            '2 lb beef brisket, flat half, separable lean and fat, 1/8-inch trim, select, braised',
+            '2\u00A0lb beef brisket, flat half, separable lean and fat, 1/8-inch trim, select, braised',
         );
     });
 
@@ -453,9 +480,9 @@ describe('the singular name for a count of one (D21)', () => {
         makeIngredientView({ name: 'onions', ...overrides });
 
     it('lineSummary reads "1 large onion" for one, and "2 onions" for two', () => {
-        expect(lineSummary(onions({ quantity: exact(1), unit: 'large' }), 'en', names)).toBe('1 large onion');
+        expect(lineSummary(onions({ quantity: exact(1), unit: 'large' }), 'en', names)).toBe('1\u00A0large onion');
         expect(lineSummary(onions({ quantity: exact(2), unit: '' }), 'en', names)).toBe('2 onions');
-        expect(lineSummary(onions({ quantity: exact(1), unit: 'cup' }), 'en', names)).toBe('1 cup onions');
+        expect(lineSummary(onions({ quantity: exact(1), unit: 'cup' }), 'en', names)).toBe('1\u00A0cup onions');
     });
 
     it('ingredientCheckLabel names a variant-bound line the same way', () => {
@@ -472,7 +499,7 @@ describe('the singular name for a count of one (D21)', () => {
             preparation: 'finely chopped',
         });
 
-        expect(formatIngredientLine(line, 'en', names)).toBe('1 large onion, finely chopped');
+        expect(formatIngredientLine(line, 'en', names)).toBe('1\u00A0large onion, finely chopped');
         expect(formatIngredientLine({ ...line, quantity: exact(2), unit: '' }, 'en', names)).toBe(
             '2 onions, finely chopped',
         );

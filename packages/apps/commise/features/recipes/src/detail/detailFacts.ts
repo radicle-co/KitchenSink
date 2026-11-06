@@ -9,9 +9,11 @@ import type { Locale } from '@commise/i18n';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
+import { speakAmounts } from '../format/cookAmount.js';
 import { formatDuration } from '../format/duration.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type {
+    AmountWordMessages,
     IngredientLineNameMessages,
     RecipeCardMessages,
     RecipeDetailMessages,
@@ -184,12 +186,13 @@ export function detailStatusLine(
 
 /**
  * A checkable ingredient row's name: the whole line — amount, food (and a variant's parts) and preparation — because
- * the whole row is the checkbox.
+ * the whole row is the checkbox. A fraction is said in words, never as its character (UI Designer ruling Q5).
  *
  * @param line - The line, at the serving count on screen.
  * @param locale - The active locale.
  * @param labels - The stand-ins for a line with no name.
  * @param withDetails - The `checkLabelWithDetails` template.
+ * @param words - The words for an amount's fractions.
  * @returns The name.
  */
 export function ingredientRowName(
@@ -197,11 +200,12 @@ export function ingredientRowName(
     locale: Locale,
     labels: IngredientLineNameMessages,
     withDetails: string,
+    words: AmountWordMessages,
 ): string {
     const preparation = line.preparation?.trim() ?? '';
     const name = ingredientCheckLabel(line, locale, labels, withDetails);
 
-    return preparation === '' ? name : `${name}, ${preparation}`;
+    return speakAmounts(preparation === '' ? name : `${name}, ${preparation}`, words);
 }
 
 /** One consecutive run of ingredient lines under one group label. */

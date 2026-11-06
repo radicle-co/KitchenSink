@@ -1,5 +1,5 @@
 /**
- * `pastedLineMeasureOf` — the measure one food of a pasted line is SAVED with (build spec §7.5.3, §7.5.4; ADR-0071).
+ * `pastedLineRowOf` — the measure and name one food of a pasted line is SAVED with (build spec §7.5.3, §7.5.4; ADR-0071).
  *
  * ⛔ ONE RULE, TWO CALLERS. The editor (`@commise/features-recipes`' `pastedLines.ts`) saves a pasted row with this
  * measure, and recipe-service's paste matcher (`matchJudgementOf`) keys the review gate's verdict with it, so the key a
@@ -15,12 +15,17 @@
  *     (`one cup`), or where the parse kept no words.
  *  3. **Only the FIRST food of a line carries the line's measure.** A second food on the same line (`salt and pepper`)
  *     states none, because the line gave one amount.
+ *  4. **A size word is a unit** (ADR-0026 §8, owner ruling 2026-08-26). The parse keeps a leading size word in the
+ *     food's name (`3 large eggs` → `large eggs`, no unit), so a counted row with no unit takes it as its unit and the
+ *     name keeps the rest. The line then reads "3 large eggs" beside any matched food, and `unitToGrams` can meet a
+ *     catalog portion labelled `large`. A name that is only a size word is never emptied.
  *
  * Reachable ONLY as `@kitchensink/recipe-core/parsing/pasted-line-measure`, never from the barrel. Pure.
  *
  * @pattern Specification — the one rule for a pasted line's saved measure, shared by the editor and the matcher
  */
 import { ABSENT_QUANTITY, type IngredientQuantity } from '../ingredientQuantity.js';
+import { isSizeWord } from '../units.js';
 import { readCooksMeasure } from './measureReader.js';
 
 /** What a parse says about a line's measure: its reading, and the words the source used. */
@@ -34,22 +39,27 @@ export interface PastedLineParse {
 }
 
 /** The measure a pasted row is saved with. `unit` is `''` when the row states none, as the editor saves it. */
-export interface PastedLineMeasure {
+interface PastedLineMeasure {
     readonly quantity: IngredientQuantity;
     readonly unit: string;
+}
+
+/** What a pasted row is saved with: its measure, and the food's name with any size word moved into the unit. */
+export interface PastedLineRow extends PastedLineMeasure {
+    readonly name: string;
 }
 
 /** A row that states no measure. */
 const NO_MEASURE: PastedLineMeasure = Object.freeze({ quantity: ABSENT_QUANTITY, unit: '' });
 
 /**
- * The measure one food of a pasted line is saved with.
+ * The measure one food of a pasted line is saved with, before rule 4.
  *
  * @param parse - The line's parse: its reading and the source's words for the measure.
  * @param foodIndex - Which food of the line. Only the first (`0`) carries the measure.
  * @returns The quantity and the unit in the cook's words. Pure.
  */
-export function pastedLineMeasureOf(parse: PastedLineParse, foodIndex: number): PastedLineMeasure {
+function pastedLineMeasureOf(parse: PastedLineParse, foodIndex: number): PastedLineMeasure {
     if (foodIndex !== 0) {
         return NO_MEASURE;
     }
@@ -68,4 +78,41 @@ export function pastedLineMeasureOf(parse: PastedLineParse, foodIndex: number): 
     }
 
     return parse.quantity.kind === 'absent' ? { quantity: ABSENT_QUANTITY, unit: stated.words } : parsed;
+}
+
+/**
+ * Split a leading size word off a name, trying the two-word form (`extra large`) before the one-word form.
+ *
+ * @param name - The food's name as the parse read it.
+ * @returns The size word as written and the rest, or `undefined` when the name does not lead with one. Pure.
+ */
+function leadingSizeWord(name: string): { readonly size: string; readonly rest: string } | undefined {
+    const words = name.trim().split(/\s+/u);
+
+    for (const width of [2, 1]) {
+        const size = words.slice(0, width).join(' ');
+        const rest = words.slice(width).join(' ');
+
+        if (words.length > width && isSizeWord(size)) {
+            return { size, rest };
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * The measure and name one food of a pasted line is saved with (rules 1 to 4).
+ *
+ * @param parse - The line's parse: its reading and the source's words for the measure.
+ * @param foodIndex - Which food of the line. Only the first (`0`) carries the measure.
+ * @param name - That food's name as the parse read it.
+ * @returns The quantity, the unit in the cook's words, and the name. Pure.
+ */
+export function pastedLineRowOf(parse: PastedLineParse, foodIndex: number, name: string): PastedLineRow {
+    const measure = pastedLineMeasureOf(parse, foodIndex);
+    const counted = foodIndex === 0 && measure.unit === '' && measure.quantity.kind !== 'absent';
+    const sized = counted ? leadingSizeWord(name) : undefined;
+
+    return sized === undefined ? { ...measure, name } : { ...measure, unit: sized.size, name: sized.rest };
 }

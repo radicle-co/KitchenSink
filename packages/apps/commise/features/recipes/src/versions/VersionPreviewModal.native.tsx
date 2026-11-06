@@ -48,6 +48,7 @@ import {
     formatChangedFromCurrent,
     toVersionPreviewIngredientLines,
     toVersionPreviewSteps,
+    versionLineAccessibilityLabel,
 } from './preview.js';
 
 /**
@@ -72,7 +73,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     restoreError,
 }) => {
     const { preview, conflict, versionList } = useMessages(recipeVersionMessages);
-    const { ingredientLineName } = useMessages(recipeMessages);
+    const { ingredientLineName, amountWords } = useMessages(recipeMessages);
     const { colors } = useTheme();
     const ink = { color: colors.ink };
     const muted = { color: colors.inkMuted };
@@ -220,7 +221,10 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             ).map((line) => (
                                 <View key={line.key} style={styles.ingredientRow}>
                                     <View style={styles.ingredientLine}>
-                                        <Text style={[styles.body, muted, styles.ingredientText]}>
+                                        <Text
+                                            style={[styles.body, muted, styles.ingredientText]}
+                                            accessibilityLabel={versionLineAccessibilityLabel(line, amountWords)}
+                                        >
                                             {line.text}
                                             {/* Words, never colour alone: the refused restore named this line. On a
                                                 line with no details it is read with the line. */}

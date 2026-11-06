@@ -682,7 +682,8 @@ describe('the add field reads the amount first, native (build spec §7.5.3; blue
             render(<Harness initial={valuesWith([])} />);
             fireEvent.change(trailing(), { target: { value: '2 tbsp olive oil, for frying' } });
 
-            expect(screen.getByText('2 tbsp · olive oil · for frying')).toBeTruthy();
+            // UI Designer condition: the "·" is never spoken. The caption is for the eye; the status region says it.
+            expect(screen.getByText('2 tbsp · olive oil · for frying').closest('[aria-hidden="true"]')).not.toBeNull();
             const spoken = 'Amount 2, unit tablespoon, food olive oil, preparation for frying.';
             expect(screen.queryByText(spoken)).toBeNull();
 

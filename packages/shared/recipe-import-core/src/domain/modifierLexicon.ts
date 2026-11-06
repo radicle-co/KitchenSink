@@ -71,7 +71,6 @@ const TEMPERATURES: ReadonlySet<string> = new Set([
     'boiling',
     'chilled',
     'cold',
-    'frozen',
     'hot',
     'iced',
     'lukewarm',
@@ -177,6 +176,26 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     'powdered',
     'prepared',
     'unsweetened',
+    // ⛔ The rest of the parse prompt's "product descriptors" (`PARSE_SYSTEM_PROMPT` rule 7), added 2026-11-06 after
+    // `unsalted butter` was stored as `butter` and bound to salted butter. The prompt keeps these in the name, and this
+    // list must agree with it: `promptDescriptorParity.test.ts` reads the prompt's list and fails on any word filed
+    // here as preparation, except the ones that test lists with their reason.
+    //
+    // `dried` and `frozen` are here by owner ruling 2026-11-06 ("1 tsp dried thyme" binds dried thyme). `dried` was
+    // KTD-11b's accepted edge and `frozen` sat with the temperatures; ADR-0026 §5 records the carve-out. Consulted before
+    // the `-ed` rule and before `head()`, so `freeze-dried` and `sun-dried` follow.
+    'condensed',
+    'dried',
+    'frozen',
+    'evaporated',
+    'refried',
+    'roasted',
+    'salted',
+    'smoked',
+    'sun-dried',
+    'sweetened',
+    'unbleached',
+    'unsalted',
     'pastry',
     'plain',
     'raw',
@@ -252,7 +271,8 @@ export function classifyModifier(word: string): ModifierRole {
         return 'preparation';
     }
 
-    if (ADJECTIVES.has(key)) {
+    // The whole word first, so a listed compound (`sun-dried`) is not decided by its head (`dried`).
+    if (ADJECTIVES.has(key) || ADJECTIVES.has(folded)) {
         return 'identity';
     }
 

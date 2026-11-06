@@ -611,6 +611,23 @@ export interface IngredientCreateFoodMessages {
     readonly close: string;
 }
 
+/** The words a screen reader says for each fraction, and the two patterns that join them (localized). */
+export interface AmountWordMessages {
+    readonly half: string;
+    readonly third: string;
+    readonly twoThirds: string;
+    readonly quarter: string;
+    readonly threeQuarters: string;
+    readonly eighth: string;
+    readonly threeEighths: string;
+    readonly fiveEighths: string;
+    readonly sevenEighths: string;
+    /** A whole number and a fraction: `{whole}`, `{fraction}`. */
+    readonly mixed: string;
+    /** A range: `{low}`, `{high}`. */
+    readonly range: string;
+}
+
 /**
  * The stand-ins a recipe line shows where its name would be, when it has none (plan 002 R9;
  * `docs/design/namelessLineCopy.md` §2b). Every surface that names a line renders these through
@@ -776,6 +793,11 @@ export interface RecipeMessages {
     readonly ingredientCreateFood: IngredientCreateFoodMessages;
     /** The stand-ins for a line with no name, shared by the detail, editor, review and version surfaces. */
     readonly ingredientLineName: IngredientLineNameMessages;
+    /**
+     * The words a screen reader says for an amount's fraction (UI Designer ruling Q5): one per fraction character,
+     * the mixed pattern and the range pattern. Read by `format/cookAmount.ts`' `speakAmounts`, never the character.
+     */
+    readonly amountWords: AmountWordMessages;
     /** Copy for the variant details dialog (curated U14), shared by web and native. */
     readonly ingredientDetails: IngredientDetailsMessages;
 }
@@ -851,6 +873,19 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             removedFood: 'Removed food',
             notLoaded: 'Ingredient not loaded',
             notSavedInVersion: 'Name not saved',
+        },
+        amountWords: {
+            half: 'a half',
+            third: 'a third',
+            twoThirds: 'two thirds',
+            quarter: 'a quarter',
+            threeQuarters: 'three quarters',
+            eighth: 'an eighth',
+            threeEighths: 'three eighths',
+            fiveEighths: 'five eighths',
+            sevenEighths: 'seven eighths',
+            mixed: '{whole} and {fraction}',
+            range: '{low} to {high}',
         },
         ingredientRemoteSearch: {
             groupHeading: 'From {source}',

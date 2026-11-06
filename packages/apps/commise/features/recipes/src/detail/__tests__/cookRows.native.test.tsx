@@ -41,6 +41,21 @@ describe('IngredientCheckRow (native)', () => {
         expect(onToggle).toHaveBeenCalledWith('ing_lamb');
     });
 
+    // UI Designer ruling Q5: the row shows a cook's fraction, and its accessibility label says it in words.
+    it('shows 1½ cups and is named "1 and a half cups"', () => {
+        const milk = makeIngredientView({
+            ingredientId: 'ing_milk',
+            quantity: { kind: 'exact', value: 1.5 },
+            unit: 'cups',
+            name: 'whole milk',
+        });
+        render(<IngredientCheckRow ingredient={milk} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        const row = screen.getByRole('checkbox', { name: '1 and a half cups whole milk' });
+
+        expect(row.textContent).toContain('1½\u00A0cups');
+    });
+
     // Owner C5 + T1: the row pads 8 and is at least 44 tall (iOS), sized from the tokens, and a press anywhere on the row (the text
     // included) toggles it. REWRITTEN IN SLICE 2: the line is the `body` role (16), as the board draws it, where it was `list`.
     it('sets the line in the body role, pads 8 and is at least 44 tall', () => {

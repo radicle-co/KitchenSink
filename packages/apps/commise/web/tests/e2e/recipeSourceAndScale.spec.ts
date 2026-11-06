@@ -233,7 +233,7 @@ test.describe('recipe detail — configurable serving size', () => {
             await page.getByRole('button', { name: 'More servings' }).click();
         }
 
-        await expect(page.getByRole('checkbox', { name: '1.5 cups flour' })).toBeVisible();
-        await expect(page.getByRole('checkbox', { name: '1.5 tbsp oil' })).toBeVisible();
+        await expect(page.getByRole('checkbox', { name: '1 and a half cups flour' })).toBeVisible();
+        await expect(page.getByRole('checkbox', { name: '1 and a half tbsp oil' })).toBeVisible();
     });
 });

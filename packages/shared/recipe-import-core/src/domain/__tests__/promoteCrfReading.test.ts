@@ -226,3 +226,20 @@ describe('promoteCrfReading', () => {
         });
     });
 });
+
+/**
+ * Owner ruling 2026-11-06, the CRF stage. The engine itself keeps `dried`, `frozen` and `canned` in its `names` (real
+ * answers, `ingredient-parser-nlp` 2.3.0, 2026-11-06; across the 2,490-line 1919 corpus it never tags one as
+ * preparation). The adapter passes the name through whole, and a cook's own step after the comma stays preparation.
+ */
+describe('promoteCrfReading — a form the cook buys', () => {
+    it.each([
+        ['1 tsp dried thyme', '1 tsp', 'dried thyme', null],
+        ['2 cups frozen blueberries, thawed', '2 cups', 'frozen blueberries', 'thawed'],
+        ['2 cups canned tomatoes', '2 cups', 'canned tomatoes', null],
+    ] as const)('%j keeps its food %j whole', (sentence, measure, name, preparation) => {
+        const parsed = promoteCrfReading(makeCrfReading({ sentence, measure, names: [name], preparation }), sentence);
+
+        expect(parsed.foods).toEqual([{ name, prep: preparation }]);
+    });
+});

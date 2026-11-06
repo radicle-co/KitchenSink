@@ -165,7 +165,7 @@ explicit pick. The review gate checks every paste match, whatever its measured e
     only.
 12. **The save path reads verdicts by key.** Before it enqueues, it drops each line whose verdict is already on
     record and asked identity. A pasted line whose proposal the gate judged is not paid for twice: the editor and the
-    matcher read the line's measure with one function, `pastedLineMeasureOf`, so the two keys are equal.
+    matcher read the line's measure with one function, `pastedLineRowOf`, so the two keys are equal.
 13. **An identity abstention on a saved line shows the AMBIGUOUS badge** (owner ruling 2026-10-25). A quantity-only
     abstention keeps the catalog status. Nutrition still publishes. Only a contradiction withholds it.
 14. **A name typed in the editor never binds what a tier remembers** (owner rulings 2026-11-03, after devil's advocate

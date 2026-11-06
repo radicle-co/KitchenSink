@@ -127,9 +127,10 @@ describe('IngredientCheckRow (web)', () => {
             </ul>,
         );
 
-        const row = screen.getByRole('checkbox', { name: '1.5 cups flour' });
+        // Q5: the row shows a cook's fraction, and its name says it in words.
+        const row = screen.getByRole('checkbox', { name: '1 and a half cups flour' });
 
-        expect(row.textContent).toContain('1.5 cups');
+        expect(row.textContent).toContain('1½\u00A0cups');
     });
 
     it('reports a press on the row with the line’s key', () => {

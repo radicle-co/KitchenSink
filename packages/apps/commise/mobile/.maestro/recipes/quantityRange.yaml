@@ -78,7 +78,7 @@ appId: ${APP_ID}
 - inputText: 'cups'
 - hideKeyboard
 - tapOn: 'Done'
-- assertVisible: 'Edit 2–3 cups Tomato'
+- assertVisible: 'Edit 2 to 3 cups Tomato'
 
 # Steps, below Ingredients — a fresh create has no steps, so this is `Step 1`.
 - runFlow:
@@ -117,12 +117,12 @@ appId: ${APP_ID}
           text: 'Maestro Range Loaf.*'
       timeout: 40000
 
-# ⛔ THE SPAN, not its lower bound. An EN DASH, which is what `formatQuantity` prints on BOTH platforms —
-# the same glyph the web spec asserts, so a platform that formatted a range differently fails here. The amount leads
+# ⛔ THE SPAN, not its lower bound. `formatQuantity` prints an EN DASH on BOTH platforms, and the row's name says it
+# with the range words, "2 to 3" (UI Designer ruling Q5), as the web spec asserts. The amount leads
 # the name in one paragraph (`docs/design/readSurfacesEvaluation.md` D1), so the line is matched from its start.
 - scrollUntilVisible:
       element:
-          text: '2–3 cups .*Tomato.*'
+          text: '2 to 3 cups .*Tomato.*'
       direction: DOWN
       timeout: 20000
 
@@ -138,10 +138,10 @@ appId: ${APP_ID}
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
-          TARGET: 'Edit 2–3 cups Tomato'
+          TARGET: 'Edit 2 to 3 cups Tomato'
           DIRECTION: DOWN
           TIMEOUT: 20000
-- tapOn: 'Edit 2–3 cups Tomato'
+- tapOn: 'Edit 2 to 3 cups Tomato'
 # A TextInput's own value is matchable text in this suite (see `searchNavigation.yaml`), so the seeded
 # bounds are assertable directly.
 - assertVisible: 'Amount, up to'

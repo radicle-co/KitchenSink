@@ -215,3 +215,18 @@ describe('the model own split reaches the canonical facts — owner ruling 2026-
         expect(parse('1 2/3', 'cups').statedMeasure).toBe('1 2/3 cups');
     });
 });
+
+/**
+ * Owner ruling 2026-11-06, the LLM stage. The parse prompt's rule 7 tells the model to keep `dried`, `canned` and
+ * `frozen` in the name ("12 dried red chiles" → food "dried red chiles", the prompt's own example), and the adapter
+ * stores the model's name whole.
+ */
+describe('promoteLlmParse — a form the cook buys', () => {
+    it.each([
+        ['12 dried red chiles', '12', 'dried red chiles', null],
+        ['1 cup frozen peas, thawed', '1 cup', 'frozen peas', 'thawed'],
+        ['2 cups canned tomatoes', '2 cups', 'canned tomatoes', null],
+    ] as const)('%j keeps its food %j whole', (line, statedMeasure, name, prep) => {
+        expect(promoteLlmParse({ statedMeasure, foods: [{ name, prep }] }, line).foods).toEqual([{ name, prep }]);
+    });
+});

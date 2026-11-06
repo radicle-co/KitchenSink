@@ -229,6 +229,64 @@ describe('pastedLinesOf', () => {
     });
 
     /**
+     * Dogfooding PR 132: "3 large eggs" read "3 eggs". The parse keeps a leading size word in the food's name (`large
+     * eggs`, no unit), and the matched catalog food names the line, so "large" vanished. ADR-0026 §8: a size word is a
+     * unit. The row takes it as its unit and keeps the rest as its name; the phrase the parse lifted stays whole, as the
+     * memo key.
+     */
+    it('a counted line takes its leading size word as the unit', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine: '3 large eggs',
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        quantity: { kind: 'exact', value: 3 },
+                        unit: null,
+                        statedMeasure: '3',
+                        foods: [makeParseProposalFood({ name: 'large eggs', prep: null })],
+                    }),
+                }),
+            ],
+        });
+        const [settled] = pastedLinesOf(input({ job }));
+
+        expect(settled?.kind === 'settled' ? settled.rows : undefined).toEqual([
+            {
+                name: 'eggs',
+                measure: { quantity: { kind: 'exact', value: 3 }, unit: 'large', preparation: '' },
+                sourcePhrase: 'large eggs',
+                foodIndex: 0,
+            },
+        ]);
+    });
+
+    /** Owner ruling 2026-11-06: a form the cook buys is part of the row's name, never its preparation. */
+    it('keeps `dried` in the row’s name', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine: '1 tsp dried thyme',
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: 'teaspoon',
+                        statedMeasure: '1 tsp',
+                        foods: [makeParseProposalFood({ name: 'dried thyme', prep: null })],
+                    }),
+                }),
+            ],
+        });
+        const [settled] = pastedLinesOf(input({ job }));
+
+        expect(settled?.kind === 'settled' ? settled.rows[0] : undefined).toMatchObject({
+            name: 'dried thyme',
+            measure: { preparation: '' },
+            sourcePhrase: 'dried thyme',
+        });
+    });
+
+    /**
      * 2026-10-09 review, Medium 1: the heading test ran only on the reader path, so a parse that proposed a food for a
      * heading ("dough" for "For the dough:") still added a food row. The heading is tested before the status decides.
      */

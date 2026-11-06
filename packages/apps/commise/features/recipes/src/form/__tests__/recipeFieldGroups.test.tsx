@@ -233,7 +233,7 @@ describe('the recipe field groups (web) — error wiring (WCAG 3.3.1)', () => {
 
         expect(screen.getAllByText(en.rowAmountInvalid)).toHaveLength(1);
 
-        const sheet = await openEditor(user, 'Edit 2–100,000,000 Stock');
+        const sheet = await openEditor(user, 'Edit 2 to 100,000,000 Stock');
         const low = within(sheet).getByLabelText(en.rowAmountLabel);
         const high = within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel });
 
@@ -284,7 +284,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         const user = userEvent.setup();
         renderForm({ values: ranged(2, 3) });
 
-        const sheet = await openEditor(user, 'Edit 2–3 cup Stock');
+        const sheet = await openEditor(user, 'Edit 2 to 3 cup Stock');
 
         expect((within(sheet).getByLabelText(en.rowAmountLabel) as HTMLInputElement).value).toBe('2');
         expect((within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel }) as HTMLInputElement).value).toBe(
@@ -319,7 +319,7 @@ describe('the recipe field groups (web) — the amount in the row editor (U9/R42
         const onValues = vi.fn<(values: RecipeFormValues) => void>();
         render(<Stateful initial={ranged(2, 3)} onValues={onValues} />);
 
-        const sheet = await openEditor(user, 'Edit 2–3 cup Stock');
+        const sheet = await openEditor(user, 'Edit 2 to 3 cup Stock');
         const high = within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel });
 
         await user.clear(high);
@@ -432,7 +432,9 @@ describe('the recipe field groups (web) — preparation (U26)', () => {
             />,
         );
 
-        expect(screen.getByRole('button', { name: 'Edit 1 Onion, diced' }).textContent).toContain('Onion · diced');
+        expect(screen.getByRole('button', { name: 'Edit 1 Onion, diced' }).textContent).toContain(
+            'Onion\u00A0· , diced',
+        );
 
         const sheet = await openEditor(user, 'Edit 1 Onion, diced');
         await user.clear(within(sheet).getByLabelText(en.rowPrepLabel));

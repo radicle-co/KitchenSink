@@ -66,7 +66,10 @@ const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly trailingAc
                 belowField={
                     <>
                         {trailing.readingShown === undefined ? null : (
-                            <span className="text-caption text-ink-muted">{trailing.readingShown}</span>
+                            // For the eye only: the status region below says the reading in words, with no "·".
+                            <span aria-hidden="true" className="text-caption text-ink-muted">
+                                {trailing.readingShown}
+                            </span>
                         )}
                         <p role="status" className={trailing.pickFoodNotice === undefined ? 'sr-only' : errorText}>
                             {trailing.pickFoodNotice ?? ''}

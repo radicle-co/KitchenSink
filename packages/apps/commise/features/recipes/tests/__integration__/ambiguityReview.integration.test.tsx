@@ -151,16 +151,18 @@ describe('the recipe detail ambiguity review, composed over the real clients (in
         renderDetail(origins);
         await user.click(await screen.findByRole('button', { name: new RegExp(`${en.ambiguousReviewToggle}$`, 'u') }));
         await user.click(
-            await within(screen.getByRole('group', { name: '2 tbsp apple sauce' })).findByRole('button', {
+            await within(screen.getByRole('group', { name: '2\u00A0tbsp apple sauce' })).findByRole('button', {
                 name: CANNED.name,
             }),
         );
 
         // The detail now names the tablespoon line's new food, and only the cup line is still under review.
         expect(await screen.findByRole('checkbox', { name: `2 tbsp ${CANNED.name}` })).toBeTruthy();
-        expect(screen.queryByRole('group', { name: '2 tbsp apple sauce' })).toBeNull();
+        expect(screen.queryByRole('group', { name: '2\u00A0tbsp apple sauce' })).toBeNull();
         expect(
-            within(screen.getByRole('group', { name: '1 cup apple sauce' })).getByRole('button', { name: CANNED.name }),
+            within(screen.getByRole('group', { name: '1\u00A0cup apple sauce' })).getByRole('button', {
+                name: CANNED.name,
+            }),
         ).toBeTruthy();
         expect(screen.getByText(en.ambiguousReviewSaved)).toBeTruthy();
 
@@ -193,7 +195,7 @@ describe('the recipe detail ambiguity review, composed over the real clients (in
         renderDetail(origins);
         await user.click(await screen.findByRole('button', { name: new RegExp(`${en.ambiguousReviewToggle}$`, 'u') }));
 
-        const spoonRow = (): HTMLElement => screen.getByRole('group', { name: '2 tbsp apple sauce' });
+        const spoonRow = (): HTMLElement => screen.getByRole('group', { name: '2\u00A0tbsp apple sauce' });
 
         await user.click(await within(spoonRow()).findByRole('button', { name: CANNED.name }));
         // The row's refusal, said in its assertive region (`LiveRegion` keeps two, so the text is what is found).
@@ -237,14 +239,14 @@ describe('the recipe detail ambiguity review, composed over the real clients (in
 
         renderDetail(origins);
         await user.click(await screen.findByRole('button', { name: new RegExp(`${en.ambiguousReviewToggle}$`, 'u') }));
-        const spoonRow = screen.getByRole('group', { name: '2 tbsp apple sauce' });
+        const spoonRow = screen.getByRole('group', { name: '2\u00A0tbsp apple sauce' });
 
         await user.click(
             await within(spoonRow).findByRole('button', { name: 'Apples, stewed, from another food database' }),
         );
 
         expect(await within(spoonRow).findByText(ADDING)).toBeTruthy();
-        expect(within(screen.getByRole('group', { name: '1 cup apple sauce' })).queryByText(ADDING)).toBeNull();
+        expect(within(screen.getByRole('group', { name: '1\u00A0cup apple sauce' })).queryByText(ADDING)).toBeNull();
         expect(origins.sentTo('food').filter((request) => request.path === '/api/v1/foods/remote/adopt')).toHaveLength(
             1,
         );

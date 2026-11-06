@@ -890,7 +890,8 @@ describe('the add field reads the amount first (build spec §7.5.3; blueprint A1
             render(<Harness initial={valuesWith([])} />);
             await user.type(trailing(), '2 tbsp olive oil, for frying');
 
-            expect(screen.getByText('2 tbsp · olive oil · for frying')).toBeTruthy();
+            // UI Designer condition: the "·" is never spoken. The caption is for the eye; the status region says it.
+            expect(screen.getByText('2 tbsp · olive oil · for frying').closest('[aria-hidden="true"]')).not.toBeNull();
             const spoken = 'Amount 2, unit tablespoon, food olive oil, preparation for frying.';
             // Not per keystroke: nothing is said until the 500 ms pause.
             expect(screen.queryAllByRole('status').some((region) => region.textContent === spoken)).toBe(false);

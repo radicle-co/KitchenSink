@@ -52,6 +52,7 @@ import { type FC } from 'react';
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
+import { AmountText } from '../format/AmountText.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
 import {
@@ -220,7 +221,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                                     chip never shrinks. Parity with the native leaf's
                                                     `flexShrink` pair — see `VersionPreviewModal.native.tsx`. */}
                                             <span className="min-w-0 break-words">
-                                                {line.text}
+                                                <AmountText text={line.text} />
                                                 {/* Curated U15 (§S1): a variant-bound line's dotted line, on a
                                                     line of its own under the line it belongs to. */}
                                                 {line.variantParts !== undefined && (

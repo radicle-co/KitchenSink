@@ -89,7 +89,14 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
                 ) : (
                     <span className="line-clamp-2 break-words text-body-md text-ink">
                         {row.displayName}
-                        {row.prepText !== undefined && <span className="text-ink-muted">{` · ${row.prepText}`}</span>}
+                        {row.prepText !== undefined && (
+                            <span className="text-ink-muted">
+                                {/* The "·" is never spoken: a screen reader hears the hidden comma (UI Designer). */}
+                                <span aria-hidden="true">{'\u00A0· '}</span>
+                                <span className="sr-only">, </span>
+                                {row.prepText}
+                            </span>
+                        )}
                     </span>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}

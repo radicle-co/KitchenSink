@@ -242,6 +242,14 @@ The owner's ruling (KTD-11b, 2026-08-23) is: **a past participle is preparation*
 preparation** (`hot`, `cold`, `boiling`, `lukewarm`, `warm`). It is implemented as an explicit vocabulary in
 `packages/shared/recipe-import-core/src/domain/modifierLexicon.ts`.
 
+The participle row has one exception (owner ruling 2026-11-06). **A form the cook buys is identity**, and
+that includes a participle. The words are `dried`, `frozen` and `canned`. The parse prompt's other product
+descriptors follow the same rule (`unsalted`, `smoked`, `condensed`, `sun-dried` and the rest). Each names a different catalog food
+with its own nutrition. So "1 tsp dried thyme" binds dried thyme, and "unsalted butter" never binds salted
+butter. `frozen` is therefore not a temperature. Two participles stay preparation by ruling. The first is
+`whipped` (owner ruling 2026-08-26). The second is `mixed`, which in this corpus almost always names the cook's
+action. `promptDescriptorParity.test.ts` holds the lexicon equal to the prompt's list, with those two named.
+
 ⛔ **The obvious fix a future reader will reach for is a part-of-speech tagger, and it is wrong.** This is
 recorded here because the library-first instinct is otherwise correct and the counter-evidence is easy to
 lose. Both halves were checked (2026-08-24):

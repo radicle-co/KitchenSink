@@ -92,7 +92,7 @@ import { describe, it, expect } from 'vitest';
 
 import type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from '../../parsedLine.js';
 import { makeParsedLine } from '../../__tests__/__fixtures__/makeParsedLine.js';
-import { compareParses, type ComparedFact, type ParseComparison } from '../parseComparator.js';
+import { canonicaliseFood, compareParses, type ComparedFact, type ParseComparison } from '../parseComparator.js';
 
 /** A stated RANGE, through the same smart constructor. Throws rather than returning a hole. */
 function ranging(low: number, high: number): IngredientQuantity {
@@ -1087,6 +1087,66 @@ describe('compareParses — KTD-11b placement, canonicalised before comparing', 
 
         expect(result.agreement).toEqual({ kind: 'agree' });
         expect(onlyFood(result)).toEqual({ name: 'large onion', prep: null });
+    });
+
+    it('keeps a form the cook buys in the name, so the line names the food it means', () => {
+        // Dogfooding PR 132: `2 tablespoons unsalted butter, melted` was stored as `butter` / `melted unsalted` and bound
+        // to salted butter, because `unsalted` fell through to the `-ed` suffix rule.
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'unsalted butter', prep: 'melted' }] }),
+            llm: llmParse({ foods: [{ name: 'unsalted butter', prep: 'melted' }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'unsalted butter', prep: 'melted' });
+    });
+
+    it('moves a purchasable form out of the preparation into the name', () => {
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'salmon', prep: 'smoked' }] }),
+            llm: llmParse({ foods: [{ name: 'smoked salmon', prep: null }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'smoked salmon', prep: null });
+    });
+
+    /**
+     * Owner ruling 2026-11-06. The names below are the REAL CRF answers (`ingredient-parser-nlp` 2.3.0): the 1919
+     * corpus line `one pound of dried Lima beans`, and two lines run 2026-11-06. The engine keeps each word in the
+     * name; the merge used to move `dried` (the `-ed` rule) and `frozen` (a temperature) into the preparation.
+     */
+    it.each([
+        ['dried Lima beans', null],
+        ['dried thyme', null],
+        ['frozen blueberries', 'thawed'],
+        ['canned tomatoes', null],
+    ] as const)('keeps the CRF’s %j in the name, alone', (name, prep) => {
+        const result = compareParses({ crf: crfParse({ foods: [{ name, prep }] }), llm: { unavailable: true } });
+
+        expect(onlyFood(result)).toEqual({ name, prep });
+    });
+
+    it('agrees with an LLM that keeps the word in the name, as its prompt tells it to', () => {
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'dried thyme', prep: null }] }),
+            llm: llmParse({ foods: [{ name: 'dried thyme', prep: null }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'dried thyme', prep: null });
+    });
+
+    /**
+     * The LLM joins its preparations with ", ", so a word it wrongly filed there arrives with a separator. The word
+     * moves; the separator it sat beside does not, in either position.
+     */
+    it.each([
+        ['frozen, thawed', 'thawed'],
+        ['thawed, frozen', 'thawed'],
+        ['frozen', null],
+    ] as const)('puts the word back in the name when the LLM files it in %j', (llmPrep, prep) => {
+        expect(canonicaliseFood({ name: 'blueberries', prep: llmPrep })).toEqual({ name: 'frozen blueberries', prep });
     });
 
     it('treats a colour as identity, not preparation', () => {

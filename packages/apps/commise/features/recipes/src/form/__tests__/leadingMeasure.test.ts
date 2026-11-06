@@ -482,3 +482,17 @@ describe('statedUnitOf', () => {
         expect(statedUnitOf(reading)).toBe('tbsp');
     });
 });
+
+/**
+ * Owner ruling 2026-11-06: `dried`, `frozen` and `canned` are part of WHICH food a cook typed, so the reader keeps them
+ * in the food search. Only the text after the first comma is preparation.
+ */
+describe('readLeadingMeasure — a form the cook buys stays in the food search', () => {
+    it.each([
+        ['1 tsp dried thyme', 'dried thyme', ''],
+        ['1 cup frozen peas, thawed', 'frozen peas', 'thawed'],
+        ['2 cups canned tomatoes', 'canned tomatoes', ''],
+    ])('reads "%s" with the food %j', (typed, search, preparation) => {
+        expect(readLeadingMeasure(typed)).toMatchObject({ search, preparation });
+    });
+});

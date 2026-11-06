@@ -122,7 +122,7 @@ const OpenControl: FC<{
                     <Text numberOfLines={2} style={[styles.body, { color: colors.ink }]}>
                         {row.displayName}
                         {row.prepText !== undefined && (
-                            <Text style={{ color: colors.inkMuted }}>{` · ${row.prepText}`}</Text>
+                            <Text style={{ color: colors.inkMuted }}>{`\u00A0· ${row.prepText}`}</Text>
                         )}
                     </Text>
                 )}

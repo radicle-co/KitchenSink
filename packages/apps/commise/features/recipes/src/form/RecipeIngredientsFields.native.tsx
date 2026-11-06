@@ -81,7 +81,10 @@ const AddField: FC<{
                 belowField={
                     <>
                         {trailing.readingShown === undefined ? null : (
-                            <Text style={caption}>{trailing.readingShown}</Text>
+                            // For the eye only: the live region below says the reading in words, with no "·".
+                            <Text aria-hidden style={caption}>
+                                {trailing.readingShown}
+                            </Text>
                         )}
                         <LiveRegion politeness="polite" typeRole="caption" tone="dangerText">
                             {trailing.pickFoodNotice ?? ''}

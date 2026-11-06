@@ -210,7 +210,7 @@ describe('RecipeDetailView (native)', () => {
         );
 
         expect(screen.getByText('Lamb leg')).toBeTruthy();
-        expect(screen.getByText('1.5 lbs')).toBeTruthy();
+        expect(screen.getByText('1½ lbs')).toBeTruthy();
     });
 
     // F9 (`evaluateFinal.md`), parity with web: each group of lines sits under its label heading, in stored order.
@@ -1087,7 +1087,7 @@ describe('RecipeDetailView (native) — the quantity flows with the name (D1)', 
         const name = screen.getByText('Plain flour');
 
         expect(quantity.parentElement).toBe(name.parentElement);
-        expect(name.parentElement?.textContent).toBe('2 cups Plain flour');
+        expect(name.parentElement?.textContent).toBe('2\u00A0cups Plain flour');
     });
 
     it('aligns the row to the top, so a two-line row keeps its box by the first line', () => {
@@ -1118,7 +1118,12 @@ describe('RecipeDetailView (native) — the quantity flows with the name (D1)', 
 
             expect(row?.children).toHaveLength(2);
             expect(block?.contains(name)).toBe(true);
-            expect(block?.textContent?.startsWith(shape.quantity === '' ? shape.name : `${shape.quantity}`)).toBe(true);
+            // The amount is joined to its unit by a no-break space (Q5); the order is what this pins.
+            expect(
+                block?.textContent
+                    ?.replace(/\u00A0/gu, ' ')
+                    .startsWith(shape.quantity === '' ? shape.name : `${shape.quantity}`),
+            ).toBe(true);
 
             if (shape.quantity !== '') {
                 const quantity = screen.getByText(shape.quantity);
@@ -1286,7 +1291,7 @@ describe('RecipeDetailView (native) — serving scale', () => {
         await userEvent.click(screen.getByRole('button', { name: 'More servings' }));
 
         expect(screen.getByText('5')).toBeTruthy();
-        expect(screen.getByText('2.5 tbsp')).toBeTruthy();
+        expect(screen.getByText('2½ tbsp')).toBeTruthy();
         expect(screen.getByText(/Amounts scaled from 4 servings/)).toBeTruthy();
     });
 
@@ -1379,7 +1384,7 @@ describe('RecipeDetailView (native) — ranged and absent quantities (U9)', () =
             />,
         );
 
-        expect(screen.getByLabelText('2–3 cups Flour')).toBeTruthy();
+        expect(screen.getByLabelText('2 to 3 cups Flour')).toBeTruthy();
     });
 
     it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {

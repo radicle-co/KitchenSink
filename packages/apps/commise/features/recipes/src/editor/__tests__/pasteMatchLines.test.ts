@@ -125,14 +125,17 @@ describe('pasteMatchLinesOf - the line itself', () => {
 
     /**
      * The measure ends before a `,` or `;` as well as before a space (the same boundary `promoteCrfReading` cuts at), so
-     * `2 cups, sifted flour` keeps its measure emphasis. The separator is not a word, so it is not drawn after the measure.
+     * `2 cups, sifted flour` keeps its measure emphasis.
+     * The separator stays attached to the measure (designer ruling 2026-11-06), so the row shows the line as pasted.
      */
     it.each([
-        ['2 cups, sifted flour', '2 cups', 'sifted flour'],
-        ['3 tablespoons, plus 1 tablespoon, butter', '3 tablespoons', 'plus 1 tablespoon, butter'],
-        ['2 cups; sifted flour', '2 cups', 'sifted flour'],
-    ])('a stated measure that ends before a separator is split out of %s', (raw, measure, words) => {
-        expect(only(linesOf(jobWith(confident(), raw, measure))).line).toEqual({ measure, words });
+        ['2 cups, sifted flour', '2 cups,', 'sifted flour'],
+        ['3 tablespoons, plus 1 tablespoon, butter', '3 tablespoons,', 'plus 1 tablespoon, butter'],
+        ['2 cups; sifted flour', '2 cups;', 'sifted flour'],
+    ])('a stated measure that ends before a separator is split out of %s', (raw, shownMeasure, words) => {
+        const stated = shownMeasure.slice(0, -1);
+
+        expect(only(linesOf(jobWith(confident(), raw, stated))).line).toEqual({ measure: shownMeasure, words });
     });
 
     it('a stated measure that ends inside a word is still not split when a separator follows the word', () => {

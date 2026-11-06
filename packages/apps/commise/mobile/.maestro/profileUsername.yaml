@@ -13,23 +13,27 @@ appId: ${APP_ID}
 
 - tapOn: 'Profile.*'
 
-# The Username row's value: "@" then the username. Anchored at the start so the email row cannot match.
-- extendedWaitUntil:
-      visible: '^@.+'
-      timeout: 40000
-- assertVisible: '^@.+'
-
-# Read-only: the row is plain text, and no control offers to change it.
-# ⚠️ The row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS publishes a single node named
-# "Username, @name", while Android publishes the label and the value as two nodes ("Username", "@name").
+# The Username row. ⚠️ The row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS publishes a single node
+# named "Username, @name", while Android publishes the label and the value as two nodes ("Username", "@name"). So the
+# value is matched per platform: on Android "@" then the username, anchored at the start so the email row cannot match;
+# on iOS the combined name, which also proves the label sits with the value.
 - runFlow:
       when:
           platform: iOS
       commands:
+          - extendedWaitUntil:
+                visible: 'Username, @.+'
+                timeout: 40000
           - assertVisible: 'Username, @.+'
 - runFlow:
       when:
           platform: Android
       commands:
+          - extendedWaitUntil:
+                visible: '^@.+'
+                timeout: 40000
+          - assertVisible: '^@.+'
           - assertVisible: 'Username'
+
+# Read-only: the row is plain text, and no control offers to change it.
 - assertNotVisible: 'Change username'

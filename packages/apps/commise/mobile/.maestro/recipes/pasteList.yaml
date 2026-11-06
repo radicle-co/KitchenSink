@@ -64,14 +64,22 @@ appId: ${APP_ID}
 # Each line is drawn once, with the words the cook pasted, as a row of the paste list...
 - assertVisible:
       text: '.*[Ff]lour.*'
-- assertVisible:
-      text: '.*[Ss]alt.*'
 # ...and nothing was chosen for the cook (owner rulings 2026-10-25): "flour" and "salt" carry a seeded DEFAULT, which is
 # shown and never selected, so no line says "your choice" and the first open line offers a direct Search.
 - assertNotVisible:
       text: '.*your choice.*'
 - assertVisible:
       text: 'Search for a food.*'
+# The first open line is expanded by design (the direct Search above), which pushes the second row under the fold, and
+# Android lists only on-screen nodes (deployed run 42117856262, Android shard 4). So the first row is checked while it
+# is on screen, then the flow scrolls to the second and checks it the same way.
+- scrollUntilVisible:
+      element:
+          text: '.*[Ss]alt.*'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible:
+      text: '.*your choice.*'
 
 - runFlow:
       file: common/discardDraft.yaml

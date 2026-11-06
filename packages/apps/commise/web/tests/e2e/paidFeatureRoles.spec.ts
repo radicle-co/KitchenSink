@@ -79,11 +79,14 @@ test.describe('paid features by role (deployed identity)', () => {
 
             expect(['upsell', 'hidden']).toContain(paidFeatures);
 
-            // REWRITTEN for ADR-0073 (owner ruling 2026-10-26). This used to branch on the gate: the upsell showed a Pro
-            // badge and a sheet, `hidden` showed no Private at all. A free cook now keeps up to the server's limit of
-            // recipes private, so Private is offered in both, with the server's count; the limit is the server's, so it is
-            // matched by shape. Choosing it saves nothing (the draft is not stored until a title is typed).
-            await expect(page.getByText(/^\d+ of \d+ private slots left$/u)).toBeVisible();
+            // REWRITTEN for ADR-0073 (owner ruling 2026-10-26) and again for ADR-0073 section 12 / 001-FR-003b: this test
+            // PROVES THE NEW RULE, not the old one. A free cook keeps up to the server's limit of recipes private, so
+            // Private is offered in both gate answers. But a NEW recipe is a DRAFT and a draft holds no slot, so the
+            // Private card says that instead of counting; "N of M private slots left" belongs to a saved, published recipe.
+            // Mobile's `common/gateDecidesPrivate.yaml` asserts the same pair. Choosing Private saves nothing (the draft is
+            // not stored until a title is typed).
+            await expect(page.getByText(/A private draft uses no slot\. Publishing it uses one\./u)).toBeVisible();
+            await expect(page.getByText(/private slots left/u)).toHaveCount(0);
             await page.getByRole('radio', { name: /^Private/u }).check();
             await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
             await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);

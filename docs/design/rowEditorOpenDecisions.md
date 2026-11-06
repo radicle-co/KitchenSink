@@ -1390,7 +1390,9 @@ database part settled, the database part is said then. The rest is said at the e
   each source note.
 - **Slow path.** At the database settle plus 1 s: the database count or `ingredientNoSuggestions`, any L3 sentence,
   then `stillSearching`. When the answer ends: `moreOne` or `moreOther` for each source that added foods, then each
-  source note. With no food added and no failure, it says `noMore`.
+  source note. With no food added and no failure, it says `finished`, the pair of `stillSearching`. It never says
+  "no foods": the database foods are still listed (dogfooding PR 132, where `No more foods found.` stood beside
+  them).
 - **Every part failed:** `ingredientPickerSearch.failed`, assertive, once.
 
 **Why not per frame.** Per frame gives one message per source, plus one. Frames from the cache land together. On iOS
@@ -1405,7 +1407,7 @@ Autocomplete calls itself "stalled" after 300 ms by default (`stallThreshold`, f
 limit so that more answers from the cache take the fast path. Judgement.
 
 **Accepted cost.** An answer that ends just after the guard still gives two announcements close together. The second
-is short: `noMore`, or one `more…` sentence.
+is short: `finished`, or one `more…` sentence.
 
 **Mechanism.** The house `useReadDeadline` is the guard. Its key is the text, from the moment the database part
 settles, and `undefined` before. Its time is 1,000 ms. As R3 requires, the host changes `countAnnouncement` only at
@@ -1572,7 +1574,7 @@ which S7.9 deletes.
 | `sourceUnnamed`                                                                | `another food database`                                                                                                                                                  |
 | `stillSearching`                                                               | `Still searching other food databases`                                                                                                                                   |
 | `moreOne` · `moreOther`                                                        | `1 more food from {source}` · `{count} more foods from {source}`                                                                                                         |
-| `noMore`                                                                       | `No more foods found.`                                                                                                                                                   |
+| `finished`                                                                     | `Finished searching other food databases.`                                                                                                                               |
 | `incomplete`                                                                   | `The search didn’t finish, so this list isn’t complete. Edit your search to try again.`                                                                                  |
 | `sourceBusy`                                                                   | `We couldn’t search {source} just now. Try again later.`                                                                                                                 |
 | `sourceUnavailable`                                                            | `We didn’t hear back from {source}. Edit your search to try again.`                                                                                                      |

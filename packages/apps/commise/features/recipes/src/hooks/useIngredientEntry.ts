@@ -207,6 +207,12 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
     const proposalsKey = searchEnabled ? `${settled.targetKey}:${settled.trimmed}` : undefined;
     const [givenUpFor, setGivenUpFor] = useState<string | undefined>(undefined);
 
+    // Giving up belongs to one ask: once the cook leaves the text, asking it again reads the proposals afresh. Adjusted
+    // during render, React's previous-value form.
+    if (givenUpFor !== undefined && givenUpFor !== proposalsKey) {
+        setGivenUpFor(undefined);
+    }
+
     useReadDeadline(proposals.isLoading ? proposalsKey : undefined, SUGGESTIONS_DEADLINE_MS, () =>
         setGivenUpFor(proposalsKey),
     );
@@ -233,6 +239,13 @@ export function useIngredientEntry(options: UseIngredientEntryOptions): Ingredie
     // fires marks THIS answer said early, which outlasts its end, so the end says only what came after.
     const answerKey = settled.targetKey === undefined ? undefined : `${settled.targetKey}:${settled.trimmed}`;
     const [saidEarlyFor, setSaidEarlyFor] = useState<string | undefined>(undefined);
+
+    // The mark belongs to ONE served answer: a list that stops being served (the text left, or the same text asked
+    // again, which starts empty) ends it, so the next answer for that text is said on its own path. Adjusted during
+    // render, React's previous-value form.
+    if (saidEarlyFor !== undefined && (view.kind !== 'served' || saidEarlyFor !== answerKey)) {
+        setSaidEarlyFor(undefined);
+    }
 
     useReadDeadline(view.kind === 'served' && view.progress === 'running' ? answerKey : undefined, COUNT_GUARD_MS, () =>
         setSaidEarlyFor(answerKey),

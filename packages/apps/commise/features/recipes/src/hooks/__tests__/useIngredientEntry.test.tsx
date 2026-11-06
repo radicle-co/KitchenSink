@@ -717,6 +717,50 @@ describe('useIngredientEntry — when the count is said (P7)', () => {
 
         expect(result.current.databaseSaidEarly).toBe(false);
     });
+
+    /** Run one slow answer for 'chickpeas' to its end: the database part said early, the end said after. */
+    function slowAnswerEnded() {
+        mocks.useIngredientSuggestionSource.mockReturnValue(running(databaseFrame({ catalog: [CANNED] })));
+        const rendered = render();
+
+        typeSettled(rendered.result, TRAILING, 'chickpeas');
+        act(() => {
+            vi.advanceTimersByTime(1_000);
+        });
+        mocks.useIngredientSuggestionSource.mockReturnValue(
+            ended(databaseFrame({ catalog: [CANNED] }), COMPLETE_FRAME),
+        );
+        rendered.rerender({ current: [OIL, CHICK] });
+        expect(rendered.result.current.databaseSaidEarly).toBe(true);
+
+        return rendered;
+    }
+
+    // Dogfooding PR 132: the marker outlived its answer, so the same text asked again was served with its foods while
+    // its one announcement said only the slow path's end, and its count was never said.
+    it('⛔ the same text asked again after the cook left it is a new answer: it takes the fast path', () => {
+        const { result } = slowAnswerEnded();
+
+        typeSettled(result, TRAILING, '');
+        typeSettled(result, TRAILING, 'chickpeas');
+
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.databaseSaidEarly).toBe(false);
+    });
+
+    it('⛔ the same text asked again in place (Try again, a remote food gone) is a new answer too', () => {
+        const { result, rerender } = slowAnswerEnded();
+
+        // The new ask starts empty (`refetchMode: 'reset'`), then its database part lands inside the guard.
+        mocks.useIngredientSuggestionSource.mockReturnValue(running());
+        rerender({ current: [OIL, CHICK] });
+        mocks.useIngredientSuggestionSource.mockReturnValue(
+            ended(databaseFrame({ catalog: [CANNED] }), COMPLETE_FRAME),
+        );
+        rerender({ current: [OIL, CHICK] });
+
+        expect(result.current.databaseSaidEarly).toBe(false);
+    });
 });
 
 describe('useIngredientEntry — the cook’s limit from a source frame (system change 9)', () => {
@@ -852,6 +896,27 @@ describe('useIngredientEntry — Suggested foods (owner ruling 2026-11-03; desig
         rerender({ current: [OIL] });
 
         expect(result.current.suggestions).toEqual([]);
+    });
+
+    it('⛔ giving up holds for that ask only: the same text asked again shows its proposals', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_LOADING);
+        const { result, rerender } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+        act(() => {
+            vi.advanceTimersByTime(SUGGESTIONS_DEADLINE_MS);
+        });
+        expect(result.current.suggestions).toEqual([]);
+
+        // The late answer is kept by its query; the cook leaves the text and types it again.
+        mocks.useIngredientNameProposals.mockReturnValue(proposalsAnswer(ROOT_PROPOSAL));
+        typeSettled(result, TRAILING, '');
+        typeSettled(result, TRAILING, 'chickpeas');
+        rerender({ current: [OIL] });
+
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.suggestions).toEqual([ROOT_PROPOSAL]);
     });
 
     it('the deadline is a constant the design can quote: 400 ms', () => {

@@ -36,7 +36,7 @@ appId: ${APP_ID}
       timeout: 240000
 
 - runFlow:
-      file: scrollIntoTapView.yaml
+      file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'Publish'
           DIRECTION: DOWN

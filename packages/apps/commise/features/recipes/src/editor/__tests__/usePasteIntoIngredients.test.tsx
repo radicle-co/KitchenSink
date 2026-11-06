@@ -299,6 +299,35 @@ describe('usePasteIntoIngredients — the daily limit (004 FR-022)', () => {
         expect(result.current.quota).toEqual({ resetsAt: RESETS_AT });
     });
 
+    /**
+     * Designer condition on "Added 6 ingredients.": N counts the INGREDIENTS added (the rows each joined line brought), not
+     * the pasted lines. A heading brings none and a blank line is never a line (the splitter drops it).
+     */
+    it('⛔ counts the ingredients added, not the lines: six foods, a heading and a blank line say 6', () => {
+        const text = [
+            'For the dough:',
+            '1 cup flour',
+            '',
+            '2 eggs',
+            '1 tsp salt',
+            '3 tbsp oil',
+            '1 cup milk',
+            '2 tsp yeast',
+        ].join('\n');
+        const { result } = refused(text);
+        const key = result.current.sessionKey ?? '';
+
+        // Seven lines (the blank is gone), each joining with the rows it settled into, as the Mediator reports them.
+        expect(result.current.lines).toHaveLength(7);
+        act(() => {
+            for (const line of result.current.lines) {
+                result.current.markJoined(key, line.lineIndex, line.kind === 'settled' ? line.rows.length : 0);
+            }
+        });
+
+        expect(result.current.added).toEqual({ count: 6, occurrence: 1 });
+    });
+
     it('⛔ every line joins as written, through the reader, in paste order, and none is parsed', () => {
         const { result } = refused('2 tbsp olive oil, for frying\n1 tsp salt');
 

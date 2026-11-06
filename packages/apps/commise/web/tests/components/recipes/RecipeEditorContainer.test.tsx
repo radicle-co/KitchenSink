@@ -1169,7 +1169,9 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste a list' })).toBeNull());
         expect(
             await screen.findByText(
-                (_, node) => node?.textContent === 'Added 1 ingredient. Ingredients complete.' && node.getAttribute('role') === 'status',
+                (_, node) =>
+                    node?.textContent === 'Added 1 ingredient. Ingredients complete.' &&
+                    node.getAttribute('role') === 'status',
             ),
         ).toBeTruthy();
         expect(await screen.findByText('Plain flour')).toBeTruthy();
@@ -1318,6 +1320,71 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         // And the line is still the paste list's, now the cook's.
         expect(await screen.findByText(/Skim milk\s+· your choice/u)).toBeTruthy();
         expect(screen.queryByText('Choose the milk you use')).toBeNull();
+    });
+
+    /**
+     * PR 132 device pass: the CRF re-renders `2-3 cups` as `2-3 cup`, and a service that stored those words as the
+     * stated measure had the paste list draw `2-3 cup` heavier, then `s chicken stock`, read aloud as "cup s". A
+     * measure that ends inside a word of the line is not its measure, so the line is drawn whole.
+     */
+    it('draws a pasted line whole when its stated measure ends inside one of its words', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const line = '2-3 cups chicken stock';
+        const job: ParseJobResponse = {
+            id: JOB_ID,
+            status: 'complete',
+            createdAt: '2026-10-09T10:00:00.000Z',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+            lines: [
+                {
+                    lineIndex: 0,
+                    sourceLine: line,
+                    status: 'parsed',
+                    progress: null,
+                    proposal: {
+                        raw: line,
+                        quantity: { kind: 'range', low: 2, high: 3 },
+                        unit: 'cup',
+                        statedMeasure: '2-3 cup',
+                        foods: [
+                            {
+                                name: 'chicken stock',
+                                prep: null,
+                                match: {
+                                    state: 'default',
+                                    reason: 'defaultApplies',
+                                    proposed: null,
+                                    candidates: [
+                                        { kind: 'root', id: 'food_stock', name: 'Chicken stock', isDefault: true },
+                                        { kind: 'root', id: 'food_broth', name: 'Chicken broth', isDefault: false },
+                                    ],
+                                },
+                            },
+                        ],
+                        reviewReasons: [],
+                    },
+                },
+            ],
+        };
+        vi.spyOn(client, 'createParseJob').mockResolvedValue(job);
+        vi.spyOn(client, 'getParseJob').mockResolvedValue(job);
+        vi.spyOn(client, 'proposeParseJobMatches').mockResolvedValue(job);
+        vi.spyOn(client, 'createIngredient').mockResolvedValue({
+            id: '00000000-0000-4000-8000-0000000000f4',
+            name: 'chicken stock',
+            isUserEntered: true,
+        } as Awaited<ReturnType<RecipeServiceClient['createIngredient']>>);
+
+        renderEditor(client);
+        await user.click(await screen.findByRole('button', { name: 'Paste a list' }));
+        const sheet = screen.getByRole('dialog', { name: 'Paste a list' });
+        await user.type(within(sheet).getByRole('textbox', { name: 'Ingredient lines' }), line);
+        await user.click(within(sheet).getByRole('button', { name: 'Add 1 ingredient' }));
+
+        expect(await screen.findByText('Choose the chicken stock you use')).toBeTruthy();
+        expect(screen.getByText(line)).toBeTruthy();
+        expect(screen.queryByText('s chicken stock')).toBeNull();
     });
 
     it('opens with the sheet up when Home’s first-run Paste ingredients asks for it', async () => {

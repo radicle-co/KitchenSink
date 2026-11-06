@@ -105,6 +105,28 @@ describe('pasteMatchLinesOf - the line itself', () => {
         });
     });
 
+    /**
+     * A measure that ends inside a word of the line is not the line's measure: drawn split, `2-3 cup` against
+     * `2-3 cups chicken stock` read `2-3 cup s chicken stock`, on screen and to a screen reader (PR 132 device pass).
+     */
+    it('a stated measure that ends inside a word of the line is not split out of it', () => {
+        expect(only(linesOf(jobWith(confident(), '2-3 cups chicken stock', '2-3 cup'))).line).toEqual({
+            measure: '',
+            words: '2-3 cups chicken stock',
+        });
+    });
+
+    it('a stated measure that ends on a word of the line is split out of it', () => {
+        expect(only(linesOf(jobWith(confident(), '2-3 cups chicken stock', '2-3 cups'))).line).toEqual({
+            measure: '2-3 cups',
+            words: 'chicken stock',
+        });
+    });
+
+    it('a stated measure that is the whole line is split out of it', () => {
+        expect(only(linesOf(jobWith(confident(), '2 cups', '2 cups'))).line).toEqual({ measure: '2 cups', words: '' });
+    });
+
     it('draws only foods that joined the draft, in paste order', () => {
         expect(linesOf(jobWith(confident()), { session: emptyPasteMatchSession })).toEqual([]);
         expect(

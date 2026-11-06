@@ -1052,6 +1052,70 @@ describe('RecipeEditorScreen (native) — Paste a list', () => {
         expect(screen.queryByText('Choose the milk you use')).toBeNull();
     });
 
+    /**
+     * PR 132 device pass, on the phone as on the web (`RecipeEditorContainer.test.tsx`): the CRF re-renders
+     * `2-3 cups` as `2-3 cup`, and a service that stored those words as the stated measure had the paste list draw
+     * `2-3 cup` heavier, then `s chicken stock`, read aloud as "cup s". A measure that ends inside a word of the line
+     * is not its measure.
+     */
+    it('draws a pasted line whole when its stated measure ends inside one of its words', async () => {
+        const client = createFakeRecipeServiceClient();
+        const line = '2-3 cups chicken stock';
+        const job: ParseJobResponse = {
+            id: '00000000-0000-4000-8000-00000000e203',
+            status: 'complete',
+            createdAt: '2026-10-09T10:00:00.000Z',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+            lines: [
+                {
+                    lineIndex: 0,
+                    sourceLine: line,
+                    status: 'parsed',
+                    progress: null,
+                    proposal: {
+                        raw: line,
+                        quantity: { kind: 'range', low: 2, high: 3 },
+                        unit: 'cup',
+                        statedMeasure: '2-3 cup',
+                        foods: [
+                            {
+                                name: 'chicken stock',
+                                prep: null,
+                                match: {
+                                    state: 'default',
+                                    reason: 'defaultApplies',
+                                    proposed: null,
+                                    candidates: [
+                                        { kind: 'root', id: 'food_stock', name: 'Chicken stock', isDefault: true },
+                                        { kind: 'root', id: 'food_broth', name: 'Chicken broth', isDefault: false },
+                                    ],
+                                },
+                            },
+                        ],
+                        reviewReasons: [],
+                    },
+                },
+            ],
+        };
+        vi.spyOn(client, 'createParseJob').mockResolvedValue(job);
+        vi.spyOn(client, 'getParseJob').mockResolvedValue(job);
+        vi.spyOn(client, 'proposeParseJobMatches').mockResolvedValue(job);
+        vi.spyOn(client, 'createIngredient').mockResolvedValue({
+            id: '00000000-0000-4000-8000-0000000000f4',
+            name: 'chicken stock',
+            isUserEntered: true,
+        } as Awaited<ReturnType<RecipeServiceClient['createIngredient']>>);
+        renderScreen(client);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Paste a list' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Ingredient lines' }), { target: { value: line } });
+        fireEvent.click(screen.getByRole('button', { name: 'Add 1 ingredient' }));
+
+        expect(await screen.findByText('Choose the chicken stock you use')).toBeTruthy();
+        expect(screen.getByText(line)).toBeTruthy();
+        expect(screen.queryByText('s chicken stock')).toBeNull();
+    });
+
     it('opens with the sheet up when Home’s first-run Paste ingredients asks for it', () => {
         renderScreen(createFakeRecipeServiceClient(), { openPaste: true });
 

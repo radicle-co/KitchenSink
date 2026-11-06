@@ -26,6 +26,10 @@ export default defineConfig({
         // (Constitution Principle IV: integration tests MUST NOT bleed into the default `test` task).
         // Without this exclude the `tests/**/*.test.ts(x)` globs above swallow them back into the unit run.
         exclude: ['infra/**', 'node_modules', 'dist', 'tests/__integration__/**'],
+        // Node cannot load the BROWSER build of `@sentry/nextjs` natively: it imports `next/router` with no extension,
+        // and `next` has no exports map. Inlining hands it to Vite's resolver, so `instrumentationClient.test.ts` can
+        // run the real browser SDK.
+        server: { deps: { inline: ['@sentry/nextjs'] } },
         environment: 'jsdom',
         setupFiles: [jsdomPolyfillsSetup, './tests/setup.ts'],
         globals: true,

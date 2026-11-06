@@ -411,9 +411,20 @@ describe('ensureAmbiguityProbe', () => {
     }
 
     /** Fake clients: food authors `name`, recipe binds it, creates the probe and then answers each read from `reads`. */
-    function probeClients(reads: readonly (readonly Line[])[], byFood = bound({ name })) {
+    function probeClients(
+        reads: readonly (readonly Line[])[],
+        byFood = bound({ name }),
+        creates: readonly CreateAuthoredFoodResult[] = [created('food_mirin', name)],
+    ) {
+        let create = 0;
         const food = {
-            createAuthoredFood: async (): Promise<CreateAuthoredFoodResult> => created('food_mirin', name),
+            createAuthoredFood: vi.fn(async (): Promise<CreateAuthoredFoodResult> => {
+                const answer = creates[Math.min(create, creates.length - 1)] ?? created('food_mirin', name);
+                create += 1;
+
+                return answer;
+            }),
+            deleteAuthoredFood: vi.fn(async (): Promise<void> => undefined),
         };
         const client = createFakeRecipeServiceClient();
         let read = 0;
@@ -428,7 +439,7 @@ describe('ensureAmbiguityProbe', () => {
             }),
         };
 
-        return { clients: { food, recipe: client }, spies };
+        return { clients: { food, recipe: client }, spies, food };
     }
 
     const AMBIGUOUS: Line = { resolutionStatus: 'AMBIGUOUS' };
@@ -501,5 +512,52 @@ describe('ensureAmbiguityProbe', () => {
         const { clients } = probeClients([[]]);
 
         await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).rejects.toThrow();
+    });
+
+    /**
+     * Parse-stall investigation (run 42117856262): the verifier's verdict is keyed by the BOUND FOOD'S ID plus the line,
+     * and food answers a name the signer already authored with the OLD food, so a probe made on a stage that survived
+     * an earlier run reused that run's verdict and never asked the verifier (Android shard 7 read RESOLVED).
+     */
+    it('⛔ withdraws a food left over from an earlier run and authors a NEW one, so the verifier is asked again', async () => {
+        const { clients, spies, food } = probeClients([[AMBIGUOUS, AMBIGUOUS]], bound({ name }), [
+            { kind: 'duplicate', existingId: 'food_old' },
+            created('food_new', name),
+        ]);
+
+        await ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() });
+
+        expect(food.deleteAuthoredFood).toHaveBeenCalledExactlyOnceWith('food_old');
+        expect(food.createAuthoredFood).toHaveBeenCalledTimes(2);
+        // The probe binds the NEW food and never the old one.
+        expect(spies.byFood).toHaveBeenCalledExactlyOnceWith('food_new');
+    });
+
+    it('deletes nothing when the food is new', async () => {
+        const { clients, food } = probeClients([[AMBIGUOUS, AMBIGUOUS]]);
+
+        await ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() });
+
+        expect(food.deleteAuthoredFood).not.toHaveBeenCalled();
+    });
+
+    it('⛔ does not go on to create the recipe when the old food cannot be withdrawn', async () => {
+        const { clients, spies, food } = probeClients([[AMBIGUOUS, AMBIGUOUS]], bound({ name }), [
+            { kind: 'duplicate', existingId: 'food_old' },
+        ]);
+        food.deleteAuthoredFood.mockRejectedValueOnce(new Error('forbidden'));
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).rejects.toThrow(
+            /forbidden/u,
+        );
+        expect(spies.create).not.toHaveBeenCalled();
+    });
+
+    it('⛔ says a stored verdict was reused when the very first read is already final', async () => {
+        const { clients } = probeClients([[{ resolutionStatus: 'RESOLVED' }, { resolutionStatus: 'RESOLVED' }]]);
+
+        await expect(ensureAmbiguityProbe(clients, recipe, name, { ...timing, ...clock() })).rejects.toThrow(
+            /stored verdict/u,
+        );
     });
 });

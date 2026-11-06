@@ -600,6 +600,37 @@ describe('FoodServiceClient.purgeOwnAuthoredFoods (ADR-0040, food half)', () => 
     });
 });
 
+describe('FoodServiceClient.deleteAuthoredFood (ADR-0029: the author withdraws their own food)', () => {
+    it('DELETEs the food by id and resolves on the 204, which carries no body', async () => {
+        const fetchMock = stubFetch(204);
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        await expect(client.deleteAuthoredFood('food_1')).resolves.toBeUndefined();
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string; body?: unknown }];
+
+        expect(url).toBe(`${BASE}/api/v1/foods/food_1`);
+        expect(init.method).toBe('DELETE');
+        expect(init.body).toBeUndefined();
+    });
+
+    it('maps the 404 of a food that is missing, not yours, or already withdrawn to NotFoundError', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: stubFetch(404, { code: 'NOT_FOUND', message: 'No such food' }),
+        });
+
+        await expect(client.deleteAuthoredFood('food_1')).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('does not treat any other 2xx as the withdrawal', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: stubFetch(200, {}) });
+
+        await expect(client.deleteAuthoredFood('food_1')).rejects.toThrow();
+    });
+});
+
 describe('FoodServiceClient.listSources (plan R55)', () => {
     const SOURCES = {
         sources: [

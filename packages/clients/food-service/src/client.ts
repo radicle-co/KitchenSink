@@ -411,6 +411,23 @@ export class FoodServiceClient {
     }
 
     /**
+     * `DELETE /api/v1/foods/{id}` — the author WITHDRAWS their own food (ADR-0029). A `204` and one status flip; the
+     * row is retained, and the name is free again for a new food by the same author.
+     *
+     * @param id - The authored food's id.
+     * @returns Nothing: the `204` has no body.
+     * @throws {NotFoundError} (`404`) when the food is missing, not the caller's, or already withdrawn.
+     * @sideEffect Performs an authenticated HTTP request that withdraws the food.
+     */
+    public async deleteAuthoredFood(id: string): Promise<void> {
+        const res = await this.send('DELETE', `/api/v1/foods/${encodeURIComponent(id)}`);
+
+        if (res.status !== 204) {
+            throw this.toError(res, id);
+        }
+    }
+
+    /**
      * `GET /api/v1/foods/{id}/status` — lifecycle poll (never enqueues).
      *
      * @param id - The internal food id.

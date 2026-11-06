@@ -535,8 +535,8 @@ export interface IngredientRemoteSearchMessages {
     readonly moreOne: string;
     /** Said at the end of a slow answer for a source that added more (contains `{count}`, `{source}`; P7). */
     readonly moreOther: string;
-    /** Said at the end of a slow answer that added no food and failed nowhere (P7). */
-    readonly noMore: string;
+    /** Said at the end of a slow answer that added no food and failed nowhere; never reads as "no foods" (P7). */
+    readonly finished: string;
     /** The answer ended before it completed: its body ended, or its deadline passed (P6). */
     readonly incomplete: string;
     /** A source whose shared window was full: try later (contains `{source}`; P6). */
@@ -859,7 +859,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             stillSearching: 'Still searching other food databases',
             moreOne: '1 more food from {source}',
             moreOther: '{count} more foods from {source}',
-            noMore: 'No more foods found.',
+            finished: 'Finished searching other food databases.',
             incomplete: 'The search didn’t finish, so this list isn’t complete. Edit your search to try again.',
             sourceBusy: 'We couldn’t search {source} just now. Try again later.',
             sourceUnavailable: 'We didn’t hear back from {source}. Edit your search to try again.',

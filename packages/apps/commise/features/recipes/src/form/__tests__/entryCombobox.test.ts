@@ -493,13 +493,35 @@ describe('entryComboboxOf — when the count is spoken (P7)', () => {
         );
     });
 
-    it('slow path, at the end, with nothing added and no failure: `No more foods found.`', () => {
-        const view = entryComboboxOf(
-            input({ view: viewOf([BOTH, sourceAnswered('usda'), COMPLETE_FRAME]), databaseSaidEarly: true }),
-            COPY,
-        );
+    /**
+     * REWRITTEN (dogfooding PR 132): this end said `No more foods found.` beside a list of foods, which reads as "no
+     * foods". It now says the search ended, the pair of `Still searching other food databases`, and it is true whether
+     * the list holds foods or not.
+     */
+    it.each<[string, readonly ProgressiveFrame[]]>([
+        ['beside foods', [BOTH, sourceAnswered('usda'), COMPLETE_FRAME]],
+        ['with no food', [databaseFrame(), sourceAnswered('usda'), COMPLETE_FRAME]],
+    ])('slow path, at the end, with nothing added and no failure, %s: that the search finished', (_case, frames) => {
+        const view = entryComboboxOf(input({ view: viewOf(frames), databaseSaidEarly: true }), COPY);
 
-        expect(view.countAnnouncement).toBe('No more foods found.');
+        expect(view.countAnnouncement).toBe('Finished searching other food databases.');
+    });
+
+    it('⛔ no announcement says "no foods" while the list shows a food (owner rule)', () => {
+        const frameSets: readonly (readonly ProgressiveFrame[])[] = [
+            [BOTH, COMPLETE_FRAME],
+            [BOTH, sourceAnswered('usda'), COMPLETE_FRAME],
+            [BOTH, sourceAnswered('usda'), sourceUnavailable('cnf'), COMPLETE_FRAME],
+            [BOTH, sourceAnswered('usda')],
+        ];
+
+        for (const frames of frameSets) {
+            for (const databaseSaidEarly of [false, true]) {
+                const view = entryComboboxOf(input({ view: viewOf(frames), databaseSaidEarly }), COPY);
+
+                expect(view.countAnnouncement).not.toMatch(/\bno (more )?foods?\b|nothing/i);
+            }
+        }
     });
 });
 

@@ -479,6 +479,32 @@ describe('every state of the food list, native (S5 list contract L1 to L4, §S13
         expect(shown.alerts).toEqual([]);
     });
 
+    // Dogfooding PR 132: a slow answer's end said `No more foods found.` beside the foods it listed (P7).
+    it('⛔ a slow answer that ends with nothing more says the search finished, never "no foods", beside its foods', () => {
+        render(
+            <Harness
+                initial={valuesWith(withLineKeys([NO_FOOD]))}
+                over={{
+                    entry: {
+                        view: settledFoodView(answeredGroup(MINE), answeredGroup(RAW)),
+                        databaseSaidEarly: true,
+                    },
+                }}
+            />,
+        );
+        const field = screen.getByLabelText('Ingredient 1 name');
+
+        fireEvent.focus(field);
+        fireEvent.change(field, { target: { value: 'Kales' } });
+        const polite = screen
+            .getAllByText(shared.ingredientRemoteSearch.finished)
+            .filter((element) => element.getAttribute('aria-live') === 'polite');
+
+        expect(within(screen.getByLabelText('Food suggestions for ingredient 1')).getByText('Kale, raw')).toBeTruthy();
+        expect(polite).toHaveLength(1);
+        expect(screen.queryByText('No more foods found.')).toBeNull();
+    });
+
     // REWRITTEN for plan 002 S7.8 (P2, P3): before the database part only the loader shows: no header, no option.
     it('searching: the loader alone, said politely, with no option yet (P2, P3)', () => {
         render(

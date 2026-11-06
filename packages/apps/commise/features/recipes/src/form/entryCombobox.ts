@@ -273,7 +273,7 @@ const servedSpeechOf = (
                 ];
             });
 
-            return more.length === 0 && endNotes.length === 0 ? copy.remote.noMore : sentences(...more, ...endNotes);
+            return more.length === 0 && endNotes.length === 0 ? copy.remote.finished : sentences(...more, ...endNotes);
         }
 
         return sentences(

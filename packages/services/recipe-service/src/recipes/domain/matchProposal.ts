@@ -7,7 +7,7 @@
  *
  *  1. **Which judgement a proposal asks for** ({@link matchJudgementOf}). The key must equal what the save path computes
  *     if the cook keeps this food, so a kept line is never asked about twice. The measure is recipe-core's
- *     `pastedLineMeasureOf`, the rule the editor saves a pasted row with: the cook's own words (`2 tbsp` keys unit
+ *     `pastedLineRowOf`, the rule the editor saves a pasted row with: the cook's own words (`2 tbsp` keys unit
  *     `tbsp`, not the parse's `tablespoon`), and only the FIRST food of a line carries it.
  *     The request itself ({@link proposalMessageOf}) is built from that judgement, and the key the row stores is the
  *     key of that MESSAGE ({@link proposalKeyOf}), the derivation the worker writes the verdict under.
@@ -18,7 +18,7 @@
  */
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
 import type { LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
-import { pastedLineMeasureOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
+import { pastedLineRowOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import { RANK_TIERS, type RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 import {
     decideProposalVerification,
@@ -74,16 +74,18 @@ export interface ParsedLineMeasure {
  * The judgement the proposal for one food of a parsed line asks for, keyed as the save path would key the kept line.
  *
  * @param line - The parsed line: its text and measure.
- * @param foodIndex - Which food of the line. Only the first carries the measure (`pastedLineMeasureOf`).
+ * @param foodIndex - Which food of the line. Only the first carries the measure (`pastedLineRowOf`).
+ * @param phrase - That food's phrase, whose leading size word the editor saves as the unit.
  * @param foodRefId - The proposed food's id at its forward end (root or variant).
  * @returns The identity, or `undefined` for a blank line. Pure.
  */
 export function matchJudgementOf(
     line: ParsedLineMeasure,
     foodIndex: number,
+    phrase: string,
     foodRefId: string,
 ): VerifiedLineIdentity | undefined {
-    const saved = pastedLineMeasureOf(line, foodIndex);
+    const saved = pastedLineRowOf(line, foodIndex, phrase);
 
     return verifiedLineIdentity(
         {
@@ -137,7 +139,7 @@ export function matchJudgementDigestOf(
     },
     digest: HexDigest,
 ): string {
-    const measure = pastedLineMeasureOf(slot.line, slot.foodIndex);
+    const measure = pastedLineRowOf(slot.line, slot.foodIndex, slot.phrase);
     const [low, high] = boundsOf(measure.quantity);
 
     return `${MATCH_JUDGEMENT_VERSION}:${digest(
@@ -176,14 +178,15 @@ export function proposalVerificationDecision(sourceLine: string, boundTo: FoodRe
  * ⛔ No `ingredientPhrase` is sent: the worker writes no memo for a paste origin, and a memo of a default would bind it
  * for the next cook. Identity is always asked (`unattributed` evidence, no shortlist).
  *
- * @param input - The job and slot, the parsed line, the proposal at its live end, food's answer about it, and when.
- * @returns The message, or `undefined` when nothing can be asked: a blank or over-cap line, or a food food cannot name
- *     now. Pure.
+ * @param input - The job and slot, the parsed line with each food's phrase, the proposal at its live end, food's answer
+ *     about it, and when.
+ * @returns The message, or `undefined` when nothing can be asked: a blank or over-cap line, a slot the line names no
+ *     food for, or a food food cannot name now. Pure.
  */
 export function proposalMessageOf(input: {
     readonly jobId: string;
     readonly slot: MatchSlot;
-    readonly line: ParsedLineMeasure;
+    readonly line: ParsedLineMeasure & { readonly phrases: readonly string[] };
     readonly food: FoodRef;
     readonly answer: FoodRefAnswer;
     readonly requestedAt: string;
@@ -198,7 +201,8 @@ export function proposalMessageOf(input: {
         return undefined;
     }
 
-    const judgement = matchJudgementOf(line, slot.foodIndex, food.id);
+    const phrase = line.phrases[slot.foodIndex];
+    const judgement = phrase === undefined ? undefined : matchJudgementOf(line, slot.foodIndex, phrase, food.id);
 
     if (judgement === undefined) {
         return undefined;

@@ -34,7 +34,7 @@ const LINE = { sourceLine: '2 cups whole milk', quantity: EXACT_TWO, unit: 'cup'
 
 describe('matchJudgementOf — the judgement a proposal asks for', () => {
     it('keys the FIRST food on the line’s own measure, with no stated measure', () => {
-        expect(matchJudgementOf(LINE, 0, 'F-milk')).toStrictEqual({
+        expect(matchJudgementOf(LINE, 0, 'whole milk', 'F-milk')).toStrictEqual({
             sourceLine: '2 cups whole milk',
             foodRefId: 'F-milk',
             quantityLow: 2,
@@ -45,7 +45,7 @@ describe('matchJudgementOf — the judgement a proposal asks for', () => {
     });
 
     it('keys a SECOND food with no measure — the line gave one amount, and the editor saves it on the first', () => {
-        expect(matchJudgementOf({ ...LINE, sourceLine: 'salt and pepper' }, 1, 'F-pepper')).toMatchObject({
+        expect(matchJudgementOf({ ...LINE, sourceLine: 'salt and pepper' }, 1, 'pepper', 'F-pepper')).toMatchObject({
             quantityLow: null,
             quantityHigh: null,
             unit: null,
@@ -54,16 +54,29 @@ describe('matchJudgementOf — the judgement a proposal asks for', () => {
 
     it('keys a RANGE on both bounds and a missing unit as null', () => {
         expect(
-            matchJudgementOf({ ...LINE, quantity: { kind: 'range', low: 2, high: 3 }, unit: null }, 0, 'F'),
+            matchJudgementOf({ ...LINE, quantity: { kind: 'range', low: 2, high: 3 }, unit: null }, 0, 'milk', 'F'),
         ).toMatchObject({ quantityLow: 2, quantityHigh: 3, unit: null });
     });
 
     it('keys an ABSENT amount as null, never zero', () => {
-        expect(matchJudgementOf({ ...LINE, quantity: ABSENT_QUANTITY }, 0, 'F')).toMatchObject({ quantityLow: null });
+        expect(matchJudgementOf({ ...LINE, quantity: ABSENT_QUANTITY }, 0, 'milk', 'F')).toMatchObject({
+            quantityLow: null,
+        });
+    });
+
+    it('keys a counted line on its size word, the unit the editor saves (ADR-0026 §8)', () => {
+        expect(
+            matchJudgementOf(
+                { sourceLine: '3 large eggs', quantity: { kind: 'exact', value: 3 }, unit: null },
+                0,
+                'large eggs',
+                'F-eggs',
+            ),
+        ).toMatchObject({ quantityLow: 3, unit: 'large' });
     });
 
     it('answers nothing for a blank source line — there is nothing to judge', () => {
-        expect(matchJudgementOf({ ...LINE, sourceLine: '   ' }, 0, 'F')).toBeUndefined();
+        expect(matchJudgementOf({ ...LINE, sourceLine: '   ' }, 0, 'milk', 'F')).toBeUndefined();
     });
 });
 

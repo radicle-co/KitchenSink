@@ -27,7 +27,7 @@
  * @pattern Adapter — the parse job's answer to draft rows
  * @pattern Visitor — an exhaustive switch over the job line's status
  */
-import { pastedLineMeasureOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
+import { pastedLineRowOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import { parseJobIsLive } from '@kitchensink/recipe-service-client';
 import type { ParseJobLinePhase, ParseJobLineView, ParseJobResponse, ParseProposal } from '@kitchensink/schema-recipe';
 
@@ -88,16 +88,21 @@ export interface PastedLinesInput {
 }
 
 /**
- * The rows a parsed proposal adds: one per food. Each row's measure is recipe-core's `pastedLineMeasureOf` (the cook's
- * own words, the first food only), the rule recipe-service's paste matcher keys its verdict with (ADR-0071). Pure.
+ * The rows a parsed proposal adds: one per food. Each row's measure and name are recipe-core's `pastedLineRowOf` (the
+ * cook's own words, the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
+ * its verdict with (ADR-0071). The phrase the parse lifted out stays whole, as the memo's key grain. Pure.
  */
 function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
-    return proposal.foods.map((food, index) => ({
-        name: food.name,
-        measure: { ...pastedLineMeasureOf(proposal, index), preparation: food.prep ?? '' },
-        sourcePhrase: food.name,
-        foodIndex: index,
-    }));
+    return proposal.foods.map((food, index) => {
+        const { name, quantity, unit } = pastedLineRowOf(proposal, index, food.name);
+
+        return {
+            name,
+            measure: { quantity, unit, preparation: food.prep ?? '' },
+            sourcePhrase: food.name,
+            foodIndex: index,
+        };
+    });
 }
 
 /** A heading the cook pasted with the list (`For the dough:`): it names no food. */

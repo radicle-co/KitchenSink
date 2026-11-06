@@ -201,7 +201,7 @@ function setup(options: Setup = {}) {
 
 /**
  * The verdict key the save path computes for "2 cups whole milk" kept on `foodId`. The unit is the cook's word, `cups`
- * from the parse's `statedMeasure`, because that is what the editor saves (`pastedLineMeasureOf`, ADR-0071).
+ * from the parse's `statedMeasure`, because that is what the editor saves (`pastedLineRowOf`, ADR-0071).
  */
 const milkKey = (foodId: string): string =>
     verificationKey(
@@ -329,7 +329,7 @@ describe('MatchProposalService.propose — the proposal and its message', () => 
             candidateFoodName: 'Milk, whole',
             quantityLow: 2,
             quantityHigh: null,
-            // The cook's word, as the editor saves it (`pastedLineMeasureOf`), so the kept line's key is this one.
+            // The cook's word, as the editor saves it (`pastedLineRowOf`), so the kept line's key is this one.
             unit: 'cups',
             evidenceKind: 'unattributed',
             shortlist: [],

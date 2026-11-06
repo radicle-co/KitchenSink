@@ -29,7 +29,9 @@
  * `@source inline(...)` is appended ONLY to guarantee the probe utilities are generated regardless of what
  * the app happens to use today; it can add candidates, never mask a wrong declaration.
  */
+import { readdirSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import postcss from 'postcss';
@@ -42,6 +44,29 @@ import { role, roleDark } from '@commise/ui/colors';
 import { PRESS_FILL_CLASS, SURFACE_TONE_CLASS } from '@commise/ui/surface-tone';
 
 const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
+
+const RECIPES_SRC = fileURLToPath(new URL('../../../features/recipes/src', import.meta.url));
+const WEB_SRC = fileURLToPath(new URL('../../src', import.meta.url));
+
+/** Source without block and line comments: prose may name a class that no element carries. */
+const stripComments = (source: string): string =>
+    source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|[^:])\/\/.*$/gmu, '$1');
+
+/**
+ * Every arbitrary-value utility (`w-[4.5rem]`, `grid-cols-[auto_1fr]`) spelled in a source tree. A bare variant such
+ * as `@min-[35rem]` or `aria-[current]` (followed by `:`) is not a utility and emits nothing alone, so it is skipped.
+ *
+ * @sideEffect Reads every `.ts`/`.tsx` file under `root` from disk.
+ */
+function arbitraryValueClasses(root: string, productionOnly: boolean): Set<string> {
+    const utility = /(?<![\w:@/.[-])[a-z@!-][\w:@/.-]*-\[[^\]\s'"`]+\](?!:)/gu;
+    const files = readdirSync(root, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && /\.tsx?$/u.test(entry.name))
+        .map((entry) => join(entry.parentPath, entry.name))
+        .filter((file) => !productionOnly || !/__tests__|\.test\./u.test(file));
+
+    return new Set(files.flatMap((file) => stripComments(readFileSync(file, 'utf8')).match(utility) ?? []));
+}
 
 /** Utilities probed below. Forced into the build so the test never depends on current app usage. */
 const PROBES = [
@@ -313,24 +338,27 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
     });
 
     /**
-     * REWRITTEN (CI run 38010247909): this pinned the recipe-source tabs' utilities, and those tabs were deleted with
-     * their dead component, so it asserted classes nothing renders. What it guards is unchanged: a utility used ONLY by
-     * the SHARED `@commise/features-recipes` package compiles to a real rule, which holds only while the `@source`
-     * glob for that package is in `globals.css`. The ingredient list's amount column and its second line's offset are
-     * such utilities. They are assembled rather than spelled, because Tailwind scans this file as text too, and a
-     * literal here would generate them whatever the glob says.
+     * What it guards: a utility used ONLY by the SHARED `@commise/features-recipes` package compiles to a real rule,
+     * which holds only while the `@source` glob for that package is in `globals.css`. The subject is DERIVED, not
+     * pinned: the arbitrary-value classes the package's production source spells that the web app's own source does
+     * not. (The previous version pinned two literal classes; a later change deleted them and the test went red, and
+     * one half only stayed green because a comment in a test spelled the class: a test file must never build a
+     * utility, which `globals.css` now states with `@source not`.)
      */
-    it('emits a real rule for a utility only the shared recipes package uses (its `@source` glob is load-bearing)', async () => {
+    it('emits a real rule for every arbitrary-value utility only the shared recipes package uses (its `@source` glob is load-bearing)', async () => {
         const css = await cssPromise;
         const cssClass = (utility: string): string =>
             `.${utility.replace(/[^\w-]/gu, (character) => `\\${character}`)}`;
-        const amountColumn = 'w-['.concat('4.5rem]');
-        const secondLineOffset = 'pl-[calc('.concat('4.5rem+0.75rem)]');
+        const webClasses = arbitraryValueClasses(WEB_SRC, false);
+        const sharedOnly = [...arbitraryValueClasses(RECIPES_SRC, true)].filter((utility) => !webClasses.has(utility));
 
-        expect(css, 'the amount column').toContain(`${cssClass(amountColumn)} {\n    width: 4.5rem;`);
-        expect(css, 'the second line’s offset').toContain(
-            `${cssClass(secondLineOffset)} {\n    padding-left: calc(4.5rem + 0.75rem);`,
+        expect(sharedOnly.length, 'the shared package spells at least one class the web app does not').toBeGreaterThan(
+            0,
         );
+
+        for (const utility of sharedOnly) {
+            expect(css, utility).toContain(cssClass(utility));
+        }
     });
 });
 

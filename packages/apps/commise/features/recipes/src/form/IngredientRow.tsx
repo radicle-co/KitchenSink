@@ -81,14 +81,27 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
                 between words; the no-break space inside the amount keeps "2 tablespoons" whole. No amount: no span
                 and no space, never an invented "1" (F5). */}
             <span className="flex min-w-0 flex-1 flex-col gap-1">
-                {(row.amountText !== '' || !row.standIn) && (
+                {row.standIn ? (
+                    <>
+                        {/* A stand-in is a chip, not text: the amount (if any) is the line above it. */}
+                        {row.amountText !== '' && (
+                            <span className="break-words text-body-md text-ink">
+                                <span className="text-figure-inline font-semibold">{row.amountText}</span>
+                            </span>
+                        )}
+                        <span id={ingredientStandInId(row.index)}>
+                            <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
+                        </span>
+                    </>
+                ) : (
                     <span className="break-words text-body-md text-ink">
                         {row.amountText !== '' && (
-                            <span className="text-figure-inline font-semibold">{row.amountText}</span>
+                            <>
+                                <span className="text-figure-inline font-semibold">{row.amountText}</span>{' '}
+                            </>
                         )}
-                        {row.amountText !== '' && !row.standIn && ' '}
-                        {!row.standIn && row.displayName}
-                        {!row.standIn && row.prepText !== undefined && (
+                        {row.displayName}
+                        {row.prepText !== undefined && (
                             <span className="text-ink-muted">
                                 {/* The "·" is never spoken: a screen reader hears the hidden comma (UI Designer). */}
                                 <span aria-hidden="true">{'\u00A0· '}</span>
@@ -96,12 +109,6 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
                                 {row.prepText}
                             </span>
                         )}
-                    </span>
-                )}
-                {/* A stand-in is a chip, not text: the amount (if any) is the line above it. */}
-                {row.standIn && (
-                    <span id={ingredientStandInId(row.index)}>
-                        <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
                     </span>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}

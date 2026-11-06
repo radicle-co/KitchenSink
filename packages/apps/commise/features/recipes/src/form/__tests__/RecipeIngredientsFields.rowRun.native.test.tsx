@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Issue #144 (native): an ingredient row reads as ONE text run, "amount food · preparation" (UI Designer ruling
- * 2026-11-06). The amount column (`w-[4.5rem]`) is gone, so the amount and the food are not two layout boxes and the
+ * 2026-11-06). The fixed amount column is gone, so the amount and the food are not two layout boxes and the
  * text wraps only between words. The amount keeps its no-break space ("2 tablespoons" never splits), the amount and
  * the food are joined by an ordinary space, and the open control's name holds the same visible text (WCAG 2.5.3).
  *

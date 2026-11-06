@@ -123,6 +123,25 @@ describe('pasteMatchLinesOf - the line itself', () => {
         });
     });
 
+    /**
+     * The measure ends before a `,` or `;` as well as before a space (the same boundary `promoteCrfReading` cuts at), so
+     * `2 cups, sifted flour` keeps its measure emphasis. The separator is not a word, so it is not drawn after the measure.
+     */
+    it.each([
+        ['2 cups, sifted flour', '2 cups', 'sifted flour'],
+        ['3 tablespoons, plus 1 tablespoon, butter', '3 tablespoons', 'plus 1 tablespoon, butter'],
+        ['2 cups; sifted flour', '2 cups', 'sifted flour'],
+    ])('a stated measure that ends before a separator is split out of %s', (raw, measure, words) => {
+        expect(only(linesOf(jobWith(confident(), raw, measure))).line).toEqual({ measure, words });
+    });
+
+    it('a stated measure that ends inside a word is still not split when a separator follows the word', () => {
+        expect(only(linesOf(jobWith(confident(), '2-3 cups, chicken stock', '2-3 cup'))).line).toEqual({
+            measure: '',
+            words: '2-3 cups, chicken stock',
+        });
+    });
+
     it('a stated measure that is the whole line is split out of it', () => {
         expect(only(linesOf(jobWith(confident(), '2 cups', '2 cups'))).line).toEqual({ measure: '2 cups', words: '' });
     });

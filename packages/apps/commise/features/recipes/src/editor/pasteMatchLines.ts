@@ -72,9 +72,9 @@ export function boundByOf(reason: string): Exclude<BoundBy, 'cook'> {
 
 /**
  * The line as the cook wrote it: the stated measure when it starts the line and ends on a word of it, and the words
- * after it (a separator between them is not a word). The measure ends before any character that is not a letter or
- * digit, as `promoteCrfReading` cuts it. A measure ending inside a word (`2-3 cup` against `2-3 cups`) would draw
- * `cup s`, so the line stays whole.
+ * after it. A `,` or `;` right after the measure stays with it, so the row shows the line as pasted ("2 cups, sifted"
+ * is not "2 cups sifted"). The measure ends before any character that is not a letter or digit, as `promoteCrfReading`
+ * cuts it. A measure ending inside a word (`2-3 cup` against `2-3 cups`) would draw `cup s`, so the line stays whole.
  * Pure.
  */
 function lineTextOf(proposal: WireProposal): LineText {
@@ -82,12 +82,13 @@ function lineTextOf(proposal: WireProposal): LineText {
     const raw = proposal.raw.trim();
     const endsOnAWord = !/[\p{L}\p{N}]/u.test(raw.charAt(measure.length));
 
-    return measure !== '' && endsOnAWord && raw.toLowerCase().startsWith(measure.toLowerCase())
-        ? {
-              measure: raw.slice(0, measure.length),
-              words: raw.slice(measure.length).replace(/^[\s,;]+/u, ''),
-          }
-        : { measure: '', words: raw };
+    if (measure === '' || !endsOnAWord || !raw.toLowerCase().startsWith(measure.toLowerCase())) {
+        return { measure: '', words: raw };
+    }
+
+    const end = measure.length + (/[,;]/u.test(raw.charAt(measure.length)) ? 1 : 0);
+
+    return { measure: raw.slice(0, end), words: raw.slice(end).trim() };
 }
 
 /** The wire's candidates as the choices a list offers, in the server's order. Pure. */

@@ -5,7 +5,8 @@
  * The rules:
  *  1. A cook reads one fraction character joined to the whole number, with no space ("1½", "¾").
  *  2. Only the nine fractions in {@link COOK_FRACTIONS}. A value snaps to one only within {@link SNAP_TOLERANCE}
- *     (0.333 is ⅓, 0.3 stays "0.3"). Anything else is a decimal with at most two places. A scaled amount follows the same rule.
+ *     (0.333 is ⅓, 0.3 stays "0.3"). Anything else is a decimal with at most two places. A scaled amount follows the
+ *     same rule.
  *  3. Metric units stay decimal. Spoons, cups, ounces, pounds and counts use fractions. No unit is a count.
  *  4. Every `en-*` locale uses fractions. Every other locale uses a decimal with its own mark, through `Intl`.
  *  5. The spoken form uses localized words, never the character ("1 and a half").
@@ -126,7 +127,8 @@ const speakFractions = (text: string, words: AmountWordMessages): string =>
 /**
  * The accessible name of a CONTROL that shows amounts: its visible text, glyph and dash included, so the name holds the
  * visible label by construction (WCAG 2.5.3; ruling in `docs/design/uiOverhaul/buildSpec.md` §7.5.1, "Control names
- * carry the visible amount"). Words are for text that is not a control ({@link speakAmounts}). The no-break space before a unit, which only stops a line breaking, reads as a plain space.
+ * carry the visible amount"). Words are for text that is not a control ({@link speakAmounts}). The no-break space
+ * before a unit, which only stops a line breaking, reads as a plain space.
  *
  * @param text - What the control shows.
  * @returns Its name. Pure.

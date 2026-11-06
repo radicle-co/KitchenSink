@@ -33,3 +33,13 @@ Verdict: Android and web pass. iOS follows after C-1.
 For the floating-button lane, not this one: at 320 by 200 CSS px the fixed button sits over "See all". Give the web
 page a `scroll-padding-bottom` equal to the button's end room, so a focused control is never hidden under it
 (WCAG 2.4.11).
+
+## iOS (HomeTop and HomeTiles, 1x and cap)
+
+Passes. At the cap the greeting stops at `cardTitle`'s ceiling, the date wraps at a word boundary, and the profile
+button stays at the end. The Home tiles follow the 320 pt rule: two columns at 1x and one at the cap.
+
+Not this lane: "Recent recipes" and "See all" still grow past their caps, and the tile titles truncate. Those are
+the old heading and card, which the card lane replaces. They are judged on the integrated head.
+
+Verdict: the Home header lane passes on all three platforms.

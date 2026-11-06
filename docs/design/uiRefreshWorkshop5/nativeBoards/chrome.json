@@ -1,0 +1,69 @@
+{
+    "note": "Native chrome the shell draws, copied from the component that draws it in the app, with the line it comes from. Colours, type and spacing are NOT here: they come from tokens.json and tokens/layout.ts at build time.",
+    "tabBar": {
+        "minHeight": 64,
+        "glyph": 24,
+        "hereBar": {
+            "width": 32,
+            "height": 3
+        },
+        "sidePadding": 4,
+        "labelRole": "caption",
+        "surface": "paper-raised",
+        "source": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx (styles.tab, styles.hereBar, SIDE_PADDING); solid paperRaised per tamaguiAudit.md X1 (Liquid Glass only on iOS 26, not drawn)"
+    },
+    "tabs": [
+        {
+            "id": "home",
+            "label": "Home",
+            "glyph": "home"
+        },
+        {
+            "id": "recipes",
+            "label": "Recipes",
+            "glyph": "book"
+        },
+        {
+            "id": "discover",
+            "label": "Discover",
+            "glyph": "compass"
+        },
+        {
+            "id": "mealPlan",
+            "label": "Meal plan",
+            "glyph": "calendar"
+        }
+    ],
+    "tabsSource": "ownerFeedback.md N9: Home, Recipes, Discover, Meal plan",
+    "sideSpacing": {
+        "default": 16,
+        "exceptions": [],
+        "rule": "Owner ruling T31 (2026-11-01): 16 pt side spacing everywhere, on screens and sheets, phone and tablet, unless the platform guideline (Apple HIG for iOS and iPadOS, Material for Android) sets a value for that exact context. An exception names os, kind, context, value and source.",
+        "checked": "No exception is applied. The iPad 20 pt regular-width layout margin is stated only by a third party (Use Your Loaf, 'Changing Root View Layout Margins'); Apple's systemMinimumLayoutMargins page gives no number. Material 3's 24 dp margin for medium windows was found only second-hand (SAP Fiori for Android), and Android tablets use the iPad board. Material's compact margin, 16 dp, already equals the default."
+    },
+    "sheet": {
+        "wideFrom": 600,
+        "maxWidth": 560,
+        "source": "packages/apps/commise/ui/src/sheet/sheetPresentation.ts (SHEET_WIDE_FROM_DP, SHEET_MAX_WIDTH_DP): a bottom sheet on a wide window is capped, still bottom-anchored; only a 'dialog' presentation is centred; SHEET_DIALOG_MAX_WIDTH_DP 448 and SHEET_HANDLE 36 x 5 in the same file",
+        "dialogMaxWidth": 448,
+        "handle": {
+            "width": 36,
+            "height": 5,
+            "marginTop": 8,
+            "marginBottom": 4
+        }
+    },
+    "homeIndicator": {
+        "ios": {
+            "width": 134,
+            "height": 5,
+            "bottom": 8
+        },
+        "android": {
+            "width": 108,
+            "height": 4,
+            "bottom": 10
+        }
+    },
+    "homeIndicatorNote": "The OS draws both. iOS is the usual 134 x 5 pill; the Android gesture handle is drawn approximately. Neither is ours to style."
+}

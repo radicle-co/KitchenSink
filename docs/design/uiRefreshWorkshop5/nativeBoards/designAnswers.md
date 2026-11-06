@@ -2,6 +2,66 @@
 
 Each answer is the design ruling a port builds to. Newest first.
 
+## 2026-11-05: what binds inside the meta line (card fix 2, asked by Nova Squad)
+
+- Bind a number to its unit and the star to its figure with a no-break space: "45 min", "370 cal", "★ 4.0". The
+  rating count "(3)" follows on an ordinary space, so it can wrap off the star.
+  Words inside a text part ("No ratings yet") keep ordinary spaces. A no-break space still comes before each "·".
+  This replaces "each part is unbreakable inside".
+- A cover status chip is the shared StatusBadge. Above a capped scale of 1.5, the cover passes no glyph, so the badge
+  draws the label alone. The label never truncates.
+- Every text on a card goes through the design-system Text: titles `cardTitle`, times and bylines `meta`, captions
+  `caption`, and status through the shared StatusBadge.
+
+## 2026-11-05: controls and label pairs at the cap (from the iOS run)
+
+- The ingredient check box scales with the chrome cap, 1.5x (its base of 18 becomes 27), and stays centred on the
+  first text line. Its target is unchanged. The check mark keeps its 1x share of the box, at the nearest icon size.
+- The serving stepper's value is control text and caps at 1.5x. The minus and plus discs grow to at least the value's
+  line height.
+- In a label and value pair, the value never draws larger than its label. The label keeps its role (`sectionTitle`
+  for the Nutrition row, 18 at 1x on web and native). The value caps at 1.5x, so `meta` stops at 21. Nothing changes
+  at 1x. This replaces "the label uses `cardTitle`".
+- Collection detail meta ("Private", "4 recipes") uses `meta` through the design-system Text, so the page title stays
+  the largest text.
+
+## 2026-11-03: the meta line as text, tile heights and which line each card uses (asked by Nova Squad)
+
+- The meta line is one run of text, not a row of separate parts: "45 min · Easy · No ratings yet · 370 cal". The
+  space before each "·" is a no-break space, so a dot stays with the word before it and never starts a line. The
+  line wraps like text, with no clip and no truncation. No clock glyph. The star stays with the rating.
+- A public recipe shows no status mark. Draft, Private and Pro are pills with words. A glyph alone is never a status.
+- Tiles in one grid row share the height of the tallest tile. Content stays top-aligned.
+- Discover cards use the full line (time · difficulty · rating · calories), because a cook chooses from them.
+  Collection-detail tiles are the compact tile, so they use the Home line (time, then calories).
+
+## 2026-11-03: tile meta lines and the cover letter centre (asked by Nova Squad)
+
+- Every tile has a meta line. A Recipes grid tile uses the list row's line: time · difficulty · rating · calories. A
+  compact Home tile shows the time, then the calories. A part with no data is left out, and a line with no parts is
+  left out.
+- The cover letter centres in the whole cover, within 2 pt on both axes, at every scale. Centre its cap band (the
+  field-text ruling), not its line box. The status chips at the top of the cover sit over the cover. They never push
+  the letter down.
+
+## 2026-11-03: cover letters and heading roles (asked by Nova Squad)
+
+- Cover letter: centre the letter, at its fixed size, in the free space above the chip band, at every scale. With no
+  band, centre it in the whole cover. No layout measurement. This replaces "nothing moves at 1x".
+- Heading roles on the tab pages: the page title is `largeTitle` (cap 42). Rail headings such as "Trending" are
+  `sectionTitle` (cap 27). The count line ("5 collections", "14 recipes") is `label` at weight 600 (cap 28).
+- At every scale, no text on a page is larger than its page title. A test holds this at the cap.
+
+## 2026-11-02: what "centred" means for text in a field (asked by Nova Squad)
+
+- Centre the cap band: from the top of a capital to the baseline. Descenders hang below it. A word with no
+  descender ("Flour") is then exactly centred, and "Hxg" reads low by its descender only.
+- Do not lift by the descender drop (0.11 em). Most field text has no descender, so a fixed lift puts most words high,
+  and the lift grows with the text size.
+- The same rule holds for typed text, placeholders and digits, so Prep and Amount need no special case.
+- QA measures from the top of a capital to the baseline, within 2 pt at 1x and at the cap. The test text starts with
+  a capital and contains no descender, for example "Hx".
+
 ## 2026-11-02: the floating button in a short web window (asked by Nova Squad)
 
 - Below 400 CSS px of viewport height (for example 1280 x 800 at 200% zoom or more), the New recipe button stops
@@ -21,6 +81,7 @@ Each answer is the design ruling a port builds to. Newest first.
   keyboard does not count, so opening it never moves the pin (corrected 2026-11-02). Above that, it scrolls with the
   rest.
 - **Web:** no change. The document already scrolls, and the sticky search stays.
+- **Collections tab:** its "Search your collections" field follows the same rule and pins on the band.
 - **The pinned band (2026-11-02):** while pinned, the field sits on a full-width band of the canvas colour, from the
   top safe area to 8 below the field, so no card shows around or above it. A `lineDivider` hairline marks the band's
   bottom edge only while content is under it. No shadow.
@@ -85,10 +146,26 @@ Each answer is the design ruling a port builds to. Newest first.
   Private, then Pro, then "Edited". It uses the `pro` tone, so it reads apart from visibility. Its box is the
   board's pill box: 24 high, radius 8, 14/500. On a tile it is a second cover chip after the status chip. If the
   chips do not fit on one line, the second one moves whole to the next line.
-- **Fields dropped on every card:** servings, cuisine, nutrition, the tags line, the version badge and the cover time
-  chip. The time shows in the meta line instead.
+- **Fields dropped on every card:** servings, cuisine, the nutrition figures other than calories, the tags line, the
+  version badge and the cover time chip. The time shows in the meta line instead. The calorie figure stays at the end
+  of the meta line (owner ruling, above).
 - **"Edited" on tiles:** Recipes tiles show it and Home tiles do not. This is intended. Home is already the recent
   list, so the time adds nothing there.
+- **Fixed frames with text at large sizes (2026-11-02):**
+    - Step numerals (StepRow, the editor's step fields): the numeral caps at 1.5x, like chrome. The circle is at least
+      32 and grows to the numeral's height plus 8, so two digits always fit.
+    - Avatars (AvatarDisc, the Discover footer avatar): initials do not scale. They are drawn at 40% of the disc's
+      diameter, so two letters fit at every size. The name beside the avatar, or its accessible name, carries the
+      meaning. The 44 pt target is unchanged.
+    - CondensedTitleBar: the title and the parent name cap at 1.5x. The bar is at least 56 and grows to fit. Its title
+      is one line and may truncate: it repeats the page's H1, which shows in full. This is the one place a title may
+      truncate, and the harness exempts it by name.
+- **Status chip on a cover (2026-11-02):** the word never truncates (ruling a). The chip takes its content width; no
+  fixed fraction of the cover caps it. If two chips do not fit on one line, the second moves whole to the next line.
+  If one chip is still wider than the cover minus its insets, drop the glyph and keep the word. Never show the
+  glyph alone: a lock alone does not say "Private".
+- **Recipe detail fact tiles at large text (2026-11-02):** three across while each tile's width divided by the capped
+  text scale is at least 100 pt. Below that, one tile per row, the label at the start and the value at the end.
 - **Phone grid at large text (2026-11-02):** every phone grid (Recipes, Collections, collection detail, Home)
   shows two columns while the container width divided by the
   capped text scale is at least 320 pt. Below that it shows one column. At 1x on a 343 pt container that is two; at
@@ -244,3 +321,66 @@ The shared `Text` now scales text itself. Growth is not the same for every role:
 3. **Rating figure.** Keep it at regular weight, like the web's `meta` with tabular figures. I agree with a `figures`
    variant on `Text` that sets tabular, lining figures and keeps the role's own weight. `figureInline` stays for
    figures that the copy stresses, such as ingredient amounts.
+
+## 2026-11-06: fractions in ingredient amounts (asked by Nova Squad)
+
+The rule lives in `formatQuantity`, so it reaches web, native, the editor row and the version views.
+
+1. **Form.** A single Unicode fraction character joins the whole number with no space: "1½ cups", "¾ tsp". A
+   no-break space joins the amount to its unit. A range reads "1½–2 cups". This is display only: a field the
+   cook edits shows what the cook typed, and a line kept "as written" stays verbatim.
+2. **Set.** ½, ⅓, ⅔, ¼, ¾, ⅛, ⅜, ⅝ and ⅞, because Inter and the system fonts draw all nine. A value snaps to
+   one only when it is within 0.01, so 0.333 becomes ⅓ and 0.3 stays "0.3". Any other value is a decimal with
+   at most 2 places and no trailing zeros. Scaled amounts follow the same rule.
+3. **Units.** Every metric unit (mg, g, kg, ml, cl, dl, l) stays decimal. Cups, spoons, oz, lb and counts use fractions. An amount with no
+   unit is a count.
+4. **Locales.** Every en-* locale uses fractions. Every other locale uses a decimal with its own decimal mark
+   (`Intl.NumberFormat`). Spec 025 decides any other locale when that locale launches.
+5. **Screen readers.** The spoken form is localized words, never the character: "1 and a half cups", "three
+   quarters", "a third". It uses one i18n key per fraction and one mixed pattern, "{whole} and {fraction}". On
+   web the words are visually hidden text beside the glyph, and the glyph has aria-hidden. On native the words
+   are the accessibility label.
+   A range is spoken "2 to 3 cups", and "1 and a half to 2 cups" with a fraction.
+   Amended the same day after GATE: the words are for non-interactive text only (the detail list's hidden text,
+   live regions, announcements). A control whose name holds an amount, such as the ingredient checkbox or the
+   editor row's open trigger, uses the visible text, "1½ cups whole milk", so the name contains the visible label
+   (WCAG 2.5.3) and voice control can match what the cook sees.
+   A positive amount never shows 0. Below the smallest value it can show, it shows "0.01" with its unit, never
+   "a pinch".
+6. **Preparation.** "unsalted butter · melted" shows the preparation after a "·", with a no-break space before
+   it. The "·" is never spoken: the spoken form is "unsalted butter, melted".
+
+## 2026-11-06: editor Ingredients status during a paste (asked by Nova Squad)
+
+1. While a paste is still reading lines, the Ingredients status reads "Reading…", with the single "…" character
+   that the paste rows use. "Needs a match" and "Fix" rank above it, and Photos & publish stays Optional.
+2. While a failed line waits on the cook, Ingredients is not Complete, because that line blocks Publish. It shows
+   the attention state "Needs you", at the same rank as "Needs a match". It makes no announcement of its own,
+   because the paste block already says "N lines need you".
+3. The status never stays on "Reading…" after a paste ends, in any way the paste can end.
+4. Announcements: "Reading N pasted lines." once at the start. At settle the cook hears one message, "Added N
+   ingredients. Ingredients complete.", never two announcements in the same second. N counts the ingredients
+   added, not the pasted lines. "Reading again." is spoken once
+   after each offline recovery. When Ingredients becomes complete in any other way, it announces "Ingredients
+   complete" once.
+5. The end of a slow food search says "Finished searching other food databases." (key `finished`), the pair of
+   "Still searching other food databases". It never says "No more foods found.", which read as "no foods".
+
+## 2026-11-06: editor ingredient row breaks unit words (#144, asked by Nova Squad)
+
+1. The editor ingredient row has no amount column. The amount and the food are one text run: the amount in the
+   row's strong weight, an ordinary space, then the food and its "· preparation". It wraps only between words,
+   on every platform and at every text size. The shots show why: the names already start at different points
+   (1x), so the column bought no alignment, and at the cap it leaves too little room for a whole unit word.
+2. The no-break space between the amount and its unit stays. With the full row width, "2 tablespoons" always
+   fits on one line, so no break inside a word is possible. A food name that wraps starts its next line at the
+   row's start edge, under the amount.
+3. The row keeps the cook's words ("tablespoons", "cups"). No short unit forms (option b): the editor and the
+   detail page show the same text, and the open control's name already holds that visible text (WCAG 2.5.3).
+4. No nowrap, no clipping and no smaller text. The "⋯" button keeps its place at the row end.
+5. This blocks PR 132, because the defect shows on Android at 1x on the main editor.
+6. The row's second line (attention, working, failure) starts at the row's start edge, the same edge as the
+   run, with its own style and icon.
+7. A stand-in row (a private ingredient) shows the amount on its own line above the chip, both at the row's
+   start edge. With no amount there is no empty line. The control's name reads the visible text in order: the
+   amount, then the chip's label.

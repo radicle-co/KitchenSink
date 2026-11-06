@@ -274,7 +274,8 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // publishing with open choices passed on the local Android stack and were promoted (2026-11-06). These two depend on
     // what the stage's catalog and review gate answer. `pasteMatchConfident` assumes a catalog food named "Egg, whole,
     // raw, fresh", and the curated catalog names it "eggs" (issue #140), so it cannot pass until its line is re-chosen.
-    // `pasteMatchChecking` needs a review that answers late. Promote each to FLOW_PLAN once an emulator run has passed it.
+    // `pasteMatchChecking` needs a review that answers late; it passed one local Android run (2026-11-06) and waits on the
+    // lead's call to promote it. Promote `pasteMatchConfident` to FLOW_PLAN once an emulator run has passed it.
     'recipes/pasteMatchConfident',
     'recipes/pasteMatchChecking',
     // The offline write path: the editor saves through the outbox (ADR-0057), and these flows assert the cook-visible

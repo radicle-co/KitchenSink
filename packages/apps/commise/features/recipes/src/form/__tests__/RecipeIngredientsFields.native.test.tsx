@@ -532,7 +532,7 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
     it('names the amount, the range’s upper bound and the preparation by their labels, which iOS reads', () => {
         render(<StatefulLeaf initial={[{ ...RICE, quantityHigh: 400 }]} seen={[]} />);
 
-        press('Edit 300 to 400 g Arborio rice');
+        press('Edit 300–400 g Arborio rice');
 
         expect(recordedTextInputLabelled(en.rowAmountLabel)).toBeDefined();
         expect(recordedTextInputLabelled(en.rowAmountHighLabel)).toBeDefined();

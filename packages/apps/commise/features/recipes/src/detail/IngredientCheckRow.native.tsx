@@ -36,7 +36,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     onToggle,
     divided = false,
 }) => {
-    const { detail, ingredientLineName, ingredientDetails, amountWords } = useMessages(recipeMessages);
+    const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     const locale = useLocale();
     const wash = usePressFill();
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
@@ -59,7 +59,6 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     locale,
                     ingredientLineName,
                     ingredientDetails.checkLabelWithDetails,
-                    amountWords,
                 )}
                 {...(statuses.length > 0
                     ? { accessibilityHint: statuses.map((status) => status.text).join(', ') }

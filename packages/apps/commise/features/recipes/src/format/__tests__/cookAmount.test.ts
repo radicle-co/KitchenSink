@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { recipeMessages } from '../../messages.js';
-import { formatAmountNumber, speakAmounts } from '../cookAmount.js';
+import { controlName, formatAmountNumber, speakAmounts } from '../cookAmount.js';
 
 /** The shipped English words, so the spoken cases also pin the copy a screen reader hears. */
 const WORDS = recipeMessages.en.amountWords;
@@ -114,6 +114,14 @@ describe('formatAmountNumber — locales (rule 4)', () => {
         expect(formatAmountNumber(1.5, 'de-DE', 'Tassen')).toBe('1,5');
         expect(formatAmountNumber(1 / 3, 'fr-FR', 'tasse')).toBe('0,33');
         expect(formatAmountNumber(1.5, 'es', undefined)).toBe('1,5');
+    });
+});
+
+/** WCAG 2.5.3, option C (UI Designer, amending Q5): a control is named by what it shows, so its name keeps the glyph. */
+describe('controlName — a control’s name', () => {
+    it('keeps the fraction glyph and the range dash, and reads the no-break space as a space', () => {
+        expect(controlName('Edit 1½\u00A0cups whole milk, warmed')).toBe('Edit 1½ cups whole milk, warmed');
+        expect(controlName('2–3\u00A0cups flour')).toBe('2–3 cups flour');
     });
 });
 

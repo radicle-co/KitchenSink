@@ -124,6 +124,16 @@ const speakFractions = (text: string, words: AmountWordMessages): string =>
     );
 
 /**
+ * The accessible name of a CONTROL that shows amounts: its visible text, glyph and dash included, so the name holds the
+ * visible label by construction (WCAG 2.5.3, option C, amending Q5). Words are for text that is not a control
+ * ({@link speakAmounts}). The no-break space before a unit, which only stops a line breaking, reads as a plain space.
+ *
+ * @param text - What the control shows.
+ * @returns Its name. Pure.
+ */
+export const controlName = (text: string): string => text.replace(/\u00A0/gu, ' ');
+
+/**
  * The spoken copy a surface must add for a text, or `undefined` when the text already says itself: when the two
  * differ only by the no-break space before a unit, which every screen reader reads as a space. A surface that labels
  * a node only when this answers keeps its text said once (`nativeContainerNames.md` N1).
@@ -135,7 +145,7 @@ const speakFractions = (text: string, words: AmountWordMessages): string =>
 export const spokenAmountsLabel = (text: string, words: AmountWordMessages): string | undefined => {
     const spoken = speakAmounts(text, words);
 
-    return spoken === text.replace(/\u00A0/gu, ' ') ? undefined : spoken;
+    return spoken === controlName(text) ? undefined : spoken;
 };
 
 /**
@@ -147,7 +157,9 @@ export const spokenAmountsLabel = (text: string, words: AmountWordMessages): str
  * @returns The spoken text. Pure.
  */
 export const speakAmounts = (text: string, words: AmountWordMessages): string =>
-    speakFractions(
-        text.replace(AMOUNT_RANGE, (_match, low: string, high: string) => fillTemplate(words.range, { low, high })),
-        words,
-    ).replace(/\u00A0/gu, ' ');
+    controlName(
+        speakFractions(
+            text.replace(AMOUNT_RANGE, (_match, low: string, high: string) => fillTemplate(words.range, { low, high })),
+            words,
+        ),
+    );

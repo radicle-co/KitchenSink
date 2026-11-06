@@ -127,10 +127,11 @@ describe('IngredientCheckRow (web)', () => {
             </ul>,
         );
 
-        // Q5: the row shows a cook's fraction, and its name says it in words.
-        const row = screen.getByRole('checkbox', { name: '1 and a half cups flour' });
+        // WCAG 2.5.3, option C (UI Designer, amending Q5): a CONTROL is named by its visible text, glyph included, so the
+        // name a voice-control user reads off the screen is the name. Only the no-break space reads as a plain space.
+        const row = screen.getByRole('checkbox', { name: '1½ cups flour' });
 
-        expect(row.textContent).toContain('1½\u00A0cups');
+        expect(row.textContent?.replaceAll('\u00A0', ' ')).toBe('1½ cups flour');
     });
 
     it('reports a press on the row with the line’s key', () => {

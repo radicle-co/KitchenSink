@@ -1683,7 +1683,7 @@ describe('RecipeDetailView (web) — ranged and absent quantities (U9)', () => {
             />,
         );
 
-        expect(screen.getByRole('checkbox', { name: '2 to 3 cups Flour' })).toBeTruthy();
+        expect(screen.getByRole('checkbox', { name: '2–3 cups Flour' })).toBeTruthy();
     });
 
     it('renders an ABSENT quantity as the unit alone, with no fabricated number (R40)', () => {

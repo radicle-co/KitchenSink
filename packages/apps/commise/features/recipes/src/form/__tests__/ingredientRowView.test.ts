@@ -865,15 +865,15 @@ describe('ingredientRowViewOf — the read row (build spec §7.5.1)', () => {
         expect(row.amountText).toBe('2–2.5\u00A0kg');
         expect(row.prepText).toBe('trimmed');
         expect(row.secondLine).toEqual({ kind: 'none' });
-        expect(row.openLabel).toBe('Edit 2 to 2.5 kg beef brisket, trimmed');
+        expect(row.openLabel).toBe('Edit 2–2.5 kg beef brisket, trimmed');
     });
 
-    /** UI Designer ruling Q5: the row shows a cook's fraction, and its name says it in words. */
-    it('shows 1½ cups, and names it "1 and a half cups"', () => {
+    /** WCAG 2.5.3, option C (UI Designer, amending Q5): the open trigger is a control, so it is named by its visible text. */
+    it('shows 1½ cups, and names the trigger by that glyph', () => {
         const { row } = onlyRow({ lines: [bound({ quantity: 1.5, unit: 'cups' })] });
 
         expect(row.amountText).toBe('1½\u00A0cups');
-        expect(row.openLabel).toBe('Edit 1 and a half cups beef brisket');
+        expect(row.openLabel).toBe('Edit 1½ cups beef brisket');
     });
 
     it('a line with no amount leaves the amount column empty: never an invented "1" (F5)', () => {

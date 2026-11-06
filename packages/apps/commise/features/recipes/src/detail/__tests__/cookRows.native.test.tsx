@@ -41,8 +41,8 @@ describe('IngredientCheckRow (native)', () => {
         expect(onToggle).toHaveBeenCalledWith('ing_lamb');
     });
 
-    // UI Designer ruling Q5: the row shows a cook's fraction, and its accessibility label says it in words.
-    it('shows 1½ cups and is named "1 and a half cups"', () => {
+    // WCAG 2.5.3, option C (UI Designer, amending Q5): a CONTROL is named by its visible text, glyph included.
+    it('shows 1½ cups and is named by exactly that text', () => {
         const milk = makeIngredientView({
             ingredientId: 'ing_milk',
             quantity: { kind: 'exact', value: 1.5 },
@@ -51,9 +51,9 @@ describe('IngredientCheckRow (native)', () => {
         });
         render(<IngredientCheckRow ingredient={milk} checked={false} allRemoved={false} onToggle={vi.fn()} />);
 
-        const row = screen.getByRole('checkbox', { name: '1 and a half cups whole milk' });
+        const row = screen.getByRole('checkbox', { name: '1½ cups whole milk' });
 
-        expect(row.textContent).toContain('1½\u00A0cups');
+        expect(row.textContent?.replaceAll('\u00A0', ' ')).toBe('1½ cups whole milk');
     });
 
     // Owner C5 + T1: the row pads 8 and is at least 44 tall (iOS), sized from the tokens, and a press anywhere on the row (the text

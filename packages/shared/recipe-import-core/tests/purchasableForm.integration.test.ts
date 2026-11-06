@@ -160,3 +160,77 @@ describe('dried, frozen and canned survive the parse pipeline', () => {
         expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep }]);
     });
 });
+
+/**
+ * Owner ruling 2026-11-06: `whipped` BEFORE the food is part of its name, AFTER the comma it is the cook's step. Each
+ * CRF row is the engine's real answer (`ingredient-parser-nlp` 2.3.0, run 2026-11-06). The LLM answers are what the
+ * parse prompt's rule 7 tells the model to give: `whipped` is one of the descriptors that stay in the name, and a
+ * word the line puts after the comma is the preparation.
+ */
+describe('whipped survives the parse pipeline where the cook wrote it', () => {
+    const cases: readonly {
+        line: string;
+        crf: CrfReading;
+        llm: { statedMeasure: string; name: string; prep: string | null };
+    }[] = [
+        {
+            line: '1 cup whipped cream',
+            crf: {
+                sentence: '1 cup whipped cream',
+                measure: '1 cup',
+                names: ['whipped cream'],
+                size: null,
+                preparation: null,
+                comment: null,
+            },
+            llm: { statedMeasure: '1 cup', name: 'whipped cream', prep: null },
+        },
+        {
+            line: '1 cup heavy cream, whipped',
+            crf: {
+                sentence: '1 cup heavy cream, whipped',
+                measure: '1 cup',
+                names: ['heavy cream'],
+                size: null,
+                preparation: 'whipped',
+                comment: null,
+            },
+            llm: { statedMeasure: '1 cup', name: 'heavy cream', prep: 'whipped' },
+        },
+    ];
+
+    it.each(cases)('$line is stored as the cook wrote it, and the engines agree', async ({ line, crf, llm }) => {
+        const ports: ParseEnginePorts = {
+            crf: {
+                engine: 'crf',
+                engineVersion: 'ingredient-parser-nlp==2.3.0',
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((sourceLine) => promoteCrfReading(crf, sourceLine));
+                },
+            },
+            llm: {
+                engine: 'llm',
+                engineVersion: 'test-llm@v1',
+                async parse(lines): Promise<readonly EngineAnswer[]> {
+                    return lines.map((sourceLine) =>
+                        promoteLlmParse(
+                            { statedMeasure: llm.statedMeasure, foods: [{ name: llm.name, prep: llm.prep }] },
+                            sourceLine,
+                        ),
+                    );
+                },
+            },
+        };
+        const [outcome] = await runParsePipeline(
+            [line],
+            { corrections: NO_CORRECTIONS, cache: NO_CACHE, engines: ports, digest: sha256 },
+            { userId: undefined },
+            { onTierFailure: () => undefined, onUnreadablePayload: () => undefined },
+        );
+
+        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep }]);
+        expect(outcome !== undefined && 'agreement' in outcome ? outcome.agreement : undefined).toEqual({
+            kind: 'agree',
+        });
+    });
+});

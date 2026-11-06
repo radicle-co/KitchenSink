@@ -85,7 +85,7 @@ import type { IngredientReviewReason } from '../ingredientLine.js';
 import type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from '../parsedLine.js';
 import { splitMeasurement } from '../splitMeasurement.js';
 
-import { classifyModifier } from './modifierLexicon.js';
+import { classifyModifier, staysInPreparation } from './modifierLexicon.js';
 
 /**
  * An engine that produced no answer at all — a Lambda that threw, or a call the spend ceiling denied.
@@ -222,7 +222,8 @@ function destinations(tokens: readonly string[], field: Field): readonly Field[]
                 resolved[index] = 'prep';
                 break;
             case 'identity':
-                resolved[index] = 'name';
+                // A word the cook writes after the food is their step, whatever it would mean before the food.
+                resolved[index] = field === 'prep' && staysInPreparation(tokens[index] ?? '') ? 'prep' : 'name';
                 break;
             case 'qualifier':
                 // It has no home of its own: it goes wherever the word to its right went.

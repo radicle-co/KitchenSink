@@ -1149,6 +1149,28 @@ describe('compareParses — KTD-11b placement, canonicalised before comparing', 
         expect(canonicaliseFood({ name: 'blueberries', prep: llmPrep })).toEqual({ name: 'frozen blueberries', prep });
     });
 
+    /**
+     * Owner ruling 2026-11-06: `whipped` BEFORE the food is part of its name ("whipped cream" is its own catalog
+     * food), AFTER the comma it is the cook's step. The two CRF answers are the engine's own for the two lines.
+     */
+    it.each([
+        ['1 cup whipped cream', { name: 'whipped cream', prep: null }],
+        ['1 cup heavy cream, whipped', { name: 'heavy cream', prep: 'whipped' }],
+        ['1 cup heavy cream, well-whipped', { name: 'heavy cream', prep: 'well-whipped' }],
+        ['1 cup frozen cream, whipped', { name: 'frozen cream', prep: 'whipped' }],
+    ] as const)('keeps %j placed by where the word was written', (_line, food) => {
+        const result = compareParses({ crf: crfParse({ foods: [food] }), llm: { unavailable: true } });
+
+        expect(onlyFood(result)).toEqual(food);
+    });
+
+    it('still pulls `whipped` out of the preparation when the LLM filed it with a sold-as word', () => {
+        expect(canonicaliseFood({ name: 'cream', prep: 'frozen, whipped' })).toEqual({
+            name: 'frozen cream',
+            prep: 'whipped',
+        });
+    });
+
     it('treats a colour as identity, not preparation', () => {
         const red = compareParses({
             crf: crfParse({ foods: [{ name: 'peppers', prep: 'red' }] }),

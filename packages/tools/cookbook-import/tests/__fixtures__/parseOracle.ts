@@ -157,7 +157,7 @@ export const PARSE_RUBRIC: Readonly<Record<RubricClause, RubricClauseRecord>> = 
     },
     R2: {
         statement:
-            'A past participle is PREPARATION, except a form the cook buys (`dried`, `frozen`, `canned`), which is IDENTITY.',
+            'A past participle is PREPARATION, except a form the cook buys (`dried`, `frozen`, `canned`, and `whipped` before the food), which is IDENTITY.',
         source: 'KTD-11b (owner ruling 2026-08-23, `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`): "A **past participle is preparation** (`chopped`, `grated`, `melted`, `sifted`, `minced`, `stoned`, `beaten`)." Implemented as `IRREGULAR_PARTICIPLES` plus the `-ed` suffix rule in `modifierLexicon.ts`. The exception is owner ruling 2026-11-06 (ADR-0026 §5): a form the cook buys is identity, and `ADJECTIVES` lists those words.',
         invented: false,
     },
@@ -1669,17 +1669,17 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         seed: 'L02104',
         line: 'a tablespoon of whipped cream',
         occurrences: 1,
-        regimes: ['prep', 'singleAmount'],
+        regimes: ['singleAmount'],
         verdict: {
             kind: 'ruled',
-            clause: 'R2',
+            clause: 'R3',
             reading: {
                 statedMeasure: 'a tablespoon',
                 quantity: exact(1),
                 unit: 'tablespoon',
-                foods: [{ name: 'cream', prep: 'whipped' }],
+                foods: [{ name: 'whipped cream', prep: null }],
             },
-            note: "Decided, and on the uncomfortable side of KTD-11b's edge: whipped cream is arguably its own thing. The ruling files it as preparation and the reading says so plainly.",
+            note: 'Owner ruling 2026-11-06: `whipped` before the food stays in the name, so the line binds whipped cream. The 2026-08-26 ruling filed it as preparation. After a comma ("heavy cream, whipped") it is still preparation.',
         },
     },
     {

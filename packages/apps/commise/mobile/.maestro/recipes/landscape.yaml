@@ -251,22 +251,14 @@ onFlowComplete:
 # The trailing "Add an ingredient" field, typed into sideways: its list renders where the cook can reach it. Read,
 # never picked. 'Flou', a prefix of the run's probe food (`e2e-seed provision` authors `Flour`), so the cook's own
 # foods group renders, and a prefix so the field's own text never matches the option.
-# ⛔ A SLOW swipe (`speed: 10`), measured not guessed: the landscape page shows ~460 px of content between the pinned
-# header and the action bar, and the default swipe moves the field across that window between two visibility checks.
-# The run then stops on the section's end with the field on screen and the step red (seen on three of five runs, with
-# the field fully visible in the failure screenshot each time). The screen under test is unchanged: the editor is one
-# page with a section strip (owner decision D1/D2).
-# Replaced `scrollUntilVisible` (speed 10), which overshot on a slow device (issue #150): a small FIXED swipe (20% of the
-# screen, 500 ms), repeated at most 12 times and only while the field is not on screen, cannot skip past it.
-- repeat:
-      while:
-          notVisible: 'Add an ingredient'
-      times: 12
-      commands:
-          - swipe:
-                start: 50%, 60%
-                end: 50%, 40%
-                duration: 500
+# The cook reaches the field through the editor's section strip, which sideways is a row of tabs under the header
+# ('Recipe sections'): the page then lays Ingredients out just under the sticky chrome, where a new recipe's field sits.
+# REWRITTEN 2026-11-07: a free scroll overshot on a slow device (issue #150), and the 12 fixed 20% swipes that replaced it
+# never left Details sideways (after all 12 the page still showed Dietary flags and Tags, alone on a quiet host).
+- tapOn:
+      text: 'Ingredients'
+      childOf:
+          text: 'Recipe sections'
 - assertVisible: 'Add an ingredient'
 # ⛔ On iOS the field counts as visible while the pinned action bar covers it: with the label at [94,298][780,315] and
 # the field at [95,341][624,389], the bar at [62,306][812,382] hides the field and the tap on the label lands on the bar's

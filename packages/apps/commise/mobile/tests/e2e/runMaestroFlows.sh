@@ -83,7 +83,8 @@
 #     runMaestroFlows.sh platform-flows <platform> <flow> …
 #     runMaestroFlows.sh exclusions <platform>
 #     runMaestroFlows.sh erasure-subject <flow>                  # reads MAESTRO_FIXTURE_ENV_FILE
-#     runMaestroFlows.sh plan | verticals | platforms | max-shards <platform> | erasure-shard | erasing-flows | weights | default-weight
+#     runMaestroFlows.sh pack <platform> <index> <count> <flow> …   # the packer alone (the local lane orchestrator)
+#     runMaestroFlows.sh plan | verticals | platforms | max-shards <platform> | erasure-shard | erasing-flows | role-flows | weights | default-weight
 set -uo pipefail
 
 # The APK to install. CI hands the one `_mobileAppBuild.yml` built, downloaded and verified (`MAESTRO_ANDROID_APK`);
@@ -471,6 +472,17 @@ MAESTRO_ERASURE_SHARD=1
 # membership. The guard derives this set from the flows' own YAML and holds this list to it in both directions.
 MAESTRO_ERASING_FLOWS=' accountErasure '
 
+# ── THE ROLE LANE — the flows that sign in as the shared role users ────────────────────────────────────────────────
+#
+# Each interpolates a `${E2E_ROLE_…}` user, and `recipes/makePublicConfirm` WRITES as the downgraded owner, so two lanes
+# of one platform must never run them at once. They are PINNED to `MAESTRO_ROLE_SHARD` exactly as an erasing flow is
+# pinned to the erasure shard, in the pure packer, so CI and a local run compute the same partition. The other half, an
+# Android and an iOS lane 1 running them at once on one machine, is the run-mode lock under `MAESTRO_LOCK_DIR`.
+# Space-padded, whole-token membership; `maestroShardPartition.test.ts` derives the set from the YAML and holds this list
+# to it in both directions.
+MAESTRO_ROLE_FLOWS=' recipes/paidFeaturesByRole recipes/makePublicConfirm '
+MAESTRO_ROLE_SHARD=1
+
 # What each flow COSTS, in seconds, per platform. The table lives in `maestroFlowSeconds.tsv` beside this script (its header
 # records the columns, how a row is measured and which runs it came from), NOT in this file: it is DATA that a measurement
 # refreshes, and an iOS flow is timed on iOS rather than modelled as its Android time plus a constant. REPLACED 2026-10-20:
@@ -605,8 +617,10 @@ maestro_erasure_subject_check() {
 # The whole selection decision, as a PURE function. Prints exactly one `reason=` line, then one `flow=` line
 # per selected flow and one `skipped=` line per excluded flow, in PLAN ORDER. Nothing else goes to stdout.
 #
-# Recognised keys: `full` plus every token in MAESTRO_VERTICALS. `full=true` (the schedule, a dispatch, or a
-# PR carrying the `heavy-e2e` label) means the whole plan.
+# Recognised keys: `full`, every token in MAESTRO_VERTICALS, and `flow:<path>` for any flow the plan runs. `full=true`
+# (the schedule, a dispatch, or a PR carrying the `heavy-e2e` label) means the whole plan. A flow key selects exactly that
+# flow (plus the spine, like every narrowed run); flow keys and vertical keys UNION. The impact selector speaks in flow
+# keys, so a flow key naming a flow the plan does not run is a STALE selector and widens like an unknown vertical.
 #
 # Anything this function cannot read WIDENS the run and says why: a malformed pair, an unknown key, a
 # non-boolean value, no pairs at all, or pairs that implicate no vertical. The ONLY hard failure (exit 2) is
@@ -628,7 +642,13 @@ maestro_select_flows() {
         return 2
     fi
 
-    local full=false invalid='' selected=' ' pair name value
+    # Every flow the plan runs, space-padded for whole-name membership: what a `flow:` key may name.
+    local planned=' ' entry
+    for entry in $plan; do
+        planned="${planned}${entry#*:} "
+    done
+
+    local full=false invalid='' selected=' ' selected_flows=' ' pair name value flow_name
     for pair in "$@"; do
         name="${pair%%=*}"
         value="${pair#*=}"
@@ -643,11 +663,26 @@ maestro_select_flows() {
         # Space-padded on BOTH sides so membership is a WHOLE-token match: `recipe` must not match `recipes`,
         # and `recipes_extra` must not either. A substring match here would accept a typo and then narrow the
         # run to something nobody asked for.
-        case " full ${MAESTRO_VERTICALS} " in
-            *" ${name} "*) ;;
+        flow_name=''
+        case "$name" in
+            flow:*)
+                flow_name="${name#flow:}"
+                case "$planned" in
+                    *" ${flow_name} "*) [ -n "$flow_name" ] ;;
+                    *) false ;;
+                esac || {
+                    invalid="unknown flow '${flow_name}' in '${pair}' (the plan does not run it)"
+                    continue
+                }
+                ;;
             *)
-                invalid="unknown selector key '${name}' (expected full or one of: ${MAESTRO_VERTICALS})"
-                continue
+                case " full ${MAESTRO_VERTICALS} " in
+                    *" ${name} "*) ;;
+                    *)
+                        invalid="unknown selector key '${name}' (expected full, one of: ${MAESTRO_VERTICALS}, or flow:<path>)"
+                        continue
+                        ;;
+                esac
                 ;;
         esac
 
@@ -663,6 +698,8 @@ maestro_select_flows() {
 
         if [ "$name" = 'full' ]; then
             full=true
+        elif [ -n "$flow_name" ]; then
+            selected_flows="${selected_flows}${flow_name} "
         else
             selected="${selected}${name} "
         fi
@@ -677,11 +714,18 @@ maestro_select_flows() {
         reason='no selector supplied — running EVERY flow (the default for callers that do not pass one)'
     elif [ "$full" = 'true' ]; then
         reason='full run requested (schedule, dispatch, the heavy-e2e label, or an unattributable change)'
-    elif [ "$selected" = ' ' ]; then
+    elif [ "$selected" = ' ' ] && [ "$selected_flows" = ' ' ]; then
         full=true
-        reason='the selector implicated NO vertical, so attribution failed — running EVERY flow'
+        reason='the selector implicated NO vertical and no flow, so attribution failed — running EVERY flow'
     else
-        reason="verticals:${selected% } (plus the spine)"
+        reason=''
+        if [ "$selected" != ' ' ]; then
+            reason="verticals:${selected% }"
+        fi
+        if [ "$selected_flows" != ' ' ]; then
+            reason="${reason:+${reason}; }flows:${selected_flows% }"
+        fi
+        reason="${reason} (plus the spine)"
     fi
 
     printf 'reason=%s\n' "$reason"
@@ -697,8 +741,8 @@ maestro_select_flows() {
             continue
         fi
 
-        case "$selected" in
-            *" ${vertical} "*) printf 'flow=%s\n' "$flow" ;;
+        case "${selected}|${selected_flows}" in
+            *" ${vertical} "*"|"* | *"|"*" ${flow} "*) printf 'flow=%s\n' "$flow" ;;
             *) printf 'skipped=%s\n' "$flow" ;;
         esac
     done
@@ -790,7 +834,8 @@ maestro_platform_flows() {
 # The whole "which flows run on THIS runner" decision, as a PURE composition: select (the selector) → filter
 # (the platform) → partition (the shard). Prints `selection-reason=` and `shard-reason=` lines, then `flow=`
 # for this shard's flows, `skipped=` for flows the selector did not choose, `excluded=` for flows the platform
-# cannot run, and `deferred=` for flows another shard runs. Run mode consumes exactly this, and the guards
+# cannot run, `deferred=` for flows another shard runs, and — under `MAESTRO_LOCAL=1` only — `needs-sandbox=<flow>|<reason>`
+# for flows the local stack cannot serve. Run mode consumes exactly this, and the guards
 # execute it, so the composition CI runs is the composition that is tested.
 #
 # Exit 2 on any stage's refusal, with that stage's reason on stderr and NOTHING on stdout — a partial verdict
@@ -817,6 +862,16 @@ maestro_shard_selection() {
         return 2
     fi
 
+    # ⛔ A LOCAL run (`MAESTRO_LOCAL=1`, the local lane orchestrator) drops the flows the local stack cannot serve BEFORE
+    # packing, so every lane is packed over what it can run and none is left holding only flows it would refuse. ONLY then:
+    # the deployed composition never reads the sandbox-only table (`maestroSandboxOnlyFlows.test.ts`).
+    local local_verdict=''
+    if [ "${MAESTRO_LOCAL:-}" = '1' ]; then
+        # shellcheck disable=SC2086 # `kept` is a space-separated list of flow names
+        local_verdict=$(maestro_local_flows $kept) || return 2
+        kept=$(printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p' | tr '\n' ' ')
+    fi
+
     # shellcheck disable=SC2086 # `kept` is a space-separated list of flow names
     sharded=$(maestro_pack_flows "$platform" "$FLOW_PLAN" "$index" "$count" $kept) || return 2
 
@@ -825,6 +880,7 @@ maestro_shard_selection() {
     printf '%s\n' "$sharded" | grep -E '^(flow|deferred)=' || true
     printf '%s\n' "$verdict" | grep '^skipped=' || true
     printf '%s\n' "$filtered" | grep '^excluded=' || true
+    printf '%s\n' "$local_verdict" | grep '^needs-sandbox=' || true
 }
 
 # maestro_positive_integer <value>
@@ -912,9 +968,10 @@ maestro_flow_cost() {
 # that did not re-establish a session from cleared state would run every later flow signed out. That is also
 # what makes an empty shard impossible for any selection the selector can produce.
 #
-# ⛔ AN ERASING FLOW IS PINNED TO `MAESTRO_ERASURE_SHARD`, never packed (see the erasure lane above). Its weight is
-# charged to that shard BEFORE the packing starts, so the packer balances the rest around it, and it keeps its plan
-# position — `accountErasure` is last in the plan, so it stays last on its shard.
+# ⛔ AN ERASING FLOW IS PINNED TO `MAESTRO_ERASURE_SHARD`, never packed (see the erasure lane above), and a ROLE flow to
+# `MAESTRO_ROLE_SHARD` (see the role lane). Each pinned weight is charged to its shard BEFORE the packing starts, so the
+# packer balances the rest around it, and it keeps its plan position — `accountErasure` is last in the plan, so it stays
+# last on its shard.
 #
 # ⛔ The packing is LONGEST-PROCESSING-TIME-FIRST over the measured seconds table: the packable flows are sorted heaviest
 # first (ties by flow NAME, byte order) and each goes to the least-loaded shard (ties to the lowest index). It is
@@ -994,7 +1051,8 @@ maestro_pack_flows() {
         loads[position]=$((loads[position] + spine_seconds))
     done
 
-    # An erasing flow is pinned to the erasure shard and charged to it BEFORE the packing starts.
+    # An erasing flow is pinned to the erasure shard, a role flow to the role shard, each charged to it BEFORE the packing
+    # starts.
     local packable=''
     for flow in "$@"; do
         weight="$(maestro_flow_cost "$platform" "$flow")" || return 2
@@ -1004,6 +1062,12 @@ maestro_pack_flows() {
         case "$MAESTRO_ERASING_FLOWS" in
             *" ${flow} "*)
                 loads[MAESTRO_ERASURE_SHARD - 1]=$((loads[MAESTRO_ERASURE_SHARD - 1] + weight))
+                continue
+                ;;
+        esac
+        case "$MAESTRO_ROLE_FLOWS" in
+            *" ${flow} "*)
+                loads[MAESTRO_ROLE_SHARD - 1]=$((loads[MAESTRO_ROLE_SHARD - 1] + weight))
                 continue
                 ;;
         esac
@@ -1037,9 +1101,12 @@ maestro_pack_flows() {
                 ;;
         esac
 
-        case "$MAESTRO_ERASING_FLOWS" in
-            *" ${flow} "*)
+        case "$MAESTRO_ERASING_FLOWS|$MAESTRO_ROLE_FLOWS" in
+            *" ${flow} "*"|"*)
                 owner="$MAESTRO_ERASURE_SHARD"
+                ;;
+            *"|"*" ${flow} "*)
+                owner="$MAESTRO_ROLE_SHARD"
                 ;;
             *)
                 owner=''
@@ -1291,21 +1358,35 @@ maestro_disable_password_autofill_ios() {
 maestro_prepare_device() {
     case "$1" in
         android)
-            adb install -r "$APK"
-            adb reverse tcp:3000 tcp:3000 || true
+            if [ "${MAESTRO_SKIP_INSTALL:-}" != '1' ]; then
+                adb install -r "$APK"
+            fi
+            if [ "${MAESTRO_LOCAL:-}" = '1' ]; then
+                # A local lane's app names the three local services on loopback (`buildTestApp.sh`'s local origins), and
+                # each must reach this host: a missing reverse is a red here, not thirty flows failing to load.
+                # `MAESTRO_LOCAL_RECIPE_HOST_PORT` is the host side of :3000 when something else holds the host's 3000.
+                adb reverse tcp:3000 "tcp:${MAESTRO_LOCAL_RECIPE_HOST_PORT:-3000}" || return 1
+                adb reverse tcp:3001 tcp:3001 || return 1
+                adb reverse tcp:3002 tcp:3002 || return 1
+            else
+                adb reverse tcp:3000 tcp:3000 || true
+            fi
             maestro_android_input_settings
             ;;
         ios)
             # The keyboard's own settings (autocorrect, prediction, capitalisation) are written by the workflow
             # BEFORE the Simulator boots, because the keyboard reads them at boot; this runs after it. What is
-            # left here is the install, which is the iOS half of `adb install -r`.
-            if [ -z "${MAESTRO_IOS_APP:-}" ] || [ ! -d "$MAESTRO_IOS_APP" ]; then
+            # left here is the install, which is the iOS half of `adb install -r` — unless the lane's device adapter
+            # installed the app already (`MAESTRO_SKIP_INSTALL=1`).
+            if [ "${MAESTRO_SKIP_INSTALL:-}" != '1' ] && { [ -z "${MAESTRO_IOS_APP:-}" ] || [ ! -d "$MAESTRO_IOS_APP" ]; }; then
                 echo "::error::MAESTRO_IOS_APP ('${MAESTRO_IOS_APP:-}') is not a built .app bundle — the iOS build must run first"
 
                 return 1
             fi
             maestro_reduce_motion_ios || return 1
-            xcrun simctl install "$MAESTRO_IOS_UDID" "$MAESTRO_IOS_APP"
+            if [ "${MAESTRO_SKIP_INSTALL:-}" != '1' ]; then
+                xcrun simctl install "$MAESTRO_IOS_UDID" "$MAESTRO_IOS_APP"
+            fi
             ;;
     esac
 }
@@ -1552,6 +1633,9 @@ maestro_run_flows() {
     if [ -n "${deferred//[[:space:]]/}" ]; then
         echo "deferred to other shards: ${deferred% }"
     fi
+    # A local lane names what the local stack could not serve, so a green lane never reads as covering it.
+    # shellcheck disable=SC2046 # one flow name per word
+    maestro_local_summary $(printf '%s\n' "$verdict" | sed -n 's/^needs-sandbox=\([^|]*\)|.*/\1/p')
 
     # Unquoted on purpose: `flows` is a space-separated list.
     # shellcheck disable=SC2086
@@ -1645,6 +1729,18 @@ maestro_run_flow_list() {
     local device_args=()
     if [ "$platform" = 'ios' ]; then
         device_args=(--device "$MAESTRO_IOS_UDID")
+    elif [ -n "${ANDROID_SERIAL:-}" ]; then
+        # A local lane names its emulator; `adb` reads ANDROID_SERIAL by itself, `maestro` must be told.
+        device_args=(--device "$ANDROID_SERIAL")
+    fi
+
+    # ⛔ The role flows sign in as the SHARED role users, and one of them writes as the downgraded owner. The packer pins
+    # them to one lane per platform; this lock, taken only when a local orchestrator names a lock directory, keeps an
+    # Android and an iOS lane from running them at once. `flock` is util-linux: every local lane's runner runs on Linux,
+    # and CI (whose macOS runner has none) never sets the directory.
+    local role_lock_fd=''
+    if [ -n "${MAESTRO_LOCK_DIR:-}" ]; then
+        exec {role_lock_fd}>>"${MAESTRO_LOCK_DIR}/roles.lock" || return 1
     fi
 
     # ⛔ iOS ONLY: whether the XCUITest runner the last flow left is safe to keep. True only when the previous flow's
@@ -1731,6 +1827,14 @@ maestro_run_flow_list() {
         # manifest. Every element stays individually quoted, so titles keep their spaces.
         # The output is teed to a file so the decision below can read it; maestro's status is PIPESTATUS[0], not tee's.
         flow_log="$(mktemp)"
+        case "$MAESTRO_ROLE_FLOWS" in
+            *" ${f} "*)
+                if [ -n "$role_lock_fd" ]; then
+                    echo "waiting for the role lock (${MAESTRO_LOCK_DIR}/roles.lock) before ${f}"
+                    flock "$role_lock_fd"
+                fi
+                ;;
+        esac
         maestro ${device_args[@]+"${device_args[@]}"} test ${driver_args[@]+"${driver_args[@]}"} ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml" 2>&1 | tee "$flow_log"
         flow_rc=${PIPESTATUS[0]}
         # ⛔ iOS ONLY, ONCE: a driver that never started ran no step, so the flow is retried on a freshly reset driver. The
@@ -1742,6 +1846,9 @@ maestro_run_flow_list() {
             : >"$flow_log"
             maestro ${device_args[@]+"${device_args[@]}"} test ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"
             flow_rc=$?
+        fi
+        if [ -n "$role_lock_fd" ]; then
+            flock -u "$role_lock_fd"
         fi
         rm -f "$flow_log"
         if [ "$flow_rc" -eq 0 ]; then
@@ -1766,6 +1873,10 @@ maestro_run_flow_list() {
         fi
         echo "::endgroup::"
     done
+
+    if [ -n "$role_lock_fd" ]; then
+        exec {role_lock_fd}>&-
+    fi
 
     return "$rc"
 }
@@ -1846,6 +1957,23 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             maestro_erasure_subject_check "$@"
             ;;
+        role-flows)
+            # shellcheck disable=SC2086 # one flow name per word
+            printf '%s\n' $MAESTRO_ROLE_FLOWS
+            ;;
+        pack)
+            # The packer alone, for a caller that already holds its flow list (the local lane orchestrator): the same
+            # lines `shard-selection` prints for those flows. The platform is checked HERE, because a one-lane pack returns
+            # before it costs a flow and so would accept any platform.
+            shift
+            maestro_known_platform "${1-}" || {
+                echo "runMaestroFlows.sh: unknown platform '${1-}' (expected one of: ${MAESTRO_PLATFORMS})" >&2
+                exit 2
+            }
+            pack_platform="$1"
+            shift
+            maestro_pack_flows "$pack_platform" "$FLOW_PLAN" "$@"
+            ;;
         weights)
             # `<flow>=<seconds>` for the platform's measured rows (Android when none is named).
             maestro_seconds_rows "${2:-android}" | awk -F '\t' '$1 != "*" { print $1 "=" $2 }'
@@ -1876,7 +2004,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|role-flows|pack|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

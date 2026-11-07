@@ -327,6 +327,128 @@ describe('maestro_shard_flows — every erasing flow is pinned to the erasure sh
 });
 
 /**
+ * ⛔ THE ROLE FLOWS SIT ON SHARD 1, LIKE THE ERASING ONES. They sign in as the shared role users, and
+ * `recipes/makePublicConfirm` WRITES as the downgraded owner, so two lanes of one platform must never run them at once.
+ * The pin is in the pure packer, for CI and local runs alike, so both compute the same partition; the cross-platform half
+ * (an Android and an iOS lane 1 at once) is the runner's `MAESTRO_LOCK_DIR` lock.
+ */
+describe('maestro_pack_flows — every role flow is pinned to shard 1', () => {
+    const shell = (...args: readonly string[]): string =>
+        (spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf8' }).stdout ?? '').trim();
+    const roleFlows = shell('role-flows')
+        .split('\n')
+        .filter((line) => line.length > 0);
+
+    /** A planned flow is a ROLE flow when its own YAML — comments aside — interpolates a role user. */
+    const derivedRoleFlows = PLANNED.filter((flow) =>
+        readFileSync(join(REPO_ROOT, 'packages/apps/commise/mobile/.maestro', `${flow}.yaml`), 'utf8')
+            .split('\n')
+            .filter((line) => !line.trimStart().startsWith('#'))
+            .some((line) => line.includes('${E2E_ROLE_')),
+    );
+
+    it('finds its subject (non-vacuity: the plan has role flows, and the shell names them)', () => {
+        expect(derivedRoleFlows).toEqual(expect.arrayContaining(['recipes/paidFeaturesByRole']));
+        expect(roleFlows.length).toBeGreaterThan(0);
+    });
+
+    it('⛔ names exactly the flows whose YAML signs in as a role user — in both directions', () => {
+        expect([...roleFlows].sort()).toStrictEqual([...derivedRoleFlows].sort());
+    });
+
+    const platforms = shell('platforms').split('\n');
+    const cases = platforms.flatMap((platform) =>
+        Array.from(
+            { length: shellMaxShards(platform as MaestroPlatform) },
+            (_, index) => [platform, index + 1] as const,
+        ),
+    );
+
+    it.each(cases)(
+        '⛔ %s, %i shard(s): every role flow runs only on shard 1, and erasure stays last there',
+        (platform, count) => {
+            const shards = Array.from({ length: count }, (_, index) => {
+                const outcome = spawnSync(
+                    'bash',
+                    [SCRIPT, 'shard-selection', String(index + 1), String(count), 'full=true'],
+                    {
+                        encoding: 'utf8',
+                        env: { ...process.env, MAESTRO_PLATFORM: platform },
+                    },
+                );
+
+                expect(outcome.status, outcome.stderr ?? '').toBe(0);
+
+                return (outcome.stdout ?? '')
+                    .split('\n')
+                    .flatMap((line) => (line.startsWith('flow=') ? [line.slice('flow='.length)] : []));
+            });
+
+            for (const flow of roleFlows) {
+                const holders = shards.flatMap((flows, index) => (flows.includes(flow) ? [index + 1] : []));
+
+                expect(holders, `${flow} ran on shard(s) ${holders.join(',')}`).toStrictEqual([1]);
+            }
+
+            expect(shards[0]?.at(-1)).toBe('accountErasure');
+        },
+    );
+});
+
+/**
+ * The `pack` door: the packer alone, for a caller that already holds its flow list (the local lane orchestrator). It must
+ * answer what run mode answers for the same flows, so a lane plan and the lanes it starts cannot disagree.
+ */
+describe('runMaestroFlows.sh pack — the packer as a door', () => {
+    const selectionOf = (platform: string, index: number, count: number): readonly string[] =>
+        (
+            spawnSync('bash', [SCRIPT, 'shard-selection', String(index), String(count), 'full=true'], {
+                encoding: 'utf8',
+                env: { ...process.env, MAESTRO_PLATFORM: platform },
+            }).stdout ?? ''
+        )
+            .split('\n')
+            .filter((line) => line.startsWith('flow=') || line.startsWith('deferred='));
+
+    const runnable = (platform: string): readonly string[] => [
+        ...selectionOf(platform, 1, 1).map((line) => line.slice(line.indexOf('=') + 1)),
+    ];
+
+    it.each(
+        (['android', 'ios'] as const).flatMap((platform) =>
+            [1, 2, 3, maestroShardCapacity(platform)].flatMap((count) =>
+                Array.from({ length: count }, (_, index) => [platform, index + 1, count] as const),
+            ),
+        ),
+    )('%s lane %i of %i: answers exactly what run mode answers', (platform, index, count) => {
+        const packed = spawnSync(
+            'bash',
+            [SCRIPT, 'pack', platform, String(index), String(count), ...runnable(platform)],
+            {
+                encoding: 'utf8',
+            },
+        );
+
+        expect(packed.status, packed.stderr).toBe(0);
+        expect(packed.stdout).toMatch(/^reason=/mu);
+        expect(packed.stdout.split('\n').filter((line) => /^(flow|deferred)=/u.test(line))).toStrictEqual(
+            selectionOf(platform, index, count),
+        );
+    });
+
+    it.each([
+        ['an unknown platform, even for one lane', ['pack', 'bogus', '1', '1', 'home']],
+        ['no flows', ['pack', 'android', '1', '2']],
+        ['a lane past the count', ['pack', 'android', '3', '2', 'home']],
+    ])('refuses %s, with nothing on stdout', (_label, args) => {
+        const outcome = spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf8' });
+
+        expect(outcome.status).toBe(2);
+        expect(outcome.stdout).toBe('');
+    });
+});
+
+/**
  * ⛔ THE RUNNER REFUSES AN ERASING FLOW WHEN THE MANIFEST NAMES NO SUBJECT. Only the erasure shard leases one, so every
  * other shard's manifest omits `E2E_ERASURE_EMAIL`. What Maestro does with an unresolved `${E2E_ERASURE_EMAIL}` inside
  * `signinHome.yaml`'s `env:` override is not something this repository can verify — and if it fell back to the

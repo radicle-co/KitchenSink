@@ -855,6 +855,72 @@ describe('selection — vertical membership is matched on WHOLE tokens', () => {
     });
 });
 
+/**
+ * ⛔ FLOW KEYS (`flow:<path>=true`) — the impact selector's answer, one flow at a time. The CI switch and the local lane
+ * orchestrator hand the selector's flow list to the runner as these keys, so they obey the same asymmetry as a vertical:
+ * a key the runner cannot honour WIDENS the run and says so, and only a key it can honour narrows it.
+ */
+describe('selection — flow keys select exactly those flows plus the spine', () => {
+    it('selects one named flow and the spine, and nothing else', () => {
+        const selection = select('flow:recipes/edit=true');
+
+        expect(selection.status).toBe(0);
+        expect(selection.flows).toEqual(['auth/loginFlow', 'recipes/edit']);
+        expect(selection.skipped.length).toBe(ALL_FLOWS.length - 2);
+        expect(selection.reason).toMatch(/flows:.*recipes\/edit/u);
+    });
+
+    it('keeps plan order whatever order the keys arrive in', () => {
+        const flows = select('flow:accountErasure=true', 'flow:home=true', 'flow:recipes/edit=true').flows;
+
+        expect(flows).toEqual(['auth/loginFlow', 'home', 'recipes/edit', 'accountErasure']);
+    });
+
+    it('unions flow keys with vertical keys, deduped and in plan order', () => {
+        const both = select('home=true', 'flow:recipes/edit=true', 'flow:home=true').flows;
+
+        expect(both).toEqual(['auth/loginFlow', 'home', 'recipes/edit']);
+    });
+
+    it('lets full=true win over any flow key', () => {
+        expect(select('full=true', 'flow:recipes/edit=true').flows).toEqual(ALL_FLOWS);
+    });
+
+    it('treats flow:<path>=false as naming nothing, so a selector of only false keys widens', () => {
+        const selection = select('flow:recipes/edit=false');
+
+        expect(selection.flows).toEqual(ALL_FLOWS);
+        expect(selection.reason).toMatch(/no vertical|attribut/iu);
+    });
+
+    it('matches a flow key on the WHOLE flow name, never a prefix', () => {
+        const plan = 'spine:auth/loginFlow recipes:recipes/edit recipes:recipes/editorSections';
+
+        expect(selectFromPlan(plan, 'flow:recipes/edit=true').flows).toEqual(['auth/loginFlow', 'recipes/edit']);
+        expect(selectFromPlan(plan, 'flow:recipes/editorSections=true').flows).toEqual([
+            'auth/loginFlow',
+            'recipes/editorSections',
+        ]);
+    });
+
+    it.each([
+        ['a flow the plan does not run', 'flow:recipes/doesNotExist=true', /unknown flow/iu],
+        ['a prefix of a planned flow', 'flow:recipes/edi=true', /unknown flow/iu],
+        ['an empty flow name', 'flow:=true', /unknown flow|malformed/iu],
+        ['a flow path with no flow: prefix', 'recipes/create=true', /unknown selector key/iu],
+        ['a non-boolean flow value', 'flow:recipes/edit=yes', /invalid/iu],
+    ])('widens to the full set, loudly, on %s', (_label, pair, reason) => {
+        const selection = select('flow:recipes/edit=true', pair);
+
+        expect(selection.flows).toEqual(ALL_FLOWS);
+        expect(selection.reason).toMatch(reason);
+    });
+
+    it('names the flow keys in the unknown-key message, so a caller learns the shape', () => {
+        expect(select('nonsense=true').reason).toMatch(/flow:<path>/u);
+    });
+});
+
 describe('the workflow thread — caller → reusable workflow → job env → script', () => {
     it('takes the selector from select-e2e and from nowhere else', () => {
         // REWRITTEN for ADR-0087. This and the two cases that followed it pinned the hand-typed `dorny/paths-filter`

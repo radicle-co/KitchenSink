@@ -14,8 +14,8 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { ScrollHost, useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
-import { render } from '@commise/ui/testing/tamagui';
-import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { fireScrollAndSettle, render } from '@commise/ui/testing/tamagui';
+import { cleanup, screen } from '@testing-library/react';
 import type { Animated as AnimatedType } from 'react-native';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -148,9 +148,7 @@ describe('HostAnimatedScroll â€” the scroller FlashList renders, with the hostâ€
         const values: number[] = [];
 
         seen.scrollY?.addListener(({ value }) => values.push(value));
-        act(() => {
-            fireEvent.scroll(scroller, { target: { scrollTop: 120 } });
-        });
+        fireScrollAndSettle(scroller, { target: { scrollTop: 120 } });
 
         expect(flashListHandler).toHaveBeenCalled();
         expect(values.at(-1)).toBe(120);
@@ -160,9 +158,7 @@ describe('HostAnimatedScroll â€” the scroller FlashList renders, with the hostâ€
         const flashListHandler = vi.fn();
 
         render(<HostAnimatedScroll onScroll={flashListHandler} accessibilityLabel="list" />);
-        act(() => {
-            fireEvent.scroll(screen.getByLabelText('list'), { target: { scrollTop: 40 } });
-        });
+        fireScrollAndSettle(screen.getByLabelText('list'), { target: { scrollTop: 40 } });
 
         expect(flashListHandler).toHaveBeenCalled();
     });

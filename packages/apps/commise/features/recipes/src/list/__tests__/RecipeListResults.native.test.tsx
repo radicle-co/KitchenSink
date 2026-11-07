@@ -18,7 +18,13 @@ import { recipeMessages } from '../../messages.js';
 import { RecipeListResults } from '../RecipeListResults.native.js';
 import type { RecipeListResultsProps } from '../model.js';
 import { nativeTokens } from '@commise/ui/native';
-import { pressFrameOf, render, renderWithTamagui, resolvedStyle } from '@commise/ui/testing/tamagui';
+import {
+    fireScrollAndSettle,
+    pressFrameOf,
+    render,
+    renderWithTamagui,
+    resolvedStyle,
+} from '@commise/ui/testing/tamagui';
 
 /** The frame's collapse (compact height AND a keyboard open), served by the test: jsdom has neither. */
 const layout = vi.hoisted(() => ({ collapsed: false }));
@@ -425,7 +431,7 @@ describe("RecipeListResults (native) — the scroll host's bind", () => {
         const bind = recordingBind();
         render(results({ scrollBind: bind }));
 
-        fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
+        fireScrollAndSettle(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
     });

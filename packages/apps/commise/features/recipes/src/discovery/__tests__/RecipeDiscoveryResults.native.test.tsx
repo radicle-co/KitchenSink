@@ -28,7 +28,7 @@ import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeDiscoveryResults } from '../RecipeDiscoveryResults.native.js';
 import type { RecipeDiscoveryResultsProps } from '../model.js';
 import { isolate } from '../../byline/bylineText.js';
-import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
+import { ARIA_HIDDEN_CONTENT, fireScrollAndSettle, render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();
@@ -437,7 +437,7 @@ describe("RecipeDiscoveryResults (native) — the scroll host's bind", () => {
         const bind = recordingBind();
         renderResults({ scrollBind: bind });
 
-        fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
+        fireScrollAndSettle(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
     });

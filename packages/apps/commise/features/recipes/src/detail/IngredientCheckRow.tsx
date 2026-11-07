@@ -9,7 +9,8 @@
  * the word shape.
  *
  * The amount, the name, a variant's parts, the preparation, the notes and the badges are ONE flowing text block, so
- * at 320 px they break only at spaces and a badge wraps under the name (`namelessLineCopy.md` §2c).
+ * at 320 px they break only at spaces and a badge wraps under the name (`namelessLineCopy.md` §2c). A stand-in is a
+ * chip, not text, so its amount (or a lone unit) is a line of its own above it (`designAnswers.md` #144 item 12).
  *
  * Presentational: props → JSX.
  */

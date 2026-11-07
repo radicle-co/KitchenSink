@@ -6,4 +6,4 @@
  * preparation never wraps onto a line of its own with nothing joining it. The dot is never spoken: the row's accessible
  * name carries a comma instead (web `PrepJoin`, native the row's `accessibilityLabel`).
  */
-export const PREP_JOINER = ' · ';
+export const PREP_JOINER = '\u00A0· ';

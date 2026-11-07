@@ -31,6 +31,7 @@ import {
     formatQuantity,
     ingredientCheckLabel,
     lineSummary,
+    lineTailOf,
     rangeDerivedNotice,
     servingsAnnouncement,
     staleNutritionNotice,
@@ -503,5 +504,18 @@ describe('the singular name for a count of one (D21)', () => {
         expect(formatIngredientLine({ ...line, quantity: exact(2), unit: '' }, 'en', names)).toBe(
             '2 onions, finely chopped',
         );
+    });
+});
+
+describe('lineTailOf', () => {
+    // The muted words after a name: the preparation, then the notes override (the board's order). Empty ones are dropped.
+    it.each([
+        ['both, preparation first', { preparation: 'melted', notes: 'or clarified' }, ['melted', 'or clarified']],
+        ['only the preparation', { preparation: 'melted' }, ['melted']],
+        ['only the notes', { notes: 'or clarified' }, ['or clarified']],
+        ['empty words dropped', { preparation: '', notes: '' }, []],
+        ['neither', {}, []],
+    ] as const)('reads %s', (_name, ingredient, expected) => {
+        expect(lineTailOf(makeIngredientView(ingredient))).toEqual(expected);
     });
 });

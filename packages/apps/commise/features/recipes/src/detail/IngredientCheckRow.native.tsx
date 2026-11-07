@@ -26,7 +26,7 @@ import { IngredientCheckBoxSlot, IngredientRowDivider } from './ingredientFrames
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
-import { formatAmount, isLineFoodRemoved } from './model.js';
+import { formatAmount, isLineFoodRemoved, lineTailOf } from './model.js';
 import { usePressFill } from '@commise/ui/surface-tone';
 
 /** The native checkable ingredient row. */
@@ -43,10 +43,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
-    // The preparation, then the notes override: the board's muted note after the name.
-    const notes = [ingredient.preparation, ingredient.notes].filter(
-        (note): note is string => note !== undefined && note.length > 0,
-    );
+    const notes = lineTailOf(ingredient);
 
     return (
         <>

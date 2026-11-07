@@ -4,9 +4,9 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 21,
-        "missing-component-doc": 165,
+        "missing-component-doc": 166,
         "missing-module-doc": 21,
-        "platform-singleton": 94,
+        "platform-singleton": 95,
         "ref-api": 19,
         "unclassified-layer": 93,
         "undocumented-prop": 194
@@ -3956,6 +3956,24 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "text"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/format/PrepJoin",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/PrepJoin.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/format/PrepJoin",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/PrepJoin.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

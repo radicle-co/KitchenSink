@@ -68,6 +68,17 @@ find_free_port() {
 # `E2E_PORT` is a parallel lane's own port (scripts/e2eLanes.ts picks one per lane). It is used when free and
 # REFUSED when taken: falling back to another port would let two lanes meet on one.
 choose_port() {
+    # `E2E_SHARED_SERVER=1`: every lane drives one `next start` that scripts/e2eLanes.ts started, so the port is meant
+    # to be taken. It must be LISTENING though: a port nothing answers on would make Playwright start a private
+    # server there, which is the per-lane server this mode exists to avoid.
+    if [[ "${E2E_SHARED_SERVER:-}" == '1' ]]; then
+        if ! ss -ltn 2>/dev/null | grep -q ":${E2E_PORT:-0}\b"; then
+            echo "error: E2E_SHARED_SERVER=1 but nothing listens on ${E2E_PORT:-unset}" >&2
+            return 1
+        fi
+        printf '%s' "${E2E_PORT}"
+        return 0
+    fi
     if [[ -n "${E2E_PORT:-}" ]]; then
         if ss -ltn 2>/dev/null | grep -q ":${E2E_PORT}\b"; then
             echo "error: E2E_PORT ${E2E_PORT} is already in use" >&2

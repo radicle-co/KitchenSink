@@ -84,18 +84,45 @@ export function buildEnv(base: Env): Env {
 }
 
 /**
+ * Whether the lanes share ONE `next start`. They can: a lane differs from another only by its Clerk pool user and its
+ * blob folder, both held by the Playwright process and the browser, and the web app reads no end-to-end setting and
+ * keeps nothing per user between requests. The default is to share; `E2E_SHARED_SERVER=0` gives each lane its own
+ * server again. The dev server is never shared: it compiles a route on its first request, inside whichever
+ * lane's assertion asked.
+ *
+ * @param env - The caller's environment.
+ * @returns True when one server serves every lane.
+ */
+export const wantsSharedServer = (env: Env): boolean =>
+    env['E2E_SHARED_SERVER'] !== '0' && env['E2E_WEB_SERVER'] !== 'dev';
+
+/**
+ * The environment of the one server the lanes share: what the config's `webServer` would have given a lane's own.
+ *
+ * @param base - The caller's environment.
+ * @param port - The port it serves on.
+ * @returns A copy that serves the finished build, with every API origin dead.
+ */
+export function serverEnv(base: Env, port: number): Env {
+    const { E2E_BUILD_ONLY: _buildOnly, ...rest } = base;
+
+    return { ...rest, ...deadOrigins(), PORT: String(port), COMMISE_PSEUDO_LOCALE: '1' };
+}
+
+/**
  * The environment of one lane.
  *
  * @param base - The caller's environment.
  * @param lane - Which lane, of how many, on which port.
  * @returns A copy that serves the finished build as that lane's pool slot.
  */
-export function laneEnv(base: Env, lane: Lane & { readonly port: number }): Env {
+export function laneEnv(base: Env, lane: Lane & { readonly port: number; readonly sharedServer?: boolean }): Env {
     return {
         ...base,
         ...deadOrigins(),
         E2E_SKIP_BUILD: '1',
         E2E_PORT: String(lane.port),
+        ...(lane.sharedServer === true ? { E2E_SHARED_SERVER: '1' } : {}),
         COMMISE_E2E_SHARD: String(lane.index),
         E2E_REPORTER: 'list,blob',
         PLAYWRIGHT_BLOB_OUTPUT_DIR: `${BLOB_DIR}/lane-${lane.index}`,
@@ -696,6 +723,92 @@ const waitForExit = (child: ChildProcess): Promise<number | null> =>
         child.on('error', () => resolve(1));
     });
 
+/** How long a freshly started server has to answer before the run gives up on it. */
+const SERVER_READY_MS = 120_000;
+
+export interface SharedServer {
+    /** Stops the server and everything it started. */
+    readonly stop: () => Promise<void>;
+}
+
+/**
+ * Starts the ONE `next start` that every lane drives, and waits until it answers.
+ *
+ * The server is a child in its own process group, so stopping it cannot leave a Next worker behind, and it is stopped
+ * when this process exits however it exits.
+ *
+ * @sideEffect Spawns `npm run start`, writes its log to `test-results/lanes/server.log`, and polls it over HTTP.
+ * @param env - The caller's environment.
+ * @param port - The port to serve on.
+ * @returns A handle that stops it.
+ * @throws When the server exits or does not answer in time.
+ */
+export async function startSharedServer(env: Env, port: number): Promise<SharedServer> {
+    mkdirSync(LANE_LOG_DIR, { recursive: true });
+
+    const log = openSync(`${LANE_LOG_DIR}/server.log`, 'w');
+    const child = spawn('npm', ['run', 'start'], {
+        env: serverEnv(env, port) as NodeJS.ProcessEnv,
+        stdio: ['ignore', log, log],
+        detached: true,
+    });
+    const pid = child.pid;
+    let exited = false;
+
+    child.on('exit', () => {
+        exited = true;
+    });
+
+    const kill = (signal: NodeJS.Signals): void => {
+        try {
+            if (pid !== undefined) {
+                process.kill(-pid, signal);
+            }
+        } catch {
+            // Already gone.
+        }
+    };
+
+    const stop = async (): Promise<void> => {
+        kill('SIGTERM');
+
+        for (let waited = 0; !exited && waited < 5000; waited += 100) {
+            await sleep(0.1);
+        }
+
+        kill('SIGKILL');
+    };
+
+    process.once('exit', () => kill('SIGKILL'));
+
+    const url = `http://localhost:${port}/${env['E2E_LOCALE'] ?? 'en'}/sign-in`;
+
+    for (let waited = 0; waited < SERVER_READY_MS; waited += 500) {
+        if (exited) {
+            throw new Error(`error: the shared web server exited before it answered (see ${LANE_LOG_DIR}/server.log)`);
+        }
+
+        const answered = await fetch(url).then(
+            (response) => response.ok,
+            () => false,
+        );
+
+        if (answered) {
+            console.log(
+                `▶ web server     : one shared \`next start\` on port ${port} (log ${LANE_LOG_DIR}/server.log)`,
+            );
+
+            return { stop };
+        }
+
+        await sleep(0.5);
+    }
+
+    await stop();
+
+    throw new Error(`error: the shared web server did not answer ${url} within ${SERVER_READY_MS / 1000}s`);
+}
+
 /**
  * @sideEffect Runs the suite and exits the process.
  * @param passthrough - The arguments after `npm run test:e2e --`.
@@ -798,11 +911,14 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
     }
 
     const taken = listeningPorts();
-    const ports = distinctPorts(packing.texts.length, (port) => taken.has(port));
+    const shared = wantsSharedServer(env);
+    const ports = distinctPorts(shared ? 1 : packing.texts.length, (port) => taken.has(port));
+    const server = shared ? await startSharedServer(env, ports[0] ?? 0) : undefined;
     const stagger = Number(env['E2E_LANE_STAGGER_SECONDS'] ?? 3);
     const exits: Promise<number | null>[] = [];
 
-    for (const [offset, port] of ports.entries()) {
+    for (const [offset, lanePort] of packing.texts.map((_text, index) => [index, ports[shared ? 0 : index]] as const)) {
+        const port = lanePort ?? 0;
         const lane = { index: offset + 1, count: packing.texts.length };
         const listFile = `${LANE_LOG_DIR}/lane-${lane.index}.list`;
 
@@ -810,7 +926,7 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
 
         const log = openSync(`${LANE_LOG_DIR}/lane-${lane.index}.log`, 'w');
         const child = spawn('bash', ['scripts/e2eLocal.sh', ...laneArgs(lane, listFile)], {
-            env: laneEnv(env, { ...lane, port }) as NodeJS.ProcessEnv,
+            env: laneEnv(env, { ...lane, port, sharedServer: shared }) as NodeJS.ProcessEnv,
             stdio: ['ignore', log, log],
         });
 
@@ -822,6 +938,8 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
     }
 
     const laneCodes = await Promise.all(exits);
+
+    await server?.stop();
     const mergedDir = `${BLOB_DIR}/merged`;
     const mergedFile = `${LANE_LOG_DIR}/merged.json`;
 

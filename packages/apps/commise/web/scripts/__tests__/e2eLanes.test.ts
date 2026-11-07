@@ -24,6 +24,8 @@ import {
     medianMs,
     outcomesOf,
     selectorChose,
+    serverEnv,
+    wantsSharedServer,
     parseReport,
     specFilters,
     testListText,
@@ -105,6 +107,63 @@ describe('laneEnv', () => {
         laneEnv(base, { index: 1, count: 2, port: 3010 });
 
         expect(base).toEqual({ PATH: '/bin' });
+    });
+});
+
+describe('laneEnv with one shared server', () => {
+    const shared = laneEnv({ PATH: '/bin' }, { index: 2, count: 4, port: 3040, sharedServer: true });
+
+    it('points the lane at the shared port and says the server is not its own', () => {
+        expect(shared['E2E_PORT']).toBe('3040');
+        expect(shared['E2E_SHARED_SERVER']).toBe('1');
+    });
+
+    it('keeps the lane’s own pool slot, so two lanes on one server are still two users', () => {
+        const other = laneEnv({}, { index: 3, count: 4, port: 3040, sharedServer: true });
+
+        expect(shared['COMMISE_E2E_SHARD']).toBe('2');
+        expect(other['COMMISE_E2E_SHARD']).toBe('3');
+    });
+
+    it('leaves the flag out when each lane has its own server', () => {
+        expect(laneEnv({}, { index: 1, count: 2, port: 3010 })['E2E_SHARED_SERVER']).toBeUndefined();
+    });
+});
+
+describe('serverEnv', () => {
+    const env = serverEnv({ PATH: '/bin', E2E_BUILD_ONLY: '1' }, 3040);
+
+    it('serves the finished build on the given port', () => {
+        expect(env['PORT']).toBe('3040');
+        expect(env['PATH']).toBe('/bin');
+    });
+
+    it('pins every API origin to the dead address the build was made with', () => {
+        expect(env['NEXT_PUBLIC_RECIPE_API_URL']).toBe(DEAD_ORIGIN);
+        expect(env['NEXT_PUBLIC_IDENTITY_API_URL']).toBe(DEAD_ORIGIN);
+        expect(env['NEXT_PUBLIC_FOOD_API_URL']).toBe(DEAD_ORIGIN);
+    });
+
+    it('routes the pseudo-locale, as the server the config would have started does', () => {
+        expect(env['COMMISE_PSEUDO_LOCALE']).toBe('1');
+    });
+
+    it('does not carry the build-only switch into a server', () => {
+        expect(env['E2E_BUILD_ONLY']).toBeUndefined();
+    });
+});
+
+describe('wantsSharedServer', () => {
+    it('is the default, because the lanes only differ by user and nothing in the server is per user', () => {
+        expect(wantsSharedServer({})).toBe(true);
+    });
+
+    it('is switched off by E2E_SHARED_SERVER=0, which restores one server per lane', () => {
+        expect(wantsSharedServer({ E2E_SHARED_SERVER: '0' })).toBe(false);
+    });
+
+    it('is off for the dev server, which compiles routes on demand and is not safe to share', () => {
+        expect(wantsSharedServer({ E2E_WEB_SERVER: 'dev' })).toBe(false);
     });
 });
 

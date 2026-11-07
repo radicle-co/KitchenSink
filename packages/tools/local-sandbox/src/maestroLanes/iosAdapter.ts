@@ -10,6 +10,7 @@
  *   without a Mac.
  * @sideEffect Every method but {@link IosAdapter.deviceFor} and {@link IosAdapter.laneEnv} runs commands on the Mac.
  */
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
@@ -106,7 +107,7 @@ export class IosAdapter implements DeviceAdapter {
         this.runId = run.runId;
         await shell.writeFile(
             this.sshConfig,
-            sshConfigText({ host: this.host, controlPath: path.join(run.stateDir, 'cm-%C') }),
+            sshConfigText({ host: this.host, controlPath: path.join(tmpdir(), 'ksIosCm-%C') }),
         );
         this.macHome = (await this.ssh('printenv HOME')).trim();
 

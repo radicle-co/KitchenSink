@@ -31,42 +31,51 @@ function assertLane(lane: number): void {
 
 export function laneSimulatorName(lane: number): string {
     assertLane(lane);
+
     return `ks-maestro-lane-${String(lane)}`;
 }
 
 /** 7000 + lane: below the ephemeral range on both hosts, one port per lane process. */
 export function driverPortFor(lane: number): number {
     assertLane(lane);
+
     return 7000 + lane;
 }
 
 export function macHostFromEnv(env: Readonly<Record<string, string | undefined>>): string {
     const host = env['LOCAL_MAESTRO_IOS_HOST']?.trim();
+
     if (host === undefined || host === '') {
         throw new Error('LOCAL_MAESTRO_IOS_HOST is not set; the Mac to drive is never guessed');
     }
+
     return host;
 }
 
 function numberAfter(label: string, text: string): number {
     const match = new RegExp(`^${label}\\s+\\{?\\s*([0-9.]+)`, 'm').exec(text);
+
     if (match?.[1] === undefined) {
         throw new Error(`host facts have no ${label}`);
     }
+
     return Number(match[1]);
 }
 
 function pages(label: string, text: string): number {
     const match = new RegExp(`^Pages ${label}:\\s+([0-9]+)`, 'm').exec(text);
+
     return match?.[1] === undefined ? 0 : Number(match[1]);
 }
 
 /** Parses `laneHost.sh facts` output (`ncpu`, `memsize`, `loadavg` lines, then `vm_stat`). */
 export function parseHostFacts(output: string): MacHostFacts {
     const pageSize = /page size of ([0-9]+) bytes/.exec(output)?.[1];
+
     if (pageSize === undefined) {
         throw new Error('vm_stat output has no page size');
     }
+
     return {
         cpus: numberAfter('ncpu', output),
         load1: numberAfter('loadavg', output),
@@ -78,21 +87,28 @@ export function parseHostFacts(output: string): MacHostFacts {
 /** Reads the origins baked into the app (`testApp.manifest`) and returns the reverse tunnels they need. */
 export function tunnelsFromManifest(manifest: string): readonly Tunnel[] {
     const values = new Map<string, string>();
+
     for (const line of manifest.split('\n')) {
         const at = line.indexOf('=');
+
         if (at > 0) {
             values.set(line.slice(0, at), line.slice(at + 1).trim());
         }
     }
+
     return (Object.keys(ORIGIN_KEY_TO_LOCAL_PORT) as (keyof typeof ORIGIN_KEY_TO_LOCAL_PORT)[]).map((key) => {
         const raw = values.get(key);
+
         if (raw === undefined || raw === '') {
             throw new Error(`the test app manifest has no ${key}`);
         }
+
         const url = new URL(raw);
+
         if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
             throw new Error(`${key} is ${raw}: a tunnel only serves a localhost origin`);
         }
+
         return { macPort: Number(url.port), localPort: ORIGIN_KEY_TO_LOCAL_PORT[key] };
     });
 }

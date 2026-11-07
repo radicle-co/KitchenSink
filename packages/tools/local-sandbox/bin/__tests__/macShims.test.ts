@@ -34,16 +34,20 @@ function makeSandbox(): Sandbox {
     const log = path.join(root, 'argv.log');
     mkdirSync(bin);
     mkdirSync(path.join(root, 'tree', 'mobile'), { recursive: true });
+
     const write = (name: string, body: string): void => {
         const file = path.join(bin, name);
         writeFileSync(file, `#!/usr/bin/env bash\n${body}\n`);
         chmodSync(file, 0o755);
     };
+
     // ssh [-F cfg] host command: the command is the last argument; the host and options are recorded as the first line.
     write('ssh', `printf 'SSH %s\\n' "$*" >> "${log}"\nexec bash -c "\${@: -1}"`);
+
     for (const tool of ['xcrun', 'maestro']) {
         write(tool, `{ echo "TOOL ${tool}"; printf 'ARG %s\\n' "$@"; echo "HOME $HOME"; } >> "${log}"`);
     }
+
     return { root, bin, log };
 }
 

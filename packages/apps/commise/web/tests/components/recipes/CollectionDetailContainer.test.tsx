@@ -374,8 +374,9 @@ describe('CollectionDetailContainer — states', () => {
     it('reports a failure instead of spinning forever for an id that cannot be read (B21)', () => {
         const client = createFakeRecipeServiceClient();
         const getCollectionSpy = vi.spyOn(client, 'getCollectionById');
+        const unreadableId = '';
 
-        renderWithSnackbar(<CollectionDetailContainer id="" locale="en" />, client);
+        renderWithSnackbar(<CollectionDetailContainer id={unreadableId} locale="en" />, client);
 
         expect(getCollectionSpy).not.toHaveBeenCalled();
         expect(screen.getByRole('alert')).toBeInTheDocument();

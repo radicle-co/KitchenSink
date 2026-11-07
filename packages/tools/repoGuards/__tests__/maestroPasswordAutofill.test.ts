@@ -48,13 +48,17 @@ afterAll(() => {
  */
 function run(body: string, readBack = 'false'): { readonly status: number | null; readonly calls: readonly string[] } {
     const log = path.join(scratch, `calls-${String(Math.random()).slice(2)}.log`);
+    // The paths travel in the environment, so no value is spliced into the shell text.
     const stub = [
-        `xcrun() { echo "xcrun $*" >> '${log}'; case "$*" in`,
-        `  "simctl getenv"*) echo '${DATA}';;`,
-        `  *'plutil -extract'*) echo '${readBack}';;`,
+        'xcrun() { echo "xcrun $*" >> "$STUB_LOG"; case "$*" in',
+        '  "simctl getenv"*) echo "$STUB_DATA";;',
+        `  *'plutil -extract'*) echo "$STUB_READ_BACK";;`,
         'esac; }',
     ].join('\n');
-    const result = spawnSync('bash', ['-c', `${stub}\n. '${SCRIPT}'\n${body}`], { encoding: 'utf8' });
+    const result = spawnSync('bash', ['-c', `${stub}\n. "$STUB_SCRIPT"\n${body}`], {
+        encoding: 'utf8',
+        env: { ...process.env, STUB_LOG: log, STUB_DATA: DATA, STUB_READ_BACK: readBack, STUB_SCRIPT: SCRIPT },
+    });
 
     let calls: readonly string[] = [];
 

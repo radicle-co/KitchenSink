@@ -309,8 +309,15 @@ describe('local_maestro_check_bundle_env — the bundle names only local origins
         return file;
     };
 
+    // JSON is not safe to splice into generated code until the characters that can end a script or a line are escaped.
+    const asJsLiteral = (value: unknown): string =>
+        JSON.stringify(value).replace(
+            /[<>\u2028\u2029]/gu,
+            (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`,
+        );
+
     const envModule = (name: string, entries: Record<string, string>): string =>
-        `__d(function(){var _default = ${JSON.stringify(entries)};},1,[],"${name}");\n`;
+        `__d(function(){var _default = ${asJsLiteral(entries)};},1,[],${asJsLiteral(name)});\n`;
 
     it('passes a bundle whose env modules name only loopback origins', () => {
         const sandbox = makeSandbox();

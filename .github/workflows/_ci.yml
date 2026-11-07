@@ -47,13 +47,6 @@ on:
                 description: Deployment stage — 'sandbox' (PRs) or 'prod' (main)
                 required: true
                 type: string
-            full_suite:
-                description: >-
-                    Run every web spec and every Maestro flow instead of the ones the change affects. A run that is not
-                    a pull request does this anyway: it has no merge base to compare with.
-                required: false
-                type: boolean
-                default: false
         # Declared EXPLICITLY so callers can drop `secrets: inherit` (zizmor `secrets-inherit`), which
         # hands a called workflow every secret in the repository rather than the ones it uses. This list is
         # the complete set this file consumes, and it is checked: `actionlint` fails on a `secrets.*`
@@ -2904,11 +2897,10 @@ jobs:
               env:
                   BASE_REF: ${{ github.base_ref }}
                   EVENT_NAME: ${{ github.event_name }}
-                  FULL_SUITE_INPUT: ${{ inputs.full_suite }}
                   PLAYWRIGHT_BASE_URL: https://select.invalid
               run: |
                   export TURBO_SCM_BASE="origin/${BASE_REF:-main}"
-                  if [ "${EVENT_NAME}" != "pull_request" ] || [ "${FULL_SUITE_INPUT}" = "true" ]; then
+                  if [ "${EVENT_NAME}" != "pull_request" ]; then
                       export FULL_SUITE=1
                   fi
                   npm run e2e:select --workspace=@commise/web
@@ -2917,10 +2909,9 @@ jobs:
               env:
                   BASE_REF: ${{ github.base_ref }}
                   EVENT_NAME: ${{ github.event_name }}
-                  FULL_SUITE_INPUT: ${{ inputs.full_suite }}
               run: |
                   export TURBO_SCM_BASE="origin/${BASE_REF:-main}"
-                  if [ "${EVENT_NAME}" != "pull_request" ] || [ "${FULL_SUITE_INPUT}" = "true" ]; then
+                  if [ "${EVENT_NAME}" != "pull_request" ]; then
                       export FULL_SUITE=1
                   fi
                   npm run ci:mobile --workspace=@kitchensink/e2e-plan

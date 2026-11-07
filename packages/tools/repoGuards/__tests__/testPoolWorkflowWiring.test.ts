@@ -100,7 +100,7 @@ const WEB_SUITE = /test:e2e --workspace=@commise\/web/u;
 
 /** A step that WRITES to the stage as a pool slot (the k6 lease alone writes nothing — the scenarios do). */
 const WRITES =
-    /e2e-seed\/src\/provision\.ts|seed-catalog|mintLinkageCredentials\.ts|test:e2e|runMaestroFlows\.sh|printLoadTier\.ts/u;
+    /e2e-seed\/src\/provision\.ts|seed-catalog|mintLinkageCredentials\.ts|test:e2e|runMaestroFlows\.sh|e2e:maestro|printLoadTier\.ts/u;
 
 /** The reset command, capturing its tier. */
 const RESET = /e2e-seed\/src\/resetPool\.ts --tier ([a-zA-Z0-9]+)/u;

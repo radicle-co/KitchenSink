@@ -34,6 +34,7 @@
         "test": "turbo run test",
         "test:e2e": "turbo run test:e2e && npm run test:e2e --prefix packages/infra/global",
         "e2e:plan": "npm run plan --workspace=@kitchensink/e2e-plan --",
+        "test:e2e:web": "npm run test:e2e --workspace=@commise/web",
         "test:e2e:android": "npm run maestro --workspace=@kitchensink/local-sandbox -- changed",
         "lint": "turbo run lint format:check",
         "lint:python": "ruff check packages",

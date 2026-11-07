@@ -188,7 +188,7 @@ describe('the same gate as the Android job, word for word', () => {
 
     it('never soft-launches: no step that builds or runs the app may continue on error', () => {
         for (const step of steps) {
-            if (/xcodebuild|runMaestroFlows\.sh|simctl\s+create/u.test(scalarText(step.run))) {
+            if (/xcodebuild|e2e:maestro|simctl\s+create/u.test(scalarText(step.run))) {
                 expect(step['continue-on-error'], `${step.name ?? '(unnamed)'} is continue-on-error`).toBeUndefined();
             }
         }
@@ -313,7 +313,7 @@ describe('⛔ the toolchain is pinned by name and refused when absent', () => {
 
     it('⛔ a separate step WAITS for the boot, after the secrets valve and before the flows run', () => {
         const wait = waitStep();
-        const flows = stepRunning(/runMaestroFlows\.sh/u);
+        const flows = stepRunning(/e2e:maestro/u);
         const secrets = steps.findIndex((step) => /load-secrets/u.test(step.uses ?? ''));
 
         expect(wait.index).toBeGreaterThan(secrets);
@@ -398,7 +398,7 @@ function iosBuildShell(): string {
 }
 
 describe('the app the run installs', () => {
-    const flows = stepRunning(/runMaestroFlows\.sh/u);
+    const flows = stepRunning(/e2e:maestro/u);
 
     it('runs the flows for iOS, on the Simulator it booted and the .app its unpack step produced', () => {
         const env = flows.step?.env ?? {};
@@ -406,7 +406,7 @@ describe('the app the run installs', () => {
         expect(env['MAESTRO_PLATFORM']).toBe('ios');
         expect(producerOf(scalarText(env['MAESTRO_IOS_UDID']))?.run).toMatch(/simctl\s+create/u);
         expect(producerOf(scalarText(env['MAESTRO_IOS_APP']))?.run).toMatch(/tar -xzf/u);
-        expect(scalarText(flows.step?.run)).toBe('bash packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
+        expect(scalarText(flows.step?.run)).toBe('npm run --silent e2e:maestro --workspace=@commise/mobile');
     });
 
     it('does not build: the shard has no prebuild, no pod install and no xcodebuild build of its own', () => {
@@ -738,7 +738,7 @@ describe('⛔ password AutoFill is switched off on the Simulator before the flow
         const unpack = stepRunning(/tar -xzf/u);
         const firstReset = stepRunning(/e2e-seed\/src\/resetPool\.ts/u);
         const wait = waitStep();
-        const flows = stepRunning(/runMaestroFlows\.sh/u);
+        const flows = stepRunning(/e2e:maestro/u);
 
         expect(autofill.index, 'the iOS job has no step that switches password AutoFill off').toBeGreaterThan(-1);
         expect(autofill.index).toBeGreaterThan(unpack.index);

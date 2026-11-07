@@ -660,14 +660,14 @@ describe.each(SHARDED_JOBS)('_ci-heavy.yml::$job wires the shards without loosen
      */
     it('⛔ takes the shard COUNT from the same job output the matrix is built from, never strategy.job-total', () => {
         const emulator = (job?.steps ?? []).find((step) =>
-            /runMaestroFlows\.sh/u.test(
+            /e2e:maestro/u.test(
                 scalarText(step.run) + scalarText((step as { with?: { script?: unknown } }).with?.script),
             ),
         );
         const matrix = scalarText(job?.strategy?.matrix?.['shard']);
         const count = scalarText(emulator?.env?.['MAESTRO_SHARD_COUNT']);
 
-        expect(emulator, 'no step runs runMaestroFlows.sh').toBeDefined();
+        expect(emulator, 'no step runs the Maestro runner (e2e:maestro)').toBeDefined();
         expect(scalarText(emulator?.env?.['MAESTRO_SHARD_INDEX'])).toMatch(/matrix\.shard/u);
         expect(count, 'MAESTRO_SHARD_COUNT must not come from strategy.job-total').not.toMatch(/strategy\./u);
         expect(count).toBe(`\${{ needs.resolve-mobile-target.outputs.${wiring.count} }}`);
@@ -691,7 +691,7 @@ describe.each(SHARDED_JOBS)('_ci-heavy.yml::$job wires the shards without loosen
         const stepId = /^\$\{\{ steps\.(\w+)\./u.exec(shardsOutput)?.[1];
         const producer = resolve?.steps?.find((step) => step.id === stepId);
 
-        expect(scalarText(producer?.run)).toMatch(/runMaestroFlows\.sh[\s\\]*shard-matrix/u);
+        expect(scalarText(producer?.run)).toMatch(/e2e:maestro[\s\S]*?shard-matrix/u);
         expect(scalarText(producer?.env?.['MAESTRO_PLATFORM']), `${stepId} must state its platform`).toBe(
             wiring.platform,
         );
@@ -738,7 +738,7 @@ describe.each(SHARDED_JOBS)('_ci-heavy.yml::$job wires the shards without loosen
         const shardAware = (job?.steps ?? []).filter((step) => {
             const body = scalarText(step.run);
 
-            return /e2e-seed\/src\/(provision|resetPool)\.ts|runMaestroFlows\.sh/u.test(body);
+            return /e2e-seed\/src\/(provision|resetPool)\.ts|e2e:maestro/u.test(body);
         });
 
         expect(shardAware.length, 'no seed/reset/emulator step found').toBeGreaterThanOrEqual(3);

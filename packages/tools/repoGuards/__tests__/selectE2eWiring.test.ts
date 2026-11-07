@@ -16,7 +16,7 @@
  * What it does not prove: that the selector picks the right tests (that is `@kitchensink/e2e-plan`'s own suites), or
  * that a pull request run behaves, which only real CI shows.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
@@ -142,11 +142,22 @@ describe('the manual door', () => {
 });
 
 describe('every test run is an npm script', () => {
-    const runs = ['_ci.yml', 'deployedE2eTiers.yml', 'deployedE2e.yml', '_ci-heavy.yml', 'ci-pr.yml'].flatMap((file) =>
-        Object.entries(load(file).jobs).flatMap(([name, job]) =>
-            (job.steps ?? []).map((step) => ({ where: `${file}:${name}`, text: step.run ?? step.script ?? '' })),
-        ),
-    );
+    // Every workflow in the directory, so a new one cannot start a runner by hand unseen. The emulator action keeps its
+    // command in `with.script`, not in `run`.
+    const runs = readdirSync(`${REPO_ROOT}/.github/workflows`)
+        .filter((file) => /\.ya?ml$/u.test(file))
+        .flatMap((file) =>
+            Object.entries(load(file).jobs ?? {}).flatMap(([name, job]) =>
+                (job.steps ?? []).map((step) => ({
+                    where: `${file}:${name}`,
+                    text: step.run ?? (typeof step.with?.['script'] === 'string' ? step.with['script'] : '') ?? '',
+                })),
+            ),
+        );
+
+    it('reads the emulator step, so the check is not blind to it', () => {
+        expect(runs.some((run) => run.text.includes('e2e:maestro') && run.where.startsWith('_ci-heavy.yml'))).toBe(true);
+    });
 
     it.each([
         ['playwright test', /\bplaywright test\b/u],

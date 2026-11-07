@@ -124,6 +124,16 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
 
                 return Promise.resolve(services);
             },
+            createRunUsers: (platforms) => {
+                events.push(`createRunUsers ${platforms.join(',')}`);
+
+                return Promise.resolve();
+            },
+            removeRunUsers: (platforms) => {
+                events.push(`removeRunUsers ${platforms.join(',')}`);
+
+                return Promise.resolve();
+            },
             setupLane: (lane) => {
                 events.push(`setupLane ${lane.platform}-${lane.index}`);
                 writeFileSync(lane.fixtureEnvFile, 'E2E_X=1\n');
@@ -199,6 +209,7 @@ describe('runLaneRun — a lane run over fakes', () => {
         expect(events.filter((event) => !event.startsWith('log'))).toEqual([
             'lock',
             'startServices',
+            'createRunUsers android',
             'resetLanes android-1,android-2',
             'setupLane android-1',
             'setupLane android-2',
@@ -206,6 +217,7 @@ describe('runLaneRun — a lane run over fakes', () => {
             'startDevice android-1',
             'startDevice android-2',
             'stopServices android-1,android-2',
+            'removeRunUsers android',
             'stopDevice android-1',
             'stopDevice android-2',
             'teardownHost android',
@@ -301,6 +313,117 @@ describe('runLaneRun — a lane run over fakes', () => {
         expect(await runLaneRun(aborting, { platforms: ['android'], requested: 2, selection: 'all' })).toBe(130);
         expect(events.some((event) => event.startsWith('startDevice'))).toBe(false);
         expect(events).toContain('stopServices android-1,android-2');
+        expect(events).toContain('removeRunUsers android');
+        expect(events.at(-1)).toBe('unlock');
+    });
+
+    /**
+     * Owner direction 2026-11-07: boot the emulators in parallel. Each device boots on its own console port and serial, so
+     * a lane does not wait for the one before it; the platforms were already parallel.
+     */
+    it("boots a platform's devices at once, not one after another", async () => {
+        const { events, deps } = harness();
+        const adapterFor = (platform: LanePlatform): DeviceAdapter => ({
+            ...deps.adapterFor(platform),
+            startDevice: async (lane) => {
+                events.push(`startDevice ${lane.platform}-${lane.index}`);
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                events.push(`booted ${lane.platform}-${lane.index}`);
+            },
+        });
+
+        await runLaneRun({ ...deps, adapterFor }, { platforms: ['android'], requested: 3, selection: 'all' });
+
+        expect(events.filter((event) => /^(startDevice|booted) /u.test(event))).toEqual([
+            'startDevice android-1',
+            'startDevice android-2',
+            'startDevice android-3',
+            'booted android-1',
+            'booted android-2',
+            'booted android-3',
+        ]);
+    });
+
+    it('waits for every boot to settle before it stops the devices when one fails, and stops all of them', async () => {
+        const { events, deps } = harness();
+        const adapterFor = (platform: LanePlatform): DeviceAdapter => ({
+            ...deps.adapterFor(platform),
+            startDevice: async (lane) => {
+                events.push(`startDevice ${lane.platform}-${lane.index}`);
+
+                if (lane.index === 1) {
+                    throw new Error('boot failed');
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, 100));
+                events.push(`booted ${lane.platform}-${lane.index}`);
+            },
+        });
+
+        await expect(
+            runLaneRun({ ...deps, adapterFor }, { platforms: ['android'], requested: 2, selection: 'all' }),
+        ).rejects.toThrow(/boot failed/u);
+        expect(events.indexOf('booted android-2')).toBeLessThan(events.indexOf('stopDevice android-1'));
+        expect(events).toContain('stopDevice android-2');
+        expect(events.at(-1)).toBe('unlock');
+    });
+});
+
+/**
+ * Owner ruling 2026-11-07: a local erasure subject exists only during a run, and the run deletes the id it recorded. The run
+ * makes its users once the services are up and before any lane leases them, and removes them after the services stop and
+ * before the devices go, whatever failed.
+ */
+describe('runLaneRun — the run users', () => {
+    it('makes them for every platform with lanes, once, and removes them for the same platforms', async () => {
+        const { events, deps } = harness();
+
+        expect(await runLaneRun(deps, { platforms: ['android', 'ios'], requested: 1, selection: 'all' })).toBe(0);
+        expect(events.filter((event) => /RunUsers/u.test(event))).toEqual([
+            'createRunUsers android,ios',
+            'removeRunUsers android,ios',
+        ]);
+    });
+
+    it('makes none, and removes none, when nothing runs', async () => {
+        const { events, deps } = harness({ selectFlows: () => Promise.resolve({ flows: [], notes: [] }) });
+
+        await runLaneRun(deps, { platforms: ['android'], selection: 'all' });
+
+        expect(events.filter((event) => /RunUsers/u.test(event))).toEqual([]);
+    });
+
+    it('still removes them, stops the services and releases the lock when making them fails', async () => {
+        const { events, deps } = harness();
+        const failing: LaneRunDeps = {
+            ...deps,
+            createRunUsers: () => Promise.reject(new Error('subject already stands')),
+        };
+
+        await expect(runLaneRun(failing, { platforms: ['android'], requested: 2, selection: 'all' })).rejects.toThrow(
+            /subject already stands/u,
+        );
+        expect(events.some((event) => event.startsWith('setupLane'))).toBe(false);
+        expect(events.filter((event) => !event.startsWith('log')).slice(-3)).toEqual([
+            'stopServices android-1,android-2',
+            'removeRunUsers android',
+            'unlock',
+        ]);
+    });
+
+    it('still stops the devices and releases the lock when removing them fails, and reports it', async () => {
+        const { events, deps } = harness();
+        const failing: LaneRunDeps = {
+            ...deps,
+            removeRunUsers: () => Promise.reject(new Error('clerk down')),
+        };
+
+        await expect(runLaneRun(failing, { platforms: ['android'], requested: 2, selection: 'all' })).rejects.toThrow(
+            /clerk down/u,
+        );
+        expect(events).toContain('stopDevice android-1');
+        expect(events).toContain('stopDevice android-2');
+        expect(events).toContain('teardownHost android');
         expect(events.at(-1)).toBe('unlock');
     });
 });

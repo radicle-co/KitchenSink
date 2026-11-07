@@ -13,7 +13,7 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 
-async function git(repo: string, args: readonly string[], env?: NodeJS.ProcessEnv): Promise<string> {
+async function git(repo: string, args: readonly string[], env?: Readonly<Record<string, string>>): Promise<string> {
     const { stdout } = await run('git', [...args], {
         cwd: repo,
         maxBuffer: 256 * 1024 * 1024,

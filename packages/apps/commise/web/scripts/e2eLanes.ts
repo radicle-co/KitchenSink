@@ -37,6 +37,7 @@ import { planLanes, type LaneCost } from '@kitchensink/e2e-plan';
 import { packLanes } from '@kitchensink/e2e-plan/packLanes';
 import { checkRecordedRoutes } from '@kitchensink/e2e-plan/recordedRoutes';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
+import { recordGreenRun } from '@kitchensink/e2e-plan/stampRun';
 import { z } from 'zod';
 
 /** An address nothing listens on: the discard port. A call to it is REFUSED, as CI's identity and food ports are. */
@@ -263,6 +264,42 @@ export const wantsSelection = (passthrough: readonly string[], env: Env): boolea
     passthrough.length === 0 && env['FULL_SUITE'] !== '1' && (env['E2E_TEST_LIST'] ?? '') === '';
 
 /**
+ * Whether the selector, and not a person, chose which specs run. Only then may a passing run move the green stamp: a
+ * stamp says the selector's own choice passed. A forced full suite counts, because the selector was asked and said so.
+ *
+ * @param passthrough - The arguments after `npm run test:e2e --`.
+ * @param env - The caller's environment.
+ * @returns True when no spec, test list or Playwright argument was named.
+ */
+export const selectorChose = (passthrough: readonly string[], env: Env): boolean =>
+    passthrough.length === 0 && (env['E2E_TEST_LIST'] ?? '') === '';
+
+/**
+ * What a run's tests did, in the three counts the stamp policy reads.
+ *
+ * A flaky test counts as failed: it passed only on a retry, so it is not evidence that the change is fine. `setup` is
+ * left out because Playwright runs it as a dependency and no selector chose it.
+ *
+ * @param tests - The tests of a run's report.
+ * @returns How many passed, failed and were skipped.
+ */
+export function outcomesOf(tests: readonly ReportedTest[]): {
+    readonly passed: number;
+    readonly failed: number;
+    readonly skipped: number;
+} {
+    const own = tests.filter((test) => test.project !== 'setup');
+    const count = (...statuses: readonly string[]): number =>
+        own.filter((test) => statuses.includes(test.status)).length;
+
+    return {
+        passed: count('expected'),
+        failed: own.length - count('expected', 'skipped'),
+        skipped: count('skipped'),
+    };
+}
+
+/**
  * Playwright file filters that match exactly the named specs.
  *
  * Playwright reads a positional argument as a regular expression matched anywhere in the path, so a bare
@@ -396,6 +433,18 @@ export type Decision =
     /** Run exactly these tests. */
     | { readonly kind: 'list'; readonly specs: number; readonly tests: readonly ReportedTest[] };
 
+/** What a finished run needs to move the stamp: the tree it was planned at and the stamp it started from. */
+export interface StampStart {
+    readonly planTree: string;
+    readonly previous: NonNullable<Awaited<ReturnType<typeof runPlan>>['previous']> | undefined;
+}
+
+/** Step 1's answer: what to run, and the stamp context when the selector chose it. */
+export interface Selected {
+    readonly choice: Choice;
+    readonly start: StampStart | undefined;
+}
+
 /** What step 1 decided, with the list written. */
 export type Choice =
     | Exclude<Decision, { kind: 'list' }>
@@ -462,24 +511,35 @@ const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../../../../..');
  * @param env - The caller's environment.
  * @returns What to run.
  */
-export async function chooseSelection(passthrough: readonly string[], env: Env): Promise<Choice> {
-    if (!wantsSelection(passthrough, env)) {
-        return { kind: 'unselected' };
+export async function chooseSelection(passthrough: readonly string[], env: Env): Promise<Selected> {
+    if (!selectorChose(passthrough, env)) {
+        return { choice: { kind: 'unselected' }, start: undefined };
     }
 
     let plan: Awaited<ReturnType<typeof runPlan>>;
 
     try {
-        plan = await runPlan(REPO_ROOT, env as NodeJS.ProcessEnv);
+        plan = await runPlan(REPO_ROOT, env as NodeJS.ProcessEnv, { platform: 'web' });
     } catch (error) {
         console.warn(
             `warning: the selector could not run (${error instanceof Error ? error.message : String(error)}); running every spec`,
         );
 
-        return { kind: 'unselected' };
+        return { choice: { kind: 'unselected' }, start: undefined };
     }
 
     plan.warnings.forEach((warning) => console.warn(`warning: ${warning}`));
+
+    const start: StampStart | undefined =
+        plan.treeAtStart === null ? undefined : { planTree: plan.treeAtStart, previous: plan.previous ?? undefined };
+
+    if (plan.base.kind === 'stamp' && plan.base.owed.length > 0) {
+        console.log(`▶ owed           : ${plan.base.owed.join(', ')} (sandbox-only flows not yet run)`);
+    }
+
+    if (!wantsSelection(passthrough, env)) {
+        return { choice: { kind: 'unselected' }, start };
+    }
 
     if (plan.web.kind === 'all') {
         console.log(
@@ -495,7 +555,7 @@ export async function chooseSelection(passthrough: readonly string[], env: Env):
     }
 
     if (decision.kind !== 'list') {
-        return decision;
+        return { choice: decision, start };
     }
 
     mkdirSync(LANE_LOG_DIR, { recursive: true });
@@ -504,7 +564,63 @@ export async function chooseSelection(passthrough: readonly string[], env: Env):
 
     writeFileSync(file, testListText(decision.tests));
 
-    return { kind: 'list', file, specs: decision.specs, tests: decision.tests.length };
+    return { choice: { kind: 'list', file, specs: decision.specs, tests: decision.tests.length }, start };
+}
+
+/** The counts of the single-lane run's JSON report, or undefined when it left none or an unreadable one. */
+function singleOutcomes(file: string): ReturnType<typeof outcomesOf> | undefined {
+    try {
+        return outcomesOf(flattenReport(parseReport(readFileSync(file, 'utf8'))));
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * After a run: moves the green stamp if the run earned it, and says what happened. It never changes the exit code.
+ *
+ * @sideEffect Runs git and writes the stamp file.
+ * @param start - From {@link chooseSelection}; undefined when a person chose the tests or the plan gave no tree.
+ * @param outcomes - What the selected tests did; undefined when the run produced no report to count.
+ * @param recorderClean - Whether the post-run recorder checks left the exit code alone.
+ */
+async function settleStamp(
+    start: StampStart | undefined,
+    outcomes: ReturnType<typeof outcomesOf> | undefined,
+    recorderClean: boolean,
+): Promise<void> {
+    if (start === undefined) {
+        return;
+    }
+
+    if (outcomes === undefined) {
+        console.log('▶ green stamp    : not moved (the run left no report to count)');
+
+        return;
+    }
+
+    try {
+        const result = await recordGreenRun({
+            repo: REPO_ROOT,
+            platform: 'web',
+            planTree: start.planTree,
+            selectedBy: 'selector',
+            outcomes,
+            recorderClean,
+            dropped: [],
+            previous: start.previous,
+        });
+
+        console.log(
+            result.kind === 'written'
+                ? `▶ green stamp    : moved to this run (owed: ${result.stamp.owed.length})`
+                : `▶ green stamp    : not moved (${result.kind === 'refused' ? result.reason : 'another run moved it first'})`,
+        );
+    } catch (error) {
+        console.warn(
+            `warning: could not record the green stamp (${error instanceof Error ? error.message : String(error)})`,
+        );
+    }
 }
 
 /** Where the route recorder (`tests/e2e/utils/routeRecorder.ts`) writes, one file per lane. */
@@ -587,10 +703,12 @@ const waitForExit = (child: ChildProcess): Promise<number | null> =>
  * @returns The exit code.
  */
 export async function main(passthrough: readonly string[], env: Env): Promise<number> {
-    const choice = await chooseSelection(passthrough, env);
+    const { choice, start } = await chooseSelection(passthrough, env);
+    const none = { passed: 0, failed: 0, skipped: 0 };
 
     if (choice.kind === 'none') {
         console.log(`▶ nothing to run : ${choice.why}`);
+        await settleStamp(start, none, true);
 
         return 0;
     }
@@ -604,11 +722,27 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
     const testList = choice.kind === 'list' ? choice.file : env['E2E_TEST_LIST'];
     rmSync(ROUTES_DIR, { recursive: true, force: true });
 
-    const single = (): number =>
-        afterRun(run('bash', ['scripts/e2eLocal.sh', ...selection(passthrough, testList)], env));
+    const single = async (): Promise<number> => {
+        // A second reporter writes the report the stamp counts from; the console keeps the list reporter.
+        const reportFile = `${LANE_LOG_DIR}/single.json`;
+
+        mkdirSync(LANE_LOG_DIR, { recursive: true });
+        rmSync(reportFile, { force: true });
+
+        const code = run('bash', ['scripts/e2eLocal.sh', ...selection(passthrough, testList)], {
+            ...env,
+            E2E_REPORTER: 'list,json',
+            PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile,
+        });
+        const final = afterRun(code);
+
+        await settleStamp(start, singleOutcomes(reportFile), final === code);
+
+        return final;
+    };
 
     if (env['E2E_WEB_SERVER'] === 'dev' || env['E2E_LANES'] === '1') {
-        return single();
+        return await single();
     }
 
     const listReport = listTests(passthrough, testList, env);
@@ -630,12 +764,13 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
 
     if (plan.count === 0) {
         console.log('▶ nothing to run');
+        await settleStamp(start, none, true);
 
         return 0;
     }
 
     if (plan.count === 1) {
-        return single();
+        return await single();
     }
 
     rmSync(BLOB_DIR, { recursive: true, force: true });
@@ -721,7 +856,11 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
 
     console.log(`▶ lane exit codes: ${laneCodes.join(' ')}   (merged report: ${mergedFile})`);
 
-    return afterRun(result.exitCode);
+    const final = afterRun(result.exitCode);
+
+    await settleStamp(start, result.problems.length > 0 ? undefined : outcomesOf(tests), final === result.exitCode);
+
+    return final;
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {

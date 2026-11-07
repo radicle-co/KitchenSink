@@ -86,6 +86,7 @@ import type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance 
 import { splitMeasurement } from '../splitMeasurement.js';
 
 import { classifyModifier, staysInPreparation } from './modifierLexicon.js';
+import { trimEdges } from './trimEdges.js';
 
 /**
  * An engine that produced no answer at all — a Lambda that threw, or a call the spend ceiling denied.
@@ -168,7 +169,10 @@ const COMPARISON_STOPWORDS: ReadonlySet<string> = new Set([
 ]);
 
 /** A list separator an engine writes between preparations (the LLM joins them with ", "). */
-const SEPARATOR_EDGE = /^[,;]+|[,;]+$/gu;
+const isSeparator = (character: string): boolean => character === ',' || character === ';';
+
+/** Everything that is not a letter, a digit or an internal hyphen. */
+const NON_WORD = /[^\p{L}\p{N}]/u;
 
 /**
  * Join the words a field keeps, without the separator a moved word left behind.
@@ -177,11 +181,8 @@ const SEPARATOR_EDGE = /^[,;]+|[,;]+$/gu;
  * @returns The phrase, with no separator at either end. Pure.
  */
 function joinKept(tokens: readonly string[]): string {
-    return tokens.join(' ').replace(SEPARATOR_EDGE, '');
+    return trimEdges(tokens.join(' '), isSeparator);
 }
-
-/** Everything that is not a letter, a digit or an internal hyphen. */
-const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
 
 /**
  * Split a phrase into words.
@@ -200,7 +201,7 @@ function tokenise(text: string): readonly string[] {
  * @returns Lower-cased and stripped of edge punctuation. Pure.
  */
 function fold(token: string): string {
-    return token.toLowerCase().replace(NON_WORD_EDGE, '');
+    return trimEdges(token.toLowerCase(), (character) => NON_WORD.test(character));
 }
 
 /**
@@ -283,7 +284,7 @@ export function canonicaliseFood(food: ParsedFood): ParsedFood {
     const alreadyPrepared = new Set(prepStays.map(fold));
 
     // A moved word travels without the separator it sat beside in its old field.
-    const unseparated = (token: string): string => token.replace(SEPARATOR_EDGE, '');
+    const unseparated = (token: string): string => trimEdges(token, isSeparator);
     const name = joinKept([...toName.filter((token) => !alreadyNamed.has(fold(token))).map(unseparated), ...keptName]);
     const prep = joinKept([
         ...prepStays,

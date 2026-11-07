@@ -23,6 +23,7 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useId, type FC } from 'react';
 
+import { PrepJoin } from '../format/PrepJoin.js';
 import { recipeMessages } from '../messages.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
@@ -51,6 +52,10 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
     const standIn = isStandInName(ingredient);
+    // The preparation, then the notes override: the muted tail after the name. Its first part is joined with " · ".
+    const tail = [ingredient.preparation, ingredient.notes].filter(
+        (part): part is string => part !== undefined && part.length > 0,
+    );
     const amountFigure = <span className="font-semibold tabular-nums lining-nums">{amount}</span>;
 
     return (
@@ -94,17 +99,15 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                             <VariantPartsLine parts={parts} tone="secondary" />
                         </span>
                     )}
-                    {ingredient.preparation !== undefined && ingredient.preparation.length > 0 && (
-                        <>
-                            {' '}
-                            <span className="text-ink-muted">{ingredient.preparation}</span>
-                        </>
-                    )}
-                    {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                        <>
-                            {' '}
-                            <span className="text-ink-muted">{ingredient.notes}</span>
-                        </>
+                    {tail.map((part, index) =>
+                        index === 0 ? (
+                            <PrepJoin key={part}>{part}</PrepJoin>
+                        ) : (
+                            <span key={part}>
+                                {' '}
+                                <span className="text-ink-muted">{part}</span>
+                            </span>
+                        ),
                     )}
                     {statuses.length > 0 && (
                         <span id={statusId}>

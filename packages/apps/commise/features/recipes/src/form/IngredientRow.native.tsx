@@ -26,11 +26,13 @@ import { Popover } from '@commise/ui/popover';
 import { moveScreenReaderFocus } from '@commise/ui/screen-reader-focus';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useRef, type FC, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { PREP_JOINER } from '../format/prepJoiner.js';
 import { ingredientCommitFailureId, ingredientNoFoodNoteId, ingredientStandInId } from './fieldErrorIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
@@ -79,18 +81,18 @@ const OpenControl: FC<{
     readonly row: IngredientRowView;
     readonly expanded: boolean | undefined;
 }> = ({ row, expanded }) => {
-    const { colors } = useTheme();
     const wash = usePressFill();
     const node = useRef<View>(null);
     const { requested, onHandled } = row.openFocus;
 
     useFocusRequest(requested, () => moveScreenReaderFocus(node.current), onHandled);
 
-    // The run's body role under the figure face: `figureInline` has no size, and a stand-in's amount has no text parent
-    // to take one from (React Native would draw it at its 14 default), so the amount carries the run's own size.
+    // The strong face in the run's own size: `figureInline` has none and takes its parent's.
     const amount =
         row.amountText === '' ? null : (
-            <Text style={[styles.body, styles.amount, { color: colors.ink }]}>{row.amountText}</Text>
+            <Text typeRole="figureInline" color="$ink">
+                {row.amountText}
+            </Text>
         );
 
     return (
@@ -108,18 +110,23 @@ const OpenControl: FC<{
             <View style={styles.name}>
                 {row.standIn ? (
                     <>
-                        {amount !== null && <View>{amount}</View>}
+                        {amount !== null && (
+                            // A stand-in's amount has no text parent to take a size from: the body role is its line.
+                            <Text typeRole="body" color="$ink">
+                                {amount}
+                            </Text>
+                        )}
                         <View nativeID={ingredientStandInId(row.index)}>
                             <StandIn tone={row.presentation.tone}>{row.displayName}</StandIn>
                         </View>
                     </>
                 ) : (
-                    <Text style={[styles.body, { color: colors.ink }]}>
+                    <Text typeRole="body" color="$ink">
                         {amount}
                         {amount !== null && ' '}
                         {row.displayName}
                         {row.prepText !== undefined && (
-                            <Text style={{ color: colors.inkMuted }}>{`\u00A0· ${row.prepText}`}</Text>
+                            <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.prepText}`}</Text>
                         )}
                     </Text>
                 )}
@@ -142,8 +149,6 @@ export const IngredientRow: FC<IngredientRowProps> = ({
 }) => {
     const { colors } = useTheme();
     const { secondLine, line } = row;
-    const caption = [styles.caption, { color: colors.inkMuted }];
-    const error = [styles.caption, { color: colors.dangerText }];
 
     return (
         <View
@@ -206,7 +211,9 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         <View aria-hidden>
                             <Icon name="refreshCw" size={16} tone="inkMuted" />
                         </View>
-                        <Text style={caption}>{secondLine.text}</Text>
+                        <Text typeRole="caption" color="$inkMuted">
+                            {secondLine.text}
+                        </Text>
                     </View>
                 )}
                 {secondLine.kind === 'attention' && secondLine.opens === 'panel' && (
@@ -231,14 +238,24 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         <View aria-hidden>
                             <Icon name="triangleAlert" size={16} tone="attention" />
                         </View>
-                        <Text style={[styles.caption, { color: colors.attention }]}>{secondLine.text}</Text>
+                        <Text typeRole="caption" color="$attention">
+                            {secondLine.text}
+                        </Text>
                     </Pressable>
                 )}
-                {row.amountInvalidNote !== undefined && <Text style={error}>{row.amountInvalidNote}</Text>}
-                {row.busyText !== undefined && <Text style={caption}>{row.busyText}</Text>}
+                {row.amountInvalidNote !== undefined && (
+                    <Text typeRole="caption" color="$dangerText">
+                        {row.amountInvalidNote}
+                    </Text>
+                )}
+                {row.busyText !== undefined && (
+                    <Text typeRole="caption" color="$inkMuted">
+                        {row.busyText}
+                    </Text>
+                )}
                 {row.failure !== undefined && (
                     // Shown on the row; the field says it assertively, so this text is not live too (system change 2).
-                    <Text nativeID={ingredientCommitFailureId(line.key)} style={error}>
+                    <Text nativeID={ingredientCommitFailureId(line.key)} typeRole="caption" color="$dangerText">
                         {row.failure}
                     </Text>
                 )}
@@ -259,9 +276,7 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[3],
         borderRadius: nativeTokens.radius.md,
     },
-    amount: { ...nativeTokens.type.figureInline },
     name: { flex: 1, gap: nativeTokens.spacing[1] },
-    body: { ...nativeTokens.type.body },
     entry: { flex: 1, gap: nativeTokens.spacing[1], paddingVertical: nativeTokens.spacing[2] },
     second: { gap: nativeTokens.spacing[1] },
     inline: {
@@ -277,5 +292,4 @@ const styles = StyleSheet.create({
         minHeight: 48,
         alignSelf: 'flex-start',
     },
-    caption: { ...nativeTokens.type.caption },
 });

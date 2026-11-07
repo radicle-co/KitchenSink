@@ -13,7 +13,7 @@ import { createRef, type ComponentProps } from 'react';
 import type { Pressable as PressableType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import type { ContainerClass } from '../../layout/containerClass.js';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
@@ -186,10 +186,10 @@ describe('SectionIndex (native)', () => {
             renderIndex();
             const nav = screen.getByRole('navigation', { name: NAV });
 
-            expect(getComputedStyle(within(nav).getByText('2 need a match')).color).toBe(formatRgb(colors.attention));
-            expect(getComputedStyle(within(nav).getByText('Fix 1 thing')).color).toBe(formatRgb(colors.dangerText));
-            expect(getComputedStyle(within(nav).getByText('Not started')).color).toBe(formatRgb(colors.inkMuted));
-            expect(getComputedStyle(within(nav).getByText('Ingredients')).color).toBe(formatRgb(colors.ink));
+            expect(resolvedColour(within(nav).getByText('2 need a match'), 'color')).toBe(formatRgb(colors.attention));
+            expect(resolvedColour(within(nav).getByText('Fix 1 thing'), 'color')).toBe(formatRgb(colors.dangerText));
+            expect(resolvedColour(within(nav).getByText('Not started'), 'color')).toBe(formatRgb(colors.inkMuted));
+            expect(resolvedColour(within(nav).getByText('Ingredients'), 'color')).toBe(formatRgb(colors.ink));
             expect(glyphColour(within(nav).getByRole('link', { name: 'Ingredients' }))).toBe(colors.attention);
             expect(glyphColour(within(nav).getByRole('link', { name: 'Photos & publish' }))).toBe(colors.dangerText);
         });

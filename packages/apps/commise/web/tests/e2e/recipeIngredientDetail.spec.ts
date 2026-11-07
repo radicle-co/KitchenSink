@@ -82,9 +82,15 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         // whole row is now the checkbox, named with the full line (build spec §6.3) — the food, then the
         // preparation as its own clause after a comma.
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
-        await expect(ingredients.getByText('finely chopped', { exact: true })).toBeVisible();
+        // The accessible name reads "Salt, finely chopped" (the dot is never spoken); the visible text joins the
+        // preparation with a no-break space and a dot, "Salt · finely chopped" (designAnswers.md 2026-11-06, fractions
+        // item 6). The preparation's text carries the joiner, so it is read through the row. Playwright normalizes the
+        // no-break space, so ' · ' matches it.
+        const salt = ingredients.getByRole('checkbox', { name: /Salt, finely chopped$/u });
+        await expect(salt).toBeVisible();
+        await expect(salt).toContainText('Salt · ');
+        await expect(salt).toContainText('finely chopped');
         await expect(ingredients.getByText('Salt', { exact: true })).toBeVisible();
-        await expect(ingredients.getByRole('checkbox', { name: /Salt, finely chopped$/u })).toBeVisible();
 
         // RE-OPEN — both values are re-seeded. Dropping either here is the narrowing defect.
         await page.getByRole('link', { name: 'Edit recipe' }).click();

@@ -27,6 +27,31 @@ const lamb = makeIngredientView({
 });
 
 describe('IngredientCheckRow (web)', () => {
+    // designAnswers.md 2026-11-06 fractions item 6: "unsalted butter · melted". A no-break space and a dot join the
+    // preparation to the name so it never wraps onto a line of its own with nothing before it; the dot is never spoken.
+    it('⛔ joins the preparation with a no-break space and a dot, and names the line with a comma', () => {
+        const butter = makeIngredientView({
+            ingredientId: 'ing_butter',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'tablespoons',
+            name: 'unsalted butter',
+            preparation: 'melted',
+        });
+        const { container } = render(
+            <ul>
+                <IngredientCheckRow ingredient={butter} checked={false} allRemoved={false} onToggle={vi.fn()} />
+            </ul>,
+        );
+
+        const row = screen.getByRole('checkbox');
+        const joiner = container.querySelector('[data-line-text] [aria-hidden="true"]');
+
+        expect(row.getAttribute('aria-label')).toContain('unsalted butter, melted');
+        expect(joiner?.textContent).toBe('\u00A0· ');
+        expect(container.querySelector('[data-line-text]')?.textContent).toContain('unsalted butter\u00A0· ');
+        expect(container.querySelector('[data-line-text]')?.textContent?.endsWith('melted')).toBe(true);
+    });
+
     // b2b1294bc moved the row text from the 20 px `list` role to the 24 px `body` role and left the box a fixed 1 px down,
     // 2 px above the line's centre. jsdom has no layout, so the rule is pinned: the box sits in a box as tall as the text
     // role's line, read from the token so a role change fails here rather than shifting the box. The pixel check is

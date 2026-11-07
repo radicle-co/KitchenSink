@@ -17,8 +17,11 @@ import {
     decideSpecs,
     distinctPorts,
     flattenReport,
+    durationTable,
     laneArgs,
     laneEnv,
+    laneLists,
+    medianMs,
     parseReport,
     specFilters,
     testListText,
@@ -27,7 +30,9 @@ import {
     type PlaywrightReport,
 } from '../e2eLanes';
 
-const report = (tests: readonly { project: string; title: string; status: string }[]): PlaywrightReport => ({
+const report = (
+    tests: readonly { project: string; title: string; status: string; ms?: number }[],
+): PlaywrightReport => ({
     suites: [
         {
             title: 'a.spec.ts',
@@ -39,7 +44,13 @@ const report = (tests: readonly { project: string; title: string; status: string
                     specs: tests.map((test) => ({
                         title: test.title,
                         file: 'a.spec.ts',
-                        tests: [{ projectName: test.project, status: test.status }],
+                        tests: [
+                            {
+                                projectName: test.project,
+                                status: test.status,
+                                ...(test.ms === undefined ? {} : { results: [{ duration: test.ms }] }),
+                            },
+                        ],
                     })),
                 },
             ],
@@ -73,6 +84,10 @@ describe('laneEnv', () => {
         expect(env['PLAYWRIGHT_BLOB_OUTPUT_DIR']).toBe('blob-report/lane-3');
     });
 
+    it('names each lane’s blob after the lane, so merged blobs never overwrite one another', () => {
+        expect(env['PLAYWRIGHT_BLOB_OUTPUT_NAME']).toBe('report-3.zip');
+    });
+
     it('gives every lane its own blob folder, because a blob reporter deletes its folder when it ends', () => {
         const other = laneEnv({}, { index: 1, count: 4, port: 3010 });
 
@@ -92,21 +107,92 @@ describe('laneEnv', () => {
 });
 
 describe('laneArgs', () => {
-    it('shards over whatever it was asked to run, with its own output folder', () => {
-        expect(laneArgs({ index: 2, count: 4 }, ['tests/e2e/a.spec.ts'])).toEqual([
-            'tests/e2e/a.spec.ts',
-            '--shard=2/4',
-            '--output=test-results/lane-2',
-        ]);
+    it('runs exactly the lane’s own list, with its own output folder, and takes no shard', () => {
+        const args = laneArgs({ index: 2, count: 4 }, 'test-results/lanes/lane-2.list');
+
+        expect(args).toEqual(['--test-list', 'test-results/lanes/lane-2.list', '--output=test-results/lane-2']);
+        expect(args.join(' ')).not.toMatch(/shard/u);
+    });
+});
+
+describe('laneLists', () => {
+    const tests = flattenReport(
+        report([
+            { project: 'setup', title: 'sign in', status: 'expected' },
+            { project: 'chromium', title: 'slow', status: 'expected' },
+            { project: 'chromium', title: 'fast one', status: 'expected' },
+            { project: 'own-session', title: 'fast two', status: 'expected' },
+        ]),
+    );
+    const durations = Object.fromEntries(tests.map((test, index) => [test.id, [0, 900, 50, 40][index]]));
+
+    it('gives every non-setup test to exactly one lane, as a --test-list line', () => {
+        const { texts } = laneLists(tests, durations, 2, 100);
+        const lines = texts.flatMap((text) => text.split('\n').filter(Boolean));
+
+        expect(lines.sort()).toEqual(testListText(tests).split('\n').filter(Boolean).sort());
+        expect(lines.join('\n')).not.toMatch(/setup/u);
     });
 
-    it('passes a test list through when one was given', () => {
-        expect(laneArgs({ index: 1, count: 2 }, [], '/tmp/list.txt')).toEqual([
-            '--test-list',
-            '/tmp/list.txt',
-            '--shard=1/2',
-            '--output=test-results/lane-1',
+    it('weights by duration: the slow test is alone, the two fast ones share a lane', () => {
+        const { texts } = laneLists(tests, durations, 2, 100);
+
+        expect(texts.map((text) => text.split('\n').filter(Boolean).length).sort()).toEqual([1, 2]);
+    });
+
+    it('says which tests had no recorded duration', () => {
+        expect(laneLists(tests, {}, 2, 100).defaulted).toHaveLength(3);
+    });
+});
+
+describe('durationTable', () => {
+    it('averages a test’s duration across reports, in whole milliseconds, with sorted keys', () => {
+        const one = report([
+            { project: 'chromium', title: 'b', status: 'expected', ms: 100 },
+            { project: 'chromium', title: 'a', status: 'expected', ms: 10 },
         ]);
+        const two = report([{ project: 'chromium', title: 'b', status: 'expected', ms: 201 }]);
+        const table = durationTable([one, two]);
+
+        expect(Object.keys(table)).toEqual(['chromium › a.spec.ts › group › a', 'chromium › a.spec.ts › group › b']);
+        expect(table['chromium › a.spec.ts › group › b']).toBe(151);
+    });
+
+    it('sums a retried test’s attempts, because the lane waited for all of them', () => {
+        const flaky: PlaywrightReport = {
+            suites: [
+                {
+                    title: 'a.spec.ts',
+                    specs: [
+                        {
+                            title: 't',
+                            tests: [
+                                {
+                                    projectName: 'chromium',
+                                    status: 'flaky',
+                                    results: [{ duration: 30 }, { duration: 20 }],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        expect(durationTable([flaky])['chromium › a.spec.ts › t']).toBe(50);
+    });
+
+    it('leaves setup out: it is a dependency, never a lane’s own test', () => {
+        const table = durationTable([report([{ project: 'setup', title: 's', status: 'expected', ms: 5 }])]);
+
+        expect(table).toEqual({});
+    });
+});
+
+describe('medianMs', () => {
+    it('is the middle duration, and a fixed fallback for an empty table', () => {
+        expect(medianMs({ a: 1, b: 100, c: 5 })).toBe(5);
+        expect(medianMs({})).toBeGreaterThan(0);
     });
 });
 
@@ -235,6 +321,7 @@ describe('decideSpecs', () => {
         project,
         id: `${project} › ${file} › ${title}`,
         status: 'x',
+        durationMs: 0,
     });
     const lister = (tests: ReturnType<typeof test>[]) => () => tests;
 

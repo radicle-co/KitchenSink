@@ -171,6 +171,18 @@ describe('IngredientRow (native) — a stand-in row (#144, UI Designer)', () => 
         expect(button.textContent).toBe(label);
     });
 
+    // UI Designer ruling 2026-11-06: a kept unit is not an empty line ("pinch", "dash" mean something alone), so a unit
+    // with no amount is that line, and the name reads it before the chip.
+    it('a UNIT with no amount: the unit is the line above the chip, and the name reads it', () => {
+        const button = rowButton(standIn({ quantity: Number.NaN }), `Edit tbsp ${label}`);
+        const unit = leafWithText(button, 'tbsp');
+        const chip = within(button).getByText(label);
+
+        expect(unit.parentElement!.textContent).toBe('tbsp');
+        expect(unit.parentElement!.contains(chip)).toBe(false);
+        expect(button.textContent).toBe(`tbsp${label}`);
+    });
+
     /**
      * Device finding 2026-11-06 (Android 1x: 117 × 33 px, was 129 × 42): the stand-in's amount drew smaller than the
      * typed row's. React Native gives a text its parent TEXT's size; a text under a `View` gets the platform default
@@ -196,5 +208,15 @@ describe('IngredientRow (native) — a stand-in row (#144, UI Designer)', () => 
         expect(drawn(alone, 'fontSize')).toBe(`${nativeTokens.type.body.fontSize}px`);
         expect(drawn(alone, 'lineHeight')).toBe(`${nativeTokens.type.body.lineHeight}px`);
         expect(drawn(alone, 'fontFamily')).toBe(nativeTokens.type.figureInline.fontFamily);
+    });
+});
+
+describe('IngredientRow (native) — a typed row with a unit and no amount (UI Designer ruling 2026-11-06)', () => {
+    it('the unit starts the run, and the name reads it', () => {
+        const button = rowButton(line({ name: 'salt', quantity: Number.NaN, unit: 'pinch' }), 'Edit pinch salt');
+        const unit = leafWithText(button, 'pinch');
+
+        expect(unit.parentElement!.textContent).toBe('pinch salt');
+        expect(unit.parentElement!.firstChild).toBe(unit);
     });
 });

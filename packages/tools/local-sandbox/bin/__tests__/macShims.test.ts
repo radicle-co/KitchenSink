@@ -170,6 +170,16 @@ describe('laneHost.sh', () => {
         expect(result.stdout.trim()).toBe('AAAA');
     });
 
+    it('prints the UDID of an existing lane Simulator and creates nothing', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, [{ name: 'ks-maestro-lane-2', udid: 'AAAA' }]);
+        const found = run('laneHost.sh', ['udid', '2'], sandbox);
+        expect(found.stdout.trim()).toBe('AAAA');
+        const missing = run('laneHost.sh', ['udid', '3'], sandbox);
+        expect(missing.status).toBe(0);
+        expect(missing.stdout.trim()).toBe('');
+    });
+
     it('creates the lane Simulator when none carries the name', () => {
         const sandbox = makeSandbox();
         withSimulators(sandbox, [{ name: 'ks-maestro-lane-1', udid: 'AAAA' }]);

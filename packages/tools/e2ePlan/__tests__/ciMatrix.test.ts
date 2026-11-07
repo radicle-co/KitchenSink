@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { maestroOutputs, maestroSelector, webSelectionOutputs, webShardCount, webShardMatrix } from '../src/ciMatrix.js';
+import {
+    maestroOutputs,
+    maestroSelector,
+    webSelectionOutputs,
+    webShardCount,
+    webShardMatrix,
+} from '../src/ciMatrix.js';
 
 describe('webShardCount', () => {
     it('is zero when nothing is listed, so no leg starts', () => {
@@ -57,10 +63,12 @@ describe('maestroSelector', () => {
 });
 
 describe('webSelectionOutputs', () => {
-    it('sizes the shards from the listed tests and carries the list file', () => {
-        expect(webSelectionOutputs({ kind: 'list', file: 'sel.txt', tests: 30 }, 14, 8)).toEqual({
+    it('sizes the shards from the listed tests and carries the spec filters', () => {
+        expect(
+            webSelectionOutputs({ kind: 'specs', filters: ['^a\\.spec\\.ts$', '^b\\.spec\\.ts$'], tests: 30 }, 14, 8),
+        ).toEqual({
             web_tests: '30',
-            web_test_list: 'sel.txt',
+            web_specs: '^a\\.spec\\.ts$ ^b\\.spec\\.ts$',
             web_shards: '[1,2,3]',
         });
     });
@@ -68,7 +76,7 @@ describe('webSelectionOutputs', () => {
     it('runs no shard when the change touches no spec', () => {
         expect(webSelectionOutputs({ kind: 'none' }, 14, 8)).toEqual({
             web_tests: '0',
-            web_test_list: '',
+            web_specs: '',
             web_shards: '[]',
         });
     });
@@ -76,7 +84,7 @@ describe('webSelectionOutputs', () => {
     it('runs the whole suite with no list file when nothing was selected', () => {
         expect(webSelectionOutputs({ kind: 'unselected', tests: 696 }, 14, 8)).toEqual({
             web_tests: '696',
-            web_test_list: '',
+            web_specs: '',
             web_shards: '[1,2,3,4,5,6,7,8]',
         });
     });

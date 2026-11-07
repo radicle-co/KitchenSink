@@ -47,6 +47,13 @@ on:
                 description: Deployment stage — 'sandbox' (PRs) or 'prod' (main)
                 required: true
                 type: string
+            full_suite:
+                description: >-
+                    Run every web spec and every Maestro flow instead of the ones the change affects. A run that is not
+                    a pull request does this anyway: it has no merge base to compare with.
+                required: false
+                type: boolean
+                default: false
         # Declared EXPLICITLY so callers can drop `secrets: inherit` (zizmor `secrets-inherit`), which
         # hands a called workflow every secret in the repository rather than the ones it uses. This list is
         # the complete set this file consumes, and it is checked: `actionlint` fails on a `secrets.*`
@@ -1364,10 +1371,11 @@ jobs:
         name: Build the mobile test apps
         # `install` is an ORDERING edge (the build's jobs restore the `node_modules` entry it seeds). `build-ui` is not a need:
         # `_mobileAppBuild.yml` builds the whole dependency closure itself and uses nothing `build-ui` produces.
-        needs: [install, sandbox-status, resolve-sandbox]
+        needs: [install, sandbox-status, resolve-sandbox, select-e2e]
+        # A change that affects no flow builds no app: `maestro_run` is the same term that switches the tier on.
         if: >-
             ${{ needs.sandbox-status.outputs.branch == 'run'
-            && contains(github.event.pull_request.labels.*.name, 'mobile-e2e')
+            && contains(github.event.pull_request.labels.*.name, 'mobile-e2e') && needs.select-e2e.outputs.maestro_run == 'true'
             && needs.resolve-sandbox.outputs.stage != '' }}
         uses: ./.github/workflows/_mobileAppBuild.yml
         # `actions: read` lets the plan find and download an artifact an EARLIER run built (reuse). A called workflow can
@@ -1397,7 +1405,7 @@ jobs:
     #
     # `install` and `build-ui` are ORDERING edges: the tiers restore the `node_modules` entry `install` seeds and
     # the UI dist `build-ui` caches (both fall back to building when the entry is missing, so a manual dispatch
-    # with no such job still runs). `detect-mobile-flows` supplies the Maestro selector.
+    # with no such job still runs). `select-e2e` supplies the web matrix and the Maestro selector.
     #
     # ⛔ A CONSTANT name without the e2e word: a `uses:` job states no target of its own (workflowInvariants
     # invariants 7 and 8); the tiers inside carry their own `E2E (…)` names.
@@ -1412,7 +1420,7 @@ jobs:
                 build-ui,
                 resolve-sandbox,
                 sandbox-status,
-                detect-mobile-flows,
+                select-e2e,
                 mobile-app-build,
             ]
         # ⛔ NOT GATED ON `mobile-app-build`, AND THAT IS THE POINT OF EVERY TERM BELOW. The build is skipped on every
@@ -1432,7 +1440,7 @@ jobs:
             && needs.install.result == 'success'
             && needs.build-ui.result == 'success'
             && needs.resolve-sandbox.result == 'success'
-            && needs.detect-mobile-flows.result == 'success'
+            && needs.select-e2e.result == 'success'
             && needs.sandbox-status.outputs.branch == 'run'
             && needs.deploy-preview.result == 'success'
             && needs.preview-address.result == 'success'
@@ -1459,7 +1467,7 @@ jobs:
             web_origin: ${{ needs.resolve-sandbox.outputs.web_origin }}
             # Maestro boots an Android emulator, so it is not wanted on every PR: the deploy decides whether it
             # COULD run, the `mobile-e2e` label whether it SHOULD. The manual door turns it on by default.
-            run_mobile_maestro: ${{ contains(github.event.pull_request.labels.*.name, 'mobile-e2e') }}
+            run_mobile_maestro: ${{ contains(github.event.pull_request.labels.*.name, 'mobile-e2e') && needs.select-e2e.outputs.maestro_run == 'true' }}
             # The apps the shards drive, built once by `mobile-app-build` above (empty when the build did not run, which
             # is exactly when Maestro does not). The shards refuse an empty name rather than skip.
             android_test_app: ${{ needs.mobile-app-build.outputs.android_test_app }}
@@ -1468,18 +1476,13 @@ jobs:
             # job I can manually trigger"). It runs only from the manual door, `deployedE2e.yml`. Do not wire it to a
             # label.
             run_load_test: false
-            # WHICH flows the emulator runs. `run_mobile_maestro` decides IF the tier runs; this decides HOW MUCH
-            # of it. Each argument is a BOOLEAN expression so every pair renders `true` or `false`, never the
-            # empty string a bare output would produce. `full=false` is not a narrowing of the manual door — the
-            # door passes no selector, taking the fail-safe "every flow", and a change matching no vertical still
-            # runs the whole suite through `runMaestroFlows.sh`'s own fallback.
-            maestro_flow_selector: >-
-                ${{ format('full=false auth={0} home={1} collections={2} discovery={3} recipes={4}',
-                needs.detect-mobile-flows.outputs.flows_auth == 'true',
-                needs.detect-mobile-flows.outputs.flows_home == 'true',
-                needs.detect-mobile-flows.outputs.flows_collections == 'true',
-                needs.detect-mobile-flows.outputs.flows_discovery == 'true',
-                needs.detect-mobile-flows.outputs.flows_recipes == 'true') }}
+            # WHICH flows the emulator runs, and how much of the web suite. `run_mobile_maestro` decides IF the tier runs;
+            # these decide HOW MUCH of it. They come from the selector (`select-e2e`), never from a list typed here.
+            # An empty selector is the whole suite, which is what the runner reads it as and what the manual door passes.
+            maestro_flow_selector: ${{ needs.select-e2e.outputs.maestro_selector }}
+            web_shards: ${{ needs.select-e2e.outputs.web_shards }}
+            web_tests: ${{ needs.select-e2e.outputs.web_tests }}
+            web_specs: ${{ needs.select-e2e.outputs.web_specs }}
         # No AWS secret: a pull request's preview is non-prod, and every tier signs in through `awsAuth`.
         secrets:
             # ⛔ THE QUEUE-GUARANTEE TIER READS A CRON MONITOR, which is the only thing that can prove the
@@ -2832,139 +2835,95 @@ jobs:
                       *) echo "::error::the web Playwright matrix did not pass ($result) — see the merged report artifact"; exit 1 ;;
                   esac
 
-    # ── WHICH Maestro flows the emulator runs, once the `mobile-e2e` label has decided that it runs ──────
+    # ── WHICH tests the deployed tiers run (ADR-0087) ───────────────────────────────────────────────────
     #
-    # ⛔ MIGRATED FROM `heavy-e2e.yml`, WHERE IT WAS DEAD. That workflow computed this selector and passed it
-    # to the same reusable — but `dorny/paths-filter` self-skips off `pull_request`, and `heavy-e2e.yml`'s PR
-    # trigger had already been removed, so on its surviving `schedule`/`workflow_dispatch` triggers every
-    # vertical came back empty and every run paid the full suite. The optimisation was switched off where it
-    # lived. Here it is live, because this workflow IS the pull-request pipeline.
+    # The owner's law (2026-11-06): run only the Playwright specs and Maestro flows the change affects, chosen by the
+    # script, never by a list typed here. This job asks the same selector a developer's door asks
+    # (`@kitchensink/e2e-plan`, through `npm run e2e:select` and `npm run ci:mobile`) and publishes three things:
+    #   · the web specs, as Playwright file filters, and how many tests they hold;
+    #   · the web matrix, sized by `webShardCount` from the tests and the size of the web pool, so this file does no
+    #     arithmetic. The Maestro matrix is still sized by `shard-matrix` alone;
+    #   · the Maestro flow keys, or the empty selector, which the runner reads as every flow.
     #
-    # ⚠️ The saving is the point: 35.5m of the emulator job's measured 52.75m is flow execution, and the
-    # fixed 17.3m is paid either way.
+    # It needs no sandbox: it reads git, the import graphs and `playwright test --list`, and runs nothing. Fails SAFE:
+    # a selector that cannot answer selects everything. A change that touches no screen selects nothing, and the
+    # matrices then have no legs. A pull request merged with no sandbox up still ran no deployed test, as before.
     #
-    # ⛔ `dorny/paths-filter` here, deliberately, even though the publish gate two hundred lines up REFUSES
-    # it. That gate was bitten by the "list pull request files" API's 3000-file cap — `shared/` sorts past
-    # position 3000 on a PR this size, so the filter answered `false` for a package the PR unmistakably
-    # changed and the run published nothing behind a green check. The difference is the DIRECTION OF FAILURE.
-    # There, a missed match meant a consumer's committed range resolving a version that does not exist.
-    # Here, a missed match attributes NO vertical, and `runMaestroFlows.sh` treats an unattributed change
-    # as attribution failure and runs the WHOLE suite — so the cap can only ever cost runner-minutes, never
-    # coverage. `prChangeDetectionUncapped.test.ts` records this as its one decided exception.
-    #
-    # Deliberately NO `flows_all` key: "everything else" is the script's fallback, not a pattern list, which
-    # is why an incomplete list here is safe and why a leading-`!` negation must never appear.
-    detect-mobile-flows:
-        name: Detect which mobile flow verticals changed
+    # `PLAYWRIGHT_BASE_URL` here is a name that resolves nowhere. Its only job is to make Playwright load the DEPLOYED
+    # configuration, whose project list differs from the local one (`deployedTargetIgnores`), so the count this job
+    # makes is the count every shard will list.
+    select-e2e:
+        name: Select the impacted tests
+        timeout-minutes: 15
         runs-on: ubuntu-latest
-        # ⚠️ UNGATED at the job level on purpose. A skipped dependency skips its dependents, so an `if:` here
-        # would take the Maestro job down with it rather than merely widening its flow set. The filter step
-        # below carries the `pull_request` condition instead, and its empty outputs read as "no vertical".
+        needs: [install, build-ui]
+        permissions:
+            contents: read # checkout only; the job writes nothing
         outputs:
-            flows_auth: ${{ steps.changes.outputs.flows_auth }}
-            flows_home: ${{ steps.changes.outputs.flows_home }}
-            flows_collections: ${{ steps.changes.outputs.flows_collections }}
-            flows_discovery: ${{ steps.changes.outputs.flows_discovery }}
-            flows_recipes: ${{ steps.changes.outputs.flows_recipes }}
+            web_tests: ${{ steps.web.outputs.web_tests }}
+            web_specs: ${{ steps.web.outputs.web_specs }}
+            web_shards: ${{ steps.web.outputs.web_shards }}
+            maestro_run: ${{ steps.mobile.outputs.maestro_run }}
+            maestro_selector: ${{ steps.mobile.outputs.maestro_selector }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                  # The filter runs ONLY on `pull_request`, where the action asks the GitHub API for the file
-                  # list rather than taking its `getChangedFilesFromGit` fallback — so no git credential is
-                  # needed and none is left in the workspace (zizmor: artipacked).
+                  # The whole history: the selector compares with the merge base of the base branch.
+                  fetch-depth: 0
                   persist-credentials: false
-            - name: Detect mobile flow verticals
-              id: changes
-              if: github.event_name == 'pull_request'
-              uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
               with:
-                  filters: |
-                      flows_auth:
-                          - 'packages/apps/commise/features/account/src/**'
-                          - 'packages/apps/commise/mobile/src/auth/**'
-                          - 'packages/apps/commise/mobile/src/components/auth/**'
-                          - 'packages/apps/commise/mobile/src/screens/login.tsx'
-                          - 'packages/apps/commise/mobile/src/screens/signup.tsx'
-                          - 'packages/apps/commise/mobile/src/screens/profile.tsx'
-                          - 'packages/apps/commise/mobile/.maestro/auth/loginFlow.yaml'
-                          - 'packages/apps/commise/mobile/.maestro/accountDangerZone.yaml'
-                          - 'packages/apps/commise/mobile/.maestro/accountErasure.yaml'
-                          - 'packages/apps/commise/mobile/.maestro/dataSources.yaml'
-                          - 'packages/apps/commise/mobile/.maestro/profileUsername.yaml'
-                          - 'packages/apps/commise/features/recipes/src/dataSources/**'
-                          - 'packages/services/recipe-service/src/account/**'
-                      # `features/core` is NOT uniformly Home-scoped, so it is attributed PER MODULE rather
-                      # than as `src/**` — measured by its importers, not assumed from its name. The four
-                      # below are Home's own (widget curation, the roadmap placeholders `home.yaml` asserts,
-                      # Home navigation, the time-of-day greeting). The rest of the package is deliberately
-                      # left unlisted and therefore widens: `appShell.ts` is imported by `AppRoot` (the whole
-                      # shell), `queryStatus.ts` by `RecipeVersionsScreen`, and `utils/formatDate|initials|
-                      # weekdays` by the detail and profile surfaces — mapping those to `home` would have run
-                      # two flows for a change that can break the versions screen.
-                      #
-                      # `features/recipes/src/card/**` appears here AND under `flows_recipes` because the Home
-                      # recipe widget renders the same card leaf; a card change can break the Home surface as
-                      # well as the list.
-                      flows_home:
-                          - 'packages/apps/commise/features/core/src/curateHomeWidgets.ts'
-                          - 'packages/apps/commise/features/core/src/roadmapWidgets.ts'
-                          - 'packages/apps/commise/features/core/src/homeNavigation.ts'
-                          - 'packages/apps/commise/features/core/src/utils/timeOfDay.ts'
-                          - 'packages/apps/commise/features/recipes/src/widget/**'
-                          - 'packages/apps/commise/features/recipes/src/card/**'
-                          - 'packages/apps/commise/mobile/src/screens/HomeScreen.tsx'
-                          - 'packages/apps/commise/mobile/.maestro/home.yaml'
-                      flows_collections:
-                          - 'packages/apps/commise/features/recipes/src/collections/**'
-                          - 'packages/apps/commise/mobile/src/screens/Collection*.tsx'
-                          - 'packages/apps/commise/mobile/.maestro/recipes/collections*.yaml'
-                          - 'packages/services/recipe-service/src/collections/**'
-                      flows_discovery:
-                          - 'packages/apps/commise/features/recipes/src/discovery/**'
-                          - 'packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx'
-                          - 'packages/apps/commise/mobile/.maestro/recipes/discover*.yaml'
-                          - 'packages/services/recipe-service/src/authors/**'
-                          - 'packages/services/recipe-service/src/search/**'
-                      flows_recipes:
-                          - 'packages/apps/commise/features/recipes/src/card/**'
-                          - 'packages/apps/commise/features/recipes/src/detail/**'
-                          - 'packages/apps/commise/features/recipes/src/filters/**'
-                          - 'packages/apps/commise/features/recipes/src/form/**'
-                          - 'packages/apps/commise/features/recipes/src/list/**'
-                          - 'packages/apps/commise/features/recipes/src/photos/**'
-                          - 'packages/apps/commise/features/recipes/src/rating/**'
-                          - 'packages/apps/commise/features/recipes/src/versions/**'
-                          - 'packages/apps/commise/features/recipes/src/editor/**'
-                          - 'packages/apps/commise/mobile/src/screens/Recipe*.tsx'
-                          - 'packages/services/recipe-service/src/recipes/**'
-                          - 'packages/services/recipe-service/src/ratings/**'
-                          - 'packages/services/recipe-service/src/versions/**'
-                          - 'packages/services/recipe-service/src/photos/**'
-                          - 'packages/services/recipe-service/src/ingredients/**'
-                          - 'packages/services/recipe-service/src/search/**'
-                      # ⚠️ RETAINED though the selector never reads it. In `heavy-e2e.yml` this key decided
-                      # whether the emulator booted at all; here the `mobile-e2e` LABEL does that. It stays
-                      # because it is the DENOMINATOR of an invariant `maestroFlowSelection.test.ts` checks:
-                      # every vertical pattern above must sit INSIDE one of these, so a vertical can never fire
-                      # for a change that is not mobile-relevant. A mapping that narrows but cannot admit reads,
-                      # in the log, exactly like one that did — which is why the check earns its one unused key.
-                      mobile:
-                          - 'packages/apps/commise/mobile/**'
-                          - 'packages/apps/commise/ui/src/**'
-                          - 'packages/apps/commise/ui/scripts/**'
-                          - 'packages/apps/commise/features/account/src/**'
-                          - 'packages/apps/commise/features/core/src/**'
-                          - 'packages/apps/commise/features/recipes/src/**'
-                          - 'packages/apps/commise/i18n/src/**'
-                          - 'packages/clients/recipe-service/src/**'
-                          - 'packages/shared/recipe-core/src/**'
-                          - 'packages/services/recipe-service/src/**'
-                          - 'packages/services/recipe-service/Dockerfile'
-                          - 'packages/clients/food-service/src/**'
-                          - 'packages/services/food-service/src/**'
-                          - 'packages/services/food-service/Dockerfile'
-                          - 'packages/shared/clerk-verify/src/**'
-                          - 'packages/shared/identity-core/src/**'
+                  node-version: 24
+            - name: Restore dependencies
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: |
+                      node_modules
+                      packages/*/node_modules
+                      packages/*/*/node_modules
+                      packages/*/*/*/node_modules
+                      packages/*/*/*/*/node_modules
+                  key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+            - name: Install dependencies if the cache missed
+              run: |
+                  if [ -d node_modules ] && [ -n "$(ls -A node_modules 2>/dev/null)" ]; then
+                      exit 0
+                  fi
+                  echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
+                  npm ci
+            # `mockupFidelity.spec.ts` imports `@commise/ui/tokens/gradients`, so `--list` fails to collect without it.
+            - name: Restore UI build artifacts
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                  path: packages/apps/commise/ui/dist
+                  key: ${{ runner.os }}-ui-dist-${{ github.sha }}
+            - name: Ensure @commise/ui is built (fallback if the per-SHA cache restore missed)
+              run: '[ -n "$(ls -A packages/apps/commise/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/ui'
+            - name: Select the web specs and size the web matrix
+              id: web
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+                  EVENT_NAME: ${{ github.event_name }}
+                  FULL_SUITE_INPUT: ${{ inputs.full_suite }}
+                  PLAYWRIGHT_BASE_URL: https://select.invalid
+              run: |
+                  export TURBO_SCM_BASE="origin/${BASE_REF:-main}"
+                  if [ "${EVENT_NAME}" != "pull_request" ] || [ "${FULL_SUITE_INPUT}" = "true" ]; then
+                      export FULL_SUITE=1
+                  fi
+                  npm run e2e:select --workspace=@commise/web
+            - name: Select the Maestro flows
+              id: mobile
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+                  EVENT_NAME: ${{ github.event_name }}
+                  FULL_SUITE_INPUT: ${{ inputs.full_suite }}
+              run: |
+                  export TURBO_SCM_BASE="origin/${BASE_REF:-main}"
+                  if [ "${EVENT_NAME}" != "pull_request" ] || [ "${FULL_SUITE_INPUT}" = "true" ]; then
+                      export FULL_SUITE=1
+                  fi
+                  npm run ci:mobile --workspace=@kitchensink/e2e-plan
 
     # ── THE ONE REQUIRED CHECK ──────────────────────────────────────────────────────────────────────────
     #
@@ -3017,7 +2976,7 @@ jobs:
                 bundle-mobile,
                 integration-web-playwright,
                 e2e-web-report,
-                detect-mobile-flows,
+                select-e2e,
             ]
         if: ${{ always() }}
         steps:

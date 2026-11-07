@@ -421,12 +421,16 @@ describe('4 — the manual door runs the whole suite', () => {
     /** The only conditions a tier in the tiers file may carry. */
     const ALLOWED_TERMS = [
         /inputs\.target_stage\s*!=\s*'prod'/g,
+        // ADR-0087: the pull-request run sizes the web matrix from the plan, and `[]` means no web spec is affected. The
+        // manual door passes no `web_shards`, takes the input's default (one shard per pool lane), and so runs them all.
+        // `selectE2eWiring.test.ts` pins that default and that the door never narrows.
+        /inputs\.web_shards\s*!=\s*'\[\]'/g,
         /inputs\.run_mobile_maestro/g,
         /inputs\.run_load_test/g,
         /!cancelled\(\)/g,
     ];
 
-    it('⛔ no tier is switched off by anything but the two heavy switches and the production subset', () => {
+    it('⛔ no tier is switched off by anything but the two heavy switches, the production subset and an empty web selection', () => {
         const offenders = Object.entries(tiers().jobs ?? {}).flatMap(([key, job]) => {
             const residue = ALLOWED_TERMS.reduce(
                 (text, term) => text.replace(term, ''),

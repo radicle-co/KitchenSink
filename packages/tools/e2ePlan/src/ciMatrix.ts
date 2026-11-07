@@ -14,7 +14,9 @@ const isCount = (value: number): boolean => Number.isInteger(value) && value >= 
  */
 export function webShardCount(listed: number, perShard: number, rosterLanes: number): number {
     if (!isCount(listed) || !isCount(rosterLanes) || !Number.isInteger(perShard) || perShard < 1) {
-        throw new Error(`error: cannot size the web matrix from listed=${listed} perShard=${perShard} lanes=${rosterLanes}`);
+        throw new Error(
+            `error: cannot size the web matrix from listed=${listed} perShard=${perShard} lanes=${rosterLanes}`,
+        );
     }
 
     return Math.min(rosterLanes, Math.ceil(listed / perShard));
@@ -53,14 +55,14 @@ export function maestroSelector(tier: TierJson): string {
     return tier.ids.map((id) => `flow:${id}=true`).join(' ');
 }
 
-/** What the web selection step found, in the three shapes `e2eLanes.ts` can answer. */
+/** What the web selection step found. `filters` are the Playwright file filters that match exactly the chosen specs. */
 export type WebSelection =
     | { readonly kind: 'none' }
-    | { readonly kind: 'list'; readonly file: string; readonly tests: number }
+    | { readonly kind: 'specs'; readonly filters: readonly string[]; readonly tests: number }
     | { readonly kind: 'unselected'; readonly tests: number };
 
 /**
- * The step outputs the web matrix reads: how many tests, which list file (empty for the whole suite), the shards.
+ * The step outputs the web matrix reads: how many tests, which spec filters (empty for the whole suite), the shards.
  *
  * @param selection - What the selection found.
  * @param perShard - Tests one shard should hold.
@@ -71,12 +73,12 @@ export function webSelectionOutputs(
     selection: WebSelection,
     perShard: number,
     rosterLanes: number,
-): Readonly<Record<'web_tests' | 'web_test_list' | 'web_shards', string>> {
+): Readonly<Record<'web_tests' | 'web_specs' | 'web_shards', string>> {
     const tests = selection.kind === 'none' ? 0 : selection.tests;
 
     return {
         web_tests: String(tests),
-        web_test_list: selection.kind === 'list' ? selection.file : '',
+        web_specs: selection.kind === 'specs' ? selection.filters.join(' ') : '',
         web_shards: webShardMatrix(webShardCount(tests, perShard, rosterLanes)),
     };
 }

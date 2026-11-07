@@ -172,10 +172,10 @@ describe('every door to the Maestro tier builds the apps and hands the shards th
      * restores nothing `build-ui` produces, so waiting for it only delayed the start of a ~15-minute build. `install` IS
      * (it seeds the `node_modules` entry the build restores — `depsCacheOrdering.test.ts` holds that edge).
      */
-    it('the pull-request build job waits for install and the gate, and NOT for build-ui', () => {
+    it('the pull-request build job waits for install, the gate and the selection, and NOT for build-ui', () => {
         const needs = needsOf(read('_ci.yml').jobs?.['mobile-app-build']);
 
-        expect([...needs].sort()).toEqual(['install', 'resolve-sandbox', 'sandbox-status']);
+        expect([...needs].sort()).toEqual(['install', 'resolve-sandbox', 'sandbox-status', 'select-e2e']);
     });
 
     it('the manual build job requires a live, non-production target', () => {
@@ -494,7 +494,7 @@ describe.each(SHARD_JOBS)('⛔ $job refuses to run without a built app, and veri
 
 describe('the iOS shard unpacks a tarball into the .app the run step installs', () => {
     const steps = heavy.jobs?.['e2e-mobile-maestro-ios']?.steps ?? [];
-    const flows = steps.find((step) => /runMaestroFlows\.sh/u.test(scalarText(step.run)));
+    const flows = steps.find((step) => /e2e:maestro/u.test(scalarText(step.run)));
     const unpack = steps.find((step) => step.id === 'app');
 
     it('has an unpack step that is the producer of MAESTRO_IOS_APP', () => {

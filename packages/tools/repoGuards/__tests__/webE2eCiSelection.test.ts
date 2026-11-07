@@ -4,7 +4,7 @@
  * list does not hold the number of tests the selection step counted.
  *
  * It EXECUTES the script with a fake `npx` first on PATH, so it sees the real argument list and the real exit code.
- * What it proves: `E2E_TEST_LIST` becomes `--test-list` ahead of the caller's own arguments; the count check runs
+ * What it proves: `E2E_SPECS` become file filters after the caller's own arguments; the count check runs
  * BEFORE Playwright and a failing check stops the run; and with neither variable set the call is the old one,
  * byte for byte (the `webE2eProductionBuild` spelling). It does not prove that Playwright honours `--test-list`.
  */
@@ -51,24 +51,26 @@ describe('web/scripts/e2e.sh on CI', () => {
         });
     });
 
-    it('puts the selected list ahead of the caller arguments', () => {
-        const { status, calls } = runScript({ E2E_TEST_LIST: '/tmp/sel.txt' }, 0);
+    it('adds the selected specs after the caller arguments', () => {
+        const { status, calls } = runScript({ E2E_SPECS: 'tests/e2e/a\\.spec\\.ts$ tests/e2e/b\\.spec\\.ts$' }, 0);
 
         expect(status).toBe(0);
-        expect(calls).toEqual(['playwright test --test-list /tmp/sel.txt --shard=2/4 --reporter=blob']);
+        expect(calls).toEqual([
+            'playwright test --shard=2/4 --reporter=blob tests/e2e/a\\.spec\\.ts$ tests/e2e/b\\.spec\\.ts$',
+        ]);
     });
 
     it('checks the count before Playwright and runs when it holds', () => {
-        const { status, calls } = runScript({ E2E_TEST_LIST: '/tmp/sel.txt', E2E_EXPECTED_TESTS: '30' }, 0);
+        const { status, calls } = runScript({ E2E_SPECS: 'tests/e2e/a\\.spec\\.ts$', E2E_EXPECTED_TESTS: '30' }, 0);
 
         expect(status).toBe(0);
         expect(calls).toHaveLength(2);
-        expect(calls[0]).toBe('tsx scripts/e2eCountCheck.ts 30 --test-list /tmp/sel.txt');
-        expect(calls[1]).toBe('playwright test --test-list /tmp/sel.txt --shard=2/4 --reporter=blob');
+        expect(calls[0]).toBe('tsx scripts/e2eCountCheck.ts 30 tests/e2e/a\\.spec\\.ts$');
+        expect(calls[1]).toBe('playwright test --shard=2/4 --reporter=blob tests/e2e/a\\.spec\\.ts$');
     });
 
     it('stops before Playwright when the count does not hold', () => {
-        const { status, calls } = runScript({ E2E_TEST_LIST: '/tmp/sel.txt', E2E_EXPECTED_TESTS: '30' }, 1);
+        const { status, calls } = runScript({ E2E_SPECS: 'tests/e2e/a\\.spec\\.ts$', E2E_EXPECTED_TESTS: '30' }, 1);
 
         expect(status).not.toBe(0);
         expect(calls.some((call) => call.startsWith('playwright'))).toBe(false);

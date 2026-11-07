@@ -328,6 +328,8 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/recordedRoutes',
         // `packLanes` splits the listed tests across the lanes by recorded duration (the web door's `e2eLanes.ts`).
         '!@kitchensink/*/packLanes',
+        // `ciMatrix` sizes the CI web matrix from the selection (`e2eSelectCi.ts`); the pool's size comes from `testPool`.
+        '!@kitchensink/*/ciMatrix',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.
         '!@kitchensink/*/poolAdmin',

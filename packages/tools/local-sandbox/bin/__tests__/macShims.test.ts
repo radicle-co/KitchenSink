@@ -7,7 +7,8 @@
  * Nothing here touches a Mac, a network or a Simulator.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -203,5 +204,103 @@ describe('laneHost.sh', () => {
         const log = readFileSync(sandbox.log, 'utf8');
         expect(log).toContain('XCRUN simctl delete AAAA');
         expect(log).not.toContain('BBBB');
+    });
+});
+
+describe('buildIosApp.sh check', () => {
+    const KEY = 'abc123';
+    const PUBLISHABLE = 'pk_test_FAKEPUBLISHABLE';
+    const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+    function manifestFor(overrides: Record<string, string> = {}): string {
+        const fields: Record<string, string> = {
+            platform: 'ios',
+            contentKey: KEY,
+            recipeOrigin: 'http://localhost:13000',
+            foodOrigin: 'http://localhost:13002',
+            identityOrigin: 'http://localhost:13001',
+            publishableKeySha256: sha256(PUBLISHABLE),
+            xcodeVersion: 'Xcode 27.2 Build version 27B52',
+            builtFromSha: 'deadbeef',
+            builtInRun: 'local',
+            ...overrides,
+        };
+
+        return `${Object.entries(fields)
+            .map(([k, v]) => `${k}=${v}`)
+            .join('\n')}\n`;
+    }
+
+    /** A fake ssh that serves `manifest` for the `cat` of the app's manifest (or fails when there is none). */
+    function withMacHolding(sandbox: Sandbox, manifest: string | undefined) {
+        const served = path.join(sandbox.root, 'served.manifest');
+
+        if (manifest !== undefined) {
+            writeFileSync(served, manifest);
+        }
+
+        const file = path.join(sandbox.bin, 'ssh');
+        writeFileSync(
+            file,
+            `#!/usr/bin/env bash\ncmd="\${@: -1}"\ncase "$cmd" in\n` +
+                `  cat\\ ksIos/apps/*) cat "${served}" ;;\n` +
+                `  *xcodebuild*) printf 'Xcode 27.2\\nBuild version 27B52\\n' ;;\n  *) exit 9 ;;\nesac\n`,
+        );
+        chmodSync(file, 0o755);
+    }
+
+    const check = (sandbox: Sandbox) =>
+        run('buildIosApp.sh', ['check', KEY], sandbox, {
+            CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+            KS_REPO_ROOT: fileURLToPath(new URL('../../../../../', import.meta.url)),
+            PATH: `${sandbox.bin}:/usr/bin:/bin:/usr/local/bin`,
+        });
+
+    it('accepts an app whose manifest matches the tree, loopback origins and Xcode exactly', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, manifestFor());
+        expect(check(sandbox).status).toBe(0);
+    });
+
+    it('refuses an app built against the shared 3000 origin', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, manifestFor({ recipeOrigin: 'http://localhost:3000' }));
+        const result = check(sandbox);
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('recipeOrigin');
+    });
+
+    it('refuses an app built from another content key', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, manifestFor({ contentKey: 'ffff' }));
+        expect(check(sandbox).status).not.toBe(0);
+    });
+
+    it('refuses an app built by another Xcode', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, manifestFor({ xcodeVersion: 'Xcode 26.5 Build version 1' }));
+        expect(check(sandbox).status).not.toBe(0);
+    });
+
+    it('says how to build it when the Mac holds no app for the key', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, undefined);
+        rmSync(path.join(sandbox.root, 'served.manifest'), { force: true });
+        const result = check(sandbox);
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(`build ${KEY}`);
+    });
+
+    it('refuses a key that is not lowercase hex, so it cannot reach a remote command', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, manifestFor());
+        const result = run('buildIosApp.sh', ['check', 'x; reboot'], sandbox, { CLERK_PUBLISHABLE_KEY: PUBLISHABLE });
+        expect(result.status).not.toBe(0);
+    });
+
+    it('refuses a live publishable key', () => {
+        const sandbox = makeSandbox();
+        const result = run('buildIosApp.sh', ['check', KEY], sandbox, { CLERK_PUBLISHABLE_KEY: 'pk_live_x' });
+        expect(result.status).not.toBe(0);
     });
 });

@@ -19,11 +19,12 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
+import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 
 import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
-import { acquireHostLock, pidIsAlive } from '../src/maestroLanes/hostLock.js';
+import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps } from '../src/maestroLanes/laneRun.js';
@@ -174,14 +175,15 @@ function serviceSpecs(root: string): readonly ServiceSpec[] {
         throw new Error(`maestro:lanes: no queue-consumer plan at ${plan} - run \`npm run local:up\` first`);
     }
 
-    const consumers = (JSON.parse(readFileSync(plan, 'utf8')) as readonly { readonly name: string }[]).map(
-        ({ name }): ServiceSpec => ({
-            name,
-            pattern: new RegExp(`bin/queueConsumer\\.ts ${name.replace(/[^\w-]/gu, '')}( |$)`, 'u'),
-            command: 'npx',
-            args: ['tsx', 'packages/tools/local-sandbox/bin/queueConsumer.ts', name],
-        }),
-    );
+    const consumers = (
+        JSON.parse(readFileSync(plan, 'utf8')) as readonly { readonly name: string; readonly queueUrl: string }[]
+    ).map(({ name, queueUrl }): ServiceSpec => ({
+        name,
+        queueUrl,
+        pattern: new RegExp(`bin/queueConsumer\\.ts ${name.replace(/[^\w-]/gu, '')}( |$)`, 'u'),
+        command: 'npx',
+        args: ['tsx', 'packages/tools/local-sandbox/bin/queueConsumer.ts', name],
+    }));
 
     return [
         ...consumers,
@@ -303,6 +305,11 @@ async function resolveSelection(
  */
 async function startServices(base: Env) {
     const root = stackRoot();
+    const sqs = new SQSClient({
+        endpoint: 'http://localhost:4566',
+        region: 'us-east-1',
+        credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+    });
     const services = await startSharedServices(serviceSpecs(root), {
         listProcesses: async () =>
             (await run('ps', ['-eo', 'pid=,args='])).stdout
@@ -310,6 +317,21 @@ async function startServices(base: Env) {
                 .map((line) => /^\s*(\d+)\s+(.*)$/u.exec(line))
                 .flatMap((match) => (match === null ? [] : [{ pid: Number(match[1]), command: match[2] ?? '' }]))
                 .filter((entry) => entry.pid !== process.pid),
+        unusableBecause: async (spec) => {
+            if (spec.queueUrl === undefined) {
+                return undefined;
+            }
+
+            try {
+                await sqs.send(
+                    new GetQueueAttributesCommand({ QueueUrl: spec.queueUrl, AttributeNames: ['QueueArn'] }),
+                );
+
+                return undefined;
+            } catch (error) {
+                return `its queue ${spec.queueUrl} is not in LocalStack (${error instanceof Error ? error.name : String(error)})`;
+            }
+        },
         start: (spec) => startService(spec, base, root),
         resetPool: async (lane) => {
             await tool(laneEnvFor(base, lane), `the pool reset of lane ${lane.platform}-${lane.index}`, [
@@ -410,7 +432,8 @@ async function main(argv: readonly string[]): Promise<number> {
         repoRoot: REPO_ROOT,
         lockDir: path.join(STATE_DIR, 'locks'),
         baseEnv: base,
-        acquireLock: () => acquireHostLock(path.join(STATE_DIR, 'maestroLanes.lock'), process.pid, pidIsAlive),
+        acquireLock: () =>
+            acquireHostLock(path.join(STATE_DIR, 'maestroLanes.lock'), process.pid, pidIsAlive, currentBootId()),
         selectFlows: (platform, selector) => selectFlows(base, platform, selector),
         pack: async (platform, index, count, flows) => {
             const outcome = await run('bash', [RUNNER, 'pack', platform, String(index), String(count), ...flows]);

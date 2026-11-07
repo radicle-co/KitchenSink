@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { LaneSpec } from '../laneTypes.js';
-import { isForeignServiceError, startSharedServices, type ServicePorts, type ServiceSpec } from '../sharedServices.js';
+import {
+    isForeignServiceError,
+    isServiceUnusableError,
+    startSharedServices,
+    type ServicePorts,
+    type ServiceSpec,
+} from '../sharedServices.js';
 
 const lane = (index: number): LaneSpec => ({
     platform: 'android',
@@ -19,9 +25,14 @@ const SPECS: readonly ServiceSpec[] = [
 ];
 
 /** Fake ports that record every call, in order. */
-function fakePorts(running: readonly { pid: number; command: string }[] = [], failReset: readonly number[] = []) {
+function fakePorts(
+    running: readonly { pid: number; command: string }[] = [],
+    failReset: readonly number[] = [],
+    unusable: Readonly<Record<string, string>> = {},
+) {
     const events: string[] = [];
     const ports: ServicePorts = {
+        unusableBecause: (spec) => Promise.resolve(unusable[spec.name]),
         listProcesses: () => Promise.resolve(running),
         start: (spec) => {
             events.push(`start ${spec.name}`);
@@ -86,6 +97,24 @@ describe('startSharedServices — the run owns every shared service it uses', ()
 
         await expect(startSharedServices(SPECS, failing)).rejects.toThrow(/worker died/u);
         expect(events).toEqual(['start accountErasure', 'stop accountErasure']);
+    });
+});
+
+describe('startSharedServices — a service that cannot work is refused before any starts', () => {
+    /**
+     * ADDED 2026-11-07: a machine restart brought LocalStack back with none of its queues. A consumer started against a
+     * missing queue can still print `draining`, and the run's purge then sits queued - the defect the Supervisor exists
+     * to prevent, caused this time by the restart. So every service's dependencies are checked before the first start.
+     */
+    it('names every unusable service and its reason, and starts nothing', async () => {
+        const { events, ports } = fakePorts([], [], { accountErasure: 'queue http://q/erasure does not exist' });
+
+        const outcome = await startSharedServices(SPECS, ports).catch((error: unknown) => error);
+
+        expect(isServiceUnusableError(outcome)).toBe(true);
+        expect(String(outcome)).toMatch(/accountErasure: queue http:\/\/q\/erasure does not exist/u);
+        expect(String(outcome)).toMatch(/local:up/u);
+        expect(events).toEqual([]);
     });
 });
 

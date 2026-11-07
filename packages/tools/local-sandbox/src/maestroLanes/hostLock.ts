@@ -9,8 +9,12 @@
  * the lock is never seen half-written, so an unreadable lock is damage, never a holder mid-write, and is refused. A
  * dead lock is reclaimed by RENAMING it aside first: only one process can rename that file, and one that renamed a
  * fresh lock instead (a race it lost) puts it back and refuses.
+ *
+ * ⛔ The lock holds the pid AND the boot id. A machine restart mid-run leaves the file behind and starts pids again from
+ * low numbers, so the dead holder's pid can belong to a live, unrelated process; a lock from another boot is dead
+ * whatever its pid says. A lock with no boot id (the earlier format) is judged by its pid alone.
  */
-import { linkSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 
 /** A second orchestrator found the lock held by a live process. */
 export class HostLockHeldError extends Error {
@@ -27,6 +31,8 @@ export class HostLockHeldError extends Error {
 export const isHostLockHeldError = (value: unknown): value is HostLockHeldError => value instanceof HostLockHeldError;
 
 export interface HostLock {
+    /** The pid of a dead (or earlier-boot) holder this acquire reclaimed the lock from, if any. */
+    readonly reclaimedFrom?: number;
     /** Removes the lock if it still holds this pid. */
     release(): void;
 }
@@ -46,10 +52,28 @@ export function pidIsAlive(pid: number): boolean {
     }
 }
 
-const readPid = (file: string): number | undefined => {
-    const text = readFileSync(file, 'utf8').trim();
+/**
+ * This machine's boot id (Linux), or `unknown` where the kernel does not state one: then every lock is judged by its pid.
+ *
+ * @sideEffect Reads `/proc`.
+ */
+export function currentBootId(): string {
+    const file = '/proc/sys/kernel/random/boot_id';
 
-    return /^[1-9]\d*$/u.test(text) ? Number(text) : undefined;
+    return existsSync(file) ? readFileSync(file, 'utf8').trim() : 'unknown';
+}
+
+interface Holder {
+    readonly pid: number;
+    readonly bootId?: string;
+}
+
+const readHolder = (file: string): Holder | undefined => {
+    const match = /^([1-9]\d*)(?: (\S+))?$/u.exec(readFileSync(file, 'utf8').trim());
+
+    return match === null
+        ? undefined
+        : { pid: Number(match[1]), ...(match[2] === undefined ? {} : { bootId: match[2] }) };
 };
 
 const isCode = (error: unknown, code: string): boolean => (error as NodeJS.ErrnoException | undefined)?.code === code;
@@ -61,11 +85,19 @@ const isCode = (error: unknown, code: string): boolean => (error as NodeJS.Errno
  * @param file - The lock file.
  * @param pid - This process's pid.
  * @param isAlive - Whether a pid is live (injected; {@link pidIsAlive} in production).
+ * @param bootId - This boot's id ({@link currentBootId} in production).
  * @throws {HostLockHeldError} When a live process holds it; an `Error` when the lock holds no pid.
  */
-export function acquireHostLock(file: string, pid: number, isAlive: (pid: number) => boolean): HostLock {
+export function acquireHostLock(
+    file: string,
+    pid: number,
+    isAlive: (pid: number) => boolean,
+    bootId: string,
+): HostLock {
     const mine = `${file}.${pid}`;
-    writeFileSync(mine, `${pid}\n`);
+    writeFileSync(mine, `${pid} ${bootId}\n`);
+
+    let reclaimedFrom: number | undefined;
 
     try {
         for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -73,9 +105,12 @@ export function acquireHostLock(file: string, pid: number, isAlive: (pid: number
                 linkSync(mine, file);
 
                 return {
+                    ...(reclaimedFrom === undefined ? {} : { reclaimedFrom }),
                     release: () => {
                         try {
-                            if (readPid(file) === pid) {
+                            const now = readHolder(file);
+
+                            if (now?.pid === pid && now.bootId === bootId) {
                                 unlinkSync(file);
                             }
                         } catch (error) {
@@ -91,26 +126,30 @@ export function acquireHostLock(file: string, pid: number, isAlive: (pid: number
                 }
             }
 
-            const holder = readPid(file);
+            const holder = readHolder(file);
 
             if (holder === undefined) {
                 throw new Error(`${file} holds no pid - remove it by hand if no maestro:lanes run is going`);
             }
 
-            if (isAlive(holder)) {
-                throw new HostLockHeldError(file, holder);
+            const sameBoot = holder.bootId === undefined || holder.bootId === bootId;
+
+            if (sameBoot && isAlive(holder.pid)) {
+                throw new HostLockHeldError(file, holder.pid);
             }
 
             const aside = `${file}.stale.${pid}`;
             renameSync(file, aside);
+            const renamed = readHolder(aside);
 
-            if (readPid(aside) !== holder) {
+            if (renamed?.pid !== holder.pid || renamed.bootId !== holder.bootId) {
                 // Another reclaimer took the lock between the read and the rename: give its lock back.
                 renameSync(aside, file);
-                throw new HostLockHeldError(file, readPid(file) ?? holder);
+                throw new HostLockHeldError(file, renamed?.pid ?? holder.pid);
             }
 
             unlinkSync(aside);
+            reclaimedFrom = holder.pid;
         }
 
         throw new Error(`could not take ${file}`);

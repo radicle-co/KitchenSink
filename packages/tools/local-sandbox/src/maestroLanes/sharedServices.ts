@@ -16,6 +16,8 @@ export interface ServiceSpec {
     readonly pattern: RegExp;
     readonly command: string;
     readonly args: readonly string[];
+    /** The queue a consumer drains, which must exist before it starts. */
+    readonly queueUrl?: string;
 }
 
 export interface RunningService {
@@ -25,6 +27,8 @@ export interface RunningService {
 
 export interface ServicePorts {
     listProcesses(): Promise<readonly { readonly pid: number; readonly command: string }[]>;
+    /** Why the service cannot work right now (a queue it drains does not exist), or `undefined` when it can. */
+    unusableBecause(spec: ServiceSpec): Promise<string | undefined>;
     /** Spawn the service and resolve once it is ready; reject if it never is. */
     start(spec: ServiceSpec): Promise<RunningService>;
     resetPool(lane: LaneSpec): Promise<void>;
@@ -44,6 +48,21 @@ export class ForeignServiceError extends Error {
 
 export const isForeignServiceError = (value: unknown): value is ForeignServiceError =>
     value instanceof ForeignServiceError;
+
+/** A service's dependencies are missing: the local stack is not what `local:up` left (a restarted LocalStack). */
+export class ServiceUnusableError extends Error {
+    constructor(reasons: readonly string[]) {
+        super(
+            `maestro:lanes: the local stack cannot serve these services - run \`npm run local:up\` in the checkout that ` +
+                `owns the stack, then retry:\n${reasons.map((reason) => `  ${reason}`).join('\n')}`,
+        );
+        this.name = 'ServiceUnusableError';
+        Object.setPrototypeOf(this, ServiceUnusableError.prototype);
+    }
+}
+
+export const isServiceUnusableError = (value: unknown): value is ServiceUnusableError =>
+    value instanceof ServiceUnusableError;
 
 export interface SharedServices {
     /** `resetPool` for each lane, one after another. Throws the first failure, after trying every lane. */
@@ -75,10 +94,12 @@ async function stopAll(started: readonly RunningService[]): Promise<void> {
 }
 
 /**
- * Refuse any service already running, then start each one.
+ * Refuse any service already running or unable to work, then start each one.
  *
  * @sideEffect Lists and spawns processes through the ports.
- * @throws {ForeignServiceError} When a service is already running; the start failure, after stopping what started.
+ * @throws {ForeignServiceError} When a service is already running.
+ * @throws {ServiceUnusableError} When a service's dependencies are missing; nothing is started.
+ * @throws The start failure, after stopping what started.
  */
 export async function startSharedServices(specs: readonly ServiceSpec[], ports: ServicePorts): Promise<SharedServices> {
     const running = await ports.listProcesses();
@@ -89,6 +110,20 @@ export async function startSharedServices(specs: readonly ServiceSpec[], ports: 
         if (foreign !== undefined) {
             throw new ForeignServiceError(spec.name, foreign.pid);
         }
+    }
+
+    const unusable: string[] = [];
+
+    for (const spec of specs) {
+        const reason = await ports.unusableBecause(spec);
+
+        if (reason !== undefined) {
+            unusable.push(`${spec.name}: ${reason}`);
+        }
+    }
+
+    if (unusable.length > 0) {
+        throw new ServiceUnusableError(unusable);
     }
 
     const started: RunningService[] = [];

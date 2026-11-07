@@ -138,6 +138,12 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
 export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Promise<number> {
     const lock = deps.acquireLock();
 
+    if (lock.reclaimedFrom !== undefined) {
+        deps.log(
+            `reclaimed the host lock from pid ${lock.reclaimedFrom}, which is gone (an earlier run that died or a restart)`,
+        );
+    }
+
     try {
         const plans: PlatformPlan[] = [];
 

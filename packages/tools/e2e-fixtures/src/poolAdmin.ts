@@ -243,7 +243,13 @@ export type PoolScope =
      * {@link PoolCapacity}). The downgraded owner is created premium, as in the whole-roster run; its world is built by
      * `e2e-seed`'s `ensure-downgraded`.
      */
-    | { readonly kind: 'localRoles' };
+    | { readonly kind: 'localRoles' }
+    /**
+     * The k6 tier's eleven users (alfa..juliett and admin), made at the start of a DISPATCHED load test and deleted at its
+     * end (owner ruling 2026-11-06, which reverses the 2026-09-13 fixed-pool rule for k6 only). The SHARED namespace: they
+     * are the tier's own users for the run's length, and `refuseUnsafeScope` refuses the local one.
+     */
+    | { readonly kind: 'k6Run' };
 
 /** Whether a reconciliation lists the whole instance to report drift. */
 export type DriftAudit = 'audit' | 'skip';
@@ -264,6 +270,12 @@ export function poolScopeOptions(scope: PoolScope): {
         case 'localRoles':
             return {
                 slots: rosterSlots().filter((slot) => slot.tier === 'roles' && isLocalNamespaceSlot(slot)),
+                drift: 'skip',
+                profile: 'leave',
+            };
+        case 'k6Run':
+            return {
+                slots: rosterSlots().filter((slot) => slot.tier === 'k6'),
                 drift: 'skip',
                 profile: 'leave',
             };
@@ -301,6 +313,12 @@ export function refuseUnsafeScope(scope: PoolScope, local: boolean): void {
         );
     }
 
+    if (scope.kind === 'k6Run' && local) {
+        throw new Error(
+            "poolAdmin: --k6-run makes the shared pool's k6 users for a dispatched load test - unset E2E_POOL_NAMESPACE",
+        );
+    }
+
     if (scope.kind === 'localRoles' && !local) {
         throw new Error(
             "poolAdmin: --local-roles makes the local namespace's role users - set E2E_POOL_NAMESPACE=local",
@@ -318,6 +336,8 @@ export interface PoolAdminArgs {
     readonly recycle?: true;
     /** `--delete-consumables`: DELETE ONLY (nothing is created) the scope's LOCAL consumable users; see {@link deleteLocalConsumables}. */
     readonly deleteConsumables?: true;
+    /** `--delete` (with `--k6-run`): DELETE the k6 run's users instead of making them; see {@link deleteK6RunUsers}. */
+    readonly deleteRun?: true;
 }
 
 /** Node's own strict argv parser: an unknown option or a stray positional throws. Pure. */
@@ -334,6 +354,8 @@ function readPoolAdminArgv(argv: readonly string[]) {
             'local-roles': { type: 'boolean' },
             recycle: { type: 'boolean' },
             'delete-consumables': { type: 'boolean' },
+            'k6-run': { type: 'boolean' },
+            delete: { type: 'boolean' },
             platform: { type: 'string' },
             shard: { type: 'string' },
             'settle-downgraded': { type: 'boolean' },
@@ -388,6 +410,35 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
         throw new Error(
             'poolAdmin: --delete-consumables applies to a --maestro-erasure or --maestro-lane run, and not with --recycle or --settle-downgraded',
         );
+    }
+
+    const k6Run = parsed.values['k6-run'] === true;
+    const deleteRun = parsed.values.delete === true;
+
+    if (deleteRun && !k6Run) {
+        throw new Error(
+            'poolAdmin: --delete applies only to a --k6-run (use --delete-consumables for a local Maestro lane)',
+        );
+    }
+
+    if (k6Run) {
+        if (
+            lane ||
+            erasure ||
+            recycle ||
+            deleteConsumables ||
+            phase === 'settled' ||
+            shard !== undefined ||
+            platform !== undefined ||
+            parsed.values['local-roles'] === true
+        ) {
+            throw new Error(
+                'poolAdmin: --k6-run stands alone - it takes no --maestro-lane, --maestro-erasure, --recycle, ' +
+                    '--delete-consumables, --local-roles, --settle-downgraded, --platform or --shard',
+            );
+        }
+
+        return { apply, phase, scope: { kind: 'k6Run' }, ...(deleteRun ? { deleteRun: true as const } : {}) };
     }
 
     const localRoles = parsed.values['local-roles'] === true;
@@ -841,6 +892,55 @@ export async function deleteLocalConsumables(
 }
 
 /**
+ * Delete the users of the k6 tier at the end of a dispatched load test, and create nothing.
+ *
+ * ⛔ As narrow as the creation door. Every slot is checked BEFORE the first lookup: it must belong to the `k6` tier and
+ * carry the SHARED address, so a signer, an erasure subject, a web or role user, or a local copy is refused. (Unlike
+ * {@link deleteLocalConsumables} it admits shared users, because the k6 tier's users are made for the run and are nobody
+ * else's; that is the one reason it is a separate function rather than a flag.)
+ *
+ * @param port - Must be able to `deleteUser`.
+ * @param slots - The slots whose holders to delete.
+ * @param apply - `false` only names who would go.
+ * @returns The ids deleted (or, on a dry run, that would be).
+ * @throws On a slot that is not a shared k6 slot, or a port that cannot delete.
+ * @sideEffect One Backend API read per slot and, with `apply`, one delete per user found.
+ */
+export async function deleteK6RunUsers(
+    port: Pick<PoolAdminPort, 'findUsers' | 'deleteUser'>,
+    slots: readonly PoolSlot[],
+    apply: boolean,
+): Promise<readonly string[]> {
+    for (const slot of slots) {
+        if (slot.tier !== 'k6') {
+            throw new Error(`poolAdmin: ${slot.tier}/${slot.id} is not a k6 slot, so a k6 run does not delete it`);
+        }
+
+        if (isLocalNamespaceSlot(slot)) {
+            throw new Error(`poolAdmin: k6/${slot.id} is a local-namespace copy, not the shared k6 user a run makes`);
+        }
+    }
+
+    if (port.deleteUser === undefined) {
+        throw new Error('poolAdmin: deleting the k6 run users needs a port with deleteUser');
+    }
+
+    const ids: string[] = [];
+
+    for (const slot of slots) {
+        for (const holder of await port.findUsers(slot.email)) {
+            if (apply) {
+                await port.deleteUser(holder.id);
+            }
+
+            ids.push(holder.id);
+        }
+    }
+
+    return ids;
+}
+
+/**
  * Give every slot's user that holds no `external_id` one.
  *
  * Reads each holder FRESH and writes only when it is empty, so an id another writer put there (the sandbox webhook, for a
@@ -1095,6 +1195,18 @@ async function main(): Promise<void> {
         return;
     }
 
+    if (args.deleteRun === true) {
+        const ids = await deleteK6RunUsers(port, scoped.slots, args.apply);
+
+        for (const id of ids) {
+            console.log(`${args.apply ? 'deleted' : 'would delete'} k6 run user ${id}`);
+        }
+
+        console.log(`${args.apply ? 'applied' : 'dry run (pass --apply to delete)'} - ${ids.length} user(s)`);
+
+        return;
+    }
+
     const report = await reconcilePool(port, {
         apply: args.apply,
         phase: args.phase,
@@ -1102,7 +1214,9 @@ async function main(): Promise<void> {
         // The local namespace's users have no sandbox webhook to write their id (see `testPool.ts`'s `PoolNamespace`).
         ...(local ? { externalId: { mint: ulid } } : {}),
         ...(args.recycle ? { recycle: 'consumables' as const } : {}),
-        ...(args.scope.kind === 'localRoles' ? { capacity: { limit: CLERK_DEVELOPMENT_USER_LIMIT } } : {}),
+        ...(args.scope.kind === 'localRoles' || args.scope.kind === 'k6Run'
+            ? { capacity: { limit: CLERK_DEVELOPMENT_USER_LIMIT } }
+            : {}),
         randomPassword: () => `Pp1!${randomBytes(24).toString('base64url')}`,
         now: Date.now,
         sleep: (ms) => delay(ms),

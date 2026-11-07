@@ -304,6 +304,95 @@ describe('every job that writes as the fixed test pool holds its lease and reset
     });
 });
 
+/**
+ * ADDED 2026-11-06 (pool trim, step 6; owner ruling: k6 users are created when a load test is dispatched and deleted at
+ * the end — a reversal of the 2026-09-13 fixed-pool rule for the k6 tier ONLY). The two dispatched k6 jobs make the tier's
+ * eleven users before they lease them and delete them in an `always()` step after the last reset, so a failed, cancelled
+ * or red run still leaves no k6 user holding a Clerk seat (the development instance caps at 100).
+ *
+ * The obligations pinned here, and the failure each prevents:
+ *   - create AFTER the Clerk key is loaded and BEFORE the lease, fatal: a lease over users nobody made fails late and
+ *     reads like an app defect;
+ *   - delete AFTER the last write and the reset-after, `always()`, gated on the create step having STARTED (a half-made
+ *     set must still be removed), and NOT `continue-on-error`: a user left behind holds a seat, so it must redden the job;
+ *   - neither ever runs for a production target: `poolAdmin` refuses a live key, and the gate keeps the step from existing.
+ */
+describe('the k6 jobs make their users at the start of a dispatched run and delete them at its end', () => {
+    const WRITER = /e2e-fixtures\/src\/poolAdmin\.ts/u;
+    const LEASE = /provision:pool|npm run loadtest\b/u;
+    const k6Jobs = ['_ci-heavy.yml::load-test-deployed', 'food-loadtest.yml::loadtest'] as const;
+
+    const parts = (label: string) => {
+        const steps = byLabel(label)?.steps ?? [];
+        const writers = steps.flatMap((step, index) => (WRITER.test(commandsOf(step)) ? [{ step, index }] : []));
+        const create = writers.find(({ step }) => !/--delete\b/u.test(commandsOf(step)));
+        const remove = writers.find(({ step }) => /--delete\b/u.test(commandsOf(step)));
+
+        return { steps, writers, create, remove };
+    };
+
+    it.each(k6Jobs)('%s finds the job, with exactly one create and one delete step', (label) => {
+        const { writers, create, remove } = parts(label);
+
+        expect(byLabel(label), 'discovery lost the k6 job').toBeDefined();
+        expect(writers).toHaveLength(2);
+        expect(create?.step.run).toBeDefined();
+        expect(remove?.step.run).toBeDefined();
+    });
+
+    it.each(k6Jobs)('⛔ %s creates the users after the key is loaded and before it leases them, fatally', (label) => {
+        const { steps, create } = parts(label);
+        const lease = steps.findIndex((step) => LEASE.test(commandsOf(step)));
+        const keyLoaded = steps.findIndex(
+            (step) => /load-secrets/u.test(step.uses ?? '') || /Resolve Clerk config/u.test(step.name ?? ''),
+        );
+
+        expect(keyLoaded, 'no step loads the Clerk key').toBeGreaterThan(-1);
+        expect(create?.index, 'the create runs before the Clerk key is loaded').toBeGreaterThan(keyLoaded);
+        expect(create?.index, 'the create does not run before the lease').toBeLessThan(lease);
+        expect(
+            scalarText(create?.step.if),
+            'an always() create would write after a failure it should stop at',
+        ).not.toMatch(/always\(\)/u);
+        expect(create?.step['continue-on-error'], 'users nobody made would be leased').not.toBe(true);
+        expect(commandsOf(create?.step ?? {})).not.toMatch(/\$\{\{|CLERK_SECRET_KEY|sk_(test|live)_/u);
+    });
+
+    it.each(k6Jobs)(
+        '⛔ %s deletes them in an always() step after the last write, gated on the create having started, and loudly',
+        (label) => {
+            const { steps, create, remove } = parts(label);
+            const writes = steps.flatMap((step, index) => (WRITES.test(commandsOf(step)) ? [index] : []));
+            const resets = steps.flatMap((step, index) => (RESET.test(commandsOf(step)) ? [index] : []));
+            const createId = create?.step.id;
+
+            expect(createId, 'the create step needs an id for the delete to gate on').toBeDefined();
+            expect(remove?.index, 'the delete runs before the last write').toBeGreaterThan(Math.max(...writes));
+            expect(remove?.index, 'the delete runs before the reset-after').toBeGreaterThan(Math.max(...resets, -1));
+            expect(scalarText(remove?.step.if)).toMatch(/always\(\)/u);
+            expect(
+                scalarText(remove?.step.if),
+                'a delete not gated on the create would run when nothing was made',
+            ).toContain(`steps.${String(createId)}.outcome != 'skipped'`);
+            expect(
+                remove?.step['continue-on-error'],
+                'a user left behind holds a Clerk seat, so a failed delete must fail the job',
+            ).not.toBe(true);
+            expect(commandsOf(remove?.step ?? {})).not.toMatch(/\$\{\{|CLERK_SECRET_KEY|sk_(test|live)_/u);
+        },
+    );
+
+    it.each(k6Jobs)('⛔ %s never reaches the writer for a production target', (label) => {
+        const { create, remove } = parts(label);
+
+        for (const step of [create?.step, remove?.step]) {
+            expect(scalarText(step?.if), `${step?.name ?? '(unnamed)'} is not gated off production`).toMatch(
+                /LOAD_TEST_TARGET != 'prod'|k6secrets\.outcome == 'success'|base_stage != 'prod'/u,
+            );
+        }
+    });
+});
+
 describe('the Maestro jobs refill the erasure subjects through poolAdmin right before they provision', () => {
     /** The provisioning step and the refill step, by what they run. */
     const PROVISION = /e2e-seed\/src\/provision\.ts/u;

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     clerkPoolAdminPort,
+    deleteK6RunUsers,
     deleteLocalConsumables,
     describeReport,
     metadataSatisfies,
@@ -1288,6 +1289,214 @@ describe('deleting the local consumable users at the end of a run', () => {
         await expect(
             deleteLocalConsumables({ findUsers: async () => [] }, [slotFor('maestro', 'erasure01')], true),
         ).rejects.toThrow(/deleteUser/u);
+    });
+});
+
+/**
+ * STEP 6 of the pool trim (owner ruling 2026-11-06: "k6 users are created when a load test is dispatched and deleted at the
+ * end", which REVERSES the 2026-09-13 fixed-pool rule for the k6 tier only). The k6 tier's eleven users (alfa..juliett and
+ * admin) are made at the start of a dispatched run and deleted in an always() step at the end. The deletion door is as narrow
+ * as the creation one: only slots of the k6 tier, only the shared address (they ARE CI's, by design, for the run's length).
+ */
+describe('the k6 run scope: create at the start of a load test, delete at the end', () => {
+    const k6Slots = rosterSlots().filter((slot) => slot.tier === 'k6');
+
+    /**
+     * An in-memory Clerk that enforces what the real one does for this question: an email address and a username are each
+     * UNIQUE, and a duplicate create answers 422 `form_identifier_exists`. Deleting a user releases both. That release is
+     * the premise of "a second create of the same username works after a delete"; it is modelled here and NOT verified
+     * against a real Clerk instance (no user may be created or deleted from this branch's work).
+     */
+    const clerkLike = () => {
+        const users = new Map<string, ObservedPoolUser & { username: string }>();
+        let next = 0;
+        const port: PoolAdminPort = {
+            findUsers: async (email) => [...users.values()].filter((u) => u.emails.includes(email)),
+            listUsers: async () => [...users.values()],
+            createUser: async (input: PoolUserCreate) => {
+                const email = input.emailAddress[0] ?? '';
+                const username = input.username ?? '';
+
+                for (const existing of users.values()) {
+                    if (existing.emails.includes(email) || existing.username === username) {
+                        throw new Error('422 form_identifier_exists');
+                    }
+                }
+
+                next += 1;
+                const id = `user_${next}`;
+
+                users.set(id, {
+                    id,
+                    emails: [email],
+                    username,
+                    publicMetadata: { ...input.publicMetadata },
+                    externalId: `ext_${next}`,
+                });
+
+                return { id };
+            },
+            mergeMetadata: async () => undefined,
+            readExternalId: async (id) => users.get(id)?.externalId ?? null,
+            writeExternalId: async () => undefined,
+            reassertProfile: async () => undefined,
+            countUsers: async () => users.size,
+            deleteUser: async (id) => {
+                users.delete(id);
+            },
+        };
+
+        return { port, users };
+    };
+
+    const run = { randomPassword: () => 'random', now: () => 0, sleep: async () => undefined };
+
+    it('parses --k6-run to its own scope, and --delete only with it', () => {
+        expect(parsePoolAdminArgs(['--apply', '--k6-run'])).toMatchObject({ apply: true, scope: { kind: 'k6Run' } });
+        expect(parsePoolAdminArgs(['--apply', '--k6-run', '--delete'])).toMatchObject({
+            apply: true,
+            deleteRun: true,
+            scope: { kind: 'k6Run' },
+        });
+        expect(parsePoolAdminArgs(['--apply', '--k6-run']).deleteRun).toBeUndefined();
+    });
+
+    it.each([
+        [['--delete']],
+        [['--apply', '--delete']],
+        [['--k6-run', '--maestro-lane', '--platform', 'ios', '--shard', '1']],
+        [['--k6-run', '--local-roles']],
+        [['--k6-run', '--recycle']],
+        [['--k6-run', '--settle-downgraded']],
+        [['--k6-run', '--shard', '1']],
+        [['--k6-run', '--delete-consumables']],
+    ])('refuses %j', (argv) => {
+        expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
+    });
+
+    it('reconciles exactly the k6 tier — the ten VUs and the admin — with no drift audit', () => {
+        const options = poolScopeOptions({ kind: 'k6Run' });
+
+        expect(options.slots.map((slot) => slot.id)).toEqual([
+            'alfa',
+            'bravo',
+            'charlie',
+            'delta',
+            'echo',
+            'foxtrot',
+            'golf',
+            'hotel',
+            'india',
+            'juliett',
+            'admin',
+        ]);
+        expect(options.slots.every((slot) => slot.tier === 'k6')).toBe(true);
+        expect(options).toMatchObject({ drift: 'skip', profile: 'leave' });
+    });
+
+    it('⛔ is refused in the local namespace: the k6 users are the shared pool’s, and a local copy of them is nobody’s intent', () => {
+        expect(() => refuseUnsafeScope({ kind: 'k6Run' }, true)).toThrow(/k6/u);
+        expect(() => refuseUnsafeScope({ kind: 'k6Run' }, false)).not.toThrow();
+    });
+
+    it('creates all eleven when none stand, then deletes exactly those eleven and nothing else', async () => {
+        const { port, users } = clerkLike();
+        const bystander = await port.createUser(poolUserCreateInput(slotFor('maestro', 'signer'), 'x'));
+
+        const report = await reconcilePool(port, {
+            ...run,
+            apply: true,
+            ...poolScopeOptions({ kind: 'k6Run' }),
+        });
+
+        expect(report.healthy).toBe(true);
+        expect(users.size).toBe(12);
+
+        const deleted = await deleteK6RunUsers(port, k6Slots, true);
+
+        expect(deleted).toHaveLength(11);
+        expect([...users.keys()]).toEqual([bystander.id]);
+    });
+
+    it('⛔ a SECOND create of the same usernames works after the delete (modelled Clerk; real Clerk unverified)', async () => {
+        const { port, users } = clerkLike();
+        const create = () => reconcilePool(port, { ...run, apply: true, ...poolScopeOptions({ kind: 'k6Run' }) });
+
+        await create();
+        const firstIds = [...users.keys()];
+
+        await deleteK6RunUsers(port, k6Slots, true);
+        expect(users.size).toBe(0);
+
+        const second = await create();
+
+        expect(second.healthy).toBe(true);
+        expect(users.size).toBe(11);
+        expect(new Set([...users.values()].map((u) => u.username)).size).toBe(11);
+        expect([...users.keys()].some((id) => firstIds.includes(id))).toBe(false);
+    });
+
+    it('the model refuses a duplicate while the first still stands, so the test above is not vacuous', async () => {
+        const { port } = clerkLike();
+        const input = poolUserCreateInput(k6Slots[0] ?? alfa, 'x');
+
+        await port.createUser(input);
+        await expect(port.createUser(input)).rejects.toThrow(/form_identifier_exists/u);
+    });
+
+    it('creating twice without a delete creates nothing the second time (an interrupted run leaves a clean retry)', async () => {
+        const { port, users } = clerkLike();
+        const create = () => reconcilePool(port, { ...run, apply: true, ...poolScopeOptions({ kind: 'k6Run' }) });
+
+        await create();
+        await create();
+
+        expect(users.size).toBe(11);
+    });
+
+    it('deletes nothing on a dry run, but names who it would delete', async () => {
+        const { port, users } = clerkLike();
+
+        await reconcilePool(port, { ...run, apply: true, ...poolScopeOptions({ kind: 'k6Run' }) });
+
+        await expect(deleteK6RunUsers(port, k6Slots, false)).resolves.toHaveLength(11);
+        expect(users.size).toBe(11);
+    });
+
+    it('⛔ refuses any slot outside the k6 tier before the first lookup — a signer, an erasure subject, a web user', async () => {
+        const { port } = clerkLike();
+        const find = vi.spyOn(port, 'findUsers');
+
+        for (const other of [slotFor('maestro', 'signer'), slotFor('maestro', 'erasure01'), slotFor('web', 'web01')]) {
+            await expect(deleteK6RunUsers(port, [...k6Slots, other], true)).rejects.toThrow(/k6/u);
+        }
+
+        expect(find).not.toHaveBeenCalled();
+    });
+
+    it('⛔ refuses the local namespace’s copies', async () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        try {
+            const { port } = clerkLike();
+
+            await expect(
+                deleteK6RunUsers(
+                    port,
+                    rosterSlots().filter((slot) => slot.tier === 'k6'),
+                    true,
+                ),
+            ).rejects.toThrow(/local|shared/u);
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+
+    it('refuses through a port that cannot delete', async () => {
+        const { port } = clerkLike();
+        const { deleteUser: _unused, ...cannotDelete } = port;
+
+        await expect(deleteK6RunUsers(cannotDelete, k6Slots, true)).rejects.toThrow(/deleteUser/u);
     });
 });
 

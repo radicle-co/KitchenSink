@@ -148,6 +148,16 @@ jobs:
                   echo "origin=${AZP}" >> "$GITHUB_OUTPUT"
                   echo "Resolved FAPI=https://${FAPI_HOST}  azp=${AZP}"
 
+            # ⛔ MADE FOR THIS RUN, DELETED AT ITS END (owner ruling 2026-11-06, which reverses the 2026-09-13 fixed-pool rule
+            # for the k6 tier only): the k6 users exist only while a dispatched load test runs. Never for a production
+            # base stage, where `poolAdmin` would refuse the live key anyway.
+            - name: Make the k6 users for this run (poolAdmin)
+              id: k6users
+              if: ${{ inputs.base_stage != 'prod' }}
+              env:
+                  CLERK_SECRET_KEY: ${{ steps.clerk.outputs.sk }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run
+
             - name: Run load test
               env:
                   CLERK_SECRET_KEY: ${{ steps.clerk.outputs.sk }}
@@ -169,6 +179,15 @@ jobs:
                   REGION: ${{ env.DEFAULT_AWS_REGION }}
               # `npm run -w` sets cwd to the package, so run.mjs writes report/series there (OUT_DIR=.).
               run: npm run loadtest --workspace=@kitchensink/loadtest
+
+            # ⛔ DELETE THE USERS, `always()`, gated on the create having started, and NOT `continue-on-error`: a user left
+            # behind holds a seat on the 100-user development instance, so a failed delete must redden the job. The food
+            # journey writes only foods, which the catalog keeps, so there is no purge to run first.
+            - name: Delete the k6 users made for this run (poolAdmin)
+              if: ${{ always() && inputs.base_stage != 'prod' && steps.k6users.outcome != 'skipped' }}
+              env:
+                  CLERK_SECRET_KEY: ${{ steps.clerk.outputs.sk }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run --delete
 
             - name: Publish report to job summary
               if: always()

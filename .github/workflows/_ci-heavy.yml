@@ -2248,8 +2248,19 @@ jobs:
               uses: ./.github/actions/load-secrets
               with:
                   stage: sandbox
-            # ⛔ LEASED, NOT CREATED. `provisionPool.ts` signs in as the fixed pool's k6 slots and refuses one
-            # `poolAdmin` has not provisioned; it creates no Clerk user and writes no metadata. It no longer runs
+            # ⛔ MADE FOR THIS RUN, DELETED AT ITS END (owner ruling 2026-11-06, which REVERSES the 2026-09-13 fixed-pool rule
+            # for the k6 tier ONLY). This job is dispatch-only (`deployedE2e.yml`, `ci-full.yml`), so the eleven k6 users
+            # (alfa..juliett and admin) exist only while a load test runs, instead of holding eleven of the Clerk
+            # development instance's 100 seats all month. `poolAdmin --k6-run` creates the missing ones, waits for their
+            # `external_id`, and refuses before its first write if the instance has no room. FATAL: a lease over users
+            # nobody made would fail late and read like an app defect. The Clerk key comes from the masked job
+            # environment `load-secrets` wrote; the matching delete is the `always()` step after the reset-after below.
+            - name: Make the k6 users for this run (poolAdmin)
+              id: k6users
+              if: ${{ steps.live.outputs.recipe == 'true' && steps.k6secrets.outcome == 'success' }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run
+            # ⛔ LEASED, once made. `provisionPool.ts` signs in as the k6 slots and refuses one `poolAdmin` has not made; it
+            # creates no Clerk user and writes no metadata. It no longer runs
             # `e2e-seed provision` either: no k6 scenario read that world (grepped), and it leased the MAESTRO tier's
             # slots from outside the Maestro job's concurrency group.
             - name: Lease the k6 credential pool
@@ -2376,7 +2387,7 @@ jobs:
             # the reset on exactly the runs that left something behind. `!= 'skipped'` is true for success, failure
             # and cancellation, and false when the step's own gate (a live sandbox, the secrets) held it back.
             # `continue-on-error`, NOT silent: a failed slot is an `::error::` line, and the next run's reset-before
-            # refuses to start over whatever this one left. No Clerk user is deleted — the slots are fixed.
+            # refuses to start over whatever this one left. The users themselves go in the next step.
             - name: Reset the leased k6 pool slots after the run
               if: ${{ always() && steps.k6secrets.outcome == 'success' && steps.pool.outcome != 'skipped' }}
               continue-on-error: true
@@ -2389,6 +2400,14 @@ jobs:
                   E2E_SEED_WEB_ORIGIN: ${{ steps.target.outputs.web_origin }}
                   HANDLES: ${{ runner.temp }}/k6-pool/handles.json
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier k6 --vus "${POOL_SIZE}" --handles "${HANDLES}"
+            # ⛔ DELETE THE USERS, `always()` — AFTER the purge above, gated on the create having STARTED (a half-made set is
+            # still removed) and NOT `continue-on-error`: a user left behind holds a Clerk seat on a 100-user instance, so a
+            # failed delete must redden the job. `poolAdmin --delete` can only reach the k6 tier's shared users; it refuses
+            # every other slot before its first lookup. A rerun's create is idempotent, so a red delete costs the next run
+            # nothing but the seats until then.
+            - name: Delete the k6 users made for this run (poolAdmin)
+              if: ${{ always() && steps.k6secrets.outcome == 'success' && steps.k6users.outcome != 'skipped' }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run --delete
             - name: Publish the deployed-origin reports to the job summary
               if: ${{ always() && steps.live.outputs.recipe != '' }}
               working-directory: packages/tools/loadtest

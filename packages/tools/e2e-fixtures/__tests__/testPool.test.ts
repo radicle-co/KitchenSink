@@ -77,8 +77,10 @@ describe('the roster', () => {
     });
 
     it('keeps the k6 addresses the existing sandbox pool users already hold', () => {
-        // Re-addressing them would orphan twenty-one live users on the shared dev instance and force a
-        // re-provision for no gain.
+        // REWRITTEN 2026-11-06 (pool trim, step 6): the k6 users are now made at the start of a dispatched load test and
+        // deleted at its end, so no live user is orphaned by a change. The addresses stay because every k6 scenario, the
+        // harness and `poolAdmin --k6-run` name the users by them, and because a second create of the same username after a
+        // delete must be the SAME user in every report (the modelled-Clerk case in poolAdmin.test.ts).
         expect(slotFor('k6', 'alfa').email).toBe('test-alfa+clerk_test@radcile.com');
         expect(slotFor('k6', 'admin').email).toBe('test-admin+clerk_test@radcile.com');
         expect(slotFor('k6', 'alfa').username).toBe('test_alfa_clerk_test');

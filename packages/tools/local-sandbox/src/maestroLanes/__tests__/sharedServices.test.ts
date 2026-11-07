@@ -2,12 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { LaneSpec } from '../laneTypes.js';
 import { isServiceUnusableError } from '../serviceUnusableError.js';
-import {
-    isForeignServiceError,
-    startSharedServices,
-    type ServicePorts,
-    type ServiceSpec,
-} from '../sharedServices.js';
+import { isForeignServiceError, startSharedServices, type ServicePorts, type ServiceSpec } from '../sharedServices.js';
 
 const lane = (index: number): LaneSpec => ({
     platform: 'android',

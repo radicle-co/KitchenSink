@@ -11,7 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     clerkPoolAdminPort,
     deleteK6RunUsers,
-    deleteLocalConsumables,
     describeLocalLanes,
     describeReport,
     listLocalLanes,
@@ -49,6 +48,7 @@ const clerk = vi.hoisted(() => ({
     createUser: vi.fn(),
     updateUserMetadata: vi.fn(),
     updateUser: vi.fn(),
+    getUser: vi.fn(),
 }));
 
 vi.mock('@clerk/backend', async (importOriginal) => ({
@@ -59,6 +59,7 @@ vi.mock('@clerk/backend', async (importOriginal) => ({
             createUser: clerk.createUser,
             updateUserMetadata: clerk.updateUserMetadata,
             updateUser: clerk.updateUser,
+            getUser: clerk.getUser,
         },
     }),
 }));
@@ -641,6 +642,37 @@ describe('clerkPoolAdminPort', () => {
         clerk.createUser.mockReset();
         clerk.updateUserMetadata.mockReset();
         clerk.updateUser.mockReset();
+        clerk.getUser.mockReset();
+    });
+
+    it('finds a user by its id, and answers undefined for an id Clerk does not hold', async () => {
+        clerk.getUser.mockImplementation(async (id: string) => {
+            if (id === 'user_1') {
+                return {
+                    id,
+                    emailAddresses: [{ emailAddress: 'a@example.com' }],
+                    publicMetadata: { tier: 'x' },
+                    externalId: null,
+                };
+            }
+
+            throw new ClerkAPIResponseError('Not Found', { data: [], status: 404 });
+        });
+        const port = clerkPoolAdminPort('sk_test_x');
+
+        await expect(port.findUserById?.('user_1')).resolves.toEqual({
+            id: 'user_1',
+            emails: ['a@example.com'],
+            publicMetadata: { tier: 'x' },
+            externalId: null,
+        });
+        await expect(port.findUserById?.('user_gone')).resolves.toBeUndefined();
+    });
+
+    it('does not read any other failure as an absent user', async () => {
+        clerk.getUser.mockRejectedValue(new ClerkAPIResponseError('Unauthorized', { data: [], status: 401 }));
+
+        await expect(clerkPoolAdminPort('sk_test_x').findUserById?.('user_1')).rejects.toMatchObject({ status: 401 });
     });
 
     it('⛔ refuses a key that is not a development instance key before building a client', () => {
@@ -1058,240 +1090,33 @@ describe('the Maestro lane scope', () => {
         expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
     });
 
-    it("reconciles the lane's signer, co-author and, on the erasure shard, ONE erasure subject (the Clerk cap is 100)", () => {
+    /**
+     * REWRITTEN 2026-11-07 (owner ruling: a local erasure subject exists only during a run, and the run deletes only the id
+     * it recorded). The lane scope used to include the erasure shard's subject, so provisioning lane 1 made a subject no
+     * run had recorded, which the run then had to refuse. The subject is now made only by `--create-run-erasure-subject`.
+     */
+    it("reconciles the lane's signer and co-author, and never its erasure subject", () => {
         expect(
             poolScopeOptions({ kind: 'maestroLane', platform: 'ios', shard: 1 }).slots.map((slot) => slot.id),
-        ).toEqual(['iossigner01', 'ioscoauthor01', 'erasure06']);
+        ).toEqual(['iossigner01', 'ioscoauthor01']);
         expect(
             poolScopeOptions({ kind: 'maestroLane', platform: 'android', shard: 2 }).slots.map((slot) => slot.id),
         ).toEqual(['signer02', 'coauthor02']);
     });
 });
 
-describe('recycling the consumable users of a local-namespace run', () => {
-    /**
-     * ⛔ In the deployed world an erased subject is deleted from Clerk by the identity deletion worker, and the next run's
-     * refill recreates it. The local stack runs no such worker (its queue URL is a placeholder), so an erased subject
-     * would still stand in Clerk, still be the first one a lease takes, and be a CLOSED account locally. A local run
-     * therefore starts from subjects it has just made. The failure that matters is deleting anyone else: only a
-     * consumable slot IN SCOPE may go, and only when the caller asked.
-     */
-    const erasure = slotFor('maestro', 'erasure01');
-    const held = (slot: typeof erasure): ObservedPoolUser => ({ ...marked(slot), externalId: '01HELD' });
-
-    const portWith = (...users: ObservedPoolUser[]) => {
-        const state = [...users];
-        const deleted: string[] = [];
-
-        return {
-            deleted,
-            port: {
-                findUsers: vi.fn(async (email: string) => state.filter((u) => u.emails.includes(email))),
-                listUsers: vi.fn(async () => [...state]),
-                createUser: vi.fn(async (input: PoolUserCreate) => {
-                    const id = `created_${input.emailAddress[0] ?? ''}`;
-
-                    state.push({
-                        id,
-                        emails: [...input.emailAddress],
-                        publicMetadata: { ...input.publicMetadata },
-                        externalId: null,
-                    });
-
-                    return { id };
-                }),
-                mergeMetadata: vi.fn(async () => undefined),
-                readExternalId: vi.fn(async () => null),
-                writeExternalId: vi.fn(async (userId: string, externalId: string) => {
-                    const index = state.findIndex((u) => u.id === userId);
-                    const found = state[index];
-
-                    if (found !== undefined) {
-                        state[index] = { ...found, externalId };
-                    }
-                }),
-                deleteUser: vi.fn(async (userId: string) => {
-                    deleted.push(userId);
-                    state.splice(
-                        state.findIndex((u) => u.id === userId),
-                        1,
-                    );
-                }),
-                reassertProfile: vi.fn(async () => undefined),
-            } satisfies PoolAdminPort,
-        };
-    };
-
-    const base = {
-        randomPassword: () => 'random',
-        now: () => 0,
-        sleep: async () => undefined,
-        drift: 'skip' as const,
-        externalId: { mint: () => '01MINTEDMINTEDMINTEDMINTED' },
-    };
-
-    it('deletes the consumable subject in scope and makes a fresh one, and leaves the signer alone', async () => {
-        const subject = held(erasure);
-        const signerUser = held(signer);
-        const { port, deleted } = portWith(subject, signerUser);
-
-        const report = await reconcilePool(port, {
-            ...base,
-            slots: [signer, erasure],
-            apply: true,
-            recycle: 'consumables',
-        });
-
-        expect(deleted).toEqual([subject.id]);
-        expect(port.createUser).toHaveBeenCalledTimes(1);
-        expect(port.createUser).toHaveBeenCalledWith(poolUserCreateInput(erasure, 'random'));
-        expect(report.healthy).toBe(true);
-    });
-
-    it('does nothing to a slot outside the scope it was given', async () => {
-        const other = held(slotFor('maestro', 'erasure06'));
-        const { port, deleted } = portWith(other);
-
-        await reconcilePool(port, { ...base, slots: [erasure], apply: true, recycle: 'consumables' });
-
-        expect(deleted).toEqual([]);
-    });
-
-    it('deletes nothing on a dry run', async () => {
-        const { port, deleted } = portWith(held(erasure));
-
-        await reconcilePool(port, { ...base, slots: [erasure], apply: false, recycle: 'consumables' });
-
-        expect(deleted).toEqual([]);
-    });
-
-    it('deletes nothing unless asked', async () => {
-        const { port, deleted } = portWith(held(erasure));
-
-        await reconcilePool(port, { ...base, slots: [erasure], apply: true });
-
-        expect(deleted).toEqual([]);
-    });
-
-    it('refuses through a port that cannot delete', async () => {
-        const { port } = portWith(held(erasure));
-        const { deleteUser: _unused, ...cannotDelete } = port;
-
-        await expect(
-            reconcilePool(cannotDelete, { ...base, slots: [erasure], apply: true, recycle: 'consumables' }),
-        ).rejects.toThrow(/deleteUser/u);
-    });
-
-    it('is a flag only of the lanes that have consumables', () => {
-        expect(parsePoolAdminArgs(['--maestro-lane', '--recycle', '--platform', 'ios', '--shard', '1']).recycle).toBe(
-            true,
-        );
-        expect(
-            parsePoolAdminArgs(['--maestro-erasure', '--recycle', '--platform', 'ios', '--shard', '1']).recycle,
-        ).toBe(true);
-        expect(parsePoolAdminArgs(['--maestro-lane', '--platform', 'ios', '--shard', '1']).recycle).toBeUndefined();
-        expect(() => parsePoolAdminArgs(['--recycle'])).toThrow(/poolAdmin/u);
-    });
-});
-
 /**
- * STEP 4 of the pool trim (2026-11-06): a local run's erasure subject exists only DURING the run. `--delete-consumables` is
- * delete-only (no create), for LOCAL consumables only, so `localMaestro.sh` can remove its subject at the end, failure
- * included. The refusal that matters is unchanged: a SHARED user, CI's, is never deleted by this door.
+ * REPLACED 2026-11-07 (owner ruling: delete only the id the run recorded, never by email or pattern). `--recycle` and
+ * `--delete-consumables` deleted whoever held a local subject's ADDRESS. Their coverage moved to `runUsers.test.ts`, which
+ * tests the recorded-id doors that replace them; here only their refusal is pinned, so an old caller fails loudly.
  */
-describe('deleting the local consumable users at the end of a run', () => {
-    afterEach(() => {
-        vi.unstubAllEnvs();
-    });
-
-    const deletingPort = (...users: ObservedPoolUser[]) => {
-        const deleted: string[] = [];
-        const port: Pick<PoolAdminPort, 'findUsers' | 'deleteUser'> = {
-            findUsers: vi.fn(async (email: string) => users.filter((u) => u.emails.includes(email))),
-            deleteUser: vi.fn(async (userId: string) => {
-                deleted.push(userId);
-            }),
-        };
-
-        return { port, deleted };
-    };
-
-    it('parses --delete-consumables only on a lane or erasure scope, and never with --recycle', () => {
-        expect(
-            parsePoolAdminArgs([
-                '--apply',
-                '--delete-consumables',
-                '--maestro-lane',
-                '--platform',
-                'android',
-                '--shard',
-                '1',
-            ]),
-        ).toMatchObject({ apply: true, deleteConsumables: true, scope: { kind: 'maestroLane' } });
-        expect(
-            parsePoolAdminArgs(['--delete-consumables', '--maestro-erasure', '--platform', 'ios', '--shard', '1']),
-        ).toMatchObject({ deleteConsumables: true, scope: { kind: 'maestroErasure' } });
-        expect(
-            parsePoolAdminArgs(['--maestro-lane', '--platform', 'ios', '--shard', '1']).deleteConsumables,
-        ).toBeUndefined();
-    });
-
+describe('the retired by-address deletion flags', () => {
     it.each([
-        [['--delete-consumables']],
-        [['--delete-consumables', '--local-roles']],
-        [['--delete-consumables', '--recycle', '--maestro-lane', '--platform', 'ios', '--shard', '1']],
-        [['--delete-consumables', '--settle-downgraded', '--maestro-lane', '--platform', 'ios', '--shard', '1']],
+        [['--apply', '--recycle', '--maestro-lane', '--platform', 'android', '--shard', '1']],
+        [['--apply', '--delete-consumables', '--maestro-lane', '--platform', 'android', '--shard', '1']],
+        [['--recycle', '--maestro-erasure', '--platform', 'ios', '--shard', '1']],
     ])('refuses %j', (argv) => {
         expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
-    });
-
-    it('deletes the local consumable subject and nothing else, and creates nothing', async () => {
-        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
-
-        const subject = slotFor('maestro', 'erasure01');
-        const mine = user(subject.email, { id: 'user_local_subject' });
-        const { port, deleted } = deletingPort(mine, user(slotFor('maestro', 'signer').email));
-
-        const ids = await deleteLocalConsumables(port, [subject], true);
-
-        expect(ids).toEqual(['user_local_subject']);
-        expect(deleted).toEqual(['user_local_subject']);
-    });
-
-    it('deletes nothing on a dry run, but still names who it would delete', async () => {
-        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
-
-        const subject = slotFor('maestro', 'erasure01');
-        const { port, deleted } = deletingPort(user(subject.email, { id: 'user_local_subject' }));
-
-        await expect(deleteLocalConsumables(port, [subject], false)).resolves.toEqual(['user_local_subject']);
-        expect(deleted).toEqual([]);
-    });
-
-    it('⛔ refuses a SHARED slot — CI’s erasure subject — before any lookup or delete', async () => {
-        const shared = slotFor('maestro', 'erasure01');
-        const { port, deleted } = deletingPort(user(shared.email, { id: 'user_ci_subject' }));
-
-        await expect(deleteLocalConsumables(port, [shared], true)).rejects.toThrow(/local/u);
-        expect(port.findUsers).not.toHaveBeenCalled();
-        expect(deleted).toEqual([]);
-    });
-
-    it('⛔ refuses a local slot that is not consumable (a signer is not deleted at the end of a run)', async () => {
-        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
-
-        const { port } = deletingPort();
-
-        await expect(deleteLocalConsumables(port, [slotFor('maestro', 'signer')], true)).rejects.toThrow(/consumable/u);
-        expect(port.findUsers).not.toHaveBeenCalled();
-    });
-
-    it('refuses through a port that cannot delete', async () => {
-        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
-
-        await expect(
-            deleteLocalConsumables({ findUsers: async () => [] }, [slotFor('maestro', 'erasure01')], true),
-        ).rejects.toThrow(/deleteUser/u);
     });
 });
 
@@ -1651,11 +1476,21 @@ describe('refuseUnsafeScope', () => {
         expect(() => refuseUnsafeScope({ kind: 'roster' }, true)).toThrow(/whole roster/u);
     });
 
-    it('allows the whole roster in the shared namespace, and every narrow scope in the local one', () => {
+    it('allows the whole roster and the CI erasure refill in the shared namespace, and the lane and role scopes in the local one', () => {
         expect(() => refuseUnsafeScope({ kind: 'roster' }, false)).not.toThrow();
+        expect(() => refuseUnsafeScope({ kind: 'maestroErasure', platform: 'android', shard: 1 }, false)).not.toThrow();
         expect(() => refuseUnsafeScope({ kind: 'localRoles' }, true)).not.toThrow();
         expect(() => refuseUnsafeScope({ kind: 'maestroLane', platform: 'android', shard: 1 }, true)).not.toThrow();
-        expect(() => refuseUnsafeScope({ kind: 'maestroErasure', platform: 'android', shard: 1 }, true)).not.toThrow();
+    });
+
+    /**
+     * ⛔ Owner ruling 2026-11-07: a local erasure subject is made only by the run that records its id. A local
+     * `--maestro-erasure` would make one no run recorded, which every later run must then refuse to touch.
+     */
+    it('refuses the erasure refill in the local namespace, naming the door that records the subject', () => {
+        expect(() => refuseUnsafeScope({ kind: 'maestroErasure', platform: 'android', shard: 1 }, true)).toThrow(
+            /--create-run-erasure-subject/u,
+        );
     });
 
     it('refuses --local-roles outside the local namespace', () => {

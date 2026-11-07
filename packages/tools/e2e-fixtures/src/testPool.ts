@@ -312,6 +312,10 @@ export const MAESTRO_PLATFORMS = ['android', 'ios'] as const;
 /** One of {@link MAESTRO_PLATFORMS}. */
 export type MaestroPlatform = (typeof MAESTRO_PLATFORMS)[number];
 
+/** Whether a command-line value names a platform. Exact match: no trimming or case folding. Pure. */
+export const isMaestroPlatform = (value: string): value is MaestroPlatform =>
+    MAESTRO_PLATFORMS.some((platform) => platform === value);
+
 /** Which identity of a Maestro shard is being asked for. */
 export type MaestroShardRole = 'signer' | 'coauthor';
 
@@ -491,10 +495,11 @@ export const POOL_NAMESPACE_ENV = 'E2E_POOL_NAMESPACE';
  *
  * - `shared` — the sandbox pool CI and the deployed suites lease. The default, and the only value any workflow sets.
  * - `local` — users that exist for a developer's machine alone (`test-local-{id}+clerk_test@…`), on the same Clerk
- *   instance. A local run erases and refills its erasure subjects, but the local stack runs NO deletion worker
- *   (`queueConsumers.ts` marks `deletionWorker` not-run: identity's deletion queue URL is a placeholder locally), so
- *   `poolAdmin --recycle` / `--delete-consumables` delete them from Clerk instead; they must never be CI's. `poolAdmin` mints their `external_id` itself, because the identity webhook
- *   that writes it for the shared pool belongs to the sandbox and is down when the sandbox is.
+ *   instance. A local run makes its own erasure subject and deletes it when it ends, by the id it recorded
+ *   (`runUsers.ts`), because the local stack runs NO deletion worker (`queueConsumers.ts` marks `deletionWorker`
+ *   not-run: identity's deletion queue URL is a placeholder locally). They must never be CI's. The local tools mint
+ *   each user's `external_id` themselves, because the identity webhook that writes it for the shared pool belongs to
+ *   the sandbox and is down when the sandbox is.
  */
 export type PoolNamespace = 'shared' | 'local';
 

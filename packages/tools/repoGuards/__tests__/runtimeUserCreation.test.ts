@@ -47,6 +47,9 @@ import { withoutComments } from './sourceComments.js';
 const CREATORS: Readonly<Record<string, string>> = {
     'packages/tools/e2e-fixtures/src/poolAdmin.ts':
         'the ONLY provisioner of the fixed test pool, run out of band by the owner, never by a test run',
+    'packages/tools/e2e-fixtures/src/runUsers.ts':
+        'makes ONE user, a local Maestro run’s own erasure subject, through poolAdmin’s port; it records the id the ' +
+        'moment Clerk returns it and deletes only that id (owner rulings 2026-11-06 and 2026-11-07)',
     'packages/apps/commise/web/tests/e2e/signUp.spec.ts':
         'registration IS the subject under test; its run-scoped users are swept by planE2EUserCleanup, which is ' +
         'asserted never to match a pool slot',
@@ -200,8 +203,8 @@ describe('isUnitTestFile — the scan scope', () => {
  * a comment naming the writer is not a call) invoke `poolAdmin`.
  */
 describe('the pool writer is reached from CI only as the scoped Maestro erasure refill', () => {
-    /** An invocation of the writer: the script by path, or the workspace script that wraps it. */
-    const INVOKES_WRITER = /poolAdmin\.ts\b|pool:admin\b/u;
+    /** An invocation of a writer: either script by path, or the workspace script that wraps `poolAdmin`. */
+    const INVOKES_WRITER = /poolAdmin\.ts\b|runUsers\.ts\b|pool:admin\b/u;
     /**
      * The admitted spelling: apply, scoped to one PLATFORM's shard's erasure subjects, the shard from the matrix. One
      * spelling per Maestro job, because the platform is a literal in each (REWRITTEN 2026-10-13, when the ten erasure
@@ -233,23 +236,27 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
     /**
      * The ONE script outside CI that may reach the writer (2026-10-27): the local Maestro runner, which makes its own
      * `test-local-*` users on the shared Clerk instance so that it never leases, erases or refills a user CI owns. The
-     * admitted spelling is the lane scope under the local namespace, with `--recycle` (which `poolAdmin` itself refuses
-     * outside that namespace); the script must select the namespace before it runs.
+     * admitted spelling is the lane scope under the local namespace (which `poolAdmin` itself refuses outside that
+     * namespace); the script must select the namespace before it runs.
+     *
+     * AMENDED 2026-11-07 (owner ruling: "Record the exact user id the run created, and at the end delete that id only, if
+     * it still exists. Never delete by pattern or by email"). The lane scope no longer recycles (`--recycle` deleted by
+     * ADDRESS) and makes no erasure subject; the run's subject is made and deleted through `runUsers.ts`, by the id in its
+     * record, which replaces the by-address `--delete-consumables`.
      */
     const LOCAL_LANE_SCRIPT = {
         path: 'packages/tools/local-sandbox/bin/localMaestro.sh',
         command:
-            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1',
+            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-lane --platform android --shard 1',
         // AMENDED 2026-10-29: the second admitted spelling. `--local-roles` creates only the lanes a LOCAL run owns (the
         // downgraded owner, once the five read-only role users are reused from the shared pool), refuses before its first
         // write when the instance has no room, and `poolAdmin` itself refuses it outside the local namespace.
         rolesCommand: 'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles',
-        // AMENDED 2026-11-06 (pool trim, step 4): the third spelling, and it DELETES. `--delete-consumables` is delete-only
-        // (it creates nothing), `poolAdmin` refuses it outside the local namespace, and `deleteLocalConsumables` refuses
-        // any slot that is not a consumable carrying the local address - so it cannot reach CI's users. It is how a local
-        // run removes its erasure subject when it ends, failure included (the exit trap).
-        deleteCommand:
-            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --delete-consumables --maestro-lane --platform android --shard 1',
+        // The run's own erasure subject: created and recorded, then deleted by the recorded id. Both refuse outside the
+        // local namespace, and the delete refuses any record entry that is not a local erasure subject's address.
+        createCommand:
+            'npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --create-run-erasure-subject --platform android --record "$record"',
+        deleteCommand: 'npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --delete-run-users --record "$record"',
         namespace: 'export E2E_POOL_NAMESPACE=local',
     } as const;
 
@@ -326,6 +333,7 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
                 ).toStrictEqual([
                     LOCAL_LANE_SCRIPT.command,
                     LOCAL_LANE_SCRIPT.rolesCommand,
+                    LOCAL_LANE_SCRIPT.createCommand,
                     LOCAL_LANE_SCRIPT.deleteCommand,
                 ]);
                 expect(source, `${invocation.where} must select the local pool namespace`).toContain(

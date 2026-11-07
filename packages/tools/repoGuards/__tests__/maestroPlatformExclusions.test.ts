@@ -432,13 +432,18 @@ describe('platform-flows — the filter itself', () => {
     });
 });
 
-/** Every selector the guard exercises: the full run, and each vertical on its own. */
+/**
+ * Every selector the guard exercises: the full run, one flow iOS keeps, the erasing flow, and every flow iOS excludes
+ * named on purpose beside one it keeps (the case where only the exclusion filter stands between a selection and an
+ * iOS run of it). REWRITTEN 2026-11-07: these were the per-area keys, which are retired.
+ */
 function selectors(): readonly (readonly string[])[] {
-    const verticals = run({}, 'verticals')
-        .stdout.split('\n')
-        .filter((line) => line.length > 0);
-
-    return [[], ...verticals.map((vertical) => [`${vertical}=true`])];
+    return [
+        [],
+        ['flow:home=true'],
+        ['flow:accountErasure=true'],
+        [...exclusions('ios').map((entry) => `flow:${entry.flow}=true`), 'flow:home=true'],
+    ];
 }
 
 describe('shard-selection — select, then filter for the platform, then partition', () => {

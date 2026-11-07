@@ -4,8 +4,10 @@
  * host-owned set of shared services. `FULL_SUITE=1` runs the whole suite; with no `--flows` the impact selector picks.
  *
  * ⛔ A LOCAL e2e run (docs/CODING_STANDARDS.md §7.1a): it proves the app and the flows against this tree's services and
- * nothing about a deploy. It creates and deletes NO Clerk user: the lanes it can run are the lanes whose users exist
- * (`poolAdmin --list-local-lanes`), and adding one is the owner's `poolAdmin --apply --maestro-lane` run.
+ * nothing about a deploy. It creates NO lane user: the lanes it can run are the lanes whose users exist
+ * (`poolAdmin --list-local-lanes`), and adding one is the owner's `poolAdmin --apply --maestro-lane` run. The one Clerk
+ * user it makes is each platform's erasure subject, which exists only during the run: `runUsers.ts` records its id in
+ * `runUsers.<platform>.json` beside the lock, and the run deletes that id and no other when it ends.
  *
  * The run's order and its exits are `src/maestroLanes/laneRun.ts`; this file only wires the real world into it. The
  * toolchain, the Clerk keys, the LocalStack pin and the seed tools' settings come from `localMaestro.sh`'s own functions,
@@ -18,6 +20,7 @@ import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSyn
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { inspect } from 'node:util';
 
 import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
@@ -39,6 +42,11 @@ const STATE_DIR = path.join(
     process.env['XDG_STATE_HOME'] ?? path.join(process.env['HOME'] ?? '', '.local/state'),
     'kitchensink/localMaestro',
 );
+/** The door that makes and deletes the run's own Clerk users, by recorded id; `localMaestro.sh` uses the same one. */
+const RUN_USERS = 'packages/tools/e2e-fixtures/src/runUsers.ts';
+
+/** The run's record of the users it made: beside the lock, and the file `localMaestro.sh`'s door uses too. */
+const runUserRecord = (platform: LanePlatform): string => path.join(STATE_DIR, `runUsers.${platform}.json`);
 
 /**
  * The environment every lane starts from: `localMaestro.sh`'s toolchain, Clerk keys, LocalStack pin and seed settings,
@@ -449,6 +457,41 @@ async function main(argv: readonly string[]): Promise<number> {
         identityCap: async (platform) =>
             (await listLocalLanes(clerkPoolAdminPort(base['CLERK_SECRET_KEY'] ?? ''), platform)).present,
         startServices: () => startServices(base),
+        createRunUsers: async (platforms) => {
+            for (const platform of platforms) {
+                const made = await tool(base, `making the ${platform} run erasure subject`, [
+                    RUN_USERS,
+                    '--create-run-erasure-subject',
+                    '--platform',
+                    platform,
+                    '--record',
+                    runUserRecord(platform),
+                ]);
+                log(made.trim());
+            }
+        },
+        removeRunUsers: async (platforms) => {
+            let failure: Error | undefined;
+
+            // Every platform's record is tried, so one failure does not strand the other platform's subject.
+            for (const platform of platforms) {
+                try {
+                    const deleted = await tool(base, `deleting the ${platform} run users`, [
+                        RUN_USERS,
+                        '--delete-run-users',
+                        '--record',
+                        runUserRecord(platform),
+                    ]);
+                    log(deleted.trim());
+                } catch (error) {
+                    failure ??= error instanceof Error ? error : new Error(inspect(error));
+                }
+            }
+
+            if (failure !== undefined) {
+                throw failure;
+            }
+        },
         setupLane: async (lane, env) => {
             await tool(env, `aligning lane ${lane.index}'s identities`, [
                 'packages/tools/local-sandbox/bin/alignIdentities.ts',

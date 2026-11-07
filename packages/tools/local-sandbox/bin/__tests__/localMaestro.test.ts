@@ -450,16 +450,22 @@ describe('the local run uses its own pool users', () => {
         expect(result.stdout.trim().split('\n').at(-1)).toBe('local');
     });
 
-    it('creates the lane’s users, recycling its erasure subjects, with the namespace in force', () => {
+    /**
+     * REWRITTEN 2026-11-07 (owner ruling: delete only the id the run recorded). The lane's standing users come from
+     * `poolAdmin --maestro-lane`, which no longer touches the erasure subject; the run makes its own subject through
+     * `runUsers.ts`, which records the id in the state directory.
+     */
+    it('makes the lane’s standing users and the run’s own erasure subject, with the namespace in force', () => {
         const sandbox = makeSandbox();
         fakeNpx(sandbox);
 
         expect(
             run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_provision_lane_users`).status,
         ).toBe(0);
-        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
-            'poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 ns=local',
-        );
+        expect(readFileSync(sandbox.calls, 'utf8').split('\n').filter(Boolean)).toEqual([
+            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-lane --platform android --shard 1 ns=local',
+            `npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --create-run-erasure-subject --platform android --record ${sandbox.state}/runUsers.android.json ns=local`,
+        ]);
     });
 
     it('provisions the users after the Clerk keys are loaded and before the pool is reset', () => {
@@ -510,23 +516,25 @@ describe('local_maestro_provision_lane_users — what it may do to Clerk', () =>
         return readFileSync(sandbox.calls, 'utf8');
     }
 
-    it('by default recycles the lane users and creates NO role users', () => {
+    it('by default makes the lane users and the run’s erasure subject, and NO role users', () => {
         const calls = provision({});
 
-        expect(calls).toContain('--apply --recycle --maestro-lane --platform android --shard 1');
+        expect(calls).toContain('poolAdmin.ts --apply --maestro-lane --platform android --shard 1');
+        expect(calls).toContain('runUsers.ts --create-run-erasure-subject --platform android --record ');
         expect(calls).not.toContain('--local-roles');
     });
 
-    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 issues no poolAdmin command at all - nothing is created or deleted in Clerk', () => {
-        expect(provision({ LOCAL_MAESTRO_REUSE_USERS: '1' })).not.toContain('poolAdmin');
+    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 makes no lane user; the run still makes, and later deletes, its own subject', () => {
+        const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: '1' });
+
+        expect(calls).not.toContain('poolAdmin');
+        expect(calls).toContain('--create-run-erasure-subject');
     });
 
-    it('LOCAL_MAESTRO_ROLE_USERS=1 adds the capacity-checked --local-roles step, never --recycle with it', () => {
+    it('LOCAL_MAESTRO_ROLE_USERS=1 adds the capacity-checked --local-roles step once', () => {
         const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: '1', LOCAL_MAESTRO_ROLE_USERS: '1' });
-        const roles = calls.split('\n').filter((line) => line.includes('--local-roles'));
 
-        expect(roles).toHaveLength(1);
-        expect(roles[0]).not.toContain('--recycle');
+        expect(calls.split('\n').filter((line) => line.includes('--local-roles'))).toHaveLength(1);
     });
 
     it('LOCAL_MAESTRO_ROLE_USERS=1 points the five read-only role lanes at the shared pool, and only then', () => {
@@ -543,15 +551,16 @@ describe('local_maestro_provision_lane_users — what it may do to Clerk', () =>
     it('anything but exactly 1 leaves both opt-ins off', () => {
         const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: 'true', LOCAL_MAESTRO_ROLE_USERS: 'yes' });
 
-        expect(calls).toContain('--recycle');
+        expect(calls).toContain('--maestro-lane');
         expect(calls).not.toContain('--local-roles');
     });
 });
 
 /**
- * STEP 4 of the pool trim (2026-11-06): the lane's erasure subject exists only DURING a run. The cleanup trap deletes it, so
- * a failed run, an interrupt and a green run all leave no `test-local-*` consumable in Clerk. It deletes through
- * `poolAdmin --delete-consumables`, which is delete-only and refuses any shared user.
+ * The run's erasure subject exists only DURING a run (owner ruling 2026-11-06). REWRITTEN 2026-11-07 (owner ruling: "Record
+ * the exact user id the run created, and at the end delete that id only, if it still exists. Never delete by pattern or by
+ * email"): the cleanup trap deletes through `runUsers.ts --delete-run-users`, which reads the ids from the run's record, so
+ * a failed run, an interrupt and a green run all delete exactly the user they made.
  */
 describe('a local run deletes its erasure subject when it ends', () => {
     function withFakeNpx(): Sandbox {
@@ -566,51 +575,53 @@ describe('a local run deletes its erasure subject when it ends', () => {
         return sandbox;
     }
 
-    it('issues the delete-only command with the local namespace in force', () => {
+    it('deletes by the run’s record, with the local namespace in force', () => {
         const sandbox = withFakeNpx();
 
-        expect(run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_lane_users`).status).toBe(
+        expect(run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_run_users`).status).toBe(
             0,
         );
         expect(readFileSync(sandbox.calls, 'utf8')).toContain(
-            'poolAdmin.ts --apply --delete-consumables --maestro-lane --platform android --shard 1 ns=local',
+            `runUsers.ts --delete-run-users --record ${sandbox.state}/runUsers.android.json ns=local`,
         );
     });
 
-    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 deletes nothing - a run that reuses standing users must not remove them', () => {
+    it('⛔ never deletes by address: no poolAdmin command at the end of a run', () => {
         const sandbox = withFakeNpx();
 
-        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_lane_users`, {
+        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_run_users`, {
             LOCAL_MAESTRO_REUSE_USERS: '1',
         });
 
-        expect(existsSync(sandbox.calls) ? readFileSync(sandbox.calls, 'utf8') : '').not.toContain('poolAdmin');
+        expect(readFileSync(sandbox.calls, 'utf8')).not.toContain('poolAdmin');
     });
 
-    it('runs from the exit trap once provisioning began, and keeps the run’s own exit status', () => {
+    it('runs from the exit trap once the subject was asked for, and keeps the run’s own exit status', () => {
         const sandbox = withFakeNpx();
         const result = run(
             sandbox,
-            `local_maestro_seed_env '${sandbox.state}'; LOCAL_MAESTRO_USERS_PROVISIONING=true; (exit 7); local_maestro_cleanup`,
+            `local_maestro_seed_env '${sandbox.state}'; LOCAL_MAESTRO_RUN_USERS_MADE=true; (exit 7); local_maestro_cleanup`,
         );
 
         expect(result.status).toBe(7);
-        expect(readFileSync(sandbox.calls, 'utf8')).toContain('--delete-consumables');
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain('--delete-run-users');
     });
 
-    it('does not touch Clerk when the run ended before it made any user', () => {
+    it('does not touch Clerk when the run ended before it asked for the subject', () => {
         const sandbox = withFakeNpx();
 
         run(sandbox, `local_maestro_seed_env '${sandbox.state}'; (exit 3); local_maestro_cleanup`);
 
-        expect(existsSync(sandbox.calls) ? readFileSync(sandbox.calls, 'utf8') : '').not.toContain('poolAdmin');
+        expect(existsSync(sandbox.calls) ? readFileSync(sandbox.calls, 'utf8') : '').not.toContain('runUsers');
     });
 
-    it('marks provisioning as begun BEFORE it creates the first user, so a failure part-way is still cleaned', () => {
+    it('marks the subject as asked for BEFORE it creates it, so a failure part-way is still cleaned', () => {
         const body = run(makeSandbox(), 'declare -f local_maestro_provision_lane_users').stdout;
 
-        expect(body.indexOf('LOCAL_MAESTRO_USERS_PROVISIONING=true')).toBeGreaterThanOrEqual(0);
-        expect(body.indexOf('LOCAL_MAESTRO_USERS_PROVISIONING=true')).toBeLessThan(body.indexOf('poolAdmin.ts'));
+        expect(body.indexOf('LOCAL_MAESTRO_RUN_USERS_MADE=true')).toBeGreaterThanOrEqual(0);
+        expect(body.indexOf('LOCAL_MAESTRO_RUN_USERS_MADE=true')).toBeLessThan(
+            body.indexOf('--create-run-erasure-subject'),
+        );
     });
 });
 

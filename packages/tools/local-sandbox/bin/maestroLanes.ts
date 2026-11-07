@@ -24,6 +24,8 @@ import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/po
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 
 import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
+import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
+import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
@@ -114,10 +116,10 @@ function killGroup(pid: number): void {
     }
 }
 
-/** The adapter for a platform. iOS is Builder B's adapter; until it lands the iOS door refuses. */
+/** The adapter for a platform. iOS refuses to build without `LOCAL_MAESTRO_IOS_HOST`. */
 function adapterFor(platform: LanePlatform, env: Env): DeviceAdapter {
     if (platform === 'ios') {
-        throw new Error('maestro:lanes: the iOS lanes are not wired yet');
+        return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT });
     }
 
     const commands: CommandPort = {

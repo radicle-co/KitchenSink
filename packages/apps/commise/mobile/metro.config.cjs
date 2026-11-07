@@ -29,4 +29,11 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
 };
 
+// A test build (`COMMISE_SCREEN_TRACE=1`, set only by `scripts/buildTestApp.sh`) swaps `useScreenTrace.ts` for
+// `useScreenTrace.maestro.ts`: Metro tries `<name>.<ext>` for each source extension in order, so putting `maestro.ts(x)`
+// first picks the twin wherever one exists. Without the flag the extensions are Expo's own and no bundle can find a twin.
+if (process.env.COMMISE_SCREEN_TRACE === '1') {
+    config.resolver.sourceExts = ['maestro.ts', 'maestro.tsx', ...config.resolver.sourceExts];
+}
+
 module.exports = config;

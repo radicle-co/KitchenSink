@@ -6,8 +6,12 @@
 import { spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { constants } from 'node:os';
+import path from 'node:path';
 
 import type { LaneSpec } from './laneTypes.js';
+
+/** The file in a lane's state folder the runner records the screens its flows showed to. */
+export const SCREEN_RECORD_FILE = 'screenRecord.tsv';
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
@@ -86,6 +90,9 @@ export function laneRunnerEnv(input: {
         MAESTRO_LOCK_DIR: input.lockDir,
         COMMISE_E2E_SHARD: String(lane.index),
         E2E_SEED_STATE_DIR: lane.stateDir,
+        // The runner appends the screens each flow showed (the test build logs them) and each flow's result here;
+        // `checkScreens` reads it after the lanes exit.
+        MAESTRO_SCREEN_RECORD: path.join(lane.stateDir, SCREEN_RECORD_FILE),
         E2E_POOL_NAMESPACE: 'local',
         // The five read-only role users are CI's shared ones; serving them by default is what keeps the role flows run
         // rather than skipped. The run-mode role lock covers the one that writes.

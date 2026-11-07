@@ -326,10 +326,13 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `recordedRoutes` compares the routes a run recorded with the registry. The package barrel stays the lane planner.
         '!@kitchensink/*/runPlan',
         '!@kitchensink/*/recordedRoutes',
+        '!@kitchensink/*/recordedScreens',
         // `packLanes` splits the listed tests across the lanes by recorded duration (the web door's `e2eLanes.ts`).
         '!@kitchensink/*/packLanes',
         // `ciMatrix` sizes the CI web matrix from the selection (`e2eSelectCi.ts`); the pool's size comes from `testPool`.
         '!@kitchensink/*/ciMatrix',
+        // `stampRun` moves the last-green stamp after a local run (ADR-0086); the web door and the Maestro lanes call it.
+        '!@kitchensink/*/stampRun',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.
         '!@kitchensink/*/poolAdmin',

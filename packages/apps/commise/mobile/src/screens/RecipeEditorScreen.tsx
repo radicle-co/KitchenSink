@@ -48,6 +48,7 @@ import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { nativeDeviceStore } from '../storage/deviceSession.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Where the editor hands off: the navigator decides what each means. */
 export interface RecipeEditorScreenProps {
@@ -83,6 +84,7 @@ function useCookDrafts(): CookDrafts | undefined {
  * @returns The editor, or the read boundary around it.
  */
 export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element {
+    useScreenTrace('RecipeEditorScreen');
     const { recipeId } = props;
     const loadCopy = useMessages(recipeLoadMessages);
     const { detail } = useMessages(recipeMessages);

@@ -45,12 +45,6 @@ export interface Models {
     readonly isTestSupport: (file: string) => boolean;
 }
 
-/**
- * What an empty change set means. It is `full` because an empty set looks exactly like a wrong base ref, and a
- * wrong base ref must never read as "nothing changed". One place, so the owner's answer is a one-word edit.
- */
-export const ON_EMPTY_CHANGE: 'full' | 'nothing' = 'full';
-
 const isEmpty = (reached: Reached): boolean => reached.screens.size + reached.tests.size + reached.roots.length === 0;
 
 function impactOf(file: string, models: Models): FileImpact {
@@ -92,19 +86,21 @@ function impactOf(file: string, models: Models): FileImpact {
  *
  * @param files - Repo-relative changed files.
  * @param loadModels - Builds the tier models; called only if a file cannot be settled by its path.
- * @param options - `fullSuite` forces everything.
+ * @param options - `fullSuite` forces everything. `onEmpty` says what no changed files means: `full` (the default)
+ * because an empty set looks exactly like a wrong base ref, which must never read as "nothing changed"; `nothing`
+ * only against a stamp, where it is the answer (see `onEmptyOf`).
  * @returns The plan.
  */
 export async function planChange(
     files: readonly string[],
     loadModels: () => Promise<Models>,
-    options: { readonly fullSuite: boolean },
+    options: { readonly fullSuite: boolean; readonly onEmpty?: 'full' | 'nothing' },
 ): Promise<Plan> {
     if (options.fullSuite) {
         return fullPlan('FULL_SUITE=1');
     }
 
-    if (files.length === 0 && ON_EMPTY_CHANGE === 'full') {
+    if (files.length === 0 && (options.onEmpty ?? 'full') === 'full') {
         return fullPlan('no changed files: the base may be wrong');
     }
 

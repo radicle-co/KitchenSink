@@ -44,6 +44,7 @@ import { AuthHeader } from '../components/auth/AuthHeader.js';
 import { AuthScreenFrame } from '../components/auth/AuthScreenFrame.js';
 import { SignUpFields, type SignUpErrors, type SignUpValues } from '../components/auth/SignUpFields.js';
 import { mobileMessages } from '../i18n/messages.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link CompleteSignUpScreen}. */
 export interface CompleteSignUpScreenProps {
@@ -66,6 +67,7 @@ export function CompleteSignUpScreen({
     fields: initialFields,
     onStartOver,
 }: CompleteSignUpScreenProps): JSX.Element {
+    useScreenTrace('CompleteSignUpScreen');
     const { auth: t } = useMessages(mobileMessages);
     const shared = useMessages(authSurfaceMessages);
     const { setActive } = useClerk();

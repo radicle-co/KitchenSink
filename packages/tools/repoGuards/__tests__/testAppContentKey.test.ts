@@ -52,6 +52,9 @@ const BASE_ENV: Readonly<Record<string, string>> = {
     EXPO_PUBLIC_IDENTITY_API_URL: 'https://identity.example.test',
     EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: 'pk_test_example',
     TEST_APP_CACHE_EPOCH: '1',
+    // `buildTestApp.sh` exports this itself (the screen recorder, which Metro reads at bundle time), so the key it prints
+    // hashes the value `1`; stating it here keeps the direct turbo plan comparable with the script's.
+    COMMISE_SCREEN_TRACE: '1',
     DEVELOPER_DIR: '/Applications/Xcode_26.5.app/Contents/Developer',
 };
 
@@ -142,7 +145,7 @@ describe.each([
     ['ios', ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL']],
 ] as const)('what is baked into the %s binary', (platform, origins) => {
     const baseline = plan(platform).hash;
-    const variables = [...origins, 'EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'TEST_APP_CACHE_EPOCH'];
+    const variables = [...origins, 'EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'TEST_APP_CACHE_EPOCH', 'COMMISE_SCREEN_TRACE'];
 
     it.each(variables)('changing %s changes the key', (name) => {
         expect(plan(platform, { [name]: 'a-different-value' }).hash).not.toBe(baseline);

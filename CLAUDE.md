@@ -495,10 +495,11 @@ Owner law, 2026-11-06. It replaces the ruling of 2026-11-02. Four rules.
 
 - **Run only what the change affects.** Run the Playwright specs and Maestro flows for the screens the change reaches.
   Never run the whole suite to check one screen. The script makes the selection, not you. It walks the import graph from
-  the files changed since the merge base with `origin/main` (ADR-0086). A change it cannot attribute runs the whole tier.
-  That is on purpose, because a skipped test looks like a passed test.
-- **Run the final head the same way.** The run on the final head of a PR is the selected run against `origin/main`.
-  `FULL_SUITE=1` forces the whole suite. It is still the only way to prove a full run, and a shared change such as a
+  the files changed since the last fully passing local run of this branch and platform (ADR-0086). With no such run it
+  runs the whole tier, and with no change since it runs nothing. A change it cannot attribute runs the whole tier. That is
+  on purpose, because a skipped test looks like a passed test.
+- **Run the final head the same way.** The final check of a PR is CI's selected run against the PR base. By hand,
+  `npm run e2e:plan -- --base origin/main` shows the same selection. `FULL_SUITE=1` forces the whole suite. It is still the only way to prove a full run, and a shared change such as a
   primitive, a layout or a service needs one.
 - **Run at the most parallelism the machine allows.** The doors plan the lanes from the CPUs, the memory and the test
   pool, and print which limit set the count. Web lanes use the shared `web` pool slots. Android lanes and iOS lanes use

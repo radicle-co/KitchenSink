@@ -9,7 +9,8 @@
 - **Relates to**:
   [ADR-0032](0032-deployed-ecosystem-test-tier.md) defines the test tiers, and `docs/CODING_STANDARDS.md` section 7.1a
   defines the local tier. This record does not edit them. It narrows what a bare LOCAL run executes. The owner ruled that
-  the final-head run is the selected run against `origin/main`, and `FULL_SUITE=1` still forces the full suite.
+  a local run measures its change from the last fully passing run, and the final-head check is CI's selected run against
+  the pull request base. `FULL_SUITE=1` still forces the full suite.
   [ADR-0087](0087-ci-end-to-end-runs-select-by-impact.md) applies the same selector to CI.
   [ADR-0088](0088-local-maestro-runs-in-lanes-under-one-host-owned-orchestrator.md) decides how the chosen Maestro flows
   run in parallel.
@@ -34,9 +35,22 @@ caller already made, and the selector does not override it. When nothing is affe
 `E2E_LANES=1` turns off the parallel lanes only, not the selection. The deployed tiers and `npm run test:e2e` at the
 root (`turbo run test:e2e`) are unchanged by this record.
 
+A local run measures its change from the last fully passing run, not from `origin/main` (owner ruling 2026-11-07). That
+run leaves a stamp for its branch and platform: the git tree object of the working tree as it was when the run was
+planned, kept under `${XDG_STATE_HOME:-~/.local/state}/kitchensink/e2eGreen/`. With a stamp, the change set is the files
+that differ between that tree and the working tree now, and an empty set runs nothing. With no stamp, with a stamp whose
+tree is gone, or on a detached HEAD, the run does the full suite. An explicit `--base` or `TURBO_SCM_BASE`, and any run
+in CI, keep the old rule: the merge base with that ref, where an empty set runs everything. A run moves the stamp only
+when all four hold. The selector chose the set (`FULL_SUITE=1` counts; an `E2E_TEST_LIST`, Playwright arguments or a
+flow override do not). Every selected test passed, with no failure and no skip. The recorder checks found nothing wrong.
+The tree did not change while the run went on. The stamp then names the tree at plan time, and it also lists the
+sandbox-only flows the run dropped, which stay owed. `npm run e2e:plan -- --base origin/main` reproduces CI's selection
+by hand.
+
 ### 2. The selector walks the import graph backwards to screens, and screens to tests
 
-`@kitchensink/e2e-plan` takes the files changed since the merge base with `origin/main` (watskeburt). It builds the
+`@kitchensink/e2e-plan` takes the files changed since the base of section 1. It lists them by diffing git trees, so
+staged, unstaged and untracked files, and both names of a rename, arrive from one diff. It builds the
 import graph of each app with dependency-cruiser. It walks from each changed file to the screens that import it. A
 registry per tier names the screens each test passes through. A test runs if its row names a reached screen. It also
 runs if the changed file is part of the test or is imported by it. A Maestro sub-flow selects every top-level flow
@@ -105,8 +119,10 @@ and the iOS door. The root door `e2e:plan` prints the selection and the reason f
 - A new spec or flow must come with a registry row. Without one, the tier runs whole and the guard fails. Deleting a test
   must delete its row.
 - Specs whose navigation the guard cannot read carry a `*` row and run on every screen change.
-- The selector pins `dependency-cruiser` and `watskeburt` exactly. The version of `dependency-cruiser` is the newest one
-  published at least two weeks before it was adopted.
+- The selector pins `dependency-cruiser` exactly. Its version is the newest one published at least two weeks before it
+  was adopted.
+- A stamp is as sound as the selector. A pass proves the change it was selected for, so a wrong selection that passes
+  moves the stamp past a change that was never tested. CI's selection against the pull request base is the second check.
 
 ## Residual risk
 

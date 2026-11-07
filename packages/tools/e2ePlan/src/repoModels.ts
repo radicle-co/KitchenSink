@@ -11,10 +11,14 @@ import { join } from 'node:path';
 import { changedRows } from './changedRows.js';
 import { checkCoverage, parseCoverage, type CoverageTable } from './coverageTable.js';
 import { buildImportGraph, type GraphProfile } from './dependencyGraph.js';
+import { flowCoverage } from './flowCoverage.js';
 import { maestroFlowGraph } from './maestroFlows.js';
 import { mobileRegistry } from './mobileScreens.js';
+import { plannedFlows } from './plannedFlows.js';
 import type { Models, TierModel } from './planChange.js';
-import { reach, type Reached } from './reachability.js';
+import { parseBindings, type ModuleBindings } from './moduleBindings.js';
+import { fileLevel, reach, type Reached } from './reachability.js';
+import { initialChange, symbolStep } from './symbolEdges.js';
 import { webRegistry } from './webRoutes.js';
 import { isTestSupportCandidate, testingDirs } from './testSupport.js';
 import { closureOf, readWorkspaces } from './workspaces.js';
@@ -77,7 +81,26 @@ const NATIVE_LEAF = /\.native\.([cm]?[jt]sx?)$/u;
 
 const noRoots: ReadonlySet<string> = new Set();
 
-async function webModel(repo: string, mergeBase: string | undefined): Promise<TierModel> {
+/** The parse of a file, shared by both tiers: syntax does not depend on the platform. */
+type BindingsOf = (file: string) => ModuleBindings | undefined;
+
+function cachedBindings(repo: string): BindingsOf {
+    const cache = new Map<string, ModuleBindings | undefined>();
+
+    return (file) => {
+        if (!cache.has(file)) {
+            try {
+                cache.set(file, parseBindings(read(repo, file), file));
+            } catch {
+                cache.set(file, undefined);
+            }
+        }
+
+        return cache.get(file);
+    };
+}
+
+async function webModel(repo: string, mergeBase: string | undefined, bindingsOf: BindingsOf): Promise<TierModel> {
     const graph = await buildImportGraph(repo, WEB_PROFILE);
     const appFiles = globSync(`${WEB}/src/app/**/*`, { cwd: repo });
     const topLevel = globSync(`${WEB}/src/*.{ts,tsx}`, { cwd: repo });
@@ -95,13 +118,14 @@ async function webModel(repo: string, mergeBase: string | undefined): Promise<Ti
         coverage: table,
         shippingImportersOf: (file) =>
             graph.importersOf(file).filter((importer) => !importer.startsWith(`${WEB}/tests/`)),
-        belongsToOtherPlatform: (file) =>
-            file.startsWith(`${MOBILE}/`) || (NATIVE_LEAF.test(file) && graph.has(file.replace(NATIVE_LEAF, '.$1'))),
+        // Webpack and Turbopack never resolve a `.native` leaf (next.config adds no such extension), so one belongs to
+        // mobile whether or not it has a web twin.
+        belongsToOtherPlatform: (file) => file.startsWith(`${MOBILE}/`) || NATIVE_LEAF.test(file),
         reachFile: (file) =>
             file === SPEC_TABLE
                 ? { screens: new Set(), tests: new Set(edited), roots: [] }
                 : graph.has(file)
-                  ? reach(file, graph.importersOf, terminals)
+                  ? reach(file, symbolStep({ ...graph, bindingsOf }), terminals, initialChange(bindingsOf(file)))
                   : undefined,
         problems: [
             ...graph.problems,
@@ -112,20 +136,7 @@ async function webModel(repo: string, mergeBase: string | undefined): Promise<Ti
     };
 }
 
-/** The flows a run starts, from the runner's own plan (`vertical:flow` lines), so the list has one source. */
-function plannedFlows(repo: string): readonly string[] {
-    const output = execFileSync('bash', [`${MOBILE}/tests/e2e/runMaestroFlows.sh`, 'plan'], {
-        cwd: repo,
-        encoding: 'utf8',
-    });
-
-    return output
-        .split('\n')
-        .filter((line) => line.includes(':'))
-        .map((line) => line.slice(line.indexOf(':') + 1));
-}
-
-async function mobileModel(repo: string, mergeBase: string | undefined): Promise<TierModel> {
+async function mobileModel(repo: string, mergeBase: string | undefined, bindingsOf: BindingsOf): Promise<TierModel> {
     const graph = await buildImportGraph(repo, MOBILE_PROFILE);
     const registry = mobileRegistry({
         screensDir: `${MOBILE}/src/screens`,
@@ -149,19 +160,11 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
     const subflows = flowFiles.filter((file) => /\.ya?ml$/u.test(file) && !flows.tests.has(file)).map(idOf);
     const flowTerminals = { screenEntries: new Map(), roots: noRoots, tests: flows.tests };
     const edited = changedRows(tableAt(repo, mergeBase, FLOW_TABLE), table).flatMap((id) =>
-        tests.includes(id) ? [id] : [...reach(`${MOBILE}/.maestro/${id}.yaml`, flows.importersOf, flowTerminals).tests],
+        tests.includes(id)
+            ? [id]
+            : [...reach(`${MOBILE}/.maestro/${id}.yaml`, fileLevel(flows.importersOf), flowTerminals).tests],
     );
-    const coverage = new Map(
-        [...flows.tests].map(([file, id]) => {
-            const screens = new Set<string>([...(table.get(id) ?? []), ...MOBILE_PASS_THROUGH]);
-
-            for (const sub of flows.runsOf(file)) {
-                (table.get(idOf(sub)) ?? new Set<string>()).forEach((screen) => screens.add(screen));
-            }
-
-            return [id, screens] as const;
-        }),
-    );
+    const coverage = flowCoverage({ flows, table, idOf, passThrough: MOBILE_PASS_THROUGH });
 
     return {
         name: 'mobile',
@@ -181,9 +184,16 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
 
             return merge([
                 ...(graph.has(file)
-                    ? [reach(file, graph.importersOf, { ...registry.terminals, tests: new Map() })]
+                    ? [
+                          reach(
+                              file,
+                              symbolStep({ ...graph, bindingsOf }),
+                              { ...registry.terminals, tests: new Map() },
+                              initialChange(bindingsOf(file)),
+                          ),
+                      ]
                     : []),
-                ...(flows.has(file) ? [reach(file, flows.importersOf, flowTerminals)] : []),
+                ...(flows.has(file) ? [reach(file, fileLevel(flows.importersOf), flowTerminals)] : []),
             ]);
         },
         problems: [
@@ -206,7 +216,11 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
  * @throws When a registry is missing or malformed: the caller falls back to the full suite.
  */
 export async function loadRepoModels(repo: string, mergeBase?: string): Promise<Models> {
-    const [web, mobile] = await Promise.all([webModel(repo, mergeBase), mobileModel(repo, mergeBase)]);
+    const bindingsOf = cachedBindings(repo);
+    const [web, mobile] = await Promise.all([
+        webModel(repo, mergeBase, bindingsOf),
+        mobileModel(repo, mergeBase, bindingsOf),
+    ]);
 
     const packages = readWorkspaces(repo);
     const testing = testingDirs(packages);

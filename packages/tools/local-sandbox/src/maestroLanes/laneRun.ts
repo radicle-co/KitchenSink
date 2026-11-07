@@ -16,6 +16,7 @@ import path from 'node:path';
 import { inspect } from 'node:util';
 
 import { planLanes } from '@kitchensink/e2e-plan';
+import type { FlowResult } from '@kitchensink/e2e-plan/recordedScreens';
 
 import type { HostLock } from './hostLock.js';
 import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
@@ -23,12 +24,36 @@ import { laneRunnerEnv, type Env, type LaneChild } from './laneProcess.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from './laneTypes.js';
 import type { SharedServices } from './sharedServices.js';
 
+/** `all`, or the flows to run. An empty list selects nothing: it is never read as `all`. */
+export type Selection = 'all' | readonly string[];
+
 export interface LaneRunRequest {
     readonly platforms: readonly LanePlatform[];
     /** `--lanes`: it can only lower each platform's count. */
     readonly requested?: number;
-    /** The impact selector's answer, or the flows named on the command line. */
-    readonly selection: 'all' | readonly string[];
+    /** The flows named on the command line or `all` for every platform, or the impact selector's answer for each. */
+    readonly selection: Selection | Readonly<Record<LanePlatform, Selection>>;
+}
+
+const selectionFor = (selection: LaneRunRequest['selection'], platform: LanePlatform): Selection =>
+    typeof selection === 'object' && !('length' in selection) ? selection[platform] : selection;
+
+/** What a settled platform hands the green stamp: the flows its lanes were given and how each ended. */
+export interface StampSettlement {
+    readonly platform: LanePlatform;
+    /** The flows the lanes were given. Empty when nothing was selected or nothing selected can run locally. */
+    readonly flows: readonly string[];
+    /** The sandbox-only flows this run dropped. */
+    readonly owed: readonly string[];
+    readonly results: ReadonlyMap<string, FlowResult>;
+    /** Whether the screen check found nothing wrong. */
+    readonly recorderClean: boolean;
+}
+
+/** What the screen check found: the exit code it adds, and each platform's flows by recorded result. */
+export interface ScreenOutcome {
+    readonly code: number;
+    readonly results: ReadonlyMap<string, ReadonlyMap<string, FlowResult>>;
 }
 
 /** What the run needs from the world, injected so its order and its exits are testable without devices. */
@@ -43,7 +68,12 @@ export interface LaneRunDeps {
     selectFlows(
         platform: LanePlatform,
         selector: string,
-    ): Promise<{ readonly flows: readonly string[]; readonly notes: readonly string[] }>;
+    ): Promise<{
+        readonly flows: readonly string[];
+        readonly notes: readonly string[];
+        /** The selected sandbox-only flows the local filter dropped. */
+        readonly owed: readonly string[];
+    }>;
     /** The runner's packer: lane `index` of `count`'s flows on a platform. */
     pack(platform: LanePlatform, index: number, count: number, flows: readonly string[]): Promise<readonly string[]>;
     /** How many lanes, from lane 1, have their Clerk users. */
@@ -59,6 +89,16 @@ export interface LaneRunDeps {
     /** After the lane's pool reset: align its identities and provision its world into its manifest. */
     setupLane(lane: LaneSpec, env: Env): Promise<void>;
     spawnLane(lane: LaneSpec, env: Env): LaneChild;
+    /**
+     * After the lanes exit: checks the screens their flows showed against the registry. Its code folds into the run's
+     * exit code; its results say how each flow ended.
+     */
+    checkScreens(lanes: readonly LaneSpec[]): Promise<ScreenOutcome>;
+    /**
+     * Once per planned platform, after the check, unless the operator stopped the run: moves the green stamp if the run
+     * earned it. It must not throw for a stamp that stays: that never changes the exit code.
+     */
+    settleStamp(settlement: StampSettlement): Promise<void>;
     /** True once the operator asked the run to stop. */
     aborted(): boolean;
     readonly staggerMs: number;
@@ -72,6 +112,8 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 interface PlatformPlan {
     readonly adapter: DeviceAdapter;
+    readonly flows: readonly string[];
+    readonly owed: readonly string[];
     readonly selector: string;
     readonly lanes: readonly LaneSpec[];
 }
@@ -85,8 +127,16 @@ const laneName = (lane: LaneSpec): string => `${lane.platform}-${lane.index}`;
  */
 async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform: LanePlatform): Promise<PlatformPlan> {
     const adapter = deps.adapterFor(platform);
-    const selector = request.selection === 'all' ? '' : flowSelector(request.selection);
-    const { flows, notes } = await deps.selectFlows(platform, selector);
+    const selection = selectionFor(request.selection, platform);
+
+    if (selection !== 'all' && selection.length === 0) {
+        deps.log(`nothing to run on ${platform}: no change touches a screen a flow covers`);
+
+        return { adapter, flows: [], owed: [], selector: '', lanes: [] };
+    }
+
+    const selector = selection === 'all' ? '' : flowSelector(selection);
+    const { flows, notes, owed } = await deps.selectFlows(platform, selector);
 
     for (const note of notes) {
         deps.log(note);
@@ -95,7 +145,7 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
     if (flows.length === 0) {
         deps.log(`nothing to run on ${platform}: no selected flow is one these lanes can serve`);
 
-        return { adapter, selector, lanes: [] };
+        return { adapter, flows: [], owed, selector, lanes: [] };
     }
 
     const identityCap = await deps.identityCap(platform);
@@ -132,6 +182,8 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
 
     return {
         adapter,
+        flows,
+        owed,
         selector,
         lanes: laneSpecs({ platform, count, stateDir: deps.stateDir, deviceFor: adapter.deviceFor }),
     };
@@ -162,15 +214,27 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
 
         const lanes = plans.flatMap((plan) => plan.lanes);
 
-        if (lanes.length === 0) {
-            return 0;
+        const code =
+            lanes.length === 0
+                ? 0
+                : await runPlanned(
+                      deps,
+                      plans.filter((plan) => plan.lanes.length > 0),
+                      lanes,
+                  );
+
+        // A platform with nothing to run passed nothing, which is not a failure: its stamp may still move.
+        for (const plan of plans.filter((candidate) => candidate.lanes.length === 0 && !deps.aborted())) {
+            await deps.settleStamp({
+                platform: plan.adapter.platform,
+                flows: [],
+                owed: plan.owed,
+                results: new Map(),
+                recorderClean: true,
+            });
         }
 
-        return await runPlanned(
-            deps,
-            plans.filter((plan) => plan.lanes.length > 0),
-            lanes,
-        );
+        return code;
     } finally {
         lock.release();
     }
@@ -273,7 +337,25 @@ async function runPlanned(
 
         const codes = await Promise.all(exits);
 
-        return deps.aborted() ? ABORTED : Math.max(...codes);
+        if (deps.aborted()) {
+            return ABORTED;
+        }
+
+        const checked = await deps.checkScreens(lanes);
+
+        for (const plan of plans) {
+            const { platform } = plan.adapter;
+
+            await deps.settleStamp({
+                platform,
+                flows: plan.flows,
+                owed: plan.owed,
+                results: checked.results.get(platform) ?? new Map(),
+                recorderClean: checked.code === 0,
+            });
+        }
+
+        return Math.max(...codes, checked.code);
     };
 
     // Every step runs whatever the one before it did. The services stop before the run users go (a lane's reset needs

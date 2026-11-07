@@ -15,8 +15,9 @@
  *   Case draws; the caller decides when a value is absent and what stands in for it
  */
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { StandInProps } from './props.js';
@@ -34,7 +35,9 @@ export const StandIn: FC<StandInProps> = ({ tone, children }) => {
                     : { borderColor: colors.inkMuted, backgroundColor: colors.paper },
             ]}
         >
-            <Text style={[styles.label, { color: tone === 'caution' ? colors.ink : colors.inkMuted }]}>{children}</Text>
+            <Text typeRole="caption" color={tone === 'caution' ? '$ink' : '$inkMuted'} flexShrink={1}>
+                {children}
+            </Text>
         </View>
     );
 };
@@ -51,5 +54,4 @@ const styles = StyleSheet.create({
     },
     // Colours come from the theme at render: neutral is an `inkMuted` edge and label on `paper`; caution is the
     // `attention` edge on the `attentionTint` fill under an `ink` label (the tint is a FILL, never a text colour).
-    label: { ...nativeTokens.type.caption, flexShrink: 1 },
 });

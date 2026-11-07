@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fitLaneCount, flowSelector, laneSpecs } from '../lanePlanning.js';
+import { fitLaneCount, flowSelector, laneSpecs, parseLaneArgs } from '../lanePlanning.js';
 
 const ANDROID = (index: number): string => `emulator-${5554 + 2 * index}`;
 
@@ -90,5 +90,38 @@ describe('fitLaneCount — every lane holds at least one flow', () => {
 
     it('answers zero when even one lane would be empty', () => {
         expect(fitLaneCount(2, packer([], []))).toBe(0);
+    });
+});
+
+describe('parseLaneArgs — the maestro:lanes command line', () => {
+    it('reads a platform, a lane count and named flows', () => {
+        expect(parseLaneArgs(['--platform', 'android', '--lanes', '3', '--flows', 'home', 'recipes/edit'], {})).toEqual(
+            {
+                platforms: ['android'],
+                requested: 3,
+                selection: ['home', 'recipes/edit'],
+            },
+        );
+    });
+
+    it('expands both to both platforms', () => {
+        expect(parseLaneArgs(['--platform', 'both'], {}).platforms).toEqual(['android', 'ios']);
+    });
+
+    it('asks the impact selector when no flow is named, and runs everything under FULL_SUITE=1', () => {
+        expect(parseLaneArgs(['--platform', 'android'], {}).selection).toBe('changed');
+        expect(parseLaneArgs(['--platform', 'android', '--flows', 'home'], { FULL_SUITE: '1' }).selection).toBe('all');
+    });
+
+    it.each([
+        [['--lanes', '2']],
+        [['--platform', 'tvos']],
+        [['--platform', 'android', '--lanes', '0']],
+        [['--platform', 'android', '--lanes', '2x']],
+        [['--platform', 'android', '--flows']],
+        [['--platform', 'android', 'home']],
+        [['--platform', 'android', '--nonsense']],
+    ])('refuses %j', (argv) => {
+        expect(() => parseLaneArgs(argv, {})).toThrow(/maestro:lanes/u);
     });
 });

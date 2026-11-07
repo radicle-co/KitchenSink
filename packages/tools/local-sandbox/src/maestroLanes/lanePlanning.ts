@@ -4,6 +4,7 @@
  * how many lanes have their Clerk users is `poolAdmin`'s `listLocalLanes`.
  */
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 import { maestroSlotForShard } from '@kitchensink/e2e-fixtures/testPool';
 
@@ -104,4 +105,59 @@ export function fitLaneCount(count: number, packed: (index: number, count: numbe
     }
 
     return 0;
+}
+
+/** What `maestro:lanes` was asked to run. */
+export interface LaneArgs {
+    readonly platforms: readonly LanePlatform[];
+    readonly requested?: number;
+    /** `changed` asks the impact selector; `all` is the whole suite; a list is the flows named. */
+    readonly selection: 'all' | 'changed' | readonly string[];
+}
+
+/**
+ * Read `--platform android|ios|both [--lanes <n>] [--flows <f...>]`. `FULL_SUITE=1` runs everything. Pure.
+ *
+ * @throws On a missing or unknown platform, a lane count that is not a positive integer, `--flows` naming nothing, a
+ *   flow named without `--flows`, or any other argument.
+ */
+export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<string, string | undefined>>): LaneArgs {
+    let parsed;
+
+    try {
+        parsed = parseArgs({
+            args: [...argv],
+            strict: true,
+            allowPositionals: true,
+            options: { platform: { type: 'string' }, lanes: { type: 'string' }, flows: { type: 'boolean' } },
+        });
+    } catch (error) {
+        throw new Error(`maestro:lanes: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+
+    const { platform, lanes, flows } = parsed.values;
+    const platforms: Readonly<Record<string, readonly LanePlatform[]>> = {
+        android: ['android'],
+        ios: ['ios'],
+        both: ['android', 'ios'],
+    };
+    const chosen = platform === undefined ? undefined : platforms[platform];
+
+    if (chosen === undefined) {
+        throw new Error('maestro:lanes: --platform android|ios|both is required');
+    }
+
+    if (lanes !== undefined && !/^[1-9]\d*$/u.test(lanes)) {
+        throw new Error(`maestro:lanes: --lanes '${lanes}' is not a positive integer`);
+    }
+
+    if ((flows === true) !== parsed.positionals.length > 0) {
+        throw new Error('maestro:lanes: name flows after --flows, and only there');
+    }
+
+    return {
+        platforms: chosen,
+        ...(lanes === undefined ? {} : { requested: Number(lanes) }),
+        selection: env['FULL_SUITE'] === '1' ? 'all' : flows === true ? parsed.positionals : 'changed',
+    };
 }

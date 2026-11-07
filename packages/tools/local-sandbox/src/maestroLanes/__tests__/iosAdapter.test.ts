@@ -17,6 +17,7 @@ interface Recorder {
     readonly shell: IosShell;
     readonly commands: string[];
     readonly tunnels: string[][];
+    readonly files: Map<string, string>;
     stopped: number;
 }
 
@@ -25,6 +26,7 @@ function makeShell(answers: Record<string, string> = {}): Recorder {
     const recorder: Recorder = {
         commands: [],
         tunnels: [],
+        files: new Map(),
         stopped: 0,
         shell: {
             run: (command, args) => {
@@ -47,7 +49,11 @@ function makeShell(answers: Record<string, string> = {}): Recorder {
                     },
                 };
             },
-            writeFile: () => Promise.resolve(),
+            writeFile: (file, content) => {
+                recorder.files.set(file, content);
+
+                return Promise.resolve();
+            },
             linkFile: () => Promise.resolve(),
         },
     };
@@ -153,6 +159,31 @@ describe('IosAdapter', () => {
         expect(env['MAESTRO_SKIP_INSTALL']).toBe('1');
         expect(env['PATH']?.startsWith('/s/shims:')).toBe(true);
         expect(env['KS_MAC_LANE_HOME']).toContain('lane1');
+    });
+
+    it('answers an empty environment for a lane that has not started, because the orchestrator asks while provisioning users', () => {
+        const adapter = new IosAdapter(options(makeShell().shell));
+        const lane = {
+            platform: 'ios' as const,
+            index: 1,
+            count: 1,
+            device: adapter.deviceFor(1),
+            driverPort: 7001,
+            stateDir: '/s/lanes/ios-1',
+            fixtureEnvFile: '/s/lanes/ios-1/fixture.env',
+        };
+        expect(adapter.laneEnv(lane)).toEqual({});
+    });
+
+    it('keeps the ssh control socket path short enough for a unix socket, however long the state folder is', async () => {
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+        const adapter = new IosAdapter(options(recorder.shell));
+        const stateDir = `/home/brandon/.local/state/kitchensink/localMaestro/${'run-'.repeat(12)}`;
+        await adapter.prepareHost({ runId: 'r', stateDir, repoRoot: '/repo' });
+        const config = recorder.files.get(`${stateDir}/ssh.conf`) ?? '';
+        const controlPath = /ControlPath (\S+)/.exec(config)?.[1] ?? '';
+        // ssh replaces %C with a 40 character hash; a unix socket path may hold at most 103 characters.
+        expect(controlPath.replace('%C', 'x'.repeat(40)).length).toBeLessThanOrEqual(103);
     });
 
     it('stops the tunnel on teardown', async () => {

@@ -31,10 +31,15 @@ appId: ${APP_ID}
       timeout: 30000
 
 # The first open line is expanded; its default carries the tag and nothing is chosen.
-- extendedWaitUntil:
-      visible: 'Choose the milk you use'
-      timeout: 240000
-- assertVisible: 'Default'
+# At a large font the open line sits below the fold, where it is not in the screen's tree, so wait for it by scrolling.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Choose the milk you use'
+          DIRECTION: DOWN
+          TIMEOUT: 240000
+# iOS merges the default's tag into the row's name ("whole milk, Default"); Android draws the tag alone.
+- assertVisible: '.*Default.*'
 - assertNotVisible:
       text: '.*your choice.*'
 - assertVisible: 'Search for a food for 2 cups milk'
@@ -43,10 +48,10 @@ appId: ${APP_ID}
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
-          TARGET: 'Choose the salt you use.*'
+          TARGET: '.*Choose the salt you use.*'
           DIRECTION: DOWN
 - assertVisible:
-      text: 'Choose the salt you use.*'
+      text: '.*Choose the salt you use.*'
 
 # Choose a food: it binds as the cook's, and the next open line opens.
 - runFlow:

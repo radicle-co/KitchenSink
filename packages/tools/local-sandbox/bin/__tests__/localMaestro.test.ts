@@ -89,33 +89,6 @@ describe('local_maestro_flows — which flows a command runs', () => {
      * the LOCAL list ON PURPOSE and named on stderr, never run to fail and never counted as passed. The deployed plan is
      * untouched (`maestroSandboxOnlyFlows.test.ts`), so this still asserts CI's order for everything else.
      */
-    it('`all` runs CI’s own plan in CI’s order, minus the flows that need the sandbox, and NAMES those', () => {
-        const sandbox = makeSandbox();
-        const ours = run(sandbox, 'local_maestro_flows all');
-        const ci = spawnSync('bash', [path.join(FLOWS_DIR, '../tests/e2e/runMaestroFlows.sh'), 'select'], {
-            encoding: 'utf8',
-        });
-        const ciFlows = ci.stdout
-            .split('\n')
-            .filter((line) => line.startsWith('flow='))
-            .map((line) => line.slice('flow='.length));
-        const sandboxOnly = [
-            'recipes/pasteListSettle',
-            'recipes/ingredientCandidates',
-            'recipes/ambiguityReview',
-            'auth/loginFlow',
-        ];
-
-        expect(ours.status).toBe(0);
-        expect(ciFlows.length).toBeGreaterThan(10);
-        expect(ours.stdout.trim().split('\n')).toEqual(ciFlows.filter((flow) => !sandboxOnly.includes(flow)));
-
-        for (const flow of sandboxOnly) {
-            expect(ciFlows).toContain(flow);
-            expect(ours.stderr).toContain(`not run locally: needs sandbox - ${flow}`);
-        }
-    });
-
     it('`flows` still runs a sandbox-only flow when it is NAMED - the developer asked for exactly that', () => {
         const result = run(makeSandbox(), 'local_maestro_flows flows recipes/pasteListSettle');
 
@@ -160,132 +133,42 @@ describe('local_maestro_flows — which flows a command runs', () => {
 });
 
 /**
- * Puts a fake `npx` first on PATH that answers the selector (`npx tsx .../plan.ts --tier mobile`) with `answer` and
- * the given exit code, and logs that it was called.
- *
- * @sideEffect Writes an executable into the sandbox.
+ * REWRITTEN 2026-11-07 (the Maestro lanes): `all` and `changed` no longer run one emulator here. They hand over to
+ * `maestro:lanes`, which selects (impact selector, or FULL_SUITE), filters for the local stack and packs the flows across
+ * the lanes whose Clerk users exist. The selection those commands used to make is now the runner's (`flow:` keys,
+ * `maestroFlowSelection.test.ts`, `maestroLaneEnv.integration.test.ts`) and the orchestrator's (`laneRun.test.ts`).
  */
-function fakeSelector(sandbox: Sandbox, answer: string, exitCode = 0, hangSeconds = 0): void {
-    writeFileSync(
-        path.join(sandbox.bin, 'npx'),
-        `#!/usr/bin/env bash\necho "npx $*" >> "${sandbox.calls}"\nsleep ${hangSeconds}\nprintf '%s' '${answer}'\nexit ${exitCode}\n`,
-    );
-    chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
-}
-
-describe('local_maestro_flows changed — the flows the impacted-test selector picked', () => {
-    const selectorCalls = (sandbox: Sandbox): readonly string[] =>
-        readFileSync(sandbox.calls, 'utf8')
-            .split('\n')
-            .filter((line) => line.startsWith('npx '));
-
-    it('runs exactly the picked flows, in the order the selector gave', () => {
-        const sandbox = makeSandbox();
-
-        fakeSelector(sandbox, 'some\nhome\nrecipes/create\n');
-
-        const result = run(sandbox, 'local_maestro_flows changed');
-
-        expect(result.status).toBe(0);
-        expect(result.stdout.trim().split('\n')).toEqual(['home', 'recipes/create']);
-        expect(selectorCalls(sandbox).join('\n')).toContain('--tier mobile');
-    });
-
-    it('runs what `all` runs when the selector says all', () => {
-        const sandbox = makeSandbox();
-
-        fakeSelector(sandbox, 'all\n');
-
-        expect(run(sandbox, 'local_maestro_flows changed').stdout).toBe(run(sandbox, 'local_maestro_flows all').stdout);
-    });
-
-    it('runs what `all` runs, without asking the selector, when FULL_SUITE=1', () => {
-        const sandbox = makeSandbox();
-
-        fakeSelector(sandbox, 'some\nhome\n');
-
-        const result = run(sandbox, 'local_maestro_flows changed', { FULL_SUITE: '1' });
-
-        expect(result.stdout).toBe(run(sandbox, 'local_maestro_flows all').stdout);
-        expect(selectorCalls(sandbox)).toEqual([]);
-    });
+describe('`all` and `changed` hand over to maestro:lanes', () => {
+    const fakeNpm = (sandbox: Sandbox): void => {
+        writeFileSync(
+            path.join(sandbox.bin, 'npm'),
+            `#!/usr/bin/env bash\necho "npm $* full=\${FULL_SUITE:-unset}" >> "${sandbox.calls}"\nexit 7\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npm'), 0o755);
+    };
 
     it.each([
-        ['fails', '', 1],
-        ['prints something that is not a selection', 'hello\n', 0],
-        ['names a flow that has no file', 'some\nghost/flow\n', 0],
-    ])('runs everything, and says so, when the selector %s', (_name, answer, code) => {
+        ['all', '1'],
+        ['changed', 'unset'],
+    ])('`%s` runs the Android lanes through the npm door (FULL_SUITE=%s), and returns their exit', (command, full) => {
         const sandbox = makeSandbox();
+        fakeNpm(sandbox);
 
-        fakeSelector(sandbox, answer, code);
+        const result = run(sandbox, `local_maestro_main ${command}`);
 
-        const result = run(sandbox, 'local_maestro_flows changed');
-
-        expect(result.status).toBe(0);
-        expect(result.stdout).toBe(run(makeSandbox(), 'local_maestro_flows all').stdout);
-        expect(result.stderr).toMatch(/running every flow/u);
+        expect(result.status).toBe(7);
+        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe(
+            `npm run maestro:lanes --workspace=@kitchensink/local-sandbox -- --platform android full=${full}`,
+        );
     });
 
-    it('gives up on a selector that hangs, and runs every flow', () => {
+    it('`changed` keeps the caller’s FULL_SUITE=1', () => {
         const sandbox = makeSandbox();
+        fakeNpm(sandbox);
 
-        fakeSelector(sandbox, 'some\nhome\n', 0, 5);
+        run(sandbox, 'local_maestro_main changed', { FULL_SUITE: '1' });
 
-        const result = run(sandbox, 'local_maestro_flows changed', { LOCAL_MAESTRO_SELECTOR_TIMEOUT: '1' });
-
-        expect(result.status).toBe(0);
-        expect(result.stdout).toBe(run(makeSandbox(), 'local_maestro_flows all').stdout);
-        expect(result.stderr).toMatch(/running every flow/u);
-    });
-
-    it('leaves out a picked flow that needs the sandbox, and NAMES it', () => {
-        const sandbox = makeSandbox();
-
-        fakeSelector(sandbox, 'some\nhome\nrecipes/ambiguityReview\n');
-
-        const result = run(sandbox, 'local_maestro_flows changed');
-
-        expect(result.stdout.trim().split('\n')).toEqual(['home']);
-        expect(result.stderr).toContain('not run locally: needs sandbox - recipes/ambiguityReview');
-    });
-
-    it('returns 3 and says why when the change touches no flow, never a list of zero flows', () => {
-        const sandbox = makeSandbox();
-
-        fakeSelector(sandbox, 'some\n');
-
-        const result = run(sandbox, 'local_maestro_flows changed');
-
-        expect(result.status).toBe(3);
-        expect(result.stdout).toBe('');
-        expect(result.stderr).toMatch(/nothing to run/u);
-    });
-
-    it('returns 3 and names them when every picked flow needs the sandbox', () => {
-        const sandbox = makeSandbox();
-
-        fakeSelector(sandbox, 'some\nrecipes/ambiguityReview\n');
-
-        const result = run(sandbox, 'local_maestro_flows changed');
-
-        expect(result.status).toBe(3);
-        expect(result.stderr).toContain('not run locally: needs sandbox - recipes/ambiguityReview');
-    });
-
-    it('exits 0 from the main command, touching no device, AWS or Metro, when there is nothing to run', () => {
-        const sandbox = makeSandbox();
-
-        fakeSelector(sandbox, 'some\n');
-
-        const result = run(sandbox, 'local_maestro_main changed');
-
-        expect(result.status).toBe(0);
-        expect(result.stderr).toMatch(/nothing to run/u);
-        expect(
-            readFileSync(sandbox.calls, 'utf8')
-                .split('\n')
-                .filter((line) => line !== '' && !line.startsWith('npx ')),
-        ).toEqual([]);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain('full=1');
     });
 });
 

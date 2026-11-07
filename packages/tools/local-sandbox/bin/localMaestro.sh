@@ -2,6 +2,10 @@
 # `npm run local:maestro -- all | changed | flows <flow…> | reset` — run the mobile Maestro flows on a LOCAL Android emulator,
 # against the LOCAL sandbox (`npm run local:up`), on a developer's machine.
 #
+# `all` and `changed` hand over to `npm run maestro:lanes` (`bin/maestroLanes.ts`): several emulators at once, on the
+# embedded-bundle test app, one lane per pool lane whose Clerk users exist. What follows describes the one-emulator path
+# that `flows` (the edit-and-rerun loop, on the debug APK and Metro) and `reset` still take.
+#
 # ⛔ A LOCAL e2e run (docs/CODING_STANDARDS.md §7.1a). It proves the app and the flows against this tree's services;
 # it proves NOTHING about a deploy, and no workflow may run it.
 #
@@ -97,88 +101,9 @@ local_maestro_state_dir() {
     printf '%s\n' "$resolved"
 }
 
-# What the impacted-test selector says the changed code affects: `all`, or `some` and then one flow per line. NEVER fails:
-# a selector that cannot answer means every flow runs, so a broken selector costs time and never a missed flow.
-# `FULL_SUITE=1` is the owner's switch for the whole suite and does not ask the selector at all.
-local_maestro_selected() {
-    if [ "${FULL_SUITE:-}" = '1' ]; then
-        echo 'all'
-        return 0
-    fi
-
-    local answer
-    # A selector that hangs (a stuck git, a slow disk) must cost the full suite, never the run.
-    if ! answer="$(cd "$LOCAL_MAESTRO_REPO_ROOT" && timeout "${LOCAL_MAESTRO_SELECTOR_TIMEOUT:-120}" npx tsx packages/tools/e2ePlan/bin/plan.ts --tier mobile)"; then
-        echo 'local:maestro: ⚠️ the selector could not run - running every flow' >&2
-        echo 'all'
-        return 0
-    fi
-
-    case "$(printf '%s\n' "$answer" | head -n 1)" in
-        all | some) printf '%s\n' "$answer" ;;
-        *)
-            echo 'local:maestro: ⚠️ the selector printed something that is not a selection - running every flow' >&2
-            echo 'all'
-            ;;
-    esac
-}
-
-# Print the flows a command runs, one per line, or refuse. Prints nothing unless every named flow is valid.
-#
-# `changed` runs the flows the selector picked (see `local_maestro_selected`), and returns 3 - not 0, not an error - when
-# there is nothing to run: the change touches no flow, or every picked flow needs the sandbox. The caller prints that and
-# stops; it never reports a run over no flows.
+# Print the flows `flows` names, one per line, or refuse. Prints nothing unless every named flow is valid.
 local_maestro_flows() {
     case "${1-}" in
-        changed)
-            local selection picked
-            selection="$(local_maestro_selected)"
-
-            if [ "$(printf '%s\n' "$selection" | head -n 1)" != 'some' ]; then
-                local_maestro_flows all
-                return
-            fi
-
-            picked="$(printf '%s\n' "$selection" | tail -n +2)"
-
-            if [ -z "$picked" ]; then
-                echo 'local:maestro: nothing to run - no change touches a screen or a flow that a Maestro flow covers' >&2
-                return 3
-            fi
-
-            # A flow the selector names that has no file is a stale registry: run everything rather than less.
-            # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
-            if ! local_maestro_flows flows $(printf '%s\n' "$picked") >/dev/null 2>&1; then
-                echo 'local:maestro: ⚠️ the selector named a flow that does not exist - running every flow' >&2
-                local_maestro_flows all
-                return
-            fi
-
-            local local_verdict
-            # shellcheck disable=SC2046
-            if ! local_verdict="$(maestro_local_flows $(printf '%s\n' "$picked") 2>/dev/null)"; then
-                # shellcheck disable=SC2046
-                maestro_local_summary $(printf '%s\n' "$picked") >&2
-                echo 'local:maestro: nothing to run - every flow the change affects needs the deployed sandbox' >&2
-                return 3
-            fi
-
-            # shellcheck disable=SC2046
-            maestro_local_summary $(printf '%s\n' "$local_verdict" | sed -n 's/^needs-sandbox=\([^|]*\)|.*/\1/p') >&2
-            printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p'
-            ;;
-        all)
-            local verdict local_verdict
-            verdict="$(maestro_select_flows "$FLOW_PLAN")" || return 1
-            # ⛔ Flows that need the DEPLOYED sandbox are left out and NAMED, never run to fail and never counted as passed
-            # (`MAESTRO_SANDBOX_ONLY_FLOWS`). Only this local selection reads that table; the deployed run does not.
-            # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
-            local_verdict="$(maestro_local_flows $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p'))" || return 1
-            # stderr: this runs in a command substitution whose stdout is the flow list.
-            # shellcheck disable=SC2046
-            maestro_local_summary $(printf '%s\n' "$local_verdict" | sed -n 's/^needs-sandbox=\([^|]*\)|.*/\1/p') >&2
-            printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p'
-            ;;
         flows)
             shift
             if [ "$#" -eq 0 ]; then
@@ -682,16 +607,19 @@ local_maestro_main() {
     local flows=''
 
     case "$command" in
-        all | flows)
-            flows="$(local_maestro_flows "$@")" || return 1
+        all | changed)
+            # The lanes: every lane whose Clerk users exist, on the embedded test app (`bin/maestroLanes.ts`). `all` is the
+            # whole suite; `changed` asks the impact selector unless the caller set FULL_SUITE=1.
+            cd "$LOCAL_MAESTRO_REPO_ROOT" || return 1
+            if [ "$command" = 'all' ]; then
+                FULL_SUITE=1 npm run maestro:lanes --workspace=@kitchensink/local-sandbox -- --platform android
+            else
+                npm run maestro:lanes --workspace=@kitchensink/local-sandbox -- --platform android
+            fi
+            return
             ;;
-        changed)
-            local status=0
-            flows="$(local_maestro_flows "$@")" || status=$?
-
-            # 3 is "nothing to run", already explained on stderr. It is a success, never a run over no flows.
-            [ "$status" -ne 3 ] || return 0
-            [ "$status" -eq 0 ] || return "$status"
+        flows)
+            flows="$(local_maestro_flows "$@")" || return 1
             ;;
         reset) ;;
         *)
@@ -762,11 +690,6 @@ local_maestro_main() {
         echo "local:maestro: PASSED — $(printf '%s ' $flows)" >&2
     else
         echo "local:maestro: FAILED — see the FLOW FAILED lines above" >&2
-    fi
-    # Repeated in the summary: a green local run must not read as covering what it could not run.
-    if [ "$command" = 'all' ]; then
-        # shellcheck disable=SC2046
-        maestro_local_summary $(maestro_sandbox_only_flows | cut -d'|' -f1) >&2
     fi
     return "$rc"
 }

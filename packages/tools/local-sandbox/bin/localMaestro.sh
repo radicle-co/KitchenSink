@@ -24,9 +24,10 @@
 #
 # ## The device pin
 #
-# ⛔ Another emulator (`emulator-5554`) may be attached and is not ours. CI's functions call bare `adb` and `maestro`,
-# so both are shadowed below with functions that always name `emulator-5556`. Functions win over PATH, including
-# inside the sourced functions. The serial is a literal, not configuration.
+# ⛔ Another emulator (`emulator-5554`) may be attached and is not ours. `ANDROID_SERIAL` is set to `emulator-5556` when
+# this file is sourced: `adb` reads it natively, and CI's run loop hands `maestro` `--device "$ANDROID_SERIAL"` (the lane
+# contract in `runMaestroFlows.sh`). Nothing shadows `adb` or `maestro`, which would pass `--device` twice. The serial is a
+# literal, not configuration, and the caller's environment cannot move it.
 #
 # ## Secrets and AWS
 #
@@ -71,14 +72,7 @@ LOCAL_MAESTRO_STARTED_EMULATOR=false
 # shellcheck source=../../../apps/commise/mobile/tests/e2e/runMaestroFlows.sh
 . "${LOCAL_MAESTRO_MOBILE_DIR}/tests/e2e/runMaestroFlows.sh"
 
-# Shadowed AFTER sourcing, so CI's functions resolve these rather than the binaries on PATH.
-adb() {
-    command adb -s emulator-5556 "$@"
-}
-
-maestro() {
-    command maestro --device emulator-5556 "$@"
-}
+export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
 
 local_maestro_fail() {
     echo "local:maestro: $*" >&2
@@ -306,7 +300,6 @@ local_maestro_toolchain() {
     # ⚠️ Not `JAVA_HOME`: the default `java` here is 11, which neither Maestro 2 nor the Android build accepts.
     export JAVA_HOME="${LOCAL_MAESTRO_JAVA_HOME:-${HOME}/jdk17}"
     export PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator:${PATH}"
-    export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
     export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-300000}"
     export MAESTRO_CLI_NO_ANALYTICS=1
 

@@ -281,44 +281,46 @@ describe('local_maestro_flows changed — the flows the impacted-test selector p
 
         expect(result.status).toBe(0);
         expect(result.stderr).toMatch(/nothing to run/u);
-        expect(readFileSync(sandbox.calls, 'utf8').split('\n').filter((line) => line !== '' && !line.startsWith('npx '))).toEqual([]);
+        expect(
+            readFileSync(sandbox.calls, 'utf8')
+                .split('\n')
+                .filter((line) => line !== '' && !line.startsWith('npx ')),
+        ).toEqual([]);
     });
 });
 
-describe('the device pin — every adb and maestro call targets emulator-5556', () => {
-    it('pins a bare `adb` call', () => {
+/**
+ * REWRITTEN 2026-11-07 (the Maestro lanes). The pin used to be two shell functions that shadowed `adb` and `maestro`.
+ * The runner now names the device itself from `ANDROID_SERIAL` (`adb` reads it natively, and run mode hands `maestro`
+ * `--device "$ANDROID_SERIAL"`), so a `maestro` shadow would pass `--device` twice. The pin is now the variable: set when
+ * the script is sourced, to the literal serial, whatever the caller's environment says.
+ */
+describe('the device pin — ANDROID_SERIAL names emulator-5556, and nothing shadows adb or maestro', () => {
+    it('reaches a bare `adb` call through the environment adb reads', () => {
         const sandbox = makeSandbox();
 
+        writeFileSync(
+            path.join(sandbox.bin, 'adb'),
+            `#!/usr/bin/env bash\necho "adb serial=$ANDROID_SERIAL $*" >> "${sandbox.calls}"\n`,
+        );
         run(sandbox, 'adb devices');
 
-        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('adb -s emulator-5556 devices');
+        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('adb serial=emulator-5556 devices');
     });
 
-    it('pins the calls CI’s own sourced per-flow functions make', () => {
-        const sandbox = makeSandbox();
+    it('leaves `adb` and `maestro` as the binaries, so the runner adds the only --device', () => {
+        const result = run(makeSandbox(), 'type -t adb; type -t maestro');
 
-        run(sandbox, 'maestro_reset_driver');
-
-        const calls = readFileSync(sandbox.calls, 'utf8').trim().split('\n');
-
-        expect(calls.length).toBeGreaterThan(0);
-        expect(calls.every((call) => call.startsWith('adb -s emulator-5556 '))).toBe(true);
-    });
-
-    it('pins `maestro`, as a global option ahead of the subcommand', () => {
-        const sandbox = makeSandbox();
-
-        run(sandbox, 'maestro test flow.yaml');
-
-        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('maestro --device emulator-5556 test flow.yaml');
+        expect(result.stdout.trim().split('\n')).toEqual(['file', 'file']);
     });
 
     it('is not overridable from the environment', () => {
-        const sandbox = makeSandbox();
+        const result = run(makeSandbox(), 'printf "%s" "$ANDROID_SERIAL"', {
+            ANDROID_SERIAL: 'emulator-5554',
+            LOCAL_MAESTRO_SERIAL: 'emulator-5554',
+        });
 
-        run(sandbox, 'adb devices', { ANDROID_SERIAL: 'emulator-5554', LOCAL_MAESTRO_SERIAL: 'emulator-5554' });
-
-        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('adb -s emulator-5556 devices');
+        expect(result.stdout).toBe('emulator-5556');
     });
 });
 

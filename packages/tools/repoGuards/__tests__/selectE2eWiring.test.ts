@@ -155,8 +155,22 @@ describe('every test run is an npm script', () => {
             ),
         );
 
+    it('has a root script for the Maestro runner, and every workflow calls it from the root', () => {
+        const root = JSON.parse(readFileSync(`${REPO_ROOT}/package.json`, 'utf8')) as {
+            scripts: Record<string, string>;
+        };
+        const calls = runs.filter((run) => run.text.includes('e2e:maestro'));
+
+        // The runner reads paths relative to the repository root, and `--workspace` would run it from the package folder.
+        expect(root.scripts['e2e:maestro']).toContain('tests/e2e/runMaestroFlows.sh');
+        expect(calls.length).toBeGreaterThan(0);
+        expect(calls.filter((call) => call.text.includes('--workspace'))).toEqual([]);
+    });
+
     it('reads the emulator step, so the check is not blind to it', () => {
-        expect(runs.some((run) => run.text.includes('e2e:maestro') && run.where.startsWith('_ci-heavy.yml'))).toBe(true);
+        expect(runs.some((run) => run.text.includes('e2e:maestro') && run.where.startsWith('_ci-heavy.yml'))).toBe(
+            true,
+        );
     });
 
     it.each([

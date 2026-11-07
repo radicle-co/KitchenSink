@@ -503,8 +503,8 @@ Owner law, 2026-11-06. It replaces the ruling of 2026-11-02. Four rules.
 - **Run at the most parallelism the machine allows.** The doors plan the lanes from the CPUs, the memory and the test
   pool, and print which limit set the count. Web lanes use the shared `web` pool slots. Android lanes and iOS lanes use
   their own pool lanes (ADR-0088). `E2E_LANES=1` and `--lanes 1` give one lane.
-- **Run only through npm or turbo scripts, locally and in CI.** The root doors are `npm run test:e2e:web` and
-  `npm run test:e2e:android`. `npm run e2e:plan` prints the selection and why.
+- **Run only through npm or turbo scripts, locally and in CI.** The root doors are `npm run test:e2e:web`,
+  `test:e2e:android`, `test:e2e:ios` and `test:e2e:mobile` (both platforms). `npm run e2e:plan` prints the selection and why.
   `npm run test:e2e` (turbo) runs every workspace's local suite. No workflow step starts `playwright test`, `maestro test`
   or `runMaestroFlows.sh` by hand (`selectE2eWiring.test.ts`). CI selects in its own `select-e2e` job (ADR-0087).
   The manual `deployedE2e.yml` still runs the whole suite (ADR-0032 section 4).

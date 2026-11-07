@@ -925,8 +925,9 @@ jobs:
     # raised for the seconds a reseed takes — the residual `ensureDowngradedWorld.ts` records.
     downgraded-owner-world:
         name: Downgraded owner's world (the deployed sandbox fixture)
-        # The web tier is its only reader, so it shares that tier's condition (`downgradedOwnerWorldJob.test.ts`).
-        if: ${{ inputs.target_stage != 'prod' && inputs.web_shards != '[]' }}
+        # NOT gated on the selection: Maestro reads this world too (`makePublicConfirm.yaml`), and a Maestro run on a change
+        # that touches no web spec must still find it. It is the web tier's production skip and nothing more.
+        if: ${{ inputs.target_stage != 'prod' }}
         timeout-minutes: 10
         runs-on: ubuntu-latest
         permissions:

@@ -68,7 +68,8 @@ of `web_shards` is one shard for each lane in the web pool, and a guard holds it
 ### 5. Every test run is an npm script
 
 No workflow step starts `playwright test`, `maestro test` or `runMaestroFlows.sh` by hand. Playwright runs through
-`npm run test:e2e`. Maestro runs through `npm run e2e:maestro --workspace=@commise/mobile`. A guard reads every
+`npm run test:e2e`. Maestro runs through `npm run e2e:maestro` at the repository root. The runner reads some paths from the repository root, so the script must
+run there. A guard reads every
 workflow step to enforce this. Installing browsers and merging reports are not test runs and are not covered.
 
 ## Alternatives rejected

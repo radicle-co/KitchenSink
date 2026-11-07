@@ -2915,6 +2915,24 @@ jobs:
                       export FULL_SUITE=1
                   fi
                   npm run ci:mobile --workspace=@kitchensink/e2e-plan
+            # A skip must say why. A matrix with no legs renders as nothing, and nothing reads like a pass.
+            - name: Say what was selected
+              env:
+                  WEB_TESTS: ${{ steps.web.outputs.web_tests }}
+                  WEB_SHARDS: ${{ steps.web.outputs.web_shards }}
+                  MAESTRO_RUN: ${{ steps.mobile.outputs.maestro_run }}
+              run: |
+                  {
+                      echo "### Impacted tests"
+                      echo "- Web: ${WEB_TESTS} tests in shards ${WEB_SHARDS}"
+                      echo "- Maestro runs: ${MAESTRO_RUN}"
+                  } >> "$GITHUB_STEP_SUMMARY"
+                  if [ "${WEB_SHARDS}" = "[]" ]; then
+                      echo "::notice::No web spec is affected by this change, so no deployed web shard runs."
+                  fi
+                  if [ "${MAESTRO_RUN}" = "false" ]; then
+                      echo "::notice::No Maestro flow is affected by this change, so Maestro and the mobile app build do not run."
+                  fi
 
     # ── THE ONE REQUIRED CHECK ──────────────────────────────────────────────────────────────────────────
     #

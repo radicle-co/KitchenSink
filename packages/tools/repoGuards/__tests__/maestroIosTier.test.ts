@@ -406,7 +406,7 @@ describe('the app the run installs', () => {
         expect(env['MAESTRO_PLATFORM']).toBe('ios');
         expect(producerOf(scalarText(env['MAESTRO_IOS_UDID']))?.run).toMatch(/simctl\s+create/u);
         expect(producerOf(scalarText(env['MAESTRO_IOS_APP']))?.run).toMatch(/tar -xzf/u);
-        expect(scalarText(flows.step?.run)).toBe('npm run --silent e2e:maestro --workspace=@commise/mobile');
+        expect(scalarText(flows.step?.run)).toBe('npm run --silent e2e:maestro');
     });
 
     it('does not build: the shard has no prebuild, no pod install and no xcodebuild build of its own', () => {

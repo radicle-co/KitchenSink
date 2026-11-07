@@ -434,7 +434,7 @@ jobs:
                   # Unquoted on purpose: the selector is space-separated `<name>=true|false` pairs, and the
                   # script treats an absent, malformed or unattributed selector identically — it widens.
                   # shellcheck disable=SC2086
-                  shards=$(npm run --silent e2e:maestro --workspace=@commise/mobile -- \
+                  shards=$(npm run --silent e2e:maestro -- \
                       shard-matrix "${MAESTRO_SHARDS}" ${MAESTRO_FLOW_SELECTOR})
                   # Counted OUT OF the array, never recomputed from the input — see the `maestro_shard_count`
                   # output's note. `grep -c .` over the split array, so `[1]` is 1 and `[1,2]` is 2 without any
@@ -457,7 +457,7 @@ jobs:
               run: |
                   set -euf -o pipefail
                   # shellcheck disable=SC2086
-                  shards=$(npm run --silent e2e:maestro --workspace=@commise/mobile -- \
+                  shards=$(npm run --silent e2e:maestro -- \
                       shard-matrix "${MAESTRO_SHARDS}" ${MAESTRO_FLOW_SELECTOR})
                   count=$(printf '%s' "${shards}" | tr -d '[]' | tr ',' '\n' | grep -c .)
                   {
@@ -1335,7 +1335,7 @@ jobs:
                   # against the pinned action's own `action.yml`, so this class cannot recur silently.
                   # The emulator-runner executes each `script` LINE as its own `sh -c`, so the per-flow loop
                   # (reseed → run one flow, in isolation) lives in a committed script invoked in one line.
-                  script: npm run --silent e2e:maestro --workspace=@commise/mobile
+                  script: npm run --silent e2e:maestro
             # ⛔ RESET AFTER — `if: always()`, so it runs on failure and on cancellation too, which nothing inside the
             # emulator script can promise. It empties the recipe data the signer and co-author own on this stage and
             # deletes NO Clerk user: the slots are fixed, and an erasure subject the flow really erased is simply gone.
@@ -1814,7 +1814,7 @@ jobs:
                   # job's matrix was built from.
                   MAESTRO_SHARD_COUNT: ${{ needs.resolve-mobile-target.outputs.maestro_ios_shard_count }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
-              run: npm run --silent e2e:maestro --workspace=@commise/mobile
+              run: npm run --silent e2e:maestro
             # ⛔ RESET AFTER — `always()`, `continue-on-error`, and loud: the Android job's reset-after, for its reason.
             - name: Reset the leased Maestro pool slots after the run (shard ${{ matrix.shard }}, e2e-seed resetPool)
               if: always() && steps.secrets.outcome == 'success'

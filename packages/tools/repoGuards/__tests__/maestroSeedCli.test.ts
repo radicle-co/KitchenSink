@@ -98,7 +98,7 @@ const needsOf = (job: Job | undefined): readonly string[] =>
  * The flow loop's RUN mode: `runMaestroFlows.sh` with no subcommand. `resolve-mobile-target` also calls the script, for
  * `shard-matrix`, and is the producer, not a subject.
  */
-const RUNS_FLOWS = /e2e:maestro --workspace=@commise\/mobile[ \t]*$/mu;
+const RUNS_FLOWS = /e2e:maestro[ \t]*$/mu;
 
 /** The Maestro jobs: every job that runs the flow loop — discovered, never listed. */
 const maestroJobs = Object.entries(jobs).filter(([, job]) =>

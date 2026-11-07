@@ -91,8 +91,12 @@ describe('the downgraded owner’s world is ensured in CI', () => {
     it('⛔ is gated with the deployed tiers: exactly the web tier’s production skip, and nothing of its own', () => {
         const web = jobs()['e2e-web'];
 
+        // The web tier also stops when the selection holds no web spec (ADR-0087). The world does not: Maestro reads it too, so a
+        // Maestro run on a change that touches no web spec still finds it.
+        const selection = /\s*&&\s*inputs\.web_shards\s*!=\s*'\[\]'/u;
+
         expect(scalarText(world().if).replace(/\s+/gu, ' ').trim()).toBe(
-            scalarText(web?.if).replace(/\s+/gu, ' ').trim(),
+            scalarText(web?.if).replace(selection, '').replace(/\s+/gu, ' ').trim(),
         );
         expect(scalarText(world().if)).toContain("inputs.target_stage != 'prod'");
         expect(scalarText(world().if)).not.toMatch(/run_mobile_maestro|run_load_test/u);

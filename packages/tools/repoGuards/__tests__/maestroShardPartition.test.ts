@@ -114,7 +114,7 @@ function run(...args: readonly string[]): Sharded {
     };
 }
 
-/** The committed plan, as the script prints it: one flow per line, the spine labelled `spine:`. */
+/** The committed plan, as the script prints it: one `<area>:<flow>` entry per line. */
 function planEntries(): readonly string[] {
     const result = spawnSync('bash', [SCRIPT, 'plan'], { encoding: 'utf8' });
 

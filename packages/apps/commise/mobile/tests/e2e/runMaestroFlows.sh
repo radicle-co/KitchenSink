@@ -92,11 +92,12 @@ set -uo pipefail
 # the default is the Gradle output path, which only a developer's own local build produces, so a local run is unchanged.
 APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk}"
 
-# ── THE PLAN — every flow CI runs, in execution order, the spine labelled `spine:` ─────────────────────────
+# ── THE PLAN — every flow CI runs, in execution order, each as `<area>:<flow>` ──────────────────────────────
 #
 # ONE authoritative list, and a narrowed run is this list FILTERED (never the keys in the order they arrived), so
-# it is always a subsequence of the full run and the ordering below holds for every selection. The spine is the
-# only label: a plan entry is a flow, or `spine:<flow>`.
+# it is always a subsequence of the full run and the ordering below holds for every selection. The `spine` label is
+# the one the selection reads. The other labels name a flow's area; they are no longer selector keys (retired
+# 2026-11-07), and `@kitchensink/e2e-plan` reads the plan in this `<area>:<flow>` form.
 #
 # Order is deliberate:
 #   - `auth/loginFlow` FIRST, and it is the SPINE: every narrowed run includes it. It is the only
@@ -120,8 +121,8 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #   - `recipes/detailCooking` follows `servingScale`: the same populated seed, and it writes nothing the service keeps —
 #     its checks, current step and Screen on are in-memory session state that the next flow's relaunch drops.
 #   - `recipes/deferredCalories` sits next to `listDetail`: same populated seed, read-only, and it crosses
-#     into Discover at the end, so it wants the same settled library. Its subject is the CARD's deferred
-#     figure, which every card surface shares. Note what it can prove here: this job runs NO food service (see `deploy`/`_ci-heavy.yml`'s
+#     into Discover at the end, so it wants the same settled library. It is in the `recipes` area rather than
+#     `discovery` because its subject is the CARD's deferred figure, which every card surface shares. Note what it can prove here: this job runs NO food service (see `deploy`/`_ci-heavy.yml`'s
 #     `FOOD_SERVICE_URL`), so no calorie figure can render — the flow asserts the invariant instead, that the
 #     placeholder always comes down. Its own docblock says so; do not "fix" it by asserting a number.
 #   - `recipes/discoverBrowse` sits with the other read-only discovery flows (it types and clears a query but
@@ -222,79 +223,79 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     Recorded in that test's `KNOWN_UNRUN_FLOWS`; promoting a flow whose
 #     only proof is an emulator run belongs in a PR whose Maestro tier is watched.
 FLOW_PLAN="spine:auth/loginFlow
-home
-recipes/rating
-recipes/listDetail
-recipes/headerScrollsAway
-recipes/viewSetting
-shell/tabBar
-recipes/landscape
-recipes/servingScale
-recipes/detailCooking
-recipes/detailBack
-recipes/deferredCalories
-recipes/emptyLibrary
-recipes/searchNavigation
-recipes/edit
-recipes/versions
-recipes/visibility
-recipes/paidFeaturesByRole
-recipes/makePublicConfirm
-recipes/discoverBrowse
-recipes/discoverRecentSearches
-recipes/discoverIngredientCap
-recipes/discoverSaveCopy
-recipes/discoverDetailSaveCopy
-recipes/privateFoodStandIn
-recipes/conflictMerge
-recipes/collections
-recipes/collectionAddRemoveUndo
-recipes/collectionsPagination
-recipes/collectionsVisibility
-recipes/collectionsSaveCopy
-recipes/collectionsPull
-recipes/collectionsSearchPinned
-recipes/collectionsFirstRunLargeText
-recipes/newCollectionSheet
-shell/overlaySwipeDismiss
-recipes/createEntry
-recipes/systemBackGuard
-recipes/editorSections
-recipes/editorDescriptionLimit
-recipes/create
-recipes/publishFeedback
-recipes/cuisineField
-recipes/pasteList
-recipes/pasteListSettle
-recipes/pasteMatchChoose
-recipes/pastePublishOpenChoices
-recipes/quantityRange
-recipes/preparationGroups
-recipes/ingredientGroups
-recipes/addIngredientLoop
-recipes/addIngredientLine
-recipes/addStepFocus
-recipes/ingredientUnmatched
-recipes/ingredientNutritionPanel
-recipes/ingredientRemove
-recipes/ingredientArrival
-recipes/createAuthoredFood
-recipes/ingredientAddDetails
-recipes/ingredientVariantSearch
-recipes/ingredientRowVariant
-recipes/ingredientRowEditor
-recipes/ingredientCandidates
-recipes/ingredientRemoteFoods
-recipes/pinnedActionBar
-recipes/ambiguityReview
-recipes/photos
-recipes/accessibility
-dataSources
-profileUsername
-accountDangerZone
-sessionHandoff
-recipes/delete
-accountErasure"
+home:home
+recipes:recipes/rating
+recipes:recipes/listDetail
+recipes:recipes/headerScrollsAway
+recipes:recipes/viewSetting
+recipes:shell/tabBar
+recipes:recipes/landscape
+recipes:recipes/servingScale
+recipes:recipes/detailCooking
+recipes:recipes/detailBack
+recipes:recipes/deferredCalories
+recipes:recipes/emptyLibrary
+recipes:recipes/searchNavigation
+recipes:recipes/edit
+recipes:recipes/versions
+recipes:recipes/visibility
+recipes:recipes/paidFeaturesByRole
+recipes:recipes/makePublicConfirm
+discovery:recipes/discoverBrowse
+discovery:recipes/discoverRecentSearches
+discovery:recipes/discoverIngredientCap
+discovery:recipes/discoverSaveCopy
+discovery:recipes/discoverDetailSaveCopy
+recipes:recipes/privateFoodStandIn
+recipes:recipes/conflictMerge
+collections:recipes/collections
+collections:recipes/collectionAddRemoveUndo
+collections:recipes/collectionsPagination
+collections:recipes/collectionsVisibility
+collections:recipes/collectionsSaveCopy
+collections:recipes/collectionsPull
+collections:recipes/collectionsSearchPinned
+collections:recipes/collectionsFirstRunLargeText
+collections:recipes/newCollectionSheet
+collections:shell/overlaySwipeDismiss
+recipes:recipes/createEntry
+recipes:recipes/systemBackGuard
+recipes:recipes/editorSections
+recipes:recipes/editorDescriptionLimit
+recipes:recipes/create
+recipes:recipes/publishFeedback
+recipes:recipes/cuisineField
+recipes:recipes/pasteList
+recipes:recipes/pasteListSettle
+recipes:recipes/pasteMatchChoose
+recipes:recipes/pastePublishOpenChoices
+recipes:recipes/quantityRange
+recipes:recipes/preparationGroups
+recipes:recipes/ingredientGroups
+recipes:recipes/addIngredientLoop
+recipes:recipes/addIngredientLine
+recipes:recipes/addStepFocus
+recipes:recipes/ingredientUnmatched
+recipes:recipes/ingredientNutritionPanel
+recipes:recipes/ingredientRemove
+recipes:recipes/ingredientArrival
+recipes:recipes/createAuthoredFood
+recipes:recipes/ingredientAddDetails
+recipes:recipes/ingredientVariantSearch
+recipes:recipes/ingredientRowVariant
+recipes:recipes/ingredientRowEditor
+recipes:recipes/ingredientCandidates
+recipes:recipes/ingredientRemoteFoods
+recipes:recipes/pinnedActionBar
+recipes:recipes/ambiguityReview
+recipes:recipes/photos
+recipes:recipes/accessibility
+auth:dataSources
+auth:profileUsername
+auth:accountDangerZone
+auth:sessionHandoff
+recipes:recipes/delete
+auth:accountErasure"
 
 # ── PLATFORMS, and the flows a platform cannot run ─────────────────────────────────────────────────────────
 #
@@ -617,8 +618,8 @@ maestro_erasure_subject_check() {
 #
 # Anything this function cannot read WIDENS the run and says why: a malformed pair, an unknown key (a retired per-area
 # key such as `recipes=true` included), a non-boolean value, no pairs at all, or pairs that name no flow. The ONLY hard
-# failures (exit 2) are an empty plan and a plan entry labelled with anything but `spine:`, because each is a broken
-# script rather than a selection — and answering "run nothing" there would report success over an empty suite.
+# failure (exit 2) is an empty plan, because "no flows to choose from" is a broken script rather than a selection — and
+# answering "run nothing" there would report success over an empty suite.
 maestro_select_flows() {
     if [ "$#" -lt 1 ]; then
         echo "usage: runMaestroFlows.sh select-plan <plan> [<name>=true|false …]" >&2
@@ -638,15 +639,7 @@ maestro_select_flows() {
     # Every flow the plan runs, space-padded for whole-name membership: what a `flow:` key may name.
     local planned=' ' entry
     for entry in $plan; do
-        case "$entry" in
-            spine:*) ;;
-            *:*)
-                echo "runMaestroFlows.sh: plan entry '${entry}' carries a label, and the only label is spine:" >&2
-
-                return 2
-                ;;
-        esac
-        planned="${planned}${entry#spine:} "
+        planned="${planned}${entry#*:} "
     done
 
     local full=false invalid='' selected_flows=' ' pair name value flow_name
@@ -719,11 +712,11 @@ maestro_select_flows() {
     printf 'reason=%s\n' "$reason"
 
     local flow
-    # Word-split on the plan's whitespace deliberately: an entry is a flow or `spine:<flow>`, with no spaces.
+    # Word-split on the plan's whitespace deliberately: entries are `<area>:<flow>` with no spaces.
     for entry in $plan; do
-        flow="${entry#spine:}"
+        flow="${entry#*:}"
 
-        if [ "$full" = 'true' ] || [ "$flow" != "$entry" ]; then
+        if [ "$full" = 'true' ] || [ "${entry%%:*}" = 'spine' ]; then
             printf 'flow=%s\n' "$flow"
             continue
         fi

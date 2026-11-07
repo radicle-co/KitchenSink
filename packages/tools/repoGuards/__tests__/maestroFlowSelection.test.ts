@@ -14,8 +14,8 @@
  * The impact selector (`@kitchensink/e2e-plan`, ADR-0086) names the flows a change can reach, and hands them to the
  * runner as `flow:<path>=true` keys; everything else is skipped LOUDLY (`skipped=` lines in the job log), never
  * silently. REWRITTEN 2026-11-07 (owner direction: "Delete the old per-area selector keys now"): the per-area keys
- * (`auth=true`, `recipes=true`, …) and the area labels in the plan are gone, so the plan is a list of flows with one
- * `spine:` label, and a retired area key is an unknown key that widens the run.
+ * (`auth=true`, `recipes=true`, …) are gone, so a retired area key is an unknown key that widens the run. The plan keeps
+ * its `<area>:<flow>` form: the `spine` label is the one the selection reads.
  *
  * ## The two failure modes this file exists to prevent
  *
@@ -143,15 +143,15 @@ function lines(subcommand: string): readonly string[] {
         .filter((line) => line.length > 0);
 }
 
-/** The committed plan in execution order: one flow per entry, the spine labelled `spine:`. */
+/** The committed plan, as `<area>:<flow>` entries in execution order. */
 const PLAN: readonly string[] = lines('plan');
 
 /** The plan's flows, in order — the FULL set the emulator runs when nothing is narrowed. */
-const ALL_FLOWS: readonly string[] = PLAN.map((entry) => entry.replace(/^spine:/u, ''));
+const ALL_FLOWS: readonly string[] = PLAN.map((entry) => entry.slice(entry.indexOf(':') + 1));
 
 /** Flows every narrowed run must still include, whatever changed. */
 const SPINE: readonly string[] = PLAN.filter((entry) => entry.startsWith('spine:')).map((entry) =>
-    entry.replace(/^spine:/u, ''),
+    entry.slice('spine:'.length),
 );
 
 /** Every planned flow but the spine: what a flow key can name and the packer can place. */
@@ -509,21 +509,6 @@ describe('the plan — ordering invariants the flows depend on', () => {
         expect(ALL_FLOWS.indexOf('recipes/delete')).toBeLessThan(ALL_FLOWS.indexOf('accountErasure'));
         expect(ALL_FLOWS.indexOf('accountDangerZone')).toBeLessThan(ALL_FLOWS.indexOf('recipes/delete'));
     });
-
-    /**
-     * ⛔ The per-area labels were retired with the per-area keys (2026-11-07). A label nothing reads is a second,
-     * unchecked statement of which flows belong together, so the plan carries exactly one: the spine.
-     */
-    it('labels nothing but the spine — the plan is a list of flows', () => {
-        expect(PLAN.filter((entry) => entry.includes(':') && !entry.startsWith('spine:'))).toEqual([]);
-    });
-
-    it('refuses a plan that labels a flow with anything but the spine, rather than running a flow named by its label', () => {
-        const selection = selectFromPlan('spine:auth/loginFlow recipes:recipes/create', 'full=true');
-
-        expect(selection.status).toBe(2);
-        expect(selection.flows).toEqual([]);
-    });
 });
 
 /**
@@ -799,7 +784,8 @@ describe('selection — flow keys select exactly those flows plus the spine', ()
     });
 
     it('matches a flow key on the WHOLE flow name, never a prefix', () => {
-        const plan = 'spine:auth/loginFlow home homeRecentRecipeTap recipes/edit recipes/editorSections';
+        const plan =
+            'spine:auth/loginFlow home:home home:homeRecentRecipeTap recipes:recipes/edit recipes:recipes/editorSections';
 
         expect(selectFromPlan(plan, 'flow:home=true').flows).toEqual(['auth/loginFlow', 'home']);
 

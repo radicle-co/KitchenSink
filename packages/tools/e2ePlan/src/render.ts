@@ -35,7 +35,7 @@ function renderTier(tier: 'web' | 'mobile', selection: TierSelection, all: reado
         const more = selection.reasons.length - REASONS_SHOWN;
 
         return [
-            `${TIER_LABEL[tier]}: all ${all.length}`,
+            `${TIER_LABEL[tier]}: all${all.length > 0 ? ` ${all.length}` : ''}`,
             ...selection.reasons.slice(0, REASONS_SHOWN).map((reason) => `    ${reason}`),
             ...(more > 0 ? [`    ... and ${more} more`] : []),
         ];

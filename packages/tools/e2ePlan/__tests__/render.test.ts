@@ -75,4 +75,15 @@ describe('renderPlan', () => {
         expect(text).not.toContain('file10.ts');
         expect(text).toContain('and 15 more');
     });
+
+    it('does not print a count of zero for a whole tier whose inventory it could not build', () => {
+        const text = renderPlan(
+            { web: { kind: 'all', reasons: ['x'] }, mobile: { kind: 'all', reasons: ['x'] }, warnings: [] },
+            { web: [], mobile: [] },
+            { base: 'main', changed: 1 },
+        );
+
+        expect(text).toContain('web (Playwright): all\n');
+        expect(text).not.toContain('all 0');
+    });
 });

@@ -3,8 +3,9 @@
  *
  * ## ⛔ The only writer in test tooling
  *
- * This is the ONLY code in test tooling that creates a Clerk user or writes `public_metadata`
- * (`runtimeUserCreation.test.ts` and `metadataSingleWriter.test.ts` hold every other file to that). Outside test
+ * This is the ONLY code in test tooling that writes `public_metadata`, and with `runUsers.ts` (a local run's own erasure
+ * subject, through this module's port) the only code that creates a Clerk user (`runtimeUserCreation.test.ts` and
+ * `metadataSingleWriter.test.ts` hold every other file to that). Outside test
  * tooling exactly one other writer exists, by owner ruling 2026-10-13: the identity webhook merges `roles: ['default']`
  * into a NEW user that has no `roles` key. It never touches a user this command created, because every slot is
  * created with its `roles` in the same call (`poolSlotMetadata`). A test LEASES a
@@ -97,6 +98,7 @@ import { pathToFileURL } from 'node:url';
 
 import { ulid } from 'ulidx';
 import { createClerkClient } from '@clerk/backend';
+import { isClerkAPIResponseError } from '@clerk/backend/errors';
 
 import { withClerkBackendRetry } from './clerkSession.js';
 import { awaitExternalId, EXTERNAL_ID_DEADLINE_MS, EXTERNAL_ID_POLL_MS } from './externalId.js';
@@ -105,6 +107,7 @@ import {
     DEFAULT_POOL_PHASE,
     MAESTRO_PLATFORMS,
     isLocalNamespaceSlot,
+    isMaestroPlatform,
     knownPoolAddresses,
     maestroErasureSlots,
     maestroShardCapacity,
@@ -156,7 +159,9 @@ export interface PoolAdminPort {
      * that cannot count is REFUSED for such a run rather than treated as having room.
      */
     readonly countUsers?: () => Promise<number>;
-    /** Delete a user. Used only to recycle a local-namespace run's consumable subjects (see {@link reconcilePool}). */
+    /** One user by id, or `undefined` when Clerk holds no user with that id. Read before a run deletes a user it recorded. */
+    readonly findUserById?: (userId: string) => Promise<ObservedPoolUser | undefined>;
+    /** Delete a user by id: a local run's recorded erasure subject (`runUsers.ts`), or a dispatched k6 run's users. */
     readonly deleteUser?: (userId: string) => Promise<void>;
     /** Re-state a user's username and names, which makes Clerk emit `user.updated`. Never touches metadata. */
     readonly reassertProfile: (userId: string, profile: PoolProfileReassert) => Promise<void>;
@@ -233,9 +238,9 @@ export type PoolScope =
      */
     | { readonly kind: 'maestroErasure'; readonly platform: MaestroPlatform; readonly shard: number }
     /**
-     * Everything one local Maestro lane signs in: its signer, its co-author and, on the platform's erasure shard, its
-     * FIRST erasure subject (see {@link poolScopeOptions}). Only for the local namespace (`main` refuses it otherwise): the shared pool's signers are the
-     * owner's, provisioned by the owner's whole-roster run.
+     * One local Maestro lane's standing users: its signer and its co-author. Never its erasure subject, which only the run
+     * that records its id makes (`runUsers.ts`). Only for the local namespace (`main` refuses it otherwise): the shared
+     * pool's signers are the owner's, provisioned by the owner's whole-roster run.
      */
     | { readonly kind: 'maestroLane'; readonly platform: MaestroPlatform; readonly shard: number }
     /**
@@ -285,9 +290,6 @@ export function poolScopeOptions(scope: PoolScope): {
                 slots: [
                     maestroSlotForShard('signer', scope.platform, scope.shard),
                     maestroSlotForShard('coauthor', scope.platform, scope.shard),
-                    // The platform's erasure subject, which is its only one since the 2026-11-06 trim; the lane recycles
-                    // it, so the one standing is always the one just made and the lease takes it.
-                    ...maestroErasureSlots(scope.platform, scope.shard).slice(0, 1),
                 ],
                 drift: 'skip',
                 profile: 'leave',
@@ -314,6 +316,14 @@ export function refuseUnsafeScope(scope: PoolScope, local: boolean): void {
         );
     }
 
+    // A local subject made here would be one no run recorded, so no run could ever delete it (owner ruling 2026-11-07).
+    if (scope.kind === 'maestroErasure' && local) {
+        throw new Error(
+            "poolAdmin: --maestro-erasure refills CI's shared erasure subjects - a local run makes its own through " +
+                '--create-run-erasure-subject, which records the id it must delete',
+        );
+    }
+
     if (scope.kind === 'k6Run' && local) {
         throw new Error(
             "poolAdmin: --k6-run makes the shared pool's k6 users for a dispatched load test - unset E2E_POOL_NAMESPACE",
@@ -333,10 +343,6 @@ export interface PoolAdminArgs {
     /** `settled` only with `--settle-downgraded`; see {@link planPool}. */
     readonly phase: PoolPhase;
     readonly scope: PoolScope;
-    /** `--recycle`: delete the scope's consumable users first, so a local run starts from subjects it has just made. */
-    readonly recycle?: true;
-    /** `--delete-consumables`: DELETE ONLY (nothing is created) the scope's LOCAL consumable users; see {@link deleteLocalConsumables}. */
-    readonly deleteConsumables?: true;
     /** `--delete` (with `--k6-run`): DELETE the k6 run's users instead of making them; see {@link deleteK6RunUsers}. */
     readonly deleteRun?: true;
 }
@@ -353,8 +359,6 @@ function readPoolAdminArgv(argv: readonly string[]) {
             'maestro-erasure': { type: 'boolean' },
             'maestro-lane': { type: 'boolean' },
             'local-roles': { type: 'boolean' },
-            recycle: { type: 'boolean' },
-            'delete-consumables': { type: 'boolean' },
             'k6-run': { type: 'boolean' },
             delete: { type: 'boolean' },
             platform: { type: 'string' },
@@ -397,28 +401,12 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     }
 
     const lane = parsed.values['maestro-lane'] === true;
-    const recycle = parsed.values.recycle === true;
-
-    if (recycle && !erasure && !lane) {
-        throw new Error(
-            'poolAdmin: --recycle applies to the consumable users of a --maestro-erasure or --maestro-lane run',
-        );
-    }
-
-    const deleteConsumables = parsed.values['delete-consumables'] === true;
-
-    if (deleteConsumables && (!(erasure || lane) || recycle || phase === 'settled')) {
-        throw new Error(
-            'poolAdmin: --delete-consumables applies to a --maestro-erasure or --maestro-lane run, and not with --recycle or --settle-downgraded',
-        );
-    }
-
     const k6Run = parsed.values['k6-run'] === true;
     const deleteRun = parsed.values.delete === true;
 
     if (deleteRun && !k6Run) {
         throw new Error(
-            'poolAdmin: --delete applies only to a --k6-run (use --delete-consumables for a local Maestro lane)',
+            'poolAdmin: --delete applies only to a --k6-run (a local Maestro run deletes its own subject with --delete-run-users)',
         );
     }
 
@@ -426,16 +414,14 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
         if (
             lane ||
             erasure ||
-            recycle ||
-            deleteConsumables ||
             phase === 'settled' ||
             shard !== undefined ||
             platform !== undefined ||
             parsed.values['local-roles'] === true
         ) {
             throw new Error(
-                'poolAdmin: --k6-run stands alone - it takes no --maestro-lane, --maestro-erasure, --recycle, ' +
-                    '--delete-consumables, --local-roles, --settle-downgraded, --platform or --shard',
+                'poolAdmin: --k6-run stands alone - it takes no --maestro-lane, --maestro-erasure, ' +
+                    '--local-roles, --settle-downgraded, --platform or --shard',
             );
         }
 
@@ -445,9 +431,9 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     const localRoles = parsed.values['local-roles'] === true;
 
     if (localRoles) {
-        if (lane || erasure || recycle || phase === 'settled' || shard !== undefined || platform !== undefined) {
+        if (lane || erasure || phase === 'settled' || shard !== undefined || platform !== undefined) {
             throw new Error(
-                'poolAdmin: --local-roles stands alone - it takes no --maestro-lane, --maestro-erasure, --recycle, ' +
+                'poolAdmin: --local-roles stands alone - it takes no --maestro-lane, --maestro-erasure, ' +
                     '--settle-downgraded, --platform or --shard',
             );
         }
@@ -456,7 +442,7 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     }
 
     if (lane && erasure) {
-        throw new Error('poolAdmin: --maestro-lane already includes the erasure subjects; give one of the two');
+        throw new Error('poolAdmin: --maestro-lane and --maestro-erasure are separate scopes; give one of the two');
     }
 
     if (!erasure && !lane) {
@@ -499,14 +485,9 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     return {
         apply,
         phase,
-        ...(recycle ? { recycle: true as const } : {}),
-        ...(deleteConsumables ? { deleteConsumables: true as const } : {}),
         scope: { kind: lane ? 'maestroLane' : 'maestroErasure', platform, shard: Number(shard) },
     };
 }
-
-const isMaestroPlatform = (value: string): value is MaestroPlatform =>
-    MAESTRO_PLATFORMS.some((platform) => platform === value);
 
 /**
  * Read `--list-local-lanes --platform <p>`, which takes nothing else. Pure.
@@ -694,6 +675,15 @@ export function poolUserCreateInput(slot: PoolSlot, randomPassword: string): Poo
 }
 
 /**
+ * A password nobody holds, for a slot that signs in only by ticket. It meets the instance's character classes.
+ *
+ * @sideEffect Reads the system's randomness.
+ */
+export function randomPoolPassword(): string {
+    return `Pp1!${randomBytes(24).toString('base64url')}`;
+}
+
+/**
  * The profile a slot's Clerk user is re-asserted with: exactly the username and names its create body carries, plus the
  * committed password for a slot that signs in by password. Pure.
  *
@@ -820,13 +810,6 @@ export async function reconcilePool(
          */
         readonly externalId?: { readonly mint: () => string };
         /**
-         * `consumables`: before anything else, delete the users of every CONSUMABLE slot in scope (an erasure subject), so the
-         * run starts from subjects it makes itself. For the LOCAL namespace only: the deployed refill relies on the identity
-         * deletion worker having deleted an erased subject from Clerk, and the local stack runs none. Only the slots handed
-         * in are touched, and nothing is deleted on a dry run.
-         */
-        readonly recycle?: 'consumables';
-        /**
          * Refuse, before the first write, when creating every missing user would take the instance past `limit`. Needs a
          * port that can `countUsers`.
          */
@@ -837,11 +820,6 @@ export async function reconcilePool(
     },
 ): Promise<PoolReport> {
     const slots = options.slots ?? rosterSlots();
-
-    if (options.recycle === 'consumables' && options.apply) {
-        await deleteConsumableHolders(port, slots);
-    }
-
     const holders = await observeSlots(port, slots);
     const phase = options.phase ?? DEFAULT_POOL_PHASE;
     const plan = planPool(slots, holders, options.drift === 'audit' ? await port.listUsers() : [], phase);
@@ -912,75 +890,6 @@ export async function reconcilePool(
         unsettled,
         healthy: !broken && unleasable.length === 0 && unsettled.length === 0,
     };
-}
-
-/**
- * Delete every user that holds the address of a consumable slot.
- *
- * @sideEffect One Backend API read per consumable slot and one delete per user found.
- * @throws When the port cannot delete.
- */
-async function deleteConsumableHolders(port: PoolAdminPort, slots: readonly PoolSlot[]): Promise<void> {
-    if (port.deleteUser === undefined) {
-        throw new Error('poolAdmin: recycling consumable users needs a port with deleteUser');
-    }
-
-    for (const slot of slots.filter((candidate) => candidate.consumable)) {
-        for (const holder of await port.findUsers(slot.email)) {
-            await port.deleteUser(holder.id);
-        }
-    }
-}
-
-/**
- * Delete the users of LOCAL consumable slots, and create nothing: how a local Maestro run removes its erasure subject
- * when it ends (a local erasure subject exists only DURING a run).
- *
- * ⛔ It cannot touch a shared user. Every slot is checked BEFORE the first lookup: it must be consumable and carry the
- * local namespace's address, so CI's `erasure01` / `erasure06` are refused, as is any signer.
- *
- * @param port - Must be able to `deleteUser`.
- * @param slots - The slots whose holders to delete.
- * @param apply - `false` only names who would go.
- * @returns The ids deleted (or, on a dry run, that would be).
- * @throws On a slot that is not a local consumable, or a port that cannot delete.
- * @sideEffect One Backend API read per slot and, with `apply`, one delete per user found.
- */
-export async function deleteLocalConsumables(
-    port: Pick<PoolAdminPort, 'findUsers' | 'deleteUser'>,
-    slots: readonly PoolSlot[],
-    apply: boolean,
-): Promise<readonly string[]> {
-    for (const slot of slots) {
-        if (!slot.consumable) {
-            throw new Error(`poolAdmin: ${slot.tier}/${slot.id} is not a consumable slot, so it is not deleted`);
-        }
-
-        if (!isLocalNamespaceSlot(slot)) {
-            throw new Error(
-                `poolAdmin: ${slot.tier}/${slot.id} is a SHARED pool user, not a local one - only the local namespace's ` +
-                    'consumables may be deleted (set E2E_POOL_NAMESPACE=local)',
-            );
-        }
-    }
-
-    if (port.deleteUser === undefined) {
-        throw new Error('poolAdmin: deleting consumable users needs a port with deleteUser');
-    }
-
-    const ids: string[] = [];
-
-    for (const slot of slots) {
-        for (const holder of await port.findUsers(slot.email)) {
-            if (apply) {
-                await port.deleteUser(holder.id);
-            }
-
-            ids.push(holder.id);
-        }
-    }
-
-    return ids;
 }
 
 /**
@@ -1201,6 +1110,18 @@ export function clerkPoolAdminPort(
         writeExternalId: async (userId, externalId) => {
             await backend(() => clerk.users.updateUser(userId, { externalId }));
         },
+        findUserById: async (userId) => {
+            try {
+                return observe(await backend(() => clerk.users.getUser(userId)));
+            } catch (error) {
+                // Only Clerk's own "no such user" means absent; any other failure must not read as "already gone".
+                if (isClerkAPIResponseError(error) && error.status === 404) {
+                    return undefined;
+                }
+
+                throw error;
+            }
+        },
         deleteUser: async (userId) => {
             await backend(() => clerk.users.deleteUser(userId));
         },
@@ -1260,12 +1181,6 @@ async function main(): Promise<void> {
     const scoped = poolScopeOptions(args.scope);
     const local = poolNamespaceFrom(process.env) === 'local';
 
-    if (args.recycle && !local) {
-        throw new Error(
-            'poolAdmin: --recycle deletes users, which only the local namespace may — set E2E_POOL_NAMESPACE=local',
-        );
-    }
-
     if (args.scope.kind === 'maestroLane' && !local) {
         throw new Error(
             'poolAdmin: --maestro-lane provisions signers, which only the local namespace may — set E2E_POOL_NAMESPACE=local',
@@ -1276,28 +1191,6 @@ async function main(): Promise<void> {
 
     if (args.scope.kind === 'maestroErasure' && scoped.slots.length === 0) {
         console.log(`maestro shard ${args.scope.shard} leases no erasure subject — nothing to refill`);
-    }
-
-    if (args.deleteConsumables === true) {
-        if (!local) {
-            throw new Error(
-                'poolAdmin: --delete-consumables deletes users, which only the local namespace may - set E2E_POOL_NAMESPACE=local',
-            );
-        }
-
-        const ids = await deleteLocalConsumables(
-            port,
-            scoped.slots.filter((slot) => slot.consumable),
-            args.apply,
-        );
-
-        for (const id of ids) {
-            console.log(`${args.apply ? 'deleted' : 'would delete'} local consumable user ${id}`);
-        }
-
-        console.log(`${args.apply ? 'applied' : 'dry run (pass --apply to delete)'} - ${ids.length} user(s)`);
-
-        return;
     }
 
     if (args.deleteRun === true) {
@@ -1318,11 +1211,10 @@ async function main(): Promise<void> {
         ...scoped,
         // The local namespace's users have no sandbox webhook to write their id (see `testPool.ts`'s `PoolNamespace`).
         ...(local ? { externalId: { mint: ulid } } : {}),
-        ...(args.recycle ? { recycle: 'consumables' as const } : {}),
         ...(args.scope.kind === 'localRoles' || args.scope.kind === 'k6Run'
             ? { capacity: { limit: CLERK_DEVELOPMENT_USER_LIMIT } }
             : {}),
-        randomPassword: () => `Pp1!${randomBytes(24).toString('base64url')}`,
+        randomPassword: randomPoolPassword,
         now: Date.now,
         sleep: (ms) => delay(ms),
     });

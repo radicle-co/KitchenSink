@@ -42,9 +42,9 @@
 #
 # ⚠️ The Clerk users are the run's OWN: `E2E_POOL_NAMESPACE=local` gives every slot a `test-local-*` address on the same
 # Clerk instance, so a local run never signs in, erases or refills a user CI leases, and can run beside a CI job. The run
-# makes them (`poolAdmin --maestro-lane`), mints their `external_id` itself (the sandbox webhook that writes it is down
-# when the sandbox is), recycles the erasure subject at the start (nothing local deletes an erased user from Clerk) and
-# deletes it again when the run ends.
+# makes the lane's users (`poolAdmin --maestro-lane`) and mints their `external_id` itself (the sandbox webhook that
+# writes it is down when the sandbox is). It makes its own erasure subject (`runUsers.ts`, nothing local deletes an erased
+# user from Clerk) and, when it ends, deletes the id it recorded and no other.
 
 set -uo pipefail
 
@@ -315,9 +315,10 @@ local_maestro_cleanup() {
     local status=$?
     trap - EXIT INT TERM
 
-    # The lane's erasure subject exists only during a run, so it goes whatever the outcome (failure and interrupt included).
-    if [ "${LOCAL_MAESTRO_USERS_PROVISIONING:-}" = 'true' ]; then
-        local_maestro_delete_lane_users || echo 'local:maestro: ⚠️ the local erasure subject could not be deleted' >&2
+    # The run's erasure subject exists only during a run, so it goes whatever the outcome (failure and interrupt included).
+    if [ "${LOCAL_MAESTRO_RUN_USERS_MADE:-}" = 'true' ]; then
+        local_maestro_delete_run_users ||
+            echo 'local:maestro: ⚠️ the run erasure subject could not be deleted - its id stays in the record for the next run' >&2
     fi
 
     command adb -s emulator-5556 reverse --remove-all >/dev/null 2>&1 || true
@@ -557,40 +558,47 @@ local_maestro_seed_env() {
     export MAESTRO_FIXTURE_ENV_FILE="${state}/e2e-seed/fixture.env"
 }
 
-# Make this lane's users, which exist only for a local run: signer, co-author and the erasure subjects. The subjects are
-# RECYCLED (deleted and made again) because the local stack runs no identity deletion worker, so an erased one would
-# otherwise still stand in Clerk. `external_id` is written here too, since the sandbox webhook that writes it for the
-# shared pool is down when the sandbox is. Only Clerk is touched, and only users named `test-local-*`.
+# The run's record of the Clerk users it made, shared with `maestro:lanes` (the same state directory), so either door
+# deletes what the other left after a crash.
+local_maestro_run_users_record() {
+    local state
+    state="$(local_maestro_state_dir)" || return 1
+    printf '%s/runUsers.android.json\n' "$state"
+}
+
+# Make the lane's standing users (signer and co-author, `test-local-*` only) if they are missing, then the run's own
+# erasure subject. The subject exists only during the run: the local stack runs no identity deletion worker, so an erased
+# one would otherwise still stand in Clerk. `runUsers.ts` records its id the moment Clerk returns it, and the exit trap
+# deletes that id and nothing else (owner ruling 2026-11-07). A subject no record names is refused, never deleted.
 #
-# ⛔ `LOCAL_MAESTRO_REUSE_USERS=1` SKIPS the step. `--recycle` DELETES the erasure subject in Clerk and makes it again, and a
-# run that must neither create nor delete a Clerk user (the development instance is full) reuses the ones standing.
+# `LOCAL_MAESTRO_REUSE_USERS=1` skips the standing users (a run that must not create them, the development instance being
+# nearly full); the subject is the run's own either way, made and deleted, so the instance ends where it began.
 # `LOCAL_MAESTRO_ROLE_USERS=1` serves the role users `recipes/paidFeaturesByRole` and `recipes/makePublicConfirm` sign in as:
 # the five read-only ones REUSE CI's shared users (nothing created), and only the downgraded owner is made locally, by
 # `poolAdmin --local-roles`, which refuses before its first write when the instance has no room. OFF by default.
-#
-# Set BEFORE the first create, so a failure part-way is still cleaned up by the exit trap (`local_maestro_delete_lane_users`).
 local_maestro_provision_lane_users() {
-    LOCAL_MAESTRO_USERS_PROVISIONING=true
-
     if [ "${LOCAL_MAESTRO_REUSE_USERS:-}" = '1' ]; then
-        echo 'local:maestro: LOCAL_MAESTRO_REUSE_USERS=1 - reusing the standing Clerk users, creating and deleting none' >&2
+        echo 'local:maestro: LOCAL_MAESTRO_REUSE_USERS=1 - reusing the standing lane users, creating none' >&2
     else
-        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 || return 1
+        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-lane --platform android --shard 1 || return 1
     fi
 
     if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
         npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles || return 1
     fi
+
+    local record
+    record="$(local_maestro_run_users_record)" || return 1
+    # Set BEFORE the create, so a failure part-way still runs the delete in the exit trap.
+    LOCAL_MAESTRO_RUN_USERS_MADE=true
+    npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --create-run-erasure-subject --platform android --record "$record" || return 1
 }
 
-# Delete the lane's erasure subject, and create nothing. `--delete-consumables` is local-namespace-only and refuses any
-# shared user, so this cannot touch CI's pool. Skipped under `LOCAL_MAESTRO_REUSE_USERS=1`, which promises to delete none.
-local_maestro_delete_lane_users() {
-    if [ "${LOCAL_MAESTRO_REUSE_USERS:-}" = '1' ]; then
-        return 0
-    fi
-
-    npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --delete-consumables --maestro-lane --platform android --shard 1
+# Delete the users this run recorded, by id, and create nothing (`runUsers.ts`). It never looks a user up by address.
+local_maestro_delete_run_users() {
+    local record
+    record="$(local_maestro_run_users_record)" || return 1
+    npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --delete-run-users --record "$record"
 }
 
 local_maestro_reset_pool() {

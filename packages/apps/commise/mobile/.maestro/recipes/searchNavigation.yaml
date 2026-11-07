@@ -248,6 +248,14 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'My recipes'
       timeout: 40000
+# The segment control is drawn before the list under it has settled, and a tap on 'Collections' in that first instant is
+# dropped (measured: a tap 0 s after 'My recipes' shows is lost, one 0.15 s later always lands; #150). Wait for the list's
+# own settled state, the full count, which is drawn only after the list is, then tap. A re-tap is not used: the owner
+# ruling behind `maestroNoTimingCrutches` is that a flow waits on what the screen shows and never taps twice.
+- extendedWaitUntil:
+      visible:
+          text: '^3 recipes$'
+      timeout: 40000
 - tapOn: 'Collections'
 - extendedWaitUntil:
       visible: 'New collection'

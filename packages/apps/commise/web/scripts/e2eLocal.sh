@@ -65,7 +65,21 @@ find_free_port() {
     return 1
 }
 
-PORT="$(find_free_port)"
+# `E2E_PORT` is a parallel lane's own port (scripts/e2eLanes.ts picks one per lane). It is used when free and
+# REFUSED when taken: falling back to another port would let two lanes meet on one.
+choose_port() {
+    if [[ -n "${E2E_PORT:-}" ]]; then
+        if ss -ltn 2>/dev/null | grep -q ":${E2E_PORT}\b"; then
+            echo "error: E2E_PORT ${E2E_PORT} is already in use" >&2
+            return 1
+        fi
+        printf '%s' "${E2E_PORT}"
+        return 0
+    fi
+    find_free_port
+}
+
+PORT="$(choose_port)"
 export PORT
 
 # ── Where the app under test sends its API calls: somewhere NO API answers ──────────────────────────
@@ -100,7 +114,9 @@ export NEXT_PUBLIC_FOOD_API_URL="${NEXT_PUBLIC_FOOD_API_URL:-http://localhost:${
 MODE="${E2E_WEB_SERVER:-start}"
 export E2E_WEB_SERVER="${MODE}"
 
-if [[ "${MODE}" == 'start' ]]; then
+# `E2E_SKIP_BUILD=1`: a lane that scripts/e2eLanes.ts started after ONE shared build. `E2E_BUILD_ONLY=1` is that
+# build: it stops once the artifact exists, before any test runs.
+if [[ "${MODE}" == 'start' && "${E2E_SKIP_BUILD:-}" != '1' ]]; then
     # `next start` SERVES a build; it does not make one (playwright.config.ts). Built through turbo — the
     # same task, inputs and outputs CI's build job runs — so the artifact is the one CI makes and an
     # unchanged rerun is a cache hit rather than a rebuild. The API origins above are part of that
@@ -111,6 +127,10 @@ if [[ "${MODE}" == 'start' ]]; then
     # build (turbo.json), so a pseudo build never shares a cache key with a plain one, and nothing else in
     # the run reads it (`pseudoLocaleBuildGate.test.ts`). The output is a local `.next`, deployed nowhere.
     COMMISE_PSEUDO_LOCALE=1 npx turbo run build --filter=@commise/web
+fi
+
+if [[ "${E2E_BUILD_ONLY:-}" == '1' ]]; then
+    exit 0
 fi
 
 LOG="$(mktemp -t playwright-local-XXXXXX.log)"
@@ -125,7 +145,7 @@ echo
 # truncated tail can read as a pass. `list` rather than `line` because line's in-place rewriting swallows
 # console output from the tests themselves.
 set +e
-npx playwright test --reporter=list "$@" 2>&1 | tee "${LOG}"
+npx playwright test --reporter="${E2E_REPORTER:-list}" "$@" 2>&1 | tee "${LOG}"
 status="${PIPESTATUS[0]}"
 set -e
 

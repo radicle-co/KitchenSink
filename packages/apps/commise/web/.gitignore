@@ -17,6 +17,7 @@
 # Playwright
 playwright-report/
 test-results/
+blob-report/
 
 # U10a visual passes — generated artifacts, never committed.
 #  - `screenshots/` is what Argos uploads and compares; the BASELINE lives in Argos, keyed on the file name,

@@ -77,9 +77,13 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                 <View style={styles.text}>
                     {isStandInName(ingredient) ? (
                         <>
+                            {/* The amount's line is in the row's body role: `figureInline` has no size or leading of its
+                            own and takes them from the text it sits in, as the typed row's amount does. */}
                             {amount !== '' && (
-                                <Text typeRole="figureInline" color={checked ? '$inkMuted' : '$ink'}>
-                                    {amount}
+                                <Text typeRole="body" color={checked ? '$inkMuted' : '$ink'}>
+                                    <Text typeRole="figureInline" color={checked ? '$inkMuted' : '$ink'}>
+                                        {amount}
+                                    </Text>
                                 </Text>
                             )}
                             <StandIn tone={isLineFoodRemoved(ingredient) ? 'caution' : 'neutral'}>

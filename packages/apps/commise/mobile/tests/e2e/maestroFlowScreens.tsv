@@ -11,6 +11,12 @@
 # a flow cannot be read for the screens it reaches the way a Playwright spec can. Narrow a row only after watching
 # the flow, never by guessing.
 #
+# THE SCREEN RECORDER CHECKS THIS FILE. A local lane run (`npm run test:e2e:android`, `test:e2e:ios`) uses a test build
+# that logs each screen it shows (`mobile/src/screenTrace`); after the run, `@kitchensink/e2e-plan/recordedScreens` fails
+# the run when a flow showed a screen its combined row lacks (add it), or passed having recorded nothing. It also prints
+# rows WIDER than what a passed flow showed. Narrow a row only from several observed runs: one run takes one branch of a
+# `when:`. Adding a screen to a row is always safe; the recorder never narrows by itself.
+#
 # A SUB-FLOW may have a row too (the two sign-in flows do): its screens belong to every top-level flow that runs it,
 # through the flow graph, so a flow's own row lists only what the flow adds.
 #

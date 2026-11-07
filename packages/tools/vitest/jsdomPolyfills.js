@@ -68,6 +68,15 @@ if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !=
  */
 if (typeof globalThis.IntersectionObserver === 'undefined') {
     class IntersectionObserverPolyfill {
+        /**
+         * @param {IntersectionObserverCallback} callback - Kept so the signature matches the real constructor; never called.
+         * @param {IntersectionObserverInit} [options] - Likewise.
+         */
+        constructor(callback, options) {
+            this.callback = callback;
+            this.options = options;
+        }
+
         observe() {}
 
         unobserve() {}

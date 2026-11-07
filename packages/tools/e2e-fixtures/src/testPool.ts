@@ -81,10 +81,12 @@ export type PoolTenant = (typeof POOL_TENANTS)[number];
  *
  * A change that needs a write as one of these users needs a lease and resets first.
  *
- * `webPeer` (owner decision 2026-10-19, plan 013 C4 / matrix G18) is the SECOND web identity of a shard: lane N is the
- * peer of web shard N (and of webStub shard N), the cook who signs in after the shard's own user signs out, so
+ * `webPeer` (owner decision 2026-10-19, plan 013 C4 / matrix G18) is the SECOND web identity: ONE lane, `webpeer01`, the
+ * peer of every web and webStub shard (trimmed from one per shard 2026-11-06, because it is read-only and never reset),
+ * the cook who signs in after the shard's own user signs out, so
  * `sessionHandoff.spec.ts` can prove ADR-0054 on a browser. It is a tier of its own, and not more lanes of `web`,
  * because `slotForShard` takes the lane at the shard's index and a shard past the eight would otherwise land on a peer.
+ * `webStub` is likewise ONE lane, `webstub01`, for every stubbed shard.
  * It holds NO lease and gets NO reset, on the `roles` argument, and binds the same two rules: sign in and READ only
  * (the spec stubs the recipe service, so it writes nothing), and end only your own session. Appended after `roles`
  * so no existing tier is reordered.
@@ -212,7 +214,8 @@ export const DOWNGRADED_OWNER_LANE_ID = 'roledowngraded';
  */
 export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
     web: numbered('web', 8, { signsInByPassword: true }),
-    webStub: numbered('webstub', 6, { signsInByPassword: true }),
+    // ONE stub user for every stubbed shard (2026-11-06): the tier is never leased, reset or swept and mocks every API call.
+    webStub: numbered('webstub', 1, { signsInByPassword: true }),
     maestro: [
         // The signer owns the PRIVATE recipes of the seeded world, which the recipe service admits only for a
         // premium caller.
@@ -279,8 +282,8 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         // `DOWNGRADED_OWNER_LANE_ID` — and the flows that sign in as it only READ, like every other lane here.
         lane(DOWNGRADED_OWNER_LANE_ID, { roles: ['default'], seedRoles: ['premium'], signsInByPassword: true }),
     ],
-    // One peer per web shard (see POOL_TIERS). Eight, the deployed matrix's size; the six stub shards use the first six.
-    webPeer: numbered('webpeer', 8, { signsInByPassword: true }),
+    // ONE peer for every web and stub shard (2026-11-06, see POOL_TIERS): it is only cook B in `sessionHandoff.spec.ts`.
+    webPeer: numbered('webpeer', 1, { signsInByPassword: true }),
 };
 
 /**
@@ -605,7 +608,9 @@ export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number)
         throw new Error(`test pool: shard must be a positive integer, got ${String(shard)}`);
     }
 
-    const declared = POOL_ROSTER[tier][shard - 1];
+    // `webStub` and `webPeer` are never leased, reset or swept, so every shard shares their ONE lane. Only `web`,
+    // whose lanes are leases, gives each shard a user of its own.
+    const declared = POOL_ROSTER[tier][tier === 'web' ? shard - 1 : 0];
 
     if (declared === undefined) {
         throw new Error(
@@ -618,21 +623,21 @@ export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number)
 }
 
 /**
- * The peer of a web slot: the `webPeer` lane at the same index, the SECOND cook `sessionHandoff.spec.ts` signs in after
+ * The peer of a web slot: the one `webPeer` lane, the SECOND cook `sessionHandoff.spec.ts` signs in after
  * the slot's own user signs out. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
- * Derived from the slot rather than from a shard number so a caller that already holds its slot (`webPoolSlot`) does
- * not parse the shard a second time. It throws for a slot of any other tier.
+ * Takes the slot rather than a shard number so a caller that already holds its slot (`webPoolSlot`) does not parse the
+ * shard a second time. It throws for a slot of any other tier.
  *
  * @param slot - A `web` or `webStub` slot.
- * @throws When the slot is not a web slot, or the peer tier declares no lane for its index.
+ * @throws When the slot is not a web slot.
  */
 export function peerSlotFor(slot: PoolSlot): PoolSlot {
     if (slot.tier !== 'web' && slot.tier !== 'webStub') {
         throw new Error(`test pool: only a web slot has a peer, got ${slot.tier}/${slot.id}`);
     }
 
-    return slotForShard('webPeer', POOL_ROSTER[slot.tier].findIndex((declared) => declared.id === slot.id) + 1);
+    return slotForShard('webPeer', 1);
 }
 
 /**

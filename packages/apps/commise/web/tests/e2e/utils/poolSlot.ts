@@ -10,8 +10,9 @@ import { slotForShard, type PoolSlot } from '@kitchensink/e2e-fixtures/testPool'
  * two runs of one shard off it at once, and `resetPool` empties what it owns before and after.
  *
  * The shard is the lane — `COMMISE_E2E_SHARD`, which `playwright.config.ts` already forwards and every worker
- * inherits — and the STUBBED tier (`PLAYWRIGHT_MOCKED_ONLY=1`) has lanes of its own, because both matrices run on
- * the same pull request at the same time. A run with no shard (a developer machine) is shard 1. Pure.
+ * inherits — and the STUBBED tier (`PLAYWRIGHT_MOCKED_ONLY=1`) has a user of its own, because both matrices run on
+ * the same pull request at the same time. All stubbed shards share that ONE user (`webstub01`): the tier is never
+ * leased, reset or swept, and it mocks every API call. A run with no shard (a developer machine) is shard 1. Pure.
  *
  * @param env - The slice of `process.env` that decides it.
  * @returns The slot.

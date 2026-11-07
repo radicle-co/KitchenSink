@@ -110,9 +110,27 @@ describe('slotForShard', () => {
         expect(slotForShard('webStub', 3)).toEqual(slotForShard('webStub', 3));
     });
 
-    it('gives different shards different users, within a tier and across the two web tiers', () => {
+    /**
+     * REWRITTEN 2026-11-06 (pool trim, step 1). The DEPLOYED tier still gives every shard its own user, because a `web`
+     * lane is a lease and `resetPool` purges what it owns. The STUBBED tier gives every shard the SAME user, `webstub01`:
+     * it is never leased, reset or swept, and every `/api/v1/**` call it makes is mocked in the browser, so shards share
+     * nothing but Clerk sessions (any number per user). It must still never be a `web` user.
+     */
+    it('gives each deployed shard its own user, all stubbed shards one user, and the two tiers no user in common', () => {
         expect(slotForShard('web', 1).email).not.toBe(slotForShard('web', 2).email);
         expect(slotForShard('web', 1).email).not.toBe(slotForShard('webStub', 1).email);
+
+        for (const shard of [1, 2, 6]) {
+            expect(slotForShard('webStub', shard).id, `stub shard ${shard}`).toBe('webstub01');
+        }
+
+        expect(POOL_ROSTER.webStub.map((lane) => lane.id)).toEqual(['webstub01']);
+    });
+
+    it('still refuses a malformed stubbed shard — the one lane is not a licence to guess', () => {
+        for (const shard of [0, -1, 1.5, Number.NaN]) {
+            expect(() => slotForShard('webStub', shard), String(shard)).toThrow(/shard/u);
+        }
     });
 
     it.each([0, -1, 1.5, Number.NaN])('refuses shard %s', (shard) => {
@@ -123,9 +141,10 @@ describe('slotForShard', () => {
         expect(() => slotForShard('web', POOL_ROSTER.web.length + 1)).toThrow(/declares only/u);
     });
 
-    it('covers the two Playwright matrices as they are wired today (8 deployed shards, 6 stubbed)', () => {
+    it('covers the two Playwright matrices as they are wired today (8 deployed shards, any number stubbed)', () => {
         expect(POOL_ROSTER.web.length).toBeGreaterThanOrEqual(8);
-        expect(POOL_ROSTER.webStub.length).toBeGreaterThanOrEqual(6);
+        // Any stub shard resolves, because they all share the one stub lane (see the test above).
+        expect(() => slotForShard('webStub', 6)).not.toThrow();
     });
 });
 
@@ -615,14 +634,16 @@ describe('the roles tier', () => {
  * borrowed from another shard would put two concurrent runs on one Clerk user.
  */
 describe('webPeer tier', () => {
-    it('declares one peer for every web shard, so shard N has a peer of its own', () => {
-        expect(POOL_ROSTER.webPeer.length).toBeGreaterThanOrEqual(POOL_ROSTER.web.length);
-        expect(POOL_ROSTER.webPeer.length).toBeGreaterThanOrEqual(POOL_ROSTER.webStub.length);
-    });
+    /**
+     * REWRITTEN 2026-11-06 (pool trim, step 1): ONE peer, `webpeer01`, for every shard. The peer is only cook B in
+     * `sessionHandoff.spec.ts`, which stubs the recipe service and writes nothing; the tier is never leased, reset or
+     * swept, so the old "a peer of its own per shard" protected no data. It is still never a shard's own user.
+     */
+    it('declares one peer, shared by every web shard, and it is never a shard’s own user', () => {
+        expect(POOL_ROSTER.webPeer.map((lane) => lane.id)).toEqual(['webpeer01']);
 
-    it('allocates shard N to peer N, and it is never the shard’s own user', () => {
         for (let shard = 1; shard <= POOL_ROSTER.web.length; shard += 1) {
-            expect(slotForShard('webPeer', shard).id).toBe(`webpeer${String(shard).padStart(2, '0')}`);
+            expect(slotForShard('webPeer', shard).id).toBe('webpeer01');
             expect(slotForShard('webPeer', shard).email).not.toBe(slotForShard('web', shard).email);
         }
     });
@@ -636,9 +657,10 @@ describe('webPeer tier', () => {
         }
     });
 
-    it('names the peer of a web or webStub slot, by the slot’s own index — so no caller re-parses the shard', () => {
-        expect(peerSlotFor(slotForShard('web', 3))).toEqual(slotForShard('webPeer', 3));
-        expect(peerSlotFor(slotForShard('webStub', 5))).toEqual(slotForShard('webPeer', 5));
+    it('names webpeer01 as the peer of every web or webStub slot', () => {
+        expect(peerSlotFor(slotForShard('web', 3))).toEqual(slotFor('webPeer', 'webpeer01'));
+        expect(peerSlotFor(slotForShard('web', 8))).toEqual(slotFor('webPeer', 'webpeer01'));
+        expect(peerSlotFor(slotForShard('webStub', 5))).toEqual(slotFor('webPeer', 'webpeer01'));
     });
 
     it('⛔ refuses a slot of any other tier, which has no peer, rather than guessing one', () => {
@@ -646,8 +668,8 @@ describe('webPeer tier', () => {
         expect(() => peerSlotFor(slotFor('webPeer', 'webpeer01'))).toThrow(/peer/u);
     });
 
-    it('refuses a shard past the declared peers rather than wrapping onto another shard’s peer', () => {
-        expect(() => slotForShard('webPeer', POOL_ROSTER.webPeer.length + 1)).toThrow(/declares only/u);
+    it('refuses a malformed shard for the peer tier too', () => {
+        expect(() => slotForShard('webPeer', 0)).toThrow(/shard/u);
     });
 });
 

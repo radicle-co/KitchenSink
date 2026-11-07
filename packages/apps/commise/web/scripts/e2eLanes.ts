@@ -10,7 +10,10 @@
  *
  * ## The shape of a run
  *
- * 1. List the tests (`--list`), so the count to reach is known BEFORE anything runs.
+ * 1. Choose the specs: a bare local run asks the impacted-test selector (`@kitchensink/e2e-plan`) which specs the
+ *    change affects and runs only those. `FULL_SUITE=1`, an `E2E_TEST_LIST`, or any argument for Playwright skips the
+ *    selector. A selector that cannot answer runs everything. Then list the tests (`--list`), so the count to reach is
+ *    known BEFORE anything runs.
  * 2. Plan the lane count (`planLanes`): CPU, memory, identities, Clerk's rate limit, the work.
  * 3. Build ONCE (`E2E_BUILD_ONLY`). The three API origins are pinned to {@link DEAD_ORIGIN} for the build AND for
  *    every lane, so the artifact does not depend on which port a lane gets and the turbo cache key is stable.
@@ -24,12 +27,13 @@
  * as its own slot), so the counts below leave the `setup` project out.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { cpSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, loadavg } from 'node:os';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
-import { planLanes, type LaneCost } from '@kitchensink/e2e-plan';
+import { planLanes, runPlan, type LaneCost } from '@kitchensink/e2e-plan';
 import { z } from 'zod';
 
 /** An address nothing listens on: the discard port. A call to it is REFUSED, as CI's identity and food ports are. */
@@ -229,6 +233,46 @@ export function verdict(input: {
     return { exitCode: worst === 0 && problems.length > 0 ? 1 : worst, problems };
 }
 
+/**
+ * Whether this run should ask the selector which specs to run.
+ *
+ * Only a bare local run does. A caller that named a spec, set a test list, or forced the whole suite has already
+ * chosen, and the selector must not override it.
+ *
+ * @param passthrough - The arguments after `npm run test:e2e --`.
+ * @param env - The caller's environment.
+ * @returns True when the selector decides.
+ */
+export const wantsSelection = (passthrough: readonly string[], env: Env): boolean =>
+    passthrough.length === 0 && env['FULL_SUITE'] !== '1' && (env['E2E_TEST_LIST'] ?? '') === '';
+
+/**
+ * Playwright file filters that match exactly the named specs.
+ *
+ * Playwright reads a positional argument as a regular expression matched anywhere in the path, so a bare
+ * `home.spec.ts` would also match `older/home.spec.ts` and `home.spec.tsx`; each filter is escaped, starts at the
+ * test folder and ends at the file name.
+ *
+ * @param ids - Spec paths under `tests/e2e`.
+ * @returns One filter per spec.
+ */
+export const specFilters = (ids: readonly string[]): readonly string[] =>
+    ids.map((id) => `tests/e2e/${id.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`);
+
+/**
+ * The text of a `--test-list` file for the listed tests: `[project] › file › describe › title`, one per line.
+ *
+ * `setup` is left out because Playwright runs it as a dependency of every project that needs it.
+ *
+ * @param tests - The tests of a `--list` report.
+ * @returns The file text.
+ */
+export const testListText = (tests: readonly ReportedTest[]): string =>
+    tests
+        .filter((test) => test.project !== 'setup')
+        .map((test) => `[${test.project}] › ${test.id.slice(test.project.length + ' › '.length)}\n`)
+        .join('');
+
 // ── The impure part ──────────────────────────────────────────────────────────────────────────────────
 
 const sleep = (seconds: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
@@ -259,6 +303,77 @@ function listTests(passthrough: readonly string[], testList: string | undefined,
     return parseReport(readFileSync(file, 'utf8'));
 }
 
+/** What step 1 decided about which specs to run. */
+export type Choice =
+    /** Run what Playwright was going to run anyway. */
+    | { readonly kind: 'unselected' }
+    /** The change touches no spec's screens: run nothing, and say why. */
+    | { readonly kind: 'none'; readonly why: string }
+    /** Run exactly the tests in this `--test-list` file. */
+    | { readonly kind: 'list'; readonly file: string; readonly specs: number; readonly tests: number };
+
+const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../../../../..');
+
+/**
+ * Step 1: asks the impacted-test selector which specs the change affects.
+ *
+ * Fails SAFE: if the selector cannot answer, the whole suite runs.
+ *
+ * @sideEffect Runs the selector (git, dependency-cruiser) and `playwright test --list`, and writes the test list.
+ * @param passthrough - The arguments after `npm run test:e2e --`.
+ * @param env - The caller's environment.
+ * @returns What to run.
+ */
+export async function chooseSelection(passthrough: readonly string[], env: Env): Promise<Choice> {
+    if (!wantsSelection(passthrough, env)) {
+        return { kind: 'unselected' };
+    }
+
+    let web: Awaited<ReturnType<typeof runPlan>>['web'];
+
+    try {
+        const plan = await runPlan(REPO_ROOT, env as NodeJS.ProcessEnv);
+
+        plan.warnings.forEach((warning) => console.warn(`warning: ${warning}`));
+        web = plan.web;
+    } catch (error) {
+        console.warn(
+            `warning: the selector could not run (${error instanceof Error ? error.message : String(error)}); running every spec`,
+        );
+
+        return { kind: 'unselected' };
+    }
+
+    if (web.kind === 'all') {
+        console.log(
+            `▶ selection      : every spec (${web.reasons.length} reason${web.reasons.length === 1 ? '' : 's'})`,
+        );
+        web.reasons.slice(0, 5).forEach((reason) => console.log(`    ${reason}`));
+
+        return { kind: 'unselected' };
+    }
+
+    if (web.ids.length === 0) {
+        return { kind: 'none', why: 'no change touches a screen or a test that a web spec covers' };
+    }
+
+    const tests = flattenReport(listTests(specFilters(web.ids), undefined, env)).filter(
+        (test) => test.project !== 'setup',
+    );
+
+    if (tests.length === 0) {
+        return { kind: 'none', why: `the ${web.ids.length} selected spec(s) hold no test in this configuration` };
+    }
+
+    mkdirSync(LANE_LOG_DIR, { recursive: true });
+
+    const file = `${LANE_LOG_DIR}/selected.txt`;
+
+    writeFileSync(file, testListText(tests));
+
+    return { kind: 'list', file, specs: web.ids.length, tests: tests.length };
+}
+
 const memAvailableBytes = (): number => {
     const line = readFileSync('/proc/meminfo', 'utf8')
         .split('\n')
@@ -286,7 +401,21 @@ const waitForExit = (child: ChildProcess): Promise<number | null> =>
  * @returns The exit code.
  */
 export async function main(passthrough: readonly string[], env: Env): Promise<number> {
-    const testList = env['E2E_TEST_LIST'];
+    const choice = await chooseSelection(passthrough, env);
+
+    if (choice.kind === 'none') {
+        console.log(`▶ nothing to run : ${choice.why}`);
+
+        return 0;
+    }
+
+    if (choice.kind === 'list') {
+        console.log(
+            `▶ selection      : ${choice.specs} spec(s), ${choice.tests} test(s); FULL_SUITE=1 runs everything`,
+        );
+    }
+
+    const testList = choice.kind === 'list' ? choice.file : env['E2E_TEST_LIST'];
     const single = (): number => run('bash', ['scripts/e2eLocal.sh', ...selection(passthrough, testList)], env);
 
     if (env['E2E_WEB_SERVER'] === 'dev' || env['E2E_LANES'] === '1') {

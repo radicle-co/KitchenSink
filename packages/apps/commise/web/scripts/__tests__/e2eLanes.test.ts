@@ -19,7 +19,10 @@ import {
     laneArgs,
     laneEnv,
     parseReport,
+    specFilters,
+    testListText,
     verdict,
+    wantsSelection,
     type PlaywrightReport,
 } from '../e2eLanes';
 
@@ -173,5 +176,55 @@ describe('parseReport', () => {
     it('refuses output that is not a Playwright report, rather than counting zero tests', () => {
         expect(() => parseReport('Loaded env from .env.local')).toThrow();
         expect(() => parseReport('{"errors": []}')).toThrow();
+    });
+});
+
+describe('wantsSelection', () => {
+    it('selects by default: a bare local run asks the impacted-test selector', () => {
+        expect(wantsSelection([], {})).toBe(true);
+    });
+
+    it.each([
+        ['FULL_SUITE=1, which forces the whole suite', [], { FULL_SUITE: '1' }],
+        ['an explicit test list', [], { E2E_TEST_LIST: '/tmp/list.txt' }],
+        ['a spec named on the command line', ['tests/e2e/home.spec.ts'], {}],
+        ['an option on the command line', ['--grep', 'sign in'], {}],
+    ])('does not select when the caller already chose: %s', (_name, passthrough, env) => {
+        expect(wantsSelection(passthrough, env)).toBe(false);
+    });
+
+    it('does not mistake FULL_SUITE=0 or an empty value for the switch', () => {
+        expect(wantsSelection([], { FULL_SUITE: '0' })).toBe(true);
+        expect(wantsSelection([], { FULL_SUITE: '' })).toBe(true);
+    });
+});
+
+describe('specFilters', () => {
+    it('names each spec by its exact path under tests/e2e, ending at the file name', () => {
+        expect(specFilters(['home.spec.ts', 'nested/a.spec.ts'])).toEqual([
+            'tests/e2e/home\\.spec\\.ts$',
+            'tests/e2e/nested/a\\.spec\\.ts$',
+        ]);
+    });
+
+    it('escapes every character a regular expression would read', () => {
+        const [filter] = specFilters(['a+b(1).spec.ts']);
+
+        expect(new RegExp(filter ?? '', 'u').test('tests/e2e/a+b(1).spec.ts')).toBe(true);
+        expect(new RegExp(filter ?? '', 'u').test('tests/e2e/aab1.spec.ts')).toBe(false);
+    });
+});
+
+describe('testListText', () => {
+    const tests = [
+        { project: 'setup', title: 'sign in', status: 'x' },
+        { project: 'chromium', title: 'one', status: 'x' },
+        { project: 'reflow320', title: 'one', status: 'x' },
+    ];
+
+    it('writes one --test-list line per test, project in brackets, and leaves setup to the dependency', () => {
+        expect(testListText(flattenReport(report(tests)))).toBe(
+            ['[chromium] › a.spec.ts › group › one', '[reflow320] › a.spec.ts › group › one', ''].join('\n'),
+        );
     });
 });

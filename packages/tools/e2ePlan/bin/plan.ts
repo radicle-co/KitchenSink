@@ -15,7 +15,8 @@ import { changedFiles } from '../src/gitChangeSet.js';
 import { planChange, type Models } from '../src/planChange.js';
 import { renderPlan } from '../src/render.js';
 import { loadRepoModels } from '../src/repoModels.js';
-import { fullPlan, type Plan, type TierSelection } from '../src/selection.js';
+import { toPlanJson } from '../src/planJson.js';
+import { fullPlan, type Plan } from '../src/selection.js';
 
 const { values } = parseArgs({
     options: {
@@ -27,11 +28,6 @@ const { values } = parseArgs({
 
 const repo = resolve(values.repo ?? process.cwd());
 const base = values.base ?? process.env['TURBO_SCM_BASE'] ?? 'origin/main';
-
-const tierJson = (selection: TierSelection): unknown =>
-    selection.kind === 'all'
-        ? { kind: 'all', reasons: selection.reasons }
-        : { kind: 'some', ids: selection.picks.map((pick) => pick.id) };
 
 async function main(): Promise<void> {
     let plan: Plan;
@@ -58,9 +54,7 @@ async function main(): Promise<void> {
     }
 
     if (values.json) {
-        process.stdout.write(
-            `${JSON.stringify({ web: tierJson(plan.web), mobile: tierJson(plan.mobile), warnings: plan.warnings }, null, 2)}\n`,
-        );
+        process.stdout.write(`${toPlanJson(plan)}\n`);
 
         return;
     }

@@ -1442,7 +1442,7 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
   preparation in `inkMuted`. The run wraps only between words, on every platform and at every text size. A line that
   wraps starts at the row's start edge, under the amount. With neither an amount nor a unit, the run starts with the
   food (never an invented "1", F5). A unit with no amount starts the run on its own ("pinch salt"), and the row's
-  name reads it (UI Designer, 2026-11-06). The full text is in the open editor and in the row's name.
+  name reads it (designAnswers.md #144 item 9). The full text is in the open editor and in the row's name.
 - **The cook's words** (item 3): "tablespoons", "cups". No short unit forms, so the editor and the detail page show
   the same text.
 - **No nowrap, no clipping and no smaller text** (item 4). The ⋯ button keeps its place at the row end.
@@ -1451,9 +1451,9 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
   existing shortlist or panel. The line starts at the row's start edge, the same edge as the run, with its own style
   and icon (item 6).
 - **A stand-in row** (a private ingredient, item 7) shows the amount on its own line above the chip, both at the
-  row's start edge. A unit with no amount is that line on its own (UI Designer, 2026-11-06). With neither an amount
-  nor a unit there is no empty line. The open control's name reads the amount (or the lone unit), then the chip's
-  label.
+  row's start edge. A unit with no amount is that line on its own (designAnswers.md #144 item 9). With neither an
+  amount nor a unit there is no empty line. The open control's name reads the amount (or the lone unit), then the
+  chip's label.
 - **⋯** (44 × 44, "Actions for {food}"): Edit · Food details · Change food · Move to group… · Move up · Move down ·
   divider · Remove. Remove is never a row button.
 - Row: min-height 48 for one line, 64 for two. Hairline `lineDivider` between rows.

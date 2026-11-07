@@ -102,6 +102,94 @@ describe('RecipeDetailView (web) — a line whose food is private to another coo
     });
 });
 
+/**
+ * designAnswers.md #144 item 12 (with items 7 and 9): on the recipe page, as in the editor and on native, a stand-in's
+ * amount, or a unit with no amount, is its own line ABOVE the chip, never on the chip's line; with neither there is no
+ * empty line and the chip comes first. jsdom lays nothing out, so the line is read from the structure: the box that
+ * holds the amount and nothing else is a block, and the chip follows it. The checkbox name reads the same order.
+ */
+describe('RecipeDetailView (web) — the amount above a stand-in (designAnswers.md #144 item 12)', () => {
+    const label = standIns.privateFood;
+
+    const rowOf = (line: RecipeIngredientView, name: string): HTMLElement => {
+        render(
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({ ingredients: [line] })}
+            />,
+        );
+
+        return screen.getByRole('checkbox', { name });
+    };
+
+    // The amount as drawn, with its no-break space (a string matcher would normalise it away).
+    const leafOf = (row: HTMLElement, text: string): HTMLElement =>
+        within(row).getByText((_, el) => el?.textContent === text && el.children.length === 0);
+    // The outermost box whose whole text is the element's own: the amount's line, if it has one of its own.
+    const ownBox = (el: HTMLElement): HTMLElement =>
+        el.parentElement !== null && el.parentElement.textContent === el.textContent ? ownBox(el.parentElement) : el;
+    const follows = (first: Node, second: Node): boolean =>
+        (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
+    it.each([
+        {
+            title: 'an amount',
+            line: nameless('private', FoodResolutionStatus.RESOLVED_UNAVAILABLE),
+            name: `2 tbsp ${label}`,
+            shown: '2\u00A0tbsp',
+        },
+        {
+            title: 'a unit with no amount',
+            line: makeIngredientView({
+                ingredientId: 'private',
+                name: undefined,
+                quantity: { kind: 'absent' },
+                unit: 'tbsp',
+                resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+            }),
+            name: `tbsp ${label}`,
+            shown: 'tbsp',
+        },
+    ])('$title: its own line above the chip, read first in the name', ({ line, name, shown }) => {
+        const row = rowOf(line, name);
+        const amountLine = ownBox(leafOf(row, shown));
+        const chip = within(row).getByText(label);
+
+        expect(amountLine.className.split(/\s+/u)).toContain('block');
+        expect(amountLine.contains(chip)).toBe(false);
+        expect(follows(amountLine, chip)).toBe(true);
+    });
+
+    it('neither: no empty line, and the chip comes first', () => {
+        const row = rowOf(
+            makeIngredientView({
+                ingredientId: 'private',
+                name: undefined,
+                quantity: { kind: 'absent' },
+                unit: undefined,
+                resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+            }),
+            label,
+        );
+        const text = row.querySelector('[data-line-text]')!;
+
+        expect(text.textContent).toBe(label);
+        expect(text.firstElementChild!.contains(within(row).getByText(label))).toBe(true);
+    });
+
+    it('a typed row keeps its amount on the name’s line', () => {
+        const row = rowOf(
+            makeIngredientView({ ingredientId: 'butter', name: 'Butter', unit: 'tbsp' }),
+            '2 tbsp Butter',
+        );
+        const amountLine = ownBox(leafOf(row, '2\u00A0tbsp'));
+
+        expect(amountLine.className.split(/\s+/u)).not.toContain('block');
+        expect(amountLine.parentElement!.textContent).toBe('2\u00A0tbsp Butter');
+    });
+});
+
 describe('RecipeDetailView (web) — a removed food that took its name with it', () => {
     const view = () =>
         render(

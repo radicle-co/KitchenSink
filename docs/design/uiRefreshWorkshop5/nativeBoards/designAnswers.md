@@ -384,3 +384,19 @@ The rule lives in `formatQuantity`, so it reaches web, native, the editor row an
 7. A stand-in row (a private ingredient) shows the amount on its own line above the chip, both at the row's
    start edge. With no amount there is no empty line. The control's name reads the visible text in order: the
    amount, then the chip's label.
+8. A stand-in row's amount uses exactly the typed row's amount style (`figure-inline` 600, same size and line
+   height) on the same device.
+9. A unit with no amount shows alone, in the amount's place: in a stand-in row on its own line above the chip, and
+   in a typed row at the start of the run. Item 7 removes only an empty line. A kept unit ("pinch", "handful") is
+   the cook's words.
+10. The chip's box (its border) sits on the row's start edge. Its label sits in by the chip's own padding.
+11. When the add field has focus, the editor scrolls so that the field and at least the first suggestion sit
+    above the keyboard, at every text size.
+12. The recipe detail page follows item 7 on every platform, web included: a stand-in's amount (or a lone unit)
+    sits on its own line above the chip, never on the chip's line.
+
+## 2026-11-06: paste list line with a comma after the measure (asked by Nova Squad, GATE)
+
+A paste row shows the line exactly as the cook pasted it. A comma that ends the measure stays, bold with the
+measure, then a space and the rest: "**2 cups,** sifted flour". The row's whole visible text equals the pasted
+line.

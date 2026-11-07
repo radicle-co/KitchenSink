@@ -316,6 +316,8 @@ export interface PoolAdminArgs {
     readonly scope: PoolScope;
     /** `--recycle`: delete the scope's consumable users first, so a local run starts from subjects it has just made. */
     readonly recycle?: true;
+    /** `--delete-consumables`: DELETE ONLY (nothing is created) the scope's LOCAL consumable users; see {@link deleteLocalConsumables}. */
+    readonly deleteConsumables?: true;
 }
 
 /** Node's own strict argv parser: an unknown option or a stray positional throws. Pure. */
@@ -331,6 +333,7 @@ function readPoolAdminArgv(argv: readonly string[]) {
             'maestro-lane': { type: 'boolean' },
             'local-roles': { type: 'boolean' },
             recycle: { type: 'boolean' },
+            'delete-consumables': { type: 'boolean' },
             platform: { type: 'string' },
             shard: { type: 'string' },
             'settle-downgraded': { type: 'boolean' },
@@ -376,6 +379,14 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     if (recycle && !erasure && !lane) {
         throw new Error(
             'poolAdmin: --recycle applies to the consumable users of a --maestro-erasure or --maestro-lane run',
+        );
+    }
+
+    const deleteConsumables = parsed.values['delete-consumables'] === true;
+
+    if (deleteConsumables && (!(erasure || lane) || recycle || phase === 'settled')) {
+        throw new Error(
+            'poolAdmin: --delete-consumables applies to a --maestro-erasure or --maestro-lane run, and not with --recycle or --settle-downgraded',
         );
     }
 
@@ -437,6 +448,7 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
         apply,
         phase,
         ...(recycle ? { recycle: true as const } : {}),
+        ...(deleteConsumables ? { deleteConsumables: true as const } : {}),
         scope: { kind: lane ? 'maestroLane' : 'maestroErasure', platform, shard: Number(shard) },
     };
 }
@@ -778,6 +790,57 @@ async function deleteConsumableHolders(port: PoolAdminPort, slots: readonly Pool
 }
 
 /**
+ * Delete the users of LOCAL consumable slots, and create nothing: how a local Maestro run removes its erasure subject
+ * when it ends (a local erasure subject exists only DURING a run).
+ *
+ * ⛔ It cannot touch a shared user. Every slot is checked BEFORE the first lookup: it must be consumable and carry the
+ * local namespace's address, so CI's `erasure01` / `erasure06` are refused, as is any signer.
+ *
+ * @param port - Must be able to `deleteUser`.
+ * @param slots - The slots whose holders to delete.
+ * @param apply - `false` only names who would go.
+ * @returns The ids deleted (or, on a dry run, that would be).
+ * @throws On a slot that is not a local consumable, or a port that cannot delete.
+ * @sideEffect One Backend API read per slot and, with `apply`, one delete per user found.
+ */
+export async function deleteLocalConsumables(
+    port: Pick<PoolAdminPort, 'findUsers' | 'deleteUser'>,
+    slots: readonly PoolSlot[],
+    apply: boolean,
+): Promise<readonly string[]> {
+    for (const slot of slots) {
+        if (!slot.consumable) {
+            throw new Error(`poolAdmin: ${slot.tier}/${slot.id} is not a consumable slot, so it is not deleted`);
+        }
+
+        if (!isLocalNamespaceSlot(slot)) {
+            throw new Error(
+                `poolAdmin: ${slot.tier}/${slot.id} is a SHARED pool user, not a local one - only the local namespace's ` +
+                    'consumables may be deleted (set E2E_POOL_NAMESPACE=local)',
+            );
+        }
+    }
+
+    if (port.deleteUser === undefined) {
+        throw new Error('poolAdmin: deleting consumable users needs a port with deleteUser');
+    }
+
+    const ids: string[] = [];
+
+    for (const slot of slots) {
+        for (const holder of await port.findUsers(slot.email)) {
+            if (apply) {
+                await port.deleteUser(holder.id);
+            }
+
+            ids.push(holder.id);
+        }
+    }
+
+    return ids;
+}
+
+/**
  * Give every slot's user that holds no `external_id` one.
  *
  * Reads each holder FRESH and writes only when it is empty, so an id another writer put there (the sandbox webhook, for a
@@ -1008,6 +1071,28 @@ async function main(): Promise<void> {
 
     if (args.scope.kind === 'maestroErasure' && scoped.slots.length === 0) {
         console.log(`maestro shard ${args.scope.shard} leases no erasure subject — nothing to refill`);
+    }
+
+    if (args.deleteConsumables === true) {
+        if (!local) {
+            throw new Error(
+                'poolAdmin: --delete-consumables deletes users, which only the local namespace may - set E2E_POOL_NAMESPACE=local',
+            );
+        }
+
+        const ids = await deleteLocalConsumables(
+            port,
+            scoped.slots.filter((slot) => slot.consumable),
+            args.apply,
+        );
+
+        for (const id of ids) {
+            console.log(`${args.apply ? 'deleted' : 'would delete'} local consumable user ${id}`);
+        }
+
+        console.log(`${args.apply ? 'applied' : 'dry run (pass --apply to delete)'} - ${ids.length} user(s)`);
+
+        return;
     }
 
     const report = await reconcilePool(port, {

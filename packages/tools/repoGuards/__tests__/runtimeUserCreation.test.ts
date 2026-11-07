@@ -227,6 +227,12 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
         // downgraded owner, once the five read-only role users are reused from the shared pool), refuses before its first
         // write when the instance has no room, and `poolAdmin` itself refuses it outside the local namespace.
         rolesCommand: 'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles',
+        // AMENDED 2026-11-06 (pool trim, step 4): the third spelling, and it DELETES. `--delete-consumables` is delete-only
+        // (it creates nothing), `poolAdmin` refuses it outside the local namespace, and `deleteLocalConsumables` refuses
+        // any slot that is not a consumable carrying the local address - so it cannot reach CI's users. It is how a local
+        // run removes its erasure subject when it ends, failure included (the exit trap).
+        deleteCommand:
+            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --delete-consumables --maestro-lane --platform android --shard 1',
         namespace: 'export E2E_POOL_NAMESPACE=local',
     } as const;
 
@@ -299,7 +305,11 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
                     // The `|| return 1` is the script's failure handling, not part of the spelling being admitted.
                     writerLines.map((line) => line.trim().replace(/ \|\| return 1$/u, '')),
                     invocation.where,
-                ).toStrictEqual([LOCAL_LANE_SCRIPT.command, LOCAL_LANE_SCRIPT.rolesCommand]);
+                ).toStrictEqual([
+                    LOCAL_LANE_SCRIPT.command,
+                    LOCAL_LANE_SCRIPT.rolesCommand,
+                    LOCAL_LANE_SCRIPT.deleteCommand,
+                ]);
                 expect(source, `${invocation.where} must select the local pool namespace`).toContain(
                     LOCAL_LANE_SCRIPT.namespace,
                 );

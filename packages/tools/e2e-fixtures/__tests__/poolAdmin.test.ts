@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     clerkPoolAdminPort,
+    deleteLocalConsumables,
     describeReport,
     metadataSatisfies,
     parsePoolAdminArgs,
@@ -1186,6 +1187,107 @@ describe('recycling the consumable users of a local-namespace run', () => {
         ).toBe(true);
         expect(parsePoolAdminArgs(['--maestro-lane', '--platform', 'ios', '--shard', '1']).recycle).toBeUndefined();
         expect(() => parsePoolAdminArgs(['--recycle'])).toThrow(/poolAdmin/u);
+    });
+});
+
+/**
+ * STEP 4 of the pool trim (2026-11-06): a local run's erasure subject exists only DURING the run. `--delete-consumables` is
+ * delete-only (no create), for LOCAL consumables only, so `localMaestro.sh` can remove its subject at the end, failure
+ * included. The refusal that matters is unchanged: a SHARED user, CI's, is never deleted by this door.
+ */
+describe('deleting the local consumable users at the end of a run', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    const deletingPort = (...users: ObservedPoolUser[]) => {
+        const deleted: string[] = [];
+        const port: Pick<PoolAdminPort, 'findUsers' | 'deleteUser'> = {
+            findUsers: vi.fn(async (email: string) => users.filter((u) => u.emails.includes(email))),
+            deleteUser: vi.fn(async (userId: string) => {
+                deleted.push(userId);
+            }),
+        };
+
+        return { port, deleted };
+    };
+
+    it('parses --delete-consumables only on a lane or erasure scope, and never with --recycle', () => {
+        expect(
+            parsePoolAdminArgs([
+                '--apply',
+                '--delete-consumables',
+                '--maestro-lane',
+                '--platform',
+                'android',
+                '--shard',
+                '1',
+            ]),
+        ).toMatchObject({ apply: true, deleteConsumables: true, scope: { kind: 'maestroLane' } });
+        expect(
+            parsePoolAdminArgs(['--delete-consumables', '--maestro-erasure', '--platform', 'ios', '--shard', '1']),
+        ).toMatchObject({ deleteConsumables: true, scope: { kind: 'maestroErasure' } });
+        expect(
+            parsePoolAdminArgs(['--maestro-lane', '--platform', 'ios', '--shard', '1']).deleteConsumables,
+        ).toBeUndefined();
+    });
+
+    it.each([
+        [['--delete-consumables']],
+        [['--delete-consumables', '--local-roles']],
+        [['--delete-consumables', '--recycle', '--maestro-lane', '--platform', 'ios', '--shard', '1']],
+        [['--delete-consumables', '--settle-downgraded', '--maestro-lane', '--platform', 'ios', '--shard', '1']],
+    ])('refuses %j', (argv) => {
+        expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
+    });
+
+    it('deletes the local consumable subject and nothing else, and creates nothing', async () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        const subject = slotFor('maestro', 'erasure01');
+        const mine = user(subject.email, { id: 'user_local_subject' });
+        const { port, deleted } = deletingPort(mine, user(slotFor('maestro', 'signer').email));
+
+        const ids = await deleteLocalConsumables(port, [subject], true);
+
+        expect(ids).toEqual(['user_local_subject']);
+        expect(deleted).toEqual(['user_local_subject']);
+    });
+
+    it('deletes nothing on a dry run, but still names who it would delete', async () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        const subject = slotFor('maestro', 'erasure01');
+        const { port, deleted } = deletingPort(user(subject.email, { id: 'user_local_subject' }));
+
+        await expect(deleteLocalConsumables(port, [subject], false)).resolves.toEqual(['user_local_subject']);
+        expect(deleted).toEqual([]);
+    });
+
+    it('⛔ refuses a SHARED slot — CI’s erasure subject — before any lookup or delete', async () => {
+        const shared = slotFor('maestro', 'erasure01');
+        const { port, deleted } = deletingPort(user(shared.email, { id: 'user_ci_subject' }));
+
+        await expect(deleteLocalConsumables(port, [shared], true)).rejects.toThrow(/local/u);
+        expect(port.findUsers).not.toHaveBeenCalled();
+        expect(deleted).toEqual([]);
+    });
+
+    it('⛔ refuses a local slot that is not consumable (a signer is not deleted at the end of a run)', async () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        const { port } = deletingPort();
+
+        await expect(deleteLocalConsumables(port, [slotFor('maestro', 'signer')], true)).rejects.toThrow(/consumable/u);
+        expect(port.findUsers).not.toHaveBeenCalled();
+    });
+
+    it('refuses through a port that cannot delete', async () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        await expect(
+            deleteLocalConsumables({ findUsers: async () => [] }, [slotFor('maestro', 'erasure01')], true),
+        ).rejects.toThrow(/deleteUser/u);
     });
 });
 

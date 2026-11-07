@@ -33,9 +33,10 @@ const GIB = 1024 ** 3;
 
 /**
  * What one Android lane costs the host: an x86_64 API 34 emulator under `swiftshader_indirect` plus its runner and
- * Maestro JVM. ⚠️ An ESTIMATE until the lane proof measures it; the proof's report records the measured figure.
+ * Maestro JVMs. Measured 2026-11-07 by `laneUsage` over a 4-lane full Android run (about 62 minutes per lane): 2.8-2.9
+ * CPUs mean and 4.7-5.4 GiB peak per lane, on a 20-CPU, 47 GiB host.
  */
-export const ANDROID_LANE_COST: LaneCost = { cpus: 3, memBytes: 4 * GIB };
+export const ANDROID_LANE_COST: LaneCost = { cpus: 3, memBytes: 5.5 * GIB };
 
 const BOOT_POLL_MS = 2_000;
 

@@ -330,13 +330,21 @@ export function resolvedColour(element: Element, property: ColourProperty): stri
  * the lane with every test green). The timers are faked for the event, flushed inside `act` while the DOM is there, and
  * real timers are restored.
  *
- * ⚠️ It ends with real timers on, so a test that fakes its own timers must not use it.
+ * ⚠️ It ends with real timers on, so it THROWS when the test has already faked its timers, rather than switch them off
+ * without a word. A test that fakes its own timers fires the event and flushes them itself.
  *
  * @param node - The scroll view's node.
  * @param init - The event's init, as `fireEvent.scroll` takes it (`{ target: { scrollTop: 240 } }`).
  * @sideEffect Dispatches the event, runs the pending timers and switches timers back to real ones.
+ * @throws Error when timers are already faked.
  */
 export function fireScrollAndSettle(node: Element, init?: Parameters<typeof fireEvent.scroll>[1]): void {
+    if (vi.isFakeTimers()) {
+        throw new Error(
+            'fireScrollAndSettle: fake timers are already on, and it would turn them off. Fire the event and flush your own timers.',
+        );
+    }
+
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
     try {

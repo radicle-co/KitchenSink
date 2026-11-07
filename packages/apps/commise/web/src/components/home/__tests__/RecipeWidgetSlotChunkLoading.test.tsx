@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { recipeHomeWidgetDescriptor } from '@commise/features-recipes';
 import { renderWithRecipeClient } from '@commise/test-utils';
-import type { Recipe } from '@kitchensink/recipe-core';
+import { makeRecipe } from '@kitchensink/recipe-core/testing';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -23,30 +23,7 @@ import { RecipeWidgetSlot } from '../RecipeWidgetSlot';
 
 afterEach(cleanup);
 
-const recipe: Recipe = {
-    id: 'rec_1',
-    ownerId: 'usr_1',
-    title: 'Weeknight Pasta',
-    description: 'A quick dinner',
-    prepTimeMinutes: 10,
-    cookTimeMinutes: 15,
-    totalTimeMinutes: 25,
-    servings: 2,
-    difficulty: 'medium',
-    visibility: 'private',
-    status: 'published',
-    sourceType: 'user_created',
-    hasSubstantiveEdit: false,
-    dietaryFlags: [],
-    tags: ['dinner'],
-    currentVersion: 1,
-    averageRating: 4.5,
-    ratingCount: 12,
-    usesPremiumCapability: true,
-    coverPhotoUrl: 'https://cdn.commise.app/recipes/rec_1/cover.jpg',
-    createdAt: '2026-04-18T12:00:00.000Z',
-    updatedAt: '2026-04-19T09:30:00.000Z',
-};
+const recipe = makeRecipe({ title: 'Weeknight Pasta' });
 
 describe('RecipeWidgetSlot widget chunk (real next/dynamic)', () => {
     it('keeps the loading card, never a blank block, between the read resolving and the chunk arriving', async () => {

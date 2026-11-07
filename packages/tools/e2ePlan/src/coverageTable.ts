@@ -60,10 +60,12 @@ export function parseCoverage(text: string, label: string): CoverageTable {
  */
 export function checkCoverage(input: {
     readonly tests: readonly string[];
+    /** Ids that may have a row but need none: sub-flows, whose screens belong to every flow that runs them. */
+    readonly optional?: readonly string[];
     readonly screens: readonly string[];
     readonly table: CoverageTable;
 }): readonly string[] {
-    const tests = new Set(input.tests);
+    const tests = new Set([...input.tests, ...(input.optional ?? [])]);
     const screens = new Set(input.screens);
     const problems: string[] = [];
 

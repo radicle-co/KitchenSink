@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyPath, selectTier, type FileImpact } from '../src/impactPolicy.js';
+import { classifyPath, isTestFile, selectTier, type FileImpact } from '../src/impactPolicy.js';
 import type { Reached } from '../src/reachability.js';
 
 describe('classifyPath', () => {
     it.each([
-        'docs/plans/x.png',
         'docs/architecture/decisions/0083-impacted-tests.md',
         'specs/001-commise-recipe-app/spec.md',
         'README.md',
         'packages/apps/commise/web/README.md',
         'CLAUDE.md',
+        'packages/apps/commise/web/src/components/__tests__/Panel.test.tsx',
+        'packages/apps/commise/web/tests/__integration__/shell.integration.test.tsx',
+        'packages/apps/commise/web/vitest.integration.config.ts',
+        'packages/tools/repoGuards/__tests__/anything.test.ts',
+        'packages/tools/repoGuards/tests/deployGate.integration.test.ts',
     ])('says %s cannot change a test result', (path) => {
         expect(classifyPath(path)).toEqual({ kind: 'irrelevant' });
     });
@@ -33,6 +37,13 @@ describe('classifyPath', () => {
     });
 
     it.each([
+        'docs/mockups/screens/screenHome.html',
+        'docs/plans/x.png',
+        'specs/001-commise-recipe-app/mockup.json',
+        'packages/tools/e2ePlan/src/planChange.ts',
+        'packages/tools/e2e-fixtures/__fixtures__/make.ts',
+        'packages/apps/commise/ui/src/testing/tamaguiTesting.native.tsx',
+        '.github/workflows/_ci.yml',
         'packages/apps/commise/web/src/components/app/AppShell.tsx',
         'packages/apps/commise/ui/src/button/Button.tsx',
         'packages/apps/commise/mobile/.maestro/home.yaml',
@@ -71,6 +82,20 @@ const select = (impacts: Readonly<Record<string, FileImpact>>, extra: { fullSuit
 
 const ids = (selection: ReturnType<typeof select>): readonly string[] =>
     selection.kind === 'some' ? selection.picks.map((pick) => pick.id) : ['<all>'];
+
+describe('isTestFile', () => {
+    it.each([
+        ['a.test.ts', true],
+        ['x/__tests__/helper.ts', true],
+        ['x/vitest.config.ts', true],
+        ['x/vitest.integration.config.ts', true],
+        ['x/tests/e2e/home.spec.ts', false],
+        ['x/src/testing/stub.ts', false],
+        ['x/__fixtures__/make.ts', false],
+    ])('%s -> %s', (path, expected) => {
+        expect(isTestFile(path)).toBe(expected);
+    });
+});
 
 describe('selectTier', () => {
     it('selects nothing when every change is irrelevant', () => {
@@ -152,5 +177,22 @@ describe('selectTier', () => {
         const selection = select({ 'docs/a.md': { kind: 'irrelevant' } }, { fullSuite: true });
 
         expect(selection).toEqual({ kind: 'all', reasons: ['FULL_SUITE=1'] });
+    });
+
+    it('widens a tier the graph could not place the file in, unless the file provably belongs to the other platform', () => {
+        const selection = select({
+            'shared/x.ts': { kind: 'reaches', tiers: { mobile: reached({ screens: ['/a'] }) }, unattributed: ['web'] },
+        });
+
+        expect(selection).toEqual({
+            kind: 'all',
+            reasons: ["shared/x.ts: not in the web import graph, and not provably the other platform's"],
+        });
+    });
+
+    it('widens, rather than skips, a kind of impact it does not know', () => {
+        const selection = select({ 'x.ts': { kind: 'mystery' } as unknown as FileImpact });
+
+        expect(selection.kind).toBe('all');
     });
 });

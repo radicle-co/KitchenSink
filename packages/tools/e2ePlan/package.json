@@ -4,11 +4,12 @@
     "private": true,
     "type": "module",
     "description": "Pure planning for the end-to-end suites: how many parallel lanes the machine and the test pool can carry, and which Playwright specs and Maestro flows a change affects",
-    "main": "./src/index.ts",
-    "types": "./src/index.ts",
+    "main": "./src/lanePlan.ts",
+    "types": "./src/lanePlan.ts",
     "exports": {
-        ".": "./src/index.ts",
-        "./lanePlan": "./src/lanePlan.ts"
+        ".": "./src/lanePlan.ts",
+        "./runPlan": "./src/runPlan.ts",
+        "./recordedRoutes": "./src/recordedRoutes.ts"
     },
     "scripts": {
         "test": "vitest run",
@@ -37,7 +38,6 @@
     "dependencies": {
         "dependency-cruiser": "18.7.0",
         "picomatch": "^4.0.4",
-        "tinyglobby": "^0.2.17",
         "typescript": "^6.0.3",
         "watskeburt": "6.0.0",
         "yaml": "^2.8.1"

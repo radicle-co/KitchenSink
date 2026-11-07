@@ -13,6 +13,7 @@ const model = (
     name: TierModel['name'],
     reachByFile: Readonly<Record<string, Reached>>,
     problems: readonly string[] = [],
+    otherPlatform: (file: string) => boolean = () => false,
 ): TierModel => ({
     name,
     screens: ['/a', '/b'],
@@ -22,10 +23,12 @@ const model = (
         ['b.spec', new Set(['/b'])],
     ]),
     reachFile: (file) => reachByFile[file],
+    belongsToOtherPlatform: otherPlatform,
     problems,
 });
 
-const load = (web: TierModel, mobile: TierModel) => vi.fn(async () => ({ web, mobile }));
+const load = (web: TierModel, mobile: TierModel, serviceDirs: readonly string[] = []) =>
+    vi.fn(async () => ({ web, mobile, serviceDirs }));
 const empty = reached();
 
 describe('planChange', () => {
@@ -44,6 +47,15 @@ describe('planChange', () => {
 
         expect(plan.web.kind).toBe('all');
         expect(plan.mobile.kind).toBe('all');
+        expect(loader).not.toHaveBeenCalled();
+    });
+
+    it('runs the whole suite, saying the base may be wrong, when nothing changed: that looks exactly like a wrong base ref', async () => {
+        const loader = load(model('web', {}), model('mobile', {}));
+        const plan = await planChange([], loader, { fullSuite: false });
+
+        expect(plan.web).toEqual({ kind: 'all', reasons: ['no changed files: the base may be wrong'] });
+        expect(plan.mobile).toEqual({ kind: 'all', reasons: ['no changed files: the base may be wrong'] });
         expect(loader).not.toHaveBeenCalled();
     });
 
@@ -89,7 +101,10 @@ describe('planChange', () => {
     it('does not widen the web tier for a mobile-only file', async () => {
         const plan = await planChange(
             ['src/Thing.native.tsx'],
-            load(model('web', {}), model('mobile', { 'src/Thing.native.tsx': reached({ screens: ['/b'] }) })),
+            load(
+                model('web', {}, [], (file) => file.endsWith('.native.tsx')),
+                model('mobile', { 'src/Thing.native.tsx': reached({ screens: ['/b'] }) }),
+            ),
             { fullSuite: false },
         );
 
@@ -152,5 +167,51 @@ describe('planChange', () => {
         );
 
         expect(plan.web).toEqual({ kind: 'some', picks: [{ id: 'a.spec', because: 'src/a.spec.ts is part of it' }] });
+    });
+
+    it('runs the whole suite on both tiers for a file inside the closure a service or a test tool depends on', async () => {
+        const plan = await planChange(
+            ['packages/shared/clerk-verify/src/x.ts'],
+            load(
+                model('web', { 'packages/shared/clerk-verify/src/x.ts': reached({ screens: ['/a'] }) }),
+                model('mobile', {}),
+                ['packages/shared/clerk-verify'],
+            ),
+            { fullSuite: false },
+        );
+
+        expect(plan.web.kind).toBe('all');
+        expect(plan.mobile.kind).toBe('all');
+        expect(JSON.stringify(plan.mobile)).toContain('packages/shared/clerk-verify');
+    });
+
+    it('does not take a folder that merely starts with the same letters for inside the closure', async () => {
+        const plan = await planChange(
+            ['packages/shared/clerk-verify-extras/src/x.ts'],
+            load(
+                model(
+                    'web',
+                    { 'packages/shared/clerk-verify-extras/src/x.ts': reached({ screens: ['/a'] }) },
+                    [],
+                    () => false,
+                ),
+                model('mobile', {}, [], () => true),
+                ['packages/shared/clerk-verify'],
+            ),
+            { fullSuite: false },
+        );
+
+        expect(plan.web.kind).toBe('some');
+    });
+
+    it('widens a tier whose graph does not hold the file when nothing proves the file is the other platform`s', async () => {
+        const plan = await planChange(
+            ['src/shared.tsx'],
+            load(model('web', { 'src/shared.tsx': reached({ screens: ['/a'] }) }), model('mobile', {})),
+            { fullSuite: false },
+        );
+
+        expect(plan.web.kind).toBe('some');
+        expect(plan.mobile.kind).toBe('all');
     });
 });

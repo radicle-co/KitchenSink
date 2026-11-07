@@ -100,4 +100,58 @@ describe('the impact of a change, over the real tree', () => {
         expect(picked(spec.web)).toEqual(['home.spec.ts']);
         expect(picked(sub.mobile).length).toBeGreaterThan(1);
     });
+
+    describe('probes: each way the selector once skipped a test a change needs', () => {
+        it('B1: a package a service or a test tool uses runs the whole suite on BOTH tiers', async () => {
+            for (const file of [
+                'packages/shared/clerk-verify/src/clerkVerify.ts',
+                'packages/tools/e2e-fixtures/src/testPool.ts',
+                'packages/shared/recipe-core/src/index.ts',
+            ]) {
+                const result = await plan([file]);
+
+                expect(result.web.kind, `${file} web`).toBe('all');
+                expect(result.mobile.kind, `${file} mobile`).toBe('all');
+            }
+        });
+
+        it('B1: a tier narrows a file only when it provably belongs to the other platform', async () => {
+            const webOnly = await plan([`${WEB}/src/app/[locale]/legal/sources/SourcesContent.tsx`]);
+            const mobileOnly = await plan(['packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx']);
+
+            expect(webOnly.mobile).toEqual({ kind: 'some', picks: [] });
+            expect(mobileOnly.web).toEqual({ kind: 'some', picks: [] });
+        });
+
+        it('B2: a non-markdown file under docs/ feeds a spec, so it runs the whole suite', async () => {
+            const result = await plan(['docs/mockups/screens/screenHome.html']);
+
+            expect(result.web.kind).toBe('all');
+        });
+
+        it('B2: markdown still selects zero', async () => {
+            const result = await plan(['docs/plans/anything.md', 'specs/001-commise-recipe-app/spec.md']);
+
+            expect(result.web).toEqual({ kind: 'some', picks: [] });
+        });
+
+        it('B3: an empty change set runs the whole suite, since it looks exactly like a wrong base ref', async () => {
+            const result = await plan([]);
+
+            expect(result.web.kind).toBe('all');
+            expect(result.mobile.kind).toBe('all');
+            expect(JSON.stringify(result.web)).toContain('no changed files');
+        });
+
+        it('B4: every flow that runs a sign-in sub-flow passes through the login screen', () => {
+            expect(models.mobile.coverage.get('recipes/rating')).toContain('login');
+            expect(models.mobile.coverage.get('home')).toContain('login');
+        });
+
+        it('B4: a change to the login screen selects the flows that sign in through it', async () => {
+            const result = await plan(['packages/apps/commise/mobile/src/screens/login.tsx']);
+
+            expect(picked(result.mobile)).toEqual(expect.arrayContaining(['recipes/rating', 'home']));
+        });
+    });
 });

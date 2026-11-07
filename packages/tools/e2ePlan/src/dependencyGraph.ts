@@ -16,12 +16,13 @@
  *
  * Dynamic `import(variable)` and `require(variable)` stay invisible. No resolver can see them.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { cruise, type ICruiseResult } from 'dependency-cruiser';
 import extractTsConfig from 'dependency-cruiser/config-utl/extract-ts-config';
-import { glob } from 'tinyglobby';
+
+import { readWorkspaces, type WorkspacePackage } from './workspaces.js';
 
 /** What to cruise and how its imports resolve. All paths are relative to the repo root. */
 export interface GraphProfile {
@@ -32,6 +33,8 @@ export interface GraphProfile {
     readonly tsConfig: string;
     /** File extensions in the order a bare import tries them: `.native.tsx` before `.tsx` on mobile. */
     readonly extensions: readonly string[];
+    /** Keep test files in the graph. Only the zero-list guard does: it proves no shipped file imports one. */
+    readonly includeTests?: boolean;
 }
 
 export interface ImportGraph {
@@ -51,12 +54,6 @@ interface Alias {
     readonly name: string;
     readonly alias: string;
     readonly onlyModule?: true;
-}
-
-interface Workspace {
-    readonly name: string;
-    readonly dir: string;
-    readonly exports: unknown;
 }
 
 const asRecord = (value: unknown): Readonly<Record<string, unknown>> =>
@@ -86,23 +83,6 @@ function srcTwin(dir: string, target: string): string | undefined {
         .find((candidate) => existsSync(candidate));
 }
 
-async function readWorkspaces(root: string): Promise<readonly Workspace[]> {
-    const manifest = asRecord(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')));
-    const patterns = Array.isArray(manifest['workspaces']) ? (manifest['workspaces'] as string[]) : [];
-    const files = await glob(
-        patterns.map((pattern) => `${pattern}/package.json`),
-        { cwd: root, ignore: ['**/node_modules/**'] },
-    );
-
-    return files.sort().flatMap((file) => {
-        const parsed = asRecord(JSON.parse(readFileSync(join(root, file), 'utf8')));
-
-        return typeof parsed['name'] === 'string'
-            ? [{ name: parsed['name'], dir: join(root, dirname(file)), exports: parsed['exports'] }]
-            : [];
-    });
-}
-
 /** The file or directory a workspace export target names: its `src` twin when it points into an unbuilt `dist`. */
 function sourceOf(dir: string, target: string, isDirectory: boolean): string | undefined {
     if (isDistTarget(target)) {
@@ -126,11 +106,11 @@ function sourceOf(dir: string, target: string, isDirectory: boolean): string | u
  * @returns The aliases. An export with no file behind it gets none, and an import of it then fails to resolve, which
  * `buildImportGraph` reports as a problem: nothing is lost by saying nothing here.
  */
-export function workspaceAliases(workspace: Workspace): readonly Alias[] {
+export function workspaceAliases(workspace: WorkspacePackage & { readonly absoluteDir: string }): readonly Alias[] {
     const entries = Object.entries(asRecord(workspace.exports));
 
     if (entries.length === 0) {
-        return [{ name: workspace.name, alias: workspace.dir }];
+        return [{ name: workspace.name, alias: workspace.absoluteDir }];
     }
 
     const aliases: Alias[] = [];
@@ -144,7 +124,7 @@ export function workspaceAliases(workspace: Workspace): readonly Alias[] {
         }
 
         if (key.includes('*')) {
-            const dir = sourceOf(workspace.dir, target.slice(0, target.indexOf('*')), true);
+            const dir = sourceOf(workspace.absoluteDir, target.slice(0, target.indexOf('*')), true);
 
             if (dir !== undefined) {
                 aliases.push({
@@ -156,7 +136,7 @@ export function workspaceAliases(workspace: Workspace): readonly Alias[] {
             continue;
         }
 
-        const file = sourceOf(workspace.dir, target, false);
+        const file = sourceOf(workspace.absoluteDir, target, false);
 
         if (file !== undefined) {
             aliases.push({ name, alias: file, onlyModule: true });
@@ -210,7 +190,7 @@ const TEST_FILES = ['(^|/)__tests__/', '\\.test\\.[cm]?[jt]sx?$'];
  */
 export async function buildImportGraph(repo: string, profile: GraphProfile): Promise<ImportGraph> {
     const root = resolve(repo);
-    const workspaces = await readWorkspaces(root);
+    const workspaces = readWorkspaces(root).map((entry) => ({ ...entry, absoluteDir: join(root, entry.dir) }));
     const fromExports = workspaces.map(workspaceAliases);
     const fromPaths = pathAliases(root, profile.tsConfig);
     const scopes = new Set(workspaces.flatMap((workspace) => scopeOf(workspace.name) ?? []));
@@ -221,7 +201,7 @@ export async function buildImportGraph(repo: string, profile: GraphProfile): Pro
         {
             baseDir: root,
             doNotFollow: { path: 'node_modules' },
-            exclude: { path: ['node_modules', ...TEST_FILES] },
+            exclude: { path: ['node_modules', ...(profile.includeTests === true ? [] : TEST_FILES)] },
             tsPreCompilationDeps: true,
         },
         {

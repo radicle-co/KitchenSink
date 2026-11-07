@@ -6,8 +6,9 @@
  * Next's route matcher is a private module of the `next` package; depending on it would put a 100 MB framework
  * under a planning tool for the sake of four segment kinds, and its path would change with a release. This file
  * implements only the segment kinds a path can take: static, `[x]`, `[...x]` and `[[...x]]`, with Next's
- * precedence (static over dynamic over catch-all). Anything it cannot map (`@slot`, intercepting routes, `route.ts`
- * handlers) THROWS, and the caller widens to the full suite: an unmapped route is never a silent gap.
+ * precedence (static over dynamic over catch-all). Anything it cannot map to one screen (`@slot`, intercepting
+ * routes, `route.ts` handlers) is treated as part of EVERY screen, so a change to it runs the whole tier and one such
+ * folder does not stop the narrowing of the rest.
  */
 import type { Terminals } from './reachability.js';
 
@@ -32,33 +33,18 @@ export interface WebRegistryInput {
 
 const stemOf = (name: string): string => name.replace(/\.[^.]+$/u, '');
 
-function unmappable(file: string, why: string): never {
-    throw new Error(`cannot map ${file} to one screen: ${why}`);
-}
+/** A folder Next treats as something other than a path segment: a parallel-route slot or an intercepting route. */
+const isUnmappableSegment = (segment: string): boolean => segment.startsWith('@') || /^\(\.{1,3}\)/u.test(segment);
 
 /** The route name of a directory below the locale folder, with route groups dropped. */
-function routeName(segments: readonly string[], file: string): string {
-    const parts = segments.filter((segment) => {
-        if (segment.startsWith('@')) {
-            return unmappable(file, 'it is a parallel route slot');
-        }
-
-        if (segment.startsWith('(.') || segment.startsWith('(..') || segment.startsWith('(...')) {
-            return unmappable(file, 'it is an intercepting route');
-        }
-
-        return !(segment.startsWith('(') && segment.endsWith(')'));
-    });
-
-    return `/${parts.join('/')}`;
-}
+const routeName = (segments: readonly string[]): string =>
+    `/${segments.filter((segment) => !(segment.startsWith('(') && segment.endsWith(')'))).join('/')}`;
 
 /**
  * Derives the screens and where a change to a file reaches them.
  *
  * @param input - The app directory and its files.
  * @returns The screens, the files that are part of one, and the files that are part of all.
- * @throws When a file cannot be mapped to a screen, so the caller can run everything instead.
  */
 export function webRegistry(input: WebRegistryInput): WebRegistry {
     const prefix = `${input.appDir}/`;
@@ -83,11 +69,9 @@ export function webRegistry(input: WebRegistryInput): WebRegistry {
         const dir = segments.slice(1, -1);
         const stem = stemOf(name);
 
-        if (stem === 'route') {
-            unmappable(file, 'it is a route handler');
-        }
-
-        if (stem === 'page') {
+        if (stem === 'route' || dir.some(isUnmappableSegment)) {
+            roots.add(file);
+        } else if (stem === 'page') {
             pages.push({ file, dir });
         } else if (BOUNDARIES.has(stem)) {
             boundaries.push({ file, dir });
@@ -95,7 +79,7 @@ export function webRegistry(input: WebRegistryInput): WebRegistry {
     }
 
     const screenEntries = new Map<string, string[]>();
-    const nameOf = new Map(pages.map((page) => [page.file, routeName(page.dir, page.file)]));
+    const nameOf = new Map(pages.map((page) => [page.file, routeName(page.dir)]));
     const below = (parent: readonly string[], child: readonly string[]): boolean =>
         parent.every((segment, index) => child[index] === segment);
 

@@ -5,10 +5,8 @@
  * This is the one module that knows where things live. Everything it feeds is pure and tested on its own.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-
-import { glob } from 'tinyglobby';
 
 import { changedRows } from './changedRows.js';
 import { checkCoverage, parseCoverage, type CoverageTable } from './coverageTable.js';
@@ -18,6 +16,7 @@ import { mobileRegistry } from './mobileScreens.js';
 import type { Models, TierModel } from './planChange.js';
 import { reach, type Reached } from './reachability.js';
 import { webRegistry } from './webRoutes.js';
+import { closureOf, readWorkspaces } from './workspaces.js';
 
 const WEB = 'packages/apps/commise/web';
 const MOBILE = 'packages/apps/commise/mobile';
@@ -72,14 +71,17 @@ function tableAt(repo: string, mergeBase: string | undefined, path: string): Cov
     }
 }
 
+/** `Button.native.tsx`: a leaf only the native bundler picks. */
+const NATIVE_LEAF = /\.native\.([cm]?[jt]sx?)$/u;
+
 const noRoots: ReadonlySet<string> = new Set();
 
 async function webModel(repo: string, mergeBase: string | undefined): Promise<TierModel> {
     const graph = await buildImportGraph(repo, WEB_PROFILE);
-    const appFiles = await glob(`${WEB}/src/app/**/*`, { cwd: repo, ignore: ['**/node_modules/**'] });
-    const topLevel = await glob(`${WEB}/src/*.{ts,tsx}`, { cwd: repo });
+    const appFiles = globSync(`${WEB}/src/app/**/*`, { cwd: repo });
+    const topLevel = globSync(`${WEB}/src/*.{ts,tsx}`, { cwd: repo });
     const registry = webRegistry({ appDir: `${WEB}/src/app`, extraRoots: topLevel, files: appFiles.sort() });
-    const specs = (await glob(`${WEB}/tests/e2e/**/*.spec.ts`, { cwd: repo })).sort();
+    const specs = globSync(`${WEB}/tests/e2e/**/*.spec.ts`, { cwd: repo }).sort();
     const specId = (file: string): string => file.slice(`${WEB}/tests/e2e/`.length);
     const table = parseCoverage(read(repo, SPEC_TABLE), SPEC_TABLE);
     const terminals = { ...registry.terminals, tests: new Map(specs.map((file) => [file, specId(file)] as const)) };
@@ -90,6 +92,8 @@ async function webModel(repo: string, mergeBase: string | undefined): Promise<Ti
         screens: registry.screens,
         tests: specs.map(specId),
         coverage: table,
+        belongsToOtherPlatform: (file) =>
+            file.startsWith(`${MOBILE}/`) || (NATIVE_LEAF.test(file) && graph.has(file.replace(NATIVE_LEAF, '.$1'))),
         reachFile: (file) =>
             file === SPEC_TABLE
                 ? { screens: new Set(), tests: new Set(edited), roots: [] }
@@ -127,7 +131,7 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
         files: graph.files.filter((file) => file.startsWith(`${MOBILE}/`)),
         importersOf: graph.importersOf,
     });
-    const flowFiles = (await glob(`${MOBILE}/.maestro/**/*`, { cwd: repo, dot: true })).sort();
+    const flowFiles = globSync(`${MOBILE}/.maestro/**/*`, { cwd: repo }).sort();
     const flows = maestroFlowGraph({
         dir: `${MOBILE}/.maestro`,
         files: flowFiles,
@@ -136,14 +140,36 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
     });
     const table = parseCoverage(read(repo, FLOW_TABLE), FLOW_TABLE);
     const tests = [...flows.tests.values()];
-    const edited = changedRows(tableAt(repo, mergeBase, FLOW_TABLE), table);
-    const coverage = new Map([...table].map(([id, row]) => [id, new Set([...row, ...MOBILE_PASS_THROUGH])] as const));
+    const idOf = (file: string): string => file.slice(`${MOBILE}/.maestro/`.length).replace(/\.ya?ml$/u, '');
+    // A sub-flow (the sign-in flows) may carry a row: its screens belong to every flow that runs it, through the flow
+    // graph, so no flow names a screen a sub-flow already stands for.
+    const subflows = flowFiles.filter((file) => /\.ya?ml$/u.test(file) && !flows.tests.has(file)).map(idOf);
+    const flowTerminals = { screenEntries: new Map(), roots: noRoots, tests: flows.tests };
+    const edited = changedRows(tableAt(repo, mergeBase, FLOW_TABLE), table).flatMap((id) =>
+        tests.includes(id) ? [id] : [...reach(`${MOBILE}/.maestro/${id}.yaml`, flows.importersOf, flowTerminals).tests],
+    );
+    const coverage = new Map(
+        [...flows.tests].map(([file, id]) => {
+            const screens = new Set<string>([...(table.get(id) ?? []), ...MOBILE_PASS_THROUGH]);
+
+            for (const sub of flows.runsOf(file)) {
+                (table.get(idOf(sub)) ?? new Set<string>()).forEach((screen) => screens.add(screen));
+            }
+
+            return [id, screens] as const;
+        }),
+    );
 
     return {
         name: 'mobile',
         screens: registry.screens,
         tests,
         coverage,
+        belongsToOtherPlatform: (file) =>
+            file.startsWith(`${WEB}/`) ||
+            (!NATIVE_LEAF.test(file) &&
+                /\.([cm]?[jt]sx?)$/u.test(file) &&
+                graph.has(file.replace(/\.([cm]?[jt]sx?)$/u, '.native.$1'))),
         reachFile: (file) => {
             if (file === FLOW_TABLE) {
                 return { screens: new Set(), tests: new Set(edited), roots: [] };
@@ -153,15 +179,13 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
                 ...(graph.has(file)
                     ? [reach(file, graph.importersOf, { ...registry.terminals, tests: new Map() })]
                     : []),
-                ...(flows.has(file)
-                    ? [reach(file, flows.importersOf, { screenEntries: new Map(), roots: noRoots, tests: flows.tests })]
-                    : []),
+                ...(flows.has(file) ? [reach(file, flows.importersOf, flowTerminals)] : []),
             ]);
         },
         problems: [
             ...graph.problems,
             ...flows.problems,
-            ...checkCoverage({ tests, screens: registry.screens, table: coverage }).map(
+            ...checkCoverage({ tests, optional: subflows, screens: registry.screens, table }).map(
                 (problem) => `${FLOW_TABLE}: ${problem}`,
             ),
         ],
@@ -180,5 +204,13 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
 export async function loadRepoModels(repo: string, mergeBase?: string): Promise<Models> {
     const [web, mobile] = await Promise.all([webModel(repo, mergeBase), mobileModel(repo, mergeBase)]);
 
-    return { web, mobile };
+    const serviceDirs = [
+        ...closureOf(readWorkspaces(repo), [
+            'packages/services/*',
+            'packages/tools/e2e-fixtures',
+            'packages/tools/e2e-seed',
+        ]),
+    ].sort();
+
+    return { web, mobile, serviceDirs };
 }

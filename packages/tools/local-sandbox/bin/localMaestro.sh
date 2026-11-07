@@ -113,7 +113,8 @@ local_maestro_selected() {
     fi
 
     local answer
-    if ! answer="$(cd "$LOCAL_MAESTRO_REPO_ROOT" && npx tsx packages/tools/e2ePlan/bin/plan.ts --tier mobile)"; then
+    # A selector that hangs (a stuck git, a slow disk) must cost the full suite, never the run.
+    if ! answer="$(cd "$LOCAL_MAESTRO_REPO_ROOT" && timeout "${LOCAL_MAESTRO_SELECTOR_TIMEOUT:-120}" npx tsx packages/tools/e2ePlan/bin/plan.ts --tier mobile)"; then
         echo 'local:maestro: ⚠️ the selector could not run - running every flow' >&2
         echo 'all'
         return 0

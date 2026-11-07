@@ -84,6 +84,11 @@ describe('maestroFlowGraph', () => {
         expect(graph.importersOf('.maestro/common/tap.yaml')).toEqual(['.maestro/auth/signin.yaml']);
     });
 
+    it('lists every flow file a flow runs, however deep, and not the scripts', () => {
+        expect(graph.runsOf('.maestro/home.yaml')).toEqual(['.maestro/auth/signin.yaml', '.maestro/common/tap.yaml']);
+        expect(graph.runsOf('.maestro/recipes/list.yaml')).toEqual([]);
+    });
+
     it('holds every file under the folder, and no other', () => {
         expect(graph.has('.maestro/scripts/seed.js')).toBe(true);
         expect(graph.has('src/App.tsx')).toBe(false);

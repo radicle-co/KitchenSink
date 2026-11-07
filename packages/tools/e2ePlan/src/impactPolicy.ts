@@ -22,10 +22,39 @@ export type FileImpact =
     | { readonly kind: 'global'; readonly reason: string }
     /** The import graph reaches no screen and no test from it. */
     | { readonly kind: 'unreached' }
-    /** The import graph reaches these, per tier. A tier whose graph does not hold the file is absent. */
-    | { readonly kind: 'reaches'; readonly tiers: Partial<Record<TierName, Reached>> };
+    /**
+     * The import graph reaches these, per tier. A tier absent from `tiers` has a graph that holds the file and
+     * proves it unaffected, or the file provably belongs to the other platform. A tier in `unattributed` has a graph
+     * that does not hold the file and no proof it belongs to the other platform: that tier runs whole.
+     */
+    | {
+          readonly kind: 'reaches';
+          readonly tiers: Partial<Record<TierName, Reached>>;
+          readonly unattributed?: readonly TierName[];
+      };
 
-const IRRELEVANT = picomatch(['docs/**', 'specs/**', '**/*.md'], { dot: true });
+/**
+ * A file that is a test of the code and not part of it. The zero list below holds these ONLY because a guard
+ * (`tests/e2eImpactClassification`) cruises the graphs with tests included and fails if any non-test file imports one.
+ */
+const TEST_FILE = picomatch(['**/__tests__/**', '**/*.test.*', '**/vitest*.config.*'], { dot: true });
+
+/**
+ * Whether a path is a unit or integration test file or its configuration.
+ *
+ * @param path - Repo-relative path.
+ * @returns True for a file a vitest run owns.
+ */
+export const isTestFile = (path: string): boolean => TEST_FILE(path);
+
+/**
+ * The zero list: the ONLY paths that select no test.
+ *
+ * Markdown is prose. A vitest test or its config cannot change what a Playwright spec or a Maestro flow does. The
+ * repo-wide guards read files and run no screen. Everything else, `docs/` and `specs/` included, can feed a test
+ * (a mockup HTML a spec screenshots against, a fixture JSON), so it is not here.
+ */
+const IRRELEVANT = picomatch(['**/*.md', 'packages/tools/repoGuards/**'], { dot: true });
 
 const GLOBAL: readonly { readonly matches: (path: string) => boolean; readonly reason: string }[] = [
     {
@@ -53,7 +82,7 @@ const GLOBAL: readonly { readonly matches: (path: string) => boolean; readonly r
  * @returns `irrelevant` or `global`, or undefined when only the import graph can say.
  */
 export function classifyPath(path: string): Extract<FileImpact, { kind: 'irrelevant' | 'global' }> | undefined {
-    if (IRRELEVANT(path)) {
+    if (IRRELEVANT(path) || TEST_FILE(path)) {
         return { kind: 'irrelevant' };
     }
 
@@ -107,6 +136,14 @@ export function selectTier(input: SelectTierInput): TierSelection {
                 break;
 
             case 'reaches': {
+                if (impact.unattributed?.includes(input.tier) === true) {
+                    widening.push(
+                        `${file}: not in the ${input.tier} import graph, and not provably the other platform's`,
+                    );
+
+                    break;
+                }
+
                 const reached = impact.tiers[input.tier];
 
                 if (reached === undefined) {
@@ -130,6 +167,12 @@ export function selectTier(input: SelectTierInput): TierSelection {
                 }
 
                 break;
+            }
+
+            default: {
+                const unhandled: never = impact;
+
+                widening.push(`${file}: an impact the selector does not know (${JSON.stringify(unhandled)})`);
             }
         }
     }

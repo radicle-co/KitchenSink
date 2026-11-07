@@ -33,6 +33,22 @@ describe('checkCoverage', () => {
         expect(checkCoverage({ tests: ['a.spec.ts', 'b.spec.ts'], screens: ['/', '/recipes'], table })).toEqual([]);
     });
 
+    it('lets a sub-flow have a row without requiring one, since only top-level flows are run', () => {
+        const withSub = new Map([...table, ['auth/signin', new Set(['login'])]]);
+
+        expect(
+            checkCoverage({
+                tests: ['a.spec.ts', 'b.spec.ts'],
+                optional: ['auth/signin'],
+                screens: ['/', '/recipes', 'login'],
+                table: withSub,
+            }),
+        ).toEqual([]);
+        expect(
+            checkCoverage({ tests: ['a.spec.ts', 'b.spec.ts'], screens: ['/', '/recipes', 'login'], table: withSub }),
+        ).toEqual([expect.stringContaining('auth/signin has a row but no such test exists')]);
+    });
+
     it('fails a test with no row', () => {
         const problems = checkCoverage({
             tests: ['a.spec.ts', 'b.spec.ts', 'c.spec.ts'],

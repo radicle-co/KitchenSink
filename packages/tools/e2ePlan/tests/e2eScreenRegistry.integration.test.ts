@@ -5,10 +5,9 @@
  * A registry row that leaves out a screen its test passes through means that test does not run after a change to
  * that screen. That is the one failure the selector must not have, so every way a row can be wrong is a test here.
  */
-import { readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { glob } from 'tinyglobby';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { checkCoverage, parseCoverage, uncoveredRoutes } from '../src/coverageTable.js';
@@ -35,7 +34,7 @@ describe('the screen registry, over the real tree', () => {
     });
 
     it('has a row for every Playwright spec, a spec for every row, and only real screens in a row', async () => {
-        const specs = (await glob(`${WEB}/tests/e2e/**/*.spec.ts`, { cwd: repo })).map((file) =>
+        const specs = globSync(`${WEB}/tests/e2e/**/*.spec.ts`, { cwd: repo }).map((file) =>
             file.slice(`${WEB}/tests/e2e/`.length),
         );
         const table = parseCoverage(readFileSync(join(repo, SPEC_TABLE), 'utf8'), SPEC_TABLE);
@@ -44,17 +43,24 @@ describe('the screen registry, over the real tree', () => {
         expect(specs.length).toBeGreaterThan(0);
     });
 
-    it('has a row for every top-level Maestro flow, a flow for every row, and only real screens in a row', () => {
+    it('has a row for every top-level Maestro flow, a flow or sub-flow for every row, and only real screens in a row', () => {
         const table = parseCoverage(readFileSync(join(repo, FLOW_TABLE), 'utf8'), FLOW_TABLE);
+        const dir = 'packages/apps/commise/mobile/.maestro/';
+        const subflows = globSync(`${dir}**/*.yaml`, { cwd: repo })
+            .map((file) => file.slice(dir.length, -'.yaml'.length))
+            .filter((id) => !models.mobile.tests.includes(id));
 
-        expect(checkCoverage({ tests: models.mobile.tests, screens: models.mobile.screens, table })).toEqual([]);
+        expect(
+            checkCoverage({ tests: models.mobile.tests, optional: subflows, screens: models.mobile.screens, table }),
+        ).toEqual([]);
+        expect(table.has('auth/signin')).toBe(true);
         expect(models.mobile.tests.length).toBeGreaterThan(0);
     });
 
     it('lists, in each spec row, every screen the spec and its helpers navigate to', async () => {
         const graph = await buildImportGraph(repo, WEB_PROFILE);
         const table = parseCoverage(readFileSync(join(repo, SPEC_TABLE), 'utf8'), SPEC_TABLE);
-        const specs = (await glob(`${WEB}/tests/e2e/**/*.spec.ts`, { cwd: repo })).sort();
+        const specs = globSync(`${WEB}/tests/e2e/**/*.spec.ts`, { cwd: repo }).sort();
         const visits = specRoutes({
             dir: `${WEB}/tests/e2e`,
             specs,

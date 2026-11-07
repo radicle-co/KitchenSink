@@ -15,19 +15,20 @@ import { changedFiles } from '../src/gitChangeSet.js';
 import { planChange, type Models } from '../src/planChange.js';
 import { idsOf, renderPlan } from '../src/render.js';
 import { loadRepoModels } from '../src/repoModels.js';
+import { findRepoRoot } from '../src/repoRoot.js';
 import { tierLines, toPlanJson } from '../src/planJson.js';
 import { fullPlan, type Plan } from '../src/selection.js';
 
 const { values } = parseArgs({
     options: {
-        repo: { type: 'string', default: process.cwd() },
+        repo: { type: 'string' },
         base: { type: 'string' },
         json: { type: 'boolean', default: false },
         tier: { type: 'string' },
     },
 });
 
-const repo = resolve(values.repo ?? process.cwd());
+const repo = values.repo !== undefined ? resolve(values.repo) : findRepoRoot(process.cwd(), process.env['INIT_CWD']);
 const base = values.base ?? process.env['TURBO_SCM_BASE'] ?? 'origin/main';
 
 async function main(): Promise<void> {

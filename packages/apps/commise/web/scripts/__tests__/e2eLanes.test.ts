@@ -14,6 +14,7 @@ import {
     DEAD_ORIGIN,
     buildEnv,
     countTests,
+    decideSpecs,
     distinctPorts,
     flattenReport,
     laneArgs,
@@ -226,5 +227,62 @@ describe('testListText', () => {
         expect(testListText(flattenReport(report(tests)))).toBe(
             ['[chromium] › a.spec.ts › group › one', '[reflow320] › a.spec.ts › group › one', ''].join('\n'),
         );
+    });
+});
+
+describe('decideSpecs', () => {
+    const test = (project: string, file: string, title = 't') => ({
+        project,
+        id: `${project} › ${file} › ${title}`,
+        status: 'x',
+    });
+    const lister = (tests: ReturnType<typeof test>[]) => () => tests;
+
+    it('runs everything when the selector says every spec', () => {
+        expect(decideSpecs({ kind: 'all', reasons: ['x'] }, lister([]))).toEqual({ kind: 'unselected' });
+    });
+
+    it('runs nothing, and says why, when the selector found no spec to run', () => {
+        expect(decideSpecs({ kind: 'some', ids: [] }, lister([]))).toMatchObject({ kind: 'none' });
+    });
+
+    it('lists exactly the tests of the selected specs when each contributes one', () => {
+        const tests = [test('chromium', 'a.spec.ts'), test('reflow320', 'a.spec.ts'), test('chromium', 'b.spec.ts')];
+
+        expect(decideSpecs({ kind: 'some', ids: ['a.spec.ts', 'b.spec.ts'] }, lister(tests))).toEqual({
+            kind: 'list',
+            specs: 2,
+            tests,
+        });
+    });
+
+    it('leaves setup out of the list and the count', () => {
+        const tests = [test('setup', 'auth.setup.ts'), test('chromium', 'a.spec.ts')];
+        const choice = decideSpecs({ kind: 'some', ids: ['a.spec.ts'] }, lister(tests));
+
+        expect(choice).toEqual({ kind: 'list', specs: 1, tests: [tests[1]] });
+    });
+
+    it('runs every spec, naming the one, when a selected spec lists no test: its tests may be gone from this configuration', () => {
+        const choice = decideSpecs(
+            { kind: 'some', ids: ['a.spec.ts', 'ghost.spec.ts'] },
+            lister([test('chromium', 'a.spec.ts')]),
+        );
+
+        expect(choice).toMatchObject({ kind: 'unselected' });
+        expect(JSON.stringify(choice)).toContain('ghost.spec.ts');
+    });
+
+    it('runs every spec, never none, when the selected specs list no test at all', () => {
+        expect(decideSpecs({ kind: 'some', ids: ['a.spec.ts'] }, lister([]))).toMatchObject({ kind: 'unselected' });
+    });
+
+    it('runs every spec, saying why, when listing throws', () => {
+        const choice = decideSpecs({ kind: 'some', ids: ['a.spec.ts'] }, () => {
+            throw new Error('config broke');
+        });
+
+        expect(choice).toMatchObject({ kind: 'unselected' });
+        expect(JSON.stringify(choice)).toContain('config broke');
     });
 });

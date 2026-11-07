@@ -5,6 +5,7 @@ import { expect, type Page } from '@playwright/test';
 
 import { hasClerkSessionCookie } from './authState';
 import { isHome, pathnameOf, route } from './basePath';
+import { recordRoutes } from './routeRecorder';
 import { RUN_KEY, TEST_USER_EMAIL } from './testUser';
 
 function client() {
@@ -66,6 +67,8 @@ export async function signInWithTicket(page: Page, options: SignInOptions = {}):
     // Installed on BOTH paths. It is a route interception, not a network call, and a restored session still
     // makes Clerk Frontend-API requests (token refresh) that bot protection would otherwise challenge.
     await setupClerkTestingToken({ page });
+    // Records where this spec goes, so the impacted-test registry can be checked against it (see routeRecorder.ts).
+    recordRoutes(page);
 
     if (options.force !== true && hasClerkSessionCookie(await page.context().cookies())) {
         await page.goto(route('/'));

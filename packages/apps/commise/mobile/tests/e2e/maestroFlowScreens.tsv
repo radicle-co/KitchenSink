@@ -11,8 +11,11 @@
 # a flow cannot be read for the screens it reaches the way a Playwright spec can. Narrow a row only after watching
 # the flow, never by guessing.
 #
+# A SUB-FLOW may have a row too (the two sign-in flows do): its screens belong to every top-level flow that runs it,
+# through the flow graph, so a flow's own row lists only what the flow adds.
+#
 # The guard (tests/e2eScreenRegistry.integration.test.ts) fails when a top-level flow has no row, a row names no
-# flow, or a row names a screen that does not exist. Sub-flows are not counted.
+# flow or sub-flow, or a row names a screen that does not exist.
 auth/loginFlow	CompleteSignUpScreen, HomeScreen, RecipeListScreen, login, signup
 home	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/rating	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
@@ -87,3 +90,5 @@ accountDangerZone	CompleteSignUpScreen, HomeScreen, login, profile, signup
 sessionHandoff	CompleteSignUpScreen, HomeScreen, login, profile, signup
 recipes/delete	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 accountErasure	CompleteSignUpScreen, HomeScreen, login, profile, signup
+auth/signin	HomeScreen, RecipeListScreen, login
+auth/signinHome	HomeScreen, login

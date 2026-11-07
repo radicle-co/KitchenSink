@@ -6,6 +6,9 @@ import { parsePlanJson, type PlanJson } from './planJson.js';
 
 const run = promisify(execFile);
 
+/** Long enough for a cold run on a big diff (measured at about 15 s), short enough that a hang costs the suite, not the run. */
+const PLAN_TIMEOUT_MS = 120_000;
+
 const PLAN_BIN = resolve(import.meta.dirname, '../bin/plan.ts');
 
 /**
@@ -15,12 +18,14 @@ const PLAN_BIN = resolve(import.meta.dirname, '../bin/plan.ts');
  * @param repo - The repository root.
  * @param env - The environment the selector sees (`FULL_SUITE`, `TURBO_SCM_BASE`).
  * @returns The plan.
- * @throws When the bin cannot run or prints something that is not a plan. The caller must then run everything.
+ * @throws When the bin cannot run, times out, or prints something that is not a plan. The caller must then run everything.
  */
-export async function runPlan(repo: string, env: NodeJS.ProcessEnv): Promise<PlanJson> {
+export async function runPlan(repo: string, env: NodeJS.ProcessEnv, timeoutMs = PLAN_TIMEOUT_MS): Promise<PlanJson> {
     const { stdout } = await run('npx', ['tsx', PLAN_BIN, '--json', '--repo', repo], {
         cwd: repo,
         env,
+        timeout: timeoutMs,
+        killSignal: 'SIGKILL',
         maxBuffer: 64 * 1024 * 1024,
     });
 

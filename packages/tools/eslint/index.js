@@ -322,6 +322,10 @@ const PACKAGE_INTERNALS_PATTERN = {
         // the package barrel, which is an `export *` barrel this rule's own house style forbids extending.
         '!@kitchensink/*/testPool',
         '!@kitchensink/*/lease',
+        // `e2e-plan`'s selector entry points the local web door calls: `runPlan` asks which specs a change affects and
+        // `recordedRoutes` compares the routes a run recorded with the registry. The package barrel stays the lane planner.
+        '!@kitchensink/*/runPlan',
+        '!@kitchensink/*/recordedRoutes',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.
         '!@kitchensink/*/poolAdmin',

@@ -33,7 +33,9 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
-import { planLanes, runPlan, type LaneCost } from '@kitchensink/e2e-plan';
+import { planLanes, type LaneCost } from '@kitchensink/e2e-plan';
+import { checkRecordedRoutes } from '@kitchensink/e2e-plan/recordedRoutes';
+import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 import { z } from 'zod';
 
 /** An address nothing listens on: the discard port. A call to it is REFUSED, as CI's identity and food ports are. */
@@ -303,14 +305,68 @@ function listTests(passthrough: readonly string[], testList: string | undefined,
     return parseReport(readFileSync(file, 'utf8'));
 }
 
-/** What step 1 decided about which specs to run. */
-export type Choice =
-    /** Run what Playwright was going to run anyway. */
-    | { readonly kind: 'unselected' }
+/** What step 1 decided about which specs to run, before the list is written. */
+export type Decision =
+    /** Run what Playwright was going to run anyway; `note` says why the selection was dropped, if it was. */
+    | { readonly kind: 'unselected'; readonly note?: string }
     /** The change touches no spec's screens: run nothing, and say why. */
     | { readonly kind: 'none'; readonly why: string }
+    /** Run exactly these tests. */
+    | { readonly kind: 'list'; readonly specs: number; readonly tests: readonly ReportedTest[] };
+
+/** What step 1 decided, with the list written. */
+export type Choice =
+    | Exclude<Decision, { kind: 'list' }>
     /** Run exactly the tests in this `--test-list` file. */
     | { readonly kind: 'list'; readonly file: string; readonly specs: number; readonly tests: number };
+
+/**
+ * Step 1's decision, as a pure function of the selector's answer and of what Playwright lists.
+ *
+ * Every branch that is not a plain "these specs" widens: a selection that lists nothing is a skipped test that looks
+ * like a pass, so it runs every spec instead of none.
+ *
+ * @param web - The selector's answer for the web tier.
+ * @param list - Lists the tests of the named specs (`playwright test --list`); may throw.
+ * @returns What to run.
+ */
+export function decideSpecs(
+    web:
+        | { readonly kind: 'all'; readonly reasons: readonly string[] }
+        | { readonly kind: 'some'; readonly ids: readonly string[] },
+    list: (ids: readonly string[]) => readonly ReportedTest[],
+): Decision {
+    if (web.kind === 'all') {
+        return { kind: 'unselected' };
+    }
+
+    if (web.ids.length === 0) {
+        return { kind: 'none', why: 'no change touches a screen or a test that a web spec covers' };
+    }
+
+    let tests: readonly ReportedTest[];
+
+    try {
+        tests = list(web.ids).filter((test) => test.project !== 'setup');
+    } catch (error) {
+        return {
+            kind: 'unselected',
+            note: `could not list the selected specs (${error instanceof Error ? error.message : String(error)})`,
+        };
+    }
+
+    const listed = new Set(tests.map((test) => test.id.split(' › ')[1]));
+    const silent = web.ids.filter((id) => !listed.has(id));
+
+    if (silent.length > 0) {
+        return {
+            kind: 'unselected',
+            note: `the selected spec(s) ${silent.join(', ')} list no test in this configuration, so the selection cannot be trusted`,
+        };
+    }
+
+    return { kind: 'list', specs: web.ids.length, tests };
+}
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../../../../..');
 
@@ -329,13 +385,10 @@ export async function chooseSelection(passthrough: readonly string[], env: Env):
         return { kind: 'unselected' };
     }
 
-    let web: Awaited<ReturnType<typeof runPlan>>['web'];
+    let plan: Awaited<ReturnType<typeof runPlan>>;
 
     try {
-        const plan = await runPlan(REPO_ROOT, env as NodeJS.ProcessEnv);
-
-        plan.warnings.forEach((warning) => console.warn(`warning: ${warning}`));
-        web = plan.web;
+        plan = await runPlan(REPO_ROOT, env as NodeJS.ProcessEnv);
     } catch (error) {
         console.warn(
             `warning: the selector could not run (${error instanceof Error ? error.message : String(error)}); running every spec`,
@@ -344,44 +397,73 @@ export async function chooseSelection(passthrough: readonly string[], env: Env):
         return { kind: 'unselected' };
     }
 
-    if (web.kind === 'all') {
+    plan.warnings.forEach((warning) => console.warn(`warning: ${warning}`));
+
+    if (plan.web.kind === 'all') {
         console.log(
-            `▶ selection      : every spec (${web.reasons.length} reason${web.reasons.length === 1 ? '' : 's'})`,
+            `▶ selection      : every spec (${plan.web.reasons.length} reason${plan.web.reasons.length === 1 ? '' : 's'})`,
         );
-        web.reasons.slice(0, 5).forEach((reason) => console.log(`    ${reason}`));
-
-        return { kind: 'unselected' };
+        plan.web.reasons.slice(0, 5).forEach((reason) => console.log(`    ${reason}`));
     }
 
-    if (web.ids.length === 0) {
-        return { kind: 'none', why: 'no change touches a screen or a test that a web spec covers' };
+    const decision = decideSpecs(plan.web, (ids) => flattenReport(listTests(specFilters(ids), undefined, env)));
+
+    if (decision.kind === 'unselected' && decision.note !== undefined) {
+        console.warn(`warning: ${decision.note}; running every spec`);
     }
 
-    let tests: readonly ReportedTest[];
-
-    try {
-        tests = flattenReport(listTests(specFilters(web.ids), undefined, env)).filter(
-            (test) => test.project !== 'setup',
-        );
-    } catch (error) {
-        console.warn(
-            `warning: could not list the selected specs (${error instanceof Error ? error.message : String(error)}); running every spec`,
-        );
-
-        return { kind: 'unselected' };
-    }
-
-    if (tests.length === 0) {
-        return { kind: 'none', why: `the ${web.ids.length} selected spec(s) hold no test in this configuration` };
+    if (decision.kind !== 'list') {
+        return decision;
     }
 
     mkdirSync(LANE_LOG_DIR, { recursive: true });
 
     const file = `${LANE_LOG_DIR}/selected.txt`;
 
-    writeFileSync(file, testListText(tests));
+    writeFileSync(file, testListText(decision.tests));
 
-    return { kind: 'list', file, specs: web.ids.length, tests: tests.length };
+    return { kind: 'list', file, specs: decision.specs, tests: decision.tests.length };
+}
+
+/** Where the route recorder (`tests/e2e/utils/routeRecorder.ts`) writes, one file per lane. */
+const ROUTES_DIR = 'test-results/routes';
+
+/**
+ * After a run: checks the routes the specs really visited against the registry, and fails the run when a row must
+ * grow. A row is never shrunk automatically.
+ *
+ * @sideEffect Reads the record files and the registry, and prints.
+ * @param code - The run's own exit code.
+ * @returns The code, or 1 when the run passed but a registry row is missing a screen.
+ */
+export function afterRun(code: number): number {
+    try {
+        const check = checkRecordedRoutes(REPO_ROOT, ROUTES_DIR);
+
+        if (check.recorded === 0) {
+            console.warn('warning: no navigation was recorded, so the spec registry was not checked against this run');
+
+            return code;
+        }
+
+        console.log(`▶ routes recorded: ${check.recorded}`);
+
+        if (check.missing.length === 0) {
+            return code;
+        }
+
+        console.error(
+            `error: ${check.missing.length} spec(s) visited a screen their registry row leaves out. A change to that screen would not run them. Add:\n${check.text}`,
+        );
+
+        return code === 0 ? 1 : code;
+    } catch (error) {
+        console.warn(
+            `warning: could not check the recorded routes (${error instanceof Error ? error.message : String(error)})`,
+        );
+
+        return code;
+    }
 }
 
 const memAvailableBytes = (): number => {
@@ -426,7 +508,10 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
     }
 
     const testList = choice.kind === 'list' ? choice.file : env['E2E_TEST_LIST'];
-    const single = (): number => run('bash', ['scripts/e2eLocal.sh', ...selection(passthrough, testList)], env);
+    rmSync(ROUTES_DIR, { recursive: true, force: true });
+
+    const single = (): number =>
+        afterRun(run('bash', ['scripts/e2eLocal.sh', ...selection(passthrough, testList)], env));
 
     if (env['E2E_WEB_SERVER'] === 'dev' || env['E2E_LANES'] === '1') {
         return single();
@@ -524,7 +609,7 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
 
     console.log(`▶ lane exit codes: ${laneCodes.join(' ')}   (merged report: ${mergedFile})`);
 
-    return result.exitCode;
+    return afterRun(result.exitCode);
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {

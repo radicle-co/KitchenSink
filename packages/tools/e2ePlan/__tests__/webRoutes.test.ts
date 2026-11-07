@@ -91,12 +91,35 @@ describe('webRegistry', () => {
         expect(grouped.screens).toEqual(['/login']);
     });
 
-    it.each(['[locale]/@modal/page.tsx', '[locale]/(.)photo/page.tsx', '[locale]/api/thing/route.ts'])(
-        'refuses %s, which it cannot map to one screen',
-        (path) => {
-            expect(() => webRegistry({ appDir: APP, extraRoots: [], files: [file(path)] })).toThrow(/cannot map/u);
-        },
-    );
+    it.each([
+        '[locale]/@modal/page.tsx',
+        '[locale]/(.)photo/page.tsx',
+        '[locale]/api/thing/route.ts',
+        '[locale]/recipes/@side/default.tsx',
+    ])('treats %s as app-wide, since it cannot be mapped to one screen, rather than refusing to plan', (path) => {
+        const mapped = webRegistry({
+            appDir: APP,
+            extraRoots: [],
+            files: [file(path), file('[locale]/recipes/page.tsx')],
+        });
+
+        expect(mapped.terminals.roots.has(file(path))).toBe(true);
+        expect(mapped.screens).toEqual(['/recipes']);
+    });
+
+    it('keeps the screens around one that cannot be mapped', () => {
+        const mixed = webRegistry({
+            appDir: APP,
+            extraRoots: [],
+            files: [
+                file('[locale]/@modal/page.tsx'),
+                file('[locale]/recipes/page.tsx'),
+                file('[locale]/recipes/loading.tsx'),
+            ],
+        });
+
+        expect(mixed.terminals.screenEntries.get(file('[locale]/recipes/loading.tsx'))).toEqual(['/recipes']);
+    });
 });
 
 describe('matchRoute', () => {

@@ -18,6 +18,12 @@ export interface TierModel {
     readonly coverage: ReadonlyMap<string, ReadonlySet<string>>;
     /** What a change to the file reaches in this tier, or undefined when this tier's graphs do not hold the file. */
     readonly reachFile: (file: string) => Reached | undefined;
+    /**
+     * Whether the file PROVABLY belongs to the other platform: it sits in the other app's folder, or it is a web
+     * leaf whose `.native` twin this tier's graph holds (or the reverse). A file this tier's graph does not hold and
+     * that is not provably the other platform's is NOT assumed unaffecting.
+     */
+    readonly belongsToOtherPlatform: (file: string) => boolean;
     /** Blind spots of this tier's graphs. Any means the graph cannot be trusted to be complete. */
     readonly problems: readonly string[];
 }
@@ -25,15 +31,47 @@ export interface TierModel {
 export interface Models {
     readonly web: TierModel;
     readonly mobile: TierModel;
+    /**
+     * Repo-relative folders of the packages a service or a test tool depends on, derived from the manifests. The web
+     * specs and the flows run against a stack built from these, and no import graph of an app sees into them.
+     */
+    readonly serviceDirs: readonly string[];
 }
+
+/**
+ * What an empty change set means. It is `full` because an empty set looks exactly like a wrong base ref, and a
+ * wrong base ref must never read as "nothing changed". One place, so the owner's answer is a one-word edit.
+ */
+export const ON_EMPTY_CHANGE: 'full' | 'nothing' = 'full';
 
 const isEmpty = (reached: Reached): boolean => reached.screens.size + reached.tests.size + reached.roots.length === 0;
 
 function impactOf(file: string, models: Models): FileImpact {
-    const tiers = { web: models.web.reachFile(file), mobile: models.mobile.reachFile(file) };
-    const useful = Object.values(tiers).some((reached) => reached !== undefined && !isEmpty(reached));
+    const folder = models.serviceDirs.find((dir) => file.startsWith(`${dir}/`));
 
-    return useful ? { kind: 'reaches', tiers: tiers } : { kind: 'unreached' };
+    if (folder !== undefined) {
+        return {
+            kind: 'global',
+            reason: `${folder} is used by a service or a test tool, which no app graph sees into`,
+        };
+    }
+
+    const tiers: Partial<Record<TierName, Reached>> = {};
+    const unattributed: TierName[] = [];
+
+    for (const model of [models.web, models.mobile]) {
+        const reached = model.reachFile(file);
+
+        if (reached !== undefined) {
+            tiers[model.name] = reached;
+        } else if (!model.belongsToOtherPlatform(file)) {
+            unattributed.push(model.name);
+        }
+    }
+
+    const useful = Object.values(tiers).some((reached) => !isEmpty(reached));
+
+    return useful ? { kind: 'reaches', tiers, unattributed } : { kind: 'unreached' };
 }
 
 /**
@@ -53,6 +91,10 @@ export async function planChange(
 ): Promise<Plan> {
     if (options.fullSuite) {
         return fullPlan('FULL_SUITE=1');
+    }
+
+    if (files.length === 0 && ON_EMPTY_CHANGE === 'full') {
+        return fullPlan('no changed files: the base may be wrong');
     }
 
     const impacts = new Map<string, FileImpact>();

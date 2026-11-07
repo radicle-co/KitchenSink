@@ -165,10 +165,10 @@ describe('local_maestro_flows — which flows a command runs', () => {
  *
  * @sideEffect Writes an executable into the sandbox.
  */
-function fakeSelector(sandbox: Sandbox, answer: string, exitCode = 0): void {
+function fakeSelector(sandbox: Sandbox, answer: string, exitCode = 0, hangSeconds = 0): void {
     writeFileSync(
         path.join(sandbox.bin, 'npx'),
-        `#!/usr/bin/env bash\necho "npx $*" >> "${sandbox.calls}"\nprintf '%s' '${answer}'\nexit ${exitCode}\n`,
+        `#!/usr/bin/env bash\necho "npx $*" >> "${sandbox.calls}"\nsleep ${hangSeconds}\nprintf '%s' '${answer}'\nexit ${exitCode}\n`,
     );
     chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
 }
@@ -220,6 +220,18 @@ describe('local_maestro_flows changed — the flows the impacted-test selector p
         fakeSelector(sandbox, answer, code);
 
         const result = run(sandbox, 'local_maestro_flows changed');
+
+        expect(result.status).toBe(0);
+        expect(result.stdout).toBe(run(makeSandbox(), 'local_maestro_flows all').stdout);
+        expect(result.stderr).toMatch(/running every flow/u);
+    });
+
+    it('gives up on a selector that hangs, and runs every flow', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'some\nhome\n', 0, 5);
+
+        const result = run(sandbox, 'local_maestro_flows changed', { LOCAL_MAESTRO_SELECTOR_TIMEOUT: '1' });
 
         expect(result.status).toBe(0);
         expect(result.stdout).toBe(run(makeSandbox(), 'local_maestro_flows all').stdout);

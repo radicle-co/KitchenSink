@@ -80,6 +80,8 @@ export interface MaestroFlowGraphInput {
 export interface MaestroFlowGraph {
     readonly has: (file: string) => boolean;
     readonly importersOf: (file: string) => readonly string[];
+    /** The flow files a flow runs, however deep, sorted. Scripts and media are not flows and are left out. */
+    readonly runsOf: (file: string) => readonly string[];
     readonly problems: readonly string[];
     /** The top-level flow files, as the tests a backwards walk ends at. */
     readonly tests: Terminals['tests'];
@@ -94,6 +96,7 @@ export interface MaestroFlowGraph {
 export function maestroFlowGraph(input: MaestroFlowGraphInput): MaestroFlowGraph {
     const present = new Set(input.files);
     const importers = new Map<string, Set<string>>();
+    const runs = new Map<string, Set<string>>();
     const problems: string[] = [];
 
     for (const file of input.files.filter((path) => /\.ya?ml$/u.test(path))) {
@@ -104,6 +107,7 @@ export function maestroFlowGraph(input: MaestroFlowGraphInput): MaestroFlowGraph
                 problems.push(`${file} runs ${reference}, which is not a file under ${input.dir}`);
             } else {
                 importers.set(target, (importers.get(target) ?? new Set()).add(file));
+                runs.set(file, (runs.get(file) ?? new Set()).add(target));
             }
         }
     }
@@ -123,6 +127,21 @@ export function maestroFlowGraph(input: MaestroFlowGraphInput): MaestroFlowGraph
     return {
         has: (file) => present.has(file),
         importersOf: (file) => [...(importers.get(file) ?? [])].sort(),
+        runsOf: (file) => {
+            const seen = new Set<string>();
+            const queue = [file];
+
+            for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+                for (const target of runs.get(next) ?? []) {
+                    if (!seen.has(target)) {
+                        seen.add(target);
+                        queue.push(target);
+                    }
+                }
+            }
+
+            return [...seen].filter((target) => /\.ya?ml$/u.test(target)).sort();
+        },
         problems: problems.sort(),
         tests,
     };

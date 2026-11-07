@@ -16,7 +16,6 @@ import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const SCRIPT = path.join(REPO_ROOT, 'packages/tools/local-sandbox/bin/localMaestro.sh');
-const FLOWS_DIR = path.join(REPO_ROOT, 'packages/apps/commise/mobile/.maestro');
 
 /** The values the fake `aws` hands back. Distinctive, so a leak into any output is unmistakable. */
 const FAKE_PUBLISHABLE = 'pk_test_FAKEPUBLISHABLEaaaa';

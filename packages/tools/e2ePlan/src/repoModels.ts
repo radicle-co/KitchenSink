@@ -16,6 +16,7 @@ import { mobileRegistry } from './mobileScreens.js';
 import type { Models, TierModel } from './planChange.js';
 import { reach, type Reached } from './reachability.js';
 import { webRegistry } from './webRoutes.js';
+import { isTestSupportCandidate, testingDirs } from './testSupport.js';
 import { closureOf, readWorkspaces } from './workspaces.js';
 
 const WEB = 'packages/apps/commise/web';
@@ -92,6 +93,8 @@ async function webModel(repo: string, mergeBase: string | undefined): Promise<Ti
         screens: registry.screens,
         tests: specs.map(specId),
         coverage: table,
+        shippingImportersOf: (file) =>
+            graph.importersOf(file).filter((importer) => !importer.startsWith(`${WEB}/tests/`)),
         belongsToOtherPlatform: (file) =>
             file.startsWith(`${MOBILE}/`) || (NATIVE_LEAF.test(file) && graph.has(file.replace(NATIVE_LEAF, '.$1'))),
         reachFile: (file) =>
@@ -165,6 +168,7 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
         screens: registry.screens,
         tests,
         coverage,
+        shippingImportersOf: graph.importersOf,
         belongsToOtherPlatform: (file) =>
             file.startsWith(`${WEB}/`) ||
             (!NATIVE_LEAF.test(file) &&
@@ -204,13 +208,19 @@ async function mobileModel(repo: string, mergeBase: string | undefined): Promise
 export async function loadRepoModels(repo: string, mergeBase?: string): Promise<Models> {
     const [web, mobile] = await Promise.all([webModel(repo, mergeBase), mobileModel(repo, mergeBase)]);
 
+    const packages = readWorkspaces(repo);
+    const testing = testingDirs(packages);
     const serviceDirs = [
-        ...closureOf(readWorkspaces(repo), [
-            'packages/services/*',
-            'packages/tools/e2e-fixtures',
-            'packages/tools/e2e-seed',
-        ]),
+        ...closureOf(packages, ['packages/services/*', 'packages/tools/e2e-fixtures', 'packages/tools/e2e-seed']),
     ].sort();
 
-    return { web, mobile, serviceDirs };
+    return {
+        web,
+        mobile,
+        serviceDirs,
+        isTestSupport: (file) =>
+            isTestSupportCandidate(file, testing) &&
+            web.shippingImportersOf(file).length === 0 &&
+            mobile.shippingImportersOf(file).length === 0,
+    };
 }

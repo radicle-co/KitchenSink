@@ -15,7 +15,9 @@ import { describe, expect, it } from 'vitest';
 
 import { buildImportGraph } from '../src/dependencyGraph.js';
 import { isTestFile } from '../src/impactPolicy.js';
-import { MOBILE_PROFILE, WEB_PROFILE } from '../src/repoModels.js';
+import { loadRepoModels, MOBILE_PROFILE, WEB_PROFILE } from '../src/repoModels.js';
+import { isTestSupportCandidate, testingDirs } from '../src/testSupport.js';
+import { readWorkspaces } from '../src/workspaces.js';
 
 const repo = resolve(import.meta.dirname, '../../../..');
 
@@ -88,5 +90,22 @@ describe('the zero list, over the real tree', () => {
             .map((file) => file);
 
         expect(offenders).toEqual([]);
+    });
+
+    it('no file that ships imports test support: a package `testing` export or a __fixtures__ folder', async () => {
+        const models = await loadRepoModels(repo);
+        const dirs = testingDirs(readWorkspaces(repo));
+        const candidates = [
+            ...dirs.flatMap((dir) => globSync(`${dir}/**/*`, { cwd: repo })),
+            ...globSync('packages/**/__fixtures__/**/*', { cwd: repo, exclude: (name) => name === 'node_modules' }),
+        ].filter((file) => /\.[cm]?[jt]sx?$/u.test(file));
+        const violations = candidates.flatMap((file) =>
+            [...models.web.shippingImportersOf(file), ...models.mobile.shippingImportersOf(file)]
+                .filter((importer) => !isTestSupportCandidate(importer, dirs))
+                .map((importer) => `${importer} imports ${file}`),
+        );
+
+        expect(candidates.length).toBeGreaterThan(5);
+        expect(violations).toEqual([]);
     });
 });

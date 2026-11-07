@@ -24,6 +24,8 @@ export interface TierModel {
      * that is not provably the other platform's is NOT assumed unaffecting.
      */
     readonly belongsToOtherPlatform: (file: string) => boolean;
+    /** The files of this tier's graph that SHIP and import the file. Test files are not in the graph, nor are specs. */
+    readonly shippingImportersOf: (file: string) => readonly string[];
     /** Blind spots of this tier's graphs. Any means the graph cannot be trusted to be complete. */
     readonly problems: readonly string[];
 }
@@ -36,6 +38,11 @@ export interface Models {
      * specs and the flows run against a stack built from these, and no import graph of an app sees into them.
      */
     readonly serviceDirs: readonly string[];
+    /**
+     * Whether the file is test support: it lives where test support lives AND neither graph holds a file that ships
+     * and imports it. A path alone never decides it.
+     */
+    readonly isTestSupport: (file: string) => boolean;
 }
 
 /**
@@ -54,6 +61,10 @@ function impactOf(file: string, models: Models): FileImpact {
             kind: 'global',
             reason: `${folder} is used by a service or a test tool, which no app graph sees into`,
         };
+    }
+
+    if (models.isTestSupport(file)) {
+        return { kind: 'irrelevant' };
     }
 
     const tiers: Partial<Record<TierName, Reached>> = {};

@@ -42,6 +42,7 @@ export interface IosAdapterOptions {
 }
 
 const MAC_DIR = 'packages/tools/local-sandbox/bin/mac';
+const RUNNER = 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh';
 
 /**
  * Measured on the Mac (14 cpus) once the device runs have been done; until then a conservative guess that the planner
@@ -164,6 +165,19 @@ export class IosAdapter implements DeviceAdapter {
         await this.laneHost('erase', udid);
         await this.laneHost('boot', udid);
         await this.laneHost('install', udid, `ksIos/apps/${this.contentKey}`);
+
+        // The runner holds the one copy of this step (held equal to CI's by a guard) but calls it only from its callers,
+        // so the adapter sources the runner and runs it through the shims, which put it on this lane's Mac Simulator.
+        await this.options.shell.run(
+            'bash',
+            [
+                '-c',
+                '. "$1" && maestro_disable_password_autofill_ios',
+                'iosAdapter',
+                path.join(this.options.repoRoot, RUNNER),
+            ],
+            this.laneEnv(lane),
+        );
         await this.ssh(`mkdir -p ksIos/lanes/lane${String(lane.index)}`);
     }
 

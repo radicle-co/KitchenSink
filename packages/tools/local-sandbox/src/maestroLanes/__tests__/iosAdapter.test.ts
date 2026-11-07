@@ -140,6 +140,34 @@ describe('IosAdapter', () => {
         expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/abc');
     });
 
+    it('switches password AutoFill off on the booted Simulator through the runner own function, through the shims', async () => {
+        const calls: { line: string; env: Record<string, string> | undefined }[] = [];
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST, 'ensure 1': 'UDID-1\n' });
+        const shell: IosShell = {
+            ...recorder.shell,
+            run: (command, args, env) => {
+                calls.push({ line: [command, ...args].join(' '), env: env as Record<string, string> | undefined });
+
+                return recorder.shell.run(command, args, env);
+            },
+        };
+        const adapter = new IosAdapter(options(shell));
+        await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+        await adapter.startDevice({
+            platform: 'ios',
+            index: 1,
+            count: 1,
+            device: adapter.deviceFor(1),
+            driverPort: 7001,
+            stateDir: '/s/lanes/ios-1',
+            fixtureEnvFile: '/s/lanes/ios-1/fixture.env',
+        });
+        const call = calls.find((c) => c.line.includes('maestro_disable_password_autofill_ios'));
+        expect(call?.line).toContain('/repo/packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
+        expect(call?.env?.['MAESTRO_IOS_UDID']).toBe('UDID-1');
+        expect(call?.env?.['PATH']?.startsWith('/s/shims:')).toBe(true);
+    });
+
     it('hands the runner the lane Simulator, skips its own install and puts the shims first on PATH', async () => {
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST, 'ensure 1': 'UDID-1\n' });
         const adapter = new IosAdapter(options(recorder.shell, { LOCAL_MAESTRO_IOS_HOST: 'me@mac', PATH: '/usr/bin' }));

@@ -4,14 +4,14 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 192,
-        "implementations": 326,
+        "components": 193,
+        "implementations": 327,
         "props": 2282,
-        "documentedComponents": 192,
-        "implementationsWithModuleDoc": 326,
+        "documentedComponents": 193,
+        "implementationsWithModuleDoc": 327,
         "implementationsWithComponentDoc": 216,
         "documentedProps": 1762,
-        "classifiedComponents": 170,
+        "classifiedComponents": 171,
         "componentsWithPatternTag": 92,
         "crossPlatformComponents": 134
     },
@@ -21330,6 +21330,48 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/format/AmountText.tsx"
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/format/PrepJoin",
+            "name": "PrepJoin",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/format",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PrepJoin",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/format/PrepJoin.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/format",
+                    "moduleDoc": "@commise/features-recipes/format — a preparation joined to the name before it, on the web (`prepJoiner.ts`).\n\nThe eye reads \"· melted\" in the muted ink; a screen reader skips the dot and hears the hidden comma, \"unsalted butter,\nmelted\" (UI Designer). Native has no markup to share: its rows put `PREP_JOINER` in the text and name the row with a\ncomma in the `accessibilityLabel`.\n\nPresentational: props to text.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/format — a preparation joined to the name before it, on the web (`prepJoiner.ts`)."
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

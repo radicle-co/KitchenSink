@@ -20,7 +20,8 @@ import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
 import { Surface } from '../../surfaceTone/Surface.native.js';
 import { themeFor } from '../../theme/themeFor.js';
 import { role, roleDark } from '../../tokens/colors.js';
-import type { SectionIndexItem, SectionIndexProps } from '../props.js';
+import type { SectionIndexItem, SectionIndexProps, SectionIndexTone } from '../props.js';
+import { TONE_ROLE } from '../sectionIndexModel.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { SectionIndex } from '../SectionIndex.native.js';
 
@@ -294,4 +295,33 @@ describe('SectionIndex (native) — a pressed row takes the press of the surface
             formatRgb(scheme === 'dark' ? roleDark.surfaceMuted : role.surfaceMuted),
         );
     });
+});
+
+describe('SectionIndex (native): the bar count’s colour', () => {
+    // The count takes `dangerText` when any section needs a fix, and `attention` otherwise (`barCountRoleOf`).
+    it.each([
+        ['a fix', ITEMS, role.dangerText],
+        ['no fix', ITEMS.filter((item) => item.tone !== 'fix'), role.attention],
+    ] as const)('paints the count for %s', (_name, items, colour) => {
+        state.containerClass = 'narrow';
+        renderIndex({ items, barCount: '⚠ 3' });
+
+        expect(resolvedColour(screen.getByText('⚠ 3'), 'color')).toBe(formatRgb(colour));
+    });
+});
+
+describe('SectionIndex (native): every tone’s text colour is its TONE_ROLE', () => {
+    // The tone texts spell each colour token in the source (the colour guard reads them there), so this holds the spelled
+    // tokens to the one `TONE_ROLE` table that the icons read: the two cannot drift.
+    it.each(['fix', 'attention', 'muted', 'complete'] as const satisfies readonly SectionIndexTone[])(
+        'paints a %s reason in its TONE_ROLE colour',
+        (tone) => {
+            renderIndex({
+                items: [{ id: 'one', label: 'One', tone, reason: `reason ${tone}` }],
+                currentId: 'one',
+            });
+
+            expect(resolvedColour(screen.getByText(`reason ${tone}`), 'color')).toBe(formatRgb(role[TONE_ROLE[tone]]));
+        },
+    );
 });

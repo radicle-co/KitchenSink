@@ -28,7 +28,7 @@ import { recipeMessages } from '../messages.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
-import { formatAmount, isLineFoodRemoved } from './model.js';
+import { formatAmount, isLineFoodRemoved, lineTailOf } from './model.js';
 
 /**
  * A hairline above a row, inset to where its text starts (the 16 gutter, the 18 box, a 12 gap): drawn on the `li`, so it is
@@ -52,10 +52,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
     const standIn = isStandInName(ingredient);
-    // The preparation, then the notes override: the muted tail after the name. Its first part is joined with " · ".
-    const tail = [ingredient.preparation, ingredient.notes].filter(
-        (part): part is string => part !== undefined && part.length > 0,
-    );
+    const tail = lineTailOf(ingredient);
     const amountFigure = <span className="font-semibold tabular-nums lining-nums">{amount}</span>;
 
     return (

@@ -70,7 +70,8 @@ export interface RunUserRecord {
  * subject while the first one's id is lost.
  *
  * @param file - An absolute path. Its directory is made on the first write.
- * @sideEffect `read` reads the file; `write` writes a temporary file, syncs it to disk, and renames it over the record.
+ * @sideEffect `read` reads the file; `write` writes a temporary file, syncs it to disk, renames it over the record, and
+ *   syncs the directory that holds the rename.
  */
 export function fileRunUserRecord(file: string): RunUserRecord {
     return {
@@ -103,6 +104,14 @@ export function fileRunUserRecord(file: string): RunUserRecord {
             }
 
             renameSync(temporary, file);
+            // The rename lives in the directory: sync it too, or a power loss can bring the old record back.
+            const directory = openSync(path.dirname(file), 'r');
+
+            try {
+                fsyncSync(directory);
+            } finally {
+                closeSync(directory);
+            }
         },
     };
 }

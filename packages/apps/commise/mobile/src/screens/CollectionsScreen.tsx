@@ -27,6 +27,7 @@ import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link CollectionsScreen}. */
 export interface CollectionsScreenProps {
@@ -57,6 +58,7 @@ export function CollectionsScreen({
     headerAction,
     scrollBind,
 }: CollectionsScreenProps): JSX.Element {
+    useScreenTrace('CollectionsScreen');
     const recovery = useRecoverySignal();
     const list = useCollectionsList({ onCreated: onSelect });
 

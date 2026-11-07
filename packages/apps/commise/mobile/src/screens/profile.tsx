@@ -48,6 +48,7 @@ import { SignOutButton } from '../components/account/SignOutButton.js';
 import { SuspensionBanner } from '../components/SuspensionBanner.js';
 import { useUpdateProfile } from '../hooks/useUpdateProfile.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link ProfileScreen}. */
 export interface ProfileScreenProps {
@@ -77,6 +78,7 @@ interface ProfileSurfaceProps {
  * @returns The page.
  */
 export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps): JSX.Element {
+    useScreenTrace('profile');
     const t = useMessages(profileMessages);
     const headingId = useId();
     const back = { label: t.back, parent: t.homeParent, onPress: onBack };

@@ -48,6 +48,7 @@ import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { JSX } from 'react';
 
 import { useRecipeViewSetting } from '../hooks/useRecipeViewSetting.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link RecipeListScreen}. */
 export interface RecipeListScreenProps {
@@ -84,6 +85,7 @@ export function RecipeListScreen({
     headerAction,
     scrollBind,
 }: RecipeListScreenProps): JSX.Element {
+    useScreenTrace('RecipeListScreen');
     const controls = useRecipeLibraryControls();
     // The grid/list choice is an account setting (ADR-0059), shared with the web app and the collection screen.
     const { viewChoice, chooseView, saveFailed } = useRecipeViewSetting();

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     IOS_MAX_LANES,
+    MEMORY_SAFETY_MARGIN,
     laneSimulatorName,
     macHostFromEnv,
     parseHostFacts,
@@ -9,27 +10,38 @@ import {
     tunnelsFromManifest,
 } from '../iosLane.js';
 
-const VM_STAT = `Mach Virtual Memory Statistics: (page size of 16384 bytes)
-Pages free:                                    92131.
-Pages active:                                 967331.
-Pages inactive:                               900000.
-Pages speculative:                             8000.
-Pages wired down:                             300000.
-`;
+const MEMSIZE = 51539607552;
+
+/** `laneHost.sh facts` output captured on the Mac: ncpu, memsize, loadavg, and memory_pressure's free percentage. */
+const facts = (extra: string): string =>
+    ['ncpu 14', `memsize ${String(MEMSIZE)}`, 'loadavg { 2.76 2.60 2.96 }', extra].join('\n');
 
 describe('parseHostFacts', () => {
     it('reads cpus, the one-minute load and available memory from captured Mac output', () => {
-        const facts = parseHostFacts(
-            ['ncpu 14', 'memsize 51539607552', 'loadavg { 2.76 2.60 2.96 }', VM_STAT].join('\n'),
-        );
-        expect(facts.cpus).toBe(14);
-        expect(facts.load1).toBeCloseTo(2.76);
-        // (free + inactive + speculative) pages at the page size the output states, not an assumed 4096
-        expect(facts.memAvailable).toBe((92131 + 900000 + 8000) * 16384);
+        const parsed = parseHostFacts(facts('memfreepct 62'));
+        expect(parsed.cpus).toBe(14);
+        expect(parsed.load1).toBeCloseTo(2.76);
+        // The kernel's own free percentage counts the cache macOS gives back, which free + inactive pages from vm_stat
+        // missed (16 GiB counted against about 30 GiB reclaimable on the same Mac). A margin is kept because the cache is
+        // given back under pressure, not for free.
+        expect(parsed.memAvailable).toBe(Math.floor(MEMSIZE * 0.62 * MEMORY_SAFETY_MARGIN));
     });
 
-    it('throws on output that has no page size rather than guessing one', () => {
-        expect(() => parseHostFacts('ncpu 2\nmemsize 1\nloadavg { 1 1 1 }\nPages free: 1.')).toThrow(/page size/);
+    it('keeps a margin under what the kernel reports', () => {
+        expect(MEMORY_SAFETY_MARGIN).toBeLessThan(1);
+        expect(parseHostFacts(facts('memfreepct 100')).memAvailable).toBeLessThan(MEMSIZE);
+    });
+
+    it('counts no memory at 0 percent', () => {
+        expect(parseHostFacts(facts('memfreepct 0')).memAvailable).toBe(0);
+    });
+
+    it('throws on output with no free percentage rather than guessing one', () => {
+        expect(() => parseHostFacts(facts(''))).toThrow(/memfreepct/);
+    });
+
+    it('throws on a percentage outside 0..100', () => {
+        expect(() => parseHostFacts(facts('memfreepct 140'))).toThrow(/memfreepct/);
     });
 });
 

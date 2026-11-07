@@ -4,7 +4,7 @@
 #   laneHost.sh boot <udid>     boot and wait until it is usable
 #   laneHost.sh erase <udid>    shut down and erase (a clean app state for the next run)
 #   laneHost.sh install <udid> <dir>   install the one .app bundle inside <dir>
-#   laneHost.sh facts           cpu count, memory bytes, load average and vm_stat, for the lane planner
+#   laneHost.sh facts           cpu count, memory bytes, load average and the kernel's free percentage, for the lane planner
 #   laneHost.sh cleanup         delete every lane Simulator
 # KS_SIM_DEVICE_TYPE and KS_SIM_RUNTIME choose what `ensure` creates.
 set -euo pipefail
@@ -48,7 +48,9 @@ case "${1:-}" in
         echo "ncpu $(sysctl -n hw.ncpu)"
         echo "memsize $(sysctl -n hw.memsize)"
         echo "loadavg $(sysctl -n vm.loadavg)"
-        vm_stat
+        # The kernel's own measure of what is free or reclaimable (cache included); vm_stat's free + inactive pages
+        # undercounted it by about half.
+        echo "memfreepct $(memory_pressure | sed -n 's/.*free percentage: *\([0-9]*\)%.*/\1/p')"
         ;;
     cleanup)
         xcrun simctl list -j devices |

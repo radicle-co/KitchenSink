@@ -84,7 +84,7 @@ describe('IosAdapter', () => {
     it('refuses the host when the app for this tree is missing or stale, and never builds it itself', async () => {
         const shell: IosShell = {
             ...makeShell().shell,
-            run: (command, args) => {
+            run: (_command, args) => {
                 if (args.includes('check')) {
                     return Promise.reject(
                         new Error('buildIosApp: no test app for key abc. Build it: buildIosApp.sh build abc'),

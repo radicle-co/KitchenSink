@@ -16,14 +16,13 @@ import type { LaneCost } from '@kitchensink/e2e-plan';
 
 import {
     IOS_MAX_LANES,
-    driverPortFor,
     laneSimulatorName,
     macHostFromEnv,
     parseHostFacts,
     sshConfigText,
     tunnelsFromManifest,
 } from './iosLane.js';
-import type { HostFacts, LaneSpec, RunContext } from './laneTypes.js';
+import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
 
 /** The I/O the adapter needs. A real one wraps `child_process` and `fs`; a test scripts it. */
 export interface IosShell {
@@ -49,7 +48,7 @@ const MAC_DIR = 'packages/tools/local-sandbox/bin/mac';
  */
 const IOS_LANE_COST: LaneCost = { cpus: 3, memBytes: 6 * 1024 ** 3 };
 
-export class IosAdapter {
+export class IosAdapter implements DeviceAdapter {
     readonly platform = 'ios' as const;
     readonly laneCost = IOS_LANE_COST;
     readonly maxLanes = IOS_MAX_LANES;
@@ -177,7 +176,6 @@ export class IosAdapter {
         return {
             MAESTRO_IOS_UDID: udid,
             MAESTRO_SKIP_INSTALL: '1',
-            MAESTRO_DRIVER_PORT: String(driverPortFor(lane.index)),
             PATH: `${this.shimDir}:${this.options.env['PATH'] ?? ''}`,
             KS_MAC_HOST: this.host,
             KS_MAC_SSH_CONFIG: this.sshConfig,

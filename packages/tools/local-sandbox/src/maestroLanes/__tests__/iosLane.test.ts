@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
     IOS_MAX_LANES,
-    driverPortFor,
     laneSimulatorName,
     macHostFromEnv,
     parseHostFacts,
@@ -39,15 +38,10 @@ describe('lane naming and ports', () => {
         expect(laneSimulatorName(3)).toBe('ks-maestro-lane-3');
     });
 
-    it('puts the driver port at 7000 + lane', () => {
-        expect(driverPortFor(1)).toBe(7001);
-        expect(driverPortFor(5)).toBe(7005);
-    });
-
     it('refuses a lane outside 1..IOS_MAX_LANES', () => {
         expect(IOS_MAX_LANES).toBe(5);
         expect(() => laneSimulatorName(0)).toThrow();
-        expect(() => driverPortFor(IOS_MAX_LANES + 1)).toThrow();
+        expect(() => laneSimulatorName(IOS_MAX_LANES + 1)).toThrow();
     });
 });
 

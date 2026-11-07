@@ -35,13 +35,6 @@ export function laneSimulatorName(lane: number): string {
     return `ks-maestro-lane-${String(lane)}`;
 }
 
-/** 7000 + lane: below the ephemeral range on both hosts, one port per lane process. */
-export function driverPortFor(lane: number): number {
-    assertLane(lane);
-
-    return 7000 + lane;
-}
-
 export function macHostFromEnv(env: Readonly<Record<string, string | undefined>>): string {
     const host = env['LOCAL_MAESTRO_IOS_HOST']?.trim();
 

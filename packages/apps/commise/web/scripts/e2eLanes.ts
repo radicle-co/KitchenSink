@@ -46,10 +46,17 @@ const ORIGIN_VARS = ['NEXT_PUBLIC_RECIPE_API_URL', 'NEXT_PUBLIC_IDENTITY_API_URL
 
 const GIB = 1024 ** 3;
 
-/** What one lane costs. PLACEHOLDER until measured. */
-export const LANE_COST: LaneCost = { cpus: 2, memBytes: 2 * GIB };
+/**
+ * What one lane costs, rounded up from full-suite runs on a 20-CPU machine (2026-11-07): a lane held about 1 to 2 CPUs
+ * busy on average (more when other work shared the machine) and took 0.7 to 1.7 GB of available memory.
+ */
+export const LANE_COST: LaneCost = { cpus: 1.5, memBytes: 2 * GIB };
 
-/** The most lanes Clerk's dev instance is allowed to serve at once. PLACEHOLDER until measured. */
+/**
+ * The most lanes tried against Clerk's dev instance at once (8, the size of the `web` pool slots). It served all 8 with
+ * no more `FAPI request failed` lines than one lane produces, so the pool size, not Clerk, is the limit; raise this only
+ * with a bigger pool and a new measurement.
+ */
 export const WEB_LANE_CLERK_CEILING = 8;
 
 const PORT_RANGE = { first: 3010, last: 3060 } as const;

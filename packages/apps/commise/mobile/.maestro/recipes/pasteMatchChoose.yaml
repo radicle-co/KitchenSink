@@ -48,10 +48,10 @@ appId: ${APP_ID}
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
-          TARGET: 'Choose the salt you use.*'
+          TARGET: '.*Choose the salt you use.*'
           DIRECTION: DOWN
 - assertVisible:
-      text: 'Choose the salt you use.*'
+      text: '.*Choose the salt you use.*'
 
 # Choose a food: it binds as the cook's, and the next open line opens.
 - runFlow:

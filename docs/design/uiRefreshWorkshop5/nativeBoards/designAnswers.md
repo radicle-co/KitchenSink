@@ -394,3 +394,9 @@ The rule lives in `formatQuantity`, so it reaches web, native, the editor row an
     above the keyboard, at every text size.
 12. The recipe detail page follows item 7 on every platform, web included: a stand-in's amount (or a lone unit)
     sits on its own line above the chip, never on the chip's line.
+
+## 2026-11-06: paste list line with a comma after the measure (asked by Nova Squad, GATE)
+
+A paste row shows the line exactly as the cook pasted it. A comma that ends the measure stays, bold with the
+measure, then a space and the rest: "**2 cups,** sifted flour". The row's whole visible text equals the pasted
+line.

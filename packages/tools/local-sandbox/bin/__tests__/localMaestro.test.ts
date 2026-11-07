@@ -300,7 +300,7 @@ describe('local_maestro_check_bundle_env — the bundle names only local origins
     };
 
     const envModule = (name: string, entries: Record<string, string>): string =>
-        `__d(function(){var _default = ${JSON.stringify(entries)};},1,[],"${name}");\n`;
+        `__d(function(){var _default = ${JSON.stringify(entries)};},1,[],${JSON.stringify(name)});\n`;
 
     it('passes a bundle whose env modules name only loopback origins', () => {
         const sandbox = makeSandbox();

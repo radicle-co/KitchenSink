@@ -4,6 +4,7 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from '@kitchensink/recipe-service-client';
 
 import {
     apiConfigSchema,
+    type ApiConfig,
     MAX_POST_COMMIT_NUTRITION_TIMEOUT_MS,
     MAX_READ_NUTRITION_DEADLINE_MS,
     POST_COMMIT_RESPONSE_HEADROOM_MS,
@@ -50,7 +51,7 @@ const validEnv = (): Record<string, string> => ({
 
 describe('loadConfig', () => {
     it('parses a fully-valid environment into the typed config with defaults applied', () => {
-        const config = loadConfig(apiConfigSchema, validEnv());
+        const config: ApiConfig = loadConfig(apiConfigSchema, validEnv());
 
         expect(config.NODE_ENV).toBe('production');
         expect(config.CLERK_JWT_KEY).toContain('BEGIN PUBLIC KEY');
@@ -190,7 +191,7 @@ describe('loadConfig', () => {
     it('has NO FOOD_SERVICE_TOKEN concept — food is called with the caller’s own Clerk token', () => {
         // A static env bearer cannot satisfy food's Clerk verifier (session tokens live ~60s), so the variable
         // is gone rather than left as a decoy for someone to "wire up". Setting it is simply ignored.
-        const config = loadConfig(apiConfigSchema, { ...validEnv(), FOOD_SERVICE_TOKEN: 'static-token' });
+        const config: ApiConfig = loadConfig(apiConfigSchema, { ...validEnv(), FOOD_SERVICE_TOKEN: 'static-token' });
 
         expect('FOOD_SERVICE_TOKEN' in config).toBe(false);
     });

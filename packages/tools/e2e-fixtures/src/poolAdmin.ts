@@ -107,6 +107,7 @@ import {
     isLocalNamespaceSlot,
     knownPoolAddresses,
     maestroErasureSlots,
+    maestroShardCapacity,
     maestroSlotForShard,
     POOL_PASSWORD,
     poolNamespaceFrom,
@@ -506,6 +507,97 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
 
 const isMaestroPlatform = (value: string): value is MaestroPlatform =>
     MAESTRO_PLATFORMS.some((platform) => platform === value);
+
+/**
+ * Read `--list-local-lanes --platform <p>`, which takes nothing else. Pure.
+ *
+ * It is its own command line, not a scope of {@link parsePoolAdminArgs}: it reconciles nothing, so no flag that writes
+ * may ride along with it.
+ *
+ * @throws On any other argument, or a platform that is not `android` or `ios`.
+ */
+export function parseListLocalLanesArgs(argv: readonly string[]): { readonly platform: MaestroPlatform } {
+    let parsed;
+
+    try {
+        parsed = parseArgs({
+            args: [...argv],
+            strict: true,
+            allowPositionals: false,
+            options: { 'list-local-lanes': { type: 'boolean' }, platform: { type: 'string' } },
+        });
+    } catch (error) {
+        throw new Error(`poolAdmin: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+
+    const platform = parsed.values.platform;
+
+    if (parsed.values['list-local-lanes'] !== true || platform === undefined || !isMaestroPlatform(platform)) {
+        throw new Error(
+            `poolAdmin: --list-local-lanes needs --platform ${MAESTRO_PLATFORMS.join('|')} and nothing else`,
+        );
+    }
+
+    return { platform };
+}
+
+/** Which local Maestro lanes of one platform have their Clerk users. */
+export interface LocalLaneReport {
+    readonly lanes: readonly { readonly index: number; readonly signer: boolean; readonly coauthor: boolean }[];
+    /** Lanes counted from 1 while both users exist: lane `k` runs as shard `k`, so the first gap ends it. */
+    readonly present: number;
+    /** Whether the platform's erasure subject, which lane 1 leases, exists. */
+    readonly erasureSubject: boolean;
+}
+
+/**
+ * List a platform's LOCAL Maestro lanes. Reads Clerk and writes nothing: a lane run counts its lanes with this and never
+ * makes a lane user (adding a lane is the owner's `--apply --maestro-lane` run).
+ *
+ * @sideEffect Reads Clerk users through the port.
+ * @throws When the local namespace is not active, before any read.
+ */
+export async function listLocalLanes(
+    port: Pick<PoolAdminPort, 'findUsers'>,
+    platform: MaestroPlatform,
+): Promise<LocalLaneReport> {
+    if (poolNamespaceFrom(process.env) !== 'local') {
+        throw new Error('poolAdmin: --list-local-lanes lists the local lanes - set E2E_POOL_NAMESPACE=local');
+    }
+
+    const exists = async (email: string): Promise<boolean> => (await port.findUsers(email)).length > 0;
+    const lanes = [];
+
+    for (let index = 1; index <= maestroShardCapacity(platform); index += 1) {
+        lanes.push({
+            index,
+            signer: await exists(maestroSlotForShard('signer', platform, index).email),
+            coauthor: await exists(maestroSlotForShard('coauthor', platform, index).email),
+        });
+    }
+
+    const gap = lanes.findIndex((lane) => !lane.signer || !lane.coauthor);
+    const subject = maestroErasureSlots(platform, 1)[0];
+
+    return {
+        lanes,
+        present: gap === -1 ? lanes.length : gap,
+        erasureSubject: subject !== undefined && (await exists(subject.email)),
+    };
+}
+
+/** One line per lane, the erasure subject, then `lanes=<present>`. Pure. */
+export function describeLocalLanes(report: LocalLaneReport): readonly string[] {
+    const state = (present: boolean): string => (present ? 'present' : 'missing');
+
+    return [
+        ...report.lanes.map(
+            (lane) => `lane ${lane.index} signer=${state(lane.signer)} coauthor=${state(lane.coauthor)}`,
+        ),
+        `erasure-subject=${state(report.erasureSubject)}`,
+        `lanes=${report.present}`,
+    ];
+}
 
 const sameList = (actual: unknown, desired: readonly string[]): boolean =>
     Array.isArray(actual) &&
@@ -1142,7 +1234,10 @@ export function describeReport(report: PoolReport): readonly string[] {
  * @sideEffect Reads the environment, calls Clerk, writes to stdout/stderr, and sets the exit code.
  */
 async function main(): Promise<void> {
-    const args = parsePoolAdminArgs(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    const command = argv.includes('--list-local-lanes')
+        ? ({ kind: 'list', ...parseListLocalLanesArgs(argv) } as const)
+        : ({ kind: 'reconcile', args: parsePoolAdminArgs(argv) } as const);
     const secretKey = process.env['CLERK_SECRET_KEY'] ?? '';
 
     if (secretKey.trim() === '') {
@@ -1152,6 +1247,16 @@ async function main(): Promise<void> {
     // Built FIRST, whatever the scope: it is what refuses a non-development key, and a refill that has nothing to
     // do must still refuse to hold a production one.
     const port = clerkPoolAdminPort(secretKey);
+
+    if (command.kind === 'list') {
+        for (const line of describeLocalLanes(await listLocalLanes(port, command.platform))) {
+            console.log(line);
+        }
+
+        return;
+    }
+
+    const { args } = command;
     const scoped = poolScopeOptions(args.scope);
     const local = poolNamespaceFrom(process.env) === 'local';
 

@@ -30,8 +30,18 @@
  * @pattern Registry — {@link SOCIAL_AUTH_BY_CLERK_INSTANCE}, one row per Clerk instance.
  * @pattern Factory — {@link buildAppConfig}, pure over the environment it is given.
  */
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { parsePublishableKey } from '@clerk/shared/keys';
 import type { ExpoConfig } from 'expo/config';
+import {
+    AndroidConfig,
+    withAndroidManifest,
+    withDangerousMod,
+    type ConfigPlugin,
+    type ExportedConfig,
+} from 'expo/config-plugins';
 
 import type { SocialAuthExtra } from './src/auth/socialAuthConfig.js';
 
@@ -154,15 +164,114 @@ function associatedDomainsFor(publishableKey: string | undefined): { associatedD
     return parsed === null ? {} : { associatedDomains: [`webcredentials:${parsed.frontendApi}`] };
 }
 
+/** The origins a build bakes in, by variable. */
+const ORIGIN_VARIABLES = [
+    'EXPO_PUBLIC_RECIPE_API_URL',
+    'EXPO_PUBLIC_IDENTITY_API_URL',
+    'EXPO_PUBLIC_FOOD_API_URL',
+] as const;
+
+/** The hosts a device reaches its own machine on through `adb reverse`. */
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1']);
+
+/**
+ * The hosts a build must reach over plain HTTP: the loopback hosts of its `http:` origins, sorted, once each. Pure.
+ *
+ * @throws {Error} For an `http:` origin that is not loopback: cleartext leaves the device only to its own machine.
+ */
+export function cleartextLoopbackHosts(env: Readonly<Record<string, string | undefined>>): readonly string[] {
+    const hosts = new Set<string>();
+
+    for (const name of ORIGIN_VARIABLES) {
+        const origin = env[name];
+
+        if (origin === undefined || origin === '' || !origin.startsWith('http:')) {
+            continue;
+        }
+
+        const host = new URL(origin).hostname;
+
+        if (!LOOPBACK_HOSTS.has(host)) {
+            throw new Error(
+                `app.config.ts: ${name} is ${origin} - plain HTTP is allowed only to a loopback host (${[...LOOPBACK_HOSTS].join(', ')}).`,
+            );
+        }
+
+        hosts.add(host);
+    }
+
+    return [...hosts].sort();
+}
+
+/** The release variant's network security config: cleartext to the named hosts and nowhere else. Pure. */
+export function releaseNetworkSecurityXml(hosts: readonly string[]): string {
+    const domains = hosts.map((host) => `        <domain includeSubdomains="false">${host}</domain>`).join('\n');
+
+    return [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<network-security-config>',
+        '    <base-config cleartextTrafficPermitted="false" />',
+        '    <domain-config cleartextTrafficPermitted="true">',
+        domains,
+        '    </domain-config>',
+        '</network-security-config>',
+        '',
+    ].join('\n');
+}
+
+/**
+ * The other variants keep what they had: the debug manifests' `usesCleartextTraffic="true"`, which a network security
+ * config would otherwise override.
+ */
+const PERMISSIVE_NETWORK_SECURITY_XML = [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<network-security-config>',
+    '    <base-config cleartextTrafficPermitted="true" />',
+    '</network-security-config>',
+    '',
+].join('\n');
+
+/**
+ * Point the app at `@xml/network_security_config`: the permissive file in `main` (debug and its siblings), overridden in
+ * the `release` source set by {@link releaseNetworkSecurityXml}. Applied only by {@link buildAppConfig}, and only for a
+ * build with loopback http origins (a local lane's test app).
+ *
+ * @pattern Adapter over Expo's config-plugin mods (`withAndroidManifest`, `withDangerousMod`)
+ */
+export const withLoopbackCleartext: ConfigPlugin<{ readonly hosts: readonly string[] }> = (config, { hosts }) =>
+    withDangerousMod(
+        withAndroidManifest(config, (mod) => {
+            AndroidConfig.Manifest.getMainApplicationOrThrow(mod.modResults).$['android:networkSecurityConfig'] =
+                '@xml/network_security_config';
+
+            return mod;
+        }),
+        [
+            'android',
+            (mod) => {
+                const write = (variant: string, xml: string): void => {
+                    const dir = path.join(mod.modRequest.platformProjectRoot, 'app/src', variant, 'res/xml');
+                    mkdirSync(dir, { recursive: true });
+                    writeFileSync(path.join(dir, 'network_security_config.xml'), xml);
+                };
+
+                write('main', PERMISSIVE_NETWORK_SECURITY_XML);
+                write('release', releaseNetworkSecurityXml(hosts));
+
+                return Promise.resolve(mod);
+            },
+        ],
+    );
+
 /**
  * The whole app config for an environment.
  *
  * @param env - The build environment (`process.env` at prebuild / build time).
- * @returns The Expo config. Pure.
+ * @returns The Expo config, carrying the mods of any plugin applied here. Pure.
  * @throws {Error} For a stray `EXPO_PUBLIC_CLERK_GOOGLE_*` variable, or a publishable key {@link socialAuthExtraFor}
  *     refuses.
  */
-export function buildAppConfig(env: Readonly<Record<string, string | undefined>>): ExpoConfig {
+export function buildAppConfig(env: Readonly<Record<string, string | undefined>>): ExportedConfig {
     const stray = Object.keys(env).filter((name) => name.startsWith('EXPO_PUBLIC_CLERK_GOOGLE_'));
 
     if (stray.length > 0) {
@@ -172,7 +281,8 @@ export function buildAppConfig(env: Readonly<Record<string, string | undefined>>
         );
     }
 
-    return {
+    const cleartextHosts = cleartextLoopbackHosts(env);
+    const config: ExpoConfig = {
         name: 'Commise',
         slug: 'commise-mobile',
         version: '1.0.0',
@@ -227,6 +337,9 @@ export function buildAppConfig(env: Readonly<Record<string, string | undefined>>
         ],
         extra: { ...socialAuthExtraFor(env['EXPO_PUBLIC_IDP_PUBLISHABLE_KEY']) },
     };
+
+    // Applied here rather than listed in `plugins`, which names packages only: a local plugin is a function.
+    return cleartextHosts.length > 0 ? withLoopbackCleartext(config, { hosts: cleartextHosts }) : config;
 }
 
-export default (): ExpoConfig => buildAppConfig(process.env);
+export default (): ExportedConfig => buildAppConfig(process.env);

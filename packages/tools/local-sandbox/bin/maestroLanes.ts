@@ -34,7 +34,6 @@ import { startSharedServices, type RunningService, type ServiceSpec } from '../s
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const LOCAL_MAESTRO = path.join(REPO_ROOT, 'packages/tools/local-sandbox/bin/localMaestro.sh');
 const RUNNER = path.join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
-const CONSUMER_PLAN = path.join(REPO_ROOT, '.local-sandbox/queueConsumers.json');
 const STATE_DIR = path.join(
     process.env['XDG_STATE_HOME'] ?? path.join(process.env['HOME'] ?? '', '.local/state'),
     'kitchensink/localMaestro',
@@ -91,9 +90,15 @@ function run(command: string, args: readonly string[], options: { env?: Env; cwd
 }
 
 /** Start a process in its own group, logging to a file. */
-function spawnDetached(command: string, args: readonly string[], log: string, env?: Env): { pid: number } {
+function spawnDetached(
+    command: string,
+    args: readonly string[],
+    log: string,
+    env?: Env,
+    cwd = REPO_ROOT,
+): { pid: number } {
     const fd = openSync(log, 'w');
-    const child = spawn(command, [...args], { env, cwd: REPO_ROOT, stdio: ['ignore', fd, fd], detached: true });
+    const child = spawn(command, [...args], { env, cwd, stdio: ['ignore', fd, fd], detached: true });
     closeSync(fd);
     child.unref();
 
@@ -136,13 +141,40 @@ function adapterFor(platform: LanePlatform, env: Env): DeviceAdapter {
     });
 }
 
-/** The services a lane run owns: every queue consumer `local:up` planned, and the parse worker. */
-function serviceSpecs(): readonly ServiceSpec[] {
-    if (!existsSync(CONSUMER_PLAN)) {
-        throw new Error('maestro:lanes: no queue-consumer plan - run `npm run local:up` first');
+/**
+ * The checkout that started the running local stack: `local:up` runs compose from `<checkout>/.local-sandbox`, and the
+ * queue consumers' plan and code belong to that checkout, not to whichever tree runs the lanes.
+ *
+ * @sideEffect Runs `docker inspect`.
+ */
+function stackRoot(): string {
+    const label = spawnSync(
+        'docker',
+        [
+            'inspect',
+            'local-sandbox-recipes',
+            '--format',
+            '{{index .Config.Labels "com.docker.compose.project.working_dir"}}',
+        ],
+        { encoding: 'utf8' },
+    ).stdout.trim();
+
+    if (label === '') {
+        throw new Error('maestro:lanes: no local stack is running - run `npm run local:up` first');
     }
 
-    const consumers = (JSON.parse(readFileSync(CONSUMER_PLAN, 'utf8')) as readonly { readonly name: string }[]).map(
+    return path.dirname(label);
+}
+
+/** The services a lane run owns: every queue consumer the running stack planned, and the parse worker. */
+function serviceSpecs(root: string): readonly ServiceSpec[] {
+    const plan = path.join(root, '.local-sandbox/queueConsumers.json');
+
+    if (!existsSync(plan)) {
+        throw new Error(`maestro:lanes: no queue-consumer plan at ${plan} - run \`npm run local:up\` first`);
+    }
+
+    const consumers = (JSON.parse(readFileSync(plan, 'utf8')) as readonly { readonly name: string }[]).map(
         ({ name }): ServiceSpec => ({
             name,
             pattern: new RegExp(`bin/queueConsumer\\.ts ${name.replace(/[^\w-]/gu, '')}( |$)`, 'u'),
@@ -163,9 +195,9 @@ function serviceSpecs(): readonly ServiceSpec[] {
 }
 
 /** Start one service and wait until it is ready: a consumer prints `draining`, the worker is alive after 8 s. */
-async function startService(spec: ServiceSpec, env: Env): Promise<RunningService> {
+async function startService(spec: ServiceSpec, env: Env, root: string): Promise<RunningService> {
     const log = path.join(STATE_DIR, `service.${spec.name}.log`);
-    const { pid } = spawnDetached(spec.command, spec.args, log, env);
+    const { pid } = spawnDetached(spec.command, spec.args, log, env, root);
     const consumer = spec.name !== 'parseWorker';
 
     for (let waited = 0; waited < 60; waited += 1) {
@@ -270,14 +302,15 @@ async function resolveSelection(
  * @sideEffect Starts the queue consumers and the parse worker; writes the local recipe world.
  */
 async function startServices(base: Env) {
-    const services = await startSharedServices(serviceSpecs(), {
+    const root = stackRoot();
+    const services = await startSharedServices(serviceSpecs(root), {
         listProcesses: async () =>
             (await run('ps', ['-eo', 'pid=,args='])).stdout
                 .split('\n')
                 .map((line) => /^\s*(\d+)\s+(.*)$/u.exec(line))
                 .flatMap((match) => (match === null ? [] : [{ pid: Number(match[1]), command: match[2] ?? '' }]))
                 .filter((entry) => entry.pid !== process.pid),
-        start: (spec) => startService(spec, base),
+        start: (spec) => startService(spec, base, root),
         resetPool: async (lane) => {
             await tool(laneEnvFor(base, lane), `the pool reset of lane ${lane.platform}-${lane.index}`, [
                 'packages/tools/e2e-seed/src/resetPool.ts',

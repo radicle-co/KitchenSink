@@ -24,7 +24,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ -n "${PLAYWRIGHT_BASE_URL:-}" || -n "${CI:-}" ]]; then
-    exec npx playwright test "$@"
+    # CI selection (ADR-0087): `select-e2e` writes the tests to run into a list file. The count check runs first, so a
+    # list that no longer holds what the selection counted stops the run before it signs in as anyone.
+    selected=()
+    if [[ -n "${E2E_TEST_LIST:-}" ]]; then
+        selected=(--test-list "$E2E_TEST_LIST")
+    fi
+    if [[ -n "${E2E_EXPECTED_TESTS:-}" ]]; then
+        npx tsx scripts/e2eCountCheck.ts "$E2E_EXPECTED_TESTS" ${selected[@]+"${selected[@]}"} || exit 1
+    fi
+    exec npx playwright test ${selected[@]+"${selected[@]}"} "$@"
 fi
 
 exec npx tsx scripts/e2eLanes.ts "$@"

@@ -363,7 +363,7 @@ const run = (command: string, args: readonly string[], env: Env): number =>
  * @sideEffect Runs `playwright test --list`, which writes its JSON report to a file: stdout also carries whatever
  * the config prints while it loads.
  */
-function listTests(passthrough: readonly string[], testList: string | undefined, env: Env): PlaywrightReport {
+export function listTests(passthrough: readonly string[], testList: string | undefined, env: Env): PlaywrightReport {
     mkdirSync(LANE_LOG_DIR, { recursive: true });
 
     const file = `${LANE_LOG_DIR}/listed.json`;

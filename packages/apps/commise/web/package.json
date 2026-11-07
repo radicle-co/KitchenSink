@@ -17,7 +17,8 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "test:e2e:local": "scripts/e2eLocal.sh",
-        "e2e:durations": "tsx scripts/e2eDurations.ts"
+        "e2e:durations": "tsx scripts/e2eDurations.ts",
+        "e2e:select": "tsx scripts/e2eSelectCi.ts"
     },
     "dependencies": {
         "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1152.0",

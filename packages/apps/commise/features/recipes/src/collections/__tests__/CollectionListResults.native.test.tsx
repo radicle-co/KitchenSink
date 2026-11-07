@@ -17,7 +17,7 @@ import { CollectionListResults } from '../CollectionListResults.native.js';
 import { collectionMessages } from '../messages.js';
 import type { CollectionListResultsProps } from '../model.js';
 import { nativeTokens } from '@commise/ui/native';
-import { render, renderWithTamagui } from '@commise/ui/testing/tamagui';
+import { fireScrollAndSettle, render, renderWithTamagui } from '@commise/ui/testing/tamagui';
 
 /** The window's width and text scale, when a test sets them: jsdom has a 1024 px window and a scale of 1. */
 const dims = vi.hoisted(() => ({ width: undefined as number | undefined, fontScale: undefined as number | undefined }));
@@ -384,7 +384,7 @@ describe("CollectionListResults (native) — the scroll host's bind", () => {
         const bind = recordingBind();
         renderList({ collections: threeCollections, total: 3, scrollBind: bind });
 
-        fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
+        fireScrollAndSettle(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
     });

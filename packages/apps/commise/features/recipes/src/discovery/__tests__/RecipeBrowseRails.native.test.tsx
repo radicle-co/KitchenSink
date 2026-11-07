@@ -26,7 +26,7 @@ import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.native.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.native.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
-import { render, resolvedStyle } from '@commise/ui/testing/tamagui';
+import { fireScrollAndSettle, render, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { RAIL_LINK_PADDING } from '../railHeading.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus hand-off is asserted as the call it makes.
@@ -415,7 +415,7 @@ describe("RecipeBrowseRails (native) — the scroll host's bind", () => {
         const bind = recordingBind();
         renderRails({ scrollBind: bind });
 
-        fireEvent.scroll(boundScroller(bind), { target: { scrollTop: 240 } });
+        fireScrollAndSettle(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
     });

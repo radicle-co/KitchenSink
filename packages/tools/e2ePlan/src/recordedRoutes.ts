@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { parseCoverage, type CoverageTable } from './coverageTable.js';
 import { SPEC_TABLE } from './repoModels.js';
-import { missingRows, parseRecords, renderMissingRows, type MissingRow } from './routeCheck.js';
+import { missingRows, parseRecords, renderMissingRows, type MissingRow, type RecordedKind } from './routeCheck.js';
 import { webRegistry } from './webRoutes.js';
 
 const WEB = 'packages/apps/commise/web';
@@ -12,6 +12,8 @@ export interface RouteCheck {
     /** How many navigations the run recorded. Zero means the recorder did not run, and nothing was checked. */
     readonly recorded: number;
     readonly missing: readonly MissingRow[];
+    /** How many navigations each signal saw; `unknown` is a record from before the kind was kept. */
+    readonly kinds: Readonly<Record<RecordedKind | 'unknown', number>>;
 }
 
 /**
@@ -27,14 +29,20 @@ export function checkRecordsInDir(
     registry: { readonly table: CoverageTable; readonly screens: readonly string[] },
 ): RouteCheck {
     if (!existsSync(dir)) {
-        return { recorded: 0, missing: [] };
+        return { recorded: 0, missing: [], kinds: { document: 0, rsc: 0, framenavigated: 0, unknown: 0 } };
     }
 
     const records = globSync('*.jsonl', { cwd: dir })
         .sort()
         .flatMap((file) => parseRecords(readFileSync(join(dir, file), 'utf8'), file));
 
-    return { recorded: records.length, missing: missingRows(records, registry.table, registry.screens) };
+    const kinds = { document: 0, rsc: 0, framenavigated: 0, unknown: 0 };
+
+    records.forEach((record) => {
+        kinds[record.via ?? 'unknown'] += 1;
+    });
+
+    return { recorded: records.length, missing: missingRows(records, registry.table, registry.screens), kinds };
 }
 
 /**

@@ -446,7 +446,7 @@ export function afterRun(code: number): number {
             return code;
         }
 
-        console.log(`▶ routes recorded: ${check.recorded}`);
+        console.log(`▶ routes recorded: ${check.recorded} ${JSON.stringify(check.kinds)}`);
 
         if (check.missing.length === 0) {
             return code;

@@ -13,7 +13,12 @@ import { matchRoute } from './webRoutes.js';
 export interface RecordedRoute {
     readonly spec: string;
     readonly path: string;
+    /** How the recorder saw it. Absent in a record written before the kind was kept. */
+    readonly via?: RecordedKind;
 }
+
+export const RECORDED_KINDS = ['document', 'rsc', 'framenavigated'] as const;
+export type RecordedKind = (typeof RECORDED_KINDS)[number];
 
 export interface MissingRow {
     readonly spec: string;
@@ -49,7 +54,15 @@ export function parseRecords(text: string, label: string): readonly RecordedRout
             throw new Error(`${label} line ${index + 1}: a record is { spec, path }`);
         }
 
-        return [{ spec: record['spec'], path: record['path'] }];
+        const via = record['via'];
+
+        if (via !== undefined && !RECORDED_KINDS.includes(via as RecordedKind)) {
+            throw new Error(`${label} line ${index + 1}: via is one of ${RECORDED_KINDS.join(', ')}`);
+        }
+
+        return [
+            { spec: record['spec'], path: record['path'], ...(via === undefined ? {} : { via: via as RecordedKind }) },
+        ];
     });
 }
 

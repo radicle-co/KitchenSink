@@ -60,13 +60,39 @@ export interface RecipeWidgetSlotProps {
     readonly onWidgetError?: (error: unknown) => void;
 }
 
+/**
+ * The block's chrome while it loads: the card variant for the container, and the "See all" route. One hook, so the
+ * slot's Suspense fallback and the chunk's `loading` below are the same card.
+ *
+ * @returns The variant and the "See all" link.
+ */
+const useLoadingCardProps = (): { readonly variant: CardVariant; readonly seeAll: RecipeWidgetSeeAll } => {
+    const locale = useLocale();
+    const router = useRouter();
+    const variant = cardVariantOf(useMainContainerClass(), 'grid', 'home');
+
+    return {
+        variant,
+        seeAll: { href: `/${locale}/recipes`, onPress: () => router.push(`/${locale}/recipes` as Route) },
+    };
+};
+
+/**
+ * What `next/dynamic` shows while the widget's chunk loads. The slot's `<Suspense>` fallback is gone as soon as the
+ * recipes have resolved, and a `dynamic` with no `loading` commits a blank frame until its chunk arrives, so Home
+ * went skeleton, blank, widget and the page shifted. The same card keeps the block continuous.
+ *
+ * @returns The loading card.
+ */
+const RecipeWidgetChunkLoading = (): JSX.Element => <RecipeWidgetLoadingCard {...useLoadingCardProps()} />;
+
 /** The code-split widget, client-only (it reads the browser's session). */
 const RecipeHomeWidget = dynamic<RecipeHomeWidgetProps>(
     () =>
         recipeHomeWidgetDescriptor
             .load()
             .then((module) => ({ default: module.default as ComponentType<RecipeHomeWidgetProps> })),
-    { ssr: false },
+    { ssr: false, loading: RecipeWidgetChunkLoading },
 );
 
 /**
@@ -108,11 +134,10 @@ export function RecipeWidgetSlot({ onWidgetError }: RecipeWidgetSlotProps = {}):
     const locale = useLocale();
     const router = useRouter();
     const queryClient = useQueryClient();
-    const variant = cardVariantOf(useMainContainerClass(), 'grid', 'home');
+    const { variant, seeAll } = useLoadingCardProps();
     // A new attempt is a new read: Try again bumps it, so the promise below is started afresh.
     const [attempt, setAttempt] = useState(0);
     const go = (path: string) => router.push(path as Route);
-    const seeAll: RecipeWidgetSeeAll = { href: `/${locale}/recipes`, onPress: () => go(`/${locale}/recipes`) };
     const firstRun: RecipeWidgetFirstRun = {
         onCreateRecipe: () => go(`/${locale}/recipes/new`),
         // Paste lives in the editor's Ingredients section (slice 8): the new editor opens there with its sheet up.

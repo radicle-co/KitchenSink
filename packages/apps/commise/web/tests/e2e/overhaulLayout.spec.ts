@@ -214,6 +214,10 @@ for (const [scheme, colors] of THEMES) {
 
                     const recent = page.getByRole('heading', { level: 2, name: 'Recent recipes' });
                     const comingSoon = page.getByRole('region', { name: 'Coming soon' });
+                    // The heading is on the skeleton too, so it proves nothing. Measure only once the block has settled:
+                    // the loading status is gone and a seeded card has replaced it (no later shift can move the boxes).
+                    await expect(page.getByRole('status', { name: 'Loading recipes' })).toBeHidden();
+                    await expect(page.getByRole('link', { name: /Weeknight Pasta/u })).toBeVisible();
                     await expect(recent).toBeVisible();
                     await expect(comingSoon.getByRole('heading', { level: 2, name: 'Coming soon' })).toBeAttached();
 

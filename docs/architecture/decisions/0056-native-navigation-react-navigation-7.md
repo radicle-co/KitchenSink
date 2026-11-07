@@ -60,6 +60,8 @@ Those are history needs.
     - Outside, it subscribes last and answers first. An open sheet or dialog gets the first refusal. A press that
       nothing claims is declined (`onUnhandled` returns `false`), so React Navigation's handler takes it.
     - The blueprint drew this the other way round. The subscription order decides it.
+    - A sheet or dialog that sits in a `Modal` window is answered by the window, not by this provider: Android sends Back
+      to the window's `onRequestClose`. The provider serves the surfaces that are not windows (ADR-0080 §7).
 6. **Each routed screen has its own crash boundary** (`ScreenBoundary`, through each navigator's `screenLayout`). The
    tab bar survives a screen that throws. "Back to Home" resets the app through the container's handle
    (`createNavigationContainerRef`). It is not offered on Home itself.
@@ -96,6 +98,8 @@ Those are history needs.
   between it and our provider. A device proves that order. On it, `recipes/systemBackGuard.yaml` shows Android Back
   leaving the editor at once with the work kept, and the new-collection sheet's discard guard answering Back before
   the stack pops. `shell/tabBar.yaml` shows Back from the Recipes root going Home.
+  `shell/overlayBackOrder.yaml` shows the window order: Back closes a menu, then a confirm over a sheet, then the sheet,
+  and the screen under them stays.
 - React Navigation CALLS `screenLayout` as a function inside its own render. So a hook in a layout function becomes a
   hook of the navigator, and the hook order breaks as screens push. Each `screenLayout` therefore renders a component.
   jsdom did not show this. A device did, as a React warning over the tab bar.

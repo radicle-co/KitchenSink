@@ -41,7 +41,7 @@ import { useRecipePhotoUpload } from '../useRecipePhotoUpload.js';
 import { useRecipePhotoUploadQueue } from '../useRecipePhotoUploadQueue.js';
 import type { RecipePhotoQueueFile, RecipePhotoValidationMessages } from '../useRecipePhotoUploadQueue.js';
 
-const UPLOAD_ERROR = 'We couldn’t upload that photo. Please try again.';
+const UPLOAD_ERROR = 'We couldn’t upload that photo.';
 const RECIPE_ID = 'rec_1';
 const VALIDATION_MESSAGES: RecipePhotoValidationMessages = {
     tooLarge: 'That photo is larger than 5 MB.',

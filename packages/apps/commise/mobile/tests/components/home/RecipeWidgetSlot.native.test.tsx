@@ -16,7 +16,7 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import { RecipeWidgetSlot } from '../../../src/components/home/RecipeWidgetSlot.js';
 import { makeRecipe, makeRecipePage } from '../../__fixtures__/recipes.js';
 
-// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// The screens under test now START the deferred calorie batch (ADR-0079 §6) through this shared hook, which
 // reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
 // stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
 // assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
@@ -171,12 +171,12 @@ describe('RecipeWidgetSlot (mobile)', () => {
 
         renderSlot();
 
-        // Bare text on the Home screen's `sand` background — no tint of its own — so the ratio is the token
-        // against that surface: seafoam scored 3.73:1, under the 4.5:1 body floor (SC 1.4.3). Mirrors the web
+        // Bare text on the Home screen's `fog` background — no tint of its own — so the ratio is the token
+        // against that surface: steel scored 3.73:1, under the 4.5:1 body floor (SC 1.4.3). Mirrors the web
         // slot's link, which is the same control on the other platform (§14).
         const label = within(await screen.findByRole('link', { name: 'See all recipes' })).getByText('See all');
 
-        expect(computedContrast(label, { surface: palette.sand }), '“See all recipes” label').toBeGreaterThanOrEqual(
+        expect(computedContrast(label, { surface: palette.fog }), '“See all recipes” label').toBeGreaterThanOrEqual(
             4.5,
         );
     });

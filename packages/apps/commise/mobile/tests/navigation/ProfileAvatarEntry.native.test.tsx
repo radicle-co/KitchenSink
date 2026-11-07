@@ -63,4 +63,23 @@ describe('ProfileAvatarEntry (mobile)', () => {
 
         expect(screen.getByRole('button', { name: 'Profile' }).textContent).toBe('');
     });
+
+    it('draws the 32 pt disc by default and the large 36 pt disc when asked (Home’s header)', () => {
+        renderWithProviders(<ProfileAvatarEntry onPress={() => undefined} />);
+
+        const discWidth = (): string => {
+            const disc = screen.getByRole('button').firstElementChild;
+
+            if (disc === null) {
+                throw new Error('The avatar has no disc.');
+            }
+
+            return getComputedStyle(disc).width;
+        };
+
+        expect(discWidth()).toBe('32px');
+        cleanup();
+        renderWithProviders(<ProfileAvatarEntry size="large" onPress={() => undefined} />);
+        expect(discWidth()).toBe('36px');
+    });
 });

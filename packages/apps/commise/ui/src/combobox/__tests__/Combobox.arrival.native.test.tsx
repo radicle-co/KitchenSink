@@ -12,7 +12,8 @@
  * method). The observer stub is installed before any import, because react-native-web creates its one observer lazily.
  */
 import { resizeObserver as observer } from '../../testing/resizeObserver.js';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import type { FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

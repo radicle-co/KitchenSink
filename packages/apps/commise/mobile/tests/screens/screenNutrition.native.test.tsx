@@ -1,6 +1,6 @@
 /**
  * ⛔ THE HOST WIRING TEST (mobile): every screen that paints recipe cards starts ONE deferred calorie batch
- * and mounts a `RecipeNutritionSlot` per card — in every state (ADR-0021 §6).
+ * and mounts a `RecipeNutritionSlot` per card — in every state (ADR-0079 §6).
  *
  * The shared leaves are proved to RENDER a supplied node by `cardSurfaces.nutrition.native.test.tsx`. What
  * only a container can get wrong lives here, and it is mostly about WHICH ids reach the batch:
@@ -16,10 +16,10 @@
  *     `useCollectionDetail`'s.
  *   - `RecipeWidgetSlot` (Home) batches the four recent recipes.
  *
- * `useRecipeNutritionBatches` is mocked here: it owns `ensureQueryData`, promise identity and the one-request
+ * `useRecipeNutritionBatches` is mocked here: it owns the query-state-to-reading mapping and the one-request
  * -per-page guarantee, and those are pinned against a real `QueryClient` in its own test
  * (`features/recipes/src/hooks/__tests__/useRecipeNutritionBatches.test.tsx`). Mocking it lets each state be
- * driven from a promise this file controls.
+ * driven from a batch READING this file hands in (REWRITTEN for ADR-0079: it used to hand in a promise).
  *
  * ⚠️ SUSPENSE TEST CONVENTION: resolve a Suspense with `await act(...)`, NEVER `findBy`/`waitFor` — the
  * latter wedges in a Vitest worker.
@@ -28,10 +28,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarHost } from '@commise/ui/snackbar';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 
 import {
     RECIPE_BROWSE_RAILS,
+    type RecipeNutritionBatchReading,
     browseRailSearchParams,
     discoverySearchParams,
     recipeHomeWidgetDescriptor,
@@ -55,6 +56,7 @@ import {
     makeRecipeSearchResult,
     makeSearchResponse,
 } from '../__fixtures__/recipes.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // Home and discovery draw the calorie figure on the full card only (the compact card has no meta line), which they show
 // from a 960 container (owner ruling D8); jsdom has no window to measure, so the window is read as wide here. This is
@@ -129,19 +131,15 @@ const KNOWN_RESPONSE: RecipeNutritionResponse = {
     },
 };
 
-/** Record the pages each screen batches, and hand every recipe the SAME controlled promise. */
-function nutritionLookup(batch: Promise<RecipeNutritionResponse> | null): void {
-    useNutritionMock.mockImplementation(() => () => batch);
+/** Record the pages each screen batches, and hand every recipe the SAME batch reading. */
+function nutritionLookup(reading: RecipeNutritionBatchReading | null): void {
+    useNutritionMock.mockImplementation(() => () => reading);
 }
 
-const pending = (): Promise<RecipeNutritionResponse> => new Promise<RecipeNutritionResponse>(() => undefined);
+const settled = (response: RecipeNutritionResponse): RecipeNutritionBatchReading => ({ status: 'settled', response });
 
-const rejected = (): Promise<RecipeNutritionResponse> => {
-    const failed = Promise.reject(new Error('food service unavailable'));
-    failed.catch(() => undefined);
-
-    return failed as Promise<RecipeNutritionResponse>;
-};
+/** A request that never answers: the end-to-end blocks below drive the REAL hook from the client up. */
+const neverSettles = (): Promise<RecipeNutritionResponse> => new Promise<RecipeNutritionResponse>(() => undefined);
 
 afterEach(cleanup);
 
@@ -167,7 +165,7 @@ const noop = (): void => undefined;
 
 beforeEach(() => {
     vi.clearAllMocks();
-    // React logs the caught render error from the rejected-batch case.
+    // React logs a caught render error, if any; a passing run stays readable.
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
     // The recipe list and the Home slot both read through the client's `listRecipes`, via the query cache.
@@ -218,6 +216,22 @@ function settledSearch(...pages: readonly (readonly string[])[]) {
     };
 }
 
+/**
+ * Render a screen and let its read settle. REWRITTEN for the Recipes screen's non-suspending read (plan
+ * `recipesScrollPlan.md`): a suspense read resolved inside the one `act` around the render, while a read the screen
+ * switches on lands one notification tick later (TanStack batches its notifications through a zero-delay timer). The
+ * second `act` waits that tick out. It is the file's own convention (`await act`, never `findBy`/`waitFor`), kept for
+ * every screen here, the suspending ones included, where it changes nothing.
+ */
+async function renderAndSettle(ui: ReactElement): Promise<void> {
+    await act(async () => {
+        render(ui);
+    });
+    await act(async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    });
+}
+
 /** The four wired mobile surfaces, each rendered the way its navigator renders it. */
 const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
     ['RecipeListScreen', () => withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />)],
@@ -237,32 +251,26 @@ const SCREENS: readonly (readonly [string, () => ReactElement])[] = [
 
 describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScreen) => {
     it('shows the calorie SKELETON while the batch is in flight', async () => {
-        nutritionLookup(pending());
+        nutritionLookup({ status: 'pending' });
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.getAllByLabelText('Loading calories').length).toBeGreaterThan(0);
     });
 
     it('shows the CHIP once the batch resolves', async () => {
-        nutritionLookup(Promise.resolve(KNOWN_RESPONSE));
+        nutritionLookup(settled(KNOWN_RESPONSE));
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
     });
 
     it('shows NOTHING when the batch OMITS this recipe — and no lingering skeleton', async () => {
-        nutritionLookup(Promise.resolve(OMITTING_RESPONSE));
+        nutritionLookup(settled(OMITTING_RESPONSE));
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
@@ -270,11 +278,9 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
     });
 
     it('shows NOTHING, and no spinner, when the batch REJECTS', async () => {
-        nutritionLookup(rejected());
+        nutritionLookup({ status: 'failed' });
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.queryByLabelText('Loading calories'), 'a failed batch must not leave a spinner').toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
@@ -284,9 +290,7 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
     it('renders no nutrition line when no batch covers the recipe (the host branches on `null`)', async () => {
         nutritionLookup(null);
 
-        await act(async () => {
-            render(renderScreen());
-        });
+        await renderAndSettle(renderScreen());
 
         expect(screen.queryByLabelText('Loading calories')).toBeNull();
         expect(screen.queryByText(/cal$/u)).toBeNull();
@@ -296,7 +300,7 @@ describe.each(SCREENS)('%s — the deferred calorie figure', (_name, renderScree
 
 describe('which ids each screen batches', () => {
     beforeEach(() => {
-        nutritionLookup(Promise.resolve(KNOWN_RESPONSE));
+        nutritionLookup(settled(KNOWN_RESPONSE));
     });
 
     it('⛔ RecipeListScreen batches the LOADED PAGE, not the rows left after client-side filtering', async () => {
@@ -307,9 +311,7 @@ describe('which ids each screen batches', () => {
             ]),
         );
 
-        await act(async () => {
-            render(withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />));
-        });
+        await renderAndSettle(withQueryClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />));
         expect(useNutritionMock).toHaveBeenCalledWith([[RECIPE_ID, OTHER_ID]]);
 
         // ⛔ NOW NARROW IT. Without a search term, the filtered rows and the loaded page are the same array,
@@ -318,7 +320,9 @@ describe('which ids each screen batches', () => {
         // a new promise, a new request, and every figure on screen dropping back to a skeleton mid-typing.
         useNutritionMock.mockClear();
         await act(async () => {
-            fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'Chana' } });
+            fireEvent.change(screen.getByLabelText('Search your recipes', { selector: 'input' }), {
+                target: { value: 'Chana' },
+            });
         });
 
         expect(screen.queryByRole('link', { name: 'Weeknight Pasta' }), 'the row really was filtered out').toBeNull();
@@ -404,14 +408,23 @@ describe('which ids each screen batches', () => {
  * `useRecentRecipesNutrition.test.tsx`.
  */
 describe('RecipeWidgetSlot (Home) — the deferred calorie figure, end to end', () => {
+    // The batch's answer reaches the slot through the query cache's batched notify, a macrotask after the request
+    // settles, so the render is followed by a few drained turns (no DOM polling) — the same fixed settle the web suites use.
     const renderHome = async (): Promise<void> => {
         await act(async () => {
             render(withQueryClient(<RecipeWidgetSlot onSeeAllRecipes={noop} onSelectRecipe={noop} />));
         });
+
+        // A fake-timer case drains its own timers; a real-timer drain there would wait forever.
+        for (let round = 0; round < 4 && !vi.isFakeTimers(); round += 1) {
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+        }
     };
 
     it('shows the calorie SKELETON while the batch is in flight', async () => {
-        vi.spyOn(serviceClient, 'getRecipeNutrition').mockImplementation(pending);
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockImplementation(neverSettles);
 
         await renderHome();
 
@@ -523,7 +536,7 @@ describe('CollectionDetailScreen — the deferred calorie figure, end to end', (
     };
 
     it('shows the calorie SKELETON while the batch is in flight', async () => {
-        vi.spyOn(serviceClient, 'getRecipeNutrition').mockImplementation(pending);
+        vi.spyOn(serviceClient, 'getRecipeNutrition').mockImplementation(neverSettles);
 
         await renderDetail();
 

@@ -87,6 +87,8 @@ export interface RootRow {
     readonly normalizedName: string;
     /** The synonyms joined by `ALIAS_DELIMITER`, or NULL when there are none (GR-019). */
     readonly aliases: string | null;
+    /** The bare nouns the root is the curated default for (ADR-0070 §4), in seed order; empty, never NULL. */
+    readonly defaultTerms: readonly string[];
 }
 
 /** A held root the apply rewrites, and whether the write clears its `retired_at`. */
@@ -290,6 +292,7 @@ function rootRow(
         readonly seedKey: SeedKey;
         readonly name: string;
         readonly synonyms: readonly string[];
+        readonly defaultFor: readonly string[];
         readonly item: ItemKey;
     },
     id: string,
@@ -302,6 +305,7 @@ function rootRow(
         name: write.name,
         normalizedName: normalizeName(write.name),
         aliases: write.synonyms.length === 0 ? null : write.synonyms.join(ALIAS_DELIMITER),
+        defaultTerms: write.defaultFor,
     };
 }
 

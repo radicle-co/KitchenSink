@@ -58,12 +58,12 @@ deleted at expiry — it is never retained beyond the draft's life.
 
 **Persona**: P11 Robin · **Story**: US-410 · **Platforms**: web + mobile
 
-| #   | User does                               | System does                                            | User sees                                                                |
-| --- | --------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------ |
-| 1   | Picks "Paste text", pastes a recipe     | Parses the pasted text into a draft                    | The parsed draft                                                         |
-| 2   | Is asked where it came from             | Requires an attestation before saving                  | "Where is this from?" — my own · a public web page · a book or paid site |
-| 3   | Chooses "a book or paid site", cites it | Requires a citation; classifies as `imported_paid`     | **"This recipe will stay private."** Stated _before_ saving              |
-| 4   | Saves                                   | Creates a private recipe that can never be made public | A private recipe with the citation recorded                              |
+| #   | User does                               | System does                                            | User sees                                                                                                                                    |
+| --- | --------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Picks "Paste text", pastes a recipe     | Parses the pasted text into a draft                    | The parsed draft                                                                                                                             |
+| 2   | Is asked where it came from             | Requires an attestation before saving                  | "Where is this from?" — my own · a public web page · a book or paid site                                                                     |
+| 3   | Chooses "a book or paid site", cites it | Requires a citation; classifies as `imported_paid`     | **"Your copy will stay private. You can publish your own version in your own words."** Stated _before_ saving (amended 2026-11-03, ADR-0082) |
+| 4   | Saves                                   | Creates a private recipe that can never be made public | A private recipe with the citation recorded                                                                                                  |
 
 **Why the consequence is shown at step 3, not after saving**: Robin's stated pain point is exactly this — tools
 that reveal the restriction only after publication. The system also runs heuristics here, but they only **flag

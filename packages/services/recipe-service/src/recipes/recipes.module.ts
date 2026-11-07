@@ -1,7 +1,6 @@
 import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { forwardRef, Module } from '@nestjs/common';
 import type pg from 'pg';
-import { VerificationRedriveDal } from '../ingredients/resolution/verificationRedrive.dal.js';
 import { ConfigService } from '@nestjs/config';
 
 import { DEFAULT_AWS_REGION } from '../config/config.types.js';
@@ -32,6 +31,16 @@ import { ParseJobsController } from './parseJobs.controller.js';
 import { ParseJobsService, PARSE_COPY_FORWARD_MAX_AGE_HOURS, PARSE_JOBS_DAL } from './parseJobs.service.js';
 import { DEFAULT_COPY_FORWARD_MAX_AGE_HOURS } from '../config/config.types.js';
 import { ParseJobsDal } from './dal/parseJobs.dal.js';
+import { ParseJobMatchesDal } from './dal/parseJobMatches.dal.js';
+import {
+    DEFAULT_MATCH_PROPOSAL_LIMITS,
+    emitUnmadeProposals,
+    MATCH_PROPOSAL_LIMITS,
+    MatchProposalService,
+    PARSE_JOB_MATCHES_DAL,
+    UNMADE_PROPOSALS_SINK,
+} from './matchProposal.service.js';
+import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView } from './parseJobMatchView.js';
 
 /**
  * Recipes module (US1). Owns recipe CRUD and ownership (`owner_id` = app-user ULID). Wires the
@@ -54,13 +63,6 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
     imports: [forwardRef(() => VersionsModule), IngredientsModule, AnalyticsModule],
     controllers: [RecipesController, ParseJobsController],
     providers: [
-        {
-            // U4c — the pending re-drive substrate's write half. Its OWN instance over the shared Drizzle
-            // client, the embedded-DAL pattern PhotosDal/RatingsDal established (no module import, no cycle).
-            provide: VerificationRedriveDal,
-            inject: [DrizzleProvider],
-            useFactory: (db: RecipeDrizzle): VerificationRedriveDal => new VerificationRedriveDal(db),
-        },
         {
             provide: VERIFICATION_QUEUE,
             inject: [ConfigService],
@@ -102,6 +104,12 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
             provide: PARSE_JOBS_DAL,
             inject: [DrizzleProvider, PgPoolProvider],
             useFactory: (db: RecipeDrizzle, pool: pg.Pool): ParseJobsDal => new ParseJobsDal(db, pool),
+        },
+        {
+            // ADR-0071 — the paste job's match proposals. Its OWN instance over the shared Drizzle client.
+            provide: PARSE_JOB_MATCHES_DAL,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): ParseJobMatchesDal => new ParseJobMatchesDal(db),
         },
         {
             provide: RECIPES_DAL,
@@ -154,6 +162,14 @@ import { ParseJobsDal } from './dal/parseJobs.dal.js';
         // Plan 002 U5 — one line's rebind, executed through `RecipesService.update`.
         IngredientRebindService,
         ParseJobsService,
+        // ADR-0071 — matches a paste job's parsed foods as proposals, as the cook.
+        MatchProposalService,
+        // ADR-0071 — adds each proposed food's match to every parse-job view.
+        ParseJobMatchView,
+        // ADR-0071: the view's curated-contradiction report, provided here so the view names no default of its own.
+        { provide: CURATION_DISAGREEMENT_SINK, useValue: emitCurationDisagreement },
+        { provide: MATCH_PROPOSAL_LIMITS, useValue: DEFAULT_MATCH_PROPOSAL_LIMITS },
+        { provide: UNMADE_PROPOSALS_SINK, useValue: emitUnmadeProposals },
     ],
     exports: [RecipesService],
 })

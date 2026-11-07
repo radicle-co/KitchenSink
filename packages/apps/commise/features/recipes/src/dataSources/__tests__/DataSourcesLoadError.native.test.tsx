@@ -4,11 +4,12 @@
  * text is not reliably spoken on Android (`docs/design/readSurfacesEvaluation.md` D3).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourcesLoadError } from '../DataSourcesLoadError.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

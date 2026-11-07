@@ -1,0 +1,46 @@
+appId: ${APP_ID}
+---
+# Collections first run at the LARGEST text size (designer ruling 2026-11-03; qa-ios found "New collection" unreachable there:
+# it was a button inside an empty state whose heading and body ran past a screen that did not scroll). "New collection" is now
+# the floating button, the same as "New recipe", so a cook at the largest size can make a collection.
+#
+# Run it with the device at its largest text size (iOS: Settings > Accessibility > Display & Text Size > Larger Text, at the
+# maximum; Android: font size at the largest). Maestro cannot set the text size itself, so the runner for this flow sets it before
+# the flow starts (`xcrun simctl ui booted content_size accessibility-extra-extra-extra-large`; `adb shell settings put system
+# font_scale 2.0`).
+#
+# HERMETIC, like `collections.yaml`: the free-tier signer sees an EMPTY collections list, so this flow lands on the first run,
+# creates one collection and deletes it again.
+#
+# NOT RUN yet: written test-first with the first-run fix.
+- runFlow: ../auth/signin.yaml
+
+# audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
+- assertVisible: 'My recipes'
+- tapOn: 'Collections'
+- extendedWaitUntil:
+      visible: 'Group recipes your way'
+      timeout: 40000
+
+# The floating button is on screen without any scrolling.
+- assertVisible: 'New collection'
+- tapOn: 'New collection'
+- extendedWaitUntil:
+      visible: 'Description \(optional\)'
+      timeout: 20000
+- runFlow:
+      file: common/typeCollectionName.yaml
+      env:
+          NAME: 'Maestro large text'
+- pressKey: Enter
+- extendedWaitUntil:
+      visible: 'More actions for Maestro large text'
+      timeout: 40000
+
+# CLEANUP (hermetic): delete it, which lands back on the list.
+- tapOn: 'More actions for Maestro large text'
+- tapOn: 'Delete collection'
+- tapOn: 'Delete collection'
+- extendedWaitUntil:
+      visible: 'New collection'
+      timeout: 40000

@@ -116,7 +116,7 @@ describe('useAmbiguityReviewRow — the search and the list', () => {
     it('names the row by the line, amount and all, and lists the database’s foods ahead of the source’s', () => {
         const { result } = renderHook(() => useAmbiguityReviewRow(REVIEW, pickerWith()));
 
-        expect(result.current.summary).toBe('2 tbsp apple sauce');
+        expect(result.current.summary).toBe('2\u00A0tbsp apple sauce');
         expect(result.current.groups.map((group) => group.candidates.map((each) => each.name))).toEqual([
             ['Apple sauce, canned'],
             ['Apples, stewed'],

@@ -14,7 +14,7 @@
  * `LargeTitleHeader.action` takes).
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +22,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 
 import { CollectionHeader } from '../CollectionHeader.native.js';
 import type { CollectionHeaderProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

@@ -19,15 +19,14 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_SALAD}'
-# RecipeDetailScreen: Edit + the "More actions for {title}" ⋯ trigger sit together in the detail's TITLE BAND, beside the
-# recipe name (C4 wireframe parity); the owner-only delete trigger lives behind that ⋯. They used to sit at
-# the foot of the scrolling detail, which is why the scroll below still exists — the band is near the top but
-# below the hero image, so it is not guaranteed to be in the first viewport.
+# RecipeDetailScreen: the owner-only delete trigger lives behind the "More actions for {title}" ⋯ in the detail's TOP BAR.
+# The ⋯ is in the detail's TOP BAR and scrolls away with the header, so reach it the way a cook does: scroll back UP
+# (DOWN adds a nudge that would push a visible ⋯ off the top).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'More actions for .*'
-          DIRECTION: DOWN
+          DIRECTION: UP
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - scrollUntilVisible:

@@ -110,10 +110,10 @@ describe('RecipeDifficulty', () => {
 });
 
 describe('usesPremiumCapability (the derived PRO rule)', () => {
-    it('is true ONLY for a chosen-private recipe (user_created / imported_public + private)', () => {
-        expect(
-            usesPremiumCapability({ visibility: RecipeVisibility.PRIVATE, sourceType: RecipeSourceType.USER_CREATED }),
-        ).toBe(true);
+    // REWRITTEN for ADR-0073 section 10 / FR-003a. It used to say a private user_created recipe is PRO. A free cook may now
+    // keep 50 of them private, so privacy no longer means Premium for them; only a private imported_public recipe, the one
+    // kind of privacy that still needs Premium and a substantive edit, is badged.
+    it('is true ONLY for a private imported_public recipe', () => {
         expect(
             usesPremiumCapability({
                 visibility: RecipeVisibility.PRIVATE,
@@ -122,8 +122,13 @@ describe('usesPremiumCapability (the derived PRO rule)', () => {
         ).toBe(true);
     });
 
-    it('is false for FORCED-private imports (imported_physical / imported_paid) — not premium capability', () => {
-        // The trap the naive `visibility === 'private'` falls into: these are private for EVERY tier.
+    it('is false for a private user_created recipe: a free cook holds it in a private slot (ADR-0073)', () => {
+        expect(
+            usesPremiumCapability({ visibility: RecipeVisibility.PRIVATE, sourceType: RecipeSourceType.USER_CREATED }),
+        ).toBe(false);
+    });
+
+    it('is false for private book and paid-site recipes — they use a slot, not a premium capability', () => {
         expect(
             usesPremiumCapability({
                 visibility: RecipeVisibility.PRIVATE,

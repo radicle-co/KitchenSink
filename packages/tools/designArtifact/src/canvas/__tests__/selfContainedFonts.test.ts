@@ -7,7 +7,7 @@ import { CONTENT_DIR } from '../../config.js';
 import { BOARDS_DIR } from '../boards.js';
 
 /**
- * The system ships its own font files (`tokens.css` registers Inter and Playfair Display from them), so no authored
+ * The system ships its own font files (`tokens.css` registers Inter and Manrope from them), so no authored
  * page may also fetch them from a font host: that is a second source for the same faces, and a network dependency
  * that made the board render flaky.
  */

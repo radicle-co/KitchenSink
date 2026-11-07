@@ -34,6 +34,18 @@ function makeFakeClient(overrides: Partial<Record<keyof RecipeServiceClient, unk
     return overrides as never;
 }
 
+describe('recipeQueries.privateSlots (ADR-0073)', () => {
+    it('is keyed under the recipes prefix and always refetches on mount: a count on screen must be fresh', async () => {
+        const getPrivateSlots = vi.fn().mockResolvedValue({ kind: 'unlimited' });
+        const options = recipeQueries(makeFakeClient({ getPrivateSlots })).privateSlots();
+
+        expect(options.queryKey).toEqual(recipeServiceKeys.recipePrivateSlots);
+        expect(options.staleTime).toBe(0);
+        await (options.queryFn as () => Promise<unknown>)();
+        expect(getPrivateSlots).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('recipeQueries (P5 repository read seam)', () => {
     it('builds detail options with the canonical key and an explicit stale policy', () => {
         const client = makeFakeClient({ getRecipeById: vi.fn().mockResolvedValue({ id: 'rec_1' }) });

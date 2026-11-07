@@ -43,13 +43,13 @@ function totalOf(data: CachedRead): number {
 }
 
 /**
- * The state of a library, from the cache. Pure.
- *
- * @param family - Every read of the library, whatever its sort: the verdict comes from the latest settled one.
- * @param own - The screen's own read, or `undefined` while it has no cache entry.
- * @returns The state.
+ * The latest settled read anywhere in the family (and the screen's own), with its total. On a tie of time the read with items
+ * wins: a button that stays is the safe error. Pure.
  */
-export function libraryStateOf(family: readonly ReadSnapshot[], own: ReadSnapshot | undefined): LibraryCacheState {
+function latestSettled(
+    family: readonly ReadSnapshot[],
+    own: ReadSnapshot | undefined,
+): { readonly at: number; readonly total: number } | undefined {
     let latest: { readonly at: number; readonly total: number } | undefined;
 
     for (const read of [...family, ...(own === undefined ? [] : [own])]) {
@@ -58,7 +58,6 @@ export function libraryStateOf(family: readonly ReadSnapshot[], own: ReadSnapsho
         }
 
         const candidate = { at: read.dataUpdatedAt, total: totalOf(read.data) };
-        // On a tie of time the read with recipes wins: a button that stays is the safe error.
         const wins =
             latest === undefined ||
             candidate.at > latest.at ||
@@ -68,6 +67,19 @@ export function libraryStateOf(family: readonly ReadSnapshot[], own: ReadSnapsho
             latest = candidate;
         }
     }
+
+    return latest;
+}
+
+/**
+ * The state of a library, from the cache. Pure.
+ *
+ * @param family - Every read of the library, whatever its sort: the verdict comes from the latest settled one.
+ * @param own - The screen's own read, or `undefined` while it has no cache entry.
+ * @returns The state.
+ */
+export function libraryStateOf(family: readonly ReadSnapshot[], own: ReadSnapshot | undefined): LibraryCacheState {
+    const latest = latestSettled(family, own);
 
     if (latest !== undefined) {
         return latest.total > 0 ? 'populated' : 'empty';
@@ -81,6 +93,18 @@ export function libraryStateOf(family: readonly ReadSnapshot[], own: ReadSnapsho
 }
 
 /**
+ * How many items the latest settled read says there are, for a frame that sits outside the read's boundary (the Collections
+ * pinned search shows from six). Pure.
+ *
+ * @param family - Every read of the library.
+ * @param own - The screen's own read, or `undefined` while it has no cache entry.
+ * @returns The latest settled total, or `0` while nothing has settled (loading, offline or failed).
+ */
+export function libraryTotalOf(family: readonly ReadSnapshot[], own: ReadSnapshot | undefined): number {
+    return latestSettled(family, own)?.total ?? 0;
+}
+
+/**
  * Whether the floating create button yields its place on Home and Collections: it never appears while the first fetch
  * is in flight (so it cannot vanish), and gives way to the first-run start buttons. Pure.
  *
@@ -89,4 +113,16 @@ export function libraryStateOf(family: readonly ReadSnapshot[], own: ReadSnapsho
  */
 export function createEntryYields(state: LibraryCacheState): boolean {
     return state === 'loading' || state === 'empty';
+}
+
+/**
+ * Whether the floating create button yields only while the first fetch is in flight (so it cannot mount and then vanish).
+ * Collections uses this, not {@link createEntryYields}: its first run floats "New collection" the same as "New recipe"
+ * (designer ruling 2026-11-03), so a list that settles empty keeps the button. Pure.
+ *
+ * @param state - The library's state.
+ * @returns `true` for `loading` only.
+ */
+export function createEntryYieldsWhileLoading(state: LibraryCacheState): boolean {
+    return state === 'loading';
 }

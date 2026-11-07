@@ -1,5 +1,10 @@
 # Product Specification: Commise - Subscriptions & Monetization
 
+> **Out of date in part (2026-10-26).** This file models one premium tier at $6.99 a month or $59.99 a year.
+> The current plans, prices and AI credits are in [`spec.md`](../spec.md) `FR-041` and its
+> [plan register](../spec.md#plan-register). The subscription page is `FR-042a` to `FR-042k`.
+> Read "premium" here as Pro: the plans are Free, Pro and Pro with AI (owner, 2026-10-27).
+
 **Branch**: `010-subscriptions`
 **Date**: 2026-05-09
 **Last updated**: 2026-05-10
@@ -78,7 +83,7 @@ All open questions from the bootstrap revalidation are closed. The table below i
 
 **Archetype**: Recipe Creator
 
-**Motivation**: Public creator profile (`commise.com/@robin`), food-blogger brand, and audience monetization.
+**Motivation**: Public creator profile (`commise.app/@robin`), food-blogger brand, and audience monetization.
 
 **Subscription-specific goals and pains**:
 

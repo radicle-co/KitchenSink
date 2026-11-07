@@ -59,9 +59,11 @@ import { sql, type SQL } from 'drizzle-orm';
 
 import type { FoodDrizzle } from '../../database/database.module.js';
 import { describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
+import { RANK_TIERS } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import type { RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
-import { catalogTieredSortKey } from './foodRelevance.js';
+import { catalogRankTierOrdinal, catalogTieredSortKey } from './foodRelevance.js';
 
 /** Max search rows returned (FR-010). */
 const SEARCH_LIMIT = 20;
@@ -98,6 +100,24 @@ export function toIlikePattern(query: string): string {
     return `%${query.replace(LIKE_METACHARACTERS, '\\$&')}%`;
 }
 
+/**
+ * The rung an ordinal names.
+ *
+ * @param ordinal - The `CASE` result, an integer in `[0, RANK_TIERS.length - 1]`.
+ * @returns The rung.
+ * @throws When the statement returned an ordinal the ladder does not have, which means the SQL and `RANK_TIERS`
+ *   have drifted; publishing a guess would hide that.
+ */
+function rungOf(ordinal: number): RankTier {
+    const rung = RANK_TIERS[ordinal];
+
+    if (rung === undefined) {
+        throw new Error(`search returned rung ordinal ${String(ordinal)}, which RANK_TIERS does not have`);
+    }
+
+    return rung;
+}
+
 /** A ranked search row. */
 export interface SearchHit {
     /** Internal food id. */
@@ -108,6 +128,8 @@ export interface SearchHit {
     aliases: string | null;
     /** Relevance score — see {@link SearchStrategy} for the per-strategy definition. */
     score: number;
+    /** The rung the row was ranked on (ADR-0070), selected from the same `CASE` the score is built from. */
+    rung: RankTier;
     /**
      * U11 (R20): the 0013 visibility, carried so the service can flag the CALLER's own authored hits on
      * the wire. Always 'public' for a catalog row; a stranger's private row never leaves the predicate.
@@ -121,7 +143,7 @@ export interface SearchHit {
  * A hit on the SHARED catalog search (plan 002 S3): a catalog root, so it carries no author and no visibility. The
  * catalog statement never reads a caller, and this type is what keeps the service from asking it to.
  */
-export type CatalogSearchHit = Pick<SearchHit, 'id' | 'name' | 'aliases' | 'score'>;
+export type CatalogSearchHit = Pick<SearchHit, 'id' | 'name' | 'aliases' | 'score' | 'rung'>;
 
 /**
  * WHOSE rows a search statement may return (plan 002 R40, S3). The privacy boundary of every search is this value,
@@ -219,7 +241,7 @@ export class FoodSearchDao {
     public async searchCatalog(query: string): Promise<CatalogSearchHit[]> {
         const hits = await this.searchIn(query, { kind: 'catalog' }, SEARCH_LIMIT);
 
-        return hits.map(({ id, name, aliases, score }) => ({ id, name, aliases, score }));
+        return hits.map(({ id, name, aliases, score, rung }) => ({ id, name, aliases, score, rung }));
     }
 
     /**
@@ -294,7 +316,8 @@ export class FoodSearchDao {
      * captures this very statement). Second, the score is NORMALIZED into `[0, 1)` on purpose:
      * `FoodsService.search` unshifts a barcode / external-key crosswalk hit at score exactly `1`, and
      * recipe-service's `FoodCatalogGateway` re-sorts the page by score — an un-normalized tiered score would
-     * reach 9 and silently demote an exact identifier match below a lexical one.
+     * reach 13 (`TIER_GAP` × the top rung's ordinal + `BASE_METRIC_MAX`, with seven rungs) and silently demote an
+     * exact identifier match below a lexical one.
      *
      * @param query - The trimmed user query.
      * @param scope - Whose rows the statement may return ({@link scopePredicate}).
@@ -313,7 +336,10 @@ export class FoodSearchDao {
                        ts_rank(aliases_search_vector, plainto_tsquery('english', ${query})),
                        similarity(name, ${query})
                    )`;
-        const score = catalogTieredSortKey(query, baseMetric);
+        // The query's ranking terms, computed ONCE: the sort key, the published rung and head-term retrieval all read
+        // these, so they cannot disagree about the query.
+        const terms = describeRankingQuery(query);
+        const score = catalogTieredSortKey(terms, baseMetric);
 
         // ⛔ HEAD-TERM RETRIEVAL. U6 widened retrieval with a head-term branch and put it on the recipe-LOCAL
         // table (`IngredientsDal.search`); its plan entry names two files, both in recipe-service. The
@@ -331,11 +357,12 @@ export class FoodSearchDao {
         //
         // ⚠️ It widens the CANDIDATE set only. The tier ladder still decides the order, so a head-term hit
         // that is a poor match lands on a low rung rather than jumping the queue.
-        const head = describeRankingQuery(query).head;
+        const { head } = terms;
         const headTerm = head === undefined ? sql`` : sql` OR rank_tokens @> ARRAY[${head}]::text[]`;
 
         return sql`
-            SELECT food.id, food.name, food.aliases, food.user_id, food.visibility, ${score} AS score
+            SELECT food.id, food.name, food.aliases, food.user_id, food.visibility, ${score} AS score,
+                   ${catalogRankTierOrdinal(terms)} AS rung_ordinal
             FROM food
             WHERE status = 'RESOLVED'
               -- ADR-0050 §4: a retired root has been forwarded, and search never lists it (curated U8 S3).
@@ -369,6 +396,9 @@ export class FoodSearchDao {
             name: string | null;
             aliases: string | null;
             score: number;
+            // A driver's type parsers decide whether an integer arrives as a number or a string; read it through
+            // `Number` either way.
+            rung_ordinal: number | string;
             visibility: string;
             user_id: string | null;
         }>(statement);
@@ -378,6 +408,7 @@ export class FoodSearchDao {
             name: row.name,
             aliases: row.aliases,
             score: Number(row.score),
+            rung: rungOf(Number(row.rung_ordinal)),
             visibility: row.visibility,
             userId: row.user_id,
         }));

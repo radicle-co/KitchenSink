@@ -4,8 +4,9 @@
  * empty diff, drift/generic errors, committing, and dismissal (Cancel + the RN `Modal.onRequestClose`
  * Android-back/Escape path) — so the two platform renders can't drift on behaviour or accessibility.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 
@@ -18,6 +19,7 @@ import { PullUpdatesDialog } from '../PullUpdatesDialog.native.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import type { PullUpdatesDialogProps } from '../model.js';
 import { collectionMessages } from '../messages.js';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -125,7 +127,7 @@ describe('PullUpdatesDialog (native) — generic error', () => {
     it('shows a generic error alert', () => {
         render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff, error: 'generic' })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t check for updates. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t check for updates. Try again.');
     });
 });
 
@@ -204,5 +206,55 @@ describe.each(['light', 'dark'] as const)('PullUpdatesDialog (native) — the %s
         render(<PullUpdatesDialog {...baseProps({ error: 'drift' })} />);
 
         expect(getComputedStyle(screen.getByText(pull.driftMessage)).color).toBe(rgb(colours.dangerText));
+    });
+});
+
+/**
+ * The action row cannot clip on a phone: "Cancel" and "Pull N Recipes" are two icon-and-label buttons, and a row that
+ * cannot wrap, pushed to the end, overflows on its START side (the Version preview's defect, `versionPreviewParity.md`).
+ * The pair STACKS full width, Pull on top, and sits in one row from 440 dp.
+ */
+describe('PullUpdatesDialog (native) — the action row', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        observer.observed.clear();
+    });
+
+    /** Lay the action row out at `width`: the row is the parent of Cancel's press-scale frame. */
+    function layOutActions(width: number): HTMLElement {
+        const row = pressFrameOf(screen.getByRole('button', { name: 'Cancel' })).parentElement as HTMLElement;
+
+        Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
+        Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
+        act(() => {
+            observer.callback?.([{ target: row } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        return row;
+    }
+
+    const styleOf = (element: Element, property: string): string =>
+        getComputedStyle(element).getPropertyValue(property);
+
+    it('stacks the actions at 350 dp, each filling the row', () => {
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        const row = layOutActions(350);
+
+        expect(row.contains(screen.getByRole('button', { name: 'Pull 2 Recipes' }))).toBe(true);
+        expect(styleOf(row, 'flex-direction')).toBe('column-reverse');
+    });
+
+    it('sets the actions in one row at 440 dp', () => {
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        expect(styleOf(layOutActions(440), 'flex-direction')).toBe('row');
     });
 });

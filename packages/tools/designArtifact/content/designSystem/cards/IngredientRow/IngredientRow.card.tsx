@@ -53,8 +53,7 @@ export default defineCard({
             </ul>
         );
     },
-    // The native row also takes its message set (`m`), a screen-reader announcer (`speak`) and the width of the amount
-    // column the list measured (`amountColumn`); the web row takes none of them.
+    // The native row also takes its message set (`m`); the web row takes none.
     renderNative: ({ IngredientRow, offlineNoticeMessages, recipeFormMessages, recipeMessages, seedLineKey }) => {
         const entryCopy = entryCopyOf({ offlineNoticeMessages, recipeFormMessages, recipeMessages });
 
@@ -69,7 +68,6 @@ export default defineCard({
                         panel={panel}
                         inlineEditor={null}
                         expanded={undefined}
-                        amountColumn={72}
                         arrived={index === 1}
                     />
                 ))}

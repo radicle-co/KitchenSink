@@ -28,10 +28,10 @@ import { useMessages } from '@commise/i18n/react';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import { LoadingNotice } from '@commise/ui/loading-notice';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useAuth } from '../hooks/useAuth';
 import { mobileMessages } from '../i18n/messages';
@@ -96,10 +96,7 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
     const boundary = useMessages(boundaryMessages);
     const blockCopy = useMessages(authBlockMessages);
     const { state } = useAuth();
-    const { colors } = useTheme();
     const offline = useMessages(offlineNoticeMessages);
-    const title = [styles.title, { color: colors.ink }];
-    const body = [styles.body, { color: colors.inkMuted }];
 
     switch (state.status) {
         case 'loading':
@@ -111,8 +108,10 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
         case 'blocked':
             return (
                 <View style={styles.center}>
-                    <Text style={title}>{blockCopy[state.reason.code].title}</Text>
-                    <Text style={body}>{blockCopy[state.reason.code].body}</Text>
+                    <Text typeRole="sectionTitle">{blockCopy[state.reason.code].title}</Text>
+                    <Text typeRole="meta" color="$inkMuted" textAlign="center">
+                        {blockCopy[state.reason.code].body}
+                    </Text>
                 </View>
             );
         case 'error':
@@ -120,8 +119,10 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
             // provider's own diagnostic and is passed through as-is.
             return (
                 <View style={styles.center}>
-                    <Text style={title}>{boundary.errorTitle}</Text>
-                    <Text style={body}>{state.error.message}</Text>
+                    <Text typeRole="sectionTitle">{boundary.errorTitle}</Text>
+                    <Text typeRole="meta" color="$inkMuted" textAlign="center">
+                        {state.error.message}
+                    </Text>
                 </View>
             );
         case 'authenticated':
@@ -144,6 +145,4 @@ const styles = StyleSheet.create({
         padding: nativeTokens.spacing[5],
         gap: nativeTokens.spacing[2],
     },
-    title: { fontSize: nativeTokens.fontSize.headingMd, fontWeight: '600' },
-    body: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
 });

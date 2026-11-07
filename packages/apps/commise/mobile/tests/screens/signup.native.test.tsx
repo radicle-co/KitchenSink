@@ -7,7 +7,9 @@
 import { authSurfaceMessages } from '@commise/features-account';
 import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+// The auth screens set their text with the design system's Tamagui `Text`, so they render in its provider.
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 import { useClerk, useSignUp } from '@clerk/expo';
 import { useSignInWithApple } from '@clerk/expo/apple';
@@ -645,7 +647,9 @@ describe.each([
         useClerkMock.mockReturnValue(partialHook({ setActive }));
         render(<SignUpScreen onBack={() => undefined} onNeedsFields={() => undefined} />);
 
-        const colour = (node: HTMLElement) => window.getComputedStyle(node).color;
+        // REWRITTEN for ADR-0080: the texts are the design system's Tamagui `Text`, painted with theme variables, so the
+        // colour is read through the resolver that follows them, as a device paints it.
+        const colour = (node: HTMLElement) => resolvedColour(node, 'color');
 
         expect(colour(screen.getByText(auth.brand))).toBe(rgb(roles.ink));
         expect(colour(screen.getByRole('heading', { name: auth.createHeading }))).toBe(rgb(roles.ink));

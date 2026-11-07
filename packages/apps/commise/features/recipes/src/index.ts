@@ -45,14 +45,12 @@ export type { RecipeCardProps } from './card/recipeCardContext.js';
 export type { RatingCountLabels, RecipeCardModel } from './card/model.js';
 export { RecipeCalorieChip } from './nutrition/RecipeCalorieChip.js';
 export { RecipeCalorieSkeleton } from './nutrition/RecipeCalorieSkeleton.js';
-export { RecipeNutritionBoundary } from './nutrition/RecipeNutritionBoundary.js';
 export { RecipeNutritionSlot } from './nutrition/RecipeNutritionSlot.js';
 export { nutritionSlotRenderer } from './nutrition/nutritionSlotRenderer.js';
 export { recipeNutritionMessages } from './nutrition/messages.js';
 export { NUTRITION_FOOD_UNAVAILABLE, toCalorieChipModel, unaccountedReasonText } from './nutrition/model.js';
 export type { RecipeCalorieChipProps } from './nutrition/RecipeCalorieChip.js';
 export type { RecipeCalorieSkeletonProps } from './nutrition/RecipeCalorieSkeleton.js';
-export type { RecipeNutritionBoundaryProps } from './nutrition/RecipeNutritionBoundary.js';
 export type { RecipeNutritionSlotProps } from './nutrition/RecipeNutritionSlot.js';
 export type { RecipeNutritionMessages } from './nutrition/messages.js';
 export type {
@@ -62,6 +60,7 @@ export type {
     RecipeCalorieState,
     RecipeCalorieUnaccounted,
     RecipeCalorieUnaccountedReason,
+    RecipeNutritionBatchReading,
     RecipeNutritionViewState,
     RenderRecipeNutrition,
 } from './nutrition/model.js';
@@ -123,6 +122,7 @@ export type {
     RecipeCreateDestinations,
     RecipeListFrameProps,
     RecipeListLoadErrorProps,
+    RecipeListReading,
     RecipeListResultsProps,
     RecipeListTab,
     RecipeListTabControl,
@@ -217,6 +217,8 @@ export type { MakePublicConfirm, UseMakePublicConfirmOptions } from './actions/u
 export { RecipeUpsellSheet } from './actions/RecipeUpsellSheet.js';
 export { usePrivateChoice } from './actions/usePrivateChoice.js';
 export { useGatedPrivate } from './actions/useGatedPrivate.js';
+export { useRecipePrivate } from './actions/useRecipePrivate.js';
+export type { RecipePrivate, UseRecipePrivateOptions } from './actions/useRecipePrivate.js';
 export {
     makePublicConsequence,
     mayRestorePrivate,
@@ -248,20 +250,20 @@ export { VersionPreviewModal } from './versions/VersionPreviewModal.js';
 export { compareRowsOf, compareWithCurrent } from './versions/compare.js';
 export type { CompareRow, VersionCompareViewProps } from './versions/compare.js';
 export { computeConflictDiff } from './versions/conflictDiff.js';
-export type { ConflictDiff, ConflictFieldKind, ConflictFieldRow, ConflictMarker } from './versions/conflictDiff.js';
-export {
-    countMergeSelections,
-    formatMergeSummary,
-    formatServerBanner,
-    isConflictBaseStale,
-} from './versions/conflictView.js';
+export type {
+    ConflictDiff,
+    ConflictFieldKind,
+    ConflictFieldRow,
+    ConflictMarker,
+    ConflictRowMarker,
+} from './versions/conflictDiff.js';
+export { countMergeSelections, formatMergeSummary, isConflictBaseStale } from './versions/conflictView.js';
 export type { MergeSelectionCounts, RecipeConflictViewProps } from './versions/conflictView.js';
 export { diffSnapshots } from './versions/diff.js';
 export type { DiffTally, SnapshotDiff, SnapshotFieldKey } from './versions/diff.js';
 export {
     conflictFieldKindLabel,
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
+    conflictMarkerBadge,
     conflictRowLabel,
     snapshotFieldLabel,
 } from './versions/diffLabels.js';

@@ -1,7 +1,13 @@
 /**
- * The detail page's derived facts (build spec §6.1, §6.3): the stat strip, the meta line, the rating line, and each
+ * The detail page's derived facts (build spec §6.1, §6.3, rewritten for the `RecipeDetailAndroid384` board,
+ * `nativeBoards/buildLists.md` items 2 to 6): the fact tiles, the cuisine eyebrow, the byline, the status row, and each
  * ingredient row's name and statuses. Pure, and read by BOTH platform leaves, so the two cannot disagree about what a
- * cell says, when one hides, or what a row is named.
+ * tile says, when one hides, or what a row is named.
+ *
+ * REWRITTEN IN SLICE 1 to prove the new behaviour, not edited to pass: the strip no longer has a Cook cell (the board
+ * draws Total, Prep and Difficulty); the meta line is split into the cuisine eyebrow and the byline (the board puts the
+ * cuisine alone above the title); and the rating moved out of the status line into the rating card, so the line keeps
+ * only the owner's status.
  */
 import { describe, expect, it } from 'vitest';
 import { FoodResolutionStatus, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
@@ -13,9 +19,10 @@ import { bylineMessages } from '../../byline/messages.js';
 import {
     ingredientGroupRuns,
     nutritionCells,
-    detailMetaItems,
+    detailByline,
+    detailEyebrow,
     detailNativeLayoutOf,
-    detailRatingLine,
+    detailStatusLine,
     detailStatCells,
     ingredientRowName,
     ingredientRowStatuses,
@@ -26,8 +33,8 @@ import {
 const { detail, duration, card, ingredientLineName, ingredientDetails } = recipeMessages.en;
 
 describe('detailStatCells', () => {
-    it('reads Total, Prep, Cook and Difficulty, in that order, through the duration templates', () => {
-        const cells = detailStatCells({ totalTimeMinutes: 330, prepTimeMinutes: 30, cookTimeMinutes: 300 }, 'medium', {
+    it('reads Total, Prep and Difficulty, in that order, through the duration templates — never a Cook tile', () => {
+        const cells = detailStatCells({ totalTimeMinutes: 330, prepTimeMinutes: 30 }, 'medium', {
             detail,
             duration,
             card,
@@ -36,103 +43,110 @@ describe('detailStatCells', () => {
         expect(cells).toEqual([
             { id: 'total', label: 'Total', value: '5 h 30 min' },
             { id: 'prep', label: 'Prep', value: '30 min' },
-            { id: 'cook', label: 'Cook', value: '5 h' },
-            { id: 'difficulty', label: 'Difficulty', value: 'Medium', level: 'medium' },
+            { id: 'difficulty', label: 'Difficulty', value: 'Medium' },
         ]);
     });
 
     it('hides a missing time — never "0 min" — and a missing difficulty', () => {
-        const cells = detailStatCells({ totalTimeMinutes: 20, prepTimeMinutes: 0, cookTimeMinutes: 20 }, undefined, {
+        const cells = detailStatCells({ totalTimeMinutes: 20, prepTimeMinutes: 0 }, undefined, {
             detail,
             duration,
             card,
         });
 
-        expect(cells.map((cell) => cell.id)).toEqual(['total', 'cook']);
+        // The board has no Cook tile, so a recipe with only a cook time shows its Total and nothing for Cook.
+        expect(cells.map((cell) => cell.id)).toEqual(['total']);
+    });
+});
+
+describe('detailEyebrow', () => {
+    it('is the cuisine, alone — the byline is a line of its own', () => {
+        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorUsername: 'braise', authorDisplayName: 'Eliza' });
+
+        expect(detailEyebrow(recipe)).toBe('Moroccan');
+    });
+
+    it('is absent for no cuisine and for a blank one', () => {
+        expect(detailEyebrow(makeRecipeDetail({ cuisine: undefined }))).toBeUndefined();
+        expect(detailEyebrow(makeRecipeDetail({ cuisine: '' }))).toBeUndefined();
     });
 });
 
 const byline = bylineMessages.en;
 
-describe('detailMetaItems', () => {
+describe('detailByline', () => {
     const iso = (text: string): string => `\u2068${text}\u2069`;
 
-    it('shows the cuisine and, on another cook’s recipe, “by @username (Display Name)”', () => {
-        const recipe = makeRecipeDetail({
-            cuisine: 'Moroccan',
-            authorUsername: 'braise',
-            authorDisplayName: 'Eliza Moreno',
-        });
+    // REWRITTEN IN SLICE 2 (designer, `designAnswers.md` 2026-11-02): "by {display name}" on other cooks' recipes, until
+    // recipes carry a handle. It said "by @username (Display Name)"; the handle is no longer shown beside the name.
+    it('says “by Display Name” on another cook’s recipe, with no handle beside it', () => {
+        const recipe = makeRecipeDetail({ authorUsername: 'braise', authorDisplayName: 'Eliza Moreno' });
 
-        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([
-            'Moroccan',
-            `by ${iso('@braise')} (${iso('Eliza Moreno')})`,
-        ]);
+        expect(detailByline(recipe, false, detail, byline)).toBe(`by ${iso('Eliza Moreno')}`);
+    });
+
+    it('falls back to the handle when the author has no display name to show', () => {
+        const recipe = makeRecipeDetail({ authorUsername: 'braise', authorDisplayName: undefined });
+
+        expect(detailByline(recipe, false, detail, byline)).toBe(`by ${iso('@braise')}`);
     });
 
     it('says “by Display Name”, never prefixed “@”, for an author with no username', () => {
-        const recipe = makeRecipeDetail({ cuisine: undefined, authorDisplayName: 'Eliza Moreno' });
+        const recipe = makeRecipeDetail({ authorDisplayName: 'Eliza Moreno' });
 
-        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([`by ${iso('Eliza Moreno')}`]);
+        expect(detailByline(recipe, false, detail, byline)).toBe(`by ${iso('Eliza Moreno')}`);
     });
 
     it('says “by a former member” for an erased author — never the pseudonym', () => {
-        const recipe = makeRecipeDetail({ cuisine: undefined, authorDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' });
+        const recipe = makeRecipeDetail({ authorDisplayName: 'user_01J9ZK8N7QF3B2X4M6T0V5C1AB' });
 
-        expect(detailMetaItems(recipe, false, detail, byline)).toEqual(['by a former member']);
+        expect(detailByline(recipe, false, detail, byline)).toBe('by a former member');
     });
 
     it('never names the viewer as the author of their own recipe', () => {
-        const recipe = makeRecipeDetail({ cuisine: 'Moroccan', authorUsername: 'me', authorDisplayName: 'Me' });
+        const recipe = makeRecipeDetail({ authorUsername: 'me', authorDisplayName: 'Me' });
 
-        expect(detailMetaItems(recipe, true, detail, byline)).toEqual(['Moroccan']);
+        expect(detailByline(recipe, true, detail, byline)).toBeUndefined();
     });
 
-    it('adds no “by” item for an imported recipe — its source line says where it came from', () => {
-        const recipe = makeRecipeDetail({
-            cuisine: undefined,
-            authorDisplayName: undefined,
-            sourceAttribution: 'Serious Eats',
-        });
+    it('is absent for an imported recipe — its source line says where it came from', () => {
+        const recipe = makeRecipeDetail({ authorDisplayName: undefined, sourceAttribution: 'Serious Eats' });
 
-        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([]);
-    });
-
-    it('is empty with neither a cuisine nor an author', () => {
-        const recipe = makeRecipeDetail({ cuisine: undefined, authorDisplayName: undefined });
-
-        expect(detailMetaItems(recipe, false, detail, byline)).toEqual([]);
+        expect(detailByline(recipe, false, detail, byline)).toBeUndefined();
     });
 });
 
-describe('detailRatingLine', () => {
-    it('states the average and count, and the owner sees the visibility', () => {
-        const recipe = makeRecipeDetail({
-            averageRating: 4.8,
-            ratingCount: 12,
-            visibility: RecipeVisibility.PUBLIC,
-            status: RecipeStatus.PUBLISHED,
-        });
+describe('detailStatusLine', () => {
+    it('shows the owner the visibility of a published recipe', () => {
+        const recipe = makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC, status: RecipeStatus.PUBLISHED });
 
-        expect(detailRatingLine(recipe, true, 'en', { detail, card })).toEqual({
-            rating: { stars: 4.8, text: '4.8 (12)' },
-            status: { kind: 'visibility', visibility: 'public', text: 'Public' },
+        expect(detailStatusLine(recipe, true, { detail, card })).toEqual({
+            kind: 'visibility',
+            visibility: 'public',
+            text: 'Public',
+        });
+    });
+
+    it('shows the owner a private recipe as Private', () => {
+        const recipe = makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE, status: RecipeStatus.PUBLISHED });
+
+        expect(detailStatusLine(recipe, true, { detail, card })).toEqual({
+            kind: 'visibility',
+            visibility: 'private',
+            text: 'Private',
         });
     });
 
     it('shows the Draft badge for the owner’s draft instead of a visibility', () => {
         const recipe = makeRecipeDetail({ status: RecipeStatus.DRAFT, visibility: RecipeVisibility.PRIVATE });
 
-        expect(detailRatingLine(recipe, true, 'en', { detail, card }).status).toEqual({ kind: 'draft', text: 'Draft' });
+        expect(detailStatusLine(recipe, true, { detail, card })).toEqual({ kind: 'draft', text: 'Draft' });
     });
 
-    it('shows another cook’s viewer no visibility, and an unrated recipe no stars', () => {
-        const recipe = makeRecipeDetail({ averageRating: undefined, ratingCount: 0 });
+    it('shows another cook’s viewer nothing, and carries no rating (the rating card owns it)', () => {
+        const recipe = makeRecipeDetail({ averageRating: 4.8, ratingCount: 12 });
 
-        expect(detailRatingLine(recipe, false, 'en', { detail, card })).toEqual({
-            rating: undefined,
-            status: undefined,
-        });
+        expect(detailStatusLine(recipe, false, { detail, card })).toBeUndefined();
     });
 });
 
@@ -147,6 +161,50 @@ describe('ingredientRowName', () => {
 
         expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
             '2 kg lamb shoulder, trimmed of excess fat',
+        );
+    });
+
+    /**
+     * REWRITTEN for WCAG 2.5.3, option C (UI Designer, amending Q5): this is a checkbox's name, so it carries the
+     * visible glyph. Words are for text that is not a control. The no-break space reads as a plain space.
+     */
+    it('names a fraction by its glyph, with plain spaces', () => {
+        const line = makeIngredientView({
+            quantity: { kind: 'exact', value: 1.5 },
+            unit: 'cups',
+            name: 'whole milk',
+            preparation: 'warmed',
+        });
+
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '1½ cups whole milk, warmed',
+        );
+    });
+
+    it('names a range by its visible dash', () => {
+        const line = makeIngredientView({
+            quantity: { kind: 'range', low: 0.75, high: 1 },
+            unit: 'tsp',
+            name: 'salt',
+            preparation: undefined,
+        });
+
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '¾–1 tsp salt',
+        );
+    });
+
+    /** A mixed fraction inside a range keeps its glyph on the low end, as the row shows it. */
+    it('names a mixed fraction inside a range by its glyph', () => {
+        const line = makeIngredientView({
+            quantity: { kind: 'range', low: 1.5, high: 2 },
+            unit: 'cups',
+            name: 'flour',
+            preparation: undefined,
+        });
+
+        expect(ingredientRowName(line, 'en', ingredientLineName, ingredientDetails.checkLabelWithDetails)).toBe(
+            '1½–2 cups flour',
         );
     });
 
@@ -208,39 +266,21 @@ describe('isLongDescription', () => {
     });
 });
 
+// REWRITTEN IN SLICE 1: the page no longer has a stat strip whose cells go two to a row below 360 pt, so the layout is the
+// column count, plus the room the fact tiles are drawn in (the body's width and the text scale), which the fact tiles read (`DetailFactTiles.native.test.tsx`).
 describe('detailNativeLayoutOf', () => {
     it.each([
-        { width: 288, columns: 'one', statsPerRow: 2 },
-        { width: 359, columns: 'one', statsPerRow: 2 },
-        { width: 360, columns: 'one', statsPerRow: 4 },
-        { width: 719, columns: 'one', statsPerRow: 4 },
-        { width: 720, columns: 'two', statsPerRow: 4 },
-    ])('a $width pt body → $columns column(s), $statsPerRow stats a row', ({ width, columns, statsPerRow }) => {
-        expect(detailNativeLayoutOf(width, 1)).toEqual({ columns, statsPerRow });
-    });
-
-    // A-028 (d): the strip's cells hold TEXT, so a bigger font needs a wider cell. A 4-up strip at font scale 2 gave
-    // ~65 pt cells in which "Medium" and a time wrapped. The width a cell has is what the font scale divides.
-    it.each([
-        { width: 360, fontScale: 1, statsPerRow: 4 },
-        { width: 360, fontScale: 1.1, statsPerRow: 2 },
-        { width: 359, fontScale: 1, statsPerRow: 2 },
-        { width: 640, fontScale: 1.5, statsPerRow: 4 },
-        { width: 640, fontScale: 2, statsPerRow: 2 },
-        { width: 720, fontScale: 2, statsPerRow: 4 },
-    ])('a $width pt body at font scale $fontScale → $statsPerRow stats a row', ({ width, fontScale, statsPerRow }) => {
-        expect(detailNativeLayoutOf(width, fontScale).statsPerRow).toBe(statsPerRow);
-    });
-
-    it('keeps the column rule in points: the font scale does not move the two-column breakpoint', () => {
-        expect(detailNativeLayoutOf(720, 2).columns).toBe('two');
-        expect(detailNativeLayoutOf(719, 0.85).columns).toBe('one');
+        { width: 288, columns: 'one' },
+        { width: 719, columns: 'one' },
+        { width: 720, columns: 'two' },
+    ])('a $width pt body → $columns column(s)', ({ width, columns }) => {
+        expect(detailNativeLayoutOf(width, 1)).toEqual({ columns, bodyWidth: width, textScale: 1 });
     });
 });
 
 /**
  * F9 (`evaluateFinal.md`): the recipe page dropped the ingredient groups the editor shows. The page draws a group as an
- * overline over each CONSECUTIVE run of lines with one label (§6.1), the editor's fold: `[A][B][A]` is three runs in
+ * label over each CONSECUTIVE run of lines with one label (§6.1), the editor's fold: `[A][B][A]` is three runs in
  * that order, never two, because grouping by label would reorder the recipe.
  */
 describe('ingredientGroupRuns', () => {

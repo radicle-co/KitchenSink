@@ -56,7 +56,7 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
             closeLabel={picker.close}
             size="full"
             toolbar={{
-                heading: <span className="text-overline uppercase text-ink-muted">{picker.toolbarHeading}</span>,
+                heading: <span className="text-label text-ink-muted">{picker.toolbarHeading}</span>,
                 controls: (
                     <SearchField
                         id={searchId}

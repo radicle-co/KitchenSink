@@ -19,10 +19,9 @@
  *
  * @pattern Specification — a pure predicate-and-pick over facts the page already holds
  */
-import type { PaidFeatureState } from '@commise/features-account';
-
+import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeVisibilityToggleMessages } from './messages.js';
-import { privateRefusalOf, type PrivateRefusal } from './privateGate.js';
+import type { PrivateRefusal } from './privateGate.js';
 
 /** What decides the notice. */
 export interface VisibilityNoticeInput {
@@ -34,10 +33,19 @@ export interface VisibilityNoticeInput {
     readonly serverRefusal: PrivateRefusal | undefined;
     /** Whether the finish said the editor withheld a Private: a claim, confirmed against `known` below. */
     readonly finishRefused: boolean;
-    /** The profile's own answer (`knownPaidFeaturesOf`): `undefined` while unknown or after a failed read. */
-    readonly known: PaidFeatureState | undefined;
+    /**
+     * Why Private is KNOWN to be refused for this viewer on this recipe (`recipePrivateRefusalOf`): `undefined` while
+     * nothing is known, a loading or failed read of the paid features or the slot count included.
+     */
+    readonly knownRefusal: PrivateRefusal | undefined;
     /** Whether the page's own visibility write failed, and no dialog says so itself. */
     readonly writeFailed: boolean;
+    /**
+     * The cook's private-slot limit as the SERVER stated it (the 403's `limit`, else the standing's), or `undefined` when
+     * it has not said. The `slots` sentence names it, so without one that sentence cannot be said truthfully and the
+     * generic failure is said instead.
+     */
+    readonly slotLimit: number | undefined;
 }
 
 /**
@@ -59,15 +67,25 @@ export function visibilityNoticeOf(
         return undefined;
     }
 
+    const say = (reason: PrivateRefusal): string => {
+        if (reason !== 'slots') {
+            return messages.privateRefused[reason];
+        }
+
+        return input.slotLimit === undefined
+            ? messages.error
+            : fillTemplate(messages.privateRefused.slots, { total: input.slotLimit });
+    };
+
     if (input.serverRefusal !== undefined) {
-        return input.isPublic ? messages.privateRefused[input.serverRefusal] : undefined;
+        return input.isPublic ? say(input.serverRefusal) : undefined;
     }
 
     if (input.writeFailed) {
         return messages.error;
     }
 
-    const claimed = input.finishRefused ? privateRefusalOf(input.known ?? 'loading') : undefined;
+    const claimed = input.finishRefused ? input.knownRefusal : undefined;
 
-    return claimed !== undefined && input.isPublic ? messages.privateRefused[claimed] : undefined;
+    return claimed !== undefined && input.isPublic ? say(claimed) : undefined;
 }

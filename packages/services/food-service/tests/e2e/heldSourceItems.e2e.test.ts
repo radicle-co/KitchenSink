@@ -234,6 +234,45 @@ describe('FOOD-SERVICE-6: a held source item is never offered, picked over, or w
             expect(stub.calls.searchByName).toBe(0);
         });
 
+        /**
+         * ADR-0070 §4: a default term is NOT a synonym. Catalog-name identity reads names and synonyms only, so the bare
+         * noun a root is the default for must never bind it with no cook involved. The control on the same root proves
+         * the assertion can see a bind: as a SYNONYM, `milk` answers whole milk at add time.
+         */
+        describe('a default term is not identity (ADR-0070 §4)', () => {
+            /** Seed the catalog's whole milk, with `milk` as a synonym or as a default term. */
+            async function seedWholeMilk(milkAs: 'synonym' | 'default'): Promise<string> {
+                const root = await makeSeededRoot(foodDb(), {
+                    name: 'whole milk',
+                    synonyms: milkAs === 'synonym' ? ['milk'] : ['vitamin D milk'],
+                    defaultTerms: milkAs === 'default' ? ['milk'] : [],
+                    values: [{ key: 'energyKcal', amount: 61 }],
+                });
+
+                return root.id;
+            }
+
+            it('control: as a synonym, `milk` answers whole milk at add time, with no row made', async () => {
+                const rootId = await seedWholeMilk('synonym');
+
+                const added = await call('POST', '/api/v1/foods', { name: 'milk' });
+
+                expect(added.body).toEqual({ id: rootId, status: 'RESOLVED' });
+                expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0]).toEqual({ n: 1 });
+            });
+
+            it('⛔ as a default term, `milk` does not answer whole milk: a new food is made, and the worker never forwards it there', async () => {
+                const rootId = await seedWholeMilk('default');
+
+                const { id, added } = await addAndDrain('milk');
+
+                expect(id).not.toBe(rootId);
+                expect(added.status).toBe('PENDING');
+                expect((await pool.query('SELECT count(*)::int AS n FROM food')).rows[0]).toEqual({ n: 2 });
+                expect((await storedFood(id)).forward?.target_food_id).not.toBe(rootId);
+            });
+        });
+
         it('a name that IS a root and one of its variants is forwarded to the variant, with no USDA call', async () => {
             const { variantId } = await seedBroccoli();
 

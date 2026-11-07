@@ -16,7 +16,8 @@
  */
 import { validateRecipeForm } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
-import { pluralOf, type EditorMessages } from './messages.js';
+import { pluralOf } from '../format/plural.js';
+import type { EditorMessages } from './messages.js';
 import { EDITOR_SECTIONS, firstSectionWithErrors, type EditorSectionId } from './sections.js';
 import { lineNeedsAttention, sectionStatusesOf } from './sectionStatus.js';
 
@@ -85,6 +86,9 @@ export function readyLineOf(input: PublishNoteInput, messages: EditorMessages, l
         values: input.values,
         pendingEntryText: input.pendingEntryText,
         publishAttempted: true,
+        // Only the Fix counts are read below, and a paste being read never changes a Fix.
+        pasteReading: false,
+        pasteNeedsYou: 0,
     });
     const fixes = EDITOR_SECTIONS.reduce((sum, id) => {
         const status = statuses[id];

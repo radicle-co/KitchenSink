@@ -72,7 +72,7 @@ describe('createCuratedTier — the adapter', () => {
         const findInForce = vi.fn().mockResolvedValue(inForce());
         const tier = createCuratedTier({ findInForce } as unknown as ResolutionMappingsDal);
 
-        const outcome = await tier.resolve(QUERY, { userId: AUTHOR, caller: undefined });
+        const outcome = await tier.resolve(QUERY, { userId: AUTHOR, caller: undefined, signal: undefined });
 
         expect(findInForce).toHaveBeenCalledWith(KEY, AUTHOR);
         expect(outcome.kind === 'resolved' && outcome.food).toStrictEqual({ kind: 'root', id: 'FOOD-A' });
@@ -82,7 +82,7 @@ describe('createCuratedTier — the adapter', () => {
         const findInForce = vi.fn().mockResolvedValue(undefined);
         const tier = createCuratedTier({ findInForce } as unknown as ResolutionMappingsDal);
 
-        await tier.resolve(QUERY, { userId: undefined, caller: undefined });
+        await tier.resolve(QUERY, { userId: undefined, caller: undefined, signal: undefined });
 
         // Asserted on the ARGUMENT, not the result: a mutant substituting a placeholder user would return a
         // perfectly reasonable-looking outcome while making one user's private correction rewrite every
@@ -97,6 +97,23 @@ describe('createCuratedTier — the adapter', () => {
         // Swallowing it here would report "no curated mapping exists" for a phrase that may well have one —
         // a miss and an outage reported identically. The cascade distinguishes them; the tier must not
         // pre-empt that by deciding for it.
-        await expect(tier.resolve(QUERY, { userId: AUTHOR, caller: undefined })).rejects.toThrow('connection reset');
+        await expect(tier.resolve(QUERY, { userId: AUTHOR, caller: undefined, signal: undefined })).rejects.toThrow(
+            'connection reset',
+        );
     });
+});
+
+describe('decideCuratedTier — the mapping that answered', () => {
+    it.each([
+        ['author', 'author'],
+        ['global', 'curator'],
+        ['global', 'corroboration'],
+    ] as const)(
+        'carries scope %s and origin %s as structured fields, so no caller parses the evidence string',
+        (scope, origin) => {
+            const outcome = decideCuratedTier(inForce({ scope, origin }));
+
+            expect(outcome).toMatchObject({ kind: 'resolved', mapping: { scope, origin } });
+        },
+    );
 });

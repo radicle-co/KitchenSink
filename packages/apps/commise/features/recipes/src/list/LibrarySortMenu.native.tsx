@@ -7,13 +7,12 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
-import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { SortOptionRow } from '../common/SortOptionRow.native.js';
 import { recipeMessages } from '../messages.js';
 import { LIBRARY_SORTS, sortLabelOf } from './library.js';
 import { type RecipeListSortControl } from './model.js';
@@ -27,7 +26,6 @@ import { fillTemplate } from '../format/fillTemplate.js';
  */
 export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) => {
     const { list } = useMessages(recipeMessages);
-    const { colors } = useTheme();
     const [open, setOpen] = useState(false);
     const choice = sortLabelOf(value, list);
 
@@ -57,25 +55,15 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
                         const chosen = sort === value;
 
                         return (
-                            <Pressable
+                            <SortOptionRow
                                 key={sort}
-                                role="radio"
-                                aria-checked={chosen}
-                                aria-label={sortLabelOf(sort, list)}
-                                onPress={() => {
+                                label={sortLabelOf(sort, list)}
+                                chosen={chosen}
+                                onChoose={() => {
                                     onChange(sort);
                                     setOpen(false);
                                 }}
-                                style={({ pressed }) => [
-                                    styles.row,
-                                    pressed ? { backgroundColor: colors.surfaceMuted } : null,
-                                ]}
-                            >
-                                <View style={styles.check}>
-                                    {chosen ? <Icon name="check" size={20} tone="ink" /> : null}
-                                </View>
-                                <Text style={[styles.label, { color: colors.ink }]}>{sortLabelOf(sort, list)}</Text>
-                            </Pressable>
+                            />
                         );
                     })}
                 </View>
@@ -86,14 +74,4 @@ export const LibrarySortMenu: FC<RecipeListSortControl> = ({ value, onChange }) 
 
 const styles = StyleSheet.create({
     group: { paddingVertical: nativeTokens.spacing[2] },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: nativeTokens.spacing[3],
-        minHeight: 48,
-        paddingHorizontal: nativeTokens.spacing[4],
-        borderRadius: nativeTokens.radius.md,
-    },
-    check: { width: 20, alignItems: 'center' },
-    label: { ...nativeTokens.type.body },
 });

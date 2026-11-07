@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { E2E_CATALOG_FOOD, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
+import { openNutritionRow } from './utils/nutritionRow';
 import { addStep, chooseCuisine, ingredientOpen, openNewRecipe } from './utils/recipeEditor';
 
 /**
@@ -75,7 +76,8 @@ test.describe('the ingredient search — the cook’s foods and the catalog’s 
         await expect(page.getByRole('heading', { name: 'E2E Peppered Broth' })).toBeVisible();
         // REQ-034 — every line came from the food database, so the custom note must NOT render (§S15). Guards against the
         // admit accidentally minting a user-entered row. The source note is asserted first, so the region is on screen.
-        const nutrition = page.getByRole('region', { name: 'Nutrition (per serving)' });
+        // The Nutrition row is collapsed until opened (`buildLists.md` item 12), so open it to read its notes.
+        const nutrition = await openNutritionRow(page);
         await expect(nutrition).toContainText('Nutrition comes from public food databases.');
         await expect(nutrition).not.toContainText('Custom ingredients count only the nutrition you entered for them.');
     });

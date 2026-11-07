@@ -2,7 +2,7 @@
  * Component tests for CollectionDetailContainer (T072 web collection-detail wiring; slice 5 of the UI overhaul,
  * `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3). Covers every state the container renders — loading, ready, generic
  * error (with retry), a distinct not-found — and the wired flows: a removal that hides the row and commits when its Undo
- * snackbar times out; a visibility change at once, with Undo, and the Premium sheet; rename in the sheet; delete in its
+ * snackbar times out; a visibility change at once, with Undo, and the Pro sheet; rename in the sheet; delete in its
  * dialog; Save a copy; and the add-recipes picker, whose toggles save at once and whose Done says what changed.
  *
  * The container mounts through the REAL query/mutation hooks over a real, network-guarded `RecipeServiceClient`
@@ -504,7 +504,22 @@ describe('CollectionDetailContainer — removing a member, with Undo', () => {
     });
 });
 
-describe('CollectionDetailContainer — visibility, with Undo and the Premium sheet', () => {
+/**
+ * The collection's OWN visibility, in its header's meta line ("🔒 Private · 6 recipes"). A private member recipe now draws a
+ * "Private" status pill of its own on its tile (UI Designer ruling, 2026-11-03: Draft and Private are pills with words), so the
+ * bare word is on the page twice; the header's is the one with a separator (`data-sep`), and the one these tests are about.
+ */
+function headerVisibility(word: 'Private' | 'Public'): HTMLElement {
+    const own = screen.getAllByText(word).filter((node) => node.hasAttribute('data-sep'));
+
+    if (own.length !== 1) {
+        throw new Error(`expected the header's one "${word}", found ${String(own.length)}`);
+    }
+
+    return own[0] as HTMLElement;
+}
+
+describe('CollectionDetailContainer — visibility, with Undo and the Pro sheet', () => {
     it('makes a public collection private at once, says so, and Undo changes it back', async () => {
         const user = userEvent.setup();
         let server = 'public';
@@ -523,7 +538,7 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
 
         expect(await screen.findByText('Collection is now private.')).toBeInTheDocument();
         await waitFor(() => expect(update).toHaveBeenCalledWith('col_9', { visibility: 'private' }));
-        expect(screen.getByText('Private')).toBeInTheDocument();
+        expect(headerVisibility('Private')).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'Undo' }));
 
@@ -531,7 +546,7 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
         expect(await screen.findByText('Public')).toBeInTheDocument();
     });
 
-    it('under upsell, opens the Premium sheet for making a collection private, and sends nothing', async () => {
+    it('under upsell, opens the Pro sheet for making a collection private, and sends nothing', async () => {
         const user = userEvent.setup();
         useUserProfileMock.mockReturnValue(profileWith('upsell'));
         const client = clientSeededWith(
@@ -542,8 +557,9 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
         renderWithSnackbar(<CollectionDetailContainer id="col_9" locale="en" />, client);
         await user.click((await openMenu(user, 'Dinners')).getByRole('menuitem', { name: 'Make private' }));
 
-        const sheet = await screen.findByRole('dialog', { name: 'Private collections are part of Premium.' });
-        expect(within(sheet).getByRole('button', { name: 'See Premium' })).toBeInTheDocument();
+        const sheet = await screen.findByRole('dialog', { name: 'Private collections are part of Pro.' });
+        // The subscription entry points ship off (spec 010 T-035): the sheet states the fact and offers only a close control.
+        expect(within(sheet).queryByRole('button', { name: 'See Pro' })).not.toBeInTheDocument();
         expect(update).not.toHaveBeenCalled();
 
         await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
@@ -574,7 +590,7 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
     // Plan 2026-10-14-009 T1: a downgraded owner cannot take Public back, so Make public asks first.
     it.each([
         ['hidden', profileWith('hidden'), "You won't be able to make this one private again."],
-        ['upsell', profileWith('upsell'), "To make this one private again, you'll need Premium."],
+        ['upsell', profileWith('upsell'), "To make this one private again, you'll need Pro."],
         [
             'a profile still loading',
             { status: 'pending', data: undefined },
@@ -603,7 +619,7 @@ describe('CollectionDetailContainer — visibility, with Undo and the Premium sh
 
             await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
             expect(update).not.toHaveBeenCalled();
-            expect(screen.getByText('Private')).toBeInTheDocument();
+            expect(headerVisibility('Private')).toBeInTheDocument();
         },
     );
 

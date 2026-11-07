@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 
+import { boundBySchema, type BoundBy } from './boundBy.js';
 import { ingredientQuantitySchema, type IngredientQuantity } from './ingredientQuantity.js';
 import {
     foodResolutionStatusSchema,
@@ -333,16 +334,43 @@ export interface Recipe {
 }
 
 /**
+ * Which rule a recipe's Private is under (ADR-0073 section 10). The ONE statement of which provenance labels can go
+ * private and how; the server's visibility and slot policies, the PRO badge and the client's Private gate all read it.
+ *
+ * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote).
+ * - `privateOnly`: private within the cook's slots, and it can NEVER go public (a book or paid-site recipe, 004 FR-014a).
+ * - `premium`: an imported public-web recipe, where Premium (and a substantive edit) is still the rule.
+ */
+export type PrivateRule = 'slots' | 'privateOnly' | 'premium';
+
+/**
+ * The rule a recipe's label puts its Private under. Exhaustive: a new {@link RecipeSourceType} is a compile error here.
+ *
+ * @param sourceType - The recipe's provenance label.
+ * @returns `premium` for an imported public-web recipe, `privateOnly` for a book or paid-site one, else `slots`. Pure.
+ */
+export function privateRuleOf(sourceType: RecipeSourceType): PrivateRule {
+    switch (sourceType) {
+        case RecipeSourceType.IMPORTED_PUBLIC:
+            return 'premium';
+        case RecipeSourceType.IMPORTED_PHYSICAL:
+        case RecipeSourceType.IMPORTED_PAID:
+            return 'privateOnly';
+        case RecipeSourceType.USER_CREATED:
+            return 'slots';
+    }
+}
+
+/**
  * The single authoritative derivation of the "PRO" badge (FR-003a) — whether a recipe uses a
  * capability only a premium user has. Called by BOTH the list and the detail projection so they can
  * never disagree; never inlined or re-implemented elsewhere.
  *
- * The only premium-gated recipe capability today is CHOOSING private visibility. Note this is
- * deliberately NOT `visibility === 'private'`: per C-004, `imported_physical` and `imported_paid`
- * recipes are private for EVERY tier (their privacy is forced, not chosen), so badging them PRO would
- * mark a free-tier user's OCR import as premium content. That is latent today — 004 has not shipped,
- * so every row is `user_created` — which is exactly why it is encoded correctly now, while the rule
- * costs nothing to get right.
+ * The only premium-gated recipe capability today is keeping an IMPORTED PUBLIC-WEB recipe private (ADR-0073 section 10):
+ * that still needs Premium and a substantive edit. A free cook can hold a private `user_created` recipe in one of their
+ * 50 private slots, and a book or paid-site recipe (`imported_physical`, `imported_paid`) is private for every tier and
+ * uses a slot too, so none of those three is a premium capability. Badging them PRO would mark a free cook's own
+ * recipes as premium content. This is deliberately NOT `visibility === 'private'`.
  *
  * When 010 ships real entitlements, this function is the one place the rule changes.
  *
@@ -350,10 +378,7 @@ export interface Recipe {
  * @returns True when the recipe uses a premium-only capability. Pure.
  */
 export function usesPremiumCapability(recipe: Pick<Recipe, 'visibility' | 'sourceType'>): boolean {
-    return (
-        recipe.visibility === RecipeVisibility.PRIVATE &&
-        (recipe.sourceType === RecipeSourceType.USER_CREATED || recipe.sourceType === RecipeSourceType.IMPORTED_PUBLIC)
-    );
+    return recipe.visibility === RecipeVisibility.PRIVATE && privateRuleOf(recipe.sourceType) === 'premium';
 }
 
 /**
@@ -532,6 +557,14 @@ export interface RecipeIngredientView {
      * ⛔ PER LINE, never the shared catalog row's status — see {@link foodResolutionStatusSchema}.
      */
     resolutionStatus?: LineResolutionStatus;
+    /**
+     * Who bound the line to its food (ADR-0072 §5): a confident match (`exact`, `curated`, `review`), the seeded
+     * `default`, "pick the best match for me" (`autoBest`), or the cook's own pick (`cook`).
+     *
+     * ABSENT means no recorded origin: a line kept as written, or one written before bulk import existed. RESPONSE-ONLY —
+     * no request carries it, because it is written only by the save path and carried forward by the food alone.
+     */
+    boundBy?: BoundBy;
 }
 
 /**
@@ -560,6 +593,8 @@ export const recipeIngredientViewSchema = z.object({
     groupLabel: z.string().min(1).optional(),
     isUserEntered: z.boolean(),
     resolutionStatus: lineResolutionStatusSchema.optional(),
+    // ADR-0072 §5 — who bound the line. Response-only and optional, so an older client strips it rather than rejecting the recipe.
+    boundBy: boundBySchema.optional(),
 });
 
 /**
@@ -1472,6 +1507,34 @@ export const RecipeErrorCode = {
      * each instead of parsing a message. A draft is never refused this way.
      */
     PUBLISH_REQUIREMENTS_UNMET: 'PUBLISH_REQUIREMENTS_UNMET',
+    /**
+     * 004 FR-022 — the caller's daily import allowance is spent. A 429 with its OWN code, not the throttler's
+     * `TOO_MANY_REQUESTS`: a burst limit clears in seconds and is worth retrying, a spent allowance stays spent for hours
+     * and is not. `details.resetsAt` (an ISO instant) says when the allowance reopens, and is always present.
+     */
+    IMPORT_QUOTA_EXCEEDED: 'IMPORT_QUOTA_EXCEEDED',
+    /**
+     * ADR-0072 — no bulk import with that id owned by the caller. Always a 404 for a stranger, never a 403: a 403 would
+     * confirm another user's import id exists.
+     */
+    IMPORT_NOT_FOUND: 'IMPORT_NOT_FOUND',
+    /**
+     * ADR-0072 — the wizard's cursor is not where the caller said it was: another device moved it. A 409;
+     * `details.cursorOrdinal` is where it is now (`null` when it is done), so the caller can resync without a second read.
+     */
+    IMPORT_CURSOR_MOVED: 'IMPORT_CURSOR_MOVED',
+    /**
+     * ADR-0072 — the item's recipe was already saved, and an item is saved once. A 409 that tells a retrying client its
+     * earlier request landed; `details.ordinal` names the item.
+     */
+    IMPORT_ITEM_ALREADY_SAVED: 'IMPORT_ITEM_ALREADY_SAVED',
+    /**
+     * ADR-0073 - a free cook has no private slot left, so the recipe cannot be made (or kept as a new) private. A 403, NOT a 409:
+     * the recipe client reads any 409 code it does not know as a version conflict, so an installed build that predates this code
+     * would open the conflict view for a slot refusal. `details.used` and `details.limit` are always present (a downgraded cook
+     * can hold more than the limit, and `used` says so).
+     */
+    PRIVATE_SLOTS_FULL: 'PRIVATE_SLOTS_FULL',
 } as const;
 
 /**
@@ -1513,6 +1576,11 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.PARSE_JOB_EXPIRED,
     RecipeErrorCode.VERSION_LINE_UNRESTORABLE,
     RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET,
+    RecipeErrorCode.IMPORT_QUOTA_EXCEEDED,
+    RecipeErrorCode.IMPORT_NOT_FOUND,
+    RecipeErrorCode.IMPORT_CURSOR_MOVED,
+    RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED,
+    RecipeErrorCode.PRIVATE_SLOTS_FULL,
 ]);
 
 /**

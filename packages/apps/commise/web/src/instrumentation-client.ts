@@ -17,6 +17,10 @@ Sentry.init({
     tracesSampleRate: tracesSampleRateFor(DEPLOY_STAGE),
     beforeSend: scrubEvent,
     beforeSendLog: scrubLog,
+    // One release-health session per DOCUMENT LOAD. The default (`lifecycle: 'route'`) starts a new session on every
+    // history write that changes the address, and this app writes the address for state, not for visits. An array
+    // (not a function) keeps every other default integration; this one replaces the default of the same name.
+    integrations: [Sentry.browserSessionIntegration({ lifecycle: 'page' })],
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

@@ -6,14 +6,14 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { gradient, gradientCss } from '../../tokens/gradients.js';
+import { coverGradient, gradient, gradientCss } from '../../tokens/gradients.js';
 import { GradientSurface } from '../GradientSurface.js';
 
 /**
  * Compare a gradient by COLOUR, not by spelling.
  *
- * ⚠️ jsdom 30 canonicalises CSS colours through its CSSOM, so a `#31807A` written into `style` reads back
- * as `rgb(49, 128, 122)`. Both name the same colour and the component is writing the right one — asserting
+ * ⚠️ jsdom 30 canonicalises CSS colours through its CSSOM, so a `#325C7F` written into `style` reads back
+ * as `rgb(50, 92, 127)`. Both name the same colour and the component is writing the right one — asserting
  * the literal string was asserting jsdom's serialiser, which is why the jsdom 24 -> 30 bump broke these two
  * and nothing else.
  *
@@ -45,7 +45,7 @@ describe('GradientSurface (web)', () => {
         expect(surface.style.backgroundImage).toBe('');
     });
 
-    it('paints the brand gradient when requested (the same seafoam→ocean-dark the CTA uses)', () => {
+    it('paints the brand gradient when requested (the same steel→ocean-dark the CTA uses)', () => {
         const { container } = render(<GradientSurface gradient="brand">x</GradientSurface>);
         const surface = container.firstElementChild as HTMLElement;
 
@@ -64,5 +64,15 @@ describe('GradientSurface (web)', () => {
         render(<GradientSurface accessibilityLabel="Welcome banner">x</GradientSurface>);
 
         expect(screen.getByLabelText('Welcome banner')).toBeDefined();
+    });
+
+    // The cover tints are theme custom properties on web, so the wash follows the theme without a second code path.
+    it('paints the cover wash from the themed cover tint properties', () => {
+        const { container } = render(<GradientSurface gradient="cover">x</GradientSurface>);
+        const expected = gradientCss(
+            coverGradient({ sky: 'var(--color-cover-sky)', cream: 'var(--color-cover-cream)' }),
+        );
+
+        expect((container.firstChild as HTMLElement).style.backgroundImage).toBe(expected);
     });
 });

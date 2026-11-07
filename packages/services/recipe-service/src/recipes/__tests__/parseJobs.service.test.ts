@@ -21,6 +21,7 @@ import type { ParseLineJobMessage } from '@kitchensink/recipe-core/parsing/parse
 
 import { BatchEnqueueError } from '../../common/batchEnqueueError.js';
 import { ParseJobsService, PARSE_JOB_TTL_HOURS } from '../parseJobs.service.js';
+import { RecipeDomainError } from '../recipe.error.js';
 import { sha256Hex } from '../../common/sha256.js';
 import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import type { ParseJobRecord, ParseJobsDalPort } from '../parseJobs.service.js';
@@ -91,7 +92,7 @@ function makeDal(overrides: Partial<MockedDal> = {}): MockedDal {
                 })),
             });
 
-            return created;
+            return { kind: 'created' as const, record: created };
         }),
         // Copy-forward's two reads, answering "nothing to copy" — so every pre-existing assertion in this
         // file still describes the same behaviour it always did (every line enqueued). The dedup rules have
@@ -149,6 +150,8 @@ describe('create', () => {
                 },
             ],
             expect.any(Date),
+            // 004 FR-022: a paste is admitted as ONE unit, however many lines it has, inside the job's transaction.
+            { kind: 'charge', channel: 'paste', units: 1 },
         );
         expect(queue.enqueue).toHaveBeenCalledTimes(1);
         const messages = queue.enqueue.mock.calls[0]?.[0] ?? [];
@@ -265,6 +268,88 @@ describe('create', () => {
         expect(dal.markLinesFailedRetryable).not.toHaveBeenCalled();
         expect(view.status).toBe('running');
         expect(view.lines.map((line) => line.status)).toEqual(['pending', 'pending']);
+    });
+});
+
+describe('create — the daily import allowance (004 FR-022)', () => {
+    const RESETS_AT = new Date('2026-10-27T03:30:00.000Z');
+
+    it('⛔ answers a refusal with IMPORT_QUOTA_EXCEEDED carrying resetsAt, and sends nothing', async () => {
+        const dal = makeDal({
+            createJob: vi.fn<ParseJobsDalPort['createJob']>(async () => ({
+                kind: 'refused' as const,
+                resetsAt: RESETS_AT,
+            })),
+        });
+        const queue = makeQueue();
+
+        const failure: unknown = await new ParseJobsService(dal, queue)
+            .create(OWNER, 'flour\nsalt')
+            .catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(RecipeDomainError);
+        expect((failure as RecipeDomainError).code).toBe(RecipeErrorCode.IMPORT_QUOTA_EXCEEDED);
+        expect((failure as RecipeDomainError).details).toEqual({ resetsAt: '2026-10-27T03:30:00.000Z' });
+        expect(queue.enqueue).not.toHaveBeenCalled();
+        // The refusal is final: no read-back, no marks.
+        expect(dal.getJob).not.toHaveBeenCalled();
+        expect(dal.markLinesFailedRetryable).not.toHaveBeenCalled();
+    });
+
+    it('charges ONE unit for a many-line paste (the unit is the job, not the line)', async () => {
+        const dal = makeDal();
+
+        await new ParseJobsService(dal, makeQueue()).create(OWNER, 'a\nb\nc\nd\ne');
+
+        expect(dal.createJob.mock.calls[0]?.[3]).toMatchObject({ kind: 'charge', units: 1 });
+    });
+});
+
+describe('createPrepaid — a job whose unit the caller already paid', () => {
+    it('⛔ admits nothing: it is the one path that creates a job without a charge', async () => {
+        const dal = makeDal();
+        const queue = makeQueue();
+
+        const view = await new ParseJobsService(dal, queue).createPrepaid(OWNER, ['2 cups flour', '1 tsp salt']);
+
+        expect(dal.createJob.mock.calls[0]?.[3]).toEqual({ kind: 'prepaid' });
+        expect(dal.createJob.mock.calls[0]?.[1]).toEqual([
+            {
+                sourceLine: '2 cups flour',
+                lineDigest: lineDigest('2 cups flour', sha256Hex),
+                decision: { kind: 'enqueue' },
+            },
+            {
+                sourceLine: '1 tsp salt',
+                lineDigest: lineDigest('1 tsp salt', sha256Hex),
+                decision: { kind: 'enqueue' },
+            },
+        ]);
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+        expect(view.lines).toHaveLength(2);
+    });
+
+    it('refuses an empty list rather than creating a job with nothing to parse', async () => {
+        const dal = makeDal();
+
+        await expect(new ParseJobsService(dal, makeQueue()).createPrepaid(OWNER, [])).rejects.toThrow(RangeError);
+        expect(dal.createJob).not.toHaveBeenCalled();
+    });
+
+    it('treats a refusal of a prepaid job as a defect, never as a quota answer', async () => {
+        const dal = makeDal({
+            createJob: vi.fn<ParseJobsDalPort['createJob']>(async () => ({
+                kind: 'refused' as const,
+                resetsAt: new Date('2026-10-27T00:00:00.000Z'),
+            })),
+        });
+
+        const failure: unknown = await new ParseJobsService(dal, makeQueue())
+            .createPrepaid(OWNER, ['flour'])
+            .catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(Error);
+        expect(failure).not.toBeInstanceOf(RecipeDomainError);
     });
 });
 

@@ -26,6 +26,7 @@ import { Icon } from '../icon/Icon.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { PopoverProps } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 /** The native target floor the spec sets (§3, 2.5.8: 48 × 48 dp). */
 const TARGET_DP = 48;
@@ -43,7 +44,8 @@ export const Popover: FC<PopoverProps> = ({
     onFocusRequestHandled,
     onDismissed,
 }) => {
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
     const [open, setOpen] = useState(false);
     const [closes, setCloses] = useState(0);
     const triggerFocus = useScreenReaderFocusOnSignal<View>(closes);

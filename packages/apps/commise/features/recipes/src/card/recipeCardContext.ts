@@ -37,8 +37,8 @@ interface RecipeCardBaseProps {
      * The recipe's per-serving nutrition, as an already-decided NODE rendered in the meta line.
      *
      * A SLOT rather than a field, because the figure is a DEFERRED lookup that lands after the card does:
-     * the list holds the promise and decides what belongs here (`RecipeNutritionBoundary`, a settled
-     * `RecipeCalorieChip`, or nothing at all), and the card stays pure and knows nothing about loading. An
+     * the list holds the lookup and decides what belongs here (a `RecipeNutritionSlot` over the page's batch
+     * reading, or nothing at all), and the card stays pure and knows nothing about loading. An
      * ABSENT slot renders no item at all — the same absent-value rule as difficulty, cuisine and tags, and
      * never a placeholder or a fabricated 0.
      *
@@ -48,6 +48,19 @@ interface RecipeCardBaseProps {
      * arrangements, so check for `<RecipeCard.Meta />` before concluding the figure never arrived.
      */
     readonly nutrition?: ReactNode;
+    /**
+     * The compact tile only: draw the version and timestamp line ("Edited 2d ago") under the title, as the grid does. Home's
+     * tile does not ask, so it stays the cover and the title; the Recipes list asks, because a Recipes sort may not be by
+     * recency (designer, 2026-11-02). A surface `footer` replaces it, as in the grid; the grid and the row ignore it.
+     */
+    readonly showEdited?: boolean;
+    /**
+     * The compact tile only: draw the list row's whole meta line (time · difficulty · rating · calories). Without it the
+     * compact tile draws the brief line, the time then the calories (Home's tile; designer, 2026-11-03). The Recipes grid
+     * asks, because its tile is the compact variant in size and a list row's equal in what it says. The grid and the
+     * row always draw the whole line and ignore it.
+     */
+    readonly fullMeta?: boolean;
 }
 
 /** The slots a surface may fill, spelled out so a card can never be given one its variant has no place for. */
@@ -61,8 +74,8 @@ interface RecipeCardNoSlots {
  * The grid and the compact card, which end in a footer (`docs/design/uiOverhaul/buildSpec.md` §4.1).
  *
  * - `footer` — an already-decided node for the card's last line: the Discover author and Save a copy, a collection
- *   member's source label and ⋯ menu. In the grid it REPLACES the own-recipe footer (the version and the timestamp),
- *   so the six rows a grid row aligns on stay six; in the compact card it is added under the title. Its controls are
+ *   member's source label and ⋯ menu. In the grid it REPLACES the own-recipe footer (the timestamp),
+ *   so the four rows a grid row aligns on stay four; in the compact card it is added under the title. Its controls are
  *   lifted above the card's one link, never nested inside it.
  */
 export interface RecipeCardPanelProps extends RecipeCardBaseProps, Omit<RecipeCardNoSlots, 'footer'> {

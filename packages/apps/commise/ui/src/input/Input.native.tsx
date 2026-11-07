@@ -53,6 +53,7 @@ export const Input: FC<InputProps> = ({
     maxLength,
     focusRequested = false,
     onFocusRequestHandled,
+    onFocus,
 }) => {
     const theme = useTheme();
     const node = useRef<NativeTextInput>(null);
@@ -66,7 +67,10 @@ export const Input: FC<InputProps> = ({
         <TextInput
             ref={node}
             nativeID={id}
-            onFocus={() => setFocused(true)}
+            onFocus={() => {
+                setFocused(true);
+                onFocus?.();
+            }}
             onBlur={() => setFocused(false)}
             value={value}
             onChangeText={onChangeText}

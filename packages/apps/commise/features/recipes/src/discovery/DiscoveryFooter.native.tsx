@@ -7,9 +7,12 @@
  * and an inline alert says so. Colour is read from the theme at render (D15).
  */
 import { useMessages } from '@commise/i18n/react';
+import { initialsPxOf } from '@commise/ui/avatar-initials';
 import { Icon } from '@commise/ui/icon';
+import { Text as DesignText } from '@commise/ui/text';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -20,6 +23,9 @@ import { bylineText } from '../byline/bylineText.js';
 import { bylineMessages } from '../byline/messages.js';
 import { discoveryMessages } from './messages.js';
 import type { DiscoveryFooterProps } from './model.js';
+
+/** The avatar disc's diameter, pt; its initial is 40% of it and does not scale (designer ruling 2026-11-03). */
+const FOOTER_AVATAR_PT = 20;
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     title,
@@ -55,9 +61,14 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
             <View style={styles.row}>
                 {initial === undefined ? null : (
                     <View style={[styles.avatar, { backgroundColor: colors.selectedFill }]}>
-                        <Text accessible={false} style={[styles.overline, { color: colors.actionText }]}>
+                        <DesignText
+                            accessible={false}
+                            typeRole="label"
+                            fixedPx={initialsPxOf(FOOTER_AVATAR_PT)}
+                            color="$actionText"
+                        >
                             {initial}
-                        </Text>
+                        </DesignText>
                     </View>
                 )}
                 <Text numberOfLines={1} style={[styles.by, { color: colors.inkMuted }]}>
@@ -95,17 +106,16 @@ const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[1] },
     row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     avatar: {
-        width: 20,
-        height: 20,
+        width: FOOTER_AVATAR_PT,
+        height: FOOTER_AVATAR_PT,
         borderRadius: nativeTokens.radius.full,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    overline: { fontSize: 11, fontWeight: '600' },
     by: { ...nativeTokens.type.meta, flex: 1, minWidth: 0 },
     button: {
-        width: 44,
-        height: 44,
+        width: touchFloor(),
+        height: touchFloor(),
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: nativeTokens.radius.full,

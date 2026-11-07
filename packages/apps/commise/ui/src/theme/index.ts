@@ -3,8 +3,9 @@
  * CSS custom properties the dark block overrides (`tokens/themeCss.ts`), read through role utilities, so a web
  * component needs no hook. Consumed as `@commise/ui/theme`.
  *
- * ⛔ `./useTheme.js`, never `./useTheme.native.js`: the bundler picks the platform's leaf, so web never reaches
+ * ⛔ `./useTheme.js` and `./useColorSchemeName.js`, never their `.native.js` leaves: the bundler picks the platform's leaf, so web never reaches
  * `react-native` (`__tests__/themeWebEntry.test.ts`).
  */
 export { themeFor, type ColorSchemeName, type Theme } from './themeFor.js';
+export { useColorSchemeName } from './useColorSchemeName.js';
 export { useTheme } from './useTheme.js';

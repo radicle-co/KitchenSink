@@ -5,6 +5,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { buttonSurfaceClass } from '../../button/surfaceClass.js';
 import { StateNotice } from '../StateNotice.js';
 
 afterEach(cleanup);
@@ -23,11 +24,11 @@ describe('StateNotice (web)', () => {
     it('shows the body only when it has one', () => {
         const { rerender } = render(<StateNotice title="Something went wrong." />);
 
-        expect(screen.queryByText('Please try again.')).toBeNull();
+        expect(screen.queryByText('Try again.')).toBeNull();
 
-        rerender(<StateNotice title="Something went wrong." body="Please try again." />);
+        rerender(<StateNotice title="Something went wrong." body="Try again." />);
 
-        expect(screen.getByText('Please try again.')).toBeTruthy();
+        expect(screen.getByText('Try again.')).toBeTruthy();
     });
 
     it('draws no action row when there is no way out', () => {
@@ -77,5 +78,52 @@ describe('StateNotice (web)', () => {
 
         expect(first?.textContent).toBe('Try again');
         expect(second?.textContent).toBe('Back to Home');
+    });
+
+    // `componentFixes.md` §1: the web first action was `secondary` (a paper fill with an edge), which is now what a
+    // secondary BUTTON looks like beside a chip; Try again is the quiet tier and the way out stays ghost.
+    it('⛔ draws the first action as a quiet button and the second as a ghost button', () => {
+        render(
+            <StateNotice
+                title="Failed."
+                primary={{ label: 'Try again', icon: 'refreshCw', onPress: vi.fn() }}
+                secondary={{ label: 'Back to Home', icon: 'house', onPress: vi.fn() }}
+            />,
+        );
+
+        expect(screen.getByRole('button', { name: 'Try again' }).className).toBe(buttonSurfaceClass('quiet'));
+        expect(screen.getByRole('button', { name: 'Back to Home' }).className).toBe(buttonSurfaceClass('ghost'));
+    });
+
+    it('draws a first action with an href as a link wearing the same quiet surface, its glyph in actionText', () => {
+        render(
+            <StateNotice
+                title="Failed."
+                primary={{ label: 'Try again', icon: 'refreshCw', onPress: vi.fn(), href: '/en/recipes' }}
+            />,
+        );
+        const link = screen.getByRole('link', { name: 'Try again' });
+
+        expect(link.className).toContain(buttonSurfaceClass('quiet'));
+        expect(link.querySelector('svg.lucide')?.closest('.text-action-text')).not.toBeNull();
+    });
+
+    it('describes the first action by the body: the failure reason', () => {
+        render(
+            <StateNotice
+                title="We couldn’t load this recipe."
+                body="Check your connection."
+                primary={{ label: 'Try again', icon: 'refreshCw', onPress: vi.fn() }}
+            />,
+        );
+        const describedBy = screen.getByRole('button', { name: 'Try again' }).getAttribute('aria-describedby');
+
+        expect(document.getElementById(describedBy ?? '')?.textContent).toBe('Check your connection.');
+    });
+
+    it('describes nothing when there is no body', () => {
+        render(<StateNotice title="Failed." primary={{ label: 'Try again', icon: 'refreshCw', onPress: vi.fn() }} />);
+
+        expect(screen.getByRole('button', { name: 'Try again' }).hasAttribute('aria-describedby')).toBe(false);
     });
 });

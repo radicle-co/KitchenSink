@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { badgeHeightOf } from '@commise/ui/badge-box';
+
 import { badgeLineHeightOf, metaLineHeightOf } from '../oneLine.js';
 
 /**
@@ -11,19 +13,35 @@ describe('metaLineHeightOf', () => {
         [1, 20],
         [1.3, 26],
         [2, 40],
-    ])('rounds the 19.6 pt meta leading × %s up to %s', (fontScale, expected) => {
+    ])('uses the 20 pt meta leading × %s up to %s', (fontScale, expected) => {
         expect(metaLineHeightOf(fontScale)).toBe(expected);
     });
 });
 
 describe('badgeLineHeightOf', () => {
+    // REWRITTEN (designer review M-2): the row read its own copy of the badge's floor and padding and left out a neutral
+    // badge's edges, so it was 2 pt short of the badge. It now reads the design system's badge box, so it is never
+    // shorter than a badge it can hold. The difficulty badge's word is not on the capped Text yet, so it is held at the
+    // system scale, which also holds the capped status badge (a badge's height never falls as the scale grows).
+    it.each([1, 1.3, 2, 2.5, 3.1])('at scale %s holds both badges and the meta text', (scale) => {
+        expect(badgeLineHeightOf(scale)).toBeGreaterThanOrEqual(badgeHeightOf(scale));
+        expect(badgeLineHeightOf(scale)).toBeGreaterThanOrEqual(metaLineHeightOf(scale));
+    });
+
+    it('is exactly the tallest of them, so no space is left above the row', () => {
+        for (const scale of [1, 1.3, 2, 2.5, 3.1]) {
+            expect(badgeLineHeightOf(scale)).toBe(Math.max(badgeHeightOf(scale), metaLineHeightOf(scale)));
+        }
+    });
+
     it('keeps the 24 pt badge floor at the default scale', () => {
         expect(badgeLineHeightOf(1)).toBe(24);
     });
 
     it('grows with the larger of the badge word (caption + 4 pt padding) and the meta text beside it', () => {
-        // caption 16.8 × 2 + 4 = 37.6 → 38, meta 19.6 × 2 = 39.2 → 40: the meta text beside the badge decides.
-        expect(badgeLineHeightOf(2)).toBe(40);
+        // REWRITTEN for the px type scale (2026-10-25): caption is 20 pt now, as meta is (it was 16.8 against 19.6), so
+        // the badge word decides: 20 × 2 + 4 = 44, above the meta line's 20 × 2 = 40.
+        expect(badgeLineHeightOf(2)).toBe(44);
     });
 
     it('never answers less than the meta line it can hold', () => {

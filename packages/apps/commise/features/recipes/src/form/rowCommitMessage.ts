@@ -204,6 +204,9 @@ export const rowSettledView = (
             return outcome.kind === 'committed'
                 ? { polite: rowCommittedMessage(outcome.binding, field.food, copy), failure: undefined }
                 : SAYS_NOTHING;
+        // The paste list is the only voice for its own picks (its one polite region), and shows their failure on the line.
+        case 'paste':
+            return SAYS_NOTHING;
         case 'authoredFood':
             if (outcome.kind !== 'committed') {
                 return SAYS_NOTHING;

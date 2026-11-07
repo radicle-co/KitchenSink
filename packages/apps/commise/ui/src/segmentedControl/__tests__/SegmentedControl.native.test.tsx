@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 import { useState } from 'react';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { render, renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { SegmentedControl } from '../SegmentedControl.native.js';
 import { palette, role } from '../../tokens/colors.js';
+import { nativeTokens } from '../../tokens/native.js';
 
 /**
  * SegmentedControl (native) — a route is a `tablist` of `tab`s (`aria-selected`), a view a `radiogroup` of `radio`s
@@ -37,13 +39,6 @@ function rgb(hex: string): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-}
-
 const PLACES = [
     { id: 'mine', label: 'My recipes' },
     { id: 'collections', label: 'Collections' },
@@ -72,11 +67,52 @@ describe('SegmentedControl (native) — route', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
 
         expect(getComputedStyle(screen.getByRole('tab', { name: 'My recipes' })).backgroundColor).toBe(rgb(role.paper));
-        expect(getComputedStyle(screen.getByText('My recipes')).color).toBe(rgb(role.ink));
-        expect(getComputedStyle(screen.getByText('Collections')).color).toBe(rgb(role.inkMuted));
+        // The label is the design-system Text, whose colour is a theme variable, so it is read resolved.
+        expect(resolvedColour(screen.getByText('My recipes'), 'color')).toBe(rgb(role.ink));
+        expect(resolvedColour(screen.getByText('Collections'), 'color')).toBe(rgb(role.inkMuted));
         expect(getComputedStyle(screen.getByRole('tablist', { name: 'Recipes' })).backgroundColor).toBe(
             rgb(palette.pearl),
         );
+    });
+
+    // Parity item 11 (`componentFixes` §8): paper on the surfaceMuted track is about 1.18:1, so the selected segment gains a
+    // 1 pt lineControl edge and keeps its shadow. The others carry a transparent edge of the same width, so selecting
+    // one shifts nothing.
+    it('draws the current tab a 1 pt lineControl edge, and every other tab a transparent one of the same width', () => {
+        render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
+        const current = getComputedStyle(screen.getByRole('tab', { name: 'My recipes' }));
+        const other = getComputedStyle(screen.getByRole('tab', { name: 'Collections' }));
+
+        expect(current.borderTopWidth).toBe('1px');
+        expect(current.borderTopColor).toBe(rgb(role.lineControl));
+        expect(current.backgroundColor).toBe(rgb(role.paper));
+        expect(other.borderTopWidth).toBe('1px');
+        expect(other.borderTopColor).not.toBe(rgb(role.lineControl));
+    });
+
+    // Designer ruling 2026-11-01 (ADR-0080 §8): a view-switch label is navigation chrome, so it grows to 1.5× at most,
+    // size and leading together, and keeps its accessible name.
+    it('draws its labels at the 1.5× chrome cap above the system scale, named as before', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.label;
+
+        renderWithTamagui(
+            <SegmentedControl
+                form="view"
+                label="Show"
+                value="mine"
+                onChange={vi.fn()}
+                segments={[
+                    { id: 'mine', label: 'My recipes' },
+                    { id: 'collections', label: 'Collections' },
+                ]}
+            />,
+            'light',
+            3.1,
+        );
+
+        expect(getComputedStyle(screen.getByText('Collections')).fontSize).toBe(`${String(fontSize * 1.5)}px`);
+        expect(getComputedStyle(screen.getByText('Collections')).lineHeight).toBe(`${String(lineHeight * 1.5)}px`);
+        expect(screen.getByRole('radio', { name: 'Collections' })).toBeTruthy();
     });
 
     it('is 44 pt tall on iOS and 48 dp on Android', () => {
@@ -84,9 +120,7 @@ describe('SegmentedControl (native) — route', () => {
             ['ios', '44px'],
             ['android', '48px'],
         ] as const) {
-            const restore = onPlatform(os);
-
-            try {
+            withPlatformOs(os, () => {
                 const { unmount } = render(
                     <SegmentedControl
                         form="route"
@@ -99,9 +133,7 @@ describe('SegmentedControl (native) — route', () => {
 
                 expect(getComputedStyle(screen.getByRole('tablist', { name: 'Recipes' })).minHeight, os).toBe(height);
                 unmount();
-            } finally {
-                restore();
-            }
+            });
         }
     });
 

@@ -14,13 +14,15 @@
  *
  *  - settings + price are TRANSIENT on failure (nothing to reserve → the call is not made);
  *  - an unpriced model refuses BEFORE any call (membership of the rate table is authorization);
- *  - a ceiling denial THROWS — transient, the message redelivers, and KTD-F's amplification bound is the
- *    parse CACHE: a redelivered message re-reads `ingredient_parse_cache` before any Bedrock call, so a
+ *  - a ceiling denial THROWS a typed `SpendCeilingDeniedError` — transient by default, the message redelivers,
+ *    EXCEPT that `processParseLine` lands the CRF reading alone for a parse-job line (owner ruling 2026-10-26) — and
+ *    KTD-F's amplification bound is the parse CACHE: a redelivered message re-reads `ingredient_parse_cache` before any Bedrock call, so a
  *    redelivery re-pays only uncached attempts;
  *  - settle is NEVER retried, and any outcome with no billed response refunds in full;
  *  - the dollar metric carries the call site — `ingredient-parse` for BOTH the first attempt and the retry,
- *    `foodness-validator`, `measurement-validator` (three of `SPEND_CALL_SITES`' four; the fourth,
- *    `verification-gate`, is `verifyLine.ts`'s) — attribution on the METRIC only, one pool, no sub-budgets.
+ *    `foodness-validator`, `measurement-validator` (three of `SPEND_CALL_SITES`' five; the other two,
+ *    `verification-gate` and `paste-match-review`, are `verifyLine.ts`'s) — attribution on the METRIC only, one
+ *    pool, no sub-budgets.
  *
  * ## ⛔ THIS IS THE SECOND OPINION, AND IT IS ONLY WORTH ANYTHING IF IT IS INDEPENDENT (ADR-0026 §1)
  *
@@ -98,6 +100,7 @@ import {
 } from '@kitchensink/recipe-import-core';
 
 import {
+    BUDGET_SPENT_METRIC_NAME,
     INPUT_BOUND_EXCEEDED_METRIC_NAME,
     RESIDENCY_REFUSED_METRIC_NAME,
     SETTLE_FAILURE_METRIC_NAME,
@@ -105,6 +108,7 @@ import {
     SPEND_METRIC_NAMESPACE,
 } from '../common/spendMetrics.js';
 import { ResidencyRefusedError } from '../common/residencyRefused.js';
+import { SpendCeilingDeniedError } from '../common/spendCeilingDenied.js';
 import { isSpendGated, type SpendLedger } from '../common/verificationSpend.js';
 import type { EmfMetric } from '../common/metrics.js';
 import { logger } from '../common/logger.js';
@@ -239,9 +243,20 @@ export async function gatedConverse(deps: GatedLlmDeps, call: GatedCall): Promis
         const reservation = await deps.ledger.reserve(plan);
 
         if (reservation.kind === 'denied') {
-            // ⛔ TRANSIENT — the message redelivers under maxReceiveCount, and the parse CACHE bounds the
-            // amplification (KTD-F): replayed attempts re-read the cache before any Bedrock call.
-            throw new Error(`parse-leg ceiling reached for ${reservation.period}; the call was not made`);
+            // ⛔ A TYPED THROW, classified by the handler. Transient everywhere (the message redelivers under
+            // maxReceiveCount, and the parse CACHE bounds the amplification, KTD-F) EXCEPT for a parse-job line, which
+            // `processParseLine` opts out BY NAME: there the denial is final, the line lands the CRF reading alone and
+            // the metric below is the only signal the fallback is running (ADR-0024 §3, owner ruling 2026-10-26).
+            deps.emit({
+                namespace: SPEND_METRIC_NAMESPACE,
+                name: BUDGET_SPENT_METRIC_NAME,
+                unit: 'Count',
+                stage: deps.stage,
+                value: 1,
+                dimensions: { CallSite: call.callSite },
+            });
+
+            throw new SpendCeilingDeniedError('parse-leg', reservation.period);
         }
 
         periodMicros = reservation.reservedMicros;

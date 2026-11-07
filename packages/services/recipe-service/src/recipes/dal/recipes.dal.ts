@@ -33,6 +33,8 @@ import type {
 import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
 import { activeRecipe, readableBy } from './recipePredicates.js';
 import { IngredientLinesDal, type IngredientLineInput } from './ingredientLines.dal.js';
+import { PrivateSlotsDal } from './privateSlots.dal.js';
+import type { SlotFacts } from '../domain/privateSlotPolicy.js';
 
 /** A single instruction line to persist (the DAL assigns 1-based `stepNumber` from array order). */
 export interface StepInput {
@@ -212,7 +214,59 @@ export class RecipesDal {
     /** Owns the recipe's lines; driven inside this DAL's transactions for atomicity. */
     private readonly linkDal = new IngredientLinesDal();
 
+    /** The live private-slot count and its per-user lock (ADR-0073), which every write that can make a recipe private enlists. */
+    private readonly slotsDal = new PrivateSlotsDal();
+
     public constructor(private readonly db: RecipeDrizzle) {}
+
+    /**
+     * Take the cook's private-slot lock and count their private recipes, inside the caller's transaction (ADR-0073).
+     *
+     * ⛔ The FIRST statement of the transaction that writes the recipe, and the decision made from the number it returns
+     * belongs to that same transaction: a count read anywhere else is the race the lock closes. When this transaction also
+     * takes the import allowance lock, that lock comes first.
+     *
+     * @param tx - The write's open transaction.
+     * @param ownerId - The cook (the verified principal, never a request field).
+     * @returns The cook's private, published, undeleted recipes.
+     * @sideEffect Takes a transaction-scoped advisory lock keyed by the cook.
+     */
+    public async lockAndCountPrivateSlots(tx: RecipeTx, ownerId: string): Promise<number> {
+        return this.slotsDal.lockAndCount(tx, ownerId);
+    }
+
+    /**
+     * The cook's private, published, undeleted recipes WITHOUT the lock: for the slot-usage display, never for a decision.
+     *
+     * @param ownerId - The cook.
+     */
+    public async countPrivateSlots(ownerId: string): Promise<number> {
+        return this.slotsDal.count(this.db, ownerId);
+    }
+
+    /**
+     * An active recipe's CURRENT slot facts (visibility and status), read `FOR UPDATE` inside the caller's transaction
+     * (ADR-0073).
+     *
+     * A slot decision is made against the values held under the lock, not the ones read before the transaction opened:
+     * set-visibility does not bump the version, so a compare-and-swap on `expectedVersion` cannot see a visibility that
+     * changed in between, and a status change made by another request must be seen too ("already private and published"
+     * means the recipe already holds its slot; a draft holds none).
+     *
+     * @param tx - The open transaction.
+     * @param id - The recipe.
+     * @returns The facts, or `undefined` when no active recipe has that id.
+     * @sideEffect Row-locks the `recipes` row until the transaction ends.
+     */
+    public async lockSlotFacts(tx: RecipeTx, id: string): Promise<SlotFacts | undefined> {
+        const [row] = await tx
+            .select({ visibility: recipes.visibility, status: recipes.status })
+            .from(recipes)
+            .where(and(eq(recipes.id, id), activeRecipe()))
+            .for('update');
+
+        return row === undefined ? undefined : { visibility: row.visibility, status: row.status };
+    }
 
     /**
      * Run `fn` as one Postgres Unit-of-Work over this DAL's client (S-R1).
@@ -616,11 +670,18 @@ export class RecipesDal {
      * visibility toggle is a metadata change, not a content revision (C-004 / T050). Authorization and
      * the C-004 policy decision live in `RecipesService`.
      *
+     * @param enlistIn - The open transaction to write in. REQUIRED (ADR-0073): a move to private is decided under the per-user
+     *   lock in a transaction, and a write that fell back to the base client would commit outside it.
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Updates the `recipes` row's `visibility` + `updated_at`.
      */
-    public async setVisibility(id: string, visibility: RecipeVisibility): Promise<RecipeAggregate | undefined> {
-        const [recipe] = await this.db
+    public async setVisibility(
+        id: string,
+        visibility: RecipeVisibility,
+        enlistIn: RecipeTx,
+    ): Promise<RecipeAggregate | undefined> {
+        const writer = enlistIn;
+        const [recipe] = await writer
             .update(recipes)
             .set({ visibility, updatedAt: new Date() })
             .where(and(eq(recipes.id, id), activeRecipe()))
@@ -630,8 +691,8 @@ export class RecipesDal {
             return undefined;
         }
 
-        const steps = await this.loadSteps(this.db, [recipe.id]);
-        const ingredients = await this.linkDal.loadByRecipeIds(this.db, [recipe.id]);
+        const steps = await this.loadSteps(writer, [recipe.id]);
+        const ingredients = await this.linkDal.loadByRecipeIds(writer, [recipe.id]);
 
         return { recipe, steps, ingredients };
     }

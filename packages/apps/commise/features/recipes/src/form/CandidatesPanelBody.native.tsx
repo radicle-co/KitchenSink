@@ -24,13 +24,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CandidateOption, CandidatesPanelBody as Body, CandidatesPanelBodyProps } from './candidatesPanel.js';
 import { recipeFormMessages } from './messages.js';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** Rows 6 and 7's panel body: the candidates, a pick per candidate, and None of these. */
 export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick, onRetryRead, onNoneOfThese }) => {
     const m = useMessages(recipeFormMessages);
     // Colour from the theme at render (D15): copy in `ink`, a hint in `inkMuted`, a refused pick in `dangerText` (the
-    // web twin's `text-danger-text`), the press wash `ink` at 6% (its `hover:bg-ink/6`).
-    const { colors, wash } = useTheme();
+    // web twin's `text-danger-text`), the press wash `surfaceMuted` (its `hover:bg-surface-muted`).
+    const { colors } = useTheme();
+    const wash = usePressFill();
     const text = [styles.text, { color: colors.ink }];
     const hint = [styles.hint, { color: colors.inkMuted }];
 
@@ -77,7 +79,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                                 </View>
                             ),
                         )}
-                        <LiveRegion politeness="polite" style={hint}>
+                        <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                             {line}
                         </LiveRegion>
                     </>
@@ -90,7 +92,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                         <LiveRegion politeness="assertive" style={text}>
                             {body.text}
                         </LiveRegion>
-                        <Button variant="secondary" icon="refreshCw" onPress={onRetryRead}>
+                        <Button variant="quiet" icon="refreshCw" description={body.text} onPress={onRetryRead}>
                             {m.statusActionRetry}
                         </Button>
                     </>
@@ -98,7 +100,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
             case 'loading':
             case 'offline':
                 return (
-                    <LiveRegion politeness="polite" style={hint}>
+                    <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                         {body.text}
                     </LiveRegion>
                 );
@@ -127,11 +129,10 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
 
 const styles = StyleSheet.create({
     panel: { gap: nativeTokens.spacing[2] },
-    text: { fontSize: nativeTokens.fontSize.bodySm },
-    hint: { fontSize: nativeTokens.fontSize.caption },
+    text: { ...nativeTokens.type.meta },
+    hint: { ...nativeTokens.type.meta },
     heading: {
-        fontSize: nativeTokens.fontSize.caption,
-        fontWeight: '600',
+        ...nativeTokens.type.label,
         paddingHorizontal: nativeTokens.spacing[3],
         paddingTop: nativeTokens.spacing[2],
     },

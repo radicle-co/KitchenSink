@@ -4,7 +4,7 @@
  * draws the SAME total as the Ingredients section's foot, from the same draft and read (`nutritionTotalViewOf`), and
  * offers no Try again of its own: the section's foot, on the same page, already does.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -12,6 +12,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { makeIngredientNutrition, makeRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
 import { IngredientsNutritionFoot } from '../IngredientsNutritionFoot.native.js';
 import { recipeFormMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

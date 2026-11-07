@@ -25,7 +25,9 @@
   [ADR-0022](0022-in-stack-migration-trigger.md) — the counter is a NEW table in the recipe database,
   so it ships as a migration and arrives through that ADR's in-stack Trigger like any other schema change;
   [ADR-0006](0006-per-pr-feature-deploys-base-stage-and-logical-db.md) — per-PR deploys get their own LOGICAL database on the
-  shared sandbox instance, which is why the ceiling is prod-only (§3).
+  shared sandbox instance, which is why the ceiling is prod-only (§3);
+  [ADR-0071](0071-paste-matches-are-proposals.md) and [ADR-0072](0072-bulk-recipe-import.md) — the paste and bulk
+  import path, the one path that does not retry a ceiling denial (§3).
 - **Supersedes within the plan**: `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`
   §U11's layer table, its egress paragraph and §KTD-4's bake-off roster. Where this ADR and that plan
   disagree, this ADR wins and the plan is to be corrected.
@@ -270,6 +272,26 @@ opposite changes. Scaling prod does not weaken the ceiling — the reservation i
 the row lock serialises callers, so higher concurrency reaches the $100 sooner and never past it. What it
 does change is that the monthly pool is consumed earlier in the month, and denials then arrive as DLQ depth.
 
+⛔ **One path does not retry a ceiling denial: a parse-job line, from a paste or a bulk import** (owner ruling,
+2026-10-26; ADR-0072 §10, ADR-0071 §7). Everywhere else a ceiling denial is transient: the message goes back to the
+queue, and layer 0 bounds the retries. On this path the worker records the denial and acknowledges the message. The
+LLM parse leg and its in-loop validators stop, and the line lands the CRF reading alone. The paste-match review records
+a `budgetSpent` outcome under its verification key, with the period captured at reserve. That outcome is not a
+verdict, and it reads as spent only while its period is current. The cook then sees every food as a choice to make,
+exact names and curated mappings included. The reason is the cook in front of the screen. A retry holds their paste or
+import until the next month, and the owner chose worse matching over that wait. Three things do NOT change. The save
+path's verification of a saved recipe still retries a denial. An unreadable counter is still transient and still fails
+closed, on every path. And the counter, the reservation and the one pool are untouched. This changes the effect of a
+denial, not the moment of one.
+
+⛔ **A second path does not retry a ceiling denial: the content source check** (ADR-0074 §10, spec 020 FR-020). This
+follows from the owner's ruling (2026-10-26) that a case the AI could not read goes to a person. Its worker records
+the denial on that part, with the period captured at reserve, and acknowledges the message. The recipe's outcome is
+`unchecked` (`budgetSpent`), and a staff reviewer decides. A retry would only hold the message until the month
+ends, while the person already has the case. The part reads as spent only while its period is current. Once the period
+has ended, the next-period re-check reads it again. The same three things do not change: an unreadable counter is
+still transient and fails closed, and the counter, the reservation and the one pool are untouched.
+
 ⛔ **Layer 0's `maxReceiveCount` is DERIVED from the nightly stop, not a flat number.** A consumer whose
 database is stopped fails every delivery and each failure spends a receive, so a queue whose redrive count
 is shorter than ADR-0007's nine-hour non-prod shutdown dead-letters perfectly healthy messages because the
@@ -443,6 +465,15 @@ of that model in us-west-2 — reach nothing in the registry asked for. The stat
 profile cannot borrow another's regions. No wildcard is emitted: the registry is compile-time, so every
 profile ARN is enumerable.
 
+⚠️ **The shared role carries one non-Bedrock grant that only one function can use** (ADR-0074 §10). The content
+source check reads each photo's check rendition from the media bucket. A grant on `verificationRole` would reach every
+function on that role, so the statement carries `ArnEquals: { 'lambda:SourceFunctionArn': <the source-check
+function> }`, is read-only on the check-rendition prefix, and sits in its own `iam.Policy` with the ARN built from the
+function's fixed name, which keeps the role's default policy free of a dependency on the function. Lambda adds that key
+to every AWS call function code makes. An infra guard asserts the condition and refuses any other statement on the role
+that reads the bucket. Layer 4b's invariant is over Bedrock grantees and actions, and this changes neither: one role,
+`bedrock:InvokeModel` only. It records that on a shared role, a capability is scoped by function, not by role.
+
 ⚠️ **Two statements on one role is not a layer-4b breach.** That control's invariant is over GRANTEES and
 ACTIONS, never statement count — `llmSpendGuards.test.ts` records that an earlier `grants.length === 1`
 assertion was three defects in one line and was "what blocked adopting AWS's documented least-privilege shape
@@ -487,14 +518,17 @@ single grantee admits. Before this, §4c budgeted for three consumers while the 
 `bedrock:InvokeModel` to one role; **the budget and the grant now agree.** The deletion closed that
 inconsistency rather than creating one.
 
-⚠️ **The pool now has FOUR call sites**, not one: `verification-gate`, `ingredient-parse`,
-`foodness-validator` and `measurement-validator` (`SPEND_CALL_SITES`, `spendArithmetic.ts`). Layer 4b is
-unbroken — all four run under the one `verificationRole`, so the single-grantee rule and the one-pool ruling
-still agree, and `CallSite` is what tells them apart when the pool empties.
+⚠️ **The pool's call sites are the members of `SPEND_CALL_SITES` (`spendArithmetic.ts`), and that array is the one
+authority for the list.** This section does not restate their number, because a count copied here rotted once already.
+They include `verification-gate`, `ingredient-parse`, `foodness-validator`, `measurement-validator` and
+`paste-match-review` (ADR-0071), and ADR-0074 adds `source-check`. Layer 4b is unbroken: every one runs under the one
+`verificationRole`, so the single-grantee rule and the one-pool ruling still agree, and `CallSite` is what tells them
+apart when the pool empties. A new call site is a new member of that array, under that role, with its own Lambda and
+its own reserved concurrency.
 
 ⚠️ **ONLY THE ENUMERATION IS DEPRECATED — the ruling it sits under is untouched and still binds.** The
 $100/month remains ONE pool, first come first served, and it is still NOT sub-divided per consumer (item 10
-of "ten improvements that are all wrong"). `CallSite` attribution likewise stands unchanged, and it now reads **one of four values** rather than one —
+of "ten improvements that are all wrong"). `CallSite` attribution likewise stands unchanged, and it now reads **one of the `SPEND_CALL_SITES` values** rather than one —
 the second-consumer moment this mechanism was built for has arrived. Nothing about
 reserve-then-settle, the ceiling figure, the prod-only ruling or layer 4b moves.
 
@@ -507,7 +541,7 @@ and the parse inherits the verifier's concurrency), or it adds a second grantee 
 
 ⛔ **Not capping per consumer makes attribution MORE important, not less.** When the pool empties, the first
 question is "who burned it", and a dimensionless `VerificationSpendMicros` cannot answer it. So the spend
-metric carries a `CallSite` **EMF dimension** (one of four values — see the amendment below), and nothing
+metric carries a `CallSite` **EMF dimension** (one of the `SPEND_CALL_SITES` values), and nothing
 else changes: the
 counter row stays keyed on the period alone, and no call site reaches `planReservation`, the headroom, or
 either SQL statement. Attribution, not partitioning — asserted directly, by pinning the full field set of the
@@ -608,6 +642,39 @@ rather than treating the whole cap as fresh input. That changes what "worst case
 the ceiling enforces, so it is a decision this ADR owes and **not** a refactor to be done in passing. Until
 it is taken, the ceiling is conservative in the safe direction — it denies early, it never under-counts.
 
+### 6. Go-live plan: the $100 ceiling stays now, and a funded budget replaces it before Pro with AI is sold
+
+Owner ruling, 2026-10-27. The $100 a month ceiling in §3 **stays as it is** until there is launch funding. The product
+is not live and has no paying cooks yet, so the owner will not pre-fund AI spend. This section records the plan for
+going live, so it is ready when the funding is.
+
+**Why $100 cannot stay.** It is one pool for the whole platform (§4c). A paying cook with uses left must never be
+refused because the pool is empty, and a $100 pool cannot promise that at any real size.
+
+**The plan, to build and amend into §3 before Pro with AI goes on sale:**
+
+1. **A separate operating-AI budget.** Parse, match, review and the 020 source check are operating cost. They are
+   never a cook's uses (010 `FR-041d`, 005 `FR-015a`). They get their own ceiling, sized to the expected spend, with
+   alarms at stated fractions of it. It keeps the reserve-then-settle counter of §2 and the same fail-closed rule.
+2. **Paid-credit headroom.** Calls that spend a paying cook's uses draw from a pool that is kept apart from the
+   operating budget. The pool is sized so a paying cook who has uses left is never refused. A ceiling denial
+   inside this pool is a page to the owner, not a message to the cook. The cook's uses are never taken by a denial
+   (the full reservation is refunded, §2).
+3. **Alarms before the limit.** Spend alarms fire at stated fractions of each pool, so a person raises a limit
+   before a cook meets it. §1 still holds: no AWS mechanism stops inference at a dollar threshold, so our counter is
+   the control and the alarms are the early warning.
+4. **Amend §3 at that time.** The new figures are a dated owner ruling. They are written into §3, not edited quietly.
+
+**Cost estimates behind the plan.** These come from the 2026-10-27 cost model. They are estimates, not measurements,
+and the model is the place to correct them:
+
+- Platform AI (parse, match and the 020 checks) is about **$0.014 per registered user a month**. At 100,000 users that
+  is about **$1,429 a month**, about 2% of the modelled revenue.
+- One cook-requested recipe call is about 1,750 tokens in and 900 out. That is about $0.007 on Claude Haiku 4.5 and
+  about $0.003 on Nova 2 Lite.
+- 300 uses cost about $2.07 in the worst case. That is about 21% of the extra $10 a month that Pro with AI costs over
+  Pro.
+
 ## Consequences
 
 **Accepted:**
@@ -624,6 +691,9 @@ it is taken, the ceiling is conservative in the safe direction — it denies ear
 - **The ceiling protects PROD only.** Sandbox and every open PR call the provider ungated, bounded solely by
   layers 0–2 at ≈$88/month/stage on Nova. A non-prod runaway is billed, not denied — which is also where a
   runaway is most likely to originate.
+- **A spent ceiling degrades paste and bulk import matching instead of holding it** (§3). Past the ceiling, those
+  lines land a CRF-only parse and every food goes to the cook. That is worse matching, accepted by the owner, and
+  it lasts until the period ends.
 - **On Nova Micro the ceiling will essentially never fire.** The runaway §Context names — 8,000 calls
   becoming 800,000 — costs ~$27, well under $100. The ceiling is a backstop against a `maxTokens` mistake
   and against a model change, not against call volume alone.
@@ -709,10 +779,10 @@ never to establish a fact.
   which reproduces the $0.27/month figure exactly.
 - Nova Micro's prompt-cache minimum token threshold.
 
-## Amendment — four call sites, one attribution falsehood corrected, still ONE pool
+## Amendment — the parse-loop call sites, one attribution falsehood corrected, still ONE pool
 
-The pool's consumer roster is now FOUR call sites on the one $100 ceiling — attribution, never
-partitioning, exactly as §4c's deprecation note demanded:
+This amendment added the parse loop's call sites to the one $100 ceiling, by attribution, never by partitioning,
+exactly as §4c's deprecation note demanded. The full roster is `SPEND_CALL_SITES`, which §4c names as the authority:
 
 - `verification-gate` — the original consumer, unchanged.
 - `ingredient-parse` — the revived parse leg (plan U8), inside the verification gate's role per §4b's
@@ -825,8 +895,9 @@ observed overshoot distribution is the better evidence — it measures the real 
 ### Accepted, not fixed — a refused line stalls rather than re-drives
 
 A residency refusal leaves the line `pending`. U9 re-runs only `failed_retryable`, so nothing re-drives it and
-the job closes at TTL. `verifyLine.ts` treats a _ceiling denial_ — also month-long — as transient precisely so
-it surfaces as redrivable DLQ depth, and this deliberately differs: a residency refusal is a standing product
+the job closes at TTL. `verifyLine.ts` treats a _ceiling denial_ — also month-long — as transient on the save path
+precisely so it surfaces as redrivable DLQ depth (a parse-job line records it instead, §3), and this deliberately
+differs: a residency refusal is a standing product
 decision, and reporting a decision as queue depth trains an operator to ignore the queue.
 
 ⛔ The reason that is tolerable is the alarm, not the disposition. The refusal is the one failure leaving no

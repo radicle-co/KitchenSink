@@ -7,13 +7,15 @@ describe('fontFaces', () => {
     const faces = fontFaces();
 
     it('registers each native face twice: under its family at its weight, and under its own name at 400', () => {
-        expect(faces).toHaveLength(2 * (Object.keys(bodyFontFace).length + Object.keys(displayFontFace).length));
+        const natives = new Set([...Object.values(bodyFontFace), ...Object.values(displayFontFace)]);
 
-        for (const native of [...Object.values(bodyFontFace), ...Object.values(displayFontFace)]) {
+        expect(faces).toHaveLength(2 * natives.size);
+
+        for (const native of natives) {
             const registrations = faces.filter((face) => face.fileName === `${native}.ttf`);
 
             expect(registrations.map((face) => face.family).sort()).toEqual(
-                [native, native.startsWith('Inter') ? 'Inter' : 'Playfair Display'].sort(),
+                [native, native.startsWith('Inter') ? 'Inter' : 'Manrope'].sort(),
             );
             expect(registrations.find((face) => face.family === native)?.weight).toBe(400);
         }
@@ -31,17 +33,17 @@ describe('fontFaces', () => {
         for (const [step, native] of Object.entries(displayFontFace)) {
             const weight = fontWeight[step as keyof typeof fontWeight];
 
-            expect(
-                faces.find((face) => face.family === 'Playfair Display' && face.fileName === `${native}.ttf`)?.weight,
-            ).toBe(weight);
+            expect(faces.find((face) => face.family === 'Manrope' && face.fileName === `${native}.ttf`)?.weight).toBe(
+                weight,
+            );
         }
     });
 
     it('points each face at its directory inside the font package', () => {
         const inter = faces.find((face) => face.fileName === 'Inter_600SemiBold.ttf');
-        const playfair = faces.find((face) => face.fileName === 'PlayfairDisplay_700Bold.ttf');
+        const manrope = faces.find((face) => face.fileName === 'Manrope_600SemiBold.ttf');
 
         expect(inter?.specifier).toBe('@expo-google-fonts/inter/600SemiBold/Inter_600SemiBold.ttf');
-        expect(playfair?.specifier).toBe('@expo-google-fonts/playfair-display/700Bold/PlayfairDisplay_700Bold.ttf');
+        expect(manrope?.specifier).toBe('@expo-google-fonts/manrope/600SemiBold/Manrope_600SemiBold.ttf');
     });
 });

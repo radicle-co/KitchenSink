@@ -492,16 +492,121 @@ describe('the exhaustion landing split (amended 2026-08-31)', () => {
     });
 });
 
-describe('the transient/terminal split', () => {
-    it('⛔ a gated-leg throw re-throws AFTER the run, BEFORE any landing — the message redelivers', async () => {
-        const { deps, queries } = build({});
-        (deps.gated.ledger.reserve as Mock).mockResolvedValue({
-            kind: 'denied',
-            period: '2026-08',
+/**
+ * A CEILING DENIAL ON A PARSE-JOB LINE IS FINAL FOR THAT LINE (ADR-0024 §3, ADR-0026 §3 as amended; owner ruling
+ * 2026-10-26). The cook is looking at the screen, and a retry would hold their paste until the month ends. So a denial on
+ * ANY gated LLM call (the first parse, its retry, either in-loop validator) is ABSENCE of the LLM engine: the line lands
+ * the CRF reading alone, as `single-engine`, and the message completes. It is never `differ`, and the LLM's absence is
+ * not written to the parse cache (the pipeline caches only what an engine answered).
+ *
+ * The gate is injected (`ledger.reserve` answering `denied` at the Nth gated call), so no case depends on a stage.
+ * What does NOT change: a CRF failure or a transport failure is still transient, a residency refusal still wins, and an
+ * unreadable counter (reserve rejects) is still transient.
+ */
+describe('a ceiling denial on a parse-job line lands the CRF reading alone', () => {
+    const VALID_PARSE =
+        '[{"food_items":["flour"],"measurement":{"quantity":"2","unit":"cups","unit_type":"volume"},"preparations":null,"equipment":null}]';
+
+    /** Deps whose Nth reservation (1-based) is denied; every earlier one is reserved. */
+    function denyingAt(call: number, text = VALID_PARSE) {
+        const built = build({});
+        let seen = 0;
+
+        (built.deps.gated.ledger.reserve as Mock).mockImplementation(() => {
+            seen += 1;
+
+            return Promise.resolve(
+                seen >= call ? { kind: 'denied', period: '2026-10' } : { kind: 'reserved', reservedMicros: 100 },
+            );
+        });
+        (built.deps.gated.bedrock.converse as Mock).mockResolvedValue({
+            kind: 'answered',
+            text,
+            stopReason: 'end_turn',
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
         });
 
+        return built;
+    }
+
+    const landedProposal = (queries: readonly { text: string; params: unknown[] }[]) => {
+        const landing = landings(queries)[0];
+
+        return landing === undefined ? undefined : JSON.parse(String(landing.params[4]));
+    };
+
+    it.each([
+        ['the first parse attempt', 1, VALID_PARSE],
+        ['the foodness validator', 2, VALID_PARSE],
+        ['the measurement validator', 3, VALID_PARSE],
+        ['the retry after an empty parse', 2, '[]'],
+    ])('⛔ a denial on %s resolves, lands the CRF reading, and redelivers nothing', async (_label, call, text) => {
+        const { deps, queries } = denyingAt(call, text);
+
+        await expect(
+            processParseLine(deps, { ...message(), lineDigest: computeRealDigest() }),
+        ).resolves.toBeUndefined();
+
+        expect(landings(queries)).toHaveLength(1);
+        expect(landings(queries)[0]?.params[3]).toBe('parsed');
+        expect(landedProposal(queries).foods).toStrictEqual([{ name: 'flour', prep: null }]);
+        expect(landedProposal(queries).provenance.foods).toBe('crf');
+    });
+
+    it('does not write the LLM absence to the parse cache: only what an engine ANSWERED is remembered', async () => {
+        const { deps, queries } = denyingAt(1);
+
+        await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
+
+        const writes = queries.filter((query) => /INSERT INTO ingredient_parse_cache/u.test(query.text));
+
+        expect(writes.length).toBeGreaterThan(0);
+        expect(writes.every((query) => !query.params.includes('llm'))).toBe(true);
+    });
+
+    it('meters the acknowledged denial (the only signal the fallback is running)', async () => {
+        const { deps } = denyingAt(1);
+
+        await processParseLine(deps, { ...message(), lineDigest: computeRealDigest() });
+
+        const metric = (deps.gated.emit as Mock).mock.calls
+            .map((call) => call[0] as { name: string; dimensions?: Record<string, string> })
+            .find((m) => m.name === 'VerificationBudgetSpent');
+
+        expect(metric?.dimensions).toEqual({ CallSite: 'ingredient-parse' });
+    });
+
+    it('⛔ a denial does NOT hide a CRF failure: CRF down plus LLM denied is still transient and lands nothing', async () => {
+        const { deps, queries } = denyingAt(1);
+        (deps.crf.parse as Mock).mockRejectedValue(new Error('Function not found'));
+
         await expect(processParseLine(deps, { ...message(), lineDigest: computeRealDigest() })).rejects.toThrow(
-            /ceiling/,
+            /Function not found/,
+        );
+        expect(landings(queries)).toHaveLength(0);
+    });
+
+    it('⛔ an UNREADABLE counter is still transient on this path: the call is not made and the message retries', async () => {
+        const { deps, queries } = build({});
+        (deps.gated.ledger.reserve as Mock).mockRejectedValue(new Error('connection terminated'));
+
+        await expect(processParseLine(deps, { ...message(), lineDigest: computeRealDigest() })).rejects.toThrow(
+            /connection terminated/,
+        );
+        expect(landings(queries)).toHaveLength(0);
+    });
+});
+
+describe('the transient/terminal split', () => {
+    it('⛔ a gated-leg TRANSPORT failure re-throws AFTER the run, BEFORE any landing — the message redelivers', async () => {
+        // REWRITTEN (ADR-0024 §3, ADR-0026 §3 as amended, owner ruling 2026-10-26). This case used a CEILING DENIAL as
+        // its transient example; on the parse-job path a denial is no longer transient (see the next describe), so the
+        // example is a Bedrock transport failure, which still is: an outage is not evidence about the ingredient.
+        const { deps, queries } = build({});
+        (deps.gated.bedrock.converse as Mock).mockRejectedValue(new Error('ThrottlingException'));
+
+        await expect(processParseLine(deps, { ...message(), lineDigest: computeRealDigest() })).rejects.toThrow(
+            /ThrottlingException/,
         );
         expect(landings(queries).length > 0).toBe(false);
     });

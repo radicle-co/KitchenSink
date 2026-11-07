@@ -177,7 +177,9 @@ export function readComponentCatalogue(root: string = repoRoot): readonly Regist
  *
  *  1. **It is a design-system component** (`@commise/ui`). Seven units, and they are the vocabulary the
  *     other 217 are written in. A vocabulary that will not name its own words is the highest-leverage gap
- *     in the tree.
+ *     in the tree. A design-system component defined as a Tamagui `styled(…)` export (ADR-0080) is one: the
+ *     catalogue lists it by its call, not by JSX (`docgen-components` `extract.ts`), and this clause keys on the
+ *     group's layer, so it is bound like any other.
  *  2. **It reaches for a ref API.** CLAUDE.md permits a ref only "to wrap a genuinely external,
  *     non-declarative system with no alternative". That carve-out IS a pattern claim — Adapter, Facade,
  *     Decorator over the imperative subsystem — so naming the pattern is the justification the ref rule

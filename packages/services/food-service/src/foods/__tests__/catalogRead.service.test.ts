@@ -204,6 +204,7 @@ function brisketHit(overrides: Partial<SearchHit> = {}): SearchHit {
         name: 'beef brisket',
         aliases: 'first cut brisket',
         score: 0.8,
+        rung: 'head',
         visibility: 'public',
         userId: null,
         ...overrides,
@@ -225,6 +226,9 @@ describe('search — the variant a query names rides its root’s hit (R15, R16,
                 id: ROOT_ID,
                 name: 'beef brisket',
                 score: 0.8,
+                rung: 'head',
+                // Rewritten (code-quality review W2): every per-caller hit says what it matched.
+                matchedBy: 'name',
                 variant: { id: 'V-flat', parts: [{ attribute: 'cut', text: 'flat' }] },
             },
         ]);
@@ -285,6 +289,7 @@ describe('search — the variant a query names rides its root’s hit (R15, R16,
 // Plan 002 S3 moved "a retired root is never a barcode hit" into the crosswalk's own SQL (`findCatalogFoodByBarcode`,
 // pinned by `dao/__tests__/foodSources.dao.test.ts` and against a real database by
 // `tests/e2e/catalogSearchPrivacy.e2e.test.ts`), so the service no longer reads the row a second time to check it.
+// Rewritten (code-quality review W2): a crosswalk hit now says it matched an identifier, a ranked hit a name.
 describe('search — a barcode unshift (curated U8 S3, plan 002 S3)', () => {
     it('unshifts nothing when the crosswalk names no live catalog food', async () => {
         const { service } = makeSearchService({ hits: [] });
@@ -296,7 +301,7 @@ describe('search — a barcode unshift (curated U8 S3, plan 002 S3)', () => {
         const { service } = makeSearchService({ hits: [], barcodeFood: { id: 'R-LIVE', name: 'beef brisket' } });
 
         expect((await service.search('0123456789012', AUTHOR)).results).toStrictEqual([
-            { id: 'R-LIVE', name: 'beef brisket', score: 1 },
+            { id: 'R-LIVE', name: 'beef brisket', score: 1, matchedBy: 'identifier' },
         ]);
     });
 
@@ -305,8 +310,8 @@ describe('search — a barcode unshift (curated U8 S3, plan 002 S3)', () => {
         const { service } = makeSearchService({ hits: [brisketHit()], barcodeFood: { id: 'R-LIVE', name: 'oxtail' } });
 
         expect((await service.search('0123456789012', AUTHOR)).results).toStrictEqual([
-            { id: 'R-LIVE', name: 'oxtail', score: 1 },
-            { id: ROOT_ID, name: 'beef brisket', score: 0.8 },
+            { id: 'R-LIVE', name: 'oxtail', score: 1, matchedBy: 'identifier' },
+            { id: ROOT_ID, name: 'beef brisket', score: 0.8, rung: 'head', matchedBy: 'name' },
         ]);
     });
 
@@ -317,7 +322,7 @@ describe('search — a barcode unshift (curated U8 S3, plan 002 S3)', () => {
         });
 
         expect((await service.search('0123456789012', AUTHOR)).results).toStrictEqual([
-            { id: ROOT_ID, name: 'beef brisket', score: 0.8 },
+            { id: ROOT_ID, name: 'beef brisket', score: 0.8, rung: 'head', matchedBy: 'name' },
         ]);
     });
 });
@@ -340,6 +345,7 @@ describe('search — a source-key unshift reads through the owner reader (curate
                 id: ROOT_ID,
                 name: 'beef brisket',
                 score: 1,
+                matchedBy: 'identifier',
                 variant: { id: 'V-flat', parts: [{ attribute: 'cut', text: 'flat' }] },
             },
         ]);

@@ -7,6 +7,7 @@
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -17,11 +18,7 @@ export const FailureAlert: FC<FailureAlertProps> = ({ body, primary, secondary }
     const { colors } = useTheme();
 
     return (
-        <View
-            collapsable={false}
-            role="alert"
-            style={[styles.alert, { backgroundColor: colors.paper, borderColor: colors.lineControl }]}
-        >
+        <Surface tone="paper" role="alert" style={[styles.alert, { borderColor: colors.lineControl }]}>
             <Text style={[styles.body, { color: colors.ink }]}>{body}</Text>
             <View style={styles.actions}>
                 <Button size="sm" icon={primary.icon} onPress={primary.onPress}>
@@ -33,7 +30,7 @@ export const FailureAlert: FC<FailureAlertProps> = ({ body, primary, secondary }
                     </Button>
                 )}
             </View>
-        </View>
+        </Surface>
     );
 };
 

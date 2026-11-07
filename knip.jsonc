@@ -50,6 +50,9 @@
         // `package.json` so a guard can be run against a REALISTIC package shape; knip otherwise adopts them
         // as workspaces and reports their deliberately-unused `zod`/`@kitchensink/schema-thing` as findings.
         "**/__tests__/fixtures/wire-contract/**",
+        // ⛔ SCANNED ON PURPOSE, NEVER IMPORTED. `web`'s `tailwindTheme.integration.test.ts` finds this file's class by
+        // scanning the source tree and asserts the web build emits no rule for it. Deleting it as an orphan breaks that test.
+        "packages/apps/commise/features/recipes/src/__tests__/tailwindScanFixture.ts",
     ],
 
     "workspaces": {

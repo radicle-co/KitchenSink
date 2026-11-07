@@ -148,6 +148,27 @@ describe('RecipeServiceClient — recipes', () => {
         expect(jsonBody(fetchMock)).toEqual({ visibility: 'public' });
     });
 
+    it('getPrivateSlots GETs /api/v1/recipes/private-slots and parses the limited arm (200)', async () => {
+        const fetchMock = stubFetch(200, { kind: 'limited', used: 12, limit: 50 });
+
+        const result = await makeClient(fetchMock).getPrivateSlots();
+
+        expect(result).toEqual({ kind: 'limited', used: 12, limit: 50 });
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('GET');
+        expect(req.url).toBe(`${BASE}/api/v1/recipes/private-slots`);
+    });
+
+    it('getPrivateSlots parses the unlimited arm, which carries neither a count nor a limit', async () => {
+        const result = await makeClient(stubFetch(200, { kind: 'unlimited' })).getPrivateSlots();
+
+        expect(result).toEqual({ kind: 'unlimited' });
+    });
+
+    it('getPrivateSlots rejects a body that is neither arm (contract drift is loud, not a NaN on a screen)', async () => {
+        await expect(makeClient(stubFetch(200, { kind: 'limited', used: 'many' })).getPrivateSlots()).rejects.toThrow();
+    });
+
     it('setRecipeRating PUTs /api/v1/recipes/{id}/rating with { stars } and returns the refreshed detail (200)', async () => {
         const rated = makeRecipeDetail({ id: 'rec_1', ratingCount: 1, averageRating: 4 });
         const fetchMock = stubFetch(200, rated);
@@ -285,6 +306,40 @@ describe('RecipeServiceClient — ingredients', () => {
         const fetchMock = stubFetch(201, makeIngredient({ id: 'ing_food' }));
 
         await expect(makeClient(fetchMock).addIngredientByName('Quinoa')).rejects.toThrow();
+    });
+
+    it('getIngredientNameProposals GETs /api/v1/ingredients/by-name/proposals?name= and returns the parsed proposals (200)', async () => {
+        const answer = {
+            phrase: 'milk',
+            proposals: [{ kind: 'root', id: 'F1', name: 'Whole milk', source: 'remembered' }],
+        };
+        const fetchMock = stubFetch(200, answer);
+
+        const result = await makeClient(fetchMock).getIngredientNameProposals('milk');
+
+        expect(result).toEqual(answer);
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('GET');
+        // Mutation guard: a READ. It must never reach the binding `by-name` POST.
+        expect(req.url).toBe(`${BASE}/api/v1/ingredients/by-name/proposals?name=milk`);
+    });
+
+    it('getIngredientNameProposals keeps an unknown source key, so a new kind of source does not break an installed client', async () => {
+        const answer = {
+            phrase: 'milk',
+            proposals: [{ kind: 'variant', id: 'V1', name: 'Oat milk', source: 'someFutureSource' }],
+        };
+        const fetchMock = stubFetch(200, answer);
+
+        await expect(makeClient(fetchMock).getIngredientNameProposals('milk')).resolves.toEqual(answer);
+    });
+
+    it('getIngredientNameProposals encodes the typed name in the query', async () => {
+        const fetchMock = stubFetch(200, { phrase: 'a&b c', proposals: [] });
+
+        await makeClient(fetchMock).getIngredientNameProposals('a&b c');
+
+        expect(requestAt(fetchMock).url).toBe(`${BASE}/api/v1/ingredients/by-name/proposals?name=a%26b+c`);
     });
 
     it('getIngredientStatus GETs /api/v1/ingredients/{id}/status and returns the refreshed ingredient (200)', async () => {

@@ -8,13 +8,27 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                                                             |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — owns recipe visibility (`FR-003`), the public read (`FR-004`) and clone (`FR-005`) paths, and the C-004 policy            |
-| [004-recipe-importing](../004-recipe-importing/spec.md)     | **Required** — owns the `sourceType` provenance vocabulary (`FR-011`), attribution (`FR-010`), attestation (`FR-014a`), quota (`FR-022`) |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — every surface here is authenticated; account erasure cascades to this feature's records                                   |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — reward benefits are expressed as entitlements; this feature grants them without owning the tier model                   |
-| [012-creator-profiles](../012-creator-profiles/spec.md)     | **Referenced** — creator-profile eligibility is one benefit this feature may grant; 012 owns the profile itself                          |
+| Spec                                                        | Relationship                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — owns recipe visibility (`FR-003`), the public read (`FR-004`) and clone (`FR-005`) paths, and the C-004 policy                                                                                                                                                                                    |
+| [004-recipe-importing](../004-recipe-importing/spec.md)     | **Required** — owns the `sourceType` provenance vocabulary (`FR-011`), attribution (`FR-010`), attestation (`FR-014a`), quota (`FR-022`)                                                                                                                                                                         |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — every surface here is authenticated; account erasure cascades to this feature's records                                                                                                                                                                                                           |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — reward benefits are expressed as entitlements; this feature grants them without owning the tier model                                                                                                                                                                                           |
+| [012-creator-profiles](../012-creator-profiles/spec.md)     | **Referenced** — creator-profile eligibility is one benefit this feature may grant; 012 owns the profile itself                                                                                                                                                                                                  |
+| [026-chef-spaces](../026-chef-spaces/spec.md)               | **Constrained by this feature (2026-10-29).** 026 proposed a Pro pool that pays chefs money for cooks of their own recipes. The owner deferred it to the royalties and chef-payments work (026 Q4). When it is written, this feature's eligibility rules (`FR-001`) bind it, and 015's rewards stay non-monetary |
+
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
+> ⚠️ **Owner ruling, 2026-10-26 — free privacy is live without this feature.** A free cook holds up to **50**
+> private recipes now ([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md),
+> `001-FR-003`). Every recipe a free cook holds as private uses a slot, book and paid-site recipes included. D4a is
+> decided as "private within 50 slots". This feature stays **STOPPED**. When it resumes, its earned slots **add to**
+> the base of 50. Three things in this spec were written for a zero start and are amended in place below:
+> `FR-007a`'s start, `FR-007c`'s ceiling, and `FR-007d`'s exemption. The schedule's numbers and the total ceiling are
+> decided again when 015 resumes.
 
 ---
 
@@ -25,8 +39,8 @@ established two facts that pull against each other:
 
 1. **The public recipe corpus is a strategic asset.** It is the source of discovery, ratings, SEO and the
    creator surface — and the primary competitor deliberately has none, which caps them.
-2. **Compelling publication is the wrong way to fill it.** Today `001-FR-003` makes a free-tier user's own
-   recipes public with no private option, which is a trust problem, a poor monetisation lever, and exposed
+2. **Compelling publication is the wrong way to fill it.** When this was written, `001-FR-003` made a free-tier
+   user's own recipes public with no private option (since 2026-10-26 a free cook holds up to 50 private recipes), which is a trust problem, a poor monetisation lever, and exposed
    under GDPR Art. 25(2) (personal data must not, _by default_, be made accessible to an indefinite number of
    people without the individual's intervention).
 
@@ -36,9 +50,11 @@ The corpus fills with willing contributors — who are also the contributors who
 ### ⛔ The central hazard this specification is designed around
 
 **A reward for publishing is an inducement to publish, and an inducement to publish content the user does not
-own is precisely what creates contributory liability and can forfeit safe-harbour protection.** Paying
-attention to this is not a compliance footnote — it is the primary design constraint, and it is why the
-eligibility rules below are deliberately narrow. A version of this feature that rewarded _any_ publication
+own could create contributory liability.** _(amended 2026-11-03, owner ruling, ADR-0082: the risk is restated as
+low.)_ [Law] Rewarding cooks for publishing their own recipes is not inducement to infringe. Inducement needs
+intent to promote infringement (MGM v. Grokster, 545 U.S. 913 (2005), Cox v. Sony, 2026). [House rule] We still
+reward only recipes the cook wrote, as cheap hygiene. Counsel review is owed before launch (`016-FR-050`). The
+eligibility rules below stay deliberately narrow. A version of this feature that rewarded _any_ publication
 would be actively worse than no feature at all.
 
 ---
@@ -159,7 +175,7 @@ A cook who published a recipe later opens it and sees that other people have mad
 the ratings it has received. Over time, that impact accrues into permanent milestones and a contributor
 standing that appears on their profile. None of it can go down.
 
-**Why this priority**: P2 to ship, P1 in importance — this is the only reward currency that reaches premium
+**Why this priority**: P2 to ship, P1 in importance — this is the only reward currency that reaches Pro
 users, and the only one with evidence of _durable_ effect. It is P2 solely because User Stories 1–3 are
 shippable without it and it depends on cook/save events existing at volume. It MUST ship before the free-tier
 slot schedule approaches its ceiling for any meaningful cohort, per `FR-007j`.
@@ -184,7 +200,7 @@ any milestone earned never decrease.
 
 ### User Story 6 - I already keep everything private, and I still want to publish one (Priority: P2)
 
-A user who has no need for slots — a premium account with unlimited privacy, or a free account that has
+A user who has no need for slots — a Pro account with unlimited privacy, or a free account that has
 already earned all it needs — has never published. Nothing in the slot economy speaks to them. They see, in
 their own account, an honest account of what they have taken from the public corpus, and an invitation to add
 to it. Their first publication is recognised in its own right, immediately, without waiting for anyone else to
@@ -195,7 +211,7 @@ cook it.
 user with unlimited privacy has a reward available in principle and **no route to it**. They are also
 plausibly our best contributors: more engaged, more recipes, more likely to be serious cooks.
 
-**Independent Test**: With a premium account holding only private recipes, verify the account can see its own
+**Independent Test**: With a Pro account holding only private recipes, verify the account can see its own
 corpus usage, publishes one authored recipe, and receives recognition immediately — with no slot granted and
 no difference in recognition from a free account doing the same.
 
@@ -207,9 +223,9 @@ no difference in recognition from a free account doing the same.
 2. **Given** any user regardless of tier, **When** they complete their **first** qualifying publication,
    **Then** recognition is granted immediately for that milestone alone, without requiring any other user to
    have cooked it.
-3. **Given** a premium user and a free user who have published identical qualifying recipes, **When** their
+3. **Given** a Pro user and a free user who have published identical qualifying recipes, **When** their
    recognition is compared, **Then** it is identical — recognition MUST NOT differ by tier.
-4. **Given** a premium user publishes a qualifying recipe, **When** the grant is evaluated, **Then** no
+4. **Given** a Pro user publishes a qualifying recipe, **When** the grant is evaluated, **Then** no
    private slot is granted (they have unlimited privacy) and this MUST NOT be presented to them as having
    earned nothing.
 
@@ -232,7 +248,7 @@ no difference in recognition from a free account doing the same.
   records for an erased user, breaching `FR-021` — durability MUST NOT outlive the account it belongs to.
 - **A user erases their account.** Every publication record and grant record for that user is erased with it;
   benefits are not transferable and simply cease.
-- **The benefit being granted is one the user already holds** (e.g. they are already premium). The grant is
+- **The benefit being granted is one the user already holds** (e.g. they are already Pro). The grant is
   still recorded, and applies when the overlapping entitlement ends.
 - **A user attests authorship falsely and is later found out.** Handled as a takedown (User Story 4); the
   attestation record is what makes the case reviewable.
@@ -256,6 +272,7 @@ no difference in recognition from a free account doing the same.
 **Eligibility — the anti-inducement core**
 
 - **FR-001**: Only a recipe whose provenance records the publishing user as its **author** MAY earn a reward.
+  _(Labelled [House rule] 2026-11-03, owner ruling, ADR-0082. The law does not require it. A Commise version never earns a reward.)_
   Recipes imported from a public web source, from a physical copy, from a paid source, or cloned from another
   user MUST NOT earn a reward under any circumstances. Publication itself is governed by the existing
   visibility policy and is **not** changed by this feature; only _earning_ is restricted here.
@@ -286,9 +303,10 @@ no difference in recognition from a free account doing the same.
 
 **Reward currency 1 — private-recipe slots (free tier)** _(owner decision, 2026-08-22)_
 
-- **FR-007a** _(schedule defined 2026-08-22; zero start re-affirmed by owner after review of the
-  endowed-progress evidence)_: A free account MUST start with **zero** private-recipe slots, and each
-  qualifying publication MUST grant slots according to this schedule:
+- **FR-007a** _(schedule defined 2026-08-22; start amended 2026-10-26 by owner ruling, ADR-0073)_: A free
+  account MUST start with the **base of 50** private-recipe slots it already holds under `001-FR-003`, and each
+  qualifying publication MUST grant slots **on top of** that base. The schedule below was written for a zero
+  start, and its numbers are decided again when this feature resumes:
 
     | Qualifying publication | Slots granted | Cumulative slots | Cumulative publications |
     | ---------------------- | ------------- | ---------------- | ----------------------- |
@@ -298,8 +316,8 @@ no difference in recognition from a free account doing the same.
 
     The schedule is **front-loaded** (a new contributor reaches a usable amount of privacy quickly) and
     **mildly diminishing** (sustained contributors are not punished, while bulk publication is not the fast
-    path). It MUST terminate at exactly the `FR-007c` ceiling of 50, so that the schedule and the ceiling are a
-    single fact that cannot disagree. Rationale and evidence:
+    path). It MUST terminate at exactly the `FR-007c` ceiling, so that the schedule and the ceiling are a single
+    fact that cannot disagree. With a base of 50, that ceiling is no longer 50; both are decided again. Rationale and evidence:
     [`research/reward-psychology.md`](./research/reward-psychology.md) §3.
 
 - **FR-007a-i**: The full schedule MUST be legible to the user before they publish — the current position, the
@@ -310,31 +328,32 @@ no difference in recognition from a free account doing the same.
   time. The **only** reversal permitted is `FR-016`'s takedown path, and it reverses only the grant earned by
   the recipe that was taken down. _(This supersedes the earlier per-period-cap framing: a permanent grant
   cannot be "consumed" or "freed", so the question of whether an unpublished recipe frees cap room is moot.)_
-- **FR-007c** _(scope corrected 2026-08-22)_: A free account MUST NOT **make a recipe private** once it
-  already holds **50** private recipes, regardless of how many slots it has earned. Once the ceiling is
-  reached, further slot grants MUST NOT be made, publication MUST still succeed, and the user MUST be told the
-  ceiling is reached and what lifts it.
+- **FR-007c** _(scope corrected 2026-08-22; base amended 2026-10-26, ADR-0073)_: A free account MUST NOT
+  **make a recipe private** once it holds as many private recipes as its limit: the base of 50 plus the slots
+  it has earned. Earned slots stop at a ceiling that is decided again when this feature resumes. Once that
+  ceiling is reached, further slot grants MUST NOT be made, publication MUST still succeed, and the user MUST be
+  told the ceiling is reached and what lifts it.
 
     **The ceiling gates the TRANSITION to private; it never acts on existing state.** A recipe that is already
     private MUST NOT be made public, deleted, or otherwise altered because the account is over the ceiling. This
-    matters for the lapsed-premium case: a premium account may accumulate unlimited private recipes and later
+    matters for the lapsed-Pro case: a Pro account may accumulate unlimited private recipes and later
     downgrade, and will then legitimately hold more than 50. That account keeps every one of them and simply
     cannot make new ones private until it is back under the ceiling. This mirrors the shipped C-004 rule
     exactly — _"this gates the transition to private, never existing state; a currently-private recipe is never
     force-flipped"_ — and any other reading would force-publish content the user chose to keep private, on a
     billing event, breaching `FR-007b` and `FR-014`.
 
-- **FR-007d**: Privacy that is **mandated by provenance** MUST NOT consume a slot. A recipe that is
-  private-only for every tier under C-004 — imported from a physical copy or a paid source — is private
-  because policy requires it, not because the user spent an earned slot, and MUST NOT count against `FR-007c`'s
-  ceiling. Charging a user a slot for privacy they never chose would re-create the coercion this feature exists
-  to remove.
+- **FR-007d** _(reversed 2026-10-26 by owner ruling, ADR-0073)_: Privacy that is **mandated by provenance**
+  DOES use a slot. A recipe imported from a physical copy or a paid source is private-only, and for a free
+  account it counts against the limit like any other private recipe. This spec first said the opposite and
+  marked it "flag for confirmation" (`C-015-005`). The owner has ruled. A free account with no free slot cannot
+  keep a new book or paid-site recipe, because it can never go public.
 
 **Reward currency 2 — status and recognition (both tiers)** _(owner decision, 2026-08-22)_
 
 - **FR-007e** _(mechanics defined 2026-08-22)_: The system MUST also recognise qualifying publications
-  through non-consumable **status and recognition**, available to **both** free and premium accounts. This is
-  the only reward currency that reaches premium users, for whom private slots have no value. It comprises
+  through non-consumable **status and recognition**, available to **both** free and Pro accounts. This is
+  the only reward currency that reaches Pro users, for whom private slots have no value. It comprises
   exactly three mechanics, `FR-007f` – `FR-007h`. Rationale and evidence:
   [`research/reward-psychology.md`](./research/reward-psychology.md) §4.
 
@@ -384,7 +403,7 @@ no difference in recognition from a free account doing the same.
   deliberate and **narrow** carve-out from `FR-007g`'s prohibition on publication-count milestones: a
   threshold of exactly **one** cannot drive volume, because it can be reached only once. It exists because
   impact-keyed recognition requires an audience a first-time publisher does not have, which would otherwise
-  leave every user — and every premium user permanently — with a reward they cannot begin to earn. No second
+  leave every user — and every Pro user permanently — with a reward they cannot begin to earn. No second
   publication-keyed milestone MUST exist at any threshold.
 
 - **FR-007m — the reciprocity signal**: A user MUST be able to see, **in their own account only**, an
@@ -397,14 +416,14 @@ no difference in recognition from a free account doing the same.
   that the user owes one is not.
 
 - **FR-007n — recognition parity across tiers**: Recognition (`FR-007e` – `FR-007h`, `FR-007l`) MUST be
-  identical for free and premium accounts, earned by the same acts on the same thresholds. Tier MUST NOT
-  affect standing, milestones, or the cook signal. A premium user who publishes MUST NOT be told they earned
+  identical for free and Pro accounts, earned by the same acts on the same thresholds. Tier MUST NOT
+  affect standing, milestones, or the cook signal. A Pro user who publishes MUST NOT be told they earned
   nothing merely because no slot applies to them; what they earned is recognition, and that is what MUST be
   stated.
 
-- **FR-007k — reaching premium**: Beyond `FR-007e`, the system MAY grant **early access to new features** and
+- **FR-007k — reaching Pro**: Beyond `FR-007e`, the system MAY grant **early access to new features** and
   **eligibility for a contributor input channel**. It MUST NOT grant **discovery placement** for a user's own
-  recipes as a reward, MUST NOT grant premium trial time as a reward, and MUST NOT grant anything monetary or
+  recipes as a reward, MUST NOT grant Pro trial time as a reward, and MUST NOT grant anything monetary or
   monetary-equivalent. Discovery placement is rejected on two independent grounds: it rewards volume and so
   drives low-quality publication, and boosting the reach of rewarded uploads is the candidate most likely to
   read as a "financial benefit directly attributable" to them under the safe-harbour analysis.
@@ -569,7 +588,9 @@ no difference in recognition from a free account doing the same.
 - **SC-002**: 100% of published recipes that earned a reward have a recorded authorship attestation. A
   publication with a grant and no attestation is a defect, not a data-quality issue.
 - **SC-003**: 0% of rewards are granted for recipes whose provenance is imported or cloned, measured
-  continuously rather than sampled.
+  continuously rather than sampled. _(amended 2026-11-03, owner ruling, ADR-0082: this is a [House rule], not a
+  legal requirement. It stays as cheap hygiene. A Commise version, if the later pilot ever ships, never earns a
+  reward. Counsel review is owed before launch (`016-FR-050`).)_
 - **SC-004**: A user can unpublish a recipe in one action, and their benefit balance after unpublishing is
   identical to before, in 100% of cases.
 - **SC-005**: The share of the public corpus contributed by users who published voluntarily rises, while the
@@ -586,10 +607,10 @@ no difference in recognition from a free account doing the same.
   pre-ceiling rate — the test that `FR-007j`'s handoff worked rather than merely being specified.
 - **SC-012**: 0% of granted milestones are keyed on publication count, with the single deliberate exception of
   `FR-007l`'s first-publication milestone.
-- **SC-013**: The share of **premium** accounts that have published at least one recipe rises. This is the
+- **SC-013**: The share of **Pro** accounts that have published at least one recipe rises. This is the
   test that the feature reaches users for whom private slots are worthless — the half the slot economy cannot
   reach by construction.
-- **SC-014**: Recognition granted to a free account and a premium account for identical qualifying
+- **SC-014**: Recognition granted to a free account and a Pro account for identical qualifying
   publications is identical in 100% of cases.
 - **SC-015**: 0% of reciprocity-signal surfaces present corpus usage as a debt, deficit, imbalance or ratio,
   and none recurs after dismissal.
@@ -600,23 +621,22 @@ no difference in recognition from a free account doing the same.
 
 ## Assumptions
 
-- **The privacy gate is being removed in parallel.** This feature assumes a free-tier user can keep their own
-  recipes private without paying — the change recommended as D4a in the competitive gap analysis. If that does
-  not land, see the clarification below: rewarding publication while also charging for privacy would apply two
-  simultaneous pressures to publish and would worsen, not improve, the Art. 25(2) position.
+- **The privacy gate is removed** (D4a, decided 2026-10-26 by ADR-0073). A free-tier user keeps up to 50
+  recipes private without paying. This feature rewards publication on top of that base, so it no longer
+  applies a second pressure to publish.
 - **Rewards are non-monetary.** Monetary rewards, revenue share and payouts are out of scope and remain blocked
   portfolio-wide: `012-FR-034` states 012 must not compute revenue splits, hold balances or initiate
   disbursement, and `013-FR-010` is blocked on marketplace payments. Non-monetary benefits are the only
   currently buildable currency and also carry materially lower inducement, tax and consumer-law risk.
 - **There are two reward currencies, doing different jobs** _(decided 2026-08-22)_: **private-recipe slots**
   for the free tier (direct, tangible, and something the contributor already wanted) and **status/recognition**
-  for both tiers (the psychological lever, and the only one that reaches premium). Import allowance and
+  for both tiers (the psychological lever, and the only one that reaches Pro). Import allowance and
   creator-profile eligibility — the currencies assumed in the first draft — are **no longer the primary
   mechanism**; import allowance is deferred and creator-profile surface ownership moved to `012` (`FR-032`).
   The research pass **inverted the emphasis**: recognition is now the load-bearing currency and slots are the
   bootstrap, because purely symbolic recognition is the only mechanic in the evidence base with demonstrated
   _durable_ effect, while the slot supply is finite by construction. **Recognition is also the only currency
-  that can reach a user who already has all the privacy they need** (`C-015-020`) — every premium account, and
+  that can reach a user who already has all the privacy they need** (`C-015-020`) — every Pro account, and
   eventually every engaged free one.
 - **Imported public recipes remain publishable but never rewardable.** This preserves attribution-carrying
   public content already permitted by the existing visibility policy while removing any incentive to import
@@ -647,7 +667,7 @@ numbered requirement, so the exclusion is testable rather than merely intended:
   users create content.
 - **Publication-count milestones** (`FR-007g`) — they instruct users to publish more, not better.
 - **Fine-grained peer-voted scores** (`FR-007h`).
-- **Discovery placement, premium trial time, and anything monetary as a reward** (`FR-007k`).
+- **Discovery placement, Pro trial time, and anything monetary as a reward** (`FR-007k`).
 - **Purchasable status** (`FR-030`).
 
 ---
@@ -667,13 +687,15 @@ numbered requirement, so the exclusion is testable rather than merely intended:
   permanent** (`FR-007b`), so nothing is consumed and nothing is freed. What survives from the old cap is a
   separate **earn-rate limit** (`FR-010`), which is a different control with a different purpose.
 - **C-015-004 — Free accounts start at ZERO private slots** (`FR-007a`), and are ceilinged at **50 private
-  recipes** (`FR-007c`).
+  recipes** (`FR-007c`). _Replaced 2026-10-26 by owner ruling (ADR-0073): free accounts start with a base of 50,
+  and earned slots add to it._
 - **C-015-005 — Privacy mandated by provenance never costs a slot** (`FR-007d`). A cookbook scan or paid-source
   recipe is private because C-004 requires it. Spending a user's earned slot on privacy they did not choose
   would re-create the coercion this feature exists to remove. _(Derived by this spec from C-015-004, not
-  stated by the owner — flag for confirmation.)_
+  stated by the owner — flag for confirmation.)_ _Answered 2026-10-26: the owner ruled the other way. Book and
+  paid-site recipes use a slot (`FR-007d`, ADR-0073)._
 - **C-015-006 — Two currencies, not one.** Private slots reach the free tier; status and recognition reach
-  everyone, and are the **only** lever that reaches premium, for whom slots are worthless.
+  everyone, and are the **only** lever that reaches Pro, for whom slots are worthless.
 
 ### Session 2026-08-22 (part 2) — resolved by research
 
@@ -699,8 +721,8 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
 - **C-015-012 — streaks are REJECTED** (`FR-025`). Frequency mismatch (nobody authors an original recipe
   daily, so a streak can only be fed with filler) and loss-framing. The closest industry analogue removed the
   mechanic over contributor harm.
-- **C-015-013 — one strong currency beats three weak ones for premium** (`FR-007k`). Recognition plus early
-  access and a contributor input channel; discovery placement, premium trial time and anything monetary are
+- **C-015-013 — one strong currency beats three weak ones for Pro** (`FR-007k`). Recognition plus early
+  access and a contributor input channel; discovery placement, Pro trial time and anything monetary are
   rejected. Stacking further extrinsic levers onto intrinsically motivated behaviour is what causes the
   crowding-out recorded below.
 - **C-015-014 — 015 owns the earning, 012 owns the surface** (`FR-032`). Resolves the standing question of
@@ -711,7 +733,7 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
   two, not against the AI Act.
 - **C-015-016 — the inducement analysis flagged as missing is now done** to the level a spec can carry
   ([`research/reward-psychology.md`](./research/reward-psychology.md) §6). Conclusion: the programme's shape is
-  defensible while the rewarded set stays narrow and non-monetary — which is what `FR-001`, `FR-002`, `FR-007`,
+  defensible (restated 2026-11-03, ADR-0082: inducement risk is low, see Grokster and Cox v. Sony) while the rewarded set stays narrow and non-monetary — which is what `FR-001`, `FR-002`, `FR-007`,
   `FR-016` and `FR-018` already enforce. It is **also the reason discovery placement is rejected**, since
   boosting the reach of rewarded uploads is the candidate most likely to read as a financial benefit
   attributable to them. Counsel review remains a launch prerequisite.
@@ -724,7 +746,9 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
   reciprocity bargain is kept at its cleanest — privacy is earned, never given. **Do not re-open it in a
   future session on the basis of the endowed-progress finding; that argument has been made and declined.**
   The recorded risk below is therefore **accepted**, not outstanding, and its two consequences — a partial
-  Art. 25(2) answer and the sensitive-first-recipe case — are live and known.
+  Art. 25(2) answer and the sensitive-first-recipe case — are live and known. _Re-opened and replaced by the
+  owner on 2026-10-26 (ADR-0073): every free account now starts with 50 private slots, so the zero start and
+  its toll are gone._
 - **C-015-018 — contributor standing is PUBLIC on the creator profile** (`FR-007h`). Public, because
   recognition that only its owner can see is not recognition; **without rank or comparison**, because
   `FR-026` forbids that independently. Surface owned by `012` (`FR-032`).
@@ -735,10 +759,10 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
 ### Session 2026-08-22 (part 4) — incentivising users who already have privacy
 
 - **C-015-020 — the slot economy cannot reach a user who already has privacy, and recognition alone did not
-  either.** Raised by the owner: private-holding users — every premium account, and any free account sitting
+  either.** Raised by the owner: private-holding users — every Pro account, and any free account sitting
   on earned slots — must be incentivised to publish too. Recognition was already specified to reach both tiers
   (`C-015-006`), but it is keyed on **impact**, and impact requires an audience a first-time publisher does
-  not have. The result was a reward that reached premium users in principle with **no route to it in
+  not have. The result was a reward that reached Pro users in principle with **no route to it in
   practice**; the free tier's on-ramp is front-loaded slots, which are worth nothing to them. Three
   requirements close it:
     - **`FR-007l`** — the first qualifying publication is recognised on its own, for every tier, with no impact
@@ -747,7 +771,7 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
       corpus. This is the only lever that speaks to someone who needs no benefit, because it appeals to fairness
       rather than reward. Bounded hard against debt, deficit and obligation framing — the difference between
       reciprocity and a guilt prompt is exactly the difference between `FR-007m` and a dark pattern.
-    - **`FR-007n`** — recognition is identical across tiers, and a premium publisher is never told they earned
+    - **`FR-007n`** — recognition is identical across tiers, and a Pro publisher is never told they earned
       nothing merely because no slot applies.
     - Tested by `SC-013`–`SC-015`; covered by **User Story 6**.
 
@@ -763,10 +787,10 @@ Evidence base: [`research/reward-psychology.md`](./research/reward-psychology.md
 
 - **Q: Does `FR-007c`'s 50-recipe ceiling constrain what an account HOLDS, or what it may newly make
   private?** → **A: Transitions only.** The ceiling gates the transition to private and never touches existing
-  state; a lapsed premium account keeps every private recipe it accumulated. _(`C-015-022`. This resolved a
+  state; a lapsed Pro account keeps every private recipe it accumulated. _(`C-015-022`. This resolved a
   genuine **contradiction**: `FR-007c` said "MUST NOT hold", which read literally required force-flipping a
   downgraded user's private recipes to public — breaching `FR-007b` and `FR-014` and mirroring nothing in the
-  shipped code. Downstream: `TC030` gains a lapsed-premium case; `D031`'s policy input is unchanged.)_
+  shipped code. Downstream: `TC030` gains a lapsed-Pro case; `D031`'s policy input is unchanged.)_
 
 - **Q: How is grant issuance serialized against concurrent publishes?** → **A: One conditional write** whose
   WHERE clause re-checks the rate limit and ceiling; zero rows returned is the denial. _(`C-015-023`, new
@@ -802,7 +826,10 @@ Two specific consequences to weigh before implementation:
    cover it) must publish something else first. `FR-007d` protects cookbook _scans_, not typed-in family
    recipes.
 
-**Status: PRICED AND ACCEPTED (2026-08-22).** The mitigations were researched, evidenced and put to the
+**Status: RESOLVED by the 2026-10-26 base of 50 (ADR-0073).** A free user's first recipe can now be private,
+so the toll below no longer applies. The rest of this section is the record of the earlier decision.
+
+**Earlier status: PRICED AND ACCEPTED (2026-08-22).** The mitigations were researched, evidenced and put to the
 owner as Q1; the owner re-affirmed the zero start with the evidence in hand (`C-015-017`). This risk is
 therefore **an accepted consequence of a deliberate decision**, not an open item — and it must not be quietly
 re-opened as though it were a defect.
@@ -838,11 +865,11 @@ resolved above. Their original option tables are retained in git history.
 ## Related: feature 016 shares this feature's D4a assumption
 
 [016-legal-compliance-framework](../016-legal-compliance-framework/spec.md) was created 2026-08-22 (C-016-003)
-and its amendment to `001-FR-005b` **removes the premium gate on making a clone private**, citing D4a and this
+and its amendment to `001-FR-005b` **removes the Pro gate on making a clone private**, citing D4a and this
 feature's `C-015-001` as the authority for doing so. Three consequences for 015:
 
-- **D4a is now load-bearing for two features, not one.** If it does not land, 016's amendment to `001-FR-005`
-  is stranded alongside this feature's premise.
+- **D4a was load-bearing for two features, not one.** It is decided (2026-10-26, ADR-0073), within 50 private
+  slots.
 - **016 owns the takedown process this feature's `FR-016`–`FR-018` consume.** That was previously an
   assumption ("a registered takedown agent and repeat-infringer policy exist by the time User Story 4
   ships"); it now has a specification behind it — `016-FR-016`–`FR-026` — and `016-FR-023` explicitly
@@ -861,35 +888,34 @@ Every open question is closed. The four areas the previous session left open wer
 not settle alone were put to the owner and answered (`C-015-017` – `C-015-019`). **No `[NEEDS CLARIFICATION]`
 markers and no UNDEFINED values remain.**
 
-| Area                                                                 | State                             |
-| -------------------------------------------------------------------- | --------------------------------- |
-| Privacy model, slot permanence, 50-recipe ceiling, eligibility floor | ✅ Decided (session 1)            |
-| Reward schedule — slots per publication, earn-rate limit             | ✅ Decided (`FR-007a`, `FR-010`)  |
-| Status & recognition — what it is, where it appears, who sees it     | ✅ Decided (`FR-007e`–`FR-007h`)  |
-| Incentives that reach premium                                        | ✅ Decided (`FR-007k`)            |
-| Anti-manipulation constraints                                        | ✅ Decided (`FR-025`–`FR-031`)    |
-| Ownership boundary with 012                                          | ✅ Decided (`FR-032`)             |
-| Zero-slot start                                                      | ✅ Priced, accepted (`C-015-017`) |
+| Area                                                                 | State                            |
+| -------------------------------------------------------------------- | -------------------------------- |
+| Privacy model, slot permanence, 50-recipe ceiling, eligibility floor | ✅ Decided (session 1)           |
+| Reward schedule — slots per publication, earn-rate limit             | ✅ Decided (`FR-007a`, `FR-010`) |
+| Status & recognition — what it is, where it appears, who sees it     | ✅ Decided (`FR-007e`–`FR-007h`) |
+| Incentives that reach Pro                                            | ✅ Decided (`FR-007k`)           |
+| Anti-manipulation constraints                                        | ✅ Decided (`FR-025`–`FR-031`)   |
+| Ownership boundary with 012                                          | ✅ Decided (`FR-032`)            |
+| Starting slots                                                       | ✅ Base of 50 (ADR-0073)         |
 
 ### ⛔ Blocking a launch decision — not this spec's to resolve, and not closed by planning
 
 These were carried in from the competitive analysis and remain open. `/speckit-plan` can proceed; **shipping
 cannot**, and the last one is the hardest:
 
-- **D4a / D4b** — un-gating privacy from the paywall, and making `imported_public` private-by-default. This
-  feature assumes D4a lands; if it does not, rewarding publication _while_ charging for privacy applies two
-  simultaneous pressures and worsens the Art. 25(2) position rather than improving it.
+- **D4a** is decided (2026-10-26, ADR-0073): a free cook holds up to 50 private recipes. **D4b** — making
+  `imported_public` private-by-default — stays open.
 - **D5** — re-pricing. Removing the privacy paywall removes the free tier's only current paywall lever.
 - **D24** — registered takedown agent and repeat-infringer policy. `FR-016`–`FR-018` consume a takedown
   process that does not yet exist for the main recipe corpus.
 - **The ToS content licence** (`016-FR-010`–`FR-015`) — still missing portfolio-wide; `016`'s spec records that
   there is no terms acceptance, consent record or age floor today. ⚠️ **This is a PRE-EXISTING gap that this
   feature inherits, not one it creates**: `001-FR-004` (public read) and `001-FR-005` (clone) already ship, so
-  the missing licence blocks the current product. What 015 uniquely adds is **inducement** — rewarding
-  publication converts passive hosting into active encouragement, which is what moves the §512(c)(1)(B)
-  analysis. 015 raises the cost of leaving the gap open; it does not open it.
+  the missing licence blocks the current product. What 015 adds is a **low inducement risk** _(amended
+  2026-11-03, ADR-0082)_. [Law] Rewarding cooks for their own recipes is not inducement (Grokster, Cox v. Sony).
+  The reward rule keeps it low. 015 does not open the gap.
 - **016's takedown process** — a genuine and narrow blocker: `FR-016`–`FR-019` consume it, which hard-blocks
   **User Story 4 only**. US1–US3 do not depend on it.
-- **Counsel review of the inducement posture** — the analysis in
+- **Counsel review of the inducement posture** (`016-FR-050`) — the analysis in
   [`research/reward-psychology.md`](./research/reward-psychology.md) §6 is as far as a specification can
   responsibly go.

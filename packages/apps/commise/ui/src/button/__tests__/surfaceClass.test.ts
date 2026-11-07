@@ -16,11 +16,14 @@
 import { wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
 
-import { palette, role } from '../../tokens/colors.js';
+import { FOCUS_RING_CLASS } from '../../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../../surfaceTone/surfaceToneClass.js';
+import { palette, role, roleDark } from '../../tokens/colors.js';
 import { kebab } from '../../tokens/emit.js';
+import { webTypeRoles } from '../../tokens/typography.js';
 import { BUSY_CONTROL_CLASS } from '../busyControlProps.js';
 import type { ButtonSize } from '../props.js';
-import { GHOST_EDGE_CLASS, buttonSurfaceClass } from '../surfaceClass.js';
+import { GHOST_EDGE_CLASS, buttonGlyphClass, buttonSurfaceClass, buttonToggleSurfaceClass } from '../surfaceClass.js';
 
 /** Every colour a utility can name: the palette, and the roles under their emitted kebab names (`ink-muted`). */
 const COLOURS: Readonly<Record<string, string>> = {
@@ -32,13 +35,14 @@ const COLOURS: Readonly<Record<string, string>> = {
 const AA_TEXT = 4.5;
 const AA_UI_COMPONENT = 3;
 
-/** Every surface the four tiers and two destructive tones produce, at the default size. */
+/** Every surface the five tiers and two destructive tones produce, at the default size. */
 const SURFACES: readonly { readonly name: string; readonly className: string }[] = [
     { name: 'primary', className: buttonSurfaceClass('primary') },
     { name: 'secondary', className: buttonSurfaceClass('secondary') },
     { name: 'ghost', className: buttonSurfaceClass('ghost') },
+    { name: 'quiet', className: buttonSurfaceClass('quiet') },
     { name: 'destructive inline', className: buttonSurfaceClass('destructive') },
-    { name: 'destructive confirm', className: buttonSurfaceClass('destructive', 'md', 'confirm') },
+    { name: 'destructive confirm', className: buttonSurfaceClass('destructive', { tone: 'confirm' }) },
 ];
 
 const SIZES: readonly ButtonSize[] = ['lg', 'md', 'sm'];
@@ -91,25 +95,28 @@ function fillOf(className: string): string {
 
 describe('buttonSurfaceClass — geometry', () => {
     /**
-     * E2 I12 — the floor follows the POINTER, not the width: a touch screen keeps 44 px at every width and only a mouse
-     * at md: and up gets the desktop density. Applies to the default `md` size, the one the mouse reset was made for.
+     * REWRITTEN for owner ruling B1 (parity item 3): the E2 I12 pointer reset (`md:pointer-fine:min-h-0`) is GONE. It
+     * drew a desktop `md` button at 40 px (measured in AppSnackbars), and B1 allows 44 or 52. The floor now holds at
+     * every width and for every pointer. Mutation lens: bring any `min-h-0` reset back and a row fails.
      */
-    it('keeps the 44px floor for touch at every width, and resets it only for a fine pointer at md:', () => {
+    it('keeps the 44px floor at every width and for every pointer, with no min-h reset of any kind', () => {
         for (const { name, className } of SURFACES) {
             expect(tokensOf(className), name).toContain('min-h-11');
-            expect(tokensOf(className), name).toContain('md:pointer-fine:min-h-0');
-            expect(tokensOf(className), name).not.toContain('md:min-h-0');
+            expect(
+                tokensOf(className).filter((token) => /min-h-0$/u.test(token)),
+                name,
+            ).toEqual([]);
         }
     });
 
     it('sizes lg at 52, md at 44 and sm at 36 visual px', () => {
-        expect(tokensOf(buttonSurfaceClass('primary', 'lg'))).toContain('min-h-13');
-        expect(tokensOf(buttonSurfaceClass('primary', 'md'))).toContain('min-h-11');
-        expect(tokensOf(buttonSurfaceClass('primary', 'sm'))).toContain('min-h-9');
+        expect(tokensOf(buttonSurfaceClass('primary', { size: 'lg' }))).toContain('min-h-13');
+        expect(tokensOf(buttonSurfaceClass('primary', { size: 'md' }))).toContain('min-h-11');
+        expect(tokensOf(buttonSurfaceClass('primary', { size: 'sm' }))).toContain('min-h-9');
     });
 
     it('gives the 36px sm button a 44px hit area, by an overlay four px above and below it', () => {
-        const tokens = tokensOf(buttonSurfaceClass('secondary', 'sm'));
+        const tokens = tokensOf(buttonSurfaceClass('secondary', { size: 'sm' }));
 
         expect(tokens).toContain('relative');
         expect(tokens).toContain("before:content-['']");
@@ -125,7 +132,7 @@ describe('buttonSurfaceClass — geometry', () => {
      */
     it('rounds every size to half its height, never to a full pill', () => {
         for (const size of SIZES) {
-            const className = buttonSurfaceClass('primary', size);
+            const className = buttonSurfaceClass('primary', { size });
             const step = /(?:^|\s)min-h-(\d+)(?=\s|$)/u.exec(className)?.[1];
 
             expect(step, size).toBeDefined();
@@ -146,16 +153,16 @@ describe('buttonSurfaceClass — geometry', () => {
      * longer than its whole container (200% text, §1.1's standing exception) wrapping inside the box, never overflowing.
      */
     it('never shrinks below its label in a flex row, and never grows past its container', () => {
-        for (const variant of ['primary', 'secondary', 'ghost'] as const) {
+        for (const variant of ['primary', 'secondary', 'ghost', 'quiet'] as const) {
             for (const size of SIZES) {
-                const tokens = tokensOf(buttonSurfaceClass(variant, size));
+                const tokens = tokensOf(buttonSurfaceClass(variant, { size }));
 
                 expect(tokens, `${variant} ${size}`).toContain('shrink-0');
                 expect(tokens, `${variant} ${size}`).toContain('max-w-full');
             }
         }
 
-        expect(tokensOf(buttonSurfaceClass('destructive', 'md', 'confirm'))).toContain('shrink-0');
+        expect(tokensOf(buttonSurfaceClass('destructive', { tone: 'confirm' }))).toContain('shrink-0');
     });
 
     /**
@@ -164,7 +171,9 @@ describe('buttonSurfaceClass — geometry', () => {
      * class pulls the box out by exactly the inline padding, read from the surface itself so the two cannot drift.
      */
     it('pulls a ghost button out by exactly its own inline padding, at every breakpoint', () => {
-        const paddings = tokensOf(buttonSurfaceClass('ghost', 'sm')).filter((token) => /(?:^|:)px-\d+$/u.test(token));
+        const paddings = tokensOf(buttonSurfaceClass('ghost', { size: 'sm' })).filter((token) =>
+            /(?:^|:)px-\d+$/u.test(token),
+        );
 
         expect(paddings.length).toBeGreaterThan(0);
         expect([...tokensOf(GHOST_EDGE_CLASS)].sort()).toEqual(
@@ -172,15 +181,24 @@ describe('buttonSurfaceClass — geometry', () => {
         );
     });
 
-    it('sets the label in the label type role', () => {
+    // REWRITTEN for owner ruling B1 (2026-10-26, `componentFixes` issue 1): a button label is 16/600 with a 20 px
+    // leading, the `cardTitle` role, no longer the 14/600 `label` role. Pinned on both the class and the emitted role.
+    it('sets the label in the cardTitle type role (16/20/600), never the 14/600 label role', () => {
         for (const { name, className } of SURFACES) {
-            expect(tokensOf(className), name).toContain('text-label');
+            expect(tokensOf(className), name).toContain('text-card-title');
+            expect(tokensOf(className), name).not.toContain('text-label');
         }
+
+        expect(webTypeRoles['card-title']).toEqual({
+            size: '1rem',
+            lineHeight: 'calc(20 / 16)',
+            fontWeight: '600',
+        });
     });
 });
 
 describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
-    // REWRITTEN in slice 2 (owner: primary buttons are ONE flat fill, `modernizeB.md` §3): the seafoam → ocean-dark
+    // REWRITTEN in slice 2 (owner: primary buttons are ONE flat fill, `modernizeB.md` §3): the steel → ocean-dark
     // gradient is gone. The fill is the `action` role, the label `onAction`, and press/hover `actionPressed`.
     it('paints primary as ONE flat action fill with an onAction label, actionPressed on hover and press', () => {
         const tokens = tokensOf(buttonSurfaceClass('primary'));
@@ -190,21 +208,58 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
         expect(tokens.filter((token) => /(?:^|:)(?:from|via|to|bg-gradient)-/u.test(token))).toEqual([]);
     });
 
-    // Hover and press are an `ink` wash at 6% (`darkTheme.md` §1, "Pressed and hover"), which re-themes with `ink`;
-    // the `pearl` fill it replaces is a light-only palette entry.
-    it('paints secondary neutral: paper, a lineControl edge and an ink label, an ink wash on hover and press', () => {
+    // REWRITTEN for ruling 3 (`componentFixes` issue 3, 2026-10-26): over paper and sheets the pressed fill is
+    // `surfaceMuted`; the ink-alpha wash (`ink` at 6%) is dropped. `surfaceMuted` is a role, so it re-themes.
+    it('paints secondary neutral: paper, a lineControl edge and an ink label, a surfaceMuted fill on hover and press', () => {
         const tokens = tokensOf(buttonSurfaceClass('secondary'));
 
         expect(tokens).toEqual(expect.arrayContaining(['bg-paper', 'border', 'border-line-control', 'text-ink']));
-        expect(tokens).toEqual(expect.arrayContaining(['hover:bg-ink/6', 'active:bg-ink/6']));
+        expect(tokens).toEqual(expect.arrayContaining(PRESS_FILL_CLASS.pointer.split(' ')));
     });
 
-    it('paints ghost as an actionText label with no fill and no edge, an ink wash on hover and press', () => {
+    it('paints ghost as an actionText label with no fill and no edge, a surfaceMuted fill on hover and press', () => {
         const tokens = tokensOf(buttonSurfaceClass('ghost'));
 
         expect(tokens).toContain('text-action-text');
         expect(tokens.filter((token) => /^(bg|border|from)-/u.test(token))).toEqual([]);
-        expect(tokens).toEqual(expect.arrayContaining(['hover:bg-ink/6', 'active:bg-ink/6']));
+        expect(tokens).toEqual(expect.arrayContaining(PRESS_FILL_CLASS.pointer.split(' ')));
+    });
+
+    // `componentFixes.md` §1 (owner approval 2026-10-26): the quiet tier has NO fill and NO edge at rest, because a tonal
+    // fill now means "chip" (§4). Its label is `ink` (it was `inkMuted`: a Try again must not recede), and the glyph takes
+    // `actionText` (`buttonGlyphClass`). Hover and press take the house ink wash every tier shares (`darkTheme.md` §1).
+    it('paints quiet as an ink label with no fill and no edge at rest, a surfaceMuted fill on hover and press', () => {
+        const tokens = tokensOf(buttonSurfaceClass('quiet'));
+
+        expect(tokens).toContain('text-ink');
+        expect(tokens).not.toContain('text-ink-muted');
+        expect(tokens.filter((token) => /^(bg|border|from|shadow)(-|$)/u.test(token))).toEqual([]);
+        expect(tokens).toEqual(expect.arrayContaining(PRESS_FILL_CLASS.pointer.split(' ')));
+        expect(tokens).toContain('min-h-11');
+    });
+
+    // REWRITTEN for ruling 3: this used to forbid a surface-muted fill "at rest or on hover". The pressed fill over paper
+    // IS surface-muted now, so only the RESTING half stands: at rest quiet paints nothing a chip could be mistaken for.
+    it('⛔ gives quiet no surface a chip could be mistaken for: no surface-muted fill at rest', () => {
+        expect(
+            tokensOf(buttonSurfaceClass('quiet')).filter(
+                (token) => !token.includes(':') && token.includes('surface-muted'),
+            ),
+        ).toEqual([]);
+    });
+
+    it('drops the ink-alpha wash from every tier', () => {
+        for (const { name, className } of SURFACES) {
+            expect(className, name).not.toMatch(/bg-ink\/\d/u);
+        }
+    });
+
+    it('takes the glyph from actionText for quiet alone; every other tier draws it in its label colour', () => {
+        expect(buttonGlyphClass('quiet')).toBe('text-action-text');
+
+        for (const variant of ['primary', 'secondary', 'ghost', 'destructive'] as const) {
+            expect(buttonGlyphClass(variant), variant).toBe('');
+        }
     });
 
     it('paints inline destructive as a danger label on the neutral surface', () => {
@@ -215,8 +270,13 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
 
     it('fills destructive with error only in its confirm tone', () => {
         // `dangerText` is light in the dark theme, so it cannot be a pressed FILL: the press darkens the fill itself.
-        expect(tokensOf(buttonSurfaceClass('destructive', 'md', 'confirm'))).toEqual(
-            expect.arrayContaining(['bg-danger', 'text-on-action', 'hover:bg-danger/90', 'active:bg-danger/90']),
+        expect(tokensOf(buttonSurfaceClass('destructive', { tone: 'confirm' }))).toEqual(
+            expect.arrayContaining([
+                'bg-danger',
+                'text-on-action',
+                'hover:bg-danger-pressed',
+                'active:bg-danger-pressed',
+            ]),
         );
         expect(tokensOf(buttonSurfaceClass('destructive'))).not.toContain('bg-danger');
     });
@@ -225,11 +285,16 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
     it('takes every colour from a role, in every tier and state', () => {
         const roleNames = new Set(Object.keys(role).map(kebab));
         const colourUtility = /^(?:bg|text|border|ring|from|via|to)-([a-z][a-z-]*?)(?:\/\d+)?$/u;
+        // The type roles also take `text-*`; they are read from the emitted roles, not from a second list.
+        const typeRoleNames = new Set(Object.keys(webTypeRoles));
 
         for (const { name, className } of SURFACES) {
             const colours = tokensOf(className)
                 .map((token) => colourUtility.exec(token.split(':').at(-1) ?? '')?.[1])
-                .filter((colour): colour is string => colour !== undefined && !/^(?:label|\d|offset)/u.test(colour));
+                .filter(
+                    (colour): colour is string =>
+                        colour !== undefined && !typeRoleNames.has(colour) && !/^(?:\d|offset)/u.test(colour),
+                );
 
             expect(
                 colours.filter((colour) => !roleNames.has(colour)),
@@ -296,10 +361,120 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
 
 describe('buttonSurfaceClass — defaults', () => {
     it('defaults to the primary tier at md', () => {
-        expect(buttonSurfaceClass()).toBe(buttonSurfaceClass('primary', 'md'));
+        expect(buttonSurfaceClass()).toBe(buttonSurfaceClass('primary', { size: 'md' }));
     });
 
     it('defaults destructive to its inline tone', () => {
-        expect(buttonSurfaceClass('destructive')).toBe(buttonSurfaceClass('destructive', 'md', 'inline'));
+        expect(buttonSurfaceClass('destructive')).toBe(buttonSurfaceClass('destructive', { tone: 'inline' }));
+    });
+});
+
+// Ruling 3: a pressed button keeps its label colour on the NEW fill. Mutation lens: any fill that drops one of these
+// under 4.5:1 in either theme fails.
+describe('the surfaceMuted press fill keeps every pressable label readable (SC 1.4.3), in both themes', () => {
+    it.each([
+        ['ink (secondary, quiet)', 'ink'],
+        ['actionText (ghost)', 'actionText'],
+        ['dangerText (destructive inline)', 'dangerText'],
+    ] as const)('%s on surfaceMuted', (_name, label) => {
+        expect(wcagContrast(role[label], role.surfaceMuted)).toBeGreaterThanOrEqual(AA_TEXT);
+        expect(wcagContrast(roleDark[label], roleDark.surfaceMuted)).toBeGreaterThanOrEqual(AA_TEXT);
+    });
+
+    it('ink on lineDivider, the chip press fill', () => {
+        expect(wcagContrast(role.ink, role.lineDivider)).toBeGreaterThanOrEqual(AA_TEXT);
+        expect(wcagContrast(roleDark.ink, roleDark.lineDivider)).toBeGreaterThanOrEqual(AA_TEXT);
+    });
+});
+
+describe('buttonToggleSurfaceClass — a switch that wears the secondary button (`componentFixes` issue 6)', () => {
+    it('is the secondary surface exactly while unselected, at every size', () => {
+        for (const size of SIZES) {
+            expect(buttonToggleSurfaceClass(false, size), size).toBe(buttonSurfaceClass('secondary', { size }));
+        }
+    });
+
+    it('swaps only the fill and the edge colour when selected: same geometry, same edge width', () => {
+        const off = tokensOf(buttonToggleSurfaceClass(false));
+        const on = tokensOf(buttonToggleSurfaceClass(true));
+        const colour = (token: string): boolean => /^(?:bg|border|text|hover:bg|active:bg|active:ring)-/u.test(token);
+
+        expect(on.filter((token) => !colour(token))).toEqual(off.filter((token) => !colour(token)));
+        expect(on).toEqual(expect.arrayContaining(['bg-selected-fill', 'border-selected-edge']));
+        expect(on).not.toContain('bg-paper');
+        expect(on).not.toContain('border-line-control');
+    });
+
+    // `componentFixes` §5: pressing a switch that is ON shows a 2 px `selectedEdge`. A 1 px inset ring over the 1 px border
+    // makes the 2 px without changing the box, so nothing around the control moves. Off keeps Button's own fill press.
+    it('presses to a 2 px selectedEdge while on (1 px border + 1 px inset ring), and only while on', () => {
+        const on = tokensOf(buttonToggleSurfaceClass(true));
+
+        expect(on).toEqual(expect.arrayContaining(['active:ring-1', 'active:ring-inset', 'active:ring-selected-edge']));
+        expect(on.filter((token) => /^active:/u.test(token))).not.toContain('active:bg-surface-muted');
+        expect(tokensOf(buttonToggleSurfaceClass(false)).filter((token) => token.startsWith('active:ring'))).toEqual(
+            [],
+        );
+        expect(tokensOf(buttonToggleSurfaceClass(false))).toEqual(
+            expect.arrayContaining(PRESS_FILL_CLASS.pointer.split(' ')),
+        );
+    });
+
+    it('keeps the label readable at 4.5:1 on the selected fill and the edge at 3:1 against paper (SC 1.4.3, 1.4.11)', () => {
+        const className = buttonToggleSurfaceClass(true);
+
+        expect(wcagContrast(restingColour(className, 'text'), fillOf(className))).toBeGreaterThanOrEqual(AA_TEXT);
+        expect(wcagContrast(restingColour(className, 'border'), role.paper)).toBeGreaterThanOrEqual(AA_UI_COMPONENT);
+    });
+});
+
+// The press fill is read from the SURFACE (`componentFixes.md` §10): a neutral tier wears `PRESS_FILL_CLASS.pointer`, which
+// reads the inherited `--cm-press`, so there is no per-call "over" and no second press. Mutation lens: write
+// `hover:bg-surface-muted` or `hover:bg-line-divider` back into a tier and a test below fails.
+describe('buttonSurfaceClass — the press fill is the surface’s', () => {
+    const POINTER = PRESS_FILL_CLASS.pointer.split(' ');
+
+    it.each([
+        ['secondary', buttonSurfaceClass('secondary')],
+        ['ghost', buttonSurfaceClass('ghost')],
+        ['quiet', buttonSurfaceClass('quiet')],
+        ['destructive inline', buttonSurfaceClass('destructive')],
+    ])('%s presses to the surface’s --cm-press and to no fixed colour', (_name, className) => {
+        const tokens = tokensOf(className);
+
+        expect(tokens).toEqual(expect.arrayContaining(POINTER));
+        expect(tokens.filter((token) => /^(?:hover|active):bg-(?:surface-muted|line-divider)$/u.test(token))).toEqual(
+            [],
+        );
+    });
+
+    it('draws the focus ring from the one recipe, its gap the surface’s fill', () => {
+        for (const { name, className } of SURFACES) {
+            expect(tokensOf(className), name).toEqual(expect.arrayContaining(FOCUS_RING_CLASS.offset.split(' ')));
+            expect(className, name).not.toContain('ring-offset-canvas');
+        }
+    });
+
+    it('takes its size and destructive tone as named options, and no surface', () => {
+        expect(buttonSurfaceClass('ghost', { size: 'sm' })).toContain('min-h-9');
+        expect(tokensOf(buttonSurfaceClass('destructive', { tone: 'confirm' }))).toContain('bg-danger');
+        expect(buttonSurfaceClass('destructive', { size: 'lg', tone: 'inline' })).toBe(
+            buttonSurfaceClass('destructive', { size: 'lg' }),
+        );
+    });
+
+    // dangerPressed replaces `danger/90`: the alpha had no native role, so the confirm button did not change on press there.
+    it('presses a confirm to the dangerPressed role, not an alpha of danger', () => {
+        const tokens = tokensOf(buttonSurfaceClass('destructive', { tone: 'confirm' }));
+
+        expect(tokens).toEqual(expect.arrayContaining(['hover:bg-danger-pressed', 'active:bg-danger-pressed']));
+        expect(tokens.some((token) => token.includes('danger/90'))).toBe(false);
+    });
+
+    it('leaves the filled tiers on their own darkening press, whatever the surface', () => {
+        expect(tokensOf(buttonSurfaceClass('primary'))).not.toEqual(expect.arrayContaining(POINTER));
+        expect(tokensOf(buttonSurfaceClass('destructive', { tone: 'confirm' }))).not.toEqual(
+            expect.arrayContaining(POINTER),
+        );
     });
 });

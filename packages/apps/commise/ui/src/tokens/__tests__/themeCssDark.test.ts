@@ -11,7 +11,7 @@ import { COVER_TINT_NAMES, coverTint, coverTintDark } from '../covers.js';
 import { gradientCss, heroDark } from '../gradients.js';
 import { kebab } from '../emit.js';
 import { themeCss } from '../themeCss.js';
-import { difficultyTone, difficultyToneDark, proTone } from '../tones.js';
+import { difficultyTone, difficultyToneDark, proTone, proToneDark } from '../tones.js';
 
 const css = themeCss();
 
@@ -64,10 +64,13 @@ describe('themeCss — the dark block', () => {
         }
     });
 
-    it('emits the PRO pair once, in @theme, and never re-themes it (darkTheme.md §2: fixed in both themes)', () => {
+    // REWRITTEN for the redesign: PRO is a neutral chip that re-themes (it was a tan pair fixed in both themes), so the
+    // dark block carries its dark pair.
+    it('emits the PRO pair in @theme and overrides it in the dark block', () => {
         expect(css).toContain(`--color-pro-fill: ${proTone.fill};`);
         expect(css).toContain(`--color-pro-ink: ${proTone.text};`);
-        expect(darkBlock()).not.toContain('--color-pro-');
+        expect(darkBlock()).toContain(`--color-pro-fill: ${proToneDark.fill};`);
+        expect(darkBlock()).toContain(`--color-pro-ink: ${proToneDark.text};`);
     });
 
     it('lets native form controls follow the theme', () => {

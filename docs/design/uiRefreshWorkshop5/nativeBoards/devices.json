@@ -1,0 +1,56 @@
+{
+    "note": "The native board sizes (owner, 2026-10-31: the fewest sizes that cover iPhone, Android and iPad). Logical sizes: points on iOS, dp on Android. Insets are the system's, so they are the one place a board value is not on the spacing scale. Each inset names its source; re-measure each with useSafeAreaInsets() on a simulator or emulator before treating it as exact. Android tablets take the Ipad820 layout (owner, 2026-10-31), so they have no board.",
+    "devices": {
+        "Iphone390": {
+            "os": "ios",
+            "label": "iPhone 390",
+            "kind": "phone",
+            "width": 390,
+            "height": 844,
+            "insets": {
+                "top": 47,
+                "bottom": 34
+            },
+            "touchFloor": 44,
+            "source": "Use Your Loaf, iPhone 14 screen sizes (updated 2023-09-18): status bar 47, safe area 47 top and 34 bottom",
+            "keyboard": {
+                "height": 346,
+                "source": "Apple Developer Forums thread 798087: a 346 pt keyboard with the predictive bar on an iPhone 11. Approximate for this phone; re-measure"
+            }
+        },
+        "Android384": {
+            "os": "android",
+            "label": "Android 384",
+            "kind": "phone",
+            "width": 384,
+            "height": 832,
+            "insets": {
+                "top": 24,
+                "bottom": 24
+            },
+            "touchFloor": 48,
+            "source": "edge_to_edge_plus measured insets (pub.dev): status bar 24 dp, gesture navigation bar 24 dp. Not Google documentation; re-measure",
+            "keyboard": {
+                "height": 320,
+                "source": "No published figure found; drawn approximately. Re-measure with the keyboard's IME inset on an emulator"
+            }
+        },
+        "Ipad820": {
+            "os": "ios",
+            "label": "iPad 820",
+            "kind": "tablet",
+            "width": 820,
+            "height": 1180,
+            "insets": {
+                "top": 24,
+                "bottom": 20
+            },
+            "touchFloor": 44,
+            "source": "Apple Developer Forums thread 110724: iPad with a home indicator reports 24 top and 20 bottom with the status bar shown",
+            "keyboard": {
+                "height": 380,
+                "source": "No published figure found; drawn approximately. Re-measure on an iPad simulator"
+            }
+        }
+    }
+}

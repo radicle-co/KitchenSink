@@ -7,7 +7,7 @@
  * presentational prop types. Each component fetches nothing and derives no remote state; the composing app
  * owns the mutations and feeds these props.
  */
-import type { MakePublicConsequence } from './privateGate.js';
+import type { RecipeMakePublicConsequence } from './recipePrivateGate.js';
 
 /**
  * Props for the delete-confirmation dialog (T068) — a controlled, presentational modal. Visibility is owned
@@ -39,8 +39,8 @@ export interface RecipeDeleteDialogProps {
 export interface RecipeMakePublicDialogProps {
     /** Whether the dialog is shown. When `false` the component renders nothing. */
     readonly open: boolean;
-    /** Why going public costs the cook something: the body's words (`makePublicConsequence`, never `none` here). */
-    readonly consequence: Exclude<MakePublicConsequence, 'none'>;
+    /** Why going public costs the cook something: the body's words (`recipeMakePublicConsequence`, never `none` here). */
+    readonly consequence: Exclude<RecipeMakePublicConsequence, 'none'>;
     /** The change is in flight: the confirm spins and cannot fire again. */
     readonly busy?: boolean;
     /** When true, the last change failed: a localized alert inside the dialog. */
@@ -52,11 +52,19 @@ export interface RecipeMakePublicDialogProps {
 }
 
 /**
+ * What the Premium sheet says (ADR-0073): `noSlot` when every private slot is used (`total` is the SERVER's limit, never a
+ * number of this package's own), `webImport` when the recipe is from a public web page, where Premium is still the rule.
+ */
+export type RecipeUpsellVariant = { readonly kind: 'noSlot'; readonly total: number } | { readonly kind: 'webImport' };
+
+/**
  * Props for the Premium sheet a free-tier cook gets for "Private" in the recipe editor (build spec §6.4, §7.7 item 2):
  * controlled and presentational, like the collection twin (`CollectionUpsellSheetProps`).
  */
 export interface RecipeUpsellSheetProps {
     readonly open: boolean;
+    /** Which fact the sheet states: every slot used (the server's limit), or an imported public-web recipe. */
+    readonly variant: RecipeUpsellVariant;
     /** Every close route calls this with `false`. */
     readonly onOpenChange: (open: boolean) => void;
     /** "See Premium". The subscription surface is not built yet (010), so the host closes the sheet. */

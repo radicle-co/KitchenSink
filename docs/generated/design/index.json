@@ -7,7 +7,7 @@
         {
             "id": "palette",
             "source": "packages/apps/commise/ui/src/tokens/colors.ts",
-            "tokenCount": 19,
+            "tokenCount": 18,
             "kinds": [
                 "color"
             ]
@@ -73,7 +73,7 @@
         {
             "id": "fontSizes",
             "source": "packages/apps/commise/ui/src/tokens/typography.ts",
-            "tokenCount": 11,
+            "tokenCount": 8,
             "kinds": [
                 "dimension"
             ]
@@ -82,14 +82,6 @@
             "id": "fontWeights",
             "source": "packages/apps/commise/ui/src/tokens/typography.ts",
             "tokenCount": 4,
-            "kinds": [
-                "text"
-            ]
-        },
-        {
-            "id": "lineHeights",
-            "source": "packages/apps/commise/ui/src/tokens/typography.ts",
-            "tokenCount": 3,
             "kinds": [
                 "text"
             ]
@@ -153,7 +145,7 @@
         {
             "id": "native.lineHeight",
             "source": "packages/apps/commise/ui/src/tokens/native.ts",
-            "tokenCount": 3,
+            "tokenCount": 4,
             "kinds": [
                 "number"
             ]
@@ -161,7 +153,7 @@
         {
             "id": "native.fontSize",
             "source": "packages/apps/commise/ui/src/tokens/native.ts",
-            "tokenCount": 11,
+            "tokenCount": 8,
             "kinds": [
                 "number"
             ]
@@ -172,14 +164,6 @@
             "tokenCount": 5,
             "kinds": [
                 "shadow"
-            ]
-        },
-        {
-            "id": "native",
-            "source": "packages/apps/commise/ui/src/tokens/native.ts",
-            "tokenCount": 1,
-            "kinds": [
-                "color"
             ]
         },
         {
@@ -201,7 +185,7 @@
         {
             "id": "scale.fontSize",
             "source": "packages/apps/commise/ui/src/tokens/scale.ts",
-            "tokenCount": 11,
+            "tokenCount": 8,
             "kinds": [
                 "number"
             ]
@@ -215,9 +199,9 @@
             ]
         },
         {
-            "id": "scale.lineHeightRatio",
+            "id": "scale.lineHeightPx",
             "source": "packages/apps/commise/ui/src/tokens/scale.ts",
-            "tokenCount": 3,
+            "tokenCount": 4,
             "kinds": [
                 "number"
             ]
@@ -227,7 +211,7 @@
             "source": "packages/apps/commise/ui/src/tokens/scale.ts",
             "tokenCount": 5,
             "kinds": [
-                "shadow"
+                "object"
             ]
         },
         {

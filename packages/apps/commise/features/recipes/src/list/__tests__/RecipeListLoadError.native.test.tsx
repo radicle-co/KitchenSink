@@ -4,14 +4,34 @@
  * half of "create FAB (L1)").
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
+
+import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { render, renderWithTamagui } from '@commise/ui/testing/tamagui';
 
 import { RecipeListLoadError } from '../RecipeListLoadError.native.js';
 
 afterEach(cleanup);
 
 const noop = () => undefined;
+
+/**
+ * Whether the element sits in a SCROLLER whose content ends with the floating button's room: some ancestor pads its foot
+ * by `FAB_RESERVED_BOTTOM_PX` AND is the direct child of an element that scrolls. Room on a view that does not scroll
+ * moves nothing, so the room alone is not enough.
+ */
+function endsInScrollerWithFabRoom(element: HTMLElement, room = FAB_RESERVED_BOTTOM_PX): boolean {
+    for (let node = element.parentElement; node?.parentElement; node = node.parentElement) {
+        const scrolls = ['auto', 'scroll'].includes(getComputedStyle(node.parentElement).overflowY);
+
+        if (scrolls && getComputedStyle(node).paddingBottom === `${String(room)}px`) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 describe('RecipeListLoadError (native)', () => {
     it('shows an alert with a retry action that reports upward', () => {
@@ -38,7 +58,28 @@ describe('RecipeListLoadError (native)', () => {
     it('offers no first-run CTA — the library has not said it is empty', () => {
         render(<RecipeListLoadError onRetry={noop} />);
 
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
         expect(screen.queryByText('Your recipe box is empty')).toBeNull();
+    });
+
+    // Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`, Recipes tab): the error state gets the same 88 end
+    // room as the cards, so the floating button the frame keeps here never covers its end. It used to sit in a view that
+    // did not scroll. ⚠️ That the end clears the button shows only on a device.
+    it('scrolls, and ends with the floating button’s room', () => {
+        render(<RecipeListLoadError onRetry={noop} />);
+
+        expect(endsInScrollerWithFabRoom(screen.getByText('We couldn’t load your recipes.'))).toBe(true);
+    });
+});
+
+// Designer ruling e (2026-11-02): the error body ends with the room the floating button needs at the current text
+// scale (98 at the 1.5x chrome cap), so its retry action is never under the button.
+describe('RecipeListLoadError (native) — the end room follows the font scale', () => {
+    it('ends 98 px clear at 1.5x, and 88 is no longer enough', () => {
+        renderWithTamagui(<RecipeListLoadError onRetry={noop} />, 'light', 1.5);
+        const retry = screen.getByRole('button', { name: 'Try again' });
+
+        expect(endsInScrollerWithFabRoom(retry, 98)).toBe(true);
+        expect(endsInScrollerWithFabRoom(retry, 88)).toBe(false);
     });
 });

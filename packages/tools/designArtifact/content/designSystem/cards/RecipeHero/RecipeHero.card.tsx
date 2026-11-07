@@ -43,20 +43,8 @@ export default defineCard({
     staging: { phoneViewport: true },
     render: ({ RecipeHero, PhotoControl }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, width: '100%' }}>
-            <RecipeHero
-                recipeId="r-101"
-                title="Lemon ricotta pancakes"
-                cuisine="American"
-                photos={photos}
-                overlay={overlay({ PhotoControl })}
-            />
-            <RecipeHero
-                recipeId="r-202"
-                title="Weeknight pad thai"
-                cuisine="Thai"
-                photos={[]}
-                overlay={overlay({ PhotoControl })}
-            />
+            <RecipeHero title="Lemon ricotta pancakes" photos={photos} overlay={overlay({ PhotoControl })} />
+            <RecipeHero title="Weeknight pad thai" photos={[]} overlay={overlay({ PhotoControl })} />
         </div>
     ),
 });

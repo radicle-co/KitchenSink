@@ -188,7 +188,7 @@ export function HomeWidgetSurface({ container = homeContainer, renderers }: Home
                     (§3.4); offline or on a load error it shows. */}
                 <HomeGreeting
                     {...(cookName === undefined ? {} : { name: cookName })}
-                    action={{ kind: 'avatar', avatar: <ProfileAvatarEntry /> }}
+                    action={{ kind: 'avatar', avatar: <ProfileAvatarEntry size="large" /> }}
                     afterTitle={
                         <RecipeCreateButton
                             yielded={createEntryYields}

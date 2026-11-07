@@ -17,6 +17,7 @@ function source(over: { readonly collection?: object; readonly onToggleVisibilit
         start: vi.fn(),
         onDelete: vi.fn(),
         onToggle: vi.fn(),
+        onHandled: vi.fn(),
     };
 
     return {
@@ -24,7 +25,7 @@ function source(over: { readonly collection?: object; readonly onToggleVisibilit
         detail: {
             collection: { name: 'Weeknight Dinners', visibility: RecipeVisibility.PRIVATE, ...over.collection },
             onToggleVisibility: 'onToggleVisibility' in over ? over.onToggleVisibility : actions.onToggle,
-            rename: { onStart: actions.onStart },
+            rename: { onStart: actions.onStart, focusMenu: { requested: true, onHandled: actions.onHandled } },
             saveCopy: { onSave: actions.onSave },
             pull: { start: actions.start },
             deletion: { onStart: actions.onDelete },
@@ -41,6 +42,15 @@ describe('isCollectionCopy', () => {
 });
 
 describe('collectionMenuPropsOf', () => {
+    it("carries the host's focus request to the menu trigger and its acknowledgement back", () => {
+        const { detail, actions } = source();
+        const props = collectionMenuPropsOf(detail);
+
+        expect(props.focusRequested).toBe(true);
+        props.onFocusRequestHandled?.();
+        expect(actions.onHandled).toHaveBeenCalledOnce();
+    });
+
     it('names the collection and carries its visibility', () => {
         const { detail } = source({ collection: { visibility: RecipeVisibility.PUBLIC } });
 

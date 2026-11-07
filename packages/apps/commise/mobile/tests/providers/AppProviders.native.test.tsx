@@ -13,7 +13,8 @@
  * This keeps the test focused on the FACADE's composition, not re-proving those collaborators' own behavior.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+// AppProviders mounts the design-system provider itself, so it is rendered without one (`renderUnscoped`).
+import { cleanup, screen, waitFor, render as renderUnscoped } from '@testing-library/react';
 import { useAuth } from '@clerk/expo';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MAX_QUERY_RETRIES } from '@commise/query';
@@ -45,8 +46,15 @@ vi.mock('react-native-safe-area-context', () => ({
 
 const useAuthMock = vi.mocked(useAuth);
 
+// ⛔ The code under test is loaded HERE, once, at module scope, and never inside a test. Loading it transforms and
+// evaluates the whole provider graph (Clerk, TanStack, the recipe client, Tamagui and the design system); inside a test
+// that cost counted against the test's timeout, so the first test of the file (3.7 s alone) timed out at 15 s on a
+// contended machine. At module scope it is collection work, which no test timeout covers. The publishable key `env.ts`
+// reads at load comes from this lane's own `env` (`vitest.native.config.ts`).
+const { AppProviders } = await import('../../src/providers/AppProviders.js');
+const { NotFoundError, UnexpectedResponseError } = await import('@kitchensink/recipe-service-client');
+
 beforeEach(() => {
-    vi.stubEnv('EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA');
     useAuthMock.mockReturnValue({ getToken: vi.fn().mockResolvedValue('tok_abc') } as unknown as ReturnType<
         typeof useAuth
     >);
@@ -54,9 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
     cleanup();
-    vi.unstubAllEnvs();
     vi.restoreAllMocks();
-    vi.resetModules();
 });
 
 /** Reads from every context `AppProviders` is supposed to mount, and renders what it found. */
@@ -78,9 +84,7 @@ function ContextProbe() {
 
 describe('AppProviders (DA10-a facade)', () => {
     it('mounts Clerk, a QueryClientProvider, and the recipe-service client in the enforced order', async () => {
-        const { AppProviders } = await import('../../src/providers/AppProviders.js');
-
-        render(
+        renderUnscoped(
             <AppProviders>
                 <ContextProbe />
             </AppProviders>,
@@ -103,14 +107,9 @@ describe('AppProviders (DA10-a facade)', () => {
             // the resolved option is `undefined` (query-core, TanStack #652), so the 404 row would have passed
             // against a bare client. The other two rows are what stops the fix from being "retries off".
             //
-            // ⚠ THE ERROR IS BUILT FROM A DYNAMIC IMPORT, deliberately. This suite's `afterEach` calls
-            // `vi.resetModules()`, so the `await import(...)` below loads a FRESH copy of the whole graph —
-            // including `@kitchensink/recipe-service-client`. A `NotFoundError` constructed from a top-level
-            // static import would belong to the PREVIOUS registry, fail the policy's `instanceof`, be treated as
-            // a foreign error and be retried: a red test caused entirely by the harness. Both modules must come
-            // from the same registry, so both are imported here.
-            const { AppProviders } = await import('../../src/providers/AppProviders.js');
-            const { NotFoundError, UnexpectedResponseError } = await import('@kitchensink/recipe-service-client');
+            // ⚠ The error class and `AppProviders` come from the SAME module load (both at module scope above). A
+            // `NotFoundError` from another registry would fail the policy's `instanceof`, be treated as a foreign
+            // error and be retried: a red test caused entirely by the harness.
             const error =
                 kind === 'not-found'
                     ? new NotFoundError()
@@ -125,7 +124,7 @@ describe('AppProviders (DA10-a facade)', () => {
                 return <Text>{isError ? 'errored' : 'pending'}</Text>;
             }
 
-            render(
+            renderUnscoped(
                 <AppProviders>
                     <FailingProbe />
                 </AppProviders>,
@@ -149,6 +148,6 @@ describe('AppProviders (DA10-a facade)', () => {
             return null;
         }
 
-        expect(() => render(<Unwrapped />)).toThrow(/RecipeServiceProvider/);
+        expect(() => renderUnscoped(<Unwrapped />)).toThrow(/RecipeServiceProvider/);
     });
 });

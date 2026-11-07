@@ -148,17 +148,29 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the trigger, for `.focus()` on a host focus request and before a held item runs, so a dialog that item opens records the trigger as its return target. `.focus()` has no declarative form, and Radix owns every other focus move.',
     },
+    'designSystem/sheet/BottomSheetPanel': {
+        verdict: 'sanctioned',
+        why: "One node handle, the panel's scroller, for `scrollTo`: a sheet that was set aside under a question (the discard dialog) puts the cook's scroll position back when it returns. Scrolling to an offset has no declarative form. The handle is used once, from the mount effect, and never written during render.",
+    },
     'designSystem/scrollHost/ScrollHost': {
         verdict: 'sanctioned-adjacent',
-        why: "`last` is a previous-value latch (the last y and the scroll spy's last section), read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API) and what lets the handler raise a section change as an event, once per change. The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
+        why: "Two latches. `lastScroller` is an identity latch, written ONLY in the `bind.ref` callback and never during render: it tells a different scroller replacing the old one (the list remounted under a new key) from the same one re-attaching, and only the first resets the offset and the scroll state. `last` is a previous-value latch (the last y and the scroll spy's last section), read and advanced ONLY inside the scroll handler — never during render — so a discarded render cannot consume or advance it; it is what tells the scroll direction (an `IntersectionObserver` cannot, and there is no declarative scroll-direction API) and what lets the handler raise a section change as an event, once per change. The scroller's own imperative handle is NOT a ref: it arrives through a callback ref into STATE (`bind.ref`), the shape the web app shell's tab bar uses. The module is the screen's one `ScrollHost` (blueprint A7), and its docblock names the pattern.",
     },
     'designSystem/button/Button': {
         verdict: 'sanctioned',
         why: 'One node handle, the button, for a host focus request: `.focus()` on web and the screen-reader cursor (`moveScreenReaderFocus`) on native, neither of which has a declarative form. The same level-triggered request Combobox and Popover take.',
     },
+    'designSystem/choiceRow/ChoiceRow': {
+        verdict: 'sanctioned',
+        why: "One node handle, the row, for a host focus request (focus lands on a line's first option when search cannot run offline): `.focus()` on web and the screen-reader cursor (`moveScreenReaderFocus`) on native, neither of which has a declarative form. The same level-triggered request Button takes.",
+    },
     'designSystem/combobox/Combobox': {
         verdict: 'sanctioned',
         why: "One node handle, the field, for `.focus()` and the caret (`setSelectionRange` on web, `setSelection` on native) when a host requests focus. Neither has a declarative form, and the web leaf holds the input node in state through a callback ref (as floating-ui holds its reference node) rather than holding a ref object. On native the same node also leaves the leaf through `FieldRevealContext` (`@commise/ui/field-reveal`), typed as `Pick<HostInstance, 'measureLayout'>`, so the host can measure it for the reveal. The same node is the screen-reader cursor's target when the screen names the field (`moveScreenReaderFocus`).",
+    },
+    'designSystem/createFab/CreateFab': {
+        verdict: 'sanctioned',
+        why: 'One node handle, the button, for a host focus request: a sheet it opened gives focus back to it when it closes. `.focus()` on web and `View.focus()` on native have no declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take.',
     },
     'designSystem/input/Input': {
         verdict: 'sanctioned',
@@ -171,6 +183,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',
         why: "One node handle, the read row's open control (\"Edit {amount} {food}\"), for a host focus request: after a Remove the next row's open control takes focus, and after Done or a cancelled food search the row's own does (build spec §7.5.1, §7.5.2). `.focus()` on web and `moveScreenReaderFocus` on native have no declarative form; the request is a level the row view clears on acknowledgement.",
+    },
+    'designSystem/keyboardAvoider/KeyboardLift': {
+        verdict: 'sanctioned',
+        why: "One node handle, the lift's box, for `measureInWindow`: where the box's bottom edge is in the window, to be set against the keyboard's top on the screen. A measurement of a host node's place has no declarative form (`onLayout` reports a place relative to the parent, which is exactly the arithmetic that fell short on a device). The result goes to state and is read only to pad, never written during render.",
     },
     'designSystem/popover/Popover': {
         verdict: 'sanctioned',
@@ -260,9 +276,17 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: "`node` holds a DOM element whose sole use is the imperative `.focus()` (through `focusIfLost`), which has no declarative form, and it never leaves the module except through the ref the caller attaches. `seen` is a previous-value latch compared and advanced INSIDE the effect, the shape a previous-value latch takes: a discarded render can neither consume the signal's change nor advance the latch, and a remount with a non-zero signal moves nothing. A `focusSignal` epoch prop was once rejected because correctness depended on observing one render exactly once; comparing the value inside a committed effect is what removes that dependency.",
     },
+    'packages/apps/commise/ui/src/fieldReveal/useRevealedField.native.ts': {
+        verdict: 'sanctioned',
+        why: "ONE `useRef`, the text input's node, handed back for the caller to spread onto the input. The field reveal host measures that native node (`measureLayout`), which has no declarative form, and it never leaves the module except through the ref the caller attaches. The focus state beside it is plain state: the request follows it (sent on focus, released on blur or unmount) in `useFocusReveal`.",
+    },
     'packages/apps/commise/ui/src/screenReaderFocus/useScreenReaderFocusOnSignal.native.ts': {
         verdict: 'sanctioned',
         why: "The native twin: `node` is a host node whose sole use is `AccessibilityInfo.sendAccessibilityEvent(node, 'focus')` (through `moveScreenReaderFocus`), the imperative screen-reader API with no declarative form, moving the reading cursor only. `seen` is the same in-effect previous-value latch as the web hook.",
+    },
+    'packages/apps/commise/ui/src/searchField/useFocusInputOnSignal.native.ts': {
+        verdict: 'sanctioned',
+        why: "`seen` is the same in-effect previous-value latch as the screen-reader twin, and the ref it acts on is the CALLER's (`SearchField`'s, attached to a native `TextInput`), whose sole use here is the imperative `TextInput.focus()` — the external, non-declarative native API with no declarative form (`autoFocus` fires at mount only). It moves keyboard focus only for a press the person started (the Recipes search proxy), never on mount or on an unrelated render.",
     },
     'packages/apps/commise/features/recipes/src/hooks/useIngredientEntry.ts': {
         verdict: 'sanctioned-adjacent',
@@ -271,6 +295,10 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
     'packages/apps/commise/features/recipes/src/hooks/useRecipePhotoUpload.ts': {
         verdict: 'sanctioned-adjacent',
         why: '`abortControllerRef` holds a real `AbortController` — a genuinely external, non-declarative object that is also the single-flight mutex (non-null IS "an upload is in flight") and the abort-on-unmount handle. `mountedRef` is a plain lifecycle latch guarding two post-await `setState` calls, and ⚠️ it is REDUNDANT: React 18 made a `setState` after unmount a silent no-op and removed the warning it used to guard. It holds no state, no derived data and nothing render-affecting, so it is not a rule violation — but it is machinery with nothing left to do, and deleting it is owed work that no test can prove either way (both halves stay green), which is why it is recorded here instead of quietly removed.',
+    },
+    'packages/apps/commise/features/recipes/src/editor/usePasteMatching.ts': {
+        verdict: 'sanctioned-adjacent',
+        why: "ONE `useRef`, `claimed`, a synchronous idempotency set of the joins and review binds already started, by id. A claim must be visible to the very next call, before any render: an effect the framework runs again against the same render's values (Fast Refresh, a remount with the same deps) would meet a claim still in a dispatch queue and join the line twice, which is a duplicated ingredient. It replaces `useState(() => new Set())`, a ref under another name mutated from effect events, and it is cleared per job by an effect declared before the claiming effects. Nothing renders from it. Moving it into the host reducer was considered and refused: reducer state is the next render's, not the next call's. ⚠️ No test can drive a same-commit replay, so it rests on that reasoning; the StrictMode cases in `usePasteMatching.test.tsx` are characterization and pass without it.",
     },
     'packages/apps/commise/query/src/syncProvider.tsx': {
         verdict: 'sanctioned-adjacent',
@@ -382,8 +410,15 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
  * ⚠️ It went 93 → 92 with the pinned back bar. `RecipeVersionsScreen`, which stated no layer, now says it is the
  * orchestration of its three framed branches; the two components the change added (`PushedPageFrame`,
  * `CollectionMoreMenu`) state theirs in their own docblocks.
+ *
+ * ⚠️ It went 92 → 91 with the Home header. `AvatarDisc.native.tsx` was rebuilt on Tamagui and now states that it is
+ * presentational.
+ *
+ * ⚠️ It went 91 → 93 with the catalogue regeneration, not with a new component. `docs/generated/components` had fallen
+ * behind the tree, so `MetaLine` and `MetaLeadContext` (the card meta line, `card/metaLine.tsx`) were in no census; neither
+ * states a layer, and regenerating brought them in. Counted, not stamped: the figure is a census, not a backlog.
  */
-const LAYER_UNSTATED_CENSUS = 92;
+const LAYER_UNSTATED_CENSUS = 93;
 
 /**
  * Every component obliged under {@link owesPatternEntry}'s clause 4 — the ONE clause read out of prose.
@@ -410,7 +445,6 @@ const DECLARED_ORCHESTRATION: readonly string[] = [
     'featuresRecipes/collections/CollectionPickerToggleRow',
     'featuresRecipes/detail/RecipeHero',
     'featuresRecipes/form/RecipeIngredientsFields',
-    'featuresRecipes/nutrition/RecipeNutritionBoundary',
     'featuresRecipes/nutrition/RecipeNutritionSlot',
     'featuresRecipes/rating/RecipeRatingDisplay',
     'featuresRecipes/versions/RecipeVersionsView',
@@ -545,6 +579,30 @@ describe('the register findings — the pure verdict, fired at fakes the tree do
                 evidence: [],
             },
         ]);
+    });
+
+    // ADR-0080: a design-system component defined as a Tamagui `styled(…)` export has no JSX, and the catalogue lists it
+    // through the generator's styled signal (`docgen-components` `extract.ts`, proven by its `StyledSurface` fixture).
+    // Once listed it is in the design-system group, so clause 1 binds it like any other: the layer is the group's, not
+    // the shape of the declaration.
+    it('reports a styled() design-system export that names no pattern, and accepts one that does', () => {
+        const styled = makeComponent({
+            id: 'designSystem/surface/StyledSurface',
+            packageName: '@commise/ui',
+            layer: 'design-system',
+            kind: 'unclassified',
+            sourcePaths: ['packages/apps/commise/ui/src/surface/StyledSurface.native.tsx'],
+        });
+
+        expect(registerFindings([styled])).toEqual([
+            {
+                id: 'designSystem/surface/StyledSurface',
+                sourcePath: 'packages/apps/commise/ui/src/surface/StyledSurface.native.tsx',
+                reason: 'no-pattern-named',
+                evidence: [],
+            },
+        ]);
+        expect(registerFindings([{ ...styled, patterns: ['Adapter over a Tamagui View'] }])).toEqual([]);
     });
 
     // THE MUTATION THIS GATE EXISTS FOR. A version of it that only counted tags would report this tree clean,

@@ -156,8 +156,9 @@ export const PARSE_RUBRIC: Readonly<Record<RubricClause, RubricClauseRecord>> = 
         invented: false,
     },
     R2: {
-        statement: 'A past participle is PREPARATION.',
-        source: 'KTD-11b (owner ruling 2026-08-23, `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`): "A **past participle is preparation** (`chopped`, `grated`, `melted`, `sifted`, `minced`, `stoned`, `beaten`)." Implemented as `IRREGULAR_PARTICIPLES` plus the `-ed` suffix rule in `modifierLexicon.ts`.',
+        statement:
+            'A past participle is PREPARATION, except a form the cook buys (`dried`, `frozen`, `canned`, and `whipped` before the food), which is IDENTITY.',
+        source: 'KTD-11b (owner ruling 2026-08-23, `docs/plans/2026-08-20-001-fix-ingredient-resolution-quality-plan.md`): "A **past participle is preparation** (`chopped`, `grated`, `melted`, `sifted`, `minced`, `stoned`, `beaten`)." Implemented as `IRREGULAR_PARTICIPLES` plus the `-ed` suffix rule in `modifierLexicon.ts`. The exception is owner ruling 2026-11-06 (ADR-0026 §5): a form the cook buys is identity, and `ADJECTIVES` lists those words.',
         invented: false,
     },
     R3: {
@@ -372,7 +373,7 @@ const absent: OracleAmount = { kind: 'absent' };
  * THE CENSUS — every distinct rubric situation in the post-U22a corpus, read end to end.
  *
  * Ordered by seed, which is book order. ⚠️ Read the `note` on each entry: several rulings are correct AND
- * uncomfortable (KTD-11b's own accepted edge, `dried figs`), and several `undecided` entries are not the
+ * uncomfortable (a word a cook reads as identity, filed as preparation by definition), and several `undecided` entries are not the
  * rubric failing to have an opinion but the rubric's HEURISTIC half producing one its own trap note
  * disowns.
  */
@@ -960,17 +961,17 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         seed: 'L00827',
         line: 'one pound of dried Lima beans',
         occurrences: 1,
-        regimes: ['prep', 'singleAmount'],
+        regimes: ['singleAmount'],
         verdict: {
             kind: 'ruled',
-            clause: 'R2',
+            clause: 'R3',
             reading: {
                 statedMeasure: 'one pound',
                 quantity: exact(1),
                 unit: 'pound',
-                foods: [{ name: 'Lima beans', prep: 'dried' }],
+                foods: [{ name: 'dried Lima beans', prep: null }],
             },
-            note: 'KTD-11b names `dried figs` as its own accepted edge: "`dried` … arguably identity to a cook. The ruling is a definition, not a claim about English." Decided, deliberately, against the cook\'s reading.',
+            note: 'Owner ruling 2026-11-06: a form the cook buys (`dried`, `frozen`, `canned`) stays in the name, so the line binds dried beans. KTD-11b once filed `dried` as its accepted edge, as preparation. R2 now names the exception.',
         },
     },
     {
@@ -1668,17 +1669,17 @@ export const PARSE_ORACLE: readonly OracleCase[] = Object.freeze([
         seed: 'L02104',
         line: 'a tablespoon of whipped cream',
         occurrences: 1,
-        regimes: ['prep', 'singleAmount'],
+        regimes: ['singleAmount'],
         verdict: {
             kind: 'ruled',
-            clause: 'R2',
+            clause: 'R3',
             reading: {
                 statedMeasure: 'a tablespoon',
                 quantity: exact(1),
                 unit: 'tablespoon',
-                foods: [{ name: 'cream', prep: 'whipped' }],
+                foods: [{ name: 'whipped cream', prep: null }],
             },
-            note: "Decided, and on the uncomfortable side of KTD-11b's edge: whipped cream is arguably its own thing. The ruling files it as preparation and the reading says so plainly.",
+            note: 'Owner ruling 2026-11-06: `whipped` before the food stays in the name, so the line binds whipped cream. The 2026-08-26 ruling filed it as preparation. After a comma ("heavy cream, whipped") it is still preparation.',
         },
     },
     {

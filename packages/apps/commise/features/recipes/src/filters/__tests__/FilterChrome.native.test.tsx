@@ -4,7 +4,7 @@
  * applied-filter chips with Clear all from two. Queries are by role and name; presses are asserted by the action or the
  * callback they trigger.
  */
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,6 +17,7 @@ import { FilterTrigger } from '../FilterTrigger.js';
 import { filterBarViewOf } from '../filterBarView.js';
 import { filterMessages } from '../messages.js';
 import type { RecipeFacets, RecipeFilterState, RecipeIngredientSearchState } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

@@ -17,8 +17,8 @@
  *    jsdom DOES compute, so the leaf's colour is read straight off the DOM.
  *
  * Alpha compositing is explicit and required in both. Commise paints most of its chips and glass on
- * TRANSLUCENT surfaces (`bg-seafoam/10`, `rgba(61,139,133,0.1)`), and a ratio measured against the raw token
- * scores the text against opaque seafoam — which no reader ever sees.
+ * TRANSLUCENT surfaces (`bg-steel/10`, `rgba(50,92,127,0.1)`), and a ratio measured against the raw token
+ * scores the text against opaque steel — which no reader ever sees.
  *
  * `variant` exists because a HOVER state is a state like any other: a chip whose resting pair passes and
  * whose `hover:bg-…` tint pushes it back under the floor is still an inaccessible chip, and that is exactly
@@ -38,8 +38,8 @@ import { compositeOver, contrastRatio } from './contrast.js';
 
 /**
  * A `text-…` / `bg-…` / `border-…` / `ring-…` utility with an optional leading variant and an optional `/NN`
- * opacity suffix — `bg-coral/10`, `text-slate`, `hover:bg-coral/25`, `border-mist`,
- * `focus-visible:ring-seafoam`.
+ * opacity suffix — `bg-cream/10`, `text-slate`, `hover:bg-cream/25`, `border-mist`,
+ * `focus-visible:ring-steel`.
  *
  * Sizing, side and geometry variants fall out naturally: `border-2`, `border-b-2`, `ring-2` and
  * `ring-offset-2` all carry digits, which `[a-z-]+?` cannot match, and `border-border` / `ring-inset` name no
@@ -53,6 +53,9 @@ const COLOR_UTILITY = /^(?:([a-z-]+):)?(text|bg|border|ring)-([a-z-]+?)(?:\/(\d{
  */
 const NAMED_COLOURS: Readonly<Record<string, string>> = {
     ...palette,
+    // Tailwind's own `white` utility is pure #FFFFFF. The palette has no key of that name (the card colour is `cloud`),
+    // so without this a `bg-white` would read as an unknown name and be skipped.
+    white: palette.snow,
     ...Object.fromEntries(
         Object.entries(role).map(([name, value]) => [
             name.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
@@ -192,7 +195,7 @@ function background(className: string, variant: string | undefined, surface: str
  * @returns The ratio, 1..21.
  */
 export function utilityContrast(className: string, options: UtilityContrastOptions = {}): number {
-    const { surface = palette.white, variant, foreground: role = 'text' } = options;
+    const { surface = palette.cloud, variant, foreground: role = 'text' } = options;
 
     return contrastRatio(
         compositeOver(foreground(className, role, variant), surface),
@@ -228,7 +231,7 @@ export function utilityContrast(className: string, options: UtilityContrastOptio
  *   silently measure the surface against itself.
  */
 export function ringContrast(className: string, options: RingContrastOptions = {}): number {
-    const { surface = palette.white } = options;
+    const { surface = palette.cloud } = options;
     const found = colorUtilities(className, 'ring');
 
     if (found.length !== 1) {
@@ -238,6 +241,23 @@ export function ringContrast(className: string, options: RingContrastOptions = {
     }
 
     return contrastRatio(compositeOver(colorOf(found[0] as ColorUtility), surface), surface);
+}
+
+/**
+ * Throws for a colour that is still a CSS variable. A Tamagui component paints through theme variables, which jsdom
+ * keeps as text, so measuring past one would compare against the default surface rather than the colour a device
+ * paints. Pure.
+ *
+ * @param colours - The computed colours about to be measured.
+ * @throws Error naming `resolvedColour`, which follows the variables.
+ */
+function refuseThemeVariables(...colours: readonly string[]): void {
+    if (colours.some((colour) => colour.trim().startsWith('var('))) {
+        throw new Error(
+            'The element paints with a theme variable, which jsdom does not resolve. Read its colours with ' +
+                '`resolvedColour` from `@commise/ui/testing/tamagui` and measure those.',
+        );
+    }
 }
 
 /**
@@ -253,11 +273,14 @@ export function ringContrast(className: string, options: RingContrastOptions = {
  * @param element - The rendered element whose text colour is being measured.
  * @param options - The opaque colour behind the element. Defaults to white.
  * @returns The ratio, 1..21.
- * @throws Error when the element has no computed colour (it was never rendered, or carries no colour style).
+ * @throws Error when the element has no computed colour (it was never rendered, or carries no colour style), or
+ *   when a colour is a theme variable (see `refuseThemeVariables`).
  */
 export function computedContrast(element: Element, options: ComputedContrastOptions = {}): number {
-    const { surface = palette.white } = options;
+    const { surface = palette.cloud } = options;
     const style = window.getComputedStyle(element);
+
+    refuseThemeVariables(style.color, style.backgroundColor);
 
     // ⛔ THE CONDITION IS "NEVER RENDERED", AND IT IS NOW TESTED DIRECTLY.
     //
@@ -313,7 +336,7 @@ const PLACEHOLDER_COLOR_PROPERTY = '--placeholderTextColor';
  *   be asserting the platform default rather than the design token it means to pin).
  */
 export function placeholderContrast(element: Element, options: ComputedContrastOptions = {}): number {
-    const { surface = palette.white } = options;
+    const { surface = palette.cloud } = options;
     const style = window.getComputedStyle(element);
     const color = style.getPropertyValue(PLACEHOLDER_COLOR_PROPERTY).trim();
 

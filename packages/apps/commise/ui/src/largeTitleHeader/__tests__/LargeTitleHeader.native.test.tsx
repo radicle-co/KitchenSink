@@ -4,10 +4,13 @@
  * so the host can condense; and a screen-reader focus signal moves the cursor to it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { Pressable, Text } from 'react-native';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { ScrollHost } from '../../scrollHost/ScrollHost.native.js';
+import { renderWithTamagui, render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { useScrollHost } from '../../scrollHost/scrollHostContext.js';
 import { LargeTitleHeader } from '../LargeTitleHeader.native.js';
 
@@ -83,6 +86,78 @@ describe('LargeTitleHeader (native)', () => {
         expect(getComputedStyle(titleBlock()).paddingTop).toBe('44px');
     });
 
+    // Android QA (2026-11-03): the profile avatar's 48 dp target sat in a 44 pt action box and measured 48 x 44.2, so the
+    // row is the touch floor tall: 44 pt on iOS and 48 dp on Android ("every 44 is 48 there").
+    it('draws its action row at the touch floor: 44 pt on iOS and 48 dp on Android', () => {
+        for (const [os, height] of [
+            ['ios', '44px'],
+            ['android', '48px'],
+        ] as const) {
+            withPlatformOs(os, () => {
+                const { unmount } = render(
+                    <LargeTitleHeader
+                        headingId="h"
+                        title="Recipes"
+                        action={{ kind: 'controls', menu: <Text>more</Text> }}
+                    />,
+                );
+
+                expect(getComputedStyle(screen.getByText('more').parentElement!).height, os).toBe(height);
+                expect(getComputedStyle(screen.getByRole('heading').parentElement!).paddingTop, os).toBe(height);
+                unmount();
+            });
+        }
+    });
+
+    // Bug sweep (pagesDesignerB, component item): a screen that forgot to pad put the title on the screen edge, so the
+    // inset belongs to the header. The action is absolutely placed, which ignores the parent's padding, so it carries
+    // the same inset itself: otherwise it would sit on the edge the title just left.
+    it('insets its own content 16 pt from each side, so a screen need not pad it', () => {
+        render(
+            <LargeTitleHeader
+                headingId="h"
+                title="Recipes"
+                subtitle="12 recipes"
+                action={{ kind: 'controls', menu: <Text>more</Text> }}
+            />,
+        );
+        const header = screen.getByRole('heading', { name: 'Recipes' }).parentElement!.parentElement!;
+        const action = screen.getByText('more').parentElement!;
+
+        expect(getComputedStyle(header).paddingLeft).toBe('16px');
+        expect(getComputedStyle(header).paddingRight).toBe('16px');
+        expect(getComputedStyle(action).right).toBe('16px');
+    });
+
+    // Designer review (deviceShots2.md, 2026-11-01): at accessibility sizes Home's date read "Sunday, November...". The
+    // subtitle is a fact the cook reads, so it wraps onto more lines and is never cut off.
+    it('wraps a long subtitle instead of cutting it off', () => {
+        render(<LargeTitleHeader headingId="h" title="Good afternoon" subtitle="Sunday, November 1, 2026" />);
+
+        const subtitle = screen.getByText('Sunday, November 1, 2026');
+
+        expect(getComputedStyle(subtitle).whiteSpace).not.toBe('nowrap');
+        expect(getComputedStyle(subtitle).textOverflow).not.toBe('ellipsis');
+        expect(getComputedStyle(subtitle).getPropertyValue('-webkit-line-clamp')).toBe('');
+    });
+
+    // Once it wraps, its leading must grow with its size, or Android draws the lines over each other (ADR-0080 §8,
+    // H-1). The design-system Text in the meta role grows both together, to the 2× cap.
+    it('draws the subtitle in the meta role, size and leading grown together', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.meta;
+
+        renderWithTamagui(
+            <LargeTitleHeader headingId="h" title="Good afternoon" subtitle="Sunday, November 1, 2026" />,
+            'light',
+            3.1,
+        );
+
+        const subtitle = screen.getByText('Sunday, November 1, 2026');
+
+        expect(getComputedStyle(subtitle).fontSize).toBe(`${String(fontSize * 2)}px`);
+        expect(getComputedStyle(subtitle).lineHeight).toBe(`${String(lineHeight * 2)}px`);
+    });
+
     it('reports the title block’s layout to its ScrollHost, which then condenses past it', () => {
         const seen: { condensed?: boolean; scroll?: (y: number) => void } = {};
 
@@ -125,5 +200,21 @@ describe('LargeTitleHeader (native)', () => {
         expect(seen.condensed).toBe(false);
         act(() => seen.scroll?.(84));
         expect(seen.condensed).toBe(true);
+    });
+});
+
+// Designer finding C-1 (reviews/mergedUiIos1.md): at the largest text size the title drew at about 3x and broke inside its
+// word ("Recipe / s"). `largeTitle` stops at 1.5x (42 pt), a capped title fits whole words at 390 pt (the fit is
+// `recipesScreen.fit.test.ts`).
+describe('LargeTitleHeader (native) — the title stops at 1.5x', () => {
+    it.each([
+        [1, '28px'],
+        [1.5, '42px'],
+        [2, '42px'],
+        [3.1, '42px'],
+    ] as const)('at system scale %fx the title is %s', (scale, size) => {
+        renderWithTamagui(<LargeTitleHeader headingId="h" title="Recipes" />, 'light', scale);
+
+        expect(resolvedStyle(screen.getByRole('heading', { name: 'Recipes' }), 'fontSize')).toBe(size);
     });
 });

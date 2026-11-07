@@ -24,8 +24,12 @@
  * Runs only when the harness DB is configured — otherwise skipped in lockstep with the global setup.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { sql } from 'drizzle-orm';
+import pg from 'pg';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
+import { createRecipeDrizzle } from '../../../src/database/client.js';
+import { recipes } from '../../../src/database/schema/index.js';
 import { generateClerkKeypair, mintToken } from '../../support/jwt.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -186,11 +190,41 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
     /**
      * Roles reach the policy through the REAL chain (plan 2026-10-14-009 D3, D5; owner ruling 2026-10-15): a signed
      * `public_metadata.roles` is parsed by `verifyClerkToken`, carried on `req.principal`, and read by
-     * `isPremiumPrincipal` in the C-004 visibility policy. A private recipe is a paid feature.
+     * `isPremiumPrincipal` in the C-004 visibility policy.
+     *
+     * REWRITTEN for ADR-0073 (owner ruling 2026-10-26). A private recipe used to be a paid feature, so every role but
+     * `superuser`/`vip`/`premium` was refused with 400 INVALID_VISIBILITY. A free cook now keeps up to 50 recipes private in
+     * slots, so what the role decides, through this same chain, is whether the cook is COUNTED: an entitled role holds more
+     * than 50, anything else is refused the 51st with 403 PRIVATE_SLOTS_FULL and is allowed the first.
      */
-    describe('a private recipe, by role', () => {
+    describe('a private recipe, by role (ADR-0073: the role decides whether the cook is counted)', () => {
         /** A distinct owner per role, so each write is its own. */
         const ownerFor = (role: string): string => `01JROLE${role.toUpperCase().padEnd(19, '0')}`.slice(0, 26);
+
+        const pool = new pg.Pool({ connectionString: roleDb.appUrl });
+        const db = createRecipeDrizzle(pool);
+
+        afterAll(async () => {
+            await db.delete(recipes).where(sql`${recipes.ownerId} LIKE '01JROLE%'`);
+            await pool.end();
+        });
+
+        /** Give `owner` exactly `count` private recipes, the way a cook's library holds them. */
+        async function holdPrivate(owner: string, count: number): Promise<void> {
+            await db.insert(recipes).values(
+                Array.from({ length: count }, (_, index) => ({
+                    ownerId: owner,
+                    title: `Held ${owner.slice(-6)} ${index}`,
+                    servings: 1,
+                    prepTimeMinutes: 1,
+                    cookTimeMinutes: 1,
+                    totalTimeMinutes: 2,
+                    cuisine: 'Italian',
+                    ingredientNamesText: 'held',
+                    visibility: 'private' as const,
+                })),
+            );
+        }
 
         async function createPrivateAs(roles: readonly string[] | undefined, owner: string): Promise<Response> {
             const token = mintToken(trustedKeypair.privateKeyPem, {
@@ -207,28 +241,50 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
             });
         }
 
-        it.each(['superuser', 'vip', 'premium'])('%s may create one', async (role) => {
-            const res = await createPrivateAs([role], ownerFor(role));
+        it.each(['superuser', 'vip', 'premium'])('%s may hold a 51st private recipe: never counted', async (role) => {
+            const owner = ownerFor(role);
+            await holdPrivate(owner, 50);
+
+            const res = await createPrivateAs([role], owner);
 
             expect(res.status).toBe(201);
             expect(((await res.json()) as { visibility: string }).visibility).toBe('private');
         });
 
-        it.each([
+        const FREE = [
             ['default', ['default']],
             ['admin', ['admin']],
             ['no roles key at all', undefined],
             ['a wrong-case role', ['Premium']],
-        ] as const)('%s is refused with 400 INVALID_VISIBILITY', async (label, roles) => {
-            const res = await createPrivateAs(roles, ownerFor(label.replace(/[^a-z]/gu, '')));
+        ] as const;
 
-            expect(res.status).toBe(400);
-            expect(((await res.json()) as { code: string }).code).toBe('INVALID_VISIBILITY');
+        it.each(FREE)('%s is counted: the first private recipe is allowed', async (label, roles) => {
+            const res = await createPrivateAs(roles, ownerFor(`first${label.replace(/[^a-z]/gu, '')}`));
+
+            expect(res.status).toBe(201);
+            expect(((await res.json()) as { visibility: string }).visibility).toBe('private');
         });
 
-        /** The old grant: a `premium` PERMISSION. Roles replaced it, so it alone grants nothing now. */
-        it('a bare premium permission is refused', async () => {
+        it.each(FREE)(
+            '%s is counted: with 50 held the next is refused 403 PRIVATE_SLOTS_FULL',
+            async (label, roles) => {
+                const owner = ownerFor(`full${label.replace(/[^a-z]/gu, '')}`);
+                await holdPrivate(owner, 50);
+
+                const res = await createPrivateAs(roles, owner);
+
+                expect(res.status).toBe(403);
+                expect(await res.json()).toMatchObject({
+                    code: 'PRIVATE_SLOTS_FULL',
+                    details: { used: 50, limit: 50 },
+                });
+            },
+        );
+
+        /** The old grant: a `premium` PERMISSION. Roles replaced it, so it alone grants nothing now: the cook is counted. */
+        it('a bare premium permission is counted like any free cook', async () => {
             const owner = ownerFor('permission');
+            await holdPrivate(owner, 50);
             const token = mintToken(trustedKeypair.privateKeyPem, {
                 sub: `user_role_${owner}`,
                 azp: AUTHORIZED_AZP,
@@ -241,7 +297,7 @@ describe('ClerkAuthService real JWT verification (ARCH-001 integration)', () => 
                 body: JSON.stringify({ ...MINIMAL_RECIPE_PAYLOAD, visibility: 'private' }),
             });
 
-            expect(res.status).toBe(400);
+            expect(res.status).toBe(403);
         });
     });
 });

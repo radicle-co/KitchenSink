@@ -37,6 +37,7 @@ import type {
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 import type { AnalyticsEventBatch } from '@kitchensink/recipe-core/analytics/event-payload';
+import { retryAfterSeconds } from '@kitchensink/retry-after';
 import {
     resolveBearer,
     withBearerReplay,
@@ -56,6 +57,10 @@ import {
     GoneError,
     InvalidRequestError,
     NotFoundError,
+    ImportCursorMovedError,
+    ImportItemAlreadySavedError,
+    ImportQuotaExceededError,
+    PrivateSlotsFullError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
     PublishRequirementsUnmetError,
@@ -110,6 +115,7 @@ import {
     confirmPhotoRequestSchema,
     createCollectionRequestSchema,
     createIngredientRequestSchema,
+    ingredientNameProposalsResponseSchema,
     createPhotoUploadRequestSchema,
     createRecipeRequestSchema,
     erasureRequestAcceptedResponseSchema,
@@ -127,6 +133,7 @@ import {
     withdrawParseJobLinesRequestSchema,
     parseJobResponseSchema,
     recipeNutritionRequestSchema,
+    privateSlotUsageSchema,
     recipeNutritionResponseSchema,
     pullFromSourceResponseSchema,
     recipeSearchResponseSchema,
@@ -146,7 +153,9 @@ import type {
     WithdrawParseJobLinesRequest,
     IngredientFoodNutritionRequest,
     IngredientFoodNutritionResponse,
+    IngredientNameProposalsResponse,
     ParseJobResponse,
+    PrivateSlotUsage,
     RecipeApiError,
     RecipeNutritionResponse,
     RebindIngredientLineRequest,
@@ -223,6 +232,8 @@ export interface RecipeServiceClientOptions extends IdentitySyncBackoffOptions {
 interface RawResponse {
     readonly status: number;
     readonly body: unknown;
+    /** The seconds a refusal's `Retry-After` header asked for, already parsed. Absent when it carried none. */
+    readonly retryAfterSeconds?: number;
 }
 
 /** A JSON-serializable query-parameter bag (scalars, or arrays for repeated params). */
@@ -672,6 +683,36 @@ export class RecipeServiceClient {
     }
 
     /**
+     * `GET /api/v1/ingredients/by-name/proposals?name=` — the foods the add-by-name field SUGGESTS for what the cook
+     * typed: their own earlier correction, a staff ruling, two cooks agreeing, a memo another cook's save taught.
+     *
+     * A READ. It binds nothing and writes nothing; the cook binds a proposal by picking it, through
+     * {@link addIngredientByFood} or {@link addIngredientByFoodVariant}. The answer varies by caller and is always
+     * `200`: a food food will not show, or a source that could not be read, is simply absent.
+     *
+     * @param name - The name the cook typed.
+     * @param options - An abort signal, so a keystroke supersedes the request it made before.
+     * @returns The phrase and the proposals, strongest source first. `source` is an open key: show the food even when it
+     *   is one this client does not know.
+     * @throws {UnauthorizedError} on auth failure; a `ZodError` if the response has drifted.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getIngredientNameProposals(
+        name: string,
+        options: { readonly signal?: AbortSignal } = {},
+    ): Promise<IngredientNameProposalsResponse> {
+        const res = await this.send(
+            'GET',
+            '/api/v1/ingredients/by-name/proposals',
+            undefined,
+            { name },
+            options.signal,
+        );
+
+        return this.expect(res, 200, ingredientNameProposalsResponseSchema);
+    }
+
+    /**
      * `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — how many live recipes reference
      * this food, plus the CALLER's own referencing recipe ids. The count spans all users; the ids never
      * do. Consumed by the food service's authored DELETE flow (with the caller's forwarded bearer) before
@@ -778,6 +819,26 @@ export class RecipeServiceClient {
      */
     public async retryParseJob(id: string): Promise<ParseJobResponse> {
         const res = await this.send('POST', `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/retry`);
+
+        return this.expect(res, 202, parseJobResponseSchema);
+    }
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs/{id}/matches` — ask the service to match the job's parsed foods to catalog foods
+     * (`202`, ADR-0071).
+     *
+     * Call it from the poll loop when newly parsed lines appear. It is idempotent: a line already matched for its
+     * current text is not matched or reviewed again. Each proposed food then carries a `match` — a PROPOSAL and up to
+     * five candidates, never a binding. Bind only what the state allows (`confident`), and never let a late result
+     * replace a pick the cook made.
+     *
+     * @param id - The job id.
+     * @returns The job view with each proposed food's match.
+     * @throws {ParseJobExpiredError} when the TTL has passed; {@link NotFoundError} for an absent or another user's job.
+     * @sideEffect Performs an authenticated HTTP request that runs the match as the caller and asks the review gate.
+     */
+    public async proposeParseJobMatches(id: string): Promise<ParseJobResponse> {
+        const res = await this.send('POST', `/api/v1/recipe-parse-jobs/${encodeURIComponent(id)}/matches`);
 
         return this.expect(res, 202, parseJobResponseSchema);
     }
@@ -1230,6 +1291,22 @@ export class RecipeServiceClient {
     }
 
     /**
+     * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073).
+     *
+     * `limited` carries the live count and the limit THE SERVER states (the client never knows the number); `unlimited` is
+     * Premium. A DISPLAY read: it may be a moment stale, and a private write is never withheld on it.
+     *
+     * @returns The standing.
+     * @throws {UnauthorizedError} on auth failure; a `ZodError` if the response has drifted.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getPrivateSlots(): Promise<PrivateSlotUsage> {
+        const res = await this.send('GET', '/api/v1/recipes/private-slots');
+
+        return this.expect(res, 200, privateSlotUsageSchema);
+    }
+
+    /**
      * `POST /api/v1/ingredients/food-nutrition` — per-100 g nutrition for a batch of food refs (plan 002 U9).
      *
      * Each distinct ref answers once: `found` with food's figures and a `freshness`, `absent` when food has nothing
@@ -1456,7 +1533,13 @@ export class RecipeServiceClient {
                 // ⚠️ `data` is ALREADY PARSED: JSON when the content-type says so, plain text otherwise,
                 // and `undefined` when the body is empty or unparseable — which is exactly the three-way
                 // distinction `normalizeResponse` was making by hand, so nothing is lost by not re-reading.
-                return { status: error.response.status, body: readErrorData(error.data) };
+                const waitSeconds = retryAfterSeconds(error.response.headers.get('retry-after'), Date.now());
+
+                return {
+                    status: error.response.status,
+                    body: readErrorData(error.data),
+                    ...(waitSeconds === undefined ? {} : { retryAfterSeconds: waitSeconds }),
+                };
             }
 
             // A timeout is NOT a response — there is no status to map — so it cannot be folded into a
@@ -1656,11 +1739,13 @@ export class RecipeServiceClient {
             case 'RECIPE_NOT_FOUND':
             case 'NOT_FOUND':
             case 'PARSE_JOB_NOT_FOUND': // Plan U9: a stranger's job and a missing one are ONE answer on purpose.
+            case 'IMPORT_NOT_FOUND': // ADR-0072: likewise a stranger's bulk import.
                 return new NotFoundError(body.message, body.code);
             case 'NOT_OWNER':
             case 'CANNOT_RATE_OWN_RECIPE':
             case 'FORBIDDEN':
             case 'TEST_PRINCIPAL_CONTAINED': // ADR-0040: a contained test write — its code tells it from a scope gate.
+            case 'ACCOUNT_SUSPENDED': // ADR-0081: a suspended account — a 403 whose code tells it from an ownership gate.
                 return new ForbiddenError(body.message, body.code);
             case 'UNAUTHORIZED':
             case 'IDENTITY_SYNC_PENDING':
@@ -1686,6 +1771,18 @@ export class RecipeServiceClient {
             // to string-compare `.code`, which is the knowledge `errorForCode` exists to hold exactly once.
             case 'PARSE_JOB_EXPIRED':
                 return new ParseJobExpiredError(body.message);
+            // 004 FR-022 — a 429 that is NOT a throttle: its own class carrying when the allowance reopens, which the
+            // retry policy classifies terminal. Mapped here, off the code, so no surface string-compares `.code`.
+            case 'IMPORT_QUOTA_EXCEEDED':
+                return new ImportQuotaExceededError(body.details.resetsAt, body.message);
+            // ADR-0073 - a 403 with a remedy of its own (free a slot or take Premium), terminal for the retry policy. Mapped off the code.
+            case 'PRIVATE_SLOTS_FULL':
+                return new PrivateSlotsFullError(body.details.used, body.details.limit, body.message);
+            // ADR-0072 — two 409s a bulk-import surface acts on differently from any other conflict, so each is its own class.
+            case 'IMPORT_CURSOR_MOVED':
+                return new ImportCursorMovedError(body.details.cursorOrdinal, body.message);
+            case 'IMPORT_ITEM_ALREADY_SAVED':
+                return new ImportItemAlreadySavedError(body.details.ordinal, body.message);
             // Plan 002 R52 — a restore that would drop lines. Its own class for the reason the conflict has one:
             // the surface names the lines and offers a different remedy.
             case 'VERSION_LINE_UNRESTORABLE':
@@ -1710,7 +1807,7 @@ export class RecipeServiceClient {
             case 'TOO_MANY_REQUESTS':
             case 'NOT_READY':
             case 'INTERNAL_ERROR':
-                return new UnexpectedResponseError(res.status, body.message, body.code);
+                return new UnexpectedResponseError(res.status, body.message, body.code, res.retryAfterSeconds);
 
             default: {
                 // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the
@@ -1756,7 +1853,7 @@ export class RecipeServiceClient {
             case 410:
                 return new GoneError(message, code);
             default:
-                return new UnexpectedResponseError(res.status, message, code);
+                return new UnexpectedResponseError(res.status, message, code, res.retryAfterSeconds);
         }
     }
 }

@@ -3,9 +3,9 @@
  * lines are still reading, and, for each settled line, the rows the recipe gets. `usePasteIntoIngredients` polls the
  * parse job and commits what this settles, in paste order.
  *
- * A parsed line becomes one row per proposed food: the NAME the existing lookup resolves (R19: the parse binds
- * nothing), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The first food carries the
- * line's measure, in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"); a second food on the
+ * A parsed line becomes one row per proposed food: the NAME the host joins it by (bound to the food its match names, or
+ * as written: ADR-0071), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The first food
+ * carries the line's measure, in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"); a second food on the
  * same line states none, because the line gave one amount.
  *
  * ⛔ THERE IS NO TIME LIMIT (owner ruling 2026-10-13: "it takes as long as it takes"; plan 2026-10-15-011). A pending line
@@ -27,11 +27,11 @@
  * @pattern Adapter — the parse job's answer to draft rows
  * @pattern Visitor — an exhaustive switch over the job line's status
  */
-import { ABSENT_QUANTITY } from '@kitchensink/recipe-core';
+import { pastedLineRowOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 import { parseJobIsLive } from '@kitchensink/recipe-service-client';
 import type { ParseJobLinePhase, ParseJobLineView, ParseJobResponse, ParseProposal } from '@kitchensink/schema-recipe';
 
-import { readLeadingMeasure, readStatedMeasure, statedUnitOf } from '../form/leadingMeasure.js';
+import { readLeadingMeasure, statedUnitOf } from '../form/leadingMeasure.js';
 import type { LineMeasure } from '../hooks/lineCommit.js';
 
 /** One row a settled line adds. */
@@ -41,6 +41,11 @@ export interface PastedRow {
     readonly measure: LineMeasure;
     /** The phrase the parse lifted out of the line, for the create (its `sourcePhrase`); absent for a reader row. */
     readonly sourcePhrase?: string;
+    /**
+     * Which food of the line's proposal this row is, so the host can find its match (`${lineIndex}:${foodIndex}`). Absent
+     * for a reader row: it has no proposal food, so no match, and it joins as written.
+     */
+    readonly foodIndex?: number;
 }
 
 /** A pending line's step, as the server reports it — every phase but `stalled`, which waits on the cook. */
@@ -82,43 +87,22 @@ export interface PastedLinesInput {
     readonly typedByCook: ReadonlySet<number>;
 }
 
-const NO_MEASURE: LineMeasure = { quantity: ABSENT_QUANTITY, unit: '', preparation: '' };
-
 /**
- * The line's measure in the cook's own words (spec §7.5.3: the amount and unit the cook typed are the cook's own
- * statement). Read from the parse's `statedMeasure` with the add field's amount rules; the parse's own reading stands
- * only where those words state no amount the reader reads but the parse read one ("one cup"), or when the parse kept
- * no words. Pure.
+ * The rows a parsed proposal adds: one per food. Each row's measure and name are recipe-core's `pastedLineRowOf` (the
+ * cook's own words, the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
+ * its verdict with (ADR-0071). The phrase the parse lifted out stays whole, as the memo's key grain. Pure.
  */
-function cookMeasureOf(proposal: ParseProposal): Pick<LineMeasure, 'quantity' | 'unit'> {
-    const parsed = { quantity: proposal.quantity, unit: proposal.unit ?? '' };
-    const phrase = proposal.statedMeasure?.trim() ?? '';
-
-    if (phrase === '') {
-        return parsed;
-    }
-
-    const stated = readStatedMeasure(phrase);
-
-    if (stated.quantity.kind !== 'absent') {
-        return { quantity: stated.quantity, unit: stated.words };
-    }
-
-    return proposal.quantity.kind === 'absent' ? { quantity: ABSENT_QUANTITY, unit: stated.words } : parsed;
-}
-
-/** The rows a parsed proposal adds: one per food, the first carrying the line's measure. Pure. */
 function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
-    const measure = cookMeasureOf(proposal);
+    return proposal.foods.map((food, index) => {
+        const { name, quantity, unit } = pastedLineRowOf(proposal, index, food.name);
 
-    return proposal.foods.map((food, index) => ({
-        name: food.name,
-        measure:
-            index === 0
-                ? { ...measure, preparation: food.prep ?? '' }
-                : { ...NO_MEASURE, preparation: food.prep ?? '' },
-        sourcePhrase: food.name,
-    }));
+        return {
+            name,
+            measure: { quantity, unit, preparation: food.prep ?? '' },
+            sourcePhrase: food.name,
+            foodIndex: index,
+        };
+    });
 }
 
 /** A heading the cook pasted with the list (`For the dough:`): it names no food. */
@@ -177,6 +161,22 @@ function pastedLineOf(line: ParseJobLineView, stopped: boolean, typedByCook: boo
                 : { kind: 'reading', lineIndex, sourceLine, phase };
         }
     }
+}
+
+/**
+ * The lines of a paste that has no job (the daily limit refused it, 004 FR-022): each settles through the add field's
+ * reader, as written. Pure.
+ *
+ * @param sourceLines - The pasted lines, as the splitter made them.
+ * @returns Each line, settled, in paste order.
+ */
+export function readerLinesOf(sourceLines: readonly string[]): readonly PastedLine[] {
+    return sourceLines.map((sourceLine, lineIndex): PastedLine => ({
+        kind: 'settled',
+        lineIndex,
+        sourceLine,
+        rows: HEADING.test(sourceLine) ? [] : readerRowsOf(sourceLine),
+    }));
 }
 
 /**

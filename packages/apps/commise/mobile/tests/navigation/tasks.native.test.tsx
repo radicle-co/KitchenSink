@@ -7,10 +7,11 @@
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RootStackParamList } from '../../src/navigation/routes.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** Every `subscribeToLeave` the stub was handed, one per render. */
 const handed = vi.hoisted(() => ({ leaves: [] as unknown[], setParams: undefined as (() => void) | undefined }));

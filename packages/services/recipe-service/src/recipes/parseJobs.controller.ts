@@ -1,8 +1,9 @@
 /**
  * The `/api/v1/recipe-parse-jobs` REST surface (plan U9, origin D9/R13).
  *
- * Thin controller over {@link ParseJobsService}, the `RecipesController` shape: `@OwnerId()` reads the
- * authenticated app-user ULID from `req.principal` (fail-closed `AuthMiddleware`), the controller-scoped
+ * Thin controller over {@link ParseJobsService}, the `RecipesController` shape: `@CurrentPrincipal()` reads the
+ * verified principal from `req.principal` (fail-closed `AuthMiddleware`): its app-user ULID owns the job, and its
+ * acting slice tells the match projection whether the caller is a contained test principal. The controller-scoped
  * `ZodValidationPipe` enforces the AUTHORED wire DTOs (⚠️ load-bearing — the DTOs carry no
  * `class-validator` metadata, so Nest's own `ValidationPipe` would validate NOTHING), and every domain
  * failure is thrown as a `RecipeDomainError` for the global `ApiExceptionFilter`.
@@ -13,6 +14,9 @@
  * the job view, the client POLLS `GET /:id`, and the finished proposals are REVIEWED by the cook — the
  * reviewed draft goes through ordinary `POST /recipes`, which re-validates every food id through
  * `by-food` admission (R19: a parse binds nothing).
+ *
+ * ADR-0071: every view a route answers with carries each proposed food's `match`, added by the one
+ * {@link ParseJobMatchView} Content Enricher, so every route takes the caller's credential (food names the foods).
  *
  * Owner scoping is a `404`, never a `403`: a stranger polling another user's job must not learn the id
  * exists. Retry (`POST /:id/retry`) and line edit (`PATCH /:id/lines/:lineIndex`) answer `202` as well —
@@ -34,11 +38,18 @@ import {
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { ParseJobsService } from './parseJobs.service.js';
+import { MatchProposalService } from './matchProposal.service.js';
+import { boundedBy, isDeadlineExceededError } from '../common/boundedBy.js';
+import { MATCH_REQUEST_DEADLINE_MS } from '../config/matchBudget.js';
+import { ParseJobMatchView } from './parseJobMatchView.js';
 import { CreateParseJobDto } from './dto/createParseJob.dto.js';
 import { EditParseJobLineDto } from './dto/editParseJobLine.dto.js';
 import { WithdrawParseJobLinesDto } from './dto/withdrawParseJobLines.dto.js';
 import type { ParseJobResponse } from './parseJobs.schema.js';
-import { OwnerId } from '../auth/currentPrincipal.decorator.js';
+import { CurrentPrincipal } from '../auth/currentPrincipal.decorator.js';
+import { actingPrincipalOf, type Principal } from '../auth/principal.js';
+import { CallerBearerToken } from '../auth/CallerToken.decorator.js';
+import type { CallerToken } from '../auth/CallerToken.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 
 // New surface: canonical `/api/v1/` prefix only — the bare `v1/...` alias exists for consumers that
@@ -46,31 +57,62 @@ import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 @Controller('api/v1/recipe-parse-jobs')
 @UsePipes(ZodValidationPipe)
 export class ParseJobsController {
-    public constructor(private readonly parseJobsService: ParseJobsService) {}
+    public constructor(
+        private readonly parseJobsService: ParseJobsService,
+        private readonly matchProposals: MatchProposalService,
+        // ADR-0071 — every route answering with a job view goes through the ONE match projection (a Content Enricher).
+        private readonly matchView: ParseJobMatchView,
+    ) {}
 
-    /** `POST /api/v1/recipe-parse-jobs` — accept a pasted block; parsing continues asynchronously. */
+    /**
+     * `POST /api/v1/recipe-parse-jobs` — accept a pasted block; parsing continues asynchronously.
+     *
+     * Spends one unit of the caller's daily import allowance (004 FR-022); a spent allowance is `429
+     * IMPORT_QUOTA_EXCEEDED` with `details.resetsAt` and creates nothing.
+     */
     @Post()
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
-    public async create(@OwnerId() ownerId: string, @Body() body: CreateParseJobDto): Promise<ParseJobResponse> {
-        return this.parseJobsService.create(ownerId, body.text);
+    public async create(
+        @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Body() body: CreateParseJobDto,
+    ): Promise<ParseJobResponse> {
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.create(principal.userId, body.text),
+        );
     }
 
     /** `GET /api/v1/recipe-parse-jobs/:id` — poll the owner's job. A stranger gets `404`. */
     @Get(':id')
     public async getById(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
     ): Promise<ParseJobResponse> {
-        return this.parseJobsService.get(ownerId, id);
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.get(principal.userId, id),
+        );
     }
 
     /** `POST /api/v1/recipe-parse-jobs/:id/retry` — re-drive exactly the `failed_retryable` lines. */
     @Post(':id/retry')
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
-    public async retry(@OwnerId() ownerId: string, @Param('id', ParseUUIDPipe) id: string): Promise<ParseJobResponse> {
-        return this.parseJobsService.retry(ownerId, id);
+    public async retry(
+        @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Param('id', ParseUUIDPipe) id: string,
+    ): Promise<ParseJobResponse> {
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.retry(principal.userId, id),
+        );
     }
 
     /**
@@ -82,12 +124,17 @@ export class ParseJobsController {
     @HttpCode(HttpStatus.ACCEPTED)
     @WriteRateLimit()
     public async editLine(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
         @Param('lineIndex', ParseIntPipe) lineIndex: number,
         @Body() body: EditParseJobLineDto,
     ): Promise<ParseJobResponse> {
-        return this.parseJobsService.editLine(ownerId, id, lineIndex, body.sourceLine);
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.editLine(principal.userId, id, lineIndex, body.sourceLine),
+        );
     }
 
     /**
@@ -98,10 +145,53 @@ export class ParseJobsController {
     @HttpCode(HttpStatus.OK)
     @WriteRateLimit()
     public async withdrawLines(
-        @OwnerId() ownerId: string,
+        @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
         @Param('id', ParseUUIDPipe) id: string,
         @Body() body: WithdrawParseJobLinesDto,
     ): Promise<ParseJobResponse> {
-        return this.parseJobsService.withdrawLines(ownerId, id, body.lineIndexes);
+        return this.matchView.decorate(
+            actingPrincipalOf(principal),
+            caller,
+            await this.parseJobsService.withdrawLines(principal.userId, id, body.lineIndexes),
+        );
+    }
+
+    /**
+     * `POST /api/v1/recipe-parse-jobs/:id/matches` — match the parsed lines' foods to catalog foods, as PROPOSALS
+     * (ADR-0071). The client calls it from its poll loop when newly parsed lines appear.
+     *
+     * Answers `202` with the job view: the gate's review of each proposal continues asynchronously. Idempotent (a
+     * matched line is not matched or paid for again), owner-only (a stranger gets `404`), and refused past the TTL with
+     * `409 PARSE_JOB_EXPIRED`. The food searches it makes are made AS the caller (#120).
+     */
+    @Post(':id/matches')
+    @HttpCode(HttpStatus.ACCEPTED)
+    @WriteRateLimit()
+    public async proposeMatches(
+        @CurrentPrincipal() principal: Principal,
+        @CallerBearerToken() caller: CallerToken | undefined,
+        @Param('id', ParseUUIDPipe) id: string,
+    ): Promise<ParseJobResponse> {
+        // ⛔ ONE budget for the whole handler (ADR-0071), taken before any I/O: the matcher keeps its own shorter deadline
+        // inside it, and the fresh job read and the view's reads end at this one. `parseJobMatchesBudget.test.ts` holds
+        // it, plus the guard's one pool wait and a named margin, strictly inside the client's 10 s.
+        const deadline = AbortSignal.timeout(MATCH_REQUEST_DEADLINE_MS);
+        const acting = actingPrincipalOf(principal);
+        const record = await this.matchProposals.propose(acting, caller, id);
+
+        // The fresh read is better (workers parse lines while the matcher runs), but it must not carry the response past
+        // the client's timeout: past the deadline the view is built from the record the matcher already read.
+        const view = await boundedBy(deadline, () => this.parseJobsService.get(principal.userId, id)).catch(
+            (error: unknown) => {
+                if (isDeadlineExceededError(error)) {
+                    return this.parseJobsService.viewOfRecord(record);
+                }
+
+                throw error;
+            },
+        );
+
+        return this.matchView.decorate(acting, caller, view, deadline);
     }
 }

@@ -105,3 +105,16 @@ export const INPUT_BOUND_EXCEEDED_METRIC_NAME = 'VerificationInputBoundExceeded'
  * there is no severity here, only on or off.
  */
 export const RESIDENCY_REFUSED_METRIC_NAME = 'VerificationResidencyRefused';
+
+/**
+ * Fires once per ceiling denial that the paste path ACKNOWLEDGES instead of retrying (ADR-0024 §3, ADR-0071 §7; owner
+ * ruling 2026-10-26): the paste-match review recorded `budgetSpent`, or a parse-job line landed its CRF reading alone.
+ *
+ * ⚠️ THIS IS THE ONLY SIGNAL THAT THE FALLBACK IS RUNNING. Every other path through a denial is queue depth on the DLQ;
+ * this one completes the message, so a month in which the ceiling is spent would otherwise look like a healthy queue
+ * while every cook's paste matches without the AI check. Non-zero means exactly that.
+ *
+ * Carries the `CallSite` dimension (which leg was refused: the review, or one of the parse legs), like the other spend
+ * metrics, and is not a claim on the pool, so it adds no cost series to it.
+ */
+export const BUDGET_SPENT_METRIC_NAME = 'VerificationBudgetSpent';

@@ -26,6 +26,7 @@ import {
 } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';
 import { Icon } from '@commise/ui/icon';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { useId, type FC, type JSX } from 'react';
 
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
@@ -40,8 +41,7 @@ import {
 } from './authoredFoodSheet.model.js';
 import { recipeFormMessages } from './messages.js';
 
-const INPUT =
-    'w-full rounded-lg border border-line-control bg-paper px-3 py-2 text-body-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-focus-ring read-only:opacity-60 aria-[invalid=true]:border-danger';
+const INPUT = `w-full rounded-lg border border-line-control bg-paper px-3 py-2 text-body-sm text-ink ${FOCUS_RING_CLASS.offset} read-only:opacity-60 aria-[invalid=true]:border-danger`;
 
 /** The form, the sheet's content while open. */
 const FormBody: FC<{

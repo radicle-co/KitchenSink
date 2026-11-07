@@ -22,6 +22,7 @@ import {
     lineDigestPreimage,
     parseKey,
     parseKeyPreimage,
+    parseStoredLineDigest,
     type ParseEngine,
     type ParsedLineIdentity,
 } from '../parseKey.js';
@@ -206,14 +207,17 @@ describe('the version bump rule', () => {
      * with a payload shape the current reader refuses, so every one of them is a permanent miss under
      * `ON CONFLICT (parse_key) DO NOTHING`.
      *
-     * ⚠️ The member-by-member pin of what `v2` means lives with the payload it describes
+     * ⚠️ The member-by-member pin of what the generation means lives with the payload it describes
      * (`recipe-import-core`'s `storedParseGeneration.test.ts`), not here — this module owns the KEY, not the
      * shape it partitions.
+     *
+     * ⛔ The floor moved to 3 with `v3` (2026-11-06): a `v2` row's CRF `statedMeasure` is the engine's re-rendering,
+     * not the source's words, so resurrecting `v2` would serve `2-3 cup` for `2-3 cups` again, permanently.
      */
     it('⛔ never moves backward — a superseded generation must not be resurrected', () => {
         const generation = Number.parseInt(PARSE_KEY_VERSION.slice(1), 10);
 
-        expect(generation).toBeGreaterThanOrEqual(2);
+        expect(generation).toBeGreaterThanOrEqual(3);
     });
 });
 
@@ -256,5 +260,22 @@ describe('parseGenerationOf', () => {
 
         expect(JSON.stringify(left)).not.toBe(JSON.stringify(right));
         expect(parseGenerationOf(left)).not.toBe(parseGenerationOf(right));
+    });
+});
+
+/**
+ * A digest READ BACK from storage (ADR-0071): the match store and the job view compare the line's stored digest, so
+ * the stored value is parsed at the boundary into the brand rather than cast. An empty value is the failure the brand
+ * exists to catch (one key shared by every line).
+ */
+describe('parseStoredLineDigest', () => {
+    it('brands a stored digest unchanged', () => {
+        const digest = lineDigest('2 cups milk', (input) => `h${String(input.length)}`);
+
+        expect(parseStoredLineDigest(String(digest))).toBe(digest);
+    });
+
+    it('⛔ refuses an empty stored digest', () => {
+        expect(() => parseStoredLineDigest('')).toThrow();
     });
 });

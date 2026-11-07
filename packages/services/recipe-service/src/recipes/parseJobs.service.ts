@@ -44,8 +44,9 @@ import {
     type CopyForwardDecision,
 } from './domain/copyForwardPolicy.js';
 import { lineProgressOf } from './domain/lineProgress.js';
-import { RecipeDomainError } from './recipe.error.js';
+import { RecipeDomainError, importQuotaExceeded } from './recipe.error.js';
 import { PARSE_JOB_QUEUE, type ParseJobQueuePort } from './parseJob.queue.js';
+import type { ImportAllowanceChannel } from '../database/schema/importAllowanceEvents.js';
 import type { ParseJobLineStatus, ParseJobStatus } from '../database/schema/parseJobs.js';
 import type { ParseJobLineProgress, ParseJobResponse, ParseProposal } from './parseJobs.schema.js';
 
@@ -114,6 +115,25 @@ export interface ReenqueueableLine {
     readonly lineDigest: string;
 }
 
+/**
+ * How a job pays for itself (004 FR-022). REQUIRED on {@link ParseJobsDalPort.createJob}, so no call site creates a job
+ * free by omission: the free path is a value somebody had to write.
+ */
+export type JobAdmission =
+    /** Spend `units` of the caller's daily import allowance, as the FIRST write of the job's own transaction. */
+    | {
+          readonly kind: 'charge';
+          readonly channel: ImportAllowanceChannel;
+          readonly units: number;
+      }
+    /** The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8): admit nothing here. */
+    | { readonly kind: 'prepaid' };
+
+/** What creating a job answers. A refusal wrote nothing: no job, no line, no ledger row. */
+export type CreateJobOutcome =
+    | { readonly kind: 'created'; readonly record: ParseJobRecord }
+    | { readonly kind: 'refused'; readonly resetsAt: Date };
+
 /** The SQL truth this service depends on. Implemented by `dal/parseJobs.dal.ts`. */
 export interface ParseJobsDalPort {
     /**
@@ -139,9 +159,17 @@ export interface ParseJobsDalPort {
      * Insert the job and its lines in one transaction, honouring each line's decision and deriving the
      * job's initial status from how many lines are still outstanding.
      *
-     * @sideEffect Writes both parse-job tables.
+     * ⛔ The allowance is spent INSIDE that transaction, as its first write (`admission`), so a refusal leaves nothing
+     * behind and a job that exists has always been paid for. `prepaid` is the one value that spends nothing.
+     *
+     * @sideEffect Writes both parse-job tables and, for a `charge`, the import allowance ledger.
      */
-    createJob(ownerId: string, lines: readonly NewParseJobLine[], expiresAt: Date): Promise<ParseJobRecord>;
+    createJob(
+        ownerId: string,
+        lines: readonly NewParseJobLine[],
+        expiresAt: Date,
+        admission: JobAdmission,
+    ): Promise<CreateJobOutcome>;
     /** The owner's job with its lines, or `undefined` (stranger and absent are ONE answer). @sideEffect Reads. */
     getJob(ownerId: string, jobId: string): Promise<ParseJobRecord | undefined>;
     /** Flip these lines to `failed_retryable` and recompute the job aggregate. @sideEffect Writes. */
@@ -190,7 +218,7 @@ const storedProposalSchema = z.looseObject({
 });
 
 /** Project a stored `ParsedLine` onto the strict wire shape. Pure. @throws On a row this build cannot read. */
-function projectProposal(stored: unknown): ParseProposal {
+export function projectProposal(stored: unknown): ParseProposal {
     const parsed = storedProposalSchema.parse(stored);
 
     return {
@@ -228,12 +256,12 @@ function progressOf(line: ParseJobLineRecord, quietSeconds: number): ParseJobLin
 }
 
 /** `PARSE_JOB_NOT_FOUND` — stranger and absent are deliberately one answer. */
-function parseJobNotFound(jobId: string): RecipeDomainError {
+export function parseJobNotFound(jobId: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.PARSE_JOB_NOT_FOUND, `Parse job ${jobId} not found.`);
 }
 
 /** `PARSE_JOB_EXPIRED` — the TTL passed; the remedy is a fresh create. */
-function parseJobExpired(jobId: string): RecipeDomainError {
+export function parseJobExpired(jobId: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.PARSE_JOB_EXPIRED, `Parse job ${jobId} expired.`);
 }
 
@@ -284,22 +312,79 @@ export class ParseJobsService {
     ) {}
 
     /**
-     * Create a job from a pasted block: split, digest, store, enqueue one message per line.
+     * Create a job from a pasted block: split, digest, spend one unit of the daily allowance, store, enqueue one message
+     * per line.
      *
      * The controller's schema already refused an inadmissible paste with the SAME splitter, so by the time
      * this runs the split is known-admissible; splitting again is not a second opinion, it is the one
      * opinion applied to the one representation that matters (what gets stored).
      *
-     * @sideEffect Writes the parse-job tables and enqueues SQS messages.
+     * ⛔ A PASTE IS ONE UNIT, whatever its line count (004 D-013's reasoning: the allowance bounds outbound fetching and
+     * OCR spend, which a paste does neither of). It is spent inside the job's transaction, so a refusal creates nothing.
+     *
+     * @param ownerId - The verified caller.
+     * @param text - The pasted block.
+     * @throws `IMPORT_QUOTA_EXCEEDED` (429, `details.resetsAt`) when the allowance is spent.
+     * @sideEffect Writes the parse-job tables and the allowance ledger, and enqueues SQS messages.
      */
     public async create(ownerId: string, text: string): Promise<ParseJobResponse> {
-        const split = splitParseJobLines(text).map((sourceLine) => ({
+        return this.createWith(ownerId, splitParseJobLines(text), { kind: 'charge', channel: 'paste', units: 1 });
+    }
+
+    /**
+     * Create a job for lines whose unit the caller ALREADY spent (a bulk import's recipe, ADR-0072 §8: one `bulk` unit per recipe).
+     *
+     * ⛔ NO LIVE ROUTE MAY CALL THIS. It exists for the parked bulk-import lane (ADR-0072 section 8), which has no route
+     * yet; today the only door to a job is {@link create}, which charges the paste allowance. A controller that called this
+     * would hand every caller an uncharged parse job.
+     *
+     * ⛔ THIS IS NOT A FREE PATH. It is legitimate only for a caller that has already charged a `bulk` unit for the
+     * recipe these lines came from (and recorded that on the item, so a repeat never charges it twice); a caller that has
+     * not must use {@link create}. It admits nothing, so nothing here stops a caller from using it to skip the allowance —
+     * the guard is the call site. A bulk import pays PER RECIPE under its own channel, never against the paste allowance.
+     *
+     * @param ownerId - The verified caller.
+     * @param lines - The already-split source lines (the importer's own, not a paste).
+     * @throws {RangeError} when there are no lines: a job with nothing to parse is a caller defect.
+     * @sideEffect Writes the parse-job tables and enqueues SQS messages.
+     */
+    public async createPrepaid(ownerId: string, lines: readonly string[]): Promise<ParseJobResponse> {
+        if (lines.length === 0) {
+            throw new RangeError('createPrepaid needs at least one line');
+        }
+
+        return this.createWith(ownerId, lines, { kind: 'prepaid' });
+    }
+
+    /**
+     * The one create pipeline both doors share: digest, decide copy-forward, store under `admission`, enqueue.
+     *
+     * @sideEffect Writes the parse-job tables (and the ledger for a `charge`) and enqueues SQS messages.
+     */
+    private async createWith(
+        ownerId: string,
+        sourceLines: readonly string[],
+        admission: JobAdmission,
+    ): Promise<ParseJobResponse> {
+        const split = sourceLines.map((sourceLine) => ({
             sourceLine,
             lineDigest: lineDigest(sourceLine, sha256Hex),
         }));
         const lines = await this.decideCopyForward(ownerId, split);
         const expiresAt = new Date(Date.now() + PARSE_JOB_TTL_HOURS * 3_600_000);
-        const record = await this.dal.createJob(ownerId, lines, expiresAt);
+        const created = await this.dal.createJob(ownerId, lines, expiresAt, admission);
+
+        if (created.kind === 'refused') {
+            if (admission.kind === 'prepaid') {
+                // A prepaid job spends nothing, so nothing can refuse it. A DAL that says otherwise is broken, and
+                // answering it as a quota refusal would tell a cook their allowance is spent when it is not.
+                throw new Error('a prepaid parse job was refused by the allowance');
+            }
+
+            throw importQuotaExceeded(created.resetsAt);
+        }
+
+        const { record } = created;
         // ⛔ Only the lines the DAL actually left OUTSTANDING get a message. Reading it off the stored status
         // rather than off `decisions` keeps ONE authority for "what still needs doing" — the rows.
         const outstanding = record.lines.filter((line) => line.status === 'pending');
@@ -406,6 +491,14 @@ export class ParseJobsService {
 
             return enqueueAll;
         }
+    }
+
+    /**
+     * The view of a job record already read. The matches request builds its view from the record its matcher read when a
+     * fresh read cannot finish inside the request's deadline (ADR-0071). Pure.
+     */
+    public viewOfRecord(record: ParseJobRecord): ParseJobResponse {
+        return viewOf(record);
     }
 
     /** The owner's job view. @throws `PARSE_JOB_NOT_FOUND` for stranger and absent alike. @sideEffect Reads. */

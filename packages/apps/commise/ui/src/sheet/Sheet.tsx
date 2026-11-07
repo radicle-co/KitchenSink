@@ -28,15 +28,16 @@ import { useReturnFocusOnClose } from '../dialogFocus/useReturnFocusOnClose.js';
 import type { SheetProps } from './props.js';
 import { SheetPanel } from './SheetPanel.js';
 import { useVisualViewportKeyboard } from './useVisualViewportKeyboard.js';
+import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 /**
  * The geometry every size shares. From `sm` the sheet is a dialog centred in the visible box; with no keyboard the two
  * variables are unset and the fallbacks give the window's 50%.
  */
 const CONTENT =
-    'fixed inset-x-0 z-50 flex w-full flex-col bg-paper-overlay sm:inset-x-auto sm:left-1/2 ' +
+    `fixed inset-x-0 z-50 flex w-full flex-col ${surfaceToneClass('paperOverlay')} sm:inset-x-auto sm:left-1/2 ` +
     'sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)] ' +
-    'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:shadow-lg';
+    'sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:shadow-lg';
 
 /** The whole visible box: `full` and `page` below `sm`. */
 const PHONE_VISIBLE_BOX = 'top-[var(--sheet-visible-top,0px)] h-[var(--sheet-visible-height,100dvh)]';
@@ -76,15 +77,20 @@ const FROM_SM: Readonly<Record<SheetProps['size'], string>> = {
     page: 'sm:h-[var(--sheet-visible-height,100dvh)] sm:max-h-[var(--sheet-visible-height,100dvh)] sm:max-w-6xl',
 };
 
+/** A `dialog` presentation's `content` box from `sm`: the house dialog at 448 px (`max-w-md`), ONE max-width utility. */
+const DIALOG_CONTENT_FROM_SM = 'sm:h-auto sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))] sm:max-w-md';
+
 export const Sheet: FC<SheetProps> = ({
     open,
     onOpenChange,
     onDismissed,
+    onShown,
     title,
     labelledBy = [],
     describedBy = [],
     closeLabel,
     size,
+    presentation = 'sheet',
     toolbar,
     children,
     footer,
@@ -111,13 +117,14 @@ export const Sheet: FC<SheetProps> = ({
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
                         document.getElementById(titleId)?.focus();
+                        onShown?.();
                     }}
                     onCloseAutoFocus={(event) => {
                         returnFocus(event);
                         onDismissed?.();
                     }}
                     style={style}
-                    className={`${CONTENT} ${PHONE[size]} ${FROM_SM[size]}`}
+                    className={`${CONTENT} ${PHONE[size]} ${presentation === 'dialog' && size === 'content' ? DIALOG_CONTENT_FROM_SM : FROM_SM[size]}`}
                 >
                     <SheetPanel
                         title={title}

@@ -69,7 +69,19 @@ export interface SqsBatchQueueConfig {
  * LocalStack test cannot exercise — LocalStack accepts poison happily and will not manufacture a
  * partial-batch failure on request.
  */
-export type SqsBatchSend = (input: SendMessageBatchCommandInput) => Promise<SendMessageBatchCommandOutput>;
+export type SqsBatchSend = (
+    input: SendMessageBatchCommandInput,
+    options?: { readonly abortSignal?: AbortSignal },
+) => Promise<SendMessageBatchCommandOutput>;
+
+/** What a caller may bound an enqueue with. */
+export interface SqsEnqueueOptions {
+    /**
+     * The caller's own deadline (a paste matches request's, ADR-0071). It reaches every batch's send; an aborted send is
+     * reported undelivered like any failed batch.
+     */
+    readonly signal?: AbortSignal;
+}
 
 /** Split a list into chunks of at most {@link SQS_BATCH_LIMIT}. Pure. */
 function batches<T>(messages: readonly T[]): readonly (readonly T[])[] {
@@ -168,7 +180,7 @@ function partitionSendable<T>(
  * @param send - How a batch reaches SQS.
  * @param queueUrl - The queue every batch is addressed to.
  * @param label - Prefix for the thrown error (`"<label>: N of M messages were not delivered — …"`).
- * @returns The enqueue function a port wraps.
+ * @returns The enqueue function a port wraps; its optional second argument carries the caller's deadline.
  */
 export function createSqsBatchEnqueue<T>(
     schema: ZodType<T>,
@@ -176,8 +188,8 @@ export function createSqsBatchEnqueue<T>(
     queueUrl: string,
     label: string,
     tenantOf?: TenantOf<T>,
-): (messages: readonly T[]) => Promise<void> {
-    return async (messages: readonly T[]): Promise<void> => {
+): (messages: readonly T[], options?: SqsEnqueueOptions) => Promise<void> {
+    return async (messages: readonly T[], options: SqsEnqueueOptions = {}): Promise<void> => {
         const { sendable, refused } = partitionSendable(schema, messages);
         const problems = refused.map(
             ({ index, fields }) => `message ${String(index)} refused by the contract (${fields})`,
@@ -196,10 +208,13 @@ export function createSqsBatchEnqueue<T>(
             );
             const results = await Promise.allSettled(
                 addressed.map(async (batch) =>
-                    send({
-                        QueueUrl: queueUrl,
-                        Entries: batch.map((item) => entryFor(tenantOf, item.message, item.id)),
-                    }),
+                    send(
+                        {
+                            QueueUrl: queueUrl,
+                            Entries: batch.map((item) => entryFor(tenantOf, item.message, item.id)),
+                        },
+                        options.signal === undefined ? undefined : { abortSignal: options.signal },
+                    ),
                 ),
             );
 
@@ -303,5 +318,5 @@ export interface SqsBatchTransport {
 export function createSqsBatchTransport(config: SqsBatchQueueConfig): SqsBatchTransport {
     const client = new SQSClient(sqsBatchClientConfig(config));
 
-    return { client, send: async (input) => client.send(new SendMessageBatchCommand(input)) };
+    return { client, send: async (input, options) => client.send(new SendMessageBatchCommand(input), options) };
 }

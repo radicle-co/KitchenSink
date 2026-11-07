@@ -253,6 +253,19 @@ describe('useCollectionDetail — save a copy, rename and visibility', () => {
         expect(update).toHaveBeenCalledWith('col_1', { name: 'Suppers' });
     });
 
+    it('asks for focus back on the menu trigger once the rename sheet is off screen, and lowers it when taken', () => {
+        const { result } = setup();
+
+        act(() => result.current.rename.onStart());
+        expect(result.current.rename.focusMenu.requested).toBe(false);
+
+        act(() => result.current.rename.onDismissed());
+        expect(result.current.rename.focusMenu.requested).toBe(true);
+
+        act(() => result.current.rename.focusMenu.onHandled());
+        expect(result.current.rename.focusMenu.requested).toBe(false);
+    });
+
     it('offers the visibility toggle only when the viewer may use it', () => {
         expect(setup({ paidFeatures: 'granted' }).result.current.onToggleVisibility).toBeTypeOf('function');
         expect(setup({ paidFeatures: 'hidden' }).result.current.onToggleVisibility).toBeUndefined();

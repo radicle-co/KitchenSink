@@ -187,7 +187,14 @@ with no network: it shows the sign-in screen and none of the previous cook's dat
 
 ## Open Question
 
-### OQ-1: How the app opens offline (major, owner, open)
+### OQ-1: How the app opens offline (major, owner, RESOLVED 2026-10-29)
+
+**Decision (owner, 2026-10-29): "Our held state on both".** Web and mobile use our own held state. The app shows the
+cook's stored data while the sign-in provider loads, then hands back to it, and sends nothing until the session is
+verified (`authenticated`). It is not sign-in logic: the provider still owns the session. The provider's experimental
+offline cache is not used. Build step 3 follows this choice, and SC-003 reads against the held state.
+
+The options as they were weighed:
 
 The app must open offline (FR-001, FR-002) without a lasting dependency on behavior the sign-in provider marks
 experimental. Two ways exist, and the choice decides how SC-003 reads:

@@ -4,6 +4,7 @@ import { AccessibilityInfo, Animated } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { CheckBoxGlyph } from '../CheckBoxGlyph.native.js';
+import { GLYPH_CORNER } from '../props.js';
 
 /**
  * The native `CheckBoxGlyph` (build spec §1.9): checked, the check springs in from 0.9 with the signature overshoot
@@ -23,6 +24,23 @@ describe('CheckBoxGlyph (native)', () => {
         const { container } = render(<CheckBoxGlyph checked={false} />);
 
         expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    });
+
+    // C6 (redesign): a thin outline, 1 dp (it was a 2 dp frame).
+    it('draws a 1 dp outline', () => {
+        const { container } = render(<CheckBoxGlyph checked={false} />);
+
+        expect(getComputedStyle(container.querySelector('[aria-hidden="true"]') as Element).borderTopWidth).toBe('1px');
+    });
+
+    it('is an 18 dp box with a 4 dp corner', () => {
+        const { container } = render(<CheckBoxGlyph checked={false} />);
+        const box = getComputedStyle(container.querySelector('[aria-hidden="true"]') as Element);
+
+        expect(box.width).toBe('18px');
+        expect(box.height).toBe('18px');
+        expect(box.borderTopLeftRadius).toBe(`${String(GLYPH_CORNER)}px`);
+        expect(GLYPH_CORNER).toBe(4);
     });
 
     it('shows the check only when checked', () => {

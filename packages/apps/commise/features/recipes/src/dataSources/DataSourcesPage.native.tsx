@@ -72,12 +72,12 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     title: {
         flex: 1,
+        ...nativeTokens.type.sectionTitle,
         fontFamily: nativeTokens.fontFace.display.semibold,
-        fontSize: nativeTokens.fontSize.headingMd,
     },
     // 48 × 48 dp: the sheet's only visible exit must be easy to hit (§S16).
     close: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     body: { gap: nativeTokens.spacing[3], paddingBottom: nativeTokens.spacing[4] },
-    intro: { fontSize: nativeTokens.fontSize.bodyMd },
-    note: { fontSize: nativeTokens.fontSize.bodyMd },
+    intro: { ...nativeTokens.type.body },
+    note: { ...nativeTokens.type.body },
 });

@@ -15,7 +15,7 @@ import { RecipeUpsellSheet } from '../actions/RecipeUpsellSheet.js';
 
 /** Props for {@link RecipeDetailDialogs}: what `useRecipeDetailController` decided. */
 export interface RecipeDetailDialogsProps {
-    /** Only the owner meets these dialogs; for anyone else this renders nothing. */
+    /** Only the owner meets the Premium, make-public and delete dialogs. */
     readonly viewerIsOwner: boolean;
     readonly recipeTitle: string;
     readonly upsell: RecipeUpsellSheetProps;

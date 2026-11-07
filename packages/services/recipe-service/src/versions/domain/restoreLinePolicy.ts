@@ -1,13 +1,16 @@
 /**
- * What a version restore does with each line of the snapshot (plan 002 R52).
+ * What a version restore does with each line of the snapshot (plan 002 R52; owner ruling 2026-11-03).
  *
- * A snapshot stores each line's binding id and the name the saving cook could share. At restore time the binding
- * may still stand, may point at a food that is gone or withdrawn, or may be gone itself:
+ * A restore binds what the version DEFINED. A snapshot stores each line's binding id and the name the saving cook could
+ * share. At restore time the binding may still stand, may point at a food that is gone or withdrawn, or may be gone
+ * itself:
  *
- * - A binding that still stands is restored exactly, with two exceptions. A food that is gone or withdrawn goes
- *   by the frozen name, so the restore finds what stands in for it now. An unresolved line other than a declared
- *   one resolves its own name again, which may succeed now.
- * - A binding that is gone goes by the frozen name: a declared line is declared again, any other line resolves.
+ * - A binding that still stands is restored exactly, whether it is a food, a variant, a declared name or a failure that
+ *   was still unresolved: the line comes back as the version had it.
+ * - A food that is gone or withdrawn, or a binding that is gone, comes back UNBOUND under its frozen name (declared), so
+ *   the cook picks a food through the lookup like any other unbound line. ⛔ It is never resolved again: neither the
+ *   resolution cascade nor food is asked for a stand-in, because that would pick another food for the cook with no
+ *   choice made.
  * - A line with no binding and no name cannot be restored. The restore refuses the whole version (409), because
  *   restoring the rest would silently drop a line from the recipe the cook asked to get back.
  *
@@ -31,7 +34,6 @@ export interface SnapshotLineFacts {
 /** What the restore does with one line. */
 export type RestoreLineDecision =
     | { readonly kind: 'reuse'; readonly lookupId: string }
-    | { readonly kind: 'byName'; readonly name: CanonicalIngredientName }
     | { readonly kind: 'declare'; readonly name: CanonicalIngredientName }
     | { readonly kind: 'unrestorable' };
 
@@ -63,25 +65,19 @@ export function decideRestoreLine(
             return { kind: 'unrestorable' };
         }
 
-        return line.isUserEntered ? { kind: 'declare', name: frozen } : { kind: 'byName', name: frozen };
+        return { kind: 'declare', name: frozen };
     }
 
     const reuse: RestoreLineDecision = { kind: 'reuse', lookupId: identity.arm.lookupId };
 
     if (identity.arm.kind === 'unresolved') {
-        if (identity.arm.failure.reasonCode === 'author_declared') {
-            return reuse;
-        }
-
-        const failureName = canonicalIngredientName(identity.arm.failure.name);
-
-        return failureName === undefined ? reuse : { kind: 'byName', name: failureName };
+        return reuse;
     }
 
     switch (identity.presence) {
         case 'withdrawn':
         case 'gone':
-            return frozen === undefined ? reuse : { kind: 'byName', name: frozen };
+            return frozen === undefined ? reuse : { kind: 'declare', name: frozen };
         case 'present':
         case 'unreachable':
         case 'unbound':

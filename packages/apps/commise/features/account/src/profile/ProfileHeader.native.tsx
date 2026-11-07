@@ -1,23 +1,26 @@
 /**
  * @module @commise/features-account/profile/ProfileHeader — the Profile page's identity block (native): a 72 pt avatar,
- * the display name and the email (`buildSpec.md` §9.1, §3.8). The cook's photo control (`AvatarField`) stays an
+ * and the display name, or the @username when the cook has no name (owner ruling T8, 2026-10-29). The email shows only in
+ * the Account group (owner ruling S2, 2026-10-27). The cook's photo control (`AvatarField`) stays an
  * app-level native control; the host passes it as `avatar` and it replaces the initials disc, so there is one avatar.
  *
- * Three states, never a blocked page: loading is a skeleton, ready is the name and email, failed shows the `user`
- * glyph and says so with a Try again control. Colour comes from the theme at render.
+ * Three states, never a blocked page: loading is a skeleton, ready is the avatar and the name, failed shows the `user`
+ * glyph and says so with a Try again control. The text is the design system's capped `Text` in theme colour keys
+ * (ADR-0080); the discs' and the skeleton's fills come from the theme at render.
  *
  * @pattern Visitor — an exhaustive switch over the profile read's three states
  */
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { profileMessages } from './messages.js';
-import { formatUsername } from './model.js';
+import { profileHeaderTitleOf } from './model.js';
 import type { ProfileHeaderProps } from './props.js';
 
 /** The identity block. */
@@ -30,10 +33,7 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
             return (
                 <View role="status" aria-label={t.loading} collapsable={false} style={styles.row}>
                     <View aria-hidden style={[styles.disc, { backgroundColor: colors.surfaceMuted }]} />
-                    <View aria-hidden style={styles.skeletonText}>
-                        <View style={[styles.line, { width: 160, backgroundColor: colors.surfaceMuted }]} />
-                        <View style={[styles.line, { width: 224, backgroundColor: colors.surfaceMuted }]} />
-                    </View>
+                    <View aria-hidden style={[styles.line, { width: 160, backgroundColor: colors.surfaceMuted }]} />
                 </View>
             );
         case 'failed':
@@ -43,16 +43,19 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                         <Icon name="user" size={24} tone="inkMuted" />
                     </View>
                     <View style={styles.text}>
-                        <Text role="alert" style={[styles.name, { color: colors.ink }]}>
+                        <Text role="alert" typeRole="body" color="$ink">
                             {t.loadError}
                         </Text>
-                        <Button variant="secondary" size="sm" icon="rotateCcw" onPress={onRetry}>
+                        <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                             {t.retry}
                         </Button>
                     </View>
                 </View>
             );
-        case 'ready':
+
+        case 'ready': {
+            const title = profileHeaderTitleOf(read, t.usernameValue);
+
             return (
                 <View style={styles.row}>
                     {avatar ?? (
@@ -66,23 +69,22 @@ export const ProfileHeader: FC<ProfileHeaderProps> = ({ read, initials, onRetry,
                             {initials === '' ? (
                                 <Icon name="user" size={24} tone="inkMuted" />
                             ) : (
-                                <Text style={[styles.initials, { color: colors.onAction }]}>{initials}</Text>
+                                <Text typeRole="figureStat" color="$onAction">
+                                    {initials}
+                                </Text>
                             )}
                         </View>
                     )}
                     <View style={styles.text}>
-                        {read.displayName === '' ? null : (
-                            <Text style={[styles.name, { color: colors.ink }]}>{read.displayName}</Text>
-                        )}
-                        {read.username === null ? null : (
-                            <Text style={[styles.username, { color: colors.ink }]}>
-                                {formatUsername(t.usernameValue, read.username)}
+                        {title === '' ? null : (
+                            <Text typeRole="sectionTitle" color="$ink">
+                                {title}
                             </Text>
                         )}
-                        <Text style={[styles.email, { color: colors.inkMuted }]}>{read.email}</Text>
                     </View>
                 </View>
             );
+        }
     }
 };
 
@@ -95,11 +97,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    initials: { ...nativeTokens.type.figureStat },
     text: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[1], alignItems: 'flex-start' },
-    skeletonText: { gap: nativeTokens.spacing[2] },
     line: { height: 16, borderRadius: nativeTokens.radius.sm },
-    name: { ...nativeTokens.type.sectionTitle },
-    username: { ...nativeTokens.type.meta },
-    email: { ...nativeTokens.type.meta },
 });

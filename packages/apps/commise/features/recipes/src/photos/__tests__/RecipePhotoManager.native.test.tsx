@@ -4,19 +4,21 @@
  * and the add-control/cap boundary — so the two platform renders cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { Pressable, Text, type Modal as ModalType } from 'react-native';
 import { createElement, type ComponentProps } from 'react';
 
 import { role, roleDark } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
-import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { scaledTypeSize } from '@commise/ui/scaled-type';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { makePhoto, makeQueueItem } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipePhotoManager } from '../RecipePhotoManager.native.js';
 import { MAX_RECIPE_PHOTOS, type RecipePhotoManagerProps } from '../model.js';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
 // The platform the render stands in for, and the sheet's Modal: its `onDismiss` is held back so a test fires it itself,
 // standing in for iOS, where React Native reports the end of the slide-out that way (`ActionMenu.native.test.tsx`).
@@ -697,5 +699,36 @@ describe.each(['light', 'dark'] as const)('RecipePhotoManager (native) — the %
         expect(style(screen.getByText('Queued')).backgroundColor).toBe(colours.photoChip);
         expect(style(screen.getByText('Upload failed')).backgroundColor).toBe(rgb(colours.danger));
         expect(style(screen.getByText('Too large')).color).toBe(rgb(colours.dangerText));
+    });
+});
+
+/**
+ * The upload's caption is a typed live region (ADR-0080 §8): the design-system Text in the `meta` role, in `inkMuted`,
+ * so it grows with the system text size, size and leading together, to the 2× cap. It is read in both schemes.
+ */
+describe('RecipePhotoManager (native) — the upload caption', () => {
+    const renderUploading = (scheme: 'light' | 'dark', textScale = 1): HTMLElement => {
+        renderWithTamagui(
+            <RecipePhotoManager photos={[]} onRemovePhoto={noop} onRemoveQueueItem={noop} uploading />,
+            scheme,
+            textScale,
+        );
+
+        return screen.getByText('Uploading photo');
+    };
+
+    it('sets it in the meta role, grown with the system text size to the 2× cap', () => {
+        const spec = nativeTokens.type.meta;
+        const style = getComputedStyle(renderUploading('light', 3.1));
+
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
+        // This file runs as iOS, where the leading is the raw token doubled and then shifted above the pixel grid once
+        // (react/react-native#58970), not the already shifted projection doubled.
+        expect(style.lineHeight).toBe(`${String(scaledTypeSize('meta', 3.1).lineHeight)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints it in inkMuted in the %s scheme', (scheme) => {
+        expect(resolvedColour(renderUploading(scheme), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
     });
 });

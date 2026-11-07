@@ -20,22 +20,32 @@
  * The lightbox is drawn edge to edge, and its photo and its 48 dp Close sit inside the safe area, so a side navigation
  * bar or a cutout never covers either.
  *
+ * HERO PAGING (`nativeBoards/buildLists.md` item 1): paging chevrons at the sides and dots that track the page. The page
+ * is state: read from the strip's scroll offset and set directly when a chevron is pressed.
+ *
  * @pattern Adapter over React Native's paging `ScrollView` and `Modal` — the same read model and branch behaviour as
- *     the web leaf, expressed with platform primitives; the open slide is local view state.
+ *     the web leaf, expressed with platform primitives; the open slide is local view state. The `ScrollView`'s handle
+ *     is held in state through a callback ref, for `scrollTo`: an imperative call with no declarative form, which the
+ *     chevrons need to page the strip.
  */
 import { useMessages } from '@commise/i18n/react';
+import { Icon } from '@commise/ui/icon';
 import { carouselBox } from '@commise/ui/layout';
 import { Modal } from '@commise/ui/modal';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { SurfaceToneScope } from '@commise/ui/surface-tone-scope';
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
+import { pageAt } from './photoPaging.js';
+import { PhotoDots } from './PhotoDots.native.js';
+import { PhotoPagingChevrons } from './PhotoPagingChevrons.native.js';
 
 /** Props for {@link PhotoCarousel} — the recipe's photos (display order) and the recipe title for alt text. */
 export interface PhotoCarouselProps {
@@ -50,6 +60,9 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
     const { colors } = useTheme();
     const [stripWidth, setStripWidth] = useState<number | null>(null);
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
+    const [page, setPage] = useState(0);
+    // The strip's handle, held in state through a callback ref (the shape `ScrollHost` uses): no ref object to read.
+    const [strip, setStrip] = useState<ScrollView | null>(null);
 
     if (photos.length === 0) {
         return null;
@@ -59,6 +72,15 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
     const activePhoto = activeIndex !== null ? photos[activeIndex] : undefined;
     const box = stripWidth === null ? null : carouselBox(stripWidth, windowHeight);
 
+    const goTo = (next: number): void => {
+        if (box === null) {
+            return;
+        }
+
+        setPage(next);
+        strip?.scrollTo({ x: next * box.width, animated: true });
+    };
+
     return (
         <View
             collapsable={false}
@@ -67,47 +89,45 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
             onLayout={(event) => setStripWidth(event.nativeEvent.layout.width)}
         >
             {box !== null && (
-                <ScrollView
-                    keyboardShouldPersistTaps="handled"
-                    horizontal
-                    // One `scrollsToTop` per screen: the detail's own scroller keeps the iOS status-bar tap.
-                    scrollsToTop={false}
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    style={[styles.strip, { width: box.width }]}
-                >
-                    {photos.map((photo, index) => (
-                        <Pressable
-                            key={photo.id}
-                            accessibilityRole="button"
-                            accessibilityLabel={fillTemplate(detail.photoOpen, { title, index: index + 1 })}
-                            onPress={() => setActiveIndex(index)}
-                            style={[styles.slide, { width: box.width, height: box.height }]}
-                        >
-                            <Image
-                                source={{ uri: photo.url }}
-                                accessibilityLabel={altFor(index)}
-                                contentFit="cover"
-                                cachePolicy="memory-disk"
-                                style={styles.image}
-                            />
-                        </Pressable>
-                    ))}
-                </ScrollView>
+                <PhotoPagingChevrons page={page} count={photos.length} title={title} onGo={goTo}>
+                    <ScrollView
+                        ref={setStrip}
+                        keyboardShouldPersistTaps="handled"
+                        horizontal
+                        // One `scrollsToTop` per screen: the detail's own scroller keeps the iOS status-bar tap.
+                        scrollsToTop={false}
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        // `onScroll`, not `onMomentumScrollEnd`: the page follows the swipe as it crosses a slide's midpoint, and
+                        // follows the chevrons' own animated scroll too. iOS sends no scroll events without a throttle.
+                        scrollEventThrottle={16}
+                        onScroll={(event) =>
+                            setPage(pageAt(event.nativeEvent.contentOffset.x, box.width, photos.length))
+                        }
+                        style={[styles.strip, { width: box.width }]}
+                    >
+                        {photos.map((photo, index) => (
+                            <Pressable
+                                key={photo.id}
+                                accessibilityRole="button"
+                                accessibilityLabel={fillTemplate(detail.photoOpen, { title, index: index + 1 })}
+                                onPress={() => setActiveIndex(index)}
+                                style={[styles.slide, { width: box.width, height: box.height }]}
+                            >
+                                <Image
+                                    source={{ uri: photo.url }}
+                                    accessibilityLabel={altFor(index)}
+                                    contentFit="cover"
+                                    cachePolicy="memory-disk"
+                                    style={styles.image}
+                                />
+                            </Pressable>
+                        ))}
+                    </ScrollView>
+                </PhotoPagingChevrons>
             )}
 
-            {photos.length > 1 && (
-                <View collapsable={false} accessibilityLabel={detail.photoDotsLabel} style={styles.dots}>
-                    {photos.map((photo, index) => (
-                        <View
-                            accessible
-                            key={photo.id}
-                            accessibilityLabel={fillTemplate(detail.photoDot, { title, index: index + 1 })}
-                            style={[styles.dot, { backgroundColor: colors.lineDivider }]}
-                        />
-                    ))}
-                </View>
-            )}
+            <PhotoDots photos={photos} title={title} page={page} />
 
             {activePhoto !== undefined && activeIndex !== null && (
                 <Modal
@@ -118,45 +138,49 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                     navigationBarTranslucent
                     onRequestClose={() => setActiveIndex(null)}
                 >
-                    <View style={[styles.lightbox, { backgroundColor: colors.scrim }]}>
-                        {/* The photo inside the safe area: a side navigation bar or a cutout never covers it. */}
-                        <View
-                            style={[
-                                styles.lightboxPhotoBox,
-                                {
-                                    paddingTop: insets.top,
-                                    paddingRight: insets.right,
-                                    paddingBottom: insets.bottom,
-                                    paddingLeft: insets.left,
-                                },
-                            ]}
-                        >
-                            <Image
-                                source={{ uri: activePhoto.url }}
-                                accessibilityLabel={altFor(activeIndex)}
-                                contentFit="contain"
-                                cachePolicy="memory-disk"
-                                style={styles.lightboxImage}
-                            />
+                    // The lightbox has no surface of its own: the scrim is not one, and its close button is a floating
+                    // control over a photo (`componentFixes.md` §10a). It states the canvas so that is a decision and
+                    not an // accident of where the modal was opened from; native draws no focus ring, so the two-tone
+                    ring is web's.
+                    <SurfaceToneScope tone="canvas">
+                        <View style={[styles.lightbox, { backgroundColor: colors.scrim }]}>
+                            {/* The photo inside the safe area: a side navigation bar or a cutout never covers it. */}
+                            <View
+                                style={[
+                                    styles.lightboxPhotoBox,
+                                    {
+                                        paddingTop: insets.top,
+                                        paddingRight: insets.right,
+                                        paddingBottom: insets.bottom,
+                                        paddingLeft: insets.left,
+                                    },
+                                ]}
+                            >
+                                <Image
+                                    source={{ uri: activePhoto.url }}
+                                    accessibilityLabel={altFor(activeIndex)}
+                                    contentFit="contain"
+                                    cachePolicy="memory-disk"
+                                    style={styles.lightboxImage}
+                                />
+                            </View>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={detail.lightboxClose}
+                                onPress={() => setActiveIndex(null)}
+                                style={[
+                                    styles.close,
+                                    { backgroundColor: colors.paper },
+                                    {
+                                        top: insets.top + nativeTokens.spacing[2],
+                                        right: insets.right + nativeTokens.spacing[2],
+                                    },
+                                ]}
+                            >
+                                <Icon name="x" size={24} tone="ink" />
+                            </Pressable>
                         </View>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={detail.lightboxClose}
-                            onPress={() => setActiveIndex(null)}
-                            style={[
-                                styles.close,
-                                { backgroundColor: colors.paper },
-                                {
-                                    top: insets.top + nativeTokens.spacing[2],
-                                    right: insets.right + nativeTokens.spacing[2],
-                                },
-                            ]}
-                        >
-                            <Text aria-hidden style={[styles.closeLabel, { color: colors.ink }]}>
-                                ×
-                            </Text>
-                        </Pressable>
-                    </View>
+                    </SurfaceToneScope>
                 </Modal>
             )}
         </View>
@@ -166,10 +190,8 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
 const styles = StyleSheet.create({
     container: { gap: 8 },
     strip: { alignSelf: 'center' },
-    slide: { borderRadius: 16, overflow: 'hidden' },
+    slide: { borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
     image: { width: '100%', height: '100%' },
-    dots: { flexDirection: 'row', justifyContent: 'center', gap: 8 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
     lightbox: { flex: 1 },
     lightboxPhotoBox: { flex: 1 },
     lightboxImage: { width: '100%', height: '100%' },
@@ -178,9 +200,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: 48,
         height: 48,
-        borderRadius: 24,
+        borderRadius: nativeTokens.radius.full,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    closeLabel: { fontSize: 24, lineHeight: 24 },
 });

@@ -16,7 +16,7 @@ const steps = [
     'Flip once and finish for one more minute.',
     'Serve warm with lemon curd.',
 ];
-const title: CSSProperties = { margin: 0, font: '700 28px Georgia, serif' };
+const title: CSSProperties = { margin: 0, font: '600 28px/32px var(--font-display)' };
 const heading: CSSProperties = { margin: 0, font: '600 18px Inter, system-ui' };
 const text: CSSProperties = { margin: 0, font: '14px Inter, system-ui', color: 'var(--ink-muted)' };
 const section: CSSProperties = {

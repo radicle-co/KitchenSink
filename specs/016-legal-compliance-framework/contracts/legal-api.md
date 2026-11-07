@@ -110,6 +110,12 @@ the link is never stored (`FR-034`, [R7](../research.md#r7)).
 
 The uploader's challenge. Authenticated, and only the content's owner may submit (`FR-019`).
 
+### `POST /api/v1/restrictions/{id}/challenges` _(added 2026-11-03, ADR-0082)_
+
+The cook's challenge to a restriction that did not start from a notice (spec `FR-018`, `FR-019`). Authenticated,
+and only the cook the statement was sent to can submit. Body: `{ "reason": "string" }`. `202` with `{ "id" }`. The
+outcome is recorded on `restriction_statements.challenge_outcome` (data-model §14).
+
 ---
 
 ## D. Reviewer — identity service, behind the review scope
@@ -214,6 +220,27 @@ Response reports what was actioned, **including the derived copies**, so
 Erasure's counterpart: strip an erased user's identifying attribution from surviving clones while retaining a
 non-identifying provenance marker (`GR-014` AC-014-i, `001-FR-005d`).
 
+### `POST /api/v1/internal/restrictions` _(added 2026-11-03, ADR-0082)_
+
+Recipe-service → identity, when it places a restriction that did not start from a notice: a 020 hold or refusal, a
+demotion or visibility limit, or a facts card cut back for an opt-out or the cap (spec `FR-018`).
+
+```jsonc
+{
+    "accountId": "string",
+    "contentRef": "string",
+    "kind": "refused_to_publish|held_for_review|not_approved|demoted|visibility_limited|card_reduced_opt_out|card_reduced_cap",
+    "ground": "string",
+    "facts": "string",
+    "automated": true, // 020's automated hold is true. A person's decision is false
+    "redress": "string",
+    "idempotencyKey": "string", // set by recipe-service, one per restriction placed
+}
+```
+
+`202` with `{ "id" }`. Identity writes `restriction_statements` and delivers it on both channels (`FR-018a`). The
+call is idempotent on `idempotencyKey`, so a retry never sends two statements.
+
 ---
 
 ## Contract-skew guards
@@ -223,3 +250,4 @@ Three, per `GR-015` §15-c — each is a task, not an intention:
 1. **`CONTRACT_HASH` boot assertion** in the identity service and in the intake Lambda.
 2. **Receipt validation** in every client of these endpoints, including `@commise/features-account`.
 3. **Outbound validation** against the callee's zod on both internal endpoints above, in both directions.
+   _(2026-11-03)_ The restriction intake makes three internal endpoints, and the rule covers all three.

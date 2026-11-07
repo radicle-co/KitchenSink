@@ -3,9 +3,10 @@
  * is no inert default to fall back on.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 
 import { RecipeWidgetHost } from '../../../src/components/home/RecipeWidgetHost.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('../../../src/components/home/RecipeWidgetSlot.js', () => ({ RecipeWidgetSlot: () => null }));
 

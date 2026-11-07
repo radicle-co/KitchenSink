@@ -5,8 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConflictFieldRow } from '../conflictDiff.js';
 import {
     conflictFieldKindLabel,
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
+    conflictMarkerBadge,
     conflictOptionLabel,
     conflictOptionName,
     conflictRowLabel,
@@ -31,17 +30,10 @@ describe('conflictFieldKindLabel (W7 Task 1 → Task 3)', () => {
     });
 });
 
-describe('conflictMarkerGlyph / conflictMarkerLabel (W7 Task 4 / X1)', () => {
-    it('resolves each marker to its ASCII glyph', () => {
-        expect(conflictMarkerGlyph('unchanged', conflict)).toBe('[=]');
-        expect(conflictMarkerGlyph('changed', conflict)).toBe('[→]');
-        expect(conflictMarkerGlyph('conflict', conflict)).toBe('[!!]');
-    });
-
-    it('resolves each marker to a DISTINCT accessible label — never colour alone', () => {
-        expect(conflictMarkerLabel('unchanged', conflict)).toBe('unchanged');
-        expect(conflictMarkerLabel('changed', conflict)).toBe('changed');
-        expect(conflictMarkerLabel('conflict', conflict)).toBe('conflict');
+describe('conflictMarkerBadge (W7 Task 4 / X1)', () => {
+    it('names a changed row "Changed" and a both-sides row "Both changed": words, never a glyph', () => {
+        expect(conflictMarkerBadge('changed', conflict)).toBe('Changed');
+        expect(conflictMarkerBadge('conflict', conflict)).toBe('Both changed');
     });
 });
 
@@ -184,16 +176,14 @@ describe('conflict row and option names carry the variant’s parts (curated U15
     });
 
     it('labels an option with its side and value, and never the parts', () => {
-        expect(conflictOptionLabel(rebindRow, 'theirs', conflict)).toBe('Latest saved version: 2 lb beef brisket');
-        expect(conflictOptionLabel(rebindRow, 'mine', conflict)).toBe('Your version: ');
-        expect(conflictOptionLabel(titleRow, 'mine', conflict)).toBe('Your version: My Draft Title');
+        expect(conflictOptionLabel(rebindRow, 'theirs', conflict)).toBe('Theirs: 2 lb beef brisket');
+        expect(conflictOptionLabel(rebindRow, 'mine', conflict)).toBe('Yours: ');
+        expect(conflictOptionLabel(titleRow, 'mine', conflict)).toBe('Yours: My Draft Title');
     });
 
     it('names an option with its own side’s parts, after its visible label', () => {
-        expect(conflictOptionName(rebindRow, 'theirs', conflict)).toBe(
-            'Latest saved version: 2 lb beef brisket, point half, choice',
-        );
+        expect(conflictOptionName(rebindRow, 'theirs', conflict)).toBe('Theirs: 2 lb beef brisket, point half, choice');
         expect(conflictOptionName(rebindRow, 'mine', conflict)).toBe(conflictOptionLabel(rebindRow, 'mine', conflict));
-        expect(conflictOptionName(titleRow, 'theirs', conflict)).toBe('Latest saved version: Latest Saved Title');
+        expect(conflictOptionName(titleRow, 'theirs', conflict)).toBe('Theirs: Latest Saved Title');
     });
 });

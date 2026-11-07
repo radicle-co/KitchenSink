@@ -81,11 +81,11 @@ Acceptance plan maps every requirement (`REQ-001..REQ-018`) to executable ATP/SC
 
 ---
 
-### Requirement Validation: REQ-006 (expose every active profile at canonical `commise.com/@{handle}` for un)
+### Requirement Validation: REQ-006 (expose every active profile at canonical `commise.app/@{handle}` for un)
 
 #### Test Case: ATP-006-A (Primary validation for REQ-006)
 
-**Description:** Validates via **Demonstration** that the system SHALL expose every active profile at canonical `commise.com/@{handle}` for unauthenticated access.
+**Description:** Validates via **Demonstration** that the system SHALL expose every active profile at canonical `commise.app/@{handle}` for unauthenticated access.
 
 - **User Scenario: SCN-006-A1**
     - **Given** preconditions and access context required by the requirement are satisfied

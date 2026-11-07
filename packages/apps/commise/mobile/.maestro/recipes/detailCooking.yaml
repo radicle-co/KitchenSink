@@ -4,7 +4,13 @@ appId: ${APP_ID}
 #
 #   1. Tap-to-check — the WHOLE ingredient row is the checkbox, named with the full line, and a second tap unchecks it.
 #   2. One current step — the numeral is the step's own toggle; marking step 2 moves the marker off step 1.
-#   3. Screen on — a switch the cook turns on to keep the screen awake (`expo-keep-awake`), off by default.
+#   3. Screen on — a labelled switch row near the top of the page that the cook turns on to keep the screen awake
+#      (`expo-keep-awake`), off by default.
+#
+# REWRITTEN IN SLICE 1 (`docs/design/uiRefreshWorkshop5/nativeBoards/buildLists.md`): the page has no section switch, so
+# the steps that tapped its Nutrition and Ingredients links and found Screen on as a glyph in the bar are replaced by
+# Screen on as a quiet action in the action row on first screen, a switch with no caption (designer, iosBatch1). Tap-to-check and
+# the current step are unchanged.
 #
 # The checks are asserted by their `checked` state, which Maestro reads from the accessibility node, so a row that
 # merely highlighted fails here. The seeded lamb's lines and steps are fixed by the recipe-service seed.
@@ -20,22 +26,8 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 
-# ── SECTION SWITCH ── below a 720 pt body the page has a sticky bar of links, and Screen on lives in it as its glyph
-# (`docs/design/uiOverhaul/buildSpec.md` §6.2). The one-time hint says what the glyph is until the cook scrolls.
-- assertVisible: 'Keeps the screen awake while you cook.'
-- assertVisible: 'Steps'
-- tapOn: 'Nutrition'
-- assertVisible: 'Nutrition \(per serving\)'
-# The bar is STICKY: after jumping to the foot of the page it is still on screen, so the next jump needs no scrolling back.
-- assertVisible: 'Ingredients'
-- tapOn: 'Ingredients'
+# ── SCREEN ON ── a quiet action in the action row, off on each visit, with no caption under it.
 - assertNotVisible: 'Keeps the screen awake while you cook.'
-
-# ── SCREEN ON ── icon-only in the section switch, off on each visit.
-- scrollUntilVisible:
-      element: 'Screen on'
-      direction: DOWN
-      timeout: 20000
 - assertVisible:
       text: 'Screen on'
       checked: false

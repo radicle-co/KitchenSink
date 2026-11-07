@@ -1,10 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { AccessibilityInfo, Platform } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
+import {
+    pressFrameOf,
+    pressScaleOf,
+    render,
+    renderWithTamagui,
+    resolvedColour,
+} from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
+import { BUTTON_VISUAL_HEIGHT, type ButtonProps, type ButtonSize } from '../props.js';
+import { buttonSurfaceClass } from '../surfaceClass.js';
 import { dimmedOpacity } from '../../tokens/scale.js';
 
 // A value no literal in the leaf could match: the dimmed opacity must be READ from the shared token.
@@ -46,14 +56,6 @@ afterEach(() => {
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
-/** Render under a given React Native platform, restoring react-native-web's own `web` afterwards. */
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-}
-
 /** Every element in `root`, itself first. */
 const allIn = (root: HTMLElement): HTMLElement[] => [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))];
 
@@ -83,12 +85,14 @@ function rgb(hex: string): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** The tiers that take a glyph, with the colour their label and glyph share. */
+/** Tiers drawn with a glyph here: the colour of the label, and of the glyph (which only `quiet` takes apart). */
 const TIERS = [
-    { variant: 'primary', tone: undefined, label: role.onAction },
-    { variant: 'secondary', tone: undefined, label: role.ink },
-    { variant: 'destructive', tone: 'inline', label: role.dangerText },
-    { variant: 'destructive', tone: 'confirm', label: role.onAction },
+    { variant: 'primary', tone: undefined, label: role.onAction, glyph: role.onAction },
+    { variant: 'secondary', tone: undefined, label: role.ink, glyph: role.ink },
+    { variant: 'ghost', tone: undefined, label: role.actionText, glyph: role.actionText },
+    { variant: 'quiet', tone: undefined, label: role.ink, glyph: role.actionText },
+    { variant: 'destructive', tone: 'inline', label: role.dangerText, glyph: role.dangerText },
+    { variant: 'destructive', tone: 'confirm', label: role.onAction, glyph: role.onAction },
 ] as const;
 
 describe('Button (native)', () => {
@@ -114,8 +118,10 @@ describe('Button (native)', () => {
         expect(screen.getByRole('button', { name: 'Add step' })).toBeTruthy();
     });
 
-    it('draws the glyph in its label’s colour, for every tier', () => {
-        for (const { variant, tone, label } of TIERS) {
+    // ⚠️ REWRITTEN (`componentFixes.md` §1): "the glyph is in its label's colour, for every tier" stopped being true for
+    // quiet, whose label is `ink` and whose glyph is `actionText`. Every other tier still agrees with its label.
+    it('draws the glyph in its tier’s glyph colour — its label’s, except quiet’s actionText', () => {
+        for (const { variant, tone, label, glyph } of TIERS) {
             const { container, unmount } = render(
                 variant === 'destructive' ? (
                     <Button icon="trash" variant={variant} tone={tone}>
@@ -128,8 +134,8 @@ describe('Button (native)', () => {
                 ),
             );
 
-            expect(glyphIn(container)?.dataset['iconColor'], `${variant} ${String(tone)}`).toBe(label);
-            expect(getComputedStyle(screen.getByText('Tier')).color, `${variant} ${String(tone)}`).toBe(rgb(label));
+            expect(glyphIn(container)?.dataset['iconColor'], `${variant} ${String(tone)}`).toBe(glyph);
+            expect(resolvedColour(screen.getByText('Tier'), 'color'), `${variant} ${String(tone)}`).toBe(rgb(label));
             unmount();
         }
     });
@@ -177,6 +183,23 @@ describe('Button (native)', () => {
 
         expect(onPress).not.toHaveBeenCalled();
         expect(button.getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('does not fire onPress when refused, dims, and claims no busy state', () => {
+        const onPress = vi.fn();
+        render(
+            <Button variant="ghost" icon="search" onPress={onPress} refused>
+                Search for a food
+            </Button>,
+        );
+
+        const button = screen.getByRole('button', { name: 'Search for a food' });
+        fireEvent.click(button);
+
+        expect(onPress).not.toHaveBeenCalled();
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.getAttribute('aria-busy')).not.toBe('true');
+        expect(getComputedStyle(pillOf(button)).opacity).toBe(String(dimmedOpacity));
     });
 
     it('does not announce busy on an idle button', () => {
@@ -228,7 +251,7 @@ describe('Button (native)', () => {
 
         expect(pill.backgroundColor).toBe(rgb(roleDark.paper));
         expect(pill.borderTopColor).toBe(rgb(roleDark.lineControl));
-        expect(getComputedStyle(screen.getByText('Cancel')).color).toBe(rgb(roleDark.ink));
+        expect(resolvedColour(screen.getByText('Cancel'), 'color')).toBe(rgb(roleDark.ink));
         expect(glyphIn(container)?.dataset['iconColor']).toBe(roleDark.ink);
     });
 
@@ -254,7 +277,14 @@ describe('Button (native)', () => {
 
         expect(pill.backgroundColor).toBe('rgba(0, 0, 0, 0)');
         expect(pill.borderTopWidth).toBe('0px');
-        expect(getComputedStyle(screen.getByText('Show all')).color).toBe(rgb(role.actionText));
+        expect(resolvedColour(screen.getByText('Show all'), 'color')).toBe(rgb(role.actionText));
+    });
+
+    it('lets a secondary button have no glyph, keeping its surface, and still be a named button', () => {
+        const { container } = render(<Button variant="secondary">Keep editing</Button>);
+
+        expect(glyphIn(container)).toBeNull();
+        expect(screen.getByRole('button', { name: 'Keep editing' })).toBeTruthy();
     });
 
     it('lets a ghost button have no glyph, and shows the spinner there when busy', () => {
@@ -269,6 +299,65 @@ describe('Button (native)', () => {
         );
 
         expect(screen.getByRole('progressbar', { hidden: true })).toBeTruthy();
+    });
+
+    // `componentFixes.md` §1: text only, in `--ink` (it was `--ink-muted`), with the same 44 px target.
+    it('paints quiet as text only: no fill and no edge, in ink, as a named button', () => {
+        render(<Button variant="quiet">Keep as written</Button>);
+
+        const button = screen.getByRole('button', { name: 'Keep as written' });
+        const pill = getComputedStyle(pillOf(button));
+
+        expect(pill.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+        expect(pill.borderTopWidth).toBe('0px');
+        expect(resolvedColour(screen.getByText('Keep as written'), 'color')).toBe(rgb(role.ink));
+    });
+
+    it('repaints the quiet label and glyph from the dark roles when the system is dark', () => {
+        scheme.current = 'dark';
+        const { container } = render(
+            <Button variant="quiet" icon="refreshCw">
+                Keep as written
+            </Button>,
+        );
+
+        expect(resolvedColour(screen.getByText('Keep as written'), 'color')).toBe(rgb(roleDark.ink));
+        expect(glyphIn(container)?.dataset['iconColor']).toBe(roleDark.actionText);
+    });
+
+    it('draws the busy spinner in the quiet glyph colour, actionText, on the same pressable', () => {
+        const { rerender } = render(
+            <Button variant="quiet" icon="refreshCw">
+                Try again
+            </Button>,
+        );
+        const button = screen.getByRole('button', { name: 'Try again' });
+
+        rerender(
+            <Button variant="quiet" icon="refreshCw" busy>
+                Try again
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Try again' })).toBe(button);
+        expect(screen.getByRole('progressbar', { hidden: true }).outerHTML).toContain(
+            `stroke: ${rgb(role.actionText)}`,
+        );
+    });
+
+    it('gives quiet a 44 pt target on iOS and 48 dp on Android', () => {
+        for (const [os, floor] of [
+            ['ios', 44],
+            ['android', 48],
+        ] as const) {
+            withPlatformOs(os, () => {
+                const { unmount } = render(<Button variant="quiet">Keep as written</Button>);
+                const button = screen.getByRole('button', { name: 'Keep as written' });
+
+                expect(getComputedStyle(pillOf(button)).minHeight, os).toBe(`${String(floor)}px`);
+                unmount();
+            });
+        }
     });
 
     it('fills destructive with danger only in its confirm tone; inline is a danger label on the neutral surface', () => {
@@ -293,20 +382,31 @@ describe('Button (native)', () => {
         );
     });
 
-    it('sets the label in the label role’s registered face, never a face plus a weight', () => {
+    // REWRITTEN for owner ruling B1 (2026-10-26): the label is the 16/20/600 `cardTitle` role, not the 14/600 `label`.
+    it('sets the label in the cardTitle role’s registered face, never a face plus a weight', () => {
         render(<Button icon="plus">Add</Button>);
 
         const label = getComputedStyle(screen.getByText('Add'));
 
-        expect(label.fontFamily).toBe(nativeTokens.type.label.fontFamily);
-        expect(label.fontSize).toBe(`${String(nativeTokens.type.label.fontSize)}px`);
+        expect(label.fontFamily).toBe(nativeTokens.type.cardTitle.fontFamily);
+        expect(label.fontSize).toBe('16px');
+        expect(label.fontSize).not.toBe(`${String(nativeTokens.type.label.fontSize)}px`);
         expect(['', 'normal', '400']).toContain(label.fontWeight);
     });
 
-    it('sizes lg at 52, md at 44 and sm at 36 visual points on iOS', () => {
-        const restore = onPlatform('ios');
+    // H-1 (ADR-0080 §8): the label is the design-system Text, so it grows with the system scale, size and leading
+    // together, to the 2× cap; React Native's own text left the leading uncapped on Android.
+    it('grows the label and its leading to 2× above the cap', () => {
+        const { fontSize, lineHeight } = nativeTokens.type.cardTitle;
 
-        try {
+        renderWithTamagui(<Button icon="plus">Add</Button>, 'light', 3.1);
+
+        expect(getComputedStyle(screen.getByText('Add')).fontSize).toBe(`${String(fontSize * 2)}px`);
+        expect(getComputedStyle(screen.getByText('Add')).lineHeight).toBe(`${String(lineHeight * 2)}px`);
+    });
+
+    it('sizes lg at 52, md at 44 and sm at 36 visual points on iOS', () => {
+        withPlatformOs('ios', () => {
             for (const [size, visual] of [
                 ['lg', 52],
                 ['md', 44],
@@ -325,15 +425,11 @@ describe('Button (native)', () => {
                 expect(Number.parseFloat(pill.borderTopLeftRadius), size).toBe(visual / 2);
                 unmount();
             }
-        } finally {
-            restore();
-        }
+        });
     });
 
     it('gives the 36pt sm button a 44pt hit area on iOS', () => {
-        const restore = onPlatform('ios');
-
-        try {
+        withPlatformOs('ios', () => {
             render(
                 <Button icon="plus" size="sm">
                     Small
@@ -341,15 +437,22 @@ describe('Button (native)', () => {
             );
 
             expect(withMinHeight(screen.getByRole('button', { name: 'Small' }), '44px')).not.toBeNull();
-        } finally {
-            restore();
+        });
+    });
+
+    // The type-scale ruling (2026-10-25) set the label's leading at 20 px (it was 16.8). The pill is
+    // `max(minHeight, 8 + leading + 8)`, so a label that outgrew the small variant would stretch every small button;
+    // 8 + 20 + 8 = 36 is exactly the small height, so none does. A one-line label never sets the height of any size.
+    it('keeps a one-line label inside every size: padding plus the label leading never exceeds the size’s height', () => {
+        const chrome = nativeTokens.spacing[2] * 2 + (nativeTokens.type.cardTitle.lineHeight ?? 0);
+
+        for (const height of Object.values(BUTTON_VISUAL_HEIGHT)) {
+            expect(chrome).toBeLessThanOrEqual(height);
         }
     });
 
     it('raises the md button and the sm hit area to 48 dp on Android (spec §1.6)', () => {
-        const restore = onPlatform('android');
-
-        try {
+        withPlatformOs('android', () => {
             const { unmount } = render(<Button icon="plus">Medium</Button>);
             expect(getComputedStyle(pillOf(screen.getByRole('button', { name: 'Medium' }))).minHeight).toBe('48px');
             unmount();
@@ -361,22 +464,22 @@ describe('Button (native)', () => {
             );
             expect(withMinHeight(screen.getByRole('button', { name: 'Small' }), '48px')).not.toBeNull();
             expect(getComputedStyle(pillOf(screen.getByRole('button', { name: 'Small' }))).minHeight).toBe('36px');
-        } finally {
-            restore();
-        }
+        });
     });
 
-    it('adopts PressScale so the pill carries a press-scale transform (resting = neutral)', () => {
+    it('adopts PressScale, so the pill sits in a press-scale frame at the neutral scale', () => {
         render(<Button icon="check">Save changes</Button>);
 
-        expect(screen.getByRole('button', { name: 'Save changes' }).style.transform).toBe('scale(1)');
+        expect(pressScaleOf(screen.getByRole('button', { name: 'Save changes' }))).toBe('1');
     });
 
     /** `width` (R9, `docs/design/rowEditorOpenDecisions.md`): passed to the `PressScale` that owns the pressable. */
     it('leaves its size to the parent when no width is given', () => {
         render(<Button icon="check">Done</Button>);
 
-        expect(screen.getByRole('button', { name: 'Done' }).style.alignSelf).toBe('');
+        expect(getComputedStyle(pressFrameOf(screen.getByRole('button', { name: 'Done' }))).alignSelf).not.toBe(
+            'stretch',
+        );
     });
 
     it('stretches across its parent under fill', () => {
@@ -386,7 +489,7 @@ describe('Button (native)', () => {
             </Button>,
         );
 
-        expect(screen.getByRole('button', { name: 'Done' }).style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(screen.getByRole('button', { name: 'Done' }))).alignSelf).toBe('stretch');
     });
 });
 
@@ -439,5 +542,119 @@ describe('Button (native) — iconPlacement (A-018)', () => {
 
         expect(label.compareDocumentPosition(glyph) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(glyph.closest('[aria-hidden="true"]')).not.toBeNull();
+    });
+});
+
+/**
+ * Web and native share ONE horizontal padding (`surfaceClass.ts`, "`px-3 md:px-5`"). Measured in Chromium at 320 px,
+ * three actions at 20-24 px of inline padding need 383 px against 288 available, so the label wraps and the primary
+ * action is clipped off the right edge. Web moved to `px-3`; the native leaf kept `spacing[5]` (24 dp), so every
+ * three-action row on a 320 dp phone overflowed. The native padding is read from the rendered pill and compared with
+ * the web surface's own base `px-*` step, so neither platform can move alone.
+ *
+ * Only the BASE step is shared. Web's `md:px-5` is a wide-viewport density, and native has no viewport breakpoint on a
+ * button, so a phone always takes the narrow value.
+ */
+describe('Button (native) — horizontal padding equals web’s', () => {
+    /** Tailwind v4's default `--spacing` base: `px-N` is N x 0.25rem, which is N x 4 px at the 16 px root. */
+    const TAILWIND_SPACING_PX = 4;
+
+    /** The px a web surface pads each side with at the narrowest width: its one unprefixed `px-N` step. */
+    function webBasePaddingPx(className: string): number {
+        const steps = className
+            .split(/\s+/u)
+            .map((token) => /^px-(\d+(?:\.\d+)?)$/u.exec(token)?.[1])
+            .filter((step): step is string => step !== undefined);
+
+        expect(steps, className).toHaveLength(1);
+
+        return Number(steps[0]) * TAILWIND_SPACING_PX;
+    }
+
+    const SIZES: readonly ButtonSize[] = ['lg', 'md', 'sm'];
+
+    /** Every tier and destructive tone, as the props that ask for it and the web surface it wears. */
+    const SURFACES: readonly {
+        readonly name: string;
+        readonly props: (size: ButtonSize) => ButtonProps;
+        readonly web: (size: ButtonSize) => string;
+    }[] = [
+        {
+            name: 'primary',
+            props: (size) => ({ icon: 'plus', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('primary', { size }),
+        },
+        {
+            name: 'secondary',
+            props: (size) => ({ icon: 'plus', variant: 'secondary', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('secondary', { size }),
+        },
+        {
+            name: 'ghost',
+            props: (size) => ({ variant: 'ghost', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('ghost', { size }),
+        },
+        {
+            name: 'quiet',
+            props: (size) => ({ variant: 'quiet', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('quiet', { size }),
+        },
+        {
+            name: 'destructive inline',
+            props: (size) => ({ icon: 'trash', variant: 'destructive', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('destructive', { size, tone: 'inline' }),
+        },
+        {
+            name: 'destructive confirm',
+            props: (size) => ({ icon: 'trash', variant: 'destructive', tone: 'confirm', size, children: 'Padded' }),
+            web: (size) => buttonSurfaceClass('destructive', { size, tone: 'confirm' }),
+        },
+    ];
+
+    it('pads every tier and size on each side by the web surface’s base px step', () => {
+        for (const { name, props, web } of SURFACES) {
+            for (const size of SIZES) {
+                const { unmount } = render(<Button {...props(size)} />);
+                const pill = getComputedStyle(pillOf(screen.getByRole('button', { name: 'Padded' })));
+                const expected = `${String(webBasePaddingPx(web(size)))}px`;
+
+                expect(pill.paddingLeft, `${name} ${size}`).toBe(expected);
+                expect(pill.paddingRight, `${name} ${size}`).toBe(expected);
+                unmount();
+            }
+        }
+    });
+
+    // The guard above compares two moving parts; this pins the agreed value, so both cannot drift together.
+    it('is the 12 px step, so three actions fit a 320 px row', () => {
+        expect(webBasePaddingPx(buttonSurfaceClass('primary'))).toBe(12);
+        expect(nativeTokens.spacing[3]).toBe(12);
+    });
+});
+
+/** ADDED for the visible "See why" disclosure: `expanded` reaches the accessibility state, and only when stated. */
+describe('Button (native) — expanded', () => {
+    afterEach(cleanup);
+
+    it('states expanded true and false for a disclosure, and nothing otherwise', () => {
+        const { rerender } = render(
+            <Button variant="ghost" expanded={false}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('false');
+
+        rerender(
+            <Button variant="ghost" expanded>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('true');
+
+        rerender(<Button variant="ghost">See why</Button>);
+
+        expect(screen.getByRole('button', { name: 'See why' }).hasAttribute('aria-expanded')).toBe(false);
     });
 });

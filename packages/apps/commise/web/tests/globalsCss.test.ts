@@ -11,7 +11,7 @@ import { withoutCssComments } from '@kitchensink/repo-guards/sourceComments';
  * `@import` placed after any other rule is INVALID and is silently discarded by the CSS optimizer — the
  * `next build` log mentions it, but nothing fails. That is exactly how the Google Fonts import came to sit
  * below the Tailwind `@source` rules and get dropped, shipping a production bundle with zero webfonts:
- * every heading fell back from Playfair Display to Georgia and every body string from Inter to system-ui,
+ * every heading fell back from the title face to a system face and every body string from Inter to system-ui,
  * gracefully enough that no test and no reviewer noticed.
  */
 // Comments can contain anything, including the literal '@import' in prose like this file's own header.
@@ -84,6 +84,21 @@ describe('globals.css', () => {
         expect(globalsCss, 'no height literal of its own: the property is the one source').not.toContain('3.5rem');
     });
 
+    /**
+     * Bulk import's review wizard and mode choice pin their action bar to the bottom of the document below the wide
+     * container class (`[data-import-bar]`; staff-ux U8). Its tallest form is the wizard's at 320 px: Back and Skip on a
+     * 44 px row, an 8 px gap, Next recipe on its own 44 px row, 12 px above and below, and a 1 px rule — 7.5rem + 1px. The
+     * document's `scroll-padding-bottom` reserves that, so a focused line is never left under the bar (WCAG 2.2 SC
+     * 2.4.11). ⚠️ The bar turns static at the wide CONTAINER class, which an `html` rule cannot see, so from there the
+     * reservation is surplus: a focused control scrolls in a little higher than it must, and is never covered. A text
+     * check: the browser behaviour needs a Playwright run against the wired wizard.
+     */
+    it('reserves the import action bar’s height while it is in the page', () => {
+        const compact = globalsCss.replace(/\s+/g, ' ');
+
+        expect(compact).toContain('html:has([data-import-bar]) { scroll-padding-bottom: calc(7.5rem + 1px); }');
+    });
+
     it('declares the main top padding default once', () => {
         const declarations = globalsCss.match(/--main-top:\s*1\.5rem/g) ?? [];
 
@@ -95,9 +110,12 @@ describe('globals.css', () => {
         // `next/font`, delete this test in the same commit that adds the replacement.
         expect(globalsCss).toContain('fonts.googleapis.com');
 
-        for (const family of ['Inter', 'JetBrains+Mono', 'Playfair+Display']) {
+        for (const family of ['Inter', 'JetBrains+Mono', 'Manrope']) {
             expect(globalsCss, `${family} must stay in the font import`).toContain(family);
         }
+
+        // The title font is Manrope (redesign); Playfair is retired and must not be fetched for nothing.
+        expect(globalsCss).not.toMatch(/Playfair/iu);
     });
 
     /**

@@ -88,6 +88,8 @@
  * @module
  */
 import ts from 'typescript';
+
+import { lineOf } from './appSources.js';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -200,22 +202,6 @@ export interface DimensionKeySite {
 
 /** Anything with a body that could hold an EMF directive. */
 type FunctionLike = ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction | ts.MethodDeclaration;
-
-/**
- * The 1-based line a node's first real token sits on.
- *
- * `node.pos` includes leading trivia, so using it directly would attribute a finding to the comment ABOVE the
- * offending call — and these findings exist to be pasted into an editor. `getStart(source)` skips that trivia,
- * and takes the source file explicitly because `serviceSources.parse` omits the parent pointers it would
- * otherwise use to find it.
- *
- * @param source - The parsed file.
- * @param node - The node to locate.
- * @returns The 1-based line number.
- */
-function lineOf(source: ts.SourceFile, node: ts.Node): number {
-    return source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
-}
 
 /**
  * Walk every node beneath any node — `serviceSources.visit` only accepts a whole `SourceFile`, and the seam

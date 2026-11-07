@@ -19,10 +19,11 @@ import { FIELD_MIN_HEIGHT, fieldDisabled, fieldGeometry, fieldPaint } from '../f
  * render, so a field repaints in the dark scheme.
  */
 describe('the native field geometry', () => {
-    it('sets the text in the body role — one registered face, at 16, never with a fontWeight', () => {
-        expect(fieldGeometry.fontFamily).toBe(nativeTokens.type.body.fontFamily);
-        expect(fieldGeometry.fontSize).toBe(16);
-        expect(fieldGeometry).not.toHaveProperty('fontWeight');
+    // ⛔ REWRITTEN: the geometry used to spread the body role, which carried a fixed `lineHeight` into every field and sat
+    // the text low on iOS. The text of every field is `inputTextStyle`, applied by the `TextInput` primitive
+    // (`TextInputStyle.native.test.tsx`), so the geometry holds none of it.
+    it('holds the box only: no font family, size or line height, which belong to the input text style', () => {
+        expect(Object.keys(fieldGeometry).filter((key) => /^(font|lineHeight)/u.test(key))).toEqual([]);
     });
 
     it('fits one body line and its padding inside the 48 pt minimum', () => {

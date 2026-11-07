@@ -47,6 +47,14 @@ describe('RecipeDetailSkeleton (web)', () => {
         );
     });
 
+    it('leaves the page’s own 48 below its last block, so the end does not move when the recipe lands', () => {
+        const { container } = render(<RecipeDetailSkeleton label="Loading recipe" />);
+        const classes = (container.firstElementChild as HTMLElement).className.split(' ');
+
+        expect(classes).toContain('pb-12');
+        expect(classes.filter((name) => /(^|:)(pb|py|p)-/u.test(name) && name !== 'pb-12')).toEqual([]);
+    });
+
     it('does not pulse for a reader who asked for less motion', () => {
         const { container } = render(<RecipeDetailSkeleton label="Loading recipe" />);
 

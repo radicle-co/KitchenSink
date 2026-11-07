@@ -34,8 +34,6 @@ import {
     normalizedIngredientKey,
     type NormalizedIngredientKey,
 } from '@kitchensink/recipe-core/resolution/normalized-key';
-import { marginBandOf, queryShapeOf } from '@kitchensink/recipe-core/resolution/band-policy';
-import { RANKER_VERSION } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import { apiError } from '../common/apiError.js';
@@ -75,7 +73,6 @@ import { toIngredient } from './ingredientProjection.js';
 import { identifyArmsThrough } from './lineIdentity.reader.js';
 import type { FoodReferencesResponse } from './ingredients.schema.js';
 import type { IngredientResolutionsDal } from './resolution/ingredientResolutions.dal.js';
-import type { ResolutionBandsDal } from './resolution/resolutionBands.dal.js';
 import { isCascadeTierId, runResolutionCascade, type ResolutionTier } from './resolution/resolutionCascade.js';
 
 /** Search hits when a caller names no limit. */
@@ -152,18 +149,16 @@ export class IngredientsService {
      * @param refs - Food's authorship-checked answer about a food reference (R51).
      * @param resolutionTiers - The ORDERED resolution cascade (plan U10). An EMPTY array is a supported state.
      * @param resolutions - The cascade's provenance events.
-     * @param bands - Band authority, for a ranked resolution's epoch.
      */
     public constructor(
         private readonly lookups: FoodLookupsDal,
         private readonly foodClients: FoodServiceClients,
         private readonly catalog: FoodCatalogGateway,
         private readonly refs: FoodRefsGateway,
-        // ⛔ REQUIRED, all three: a collaborator that defaults to absent is how a feature ships silently disabled
+        // ⛔ REQUIRED, both: a collaborator that defaults to absent is how a feature ships silently disabled
         // past a green suite. A fixture that does not care passes a double.
         private readonly resolutionTiers: readonly ResolutionTier[],
-        private readonly resolutions: IngredientResolutionsDal,
-        private readonly bands: Pick<ResolutionBandsDal, 'authorityFor'>,
+        private readonly resolutions: Pick<IngredientResolutionsDal, 'record'>,
     ) {}
 
     /**
@@ -289,22 +284,49 @@ export class IngredientsService {
     }
 
     /**
-     * `POST /api/v1/ingredients/by-name` — the picker's and the cookbook importer's add path.
+     * `POST /api/v1/ingredients/by-name` and a rebind by name — ask food to add the typed name, and nothing else.
      *
-     * The cascade is consulted first (plan U10); a hit binds the mapped food through the same admission as a
-     * pick, and a mapping whose food is no longer bindable falls through rather than failing. On a miss, food is
-     * asked to add the phrase: a `RESOLVED` answer is bound (and frees the failure this phrase converged on),
-     * any other answer — or no answer — is recorded as a failure with its reason. A phrase whose failure a settle
-     * already freed is answered with the settle's target.
+     * ⛔ THE SETTLED TIERS ARE NOT CONSULTED. A remembered answer (the cook's own correction, a staff ruling, two cooks
+     * agreeing, a memo another cook's save taught) is offered by `GET /ingredients/by-name/proposals` and bound only when
+     * the cook picks it (owner rulings 2026-11-03; ADR-0071 as amended). Here, food is asked to add the phrase: a
+     * `RESOLVED` answer is bound (and frees the failure this phrase converged on), any other answer, or no answer, is
+     * recorded as a failure with its reason. A phrase whose failure a settle already freed is answered with the settle's
+     * target. The press of "Find nutrition for X" is the cook's own act, so food's exact-name answer may bind.
      *
      * @param caller - The caller's credential.
      * @param name - The display name, already canonical.
-     * @param userId - The caller, or `undefined` for an unattended import (R22).
+     * @param userId - The caller, or `undefined` for an unattended call (R22).
+     * @returns The binding the line should hold.
+     * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food resolved the phrase but its bind check cannot ask food.
+     * @sideEffect Calls food, and writes a binding or a failure record.
+     */
+    public async addByName(
+        caller: CallerToken | undefined,
+        name: CanonicalIngredientName,
+        userId?: string,
+    ): Promise<Ingredient> {
+        return this.askFoodByName(caller, name, keyOf(name), { kind: 'notRun' }, userId);
+    }
+
+    /**
+     * Add a name through the settled tiers first, then food: the old by-name behaviour, kept for ONE caller, the version
+     * restorer, which re-binds the names a restored version froze with no cook present.
+     *
+     * The cascade is consulted first (plan U10); a hit binds the mapped food through the same admission as a pick, and a
+     * mapping whose food is no longer bindable falls through rather than failing. On a miss, food is asked to add the
+     * phrase, as {@link IngredientsService.addByName} does.
+     *
+     * ⛔ NOT for a cook adding a line: it binds a remembered answer with no choice. The editor uses
+     * {@link IngredientsService.addByName} and the proposals route.
+     *
+     * @param caller - The caller's credential.
+     * @param name - The display name, already canonical.
+     * @param userId - The caller, or `undefined` for an unattended call (R22).
      * @returns The binding the line should hold.
      * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food resolved the phrase but its bind check cannot ask food.
      * @sideEffect Runs the cascade, calls food, and writes a binding or a failure record.
      */
-    public async addByName(
+    public async addByNameThroughCascade(
         caller: CallerToken | undefined,
         name: CanonicalIngredientName,
         userId?: string,
@@ -695,7 +717,7 @@ export class IngredientsService {
         const outcome = await runResolutionCascade(
             this.resolutionTiers,
             { key, phrase: name },
-            { userId, caller },
+            { userId, caller, signal: undefined },
             {
                 onTierFailure: (tier, error) =>
                     this.logger.warn(
@@ -738,78 +760,31 @@ export class IngredientsService {
 
         const ingredient = await this.bind(admission);
 
-        await this.recordResolution(ingredient.id, outcome, name);
+        await this.recordResolution(ingredient.id, outcome);
 
         return { kind: 'bound', ingredient };
     }
 
     /**
-     * Record which tier produced a binding — the provenance EVENT the verification producer and the band log
-     * read. Quietly: a lost event degrades to `unattributed` and must never fail a resolution that succeeded.
+     * Record which tier produced a binding: a telemetry EVENT, never read back as provenance (ADR-0071). Quietly: a
+     * lost event must never fail a resolution that succeeded.
      *
-     * @sideEffect One insert, and a band-authority read for a ranked resolution.
+     * ⚠️ The tier alone. By-name runs the settled chain `[curated, memo]`, so a resolution here is never ranked, and the
+     * ranked shape (rung, margin, shortlist, band epoch) this used to write had no production path left (ADR-0071).
+     *
+     * @sideEffect One insert.
      */
     private async recordResolution(
         foodLookupId: string,
         outcome: Extract<Awaited<ReturnType<typeof runResolutionCascade>>, { kind: 'resolved' }>,
-        name: CanonicalIngredientName,
     ): Promise<void> {
         try {
-            await this.resolutions.record({
-                foodLookupId,
-                tier: outcome.tier,
-                // KTD-C: a RANKED resolution persists its full confidence shape.
-                ...(outcome.rung === undefined
-                    ? {}
-                    : {
-                          rung: outcome.rung,
-                          margin: outcome.confidence,
-                          shortlist: outcome.shortlist,
-                          queryShape: queryShapeOf(name),
-                          rankerVersion: RANKER_VERSION,
-                          authorAugmented: outcome.authorAugmented ?? false,
-                          // U11/R20: an author-augmented shortlist's margins describe ONE user's catalog, so no
-                          // shared band authority is consulted or observed for it.
-                          bandEpoch: outcome.authorAugmented
-                              ? undefined
-                              : await this.observedBandEpoch(outcome.rung, outcome.confidence, name),
-                      }),
-            });
+            await this.resolutions.record({ foodLookupId, tier: outcome.tier });
         } catch (error) {
             this.logger.warn(
                 `Resolution provenance write failed for binding '${foodLookupId}' (tier '${outcome.tier}').`,
                 error instanceof Error ? error.stack : String(error),
             );
-        }
-    }
-
-    /**
-     * The band-authority epoch a ranked resolution was made under, or `undefined` when the band has never
-     * crossed a threshold. Quiet: an unreadable band table degrades to "no epoch observed".
-     *
-     * @sideEffect One band-authority read.
-     */
-    private async observedBandEpoch(
-        rung: string,
-        margin: number | undefined,
-        phrase: string,
-    ): Promise<string | undefined> {
-        try {
-            const authority = await this.bands.authorityFor({
-                rung,
-                marginBand: marginBandOf(margin),
-                queryShape: queryShapeOf(phrase),
-                rankerVersion: RANKER_VERSION,
-            });
-
-            return authority === undefined ? undefined : String(authority.epoch);
-        } catch (error) {
-            this.logger.warn(
-                'Band-authority read failed; the resolution event records no epoch.',
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return undefined;
         }
     }
 

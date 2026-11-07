@@ -10,9 +10,8 @@
  *     orchestrating container so the gate stays structural on both platforms.
  */
 import { useMessages } from '@commise/i18n/react';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { StyleSheet, Text } from 'react-native';
 
 import { recipeRatingMessages } from './messages.js';
 import { RatingSection } from './RatingSection.native.js';
@@ -26,15 +25,12 @@ import type { RecipeRatingDisplayProps } from './model.js';
  */
 export const RecipeRatingDisplay: FC<RecipeRatingDisplayProps> = ({ average, ratingCount }) => {
     const { rating } = useMessages(recipeRatingMessages);
-    const { colors } = useTheme();
 
     return (
         <RatingSection average={average} ratingCount={ratingCount}>
-            <Text style={[styles.note, { color: colors.inkMuted }]}>{rating.ownRecipeNote}</Text>
+            <Text typeRole="meta" color="$inkMuted">
+                {rating.ownRecipeNote}
+            </Text>
         </RatingSection>
     );
 };
-
-const styles = StyleSheet.create({
-    note: { fontSize: 13 },
-});

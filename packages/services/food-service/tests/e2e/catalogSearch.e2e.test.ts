@@ -162,6 +162,8 @@ describe('catalog search — LOCAL e2e (booted app + real Postgres)', () => {
                 id: brisket.id,
                 name: 'beef brisket',
                 score: 1,
+                // Rewritten (code-quality review W2): a crosswalk hit says it matched an identifier.
+                matchedBy: 'identifier',
                 variant: { id: brisket.variants[0]!.id, parts: [{ attribute: 'cut', text: 'flat' }] },
             },
         ]);

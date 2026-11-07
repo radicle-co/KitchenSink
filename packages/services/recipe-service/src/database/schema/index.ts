@@ -56,6 +56,10 @@ export type {
     NewRecipeParseJobLineRow,
 } from './parseJobs.js';
 
+// ── recipe_parse_job_matches (ADR-0071, 0057) — a paste job's match proposals ──────────────────
+export { recipeParseJobMatches, MATCH_PROPOSING_TIERS } from './parseJobMatches.js';
+export type { MatchProposingTier, RecipeParseJobMatchRow, NewRecipeParseJobMatchRow } from './parseJobMatches.js';
+
 // ── recipe_ingredient_verification_redrive (plan U4c, 0037) — the pending re-drive substrate ─────
 export { verificationAttempts } from './verificationAttempts.js';
 export type { VerificationAttemptRow, NewVerificationAttemptRow } from './verificationAttempts.js';
@@ -178,6 +182,40 @@ export type {
     NewAnalyticsEventRow,
     RecipeImpactSignalRow,
 } from './analyticsEvents.js';
+
+// ── import_allowance_events (004 FR-022, 0058) — the daily import allowance ledger ──────────────
+export { importAllowanceEvents, IMPORT_ALLOWANCE_CHANNELS } from './importAllowanceEvents.js';
+export type {
+    ImportAllowanceChannel,
+    ImportAllowanceEventRow,
+    NewImportAllowanceEventRow,
+} from './importAllowanceEvents.js';
+
+// ── recipe_imports, recipe_import_items, recipe_import_lines (ADR-0072, 0059) — bulk recipe import ──
+export {
+    recipeImports,
+    recipeImportItems,
+    recipeImportLines,
+    IMPORT_MATCH_MODES,
+    IMPORT_VISIBILITIES,
+    IMPORT_STAGES,
+    IMPORT_ITEM_REVIEWS,
+    IMPORT_STATEMENT_KINDS,
+    IMPORT_SOURCE_KINDS,
+    IMPORT_MATCHED_BY,
+    IMPORT_LINE_REVIEWS,
+} from './recipeImports.js';
+export type {
+    ImportStage,
+    ImportStatementKind,
+    ImportSourceKind,
+    RecipeImportRow,
+    NewRecipeImportRow,
+    RecipeImportItemRow,
+    NewRecipeImportItemRow,
+    RecipeImportLineRow,
+    NewRecipeImportLineRow,
+} from './recipeImports.js';
 
 // ── convenience re-exports ────────────────────────────────────────────────────────────────────────
 export type { InferInsertModel, InferSelectModel } from 'drizzle-orm';

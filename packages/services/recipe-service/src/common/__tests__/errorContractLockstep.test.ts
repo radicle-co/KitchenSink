@@ -31,6 +31,7 @@
  * `(status, body)` pair is replayed verbatim as a `fetch` response, so the client sees bytes the server actually
  * produced rather than bytes a test author typed.
  */
+import { ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE } from '@kitchensink/clerk-verify';
 import { BadRequestException, HttpStatus, UnauthorizedException, type ArgumentsHost } from '@nestjs/common';
 import { ThrottlerException } from '@nestjs/throttler';
 import { RecipeErrorCode, type RecipeError } from '@kitchensink/recipe-core';
@@ -38,7 +39,11 @@ import {
     BadRequestError,
     ForbiddenError,
     GoneError,
+    ImportCursorMovedError,
+    ImportItemAlreadySavedError,
+    ImportQuotaExceededError,
     NotFoundError,
+    PrivateSlotsFullError,
     PublishRequirementsUnmetError,
     PullDriftError,
     RecipeServiceClient,
@@ -53,7 +58,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { apiError } from '../apiError.js';
 import { apiErrorSchema, recipeApiErrorSchema, recipeErrorCodeSchema } from '../apiError.schema.js';
 import { ApiExceptionFilter } from '../filters/apiException.filter.js';
-import { publishRequirementsUnmet } from '../../recipes/recipe.error.js';
+import {
+    importCursorMoved,
+    importItemAlreadySaved,
+    importNotFound,
+    importQuotaExceeded,
+    privateSlotsFull,
+    publishRequirementsUnmet,
+} from '../../recipes/recipe.error.js';
 import { CreateRecipeDto } from '../../recipes/dto/createRecipe.dto.js';
 
 const BASE = 'https://recipe.example.test';
@@ -191,6 +203,10 @@ const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
     [RecipeErrorCode.MAX_PHOTOS_EXCEEDED]: { limit: 10 },
     [RecipeErrorCode.VERSION_LINE_UNRESTORABLE]: { positions: [2] },
     [RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET]: { missing: ['cuisine'] },
+    [RecipeErrorCode.IMPORT_QUOTA_EXCEEDED]: { resetsAt: '2026-10-27T03:30:00.000Z' },
+    [RecipeErrorCode.IMPORT_CURSOR_MOVED]: { cursorOrdinal: 4 },
+    [RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED]: { ordinal: 4 },
+    [RecipeErrorCode.PRIVATE_SLOTS_FULL]: { used: 50, limit: 50 },
 };
 
 /** The `details` a real `VERSION_CONFLICT` carries (W8-a.5: enough for a client-side 3-way merge). */
@@ -391,6 +407,66 @@ describe('the recipe error contract, end to end through both halves', () => {
         expect((error as PublishRequirementsUnmetError).message).toBe('The policy’s own words.');
     });
 
+    it('429 IMPORT_QUOTA_EXCEEDED → ImportQuotaExceededError carrying when the allowance reopens', async () => {
+        const { wire, error } = await throughTheWire(
+            importQuotaExceeded(new Date('2026-10-27T03:30:00.000Z')),
+            (client) => client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.TOO_MANY_REQUESTS);
+        expect(error).toBeInstanceOf(ImportQuotaExceededError);
+        expect((error as ImportQuotaExceededError).resetsAt).toBe('2026-10-27T03:30:00.000Z');
+        expect((error as ImportQuotaExceededError).status).toBe(429);
+        expect((error as ImportQuotaExceededError).code).toBe(CODE.IMPORT_QUOTA_EXCEEDED);
+    });
+
+    it('404 IMPORT_NOT_FOUND → NotFoundError carrying the import code', async () => {
+        const { wire, error } = await throughTheWire(importNotFound('imp-1'), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.NOT_FOUND);
+        expect(error).toBeInstanceOf(NotFoundError);
+        expect((error as NotFoundError).code).toBe(CODE.IMPORT_NOT_FOUND);
+    });
+
+    it('409 IMPORT_CURSOR_MOVED → ImportCursorMovedError carrying where the cursor is now', async () => {
+        const { wire, error } = await throughTheWire(importCursorMoved(4), (client) => client.getRecipeById(RECIPE_ID));
+
+        expect(wire.status).toBe(HttpStatus.CONFLICT);
+        expect(error).toBeInstanceOf(ImportCursorMovedError);
+        expect((error as ImportCursorMovedError).cursorOrdinal).toBe(4);
+        expect((error as ImportCursorMovedError).code).toBe(CODE.IMPORT_CURSOR_MOVED);
+    });
+
+    it('409 IMPORT_CURSOR_MOVED with the cursor done → cursorOrdinal null, not undefined', async () => {
+        const { error } = await throughTheWire(importCursorMoved(null), (client) => client.getRecipeById(RECIPE_ID));
+
+        expect((error as ImportCursorMovedError).cursorOrdinal).toBeNull();
+    });
+
+    it('409 IMPORT_ITEM_ALREADY_SAVED → ImportItemAlreadySavedError carrying the item', async () => {
+        const { wire, error } = await throughTheWire(importItemAlreadySaved(4), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.CONFLICT);
+        expect(error).toBeInstanceOf(ImportItemAlreadySavedError);
+        expect((error as ImportItemAlreadySavedError).ordinal).toBe(4);
+        expect((error as ImportItemAlreadySavedError).code).toBe(CODE.IMPORT_ITEM_ALREADY_SAVED);
+    });
+
+    it('403 PRIVATE_SLOTS_FULL → PrivateSlotsFullError carrying used and limit, NOT a version conflict', async () => {
+        const { wire, error } = await throughTheWire(privateSlotsFull(60, 50), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.FORBIDDEN);
+        expect(error).toBeInstanceOf(PrivateSlotsFullError);
+        expect(error).not.toBeInstanceOf(VersionConflictError);
+        expect(error).toMatchObject({ status: 403, code: CODE.PRIVATE_SLOTS_FULL, used: 60, limit: 50 });
+    });
+
     it('403 CANNOT_RATE_OWN_RECIPE → ForbiddenError with its own code, never a bare 403', async () => {
         const { error } = await throughTheWire(
             domainError(RecipeErrorCode.CANNOT_RATE_OWN_RECIPE, 'You cannot rate your own recipe'),
@@ -412,6 +488,18 @@ describe('the recipe error contract, end to end through both halves', () => {
         // Its OWN code, never collapsed into `FORBIDDEN`: a load or e2e harness distinguishes "the stage
         // contained my test write, as designed" from a scope gate it should treat as a failure.
         expect((error as ForbiddenError).code).toBe(CODE.TEST_PRINCIPAL_CONTAINED);
+    });
+
+    it('403 ACCOUNT_SUSPENDED → ForbiddenError carrying the suspension code, never a bare 403 (ADR-0081)', async () => {
+        const { wire, error } = await throughTheWire(
+            apiError(ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE),
+            (client) => client.setRecipeRating(RECIPE_ID, { stars: 5 }),
+        );
+
+        expect(wire.status).toBe(HttpStatus.FORBIDDEN);
+        expect(error).toBeInstanceOf(ForbiddenError);
+        // Its own code: a suspended cook is told something different from "you do not own this", and no retry fixes it.
+        expect((error as ForbiddenError).code).toBe(ACCOUNT_SUSPENDED_CODE);
     });
 
     /**

@@ -60,5 +60,5 @@ export const DataSourcesStates: FC<DataSourcesStatesProps> = ({ view, failures, 
 };
 
 const styles = StyleSheet.create({
-    failure: { fontSize: nativeTokens.fontSize.bodyMd },
+    failure: { ...nativeTokens.type.body },
 });

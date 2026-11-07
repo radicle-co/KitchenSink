@@ -27,7 +27,8 @@
  *   #F5B041 is a light fill taking a charcoal label and is far under 4.5:1 as text on near-white.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render as renderUnscoped, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render as renderInDesignSystem } from '@commise/ui/testing/tamagui';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { makeIngredientView, makeRecipeDetail, idleUnreachableRetry } from '../../__fixtures__/index.js';
@@ -39,8 +40,8 @@ import type { ReactElement } from 'react';
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
 
 /** Every detail renders inside the session’s cook-marks scope, as each app root mounts it. */
-const render = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
-    renderUnscoped(ui, { wrapper: CookMarksTestProvider });
+const render = (ui: ReactElement): ReturnType<typeof renderInDesignSystem> =>
+    renderInDesignSystem(ui, { wrapper: CookMarksTestProvider });
 
 const en = recipeMessages.en.detail;
 

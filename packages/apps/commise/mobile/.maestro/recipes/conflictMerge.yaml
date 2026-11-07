@@ -1,9 +1,9 @@
 appId: ${APP_ID}
 ---
-# Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — banner + changed-only diff + A/B/C
-# cards + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
+# Concurrent-edit conflict resolution (US1, T070 / FR-007c; W7 rebuild — two side cards + changed-only diff + three
+# option cards (Compare, Keep mine, Use theirs) + per-element merge, replacing the pre-rebuild 2-way "Keep my version" / "Use the latest version" /
 # "Merge field by field" flow this file used to drive). Mobile mirror of the web Playwright
-# `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same per-side banner copy, same
+# `recipeConflict.spec.ts` (cross-platform mandate) — same option labels, same side-card copy, same
 # changed-only diff/legend, same gating, asserted here against `RecipeConflictView.native.tsx`. Also asserts
 # the "Discard and close" header exit (wireframe gap #1) is visible.
 #
@@ -122,8 +122,8 @@ appId: ${APP_ID}
 # bar pins to the foot again, wherever the page is scrolled.
 - runFlow: common/closeEditorKeyboard.yaml
 - tapOn: 'Save changes'
-# If a concurrent save landed first, the conflict view offers the per-side banner, the changed-only diff, and
-# all three W7 FR-007c resolutions (A/B/C). UN-DRIVABLE without a conflict-seeding harness — see module note.
+# If a concurrent save landed first, the conflict view offers the two side cards, the changed-only diff, and
+# all three W7 FR-007c resolutions (Compare, Keep mine, Use theirs). UN-DRIVABLE without a conflict-seeding harness — see module note.
 - runFlow:
       when:
           visible: 'This recipe changed while you were editing'
@@ -134,47 +134,45 @@ appId: ${APP_ID}
           # merge-and-persist assertions run.
           - assertVisible: 'Discard and close'
 
-          # Per-side banner (X3): server names its winning version/save-time/device; mine has no version of
-          # its own (never persisted) — the ONE piece of banner copy with no dynamic version/device content,
-          # so it is the only banner line assertable without knowing the concurrent write's exact shape.
-          - assertVisible: 'Your version: local unsaved changes'
-          - assertVisible:
-                text: 'Server version \(v\d+\): Saved.*'
+          # The two side cards (no version numbers, no banner).
+          - assertVisible: 'Saved elsewhere'
+          - assertVisible: 'Your changes'
 
           # Changed-only diff panel (X1/X7) — guaranteed non-empty whenever this view is showing at all (a
           # phantom zero-diff 409 auto-resolves BEFORE reaching the conflict view — `useRecipeEditor`'s own
-          # fast path), so both the heading and the legend are unconditionally present here.
+          # fast path), so the heading is unconditionally present here (the badges are words; there is no legend).
           - assertVisible: 'Changed fields'
-          - assertVisible: 'Legend'
 
-          # The three W7 A/B/C option cards (X2) — server-keep, overwrite, and manual merge.
-          - assertVisible: 'Keep server version'
-          - assertVisible: 'Overwrite with your version'
-          - assertVisible: 'Merge manually'
+          # The three option cards (X2) — use theirs, keep mine, and compare to merge.
+          - assertVisible: 'Use theirs'
+          - assertVisible: 'Keep mine'
+          - assertVisible: 'Compare'
 
-          # Enter the per-field/per-element merge panel (Option C).
-          - tapOn: 'Merge manually'
-          - assertVisible: 'Merge changes field by field'
+          # Enter the per-field/per-element merge panel (Compare).
+          - tapOn: 'Compare'
+          - assertVisible: 'Compare and choose'
 
           # Gating (X5): before any selection, Save is disabled with an inline hint explaining why.
           - assertVisible:
-                text: 'Save merged version'
+                text: 'Save my choices'
                 enabled: false
-          - assertVisible: 'Choose a value for at least one field to save the merged version.'
+          - assertVisible: 'Pick at least one change to save.'
 
-          # Pull one row from the latest saved version (every other row stays on my draft by default — the
+          # Pull one row from Theirs, the version saved elsewhere (every other row stays on my draft by default — the
           # per-element `steps[N]`/`ingredients:<id>` keys this W7 panel adds have no bearing on the FIRST
           # matching row Maestro's substring match picks, same as the pre-W7 flow's own approach).
-          - tapOn: 'Latest saved version'
+          # Anchored to the option label "Theirs: {value}", so it cannot hit the merge explanation sentence
+          # "Pick theirs or yours for each change." or the "Theirs: ..." line of the diff panel's own wording.
+          - tapOn: '^Theirs: .*'
           - assertVisible:
-                text: 'Save merged version'
+                text: 'Save my choices'
                 enabled: true
           - runFlow:
                 file: common/scrollIntoTapView.yaml
                 env:
-                    TARGET: 'Save merged version'
+                    TARGET: 'Save my choices'
                     DIRECTION: DOWN
-          - tapOn: 'Save merged version'
+          - tapOn: 'Save my choices'
 # Back on the detail with the user's title preserved by the merge (regex tolerates the last-char input dup).
 - extendedWaitUntil:
       visible:

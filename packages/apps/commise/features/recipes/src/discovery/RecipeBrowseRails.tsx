@@ -24,12 +24,15 @@ import { UNMEASURED_EXTENT, type ScrollExtent } from '@commise/ui/horizontal-scr
 import { Icon } from '@commise/ui/icon';
 import { EnterTransition } from '@commise/ui/motion';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useState, type FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages, type DiscoveryMessages } from './messages.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from './model.js';
 import { RailContext } from './railContext.js';
+import { RAIL_LINK_INSET, RAIL_LINK_MIN_HEIGHT } from './railHeading.js';
 import { useRailScroll } from './useRailScroll.js';
 
 /** Visible title for each rail (S). */
@@ -53,8 +56,8 @@ const SECTION_STAGGER_MS = 80;
 
 /** A 36 px round ghost button, for a fine pointer only (`pointer-fine:`); a touch screen has the swipe and the peek. */
 const ROUND =
-    'hidden size-9 shrink-0 items-center justify-center rounded-full text-ink hover:bg-ink/6 pointer-fine:inline-flex ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring aria-disabled:opacity-40 ' +
+    `hidden size-9 shrink-0 items-center justify-center rounded-full text-ink ${PRESS_FILL_CLASS.pointer} pointer-fine:inline-flex ` +
+    `${FOCUS_RING_CLASS.offset} aria-disabled:opacity-40 ` +
     'aria-disabled:hover:bg-transparent';
 
 /** One curated rail: its heading, Previous and Next, and "see all" over its body. */
@@ -79,8 +82,8 @@ const Rail: FC<{
 
     return (
         <section className="flex flex-col gap-3">
-            <header className="flex items-center gap-2">
-                <h2 ref={headingRef} tabIndex={-1} className="min-w-0 flex-1 text-section-title text-ink">
+            <header className="flex flex-wrap items-center gap-2">
+                <h2 ref={headingRef} tabIndex={-1} className="min-w-0 flex-auto text-section-title text-ink">
                     {title}
                 </h2>
                 <button
@@ -109,14 +112,21 @@ const Rail: FC<{
                 >
                     <Icon name="chevronRight" size={20} />
                 </button>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    accessibilityLabel={fillTemplate(discovery.seeAllLabel, { rail: title })}
-                    onPress={rail.onSeeAll}
+                {/* The link wraps under the title when the two do not fit; it never shrinks or truncates, and its box is
+                    pulled back by the button's padding so its text sits on the title's start edge. */}
+                <span
+                    className="flex shrink-0 items-center"
+                    style={{ minHeight: RAIL_LINK_MIN_HEIGHT, marginInlineStart: -RAIL_LINK_INSET }}
                 >
-                    {discovery.seeAll}
-                </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        accessibilityLabel={fillTemplate(discovery.seeAllLabel, { rail: title })}
+                        onPress={rail.onSeeAll}
+                    >
+                        {discovery.seeAll}
+                    </Button>
+                </span>
             </header>
             <RailContext value={{ title, trackRef: setTrack, onPosition: setPosition }}>{rail.body}</RailContext>
         </section>

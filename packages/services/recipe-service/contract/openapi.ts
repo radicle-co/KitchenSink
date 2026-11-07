@@ -48,7 +48,8 @@
  * module is PURE — it exports data and one pure function, touches no filesystem, and boots no application.
  */
 import { z } from 'zod';
-import { buildOpenApiDocument } from '@kitchensink/contract-gen';
+import { buildOpenApiDocument, withResponseOnOperations } from '@kitchensink/contract-gen';
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import type {
     HttpMethod,
     OpenApiBuildResult,
@@ -102,6 +103,7 @@ import {
     ingredientFoodNutritionEntrySchema,
     ingredientFoodNutritionRequestSchema,
     ingredientFoodNutritionResponseSchema,
+    ingredientNameProposalsResponseSchema,
 } from '../src/ingredients/ingredients.schema.js';
 import {
     confirmPhotoRequestSchema,
@@ -116,6 +118,7 @@ import {
     recipeNutritionRequestSchema,
     recipeNutritionResponseSchema,
     recipeNutritionStateSchema,
+    privateSlotUsageSchema,
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
     MAX_NUTRITION_RECIPE_IDS,
@@ -190,6 +193,7 @@ export const openApiComponents = {
     RecipeNutritionState: recipeNutritionStateSchema,
     RecipeNutritionResponse: recipeNutritionResponseSchema,
     SetRecipeVisibilityRequest: setRecipeVisibilityRequestSchema,
+    PrivateSlotUsage: privateSlotUsageSchema,
     RebindIngredientLineRequest: rebindIngredientLineRequestSchema,
     SetRatingRequest: setRatingRequestSchema,
     RecipePhoto: recipePhotoSchema,
@@ -207,6 +211,7 @@ export const openApiComponents = {
     // Its own component, so a generated client gets one named type for the three-outcome union.
     IngredientFoodNutritionEntry: ingredientFoodNutritionEntrySchema,
     IngredientFoodNutritionResponse: ingredientFoodNutritionResponseSchema,
+    IngredientNameProposalsResponse: ingredientNameProposalsResponseSchema,
     RecipeVersion: recipeVersionSchema,
     RecipeVersionList: z.array(recipeVersionSchema),
     RestoreVersionResponse: restoreVersionResponseSchema,
@@ -389,7 +394,10 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             requestBody: { description: 'The recipe to create.', required: true, schema: 'CreateRecipeRequest' },
             responses: {
                 '201': { description: 'The created recipe.', schema: 'RecipeDetail' },
-                '403': CONTAINED_403,
+                '403': {
+                    description: `A free cook with no private slot left created a PUBLISHED \`private\` recipe (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`); a private draft takes no slot. Or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    schema: 'ErrorResponse',
+                },
                 ...sharedErrorResponses(),
             },
         },
@@ -421,6 +429,18 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             ],
             responses: {
                 '200': { description: 'A page of the caller’s recipes.', schema: 'PaginatedRecipes' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipes/private-slots': {
+        get: {
+            operationId: 'getPrivateSlots',
+            summary: 'The caller’s private-slot standing (ADR-0073).',
+            description:
+                'A free cook holds up to a limit of private recipes (every private, PUBLISHED, undeleted recipe they own, any label; a draft holds no slot); Premium has none. `limited` carries the live count and the limit the SERVER states (`used` can exceed `limit` for a cook who lost Premium and keeps every private recipe); `unlimited` carries neither. A DISPLAY read, counted without the per-user lock: it may be a moment stale, and a private write is never withheld on it. Scoped entirely by the verified token.',
+            responses: {
+                '200': { description: 'The caller’s private-slot standing.', schema: 'PrivateSlotUsage' },
                 ...sharedErrorResponses(),
             },
         },
@@ -478,7 +498,10 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             requestBody: { description: 'The fields to change.', required: true, schema: 'UpdateRecipeRequest' },
             responses: {
                 '200': { description: 'The updated recipe.', schema: 'RecipeDetail' },
-                '403': NOT_OWNER,
+                '403': {
+                    description: `The caller does not own the recipe; or a free cook with no private slot left PUBLISHED a private draft (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`; saving a private draft takes no slot).`,
+                    schema: 'ErrorResponse',
+                },
                 '404': RECIPE_NOT_FOUND,
                 '409': {
                     description: 'Version conflict — the recipe changed since the caller read it.',
@@ -506,7 +529,10 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             parameters: [uuidPathParam('id', 'The recipe to clone.')],
             responses: {
                 '201': { description: 'The caller’s new clone.', schema: 'RecipeDetail' },
-                '403': CONTAINED_403,
+                '403': {
+                    description: `A contained test principal tried to clone a recipe it does not own (ADR-0040). A clone is always a DRAFT and takes no private slot, so this route never answers \`PRIVATE_SLOTS_FULL\`: ${TEST_PRINCIPAL_CONTAINED}`,
+                    schema: 'ErrorResponse',
+                },
                 '404': RECIPE_NOT_FOUND,
                 ...sharedErrorResponses(),
             },
@@ -561,7 +587,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '200': { description: 'The updated recipe.', schema: 'RecipeDetail' },
                 '403': {
-                    description: `The caller does not own the recipe, or: ${TEST_PRINCIPAL_CONTAINED}`,
+                    description: `The caller does not own the recipe; or a free cook with no private slot left set a PUBLISHED recipe to \`private\` (\`code: PRIVATE_SLOTS_FULL\`, \`details.used\` and \`details.limit\`; a draft takes no slot); or: ${TEST_PRINCIPAL_CONTAINED}`,
                     schema: 'ErrorResponse',
                 },
                 '404': RECIPE_NOT_FOUND,
@@ -783,6 +809,23 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             },
         },
     },
+    '/api/v1/recipe-parse-jobs/{id}/matches': {
+        post: {
+            operationId: 'proposeParseJobMatches',
+            summary: 'Match the parsed lines’ foods to catalog foods, as proposals the cook confirms.',
+            description:
+                'Idempotent: a line already matched for its current text is not matched or reviewed again. Runs the ' +
+                'match as the caller and asks the review gate about each proposal; the review continues ' +
+                'asynchronously, so a proposal reads "checking" until its verdict lands. A proposal binds nothing.',
+            parameters: [uuidPathParam('id', 'The job id.')],
+            responses: {
+                '202': { description: 'The job, with any new proposals.', schema: 'ParseJob' },
+                '404': { description: 'No such job owned by the caller.', schema: 'ErrorResponse' },
+                '409': { description: 'The job expired; create a new one.', schema: 'ErrorResponse' },
+                ...sharedErrorResponses(),
+            },
+        },
+    },
     '/api/v1/recipe-parse-jobs/{id}/withdraw-lines': {
         post: {
             operationId: 'withdrawParseJobLines',
@@ -970,6 +1013,33 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             responses: {
                 '202': { description: 'Accepted; resolution continues in the background.', schema: 'Ingredient' },
                 '502': SOURCE_UNAVAILABLE,
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/ingredients/by-name/proposals': {
+        get: {
+            operationId: 'getIngredientNameProposals',
+            summary: 'The foods the add-by-name field suggests for a typed name. Nothing is bound.',
+            description: [
+                'What the settled sources remember for the phrase: the cook’s own earlier correction, a staff ruling,',
+                'two cooks agreeing, and a memo another cook’s save taught. Each is a PROPOSAL, strongest source first.',
+                'The cook binds one by picking it, through `by-food` or `by-food-variant`. Nothing is preselected.',
+                'Always `200`: a food food will not show to the caller, or a source that could not be read, is absent',
+                'from the list and nothing says why, so another cook’s private food is never revealed.',
+                '`source` is an open key, so a new kind of source can ship without breaking an installed client.',
+            ].join(' '),
+            parameters: [
+                {
+                    name: 'name',
+                    in: 'query',
+                    required: true,
+                    description: 'The name the cook typed. Trimmed; at most 120 characters.',
+                    schema: z.string().min(1).max(120),
+                },
+            ],
+            responses: {
+                '200': { description: 'The phrase and the proposals.', schema: 'IngredientNameProposalsResponse' },
                 ...sharedErrorResponses(),
             },
         },
@@ -1384,6 +1454,19 @@ export function buildRecipeOpenApiDocument(): OpenApiBuildResult {
         },
         defaultSecurity: [CLERK_BEARER],
         components: openApiComponents,
-        paths,
+        // ADR-0081: the suspended-account `403` is added to every operation a Clerk session reaches rather than written on
+        // each route. The auth middleware answers it before any handler runs, so it is a property of the surface, and a
+        // route added tomorrow is covered. A route's own `403` (not the owner, a full private slot) keeps its meaning and
+        // gains this one.
+        paths: withResponseOnOperations<ComponentName>(paths, {
+            status: '403',
+            response: {
+                description: `The token is genuine but its account is suspended: \`code: ${ACCOUNT_SUSPENDED_CODE}\` (ADR-0081). Answered before the route runs.`,
+                schema: 'ErrorResponse',
+            },
+            // The default requirement, or one that names the Clerk scheme. Public probes (`security: []`) and the
+            // service-token routes are out.
+            appliesTo: (operation) => operation.security === undefined || operation.security.includes(CLERK_BEARER),
+        }),
     });
 }

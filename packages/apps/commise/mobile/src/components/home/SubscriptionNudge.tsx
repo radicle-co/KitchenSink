@@ -23,9 +23,9 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { JSX } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
 
@@ -51,7 +51,6 @@ export interface SubscriptionNudgeProps {
 export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): JSX.Element {
     const { home } = useMessages(mobileMessages);
     const { nudge } = useMessages(homeMessages);
-    const { colors } = useTheme();
 
     return (
         <Sheet
@@ -80,13 +79,14 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                 </View>
             }
         >
-            <Text style={[styles.body, { color: colors.inkMuted }]}>{nudge.body}</Text>
+            <Text typeRole="meta" color="$inkMuted">
+                {nudge.body}
+            </Text>
         </Sheet>
     );
 }
 
 const styles = StyleSheet.create({
-    body: { fontSize: nativeTokens.fontSize.bodySm },
     // `flexWrap`: at a large font scale the two actions take a line each, full width, before a label wraps.
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
     action: { flexGrow: 1 },

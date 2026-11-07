@@ -12,6 +12,8 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -43,9 +45,9 @@ export const DiscoveryRecentSearches: FC<DiscoveryRecentSearchesProps> = ({
     }
 
     return (
-        <View style={[styles.panel, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
+        <Surface tone="paper" style={[styles.panel, { borderColor: colors.lineDivider }]}>
             <View style={styles.header}>
-                <Text accessibilityRole="header" style={[styles.overline, { color: colors.inkMuted }]}>
+                <Text accessibilityRole="header" style={[styles.heading, { color: colors.inkMuted }]}>
                     {discovery.recentSearchesLabel}
                 </Text>
                 <Button
@@ -72,12 +74,12 @@ export const DiscoveryRecentSearches: FC<DiscoveryRecentSearchesProps> = ({
                     </Pressable>
                 ))}
             </ScrollView>
-        </View>
+        </Surface>
     );
 };
 
 const styles = StyleSheet.create({
-    overline: { ...nativeTokens.type.overline },
+    heading: { ...nativeTokens.type.label },
     body: { ...nativeTokens.type.body },
     panel: {
         flexShrink: 1,
@@ -87,5 +89,5 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[2],
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    row: { minHeight: 44, justifyContent: 'center' },
+    row: { minHeight: touchFloor(), justifyContent: 'center' },
 });

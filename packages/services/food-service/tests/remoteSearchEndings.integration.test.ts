@@ -1,7 +1,7 @@
 /**
  * Integration (mocked, `docs/CODING_STANDARDS.md` §7.1a): what food PUBLISHES for each way a remote search ends, over
  * real HTTP. The real `SearchServiceRemoteSearch` signs real URLs through the CloudFront stand-in
- * (`support/searchEdgeStandIn.ts`) in front of the search function's double (`support/searchFunctionDouble.ts`), and
+ * (`@kitchensink/remote-search-edge`) in front of the search function's double (`support/searchFunctionDouble.ts`), and
  * the real `RemoteSearchEndingMetrics` writes real EMF lines through `FoodMetrics`.
  *
  * The failure it exists for (ADR-0055 point 7): a signature the distribution refuses is CloudFront's own `403`, which
@@ -17,7 +17,7 @@ import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
 import { RemoteSearchEndingMetrics } from '../src/sources/remote/remoteSearchEndings.js';
 import { SearchServiceRemoteSearch } from '../src/sources/remote/SearchServiceRemoteSearch.js';
 import { countingLedger, type LedgerCall } from './support/countingLedger.js';
-import { startSearchEdgeStandIn, type SearchEdgeStandIn } from './support/searchEdgeStandIn.js';
+import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '@kitchensink/remote-search-edge/edge';
 import { searchFunctionDouble, type SearchFunctionDouble } from './support/searchFunctionDouble.js';
 import { fakeSourceBudget } from './support/sourceBudgetFake.js';
 

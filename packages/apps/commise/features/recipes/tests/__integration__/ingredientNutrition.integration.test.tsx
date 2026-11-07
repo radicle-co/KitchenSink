@@ -143,7 +143,7 @@ describe('the editor’s nutrition read (integration)', () => {
             .mockImplementation(async () => json(FOUND));
         renderEditor(fetchDouble);
 
-        await screen.findByText(en.nutritionLoadFailed, {}, { timeout: 10_000 });
+        await screen.findByText(en.nutritionLoadFailed, { selector: 'p' }, { timeout: 10_000 });
         await user.click(screen.getByRole('button', { name: 'Actions for Arborio rice' }));
         await user.click(screen.getByRole('menuitem', { name: en.rowFoodDetails }));
         const panel = await screen.findByRole('dialog', { name: 'Arborio rice' });

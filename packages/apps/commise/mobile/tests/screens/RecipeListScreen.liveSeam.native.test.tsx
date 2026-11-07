@@ -63,7 +63,7 @@ describe('RecipeListScreen (live seam) — a successful load with zero recipes',
 
         renderWithRecipeClient(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />, client);
 
-        expect(await screen.findByRole('button', { name: 'Add your first recipe' })).toBeTruthy();
+        expect(await screen.findByRole('button', { name: 'Add a recipe' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
     });
 });

@@ -85,11 +85,20 @@ CREATE TABLE recipes (
     source_type            TEXT        NOT NULL DEFAULT 'user_created'
                            CHECK (source_type IN (
                                'user_created',
-                               'imported_public',   -- website / Instagram (always public)
-                               'imported_physical', -- OCR / photo (starts private)
-                               'imported_paid'      -- cookbook / subscription (always private)
+                               -- Amended 2026-11-03 (ADR-0082). A source type is NOT a rights label and decides
+                               -- nothing about who can read the words. 016-FR-015d derives the label. See the
+                               -- "Rights, licence and facts cards" section below.
+                               'imported_public',   -- copied from a publicly reachable page. Fully protected,
+                                                    -- the OPPOSITE of public domain. Private full copy, or a
+                                                    -- public linked card (021-FR-014a). Public domain text
+                                                    -- under the curator grant is also this type (021-FR-006).
+                               'imported_physical', -- OCR / photo. A book or magazine page (label 4) is a private
+                                                    -- full copy, or a public book card (021-FR-004). A family
+                                                    -- card photo follows its own label (021-FR-002)
+                               'imported_paid'      -- cookbook / subscription site (label 4). Private full copy,
+                                                    -- or a public book card, facts only (021-FR-004)
                            )),
-    source_url             TEXT,                    -- original URL if imported_public
+    source_url             TEXT,                    -- original URL if imported_public. A citation, not a fetch target
     source_attribution     TEXT,                    -- display attribution text
     cloned_from_id         UUID        REFERENCES recipes(id),
 
@@ -359,27 +368,30 @@ from, and they cost no migration and no write path.
 The PRO badge means **"this recipe uses a capability only a premium user has"**. It is **derived, never
 stored**: there is no `is_pro` column, no entitlement model, and no overlap with feature 010.
 
-The **only** premium-gated recipe capability today is **choosing** private visibility. The naive rule
-`visibility === 'private'` is **wrong**, and this is the trap to avoid:
+Since the owner ruling of 2026-10-29 ([ADR-0077](../../docs/architecture/decisions/0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md)
+§6), **no recipe uses a premium-only capability**, so the badge marks nothing. Any cook can keep a web import
+(`imported_public`) private, and a free-tier user holds up to 50 private recipes of every kind
+([ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)). The 2026-10-26 rule, that making
+an `imported_public` recipe private needed premium, is removed. The naive rule `visibility === 'private'` is **wrong**, and this is
+the trap to avoid:
 
-| Condition                    | Private allowed?                    | Premium capability used? |
-| ---------------------------- | ----------------------------------- | ------------------------ |
-| `user_created`, private      | premium only                        | **yes**                  |
-| `imported_public`, private   | premium only (+ substantive edit)   | **yes**                  |
-| `imported_physical`, private | **any tier** — private is forced    | **no**                   |
-| `imported_paid`, private     | **any tier** — private is permanent | **no**                   |
+| Condition                    | Private allowed?                                                                    | Premium capability used? |
+| ---------------------------- | ----------------------------------------------------------------------------------- | ------------------------ |
+| `user_created`, private      | premium, or a free private slot                                                     | **no**                   |
+| `imported_public`, private   | premium, or a free private slot                                                     | **no**                   |
+| `imported_physical`, private | premium, or a free private slot. Label 4 is public only as a book card (2026-11-03) | **no**                   |
+| `imported_paid`, private     | premium, or a free private slot. Label 4 is public only as a book card (2026-11-03) | **no**                   |
 
-Per C-004, `imported_physical` and `imported_paid` recipes are private **regardless of tier**, so a
-free-tier user can hold private recipes. `visibility === 'private'` alone would brand those with a PRO
-badge they did not earn. The correct rule is therefore:
+`visibility === 'private'` alone would brand free-tier recipes with a PRO badge they did not earn. The correct
+rule is therefore:
 
 ```
-usesPremiumCapability = visibility === 'private'
-                        AND source_type IN ('user_created', 'imported_public')
+usesPremiumCapability = false   -- no recipe uses a premium-only capability (2026-10-29)
 ```
 
-This is only latent today (004 has not shipped, so every row is `user_created`), which is exactly why it
-must be encoded correctly **now** — while the rule lives in one place and costs nothing to get right.
+The function, its single site and its wire field stay, so a future Pro-only capability changes one place and no
+client. **Code owed:** the shipped function still answers true for a private `imported_public`. Changing it is a
+separate code task, in the same commit as `evaluateVisibility`.
 
 **One authoritative representation (DRY).** The rule is implemented **once**, as a pure function in
 `@kitchensink/recipe-core`, and called by both the list and the detail projection. It is never re-derived
@@ -725,14 +737,18 @@ If 0 rows returned → conflict detected → return HTTP 409 with both the clien
 
 ## Visibility Enforcement Rules (C-004)
 
-| Condition                    | Allowed visibility                                    |
-| ---------------------------- | ----------------------------------------------------- |
-| Free-tier user, user_created | `public` only                                         |
-| Premium user, user_created   | `public` or `private`                                 |
-| Any user, imported_public    | `public` or `private` — see the clone amendment below |
-| Any user, imported_physical  | `private` only                                        |
-| Any user, imported_paid      | `private` only (permanent)                            |
-| Premium lapse                | No new private; existing private stay private         |
+| Condition                    | Allowed visibility                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Free-tier user, user_created | `public`, or `private` while a private slot is free (ADR-0073)                                          |
+| Premium user, user_created   | `public` or `private`                                                                                   |
+| Any user, imported_public    | `public`, or `private` while a private slot is free (Premium: no limit) — see the clone amendment below |
+| Free-tier, imported_physical | `public` (label 4: a book card, facts only), or `private` while a private slot is free (2026-11-03)     |
+| Free-tier, imported_paid     | `public` (label 4: a book card, facts only), or `private` while a private slot is free (2026-11-03)     |
+| Premium, physical or paid    | `public` (label 4: a book card, facts only) or `private`                                                |
+| Premium lapse                | Existing private stay private; no new private until under 50                                            |
+
+A free-tier user's private slots: up to 50 private, undeleted recipes, every source type counted, counted live under a
+per-user lock in the same transaction as the write (`001-FR-003`, ADR-0073).
 
 Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constraint level (visibility rules are business logic, not schema invariants).
 
@@ -752,6 +768,112 @@ Enforced in service layer (`RecipeService.setVisibility()`), NOT at DB constrain
 >
 > `evaluateVisibility`'s input may also need a provenance-restriction term for `001-FR-005a`; no such signal
 > exists in the schema today, so that requirement is blocked on modelling it.
+
+> **⚠️ Amended 2026-11-03 (owner rulings, ADR-0082). The matrix is updated. The code is NOT updated.**
+>
+> This covers `imported_physical` and `imported_paid`. They are intake channels, and the rights label decides
+> (`016-FR-015d`). A verbatim copy from a cookbook, magazine or paid site (label 4) now has the same two states as a
+> web import. Private is the cook's full copy. Public is a book card, the facts only (`021-FR-004`). A photographed
+> family card is `imported_physical` too, and it follows its own label (`021-FR-002`). Visibility stays binary
+> (GR-014). Counsel review is owed before launch (`016-FR-050`). The code deltas, each with its own failing tests
+> first:
+>
+> 1. `evaluateVisibility` (`packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts`): the
+>    `privateOnly` rule (`privateRuleOf`) refuses `public` for `IMPORTED_PAID` and `IMPORTED_PHYSICAL` today. It
+>    must allow `public`. For label 4, every reader but the owner and household then gets the book card projection,
+>    never the full copy.
+> 2. A public book card frees the private slot its recipe held, like any public recipe (ADR-0073). Owner ruling 2026-11-03 (ADR-0082 §2): "No, it is free." A free cook can publish a whole cookbook as cards without using a slot, even while keeping the full book text privately. This follows `016-FR-029a`.
+> 3. Who reads what is no longer `visibility` alone. The read path must pick the full recipe or a facts card by the
+>    rights label (`016-FR-015d`). That Policy does not exist yet.
+
+---
+
+## Rights, licence and facts cards (added 2026-11-03, owner rulings, ADR-0082)
+
+These facts are specified to full depth. None is built, and nothing is live, so no backfill is owed. Each item is a
+code follow-up, and where it is stored is `staff-architect` PLANNING work. Column names below are proposals.
+Counsel review is owed before launch (`016-FR-050`).
+
+### Rights label (derived, never stored)
+
+`016-FR-015c` lists seven labels, and `016-FR-015d` derives one per recipe in one pure Policy. It reads five inputs:
+
+- the source type
+- the statement kind (below)
+- `cloned_from_id`
+- any licence the source page states (`016-FR-012b`)
+- the curator grant, with its public domain record A surface never stores or picks a label. The label, not the source
+  type, decides what opens to the web (`021-FR-002`).
+
+### Statement kind
+
+The cook's statement about where a recipe's words came from. Five kinds:
+
+| Kind           | Meaning                                                                                        | Extra facts it carries                                                |
+| -------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `authored`     | "I wrote this"                                                                                 | none                                                                  |
+| `adapted`      | "My own words, with a credit"                                                                  | the credit (citation and source kind)                                 |
+| `source`       | A copy from a web page, book, magazine or paid site                                            | the citation and the source kind                                      |
+| `family`       | From a family member or friend, with permission to share "publicly, on Commise and on the web" | the permission, and the giver's name only with the giver's permission |
+| `publicDomain` | Old text under the curator grant only. It needs a passing public domain record                 | the record (below)                                                    |
+
+Two gaps, both code follow-ups:
+
+- Shipped migration `0059_recipe_imports.sql` holds only `authored` and `source`, and only on
+  `recipe_import_items` (bulk import). Its CHECKs pin the two-kind shape.
+- A recipe made in the editor has nowhere to keep a statement kind at all. The `recipes` table above has no column for
+  it.
+
+### Licence choice (stored, per recipe)
+
+| Field (proposed)        | Values                 | Default   | Notes                                                                                     |
+| ----------------------- | ---------------------- | --------- | ----------------------------------------------------------------------------------------- |
+| `text_licence`          | `commise`, `cc-by-4.0` | `commise` | `cc-by-4.0` only on a "Written by you" recipe. It takes effect once 020 allows the recipe |
+| `text_licence_version`  | text                   | current   | The version the cook chose under                                                          |
+| `photo_licence`         | `commise`, `cc-by-4.0` | `commise` | A separate choice for the cook's own photos                                               |
+| `photo_licence_version` | text                   | current   |                                                                                           |
+
+- The recipe's read contract sends the choice and its version to clients. Public pages carry it as schema.org
+  `license` (`021-FR-023`).
+- CC BY is opt-in, adults only, and the cook is the licensor (`021-FR-040a`). Switching back applies to the future
+  only. Copies already made keep CC BY.
+- Adapted, family, clone and public domain recipes cannot choose CC BY at v1.
+
+### Public domain record (stored, per book or edition)
+
+The curator writes it under the grant (ADR-0023, as amended by ADR-0082). A recipe references it. It holds:
+
+- the first publication year and place
+- each creator: role (author, translator or illustrator), and death year or "no named author"
+- the "mort pour la France" flag, per creator
+- the edition used
+- the markets checked
+- who checked, and when
+- the rule version it was judged under
+
+The "Public domain" label is derived from the grant plus a record that passes `016-FR-015k`. There is no new
+`source_type` value. The rule rolls forward each 1 January, so the check runs at read time or on a schedule. Where
+the record lives is plan work, because ADR-0023's grant is a token scope and not a row.
+
+### Facts card (a projection, never stored)
+
+The linked card and the book card are public projections picked from the service-owned schema (`021-FR-102`). Their
+fields are exactly `021-FR-014a`'s:
+
+- the title, servings, prep, cook and total time, and yield
+- the step count
+- our computed nutrition
+- the ingredients in our normalized form
+- the owner's own notes and photos
+- the link or the credit
+
+They never carry the source's method, headnote, description, photo or a raw line (`021-FR-014b`).
+
+### Per-source cap ledger (stored)
+
+A count, over time, of public facts cards per source: per site, per book (by ISBN or title) and per paid site
+(`021-FR-014e`). It counts linked cards, book cards and any later Commise version together. It never goes down.
+Deleting a card does not free a place. Its shape, the cap numbers and the aggregator list are plan work.
 
 ---
 

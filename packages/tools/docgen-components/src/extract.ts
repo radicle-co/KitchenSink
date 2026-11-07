@@ -299,6 +299,62 @@ interface ExportedComponent {
     readonly description: string;
 }
 
+/** `tamagui` itself, or one of its `@tamagui/*` packages. */
+const TAMAGUI_MODULE = /^(?:tamagui|@tamagui\/[^/]+)$/u;
+
+/**
+ * The local names a file binds Tamagui's `styled` to: a value import from a Tamagui module, renamed or not. A
+ * type-only import binds nothing a program can call. Pure.
+ *
+ * @param source - The parsed source file.
+ */
+function tamaguiStyledNamesIn(source: ts.SourceFile): ReadonlySet<string> {
+    const names = new Set<string>();
+
+    for (const statement of source.statements) {
+        const clause = ts.isImportDeclaration(statement) ? statement.importClause : undefined;
+        const bindings = clause?.namedBindings;
+
+        if (
+            !ts.isImportDeclaration(statement) ||
+            !ts.isStringLiteral(statement.moduleSpecifier) ||
+            !TAMAGUI_MODULE.test(statement.moduleSpecifier.text) ||
+            clause === undefined ||
+            clause.phaseModifier === ts.SyntaxKind.TypeKeyword ||
+            bindings === undefined ||
+            !ts.isNamedImports(bindings)
+        ) {
+            continue;
+        }
+
+        for (const element of bindings.elements) {
+            if (!element.isTypeOnly && (element.propertyName ?? element.name).text === 'styled') {
+                names.add(element.name.text);
+            }
+        }
+    }
+
+    return names;
+}
+
+/** Whether a declaration is a call of Tamagui's `styled`, parentheses, `as`, `satisfies` and `!` looked through. Pure. */
+function isTamaguiStyledCall(declaration: ts.Node, styledNames: ReadonlySet<string>): boolean {
+    if (
+        ts.isParenthesizedExpression(declaration) ||
+        ts.isAsExpression(declaration) ||
+        ts.isSatisfiesExpression(declaration) ||
+        ts.isNonNullExpression(declaration)
+    ) {
+        return isTamaguiStyledCall(declaration.expression, styledNames);
+    }
+
+    return (
+        ts.isCallExpression(declaration) &&
+        ts.isIdentifier(declaration.expression) &&
+        styledNames.has(declaration.expression.text)
+    );
+}
+
 /** One top-level declaration, before export status is known. */
 interface LocalDeclaration {
     /** The node whose subtree is searched for JSX and for subtree-selecting conditionals. */
@@ -485,7 +541,7 @@ export function exportsAComponentName(filePath: string): boolean {
  * what it is genuinely better at — resolving a props type into a documented prop table.
  *
  * The name test is React's own rule (a lowercase JSX tag is a DOM element, so a component identifier is
- * capitalised). The SHAPE test is a union of three signals, and every one was added because a real component
+ * capitalised). The SHAPE test is a union of the signals below, and every one was added because a real component
  * in this tree was lost without it — found by the per-file coverage assertion in
  * `tests/generatedOutput.integration.test.ts`, not by any fixture, because a fixture can only contain shapes
  * somebody already thought of:
@@ -499,10 +555,16 @@ export function exportsAComponentName(filePath: string): boolean {
  *     with no JSX in the file at all. It once also required JSX somewhere in the file; dropping that was measured
  *     over the whole tree and documented exactly one more leaf, that layout.
  *
+ *  4. **A Tamagui `styled(…)` call** (ADR-0080) — `export const Surface = styled(View, {…})` is how the design system
+ *     defines a component, and its declaration is a call with no function body, so it holds no JSX and the library
+ *     reports nothing for it when it has no props and no description. Only a `styled` imported from `tamagui` or an
+ *     `@tamagui/*` package counts: another `styled` (a local function, `styled-components`) is not a Tamagui definition.
+ *     The doc host is already the variable statement, so its docblock is read as any other const's.
+ *
  * ⛔ The name test is NOT loosened to `/^[A-Z]/` to make signal 3 unnecessary: that admits SCREAMING_SNAKE
  * constants, and a catalogue listing an SVG path string as a component is worse than one missing a wrapper.
  *
- * ⛔ A FOURTH signal — "the declaration is annotated `FC` / `ComponentType`" — was written, and then DELETED
+ * ⛔ A FIFTH signal — "the declaration is annotated `FC` / `ComponentType`" — was written, and then DELETED
  * after mutation testing: removing it changed nothing anywhere in the tree, because every component it would
  * have caught is already caught by signal 2. An untested branch that no input reaches is not robustness, it
  * is code nobody can prove is right. If a propless, undocumented `FC` that renders `null` ever lands, the
@@ -517,6 +579,7 @@ export function exportsAComponentName(filePath: string): boolean {
  */
 function exportedComponents(source: ts.SourceFile, libraryNames: ReadonlySet<string>): readonly ExportedComponent[] {
     const { locals, exported } = moduleExportsOf(source);
+    const styledNames = tamaguiStyledNamesIn(source);
     const defaultExports = [...exported].filter(([, kind]) => kind === 'default');
 
     const found: ExportedComponent[] = [];
@@ -530,6 +593,7 @@ function exportedComponents(source: ts.SourceFile, libraryNames: ReadonlySet<str
 
         const isComponent =
             containsJsx(local.declaration) ||
+            isTamaguiStyledCall(local.declaration, styledNames) ||
             libraryNames.has(name) ||
             (exportKind === 'default' && defaultExports.length === 1);
 

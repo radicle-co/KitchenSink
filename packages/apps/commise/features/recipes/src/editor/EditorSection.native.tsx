@@ -12,22 +12,22 @@
  */
 import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
-import { useTheme } from '@commise/ui/theme';
-import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text } from '@commise/ui/text';
+import { touchFloor } from '@commise/ui/layout';
+import type { ComponentRef, FC } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import type { EditorSectionProps } from './frameProps.js';
 import { SectionPresenceContext } from './sectionPresence.js';
 
 /** One section of the native editor. */
 export const EditorSection: FC<EditorSectionProps> = ({ title, action, focusSignal = 0, current, children }) => {
-    const { colors } = useTheme();
-    const heading = useScreenReaderFocusOnSignal<Text>(focusSignal);
+    const heading = useScreenReaderFocusOnSignal<ComponentRef<typeof Text>>(focusSignal);
 
     return (
         <View style={styles.section}>
             <View style={styles.headingRow}>
-                <Text ref={heading} role="heading" style={[styles.heading, { color: colors.ink }]}>
+                <Text ref={heading} role="heading" typeRole="sectionTitle" color="$ink" flexShrink={1}>
                     {title}
                 </Text>
                 {action}
@@ -48,7 +48,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         columnGap: nativeTokens.spacing[2],
         rowGap: nativeTokens.spacing[1],
-        minHeight: 44,
+        minHeight: touchFloor(),
     },
-    heading: { ...nativeTokens.type.sectionTitle, flexShrink: 1 },
 });

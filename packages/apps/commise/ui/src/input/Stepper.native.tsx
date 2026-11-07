@@ -10,7 +10,7 @@
  * @pattern Controlled input — the value is the caller's; the step rule (`stepFrom`) is pure
  */
 import { useState, type FC } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { Icon } from '../icon/Icon.native.js';
@@ -20,9 +20,8 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { stepFrom, type StepperProps } from './props.js';
-
-/** A step button's target: 44 pt on iOS, 48 dp on Android (spec §1.6). */
-const stepTarget = (): number => (Platform.OS === 'android' ? 48 : 44);
+import { touchFloor } from '../layout/touchFloor.native.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 /** The native design-system stepper. */
 export const Stepper: FC<StepperProps> = ({
@@ -40,11 +39,12 @@ export const Stepper: FC<StepperProps> = ({
 }) => {
     const [spoken, setSpoken] = useState({ text: '', occurrence: 0 });
     const labelId = `${id}-label`;
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
 
     const stepButton = (step: -1 | 1, name: string, glyph: IconName) => {
         const next = stepFrom(value, step, min, max);
-        const target = stepTarget();
+        const target = touchFloor();
 
         return (
             <Pressable

@@ -4,6 +4,7 @@
  * R8 audit row, and enqueues a `reactivation` event so the deletion-worker calls Clerk `unbanUser` (the
  * public-ALB service holds no Clerk secret). Only a `tombstoned` account is recoverable — `erased` is not.
  */
+import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotFoundException, ConflictException } from '@nestjs/common';
@@ -46,8 +47,21 @@ function makeSelectChain<T>(rows: T[]) {
     return { from: () => ({ where: () => ({ limit: () => Promise.resolve(rows) }) }) };
 }
 
-function buildMocks(existing: Record<string, unknown> | undefined) {
-    const setMock = vi.fn().mockReturnValue({ where: () => Promise.resolve() });
+/**
+ * The `where()` result of an UPDATE: awaitable (the callers that ignore the row) and with `.returning()` (the guarded
+ * transitions, which read whether the WHERE matched a row). `wheres` records each predicate.
+ */
+function updateWhere(updatedRows: Array<{ id: string }>, wheres: SQL[]) {
+    return (predicate: SQL) => {
+        wheres.push(predicate);
+
+        return Object.assign(Promise.resolve(), { returning: () => Promise.resolve(updatedRows) });
+    };
+}
+
+function buildMocks(existing: Record<string, unknown> | undefined, updatedRows: Array<{ id: string }> = [{ id: 'u' }]) {
+    const wheres: SQL[] = [];
+    const setMock = vi.fn().mockReturnValue({ where: updateWhere(updatedRows, wheres) });
     const insertValues = vi.fn().mockResolvedValue(undefined);
     const db: any = {
         select: vi.fn().mockReturnValue(makeSelectChain(existing ? [existing] : [])),
@@ -57,7 +71,7 @@ function buildMocks(existing: Record<string, unknown> | undefined) {
     };
     const sqs: any = { enqueueDeletion: vi.fn().mockResolvedValue(undefined) };
 
-    return { db, sqs, setMock, insertValues, service: new AdminService(db, sqs) };
+    return { db, sqs, setMock, wheres, insertValues, service: new AdminService(db, sqs) };
 }
 
 describe('AdminService.reactivateUser', () => {
@@ -125,25 +139,45 @@ describe('AdminService.reactivateUser', () => {
     });
 });
 
-describe('AdminService.suspendUser / unsuspendUser — no status intent, guarded transitions', () => {
+describe('AdminService.suspendUser / unsuspendUser — guarded transitions', () => {
     beforeEach(() => vi.clearAllMocks());
 
-    // Suspension is not a provider state: the deletion worker converges `shouldBeBanned = tombstoned`, so an
-    // active and a suspended account are both UNBANNED. Advancing `status_version` here made a row "owed"
-    // that no queue message ever settles, and the queue check escalated it as a lost trigger forever.
+    // REWRITTEN for ADR-0081 (it asserted the opposite: "does not advance the status intent"). Suspension is now a
+    // PROVIDER state: the deletion worker writes and clears the `public_metadata.suspended` mark, so the intent
+    // advances by one in the same statement as the status, and the worker is woken by a trigger. The old reason for
+    // not bumping ("nothing would ever settle an advanced intent") no longer holds: the worker settles it.
     it.each([
         ['suspendUser', 'active', 'suspended'],
         ['unsuspendUser', 'suspended', 'active'],
-    ] as const)('%s does not advance the status intent', async (method, from, to) => {
+    ] as const)('%s advances the status intent and wakes the deletion worker', async (method, from, to) => {
         const { service, setMock, sqs } = buildMocks({ id: TARGET, identityId: 'user_abc', status: from });
 
         await service[method](TARGET, adminCtx);
 
         const set = setMock.mock.calls[0]?.[0];
         expect(set.status).toBe(to);
-        expect(set).not.toHaveProperty('statusVersion');
-        expect(sqs.enqueueDeletion).not.toHaveBeenCalled();
+        expect(set).toHaveProperty('statusVersion');
+        // The event name is historical: the worker treats every one of these as "converge this user's provider state".
+        expect(sqs.enqueueDeletion).toHaveBeenCalledWith({
+            identityId: 'user_abc',
+            userId: TARGET,
+            event: 'reactivation',
+        });
     });
+
+    it.each(['suspendUser', 'unsuspendUser'] as const)(
+        '%s PAGES when the worker cannot be woken, but the status change still stands',
+        async (method) => {
+            const from = method === 'suspendUser' ? 'active' : 'suspended';
+            const { service, sqs } = buildMocks({ id: TARGET, identityId: 'user_abc', status: from });
+            sqs.enqueueDeletion.mockRejectedValue(new Error('AccessDenied'));
+
+            await expect(service[method](TARGET, adminCtx)).resolves.toMatchObject({ sub: TARGET });
+            expect(reportDeletionEnqueueFailure).toHaveBeenCalledWith(
+                expect.objectContaining({ userId: TARGET, identityId: 'user_abc' }),
+            );
+        },
+    );
 
     // Suspending a tombstoned or erased row used to overwrite it, leaving R10's non-revivable states.
     it.each([
@@ -159,6 +193,35 @@ describe('AdminService.suspendUser / unsuspendUser — no status intent, guarded
         await expect(service[method](TARGET, adminCtx)).rejects.toBeInstanceOf(ConflictException);
         expect(setMock).not.toHaveBeenCalled();
     });
+});
+
+// The status was read, then checked, then written by id alone: erasure could commit `erased` in between and the
+// write would turn it back into `suspended`/`active`. The expected prior status is in the WHERE; no row means 409.
+describe('AdminService.suspendUser / unsuspendUser — a lost race', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it.each([
+        ['suspendUser', 'active'],
+        ['unsuspendUser', 'suspended'],
+    ] as const)('%s writes only while the row is still %s', async (method, from) => {
+        const { service, wheres } = buildMocks({ id: TARGET, identityId: 'user_abc', status: from });
+
+        await service[method](TARGET, adminCtx);
+
+        const { sql, params } = new PgDialect().sqlToQuery(wheres[0]!);
+        expect(sql).toContain('"status" =');
+        expect(params).toContain(from);
+    });
+
+    it.each(['suspendUser', 'unsuspendUser'] as const)(
+        '%s answers 409 when the row changed under it',
+        async (method) => {
+            const status = method === 'suspendUser' ? 'active' : 'suspended';
+            const { service } = buildMocks({ id: TARGET, identityId: 'user_abc', status }, []);
+
+            await expect(service[method](TARGET, adminCtx)).rejects.toBeInstanceOf(ConflictException);
+        },
+    );
 });
 
 describe('AdminService — a target that is no user id', () => {

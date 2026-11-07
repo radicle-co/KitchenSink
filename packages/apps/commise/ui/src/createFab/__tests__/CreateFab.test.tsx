@@ -7,21 +7,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { ScrollHost } from '../../scrollHost/ScrollHost.js';
+import { SnackbarHost } from '../../snackbar/SnackbarHost.js';
+import { useSnackbar } from '../../snackbar/useSnackbar.js';
 import { CreateFab } from '../CreateFab.js';
 
 let coarse = false;
 let twinWidth = 100;
+let statusHeight = 0;
 
 beforeEach(() => {
     coarse = false;
     twinWidth = 100;
+    statusHeight = 0;
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: coarse && query === '(pointer: coarse)' }));
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
         const width = this.getAttribute('aria-hidden') === 'true' ? twinWidth : 0;
 
-        return { width, height: 0, top: 0, left: 0, right: width, bottom: 0, x: 0, y: 0, toJSON: () => ({}) };
+        const height = this.getAttribute('role') === 'status' ? statusHeight : 0;
+
+        return { width, height, top: 0, left: 0, right: width, bottom: 0, x: 0, y: 0, toJSON: () => ({}) };
     });
 });
 
@@ -113,7 +119,91 @@ describe('CreateFab (web)', () => {
 
         expect(fab().className).toContain('bg-action');
         expect(fab().className).toContain('end-4');
-        expect(fab().className).toContain('bottom-[calc(var(--bottom-chrome,0px)+1rem)]');
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 0px)');
+        // The margin is the theme's `--fab-bottom-margin`, the same constant native rests at, never a raw rem.
+        expect(fab().style.bottom).not.toMatch(/\d(?:\.\d+)?rem/u);
         expect(fab().className).toContain('nav:hidden');
+    });
+});
+
+// Bug sweep P7, web parity: below `nav` the full-width snackbar sits over the button's corner. The host publishes the
+// showing bar's height; the button rises above it by that plus 8 and comes back down when the bar goes.
+describe('CreateFab (web) — clear of a showing snackbar', () => {
+    function Opener() {
+        const { show } = useSnackbar();
+
+        return (
+            <button
+                type="button"
+                onClick={() =>
+                    show({ message: 'Recipe deleted', action: { label: 'Undo', onAction: () => undefined } })
+                }
+            >
+                open snackbar
+            </button>
+        );
+    }
+
+    const renderWithHost = () =>
+        render(
+            <SnackbarHost>
+                <ScrollHost>
+                    <Opener />
+                    <CreateFab label="New recipe" icon="plus" onPress={vi.fn()} />
+                </ScrollHost>
+            </SnackbarHost>,
+        );
+
+    it('stays at its resting place when no snackbar shows', () => {
+        statusHeight = 56;
+        renderWithHost();
+
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 0px)');
+    });
+
+    it('rises above a showing snackbar by its height plus 8, and comes back down when it goes', () => {
+        statusHeight = 56;
+        renderWithHost();
+
+        fireEvent.click(screen.getByRole('button', { name: 'open snackbar' }));
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 64px)');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+        expect(fab().style.bottom).toBe('calc(var(--bottom-chrome,0px) + var(--fab-bottom-margin) + 0px)');
+    });
+
+    // Below 400 px of window height the button is an ordinary control in the page header (designer ruling, web only). The
+    // jsdom window has no media queries, so what can be pinned is that no unconditional class takes it out of the flow.
+    it('is in normal flow with no shadow until the fab-floats variant applies', () => {
+        renderFab();
+        const classes = fab().className.split(' ');
+
+        for (const out of ['fixed', 'absolute', 'sticky', 'shadow-lg']) {
+            expect(classes).not.toContain(out);
+        }
+    });
+});
+
+describe('CreateFab (web) — a focus request', () => {
+    it('takes focus when asked and says so once, which is how a sheet gives focus back to its opener', () => {
+        const handled = vi.fn();
+        render(
+            <CreateFab
+                label="New recipe"
+                icon="plus"
+                onPress={vi.fn()}
+                focusRequested
+                onFocusRequestHandled={handled}
+            />,
+        );
+
+        expect(document.activeElement).toBe(fab());
+        expect(handled).toHaveBeenCalledOnce();
+    });
+
+    it('does not take focus unless asked', () => {
+        render(<CreateFab label="New recipe" icon="plus" onPress={vi.fn()} />);
+
+        expect(document.activeElement).not.toBe(fab());
     });
 });

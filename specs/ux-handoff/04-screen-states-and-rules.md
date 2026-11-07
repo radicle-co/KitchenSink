@@ -62,7 +62,7 @@ Every screen in [02-screen-inventory.md](./02-screen-inventory.md) must include 
 ### Subscriptions
 
 - Paywall hierarchy: inline teaser → modal/bottom sheet on action → pricing page fallback.
-- Pricing: $6.99/month or $59.99/year; 14-day trial; 7-day grace after failed payment.
+- Pricing: $6.99/month or $59.99/year; 14-day trial; 7-day grace after failed payment. _(Out of date 2026-10-26: see 010's [plan register](../010-subscriptions/spec.md#plan-register).)_
 - Existing private recipes remain private/readable after downgrade.
 - Mobile billing uses web checkout/customer portal deep-link; native IAP is out of scope for v1.
 

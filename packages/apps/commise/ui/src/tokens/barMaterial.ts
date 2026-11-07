@@ -10,5 +10,5 @@ import { role, roleDark, tint } from './colors.js';
 /** The bar's fill in each theme. */
 export const barMaterial = {
     light: tint(role.paper, 0.92),
-    dark: tint(roleDark.paperRaised, 0.94),
+    dark: tint(roleDark.paper, 0.94),
 } as const;

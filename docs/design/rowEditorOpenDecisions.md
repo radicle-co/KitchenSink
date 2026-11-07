@@ -130,8 +130,10 @@ REQUESTER_LIMIT_REACHED` with `retryAfterSeconds`, because they call food direct
     list. If no other host passes one, the placeholder rows go from both leaves.
 12. **The web popup holds still** (S7 list contract P9). As it opens on a text, it picks its side, once. It picks
     inside the space that the host's fixed and sticky chrome leaves. The host passes those insets, and floating-ui's
-    collision padding applies them. The chrome stacks above the popup. A popup that opens above its field takes its
-    full height at once, so content that arrives later fills it from the top down.
+    collision padding applies them. The chrome stacks above the popup. A popup that opens above its field sizes to its
+    content. Its bottom edge stays against the field, so it grows upward as content arrives. This replaces "takes its
+    full height at once", which left a blank area (amended 2026-11-02). The rows nearest the field stay put. If the
+    list changes while a row is pressed, that press is cancelled.
 13. **Four needs on S7's wire** (ADR-0055 point 9). The architect names the shapes.
     - The database frame says, for each of its two groups, answered or unavailable. So each group can fail alone.
     - Every remote frame names its source by register id. The apps read the display name from the register through
@@ -1388,7 +1390,9 @@ database part settled, the database part is said then. The rest is said at the e
   each source note.
 - **Slow path.** At the database settle plus 1 s: the database count or `ingredientNoSuggestions`, any L3 sentence,
   then `stillSearching`. When the answer ends: `moreOne` or `moreOther` for each source that added foods, then each
-  source note. With no food added and no failure, it says `noMore`.
+  source note. With no food added and no failure, it says `finished`, the pair of `stillSearching`. It never says
+  "no foods": the database foods are still listed (dogfooding PR 132, where `No more foods found.` stood beside
+  them).
 - **Every part failed:** `ingredientPickerSearch.failed`, assertive, once.
 
 **Why not per frame.** Per frame gives one message per source, plus one. Frames from the cache land together. On iOS
@@ -1403,7 +1407,7 @@ Autocomplete calls itself "stalled" after 300 ms by default (`stallThreshold`, f
 limit so that more answers from the cache take the fast path. Judgement.
 
 **Accepted cost.** An answer that ends just after the guard still gives two announcements close together. The second
-is short: `noMore`, or one `more…` sentence.
+is short: `finished`, or one `more…` sentence.
 
 **Mechanism.** The house `useReadDeadline` is the guard. Its key is the text, from the moment the database part
 settles, and `undefined` before. Its time is 1,000 ms. As R3 requires, the host changes `countAnnouncement` only at
@@ -1570,7 +1574,7 @@ which S7.9 deletes.
 | `sourceUnnamed`                                                                | `another food database`                                                                                                                                                  |
 | `stillSearching`                                                               | `Still searching other food databases`                                                                                                                                   |
 | `moreOne` · `moreOther`                                                        | `1 more food from {source}` · `{count} more foods from {source}`                                                                                                         |
-| `noMore`                                                                       | `No more foods found.`                                                                                                                                                   |
+| `finished`                                                                     | `Finished searching other food databases.`                                                                                                                               |
 | `incomplete`                                                                   | `The search didn’t finish, so this list isn’t complete. Edit your search to try again.`                                                                                  |
 | `sourceBusy`                                                                   | `We couldn’t search {source} just now. Try again later.`                                                                                                                 |
 | `sourceUnavailable`                                                            | `We didn’t hear back from {source}. Edit your search to try again.`                                                                                                      |

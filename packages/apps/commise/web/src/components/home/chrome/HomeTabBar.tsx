@@ -10,6 +10,8 @@
  *   told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)
  * - A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top
  *   (`tabRootOf`; the page's `ScrollHost` moves the document).
+ * - The glyphs are one row: every tab's column starts at the top, 8 px down, glyph first and label under it, so a label
+ *   that wraps never moves its glyph (`deviceShots2.md` M-2).
  * - 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.
  * - Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE
  *   the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation
@@ -26,6 +28,7 @@ import type { HomeChromeMessages } from '@commise/features-core/home';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
 import { Icon } from '@commise/ui/icon';
 import { useScrollHost } from '@commise/ui/scroll-host';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { JSX, MouseEvent, Ref } from 'react';
@@ -90,7 +93,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: 
                         href={href}
                         aria-current={active ? 'page' : undefined}
                         onClick={onTabClick(item.id)}
-                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-center gap-1 rounded-md [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring ${
+                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-start gap-1 rounded-md pt-2 [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:justify-center [@media(max-height:479px)]:gap-2 [@media(max-height:479px)]:pt-0 ${FOCUS_RING_CLASS.inset} ${
                             active ? 'text-ink' : 'text-ink-muted'
                         }`}
                     >

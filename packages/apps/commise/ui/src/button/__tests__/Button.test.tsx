@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { Button } from '../Button.js';
+import { FOCUS_RING_CLASS } from '../../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../../surfaceTone/surfaceToneClass.js';
 import { buttonSurfaceClass } from '../surfaceClass.js';
 
 /**
@@ -127,6 +129,27 @@ describe('Button (web)', () => {
         expect(onPress).not.toHaveBeenCalled();
     });
 
+    it('⛔ a REFUSED button keeps focus and refuses the press, with no busy claim and no spinner', async () => {
+        const user = userEvent.setup();
+        const onPress = vi.fn();
+        render(
+            <Button variant="ghost" icon="search" onPress={onPress} refused disabled>
+                Search for a food
+            </Button>,
+        );
+
+        const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Search for a food' });
+        button.focus();
+        await user.click(button);
+
+        expect(button.disabled).toBe(false);
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.hasAttribute('aria-busy')).toBe(false);
+        expect(button.querySelector('.animate-spin')).toBeNull();
+        expect(document.activeElement).toBe(button);
+        expect(onPress).not.toHaveBeenCalled();
+    });
+
     it('⛔ a busy SUBMIT button does not let Enter in a field submit the form a second time', async () => {
         // HTML implicit submission fires a click on the form's default button when Enter is pressed in a field.
         // Native `disabled` used to stop that; the busy click handler must cancel it (`preventDefault`), or a
@@ -173,17 +196,31 @@ describe('Button (web)', () => {
     });
 
     /**
-     * E2 I12 — rewritten to prove the POINTER rule: the old version pinned the width-only `md:min-h-0`, which gave a
-     * touch iPad a 41 px target. The floor is now reset only for a fine pointer at md: and up.
+     * REWRITTEN for owner ruling B1 (parity item 3): the pointer reset `md:pointer-fine:min-h-0` made a desktop md
+     * button 40 px. The 44 px floor now holds at every width, so a desktop cursor gets the same target as a thumb.
      */
-    it('gets a 44px min touch height that only a fine pointer at md: resets (desktop height unchanged)', () => {
+    it('keeps its 44px min height at every width, with no pointer or width reset', () => {
         const { container } = render(<Button icon={plusMeaning}>Save</Button>);
         const classes = (container.querySelector('button')?.className ?? '').split(/\s+/u);
-        // Touch, at every width, gets the comfortable 44px min target…
+
         expect(classes).toContain('min-h-11');
-        // …and only a mouse at md:+ resets it, so the desktop density (py-2.5) is preserved exactly.
-        expect(classes).toContain('md:pointer-fine:min-h-0');
-        expect(classes).not.toContain('md:min-h-0');
+        expect(classes.filter((token) => /min-h-0$/u.test(token))).toEqual([]);
+    });
+
+    it('presses to the surface’s press fill (--cm-press), never to a fixed colour', () => {
+        render(<Button variant="quiet">Try again</Button>);
+        const classes = screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/u);
+
+        expect(classes).toEqual(expect.arrayContaining(PRESS_FILL_CLASS.pointer.split(' ')));
+        expect(classes).not.toContain('active:bg-surface-muted');
+        expect(classes).not.toContain('active:bg-line-divider');
+    });
+
+    it('rings its focus in the surface it sits on, from the one recipe', () => {
+        render(<Button icon={plusMeaning}>Save</Button>);
+        const classes = screen.getByRole('button', { name: 'Save' }).className.split(/\s+/u);
+
+        expect(classes).toEqual(expect.arrayContaining(FOCUS_RING_CLASS.offset.split(' ')));
     });
 
     it('adopts the PressScale primitive so it scales on press (motion-safe)', () => {
@@ -207,7 +244,7 @@ describe('Button (web)', () => {
                     </Button>,
                 );
 
-                expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass(variant, size));
+                expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass(variant, { size }));
                 unmount();
             }
 
@@ -216,7 +253,7 @@ describe('Button (web)', () => {
                     Tier
                 </Button>,
             );
-            expect(ghost.container.querySelector('button')?.className).toBe(buttonSurfaceClass('ghost', size));
+            expect(ghost.container.querySelector('button')?.className).toBe(buttonSurfaceClass('ghost', { size }));
             ghost.unmount();
 
             for (const tone of ['inline', 'confirm'] as const) {
@@ -227,7 +264,7 @@ describe('Button (web)', () => {
                 );
 
                 expect(container.querySelector('button')?.className).toBe(
-                    buttonSurfaceClass('destructive', size, tone),
+                    buttonSurfaceClass('destructive', { size, tone }),
                 );
                 unmount();
             }
@@ -237,7 +274,7 @@ describe('Button (web)', () => {
     it('defaults to the primary tier at md', () => {
         const { container } = render(<Button icon={plusMeaning}>Default</Button>);
 
-        expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass('primary', 'md'));
+        expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass('primary'));
     });
 
     it('defaults a destructive button to its inline tone', () => {
@@ -247,7 +284,9 @@ describe('Button (web)', () => {
             </Button>,
         );
 
-        expect(container.querySelector('button')?.className).toBe(buttonSurfaceClass('destructive', 'md', 'inline'));
+        expect(container.querySelector('button')?.className).toBe(
+            buttonSurfaceClass('destructive', { tone: 'inline' }),
+        );
     });
 
     it('lets a ghost button have no glyph at all, and still be a named button', () => {
@@ -256,6 +295,13 @@ describe('Button (web)', () => {
         expect(glyphIn(container)).toBeNull();
         expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
         expect(screen.getByRole('button', { name: 'Show all' })).toBeTruthy();
+    });
+
+    it('lets a secondary button have no glyph, keeping its surface, and still be a named button', () => {
+        const { container } = render(<Button variant="secondary">Keep editing</Button>);
+
+        expect(glyphIn(container)).toBeNull();
+        expect(screen.getByRole('button', { name: 'Keep editing' })).toBeTruthy();
     });
 
     it('draws a ghost button’s glyph when it is given one', () => {
@@ -276,6 +322,142 @@ describe('Button (web)', () => {
         );
 
         expect(container.querySelector('.animate-spin')).not.toBeNull();
+    });
+
+    describe('the quiet tier', () => {
+        /** The tokens a control paints at rest: every class with no state or breakpoint prefix. */
+        const restingTokens = (element: Element | null): string[] =>
+            (element?.className ?? '').split(/\s+/u).filter((token) => !token.includes(':'));
+
+        it('is a named button that wears exactly the shared quiet surface', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            const button = screen.getByRole('button', { name: 'Keep as written' });
+            expect(button.className).toBe(buttonSurfaceClass('quiet'));
+        });
+
+        // ⚠️ REWRITTEN (`componentFixes.md` §1): the label was `inkMuted`, so a Try again receded; it is `ink` now. The
+        // fill stays absent, because a tonal fill now marks a chip (§4).
+        it('is text only in the ink role: no fill, no edge and no shadow at rest', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            const resting = restingTokens(screen.getByRole('button', { name: 'Keep as written' }));
+            expect(resting).toContain('text-ink');
+            expect(resting).not.toContain('text-ink-muted');
+            expect(resting.filter((token) => /^(bg|border|from|shadow)(-|$)/u.test(token))).toEqual([]);
+        });
+
+        it('keeps the 44 px target', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            expect(restingTokens(screen.getByRole('button', { name: 'Keep as written' }))).toContain('min-h-11');
+        });
+
+        it('draws the standard focus ring, the same as every other tier', () => {
+            render(<Button variant="quiet">Keep as written</Button>);
+
+            const classes = screen.getByRole('button', { name: 'Keep as written' }).className.split(/\s+/u);
+            expect(classes).toEqual(
+                expect.arrayContaining([
+                    'focus-visible:outline-none',
+                    'focus-visible:ring-2',
+                    'focus-visible:ring-focus-ring',
+                    'focus-visible:ring-offset-2',
+                ]),
+            );
+        });
+
+        it('may carry a decorative glyph, and the label alone stays the name', () => {
+            const { container } = render(
+                <Button variant="quiet" icon="x">
+                    Keep as written
+                </Button>,
+            );
+
+            expect(glyphIn(container)).toBe('lucide-x');
+            expect(container.querySelector('svg.lucide')?.closest('[aria-hidden="true"]')).not.toBeNull();
+            expect(screen.getByRole('button', { name: 'Keep as written' })).toBeTruthy();
+        });
+
+        it('draws its glyph in actionText while the label stays ink; no other tier recolours its glyph', () => {
+            const { container, rerender } = render(
+                <Button variant="quiet" icon="refreshCw">
+                    Try again
+                </Button>,
+            );
+            const slot = (): Element | null =>
+                container.querySelector('svg.lucide')?.closest('span[aria-hidden="true"]') ?? null;
+
+            expect(slot()?.className).toContain('text-action-text');
+            expect(screen.getByRole('button', { name: 'Try again' }).className).toContain('text-ink');
+
+            rerender(
+                <Button variant="secondary" icon="refreshCw">
+                    Try again
+                </Button>,
+            );
+            expect(slot()?.className ?? '').not.toContain('text-action-text');
+        });
+
+        it('keeps the SAME element and its focus while busy, with the spinner in the actionText slot', () => {
+            const { container, rerender } = render(
+                <Button variant="quiet" icon="refreshCw">
+                    Try again
+                </Button>,
+            );
+            const button = screen.getByRole('button', { name: 'Try again' });
+            button.focus();
+
+            rerender(
+                <Button variant="quiet" icon="refreshCw" busy>
+                    Try again
+                </Button>,
+            );
+
+            expect(screen.getByRole('button', { name: 'Try again' })).toBe(button);
+            expect(document.activeElement).toBe(button);
+            expect(button.getAttribute('aria-busy')).toBe('true');
+            expect(container.querySelector('.animate-spin')?.closest('span[aria-hidden="true"]')?.className).toContain(
+                'text-action-text',
+            );
+        });
+
+        it('fires onPress on click', async () => {
+            const user = userEvent.setup();
+            const onPress = vi.fn();
+            render(
+                <Button variant="quiet" onPress={onPress}>
+                    Keep as written
+                </Button>,
+            );
+
+            await user.click(screen.getByRole('button', { name: 'Keep as written' }));
+            expect(onPress).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe('description', () => {
+        it('is described by the reason it was given, which stays out of the accessible name', () => {
+            render(
+                <Button variant="quiet" icon="refreshCw" description="We couldn’t load this recipe.">
+                    Try again
+                </Button>,
+            );
+
+            const button = screen.getByRole('button', { name: 'Try again' });
+            const describedBy = button.getAttribute('aria-describedby');
+
+            expect(describedBy).not.toBeNull();
+            expect(document.getElementById(describedBy ?? '')?.textContent).toBe('We couldn’t load this recipe.');
+            // The reason sits OUTSIDE the button: inside it, it would be part of the name.
+            expect(button.contains(document.getElementById(describedBy ?? ''))).toBe(false);
+        });
+
+        it('states no description, and no describedby, when none is given', () => {
+            render(<Button variant="quiet">Try again</Button>);
+
+            expect(screen.getByRole('button', { name: 'Try again' }).hasAttribute('aria-describedby')).toBe(false);
+        });
     });
 
     it('draws its glyph at the 20px inline size, in the colour of its label', () => {
@@ -377,5 +559,40 @@ describe('Button (web) — iconPlacement (A-018)', () => {
         expect(button.firstElementChild?.textContent).toBe('Sort');
         expect(button.lastElementChild?.getAttribute('aria-hidden')).toBe('true');
         expect(button.lastElementChild?.querySelector('svg.lucide')).not.toBeNull();
+    });
+});
+
+/**
+ * ADDED for the visible "See why" disclosure: a button may state that it opens a region (`expanded`), which is a claim
+ * about the control, so it is `aria-expanded` and absent unless stated (`false` is COLLAPSED; absent is "not a
+ * disclosure").
+ */
+describe('Button (web) — expanded', () => {
+    it('states aria-expanded true and false for a disclosure', () => {
+        const { rerender } = render(
+            <Button variant="ghost" expanded={false} onPress={vi.fn()}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('false');
+
+        rerender(
+            <Button variant="ghost" expanded onPress={vi.fn()}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('says nothing about expansion when not a disclosure', () => {
+        render(
+            <Button variant="ghost" onPress={vi.fn()}>
+                See why
+            </Button>,
+        );
+
+        expect(screen.getByRole('button', { name: 'See why' }).hasAttribute('aria-expanded')).toBe(false);
     });
 });

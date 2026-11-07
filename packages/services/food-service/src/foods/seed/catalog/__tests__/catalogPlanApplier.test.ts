@@ -258,6 +258,7 @@ describe('applyCatalogPlan — what each statement writes', () => {
                 {
                     ...BRISKET,
                     synonyms: ['brisket', 'tab\there'],
+                    defaultFor: ['brisket cut', 'quote " and tab\t'],
                     nutrition: {
                         ...makeNutrition('fdc:100'),
                         values: [{ name: 'Fiber, total dietary', unit: 'g', amount: null }],
@@ -270,11 +271,35 @@ describe('applyCatalogPlan — what each statement writes', () => {
 
         await applyCatalogPlan(session, plan(target, EMPTY_SNAPSHOT), EMPTY_SNAPSHOT.ids, counter());
 
+        // Default terms stage as their JSON text (ADR-0070 §4), escaped once more by the COPY format.
         expect(session.copied.get('root')).toBe(
-            'new-2\tfdc:100\tnew-1\tbeef brisket\tbeef brisket\tbrisket; tab\\there\n',
+            'new-2\tfdc:100\tnew-1\tbeef brisket\tbeef brisket\tbrisket; tab\\there\t["brisket cut","quote \\\\" and tab\\\\t"]\n',
         );
         expect(session.copied.get('value')).toBe('new-5\tnew-6\tFiber, total dietary\tg\t\\N\tt\n');
         expect(session.copied.get('source')).toBe('new-3\tnew-1\tusda\t100\t\\N\n');
+    });
+
+    it('stages a kept root whose default terms changed, and writes default_terms in both root statements', async () => {
+        const session = recording();
+        const held = makeSnapshot(makeContent([BRISKET]));
+
+        await applyCatalogPlan(
+            session,
+            plan(makeContent([{ ...BRISKET, defaultFor: ['beef'] }]), held),
+            held.ids,
+            counter(),
+        );
+
+        expect(session.copied.get('root_update')).toBe(
+            'id:fdc:100\tfdc:100\tid:fdc:100\tbeef brisket\tbeef brisket\t\\N\t["beef"]\tf\n',
+        );
+        expect(session.ran.find((statement) => statement.step === 'rootUpdate')?.sql).toContain('default_terms =');
+
+        const fresh = recording();
+
+        await applyCatalogPlan(fresh, plan(makeContent([BRISKET]), EMPTY_SNAPSHOT), EMPTY_SNAPSHOT.ids, counter());
+
+        expect(fresh.ran.find((statement) => statement.step === 'rootInsert')?.sql).toContain('default_terms');
     });
 
     it('writes every seeded root and source row with the columns the seed does not state', async () => {

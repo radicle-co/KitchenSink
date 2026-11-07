@@ -53,6 +53,7 @@ export { useRecipeVersions } from './hooks/useRecipeVersions.js';
 export { useRecipeVersion } from './hooks/useRecipeVersion.js';
 export { useRecipeNutrition } from './hooks/useRecipeNutrition.js';
 export { useRecipePhotos } from './hooks/useRecipePhotos.js';
+export { usePrivateSlots } from './hooks/usePrivateSlots.js';
 
 // ─── Collection queries ─────────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export { useCollection } from './hooks/useCollection.js';
 export { useSearchRecipes } from './hooks/useSearchRecipes.js';
 export { useInfiniteSearchRecipes } from './hooks/useInfiniteSearchRecipes.js';
 export { useSearchIngredients } from './hooks/useSearchIngredients.js';
+export { useIngredientNameProposals } from './hooks/useIngredientNameProposals.js';
 export { useIngredientStatus } from './hooks/useIngredientStatus.js';
 export { useIngredientFoodNutrition } from './hooks/useIngredientFoodNutrition.js';
 export type { IngredientStatusOptions } from './hooks/useIngredientStatus.js';
@@ -147,6 +149,7 @@ export type { ParseJobOptions } from './hooks/useParseJob.js';
 export { useCreateParseJob } from './hooks/useCreateParseJob.js';
 export type { CreateParseJobOptions } from './hooks/useCreateParseJob.js';
 export { useRetryParseJob } from './hooks/useRetryParseJob.js';
+export { useProposeParseJobMatches } from './hooks/useProposeParseJobMatches.js';
 export { useWithdrawParseJobLines } from './hooks/useWithdrawParseJobLines.js';
 export { useEditParseJobLine } from './hooks/useEditParseJobLine.js';
 

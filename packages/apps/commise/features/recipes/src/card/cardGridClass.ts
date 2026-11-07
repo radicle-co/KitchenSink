@@ -3,7 +3,7 @@
  * its skeleton can never reflow against each other (`docs/design/uiOverhaul/buildSpec.md` §4.1–§4.3, `homeCardsB.md`
  * §2.2).
  *
- * - The library grid: `auto-fill` columns of at least 15 rem; each card is a subgrid six rows tall, so its rows line up
+ * - The library grid: `auto-fill` columns of at least 15 rem; each card is a subgrid four rows tall, so its rows line up
  *   with its neighbours' across one grid row (an empty row keeps its track).
  * - The library list: one column of row cards, 8 px apart.
  * - Home: two columns below a 600 container (2 × 2), four from 600, and from 960 exactly four columns of full cards —
@@ -11,15 +11,16 @@
  *
  * Web-only class strings; native lays its rows out in `cardGridLayout.native.ts`.
  */
+import type { CardVariant } from './cardVariant.js';
 
 /** The library's grid of full cards. */
 export const LIBRARY_GRID_CLASS = 'grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-4 @regular/main:gap-6';
 
 /**
- * One cell of a grid of full cards: a subgrid spanning the card's six rows, so the rows align across the grid row. Its
+ * One cell of a grid of full cards: a subgrid spanning the card's four rows, so the rows align across the grid row. Its
  * one column is `minmax(0, 1fr)`, never the implicit `auto`, which grows to the min-content of a long unbroken word.
  */
-export const GRID_CELL_CLASS = 'row-span-6 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid gap-0';
+export const GRID_CELL_CLASS = 'row-span-4 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid gap-0';
 
 /** The library's list of row cards. */
 export const LIBRARY_LIST_CLASS = 'flex flex-col gap-2';
@@ -29,3 +30,10 @@ export const HOME_GRID_CLASS = 'grid grid-cols-2 gap-3 @regular/main:grid-cols-4
 
 /** Compact cards (Discover's results, a collection's members) in two columns below a 600 container, where a full card needs more than half the width. */
 export const COMPACT_GRID_CLASS = 'grid grid-cols-2 gap-3';
+
+/** The list's class for a variant: a column of rows, a grid of full cards, or two-up compact tiles. The one lookup for every web card list. */
+export const CARD_LIST_CLASS: Readonly<Record<CardVariant, string>> = {
+    row: LIBRARY_LIST_CLASS,
+    grid: LIBRARY_GRID_CLASS,
+    compact: COMPACT_GRID_CLASS,
+};

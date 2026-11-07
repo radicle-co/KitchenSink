@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { buttonSurfaceClass } from '@commise/ui/button';
-import { roleDark } from '@commise/ui/colors';
+import { role, roleDark } from '@commise/ui/colors';
 
 import { bundleComponents } from '../src/bundle/bundleComponents.js';
 import { EsbuildBundler } from '../src/bundle/esbuildBundler.js';
@@ -38,8 +38,12 @@ describe('compileCss with the real Tailwind compiler', () => {
         expect(body).toContain(`--color-action-text: ${roleDark.actionText}`);
     });
 
-    it('keeps the light values on :root', () => {
-        expect(css).toMatch(/--color-canvas:\s*#FAF6F0/i);
+    it('keeps the light values from @commise/ui on :root', () => {
+        // The light declaration comes first; the dark block above overrides it under data-theme="dark".
+        const light = /--color-canvas:\s*([^;]+);/.exec(css);
+
+        expect(light, 'a light --color-canvas declaration is present').not.toBeNull();
+        expect(light?.[1]?.trim().toLowerCase()).toBe(role.canvas.toLowerCase());
     });
 
     it('generates the utility classes a ui component uses (the Button surfaces)', () => {

@@ -64,6 +64,7 @@ export {
     recipeVersionPendingArchiveSchema,
     recipeVersionSchema,
     recipeVisibilitySchema,
+    privateRuleOf,
     usesPremiumCapability,
     versionConflictDetailsSchema,
     versionConflictSideSchema,
@@ -77,6 +78,7 @@ export type {
     IngredientVariantPart,
     IsoDateTimeString,
     PaginatedResponse,
+    PrivateRule,
     Recipe,
     RecipeCollection,
     RecipeDetail,
@@ -211,6 +213,8 @@ export {
 export { statedAmountSchema } from './ingredientQuantity.js';
 export type { IngredientQuantity, StatedAmount } from './ingredientQuantity.js';
 export { statedMeasureSchema } from './statedMeasure.js';
+export { BOUND_BY_VALUES, boundBySchema, isBoundBy } from './boundBy.js';
+export type { BoundBy } from './boundBy.js';
 export type { StatedMeasure } from './statedMeasure.js';
 export {
     UNRESOLVED_FOOD_REASON_CODES,

@@ -42,4 +42,25 @@ describe('ShortcutSwitchRow', () => {
 
         expect(screen.getByRole('switch', { name: 'Keyboard shortcuts' }).getAttribute('aria-checked')).toBe('true');
     });
+
+    // WCAG 1.4.11 (bug sweep C5): an off knob painted in the track's own colour reads as an empty outline in dark. The
+    // knob takes the control-line token, which has its own value in each theme (`role` / `roleDark`), so it contrasts
+    // with the `surface-muted` track in both. Pinned by token class: jsdom resolves no theme, so the token is the contract.
+    it('draws the OFF knob in the control-line token and never in the track colour', () => {
+        renderWithProviders(<ShortcutSwitchRow checked={false} onChange={vi.fn()} />);
+        const track = screen.getByRole('switch', { name: 'Keyboard shortcuts' }).querySelector('[aria-hidden="true"]')!;
+        const knob = track.firstElementChild!;
+
+        expect(track.className).toContain('bg-surface-muted');
+        expect(knob.className).toContain('bg-line-control');
+        expect(knob.className).not.toContain('bg-surface-muted');
+    });
+
+    it('draws the ON knob in paper on the action track', () => {
+        renderWithProviders(<ShortcutSwitchRow checked onChange={vi.fn()} />);
+        const track = screen.getByRole('switch', { name: 'Keyboard shortcuts' }).querySelector('[aria-hidden="true"]')!;
+
+        expect(track.className).toContain('bg-action');
+        expect(track.firstElementChild!.className).toContain('bg-paper');
+    });
 });

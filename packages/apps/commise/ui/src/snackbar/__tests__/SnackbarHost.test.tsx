@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JSX } from 'react';
+import { useContext, type JSX } from 'react';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
+import { SnackbarClearanceContext } from '../snackbarClearanceContext.js';
 import { SnackbarHost } from '../SnackbarHost.js';
 import type { SnackbarInput } from '../props.js';
 import { useSnackbar } from '../useSnackbar.js';
@@ -10,7 +11,7 @@ import { useSnackbar } from '../useSnackbar.js';
 /**
  * SnackbarHost + UndoSnackbar (web) — spec §1.11: one at a time, a new one commits the old, six seconds unless the
  * pointer or focus is inside it (SC 2.2.1), a polite status that never takes focus, `ink` with a `paper` message and a
- * `seafoam-light` action at a 44px target, 16px above the bottom chrome, at most 36rem wide.
+ * `steel-light` action at a 44px target, 16px above the bottom chrome, at most 36rem wide.
  */
 
 beforeEach(() => {
@@ -251,4 +252,47 @@ describe('UndoSnackbar (web)', () => {
             expect.arrayContaining(['motion-safe:starting:translate-y-2', 'starting:opacity-0']),
         );
     });
+
+    // The host publishes how tall its region is so the floating create button rises above it. The region is always
+    // mounted and its box grows when a snackbar fills it, which is what the observer reports.
+    it('publishes the region height to the create button, and 0 when nothing shows', () => {
+        const heights = new Set<ResizeObserverCallbackStub>();
+        vi.stubGlobal(
+            'ResizeObserver',
+            class {
+                public constructor(report: ResizeObserverCallbackStub) {
+                    heights.add(report);
+                }
+
+                public observe(): void {}
+
+                public disconnect(): void {}
+            },
+        );
+        let regionHeight = 0;
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+            () => ({ height: regionHeight }) as DOMRect,
+        );
+        const Clearance = (): JSX.Element => <p>{`clearance ${useContext(SnackbarClearanceContext)}`}</p>;
+        render(
+            <SnackbarHost>
+                <Screen input={{ message: 'Saved' }} />
+                <Clearance />
+            </SnackbarHost>,
+        );
+
+        expect(screen.getByText('clearance 0')).toBeDefined();
+
+        showFrom('Saved');
+        regionHeight = 52;
+        act(() => {
+            heights.forEach((report) => report());
+        });
+
+        expect(screen.getByText('clearance 52')).toBeDefined();
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
 });
+
+type ResizeObserverCallbackStub = () => void;

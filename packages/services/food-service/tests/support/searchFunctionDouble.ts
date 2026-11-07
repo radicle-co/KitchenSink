@@ -24,7 +24,7 @@ import {
 } from '@kitchensink/schema-remote-search';
 
 import { isCanonicalSearchTerm } from '../../src/foods/foods.schema.js';
-import type { OriginEvent, OriginResult, SearchOrigin } from './searchEdgeStandIn.js';
+import type { OriginEvent, OriginResult, SearchOrigin } from '@kitchensink/remote-search-edge/edge';
 
 /** How the double's source answers the next admitted call. */
 export type SourceMode =

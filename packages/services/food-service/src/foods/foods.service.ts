@@ -98,6 +98,9 @@ const RESOLVE_RETRY_AFTER_SECONDS = 30;
 /** The longest a `PATCH`-resolve waits on a busy source before answering 503 (U27 blueprint). */
 const RESOLVE_WAIT_MAX_MS = 2_000;
 
+/** A crosswalk hit before a route publishes it: an identifier matched, at score `1`, so it carries no rung. */
+type CrosswalkHit = Pick<CatalogSearchResponse['results'][number], 'id' | 'name' | 'score' | 'variant'>;
+
 /**
  * Narrow a stored lifecycle status to the PUBLISHED wire enum (plan U18).
  *
@@ -640,6 +643,8 @@ export class FoodsService {
                 id: hit.id,
                 name: hit.name,
                 score: hit.score,
+                rung: hit.rung,
+                matchedBy: 'name' as const,
                 // R20 (U11): flagged ONLY on the caller's own authored hits — the lexical tier's
                 // author-augmentation signal. A catalog row publishes nothing; a stranger's authored row never
                 // left the DAO's predicate, because an authored food is author-only (ADR-0036).
@@ -649,7 +654,7 @@ export class FoodsService {
         });
 
         // Crosswalk: a query that is a known barcode or source item key resolves directly to a root.
-        await this.prependCrosswalkHit(results, query);
+        await this.prependCrosswalkHit(results, query, (hit) => ({ ...hit, matchedBy: 'identifier' as const }));
 
         if (!withNutrition || results.length === 0) {
             // ⛔ Enrichment is strictly OPT-IN (plan U4b): the default caller is the per-keystroke typeahead,
@@ -714,11 +719,13 @@ export class FoodsService {
                 id: hit.id,
                 name: hit.name,
                 score: hit.score,
+                // ADR-0070 §4: the one ranking fact the shared body publishes; the rung itself stays server-side.
+                ...(hit.rung === 'default' ? { isDefault: true } : {}),
                 ...(variant === undefined ? {} : { variant: variantViewOf(variant) }),
             };
         });
 
-        await this.prependCrosswalkHit(results, query);
+        await this.prependCrosswalkHit(results, query, (hit) => hit);
 
         return { results };
     }
@@ -1331,13 +1338,18 @@ export class FoodsService {
      *
      * @param results - The ranked hits; mutated in place.
      * @param query - The trimmed query.
+     * @param asView - The hit as the route publishes it (the per-caller route says it matched an identifier).
      * @sideEffect Mutates `results`; reads as {@link crosswalkHitOf} does.
      */
-    private async prependCrosswalkHit(results: CatalogSearchResponse['results'], query: string): Promise<void> {
+    private async prependCrosswalkHit<View extends { readonly id: string }>(
+        results: View[],
+        query: string,
+        asView: (hit: CrosswalkHit) => View,
+    ): Promise<void> {
         const crosswalk = await this.crosswalkHitOf(query);
 
         if (crosswalk !== undefined && !results.some((result) => result.id === crosswalk.id)) {
-            results.unshift(crosswalk);
+            results.unshift(asView(crosswalk));
         }
     }
 
@@ -1353,7 +1365,7 @@ export class FoodsService {
      * @returns The hit, or `undefined` when the query names no live catalog entry.
      * @sideEffect Reads the barcode crosswalk, then the owner reader and the root it names.
      */
-    private async crosswalkHitOf(query: string): Promise<CatalogSearchResponse['results'][number] | undefined> {
+    private async crosswalkHitOf(query: string): Promise<CrosswalkHit | undefined> {
         const barcodeFood = await this.sources.findCatalogFoodByBarcode(query);
 
         if (barcodeFood !== undefined) {

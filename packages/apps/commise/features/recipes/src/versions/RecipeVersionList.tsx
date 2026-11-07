@@ -86,7 +86,7 @@ export const RecipeVersionList: FC<RecipeVersionListWebProps> = ({
     const back = versionBackOf(versionList.backToRecipe, recipeTitle ?? versionList.recipeParent, onBack, backHref);
 
     return (
-        <section aria-labelledby={VERSION_TITLE_ID} className="flex w-full max-w-list flex-col gap-4 pb-10">
+        <section aria-labelledby={VERSION_TITLE_ID} className="flex w-full max-w-list flex-col gap-4 pb-12">
             <LargeTitleHeader
                 headingId={VERSION_TITLE_ID}
                 title={versionList.heading}

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { role, roleDark } from '../../tokens/colors.js';
 import { difficultyTone, difficultyToneDark } from '../../tokens/tones.js';
+import { badgeHeightOf } from '../../badgeBox/badgeBox.js';
 import { DifficultyBadge } from '../DifficultyBadge.native.js';
 import type { DifficultyLevel } from '../props.js';
 
@@ -30,16 +31,40 @@ const AA_TEXT = 4.5;
 const LEVELS: readonly DifficultyLevel[] = ['easy', 'medium', 'hard'];
 
 describe('DifficultyBadge (native)', () => {
+    // It shares the status badge's box (`badgeBox.ts`), so a card row that holds both reads one height. Its 1 pt edges
+    // over a 2 pt padding drew 26 pt where a row let it grow (designer review M-1).
+    it('draws exactly the shared badge height', () => {
+        render(<DifficultyBadge level="easy">Word</DifficultyBadge>);
+        const badge = screen.getByText('Word').parentElement;
+
+        if (!(badge instanceof HTMLElement)) {
+            throw new Error('no badge around the word');
+        }
+
+        const style = getComputedStyle(badge);
+        const px = (value: string): number => Number.parseFloat(value) || 0;
+        const contents =
+            px(style.paddingTop) +
+            px(style.paddingBottom) +
+            px(style.borderTopWidth) +
+            px(style.borderBottomWidth) +
+            px(getComputedStyle(screen.getByText('Word')).lineHeight);
+
+        expect(Math.max(px(style.minHeight), contents)).toBe(badgeHeightOf(1));
+    });
+
     it.each<[DifficultyLevel, number]>([
         ['easy', 1],
         ['medium', 2],
         ['hard', 3],
     ])('%s fills %i of three dots', (level, filled) => {
         const { container } = render(<DifficultyBadge level={level}>Word</DifficultyBadge>);
-        const dots = container.querySelectorAll('[data-meter-dot]');
+        // The production markup carries no test hook: the meter is the badge's first child (the three dots, before the
+        // word), and a dot is filled when it paints a colour and empty when it is clear.
+        const dots = Array.from(container.firstElementChild?.firstElementChild?.children ?? []);
 
         expect(dots).toHaveLength(3);
-        expect([...dots].filter((dot) => dot.getAttribute('data-meter-dot') === 'filled')).toHaveLength(filled);
+        expect(dots.filter((dot) => getComputedStyle(dot).backgroundColor !== 'rgba(0, 0, 0, 0)')).toHaveLength(filled);
     });
 
     it.each<['light' | 'dark', typeof difficultyTone, string]>([
@@ -61,5 +86,21 @@ describe('DifficultyBadge (native)', () => {
             expect(wcagContrast(tones[level].text, paper), `${name} ${level}`).toBeGreaterThanOrEqual(AA_TEXT);
             unmount();
         }
+    });
+});
+
+// componentFixes §7: the neutral rule, on a surfaceMuted parent, in both schemes.
+describe('DifficultyBadge (native) — neutral edge', () => {
+    it.each<['light' | 'dark', Readonly<Record<'lineDivider' | 'surfaceMuted', string>>]>([
+        ['light', role],
+        ['dark', roleDark],
+    ])('%s: a 1 pt lineDivider edge, and a fill that is not the muted parent', (name, colors) => {
+        scheme.current = name;
+        render(<DifficultyBadge level="medium">Word</DifficultyBadge>);
+        const badge = getComputedStyle(screen.getByText('Word').parentElement as HTMLElement);
+
+        expect(badge.borderTopWidth).toBe('1px');
+        expect(badge.borderTopColor).toBe(formatRgb(colors.lineDivider));
+        expect(badge.backgroundColor).not.toBe(formatRgb(colors.surfaceMuted));
     });
 });

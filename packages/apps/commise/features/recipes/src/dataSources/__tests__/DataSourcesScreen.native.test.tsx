@@ -5,7 +5,7 @@ import { guardedFoodClient, renderWithFoodClient } from '@commise/test-utils';
 import { NotFoundError } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CIQUAL_SOURCE, makeDataSource } from '../__fixtures__/makeDataSource.js';
 import { DataSourcesScreen } from '../DataSourcesScreen.native.js';
 import { dataSourcesMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the cursor moves are asserted as the calls they make.
 vi.mock('react-native', async (importOriginal) => {

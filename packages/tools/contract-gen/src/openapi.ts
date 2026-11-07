@@ -103,6 +103,58 @@ export interface OpenApiOperation<TComponentName extends string> {
     readonly responses: Readonly<Record<string, OpenApiResponse<TComponentName>>>;
 }
 
+/** The paths of a spec: each path maps methods to operations. */
+export type OpenApiPaths<TComponentName extends string> = Readonly<
+    Record<string, Partial<Record<HttpMethod, OpenApiOperation<TComponentName>>>>
+>;
+
+/**
+ * Add one response to every operation a predicate selects, without touching the rest.
+ *
+ * It exists for an outcome that belongs to a whole class of operations rather than to any one handler, and that
+ * would otherwise be hand-added to each of them (and forgotten on the next): a service-wide `403` for a suspended
+ * account is the case. If an operation already declares a response at `status`, its own description and schema are
+ * KEPT and the new meaning is appended ("<existing> Or: <new>"), so a route's specific `403` is not overwritten.
+ *
+ * @param paths - The spec's paths.
+ * @param rule - The status, the response to add, and the predicate choosing the operations.
+ * @returns New paths; the input is not mutated. Pure.
+ */
+export function withResponseOnOperations<TComponentName extends string>(
+    paths: OpenApiPaths<TComponentName>,
+    rule: {
+        readonly status: string;
+        readonly response: OpenApiResponse<TComponentName>;
+        readonly appliesTo: (operation: OpenApiOperation<TComponentName>) => boolean;
+    },
+): OpenApiPaths<TComponentName> {
+    const widen = (operation: OpenApiOperation<TComponentName>): OpenApiOperation<TComponentName> => {
+        if (!rule.appliesTo(operation)) {
+            return operation;
+        }
+
+        const existing = operation.responses[rule.status];
+        const merged: OpenApiResponse<TComponentName> =
+            existing === undefined
+                ? rule.response
+                : { ...existing, description: `${existing.description} Or: ${rule.response.description}` };
+
+        return { ...operation, responses: { ...operation.responses, [rule.status]: merged } };
+    };
+
+    return Object.fromEntries(
+        Object.entries(paths).map(([route, methods]) => [
+            route,
+            Object.fromEntries(
+                Object.entries(methods).map(([method, operation]) => [
+                    method,
+                    operation === undefined ? operation : widen(operation),
+                ]),
+            ),
+        ]),
+    );
+}
+
 /** The declarative document spec a service authors in its `contract/` directory. */
 export interface OpenApiSpec<TComponents extends Readonly<Record<string, ZodType>>> {
     /** Document title, e.g. `Commise Food (Ingredient) API`. */

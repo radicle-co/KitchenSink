@@ -56,6 +56,38 @@ describe('toIngredientResponse', () => {
         });
     });
 
+    describe('boundBy (ADR-0072 §5)', () => {
+        it.each(['exact', 'curated', 'review', 'default', 'autoBest', 'cook'] as const)(
+            'states who bound the line when the row records %s',
+            (boundBy) => {
+                const row = makeIngredientLineRow({ foodLookupId: 'lookup-4', boundBy });
+
+                expect(toIngredientResponse(row, NAMED).boundBy).toBe(boundBy);
+            },
+        );
+
+        it('OMITS the key for a line with no recorded origin, never emitting null', () => {
+            const row = makeIngredientLineRow({ foodLookupId: 'lookup-5', boundBy: null });
+
+            expect('boundBy' in toIngredientResponse(row, NAMED)).toBe(false);
+        });
+
+        it('omits a stored value outside the closed set rather than publishing it (the CHECK keeps one out; the wire does not trust it)', () => {
+            const row = makeIngredientLineRow({ foodLookupId: 'lookup-6', boundBy: 'migration' });
+
+            expect('boundBy' in toIngredientResponse(row, NAMED)).toBe(false);
+        });
+
+        it('never states the import link: provenance, not part of the recipe a cook reads', () => {
+            const row = makeIngredientLineRow({
+                importLineId: '66666666-6666-4666-8666-000000000001',
+                boundBy: 'cook',
+            });
+
+            expect(toIngredientResponse(row, NAMED)).not.toHaveProperty('importLineId');
+        });
+    });
+
     it('carries an unresolved line’s reason code and user-entered flag from the view', () => {
         const row = makeIngredientLineRow({ foodLookupId: 'lookup-3' });
 

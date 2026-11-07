@@ -19,6 +19,7 @@
  * are not on the wire, and `apiError.schema.ts` says why a union describing them is refused.
  */
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -58,6 +59,10 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     MAX_PHOTOS_EXCEEDED: { limit: 10 },
     VERSION_LINE_UNRESTORABLE: { positions: [2] },
     PUBLISH_REQUIREMENTS_UNMET: { missing: ['cuisine'] },
+    IMPORT_QUOTA_EXCEEDED: { resetsAt: '2026-10-27T03:30:00.000Z' },
+    IMPORT_CURSOR_MOVED: { cursorOrdinal: 4 },
+    IMPORT_ITEM_ALREADY_SAVED: { ordinal: 4 },
+    PRIVATE_SLOTS_FULL: { used: 50, limit: 50 },
 };
 
 /** A minimal valid body for a published code. */
@@ -201,6 +206,27 @@ describe('PUBLISH_REQUIREMENTS_UNMET — a write that would publish a recipe mis
     });
 });
 
+describe('IMPORT_QUOTA_EXCEEDED — the daily import allowance is spent (004 FR-022)', () => {
+    const body = (details?: unknown) => ({
+        code: 'IMPORT_QUOTA_EXCEEDED',
+        message: 'a message',
+        ...(details === undefined ? {} : { details }),
+    });
+
+    it('is a 429, the status a client already reads as "slow down" (and the distinct code is how it tells this apart)', () => {
+        expect(RECIPE_ERROR_STATUS.IMPORT_QUOTA_EXCEEDED).toBe(429);
+        expect(RECIPE_ERROR_STATUS.IMPORT_QUOTA_EXCEEDED).toBe(RECIPE_ERROR_STATUS.TOO_MANY_REQUESTS);
+    });
+
+    it('REQUIRES details.resetsAt, an ISO instant — FR-022 says the refusal carries when the allowance reopens', () => {
+        expect(recipeApiErrorSchema.safeParse(body({ resetsAt: '2026-10-27T03:30:00.000Z' })).success).toBe(true);
+        expect(recipeApiErrorSchema.safeParse(body()).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({})).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({ resetsAt: 'tomorrow' })).success).toBe(false);
+        expect(recipeApiErrorSchema.safeParse(body({ resetsAt: 1798342200000 })).success).toBe(false);
+    });
+});
+
 describe('VERSION_LINE_UNRESTORABLE — a restore that would silently drop a line (plan 002 R52)', () => {
     it('is a 409 whose details name the snapshot positions that cannot be restored', () => {
         expect(RECIPE_ERROR_STATUS.VERSION_LINE_UNRESTORABLE).toBe(409);
@@ -265,5 +291,91 @@ describe('codeForStatus — the code for a failure that arrived with none', () =
     it('is deterministic and leaks nothing for a status it has never seen', () => {
         expect(codeForStatus(418)).toBe('HTTP_418');
         expect(codeForStatus(599)).toBe('HTTP_599');
+    });
+});
+
+describe('the bulk import codes (ADR-0072)', () => {
+    const body = (code: string, details?: unknown) => ({
+        code,
+        message: 'a message',
+        ...(details === undefined ? {} : { details }),
+    });
+
+    it("IMPORT_NOT_FOUND is a 404, a bare code: a stranger's import and a missing one are ONE answer", () => {
+        expect(RECIPE_ERROR_STATUS.IMPORT_NOT_FOUND).toBe(404);
+        expect(recipeApiErrorSchema.safeParse(body('IMPORT_NOT_FOUND')).success).toBe(true);
+    });
+
+    describe('IMPORT_CURSOR_MOVED — another device moved the wizard', () => {
+        it('is a 409', () => {
+            expect(RECIPE_ERROR_STATUS.IMPORT_CURSOR_MOVED).toBe(409);
+        });
+
+        it('REQUIRES details.cursorOrdinal: where the cursor is now, or null when it is done', () => {
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: 7 })).success).toBe(
+                true,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: null })).success).toBe(
+                true,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED')).success).toBe(false);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', {})).success).toBe(false);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: -1 })).success).toBe(
+                false,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: 1.5 })).success).toBe(
+                false,
+            );
+        });
+    });
+
+    describe('IMPORT_ITEM_ALREADY_SAVED — the recipe was saved once and is not saved again', () => {
+        it('is a 409', () => {
+            expect(RECIPE_ERROR_STATUS.IMPORT_ITEM_ALREADY_SAVED).toBe(409);
+        });
+
+        it('REQUIRES details.ordinal, the item that is already saved', () => {
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED', { ordinal: 0 })).success).toBe(
+                true,
+            );
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED')).success).toBe(false);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED', { ordinal: null })).success).toBe(
+                false,
+            );
+        });
+    });
+
+    describe('PRIVATE_SLOTS_FULL — a free cook has no private slot left (ADR-0073)', () => {
+        it('is a 403, NOT a 409: an installed client reads an unknown 409 as a version conflict', () => {
+            expect(RECIPE_ERROR_STATUS.PRIVATE_SLOTS_FULL).toBe(403);
+        });
+
+        it('REQUIRES details.used (a non-negative integer) and details.limit (a positive integer)', () => {
+            const parse = (details?: Record<string, unknown>) =>
+                recipeApiErrorSchema.safeParse(body('PRIVATE_SLOTS_FULL', details)).success;
+
+            expect(parse({ used: 50, limit: 50 })).toBe(true);
+            // A downgraded cook holds more than the limit; `used` states the truth rather than clamping to it.
+            expect(parse({ used: 60, limit: 50 })).toBe(true);
+            expect(parse()).toBe(false);
+            expect(parse({})).toBe(false);
+            expect(parse({ used: 50 })).toBe(false);
+            expect(parse({ limit: 50 })).toBe(false);
+            expect(parse({ used: -1, limit: 50 })).toBe(false);
+            expect(parse({ used: 1.5, limit: 50 })).toBe(false);
+            expect(parse({ used: 50, limit: 0 })).toBe(false);
+            expect(parse({ used: '50', limit: 50 })).toBe(false);
+        });
+    });
+});
+
+describe('ACCOUNT_SUSPENDED is a published recipe error code (ADR-0081)', () => {
+    // The schema file may import only zod, so it SPELLS the code. This keeps the spelling equal to the one the shared
+    // verifier's adopters answer with.
+    it('spells the code the shared verifier answers with, and has a typed arm for it', () => {
+        expect(recipeErrorCodeSchema.enum.ACCOUNT_SUSPENDED).toBe(ACCOUNT_SUSPENDED_CODE);
+        expect(
+            recipeApiErrorSchema.safeParse({ code: ACCOUNT_SUSPENDED_CODE, message: 'Account is suspended' }).success,
+        ).toBe(true);
     });
 });

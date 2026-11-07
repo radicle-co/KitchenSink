@@ -8,10 +8,10 @@
  */
 import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { mobileMessages } from '../../i18n/messages.js';
 
@@ -35,11 +35,12 @@ export interface AuthCodeFieldsProps {
  */
 export function AuthCodeFields({ id, value, onChangeText, busy, onSubmit }: AuthCodeFieldsProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
-    const { colors } = useTheme();
 
     return (
         <View style={styles.fields}>
-            <Text style={[nativeTokens.type.body, { color: colors.inkMuted }]}>{t.codePrompt}</Text>
+            <Text typeRole="body" color="$inkMuted">
+                {t.codePrompt}
+            </Text>
             <View style={styles.field}>
                 <FieldLabel forId={id} label={t.codeLabel} />
                 <Input

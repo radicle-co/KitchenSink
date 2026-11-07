@@ -28,6 +28,11 @@ import { useBackIntercept } from '@commise/ui/back-intercept';
 import { installHardwareBackHandler, type HardwareBackHandle } from '@commise/ui/testing/hardware-back';
 
 vi.mock('@sentry/react-native', () => ({ captureException: vi.fn() }));
+// A device with a status bar: the shell's ScreenFrame pads this much at the top of every tab screen.
+vi.mock('react-native-safe-area-context', async (importOriginal) => ({
+    ...(await importOriginal<Record<string, unknown>>()),
+    useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
+}));
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: () => ({ isError: false, data: { user: { displayName: 'Eliza Mendes' } } }),
 }));
@@ -515,6 +520,41 @@ describe('the tab roots', () => {
         fireEvent.click(tab('Discover'));
 
         expect([...bound].sort()).toEqual(['Collections list', 'Discover screen', 'My recipes list']);
+    });
+});
+
+/**
+ * The precondition the Recipes search band relies on (designer, 2026-11-02): the band behind the pinned field starts at the
+ * TOP OF THE LIST FRAME, so the frame must sit inside ScreenFrame's top safe-area padding. If a screen ever starts at y=0
+ * the band would start under the status bar, and the top inset has to be added to it for real; this test fails first.
+ */
+describe('the Recipes roots sit below the status bar', () => {
+    /** Whether some ancestor pads its top by the inset: the shell's ScreenFrame. */
+    const belowStatusBar = (node: HTMLElement): boolean => {
+        for (let up = node.parentElement; up !== null; up = up.parentElement) {
+            if (up.style.paddingTop === '47px') {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    it('puts My recipes inside the top safe-area padding', () => {
+        renderRoot();
+
+        fireEvent.click(tab('Recipes'));
+
+        expect(belowStatusBar(screen.getByRole('heading', { name: 'My recipes list' }))).toBe(true);
+    });
+
+    it('puts Collections inside it too', () => {
+        renderRoot();
+
+        fireEvent.click(tab('Recipes'));
+        press('Collections segment');
+
+        expect(belowStatusBar(screen.getByRole('heading', { name: 'Collections list' }))).toBe(true);
     });
 });
 

@@ -1,7 +1,8 @@
 /**
  * The shapes of a read-view line that place its quantity differently (`docs/design/readSurfacesEvaluation.md` D1), for
  * the web and native suites to run one table over: the quantity leads the name, or the stand-in that takes the name's
- * place, in the line's one text block.
+ * place, in the line's one text block. A stand-in's quantity is its own line above the chip
+ * (`designAnswers.md` #144 item 12), so it leads the chip without flowing into it.
  */
 import { FoodResolutionStatus, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
@@ -18,6 +19,8 @@ export interface QuantityLineShape {
     /** The name as shown, or the stand-in in its place. */
     readonly name: string;
     readonly checkbox: string;
+    /** The quantity is a line of its own above the name: a stand-in's chip (`designAnswers.md` #144 item 12). */
+    readonly ownLine?: true;
 }
 
 const PRIVATE_FOOD = recipeMessages.en.ingredientLineName.privateFood;
@@ -49,6 +52,7 @@ export const QUANTITY_LINE_SHAPES: readonly QuantityLineShape[] = [
         quantity: '2 tbsp',
         name: PRIVATE_FOOD,
         checkbox: `2 tbsp ${PRIVATE_FOOD}`,
+        ownLine: true,
     },
     {
         what: 'a line that states no amount',
@@ -62,6 +66,7 @@ export const QUANTITY_LINE_SHAPES: readonly QuantityLineShape[] = [
         line: makeRootBoundLine({ quantity: { kind: 'range', low: 2, high: 3 }, unit: 'cups' }),
         quantity: '2–3 cups',
         name: 'beef brisket',
+        // The checkbox is named by its visible text, dash included (WCAG 2.5.3, option C).
         checkbox: '2–3 cups beef brisket',
     },
 ];

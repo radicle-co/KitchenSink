@@ -5,14 +5,16 @@
  * `user.deleted`-webhook full erasure (`triggerSource: 'admin'`). The tests pin the erased column set, the
  * companion-row purge, the audit row's trigger source/actor, and the single-transaction guarantee.
  */
-import { getTableName, type Table } from 'drizzle-orm';
+import { getTableName, type SQL, type Table } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, it, expect } from 'vitest';
 
 import { eraseIdentityRow } from '../eraseIdentityRow.js';
 import { newUserId } from '../ulid.js';
 
 /** A drizzle-shaped mock tx recording the update set, deleted tables, and audit rows. */
-function buildMockDb() {
+function buildMockDb(updatedRows: Array<{ id: string }> = [{ id: 'u' }]) {
+    const userWheres: SQL[] = [];
     const userSets: Array<Record<string, unknown>> = [];
     const deletedTables: string[] = [];
     const auditRows: Array<Record<string, unknown>> = [];
@@ -23,7 +25,13 @@ function buildMockDb() {
             set: (value: Record<string, unknown>) => {
                 userSets.push(value);
 
-                return { where: () => Promise.resolve() };
+                return {
+                    where: (predicate: SQL) => {
+                        userWheres.push(predicate);
+
+                        return { returning: () => Promise.resolve(updatedRows) };
+                    },
+                };
             },
         }),
         delete: (table: Table) => {
@@ -48,7 +56,7 @@ function buildMockDb() {
         },
     };
 
-    return { db, userSets, deletedTables, auditRows, transactionCount: () => transactions };
+    return { db, userSets, userWheres, deletedTables, auditRows, transactionCount: () => transactions };
 }
 
 describe('eraseIdentityRow', () => {
@@ -109,5 +117,50 @@ describe('eraseIdentityRow', () => {
         expect(userSets).toHaveLength(1);
         expect(userSets[0]).toHaveProperty('providerDeletedAt', providerDeletedAt);
         expect(userSets[0]).toMatchObject({ status: 'erased' });
+    });
+
+    // A status change reads, checks, then writes. The expected prior status goes in the WHERE, so a row another
+    // path moved in between (a reactivated tombstone, say) is left alone instead of erased.
+    describe('with an expected prior status', () => {
+        it('puts the status in the WHERE and reports the erasure', async () => {
+            const { db, userWheres } = buildMockDb();
+
+            const erased = await eraseIdentityRow(
+                db as never,
+                {
+                    userId: newUserId(),
+                    triggerSource: 'sweep',
+                    actor: null,
+                    providerDeletedAt: null,
+                    expectedStatus: 'tombstoned',
+                },
+                new Date(),
+            );
+
+            const { sql, params } = new PgDialect().sqlToQuery(userWheres[0]!);
+            expect(erased).toBe(true);
+            expect(sql).toContain('"status" =');
+            expect(params).toContain('tombstoned');
+        });
+
+        it('changes nothing and says so when no row matches the expected status', async () => {
+            const { db, deletedTables, auditRows } = buildMockDb([]);
+
+            const erased = await eraseIdentityRow(
+                db as never,
+                {
+                    userId: newUserId(),
+                    triggerSource: 'sweep',
+                    actor: null,
+                    providerDeletedAt: null,
+                    expectedStatus: 'tombstoned',
+                },
+                new Date(),
+            );
+
+            expect(erased).toBe(false);
+            expect(deletedTables).toEqual([]);
+            expect(auditRows).toEqual([]);
+        });
     });
 });

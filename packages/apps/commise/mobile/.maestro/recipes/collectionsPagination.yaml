@@ -123,10 +123,21 @@ appId: ${APP_ID}
       while:
           visible: 'Maestro pagination filler(, .*)?'
       commands:
-          # Below the count line, never the first match anywhere: after a delete the grid keeps its scroll, its top row is
-          # clipped behind the sticky search and count, and iOS still reports that card visible, so the tap landed on the
-          # header and opened nothing (full local iOS shard 2, 2026-10-18). Maestro's `below` compares top edges, so a
-          # card whose top is under the count's top has its centre, where the tap lands, clear of the header.
+          # Back to the top of the list first, then tap BELOW the count line, never the first match anywhere: after a delete the
+          # grid keeps its scroll, its top row is clipped behind the sticky search, and iOS still reports that card visible,
+          # so the tap landed on the header and opened nothing (full local iOS shard 2, 2026-10-18; Android, 2026-11-04, the
+          # same with the search field as the anchor). The count line is in the list header now, so it scrolls away with the
+          # list and is only an anchor at the top: scrolling up to it is what makes it one. Maestro's `below` compares top
+          # edges, so a card whose top is under the count's top has its centre, where the tap lands, clear of the header.
+          # `visibilityPercentage: 50`: on iOS the count is a 20 pt line that Maestro would not accept as fully visible even
+          # at the top of the list with nothing over it (deployed runs 42117856262 and 42134419670: "20 collections" is in
+          # the hierarchy at [16,290][386,310], yet the scroll reported no visible element). Half of it on screen is still
+          # "the list is back at the top", which is all this anchor says; the tap below stays `below` the count.
+          - scrollUntilVisible:
+                element: '\d+ collections?'
+                direction: UP
+                timeout: 20000
+                visibilityPercentage: 50
           - tapOn:
                 text: 'Maestro pagination filler(, .*)?'
                 below: '\d+ collections?'

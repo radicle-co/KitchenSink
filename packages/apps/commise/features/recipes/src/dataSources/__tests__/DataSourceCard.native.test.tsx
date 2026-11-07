@@ -9,7 +9,7 @@
 import { role, roleDark } from '@commise/ui/colors';
 import { systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 /** `#RRGGBB` → the `rgb(r, g, b)` spelling react-native-web writes. */
@@ -34,6 +34,7 @@ vi.mock('react-native', async (importOriginal) => {
 import { CIQUAL_SOURCE, SWISS_SOURCE, makeDataSource } from '../__fixtures__/makeDataSource.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourceCard } from '../DataSourceCard.native.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();

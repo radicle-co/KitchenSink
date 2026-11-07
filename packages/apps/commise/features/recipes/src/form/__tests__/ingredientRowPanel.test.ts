@@ -63,10 +63,16 @@ describe('panelBodyOf', () => {
         expect(panelBodyOf('foodRemoved', true)).toEqual({ kind: 'foodRemovedNameless' });
     });
 
-    it('the two prompts name the row actions they point at, by their own labels', () => {
-        const en = recipeFormMessages.en;
+    it('the two-paths prompt names the row action it points at, by its own label', () => {
+        expect(recipeFormMessages.en.errorPromptEntryMode).toContain('{createLabel}');
+    });
 
-        expect(en.errorPromptEntryMode).toContain('{createLabel}');
-        expect(en.statusExplainFoodRemovedUnnamed).toContain('{changeFoodLabel}');
+    it('the nameless food-removed panel explains and does not tell the cook to use a button: the panel carries one primary action (bug sweep #11)', () => {
+        const copy = recipeFormMessages.en.statusExplainFoodRemovedUnnamed;
+
+        expect(copy).toBe(
+            'This food was removed from our food database, and its name went with it. Your amount is unchanged.',
+        );
+        expect(copy).not.toMatch(/\{|Change food/);
     });
 });

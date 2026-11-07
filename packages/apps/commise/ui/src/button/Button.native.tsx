@@ -10,13 +10,18 @@
  * - **Sizes** (§1.6): 52, 44 and 36 visual points, each rounded to HALF its height (E2 I2: a wrapped label stays
  *   inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44
  *   (48) by a transparent frame around the 36 pt pill, so the target is measurable rather than a `hitSlop`.
- * - **Type**: the label is the `label` role — one registered Inter face per weight and never a `fontWeight` (§1.5),
+ * - **Inline padding** is web's base step, 12 points on every tier and size, so three actions fit a 320 pt row.
+ * - **Type**: the label is the `cardTitle` role (16/20/600, owner ruling B1) — one registered Inter face per weight and never a `fontWeight` (§1.5),
  *   which on Android resolves to a synthesised or system bold instead of the face.
+ * - **Press**: the pill scales to 0.98 (`PressScale`, skipped under reduce-motion) AND paints its press fill
+ *   (`buttonSurfacePaint`: the press of the surface it sits on, `actionPressed` on primary). The paint is not
+ *   gated by reduce-motion, so a quiet or ghost button always answers the touch.
  * - **Busy** swaps the glyph slot for an `ActivityIndicator` in place and disables the control; **disabled** dims to
  *   40%.
  *
  * Every tier is ONE flat surface (the owner removed the primary gradient): the `action` fill, neutral secondary,
- * surface-less ghost, and destructive's danger label (filled `danger` only in its `confirm` tone). Each colour comes
+ * surface-less ghost and quiet (an `actionText` label; an `ink` label with an `actionText` glyph), and destructive's danger label (filled
+ * `danger` only in its `confirm` tone). Each colour comes
  * from `useTheme()` at render, so the button repaints in the dark scheme; the static sheet holds layout only (D15).
  *
  * @pattern Discriminated union (`ButtonProps`) rendered with a `StyleSheet`, composing `PressScale` — which owns the
@@ -25,53 +30,37 @@
  *     `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).
  */
 import { useRef, type FC, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
 
+import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { Role } from '../tokens/colors.js';
-import { nativeTokens } from '../tokens/native.js';
 import { useTheme } from '../theme/useTheme.native.js';
-import type { Theme } from '../theme/themeFor.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
+import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
+import { ButtonLabel } from './ButtonLabel.native.js';
 
 /** A size's visual height on this platform: `md` IS the touch floor, so it grows with it on Android. Pure. */
 const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor() : BUTTON_VISUAL_HEIGHT[size]);
 
-/** The flat surfaces and the role each one's label and glyph share. */
-type Surface = 'primary' | 'secondary' | 'ghost' | 'destructiveInline' | 'destructiveConfirm';
-
-/** Each surface's foreground role — the label AND the glyph AND the spinner, so the three always agree. */
-const FOREGROUND: Readonly<Record<Surface, Role>> = {
+/**
+ * Each surface's GLYPH and spinner role: its label's colour, except `quiet`, an `ink` label with an `actionText` glyph
+ * (`componentFixes.md` §1), the web leaf's `buttonGlyphClass`. The Button suite holds this table and `ButtonLabel`'s
+ * to that rule.
+ */
+const GLYPH: Readonly<Record<ButtonSurface, Role>> = {
     primary: 'onAction',
     secondary: 'ink',
     ghost: 'actionText',
+    quiet: 'actionText',
     destructiveInline: 'dangerText',
     destructiveConfirm: 'onAction',
 };
-
-/**
- * Each surface's paint in the current theme — the native idiom of the web leaf's map (the two change for different
- * reasons, so they are deliberately not merged). Built at render from `useTheme()`: a colour in the static sheet would
- * be baked into one theme at import (D15). Pure.
- */
-function surfacePaint({ colors }: Theme, surface: Surface): ViewStyle {
-    switch (surface) {
-        case 'primary':
-            return { backgroundColor: colors.action, borderWidth: 0 };
-        case 'secondary':
-        case 'destructiveInline':
-            return { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.lineControl };
-        case 'ghost':
-            return { backgroundColor: 'transparent', borderWidth: 0 };
-        case 'destructiveConfirm':
-            return { backgroundColor: colors.danger, borderWidth: 0 };
-    }
-}
 
 /** Resolve the accessible name: an explicit override, else the string label, else undefined. */
 const resolveAccessibilityLabel = (
@@ -88,22 +77,32 @@ export const Button: FC<ButtonProps> = (props) => {
         onPress,
         disabled = false,
         busy = false,
+        refused = false,
         accessibilityLabel,
+        description,
+        expanded,
         width = 'auto',
         iconPlacement = 'start',
         focusRequested = false,
         onFocusRequestHandled,
     } = props;
-    const { variant, tone } = surfaceOf(props);
-    const surface: Surface =
-        variant === 'destructive' ? (tone === 'confirm' ? 'destructiveConfirm' : 'destructiveInline') : variant;
-    const foreground = FOREGROUND[surface];
+    const { variant, tone: destructiveTone } = surfaceOf(props);
+    // The surface the button sits on, stated once by its container (`componentFixes.md` §10): it decides the press fill.
+    const tone = useSurfaceTone();
+    const surface: ButtonSurface =
+        variant === 'destructive'
+            ? destructiveTone === 'confirm'
+                ? 'destructiveConfirm'
+                : 'destructiveInline'
+            : variant;
+    const glyphRole = GLYPH[surface];
     const theme = useTheme();
     const node = useRef<View>(null);
     useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
 
-    // A busy control is also disabled so an in-flight action cannot be double-fired.
-    const inactive = disabled || busy;
+    // A busy or refused control is also disabled so an in-flight action cannot be double-fired; a disabled `Pressable`
+    // keeps screen-reader focus on device, so native needs no web-style focus guard.
+    const inactive = disabled || busy || refused;
     const height = visualHeightOf(size);
     const geometry: ViewStyle = { minHeight: height, borderRadius: height / 2 };
 
@@ -111,26 +110,32 @@ export const Button: FC<ButtonProps> = (props) => {
         busy || icon !== undefined ? (
             <View style={styles.glyph} aria-hidden>
                 {busy || icon === undefined ? (
-                    <ActivityIndicator color={theme.colors[foreground]} />
+                    <ActivityIndicator color={theme.colors[glyphRole]} />
                 ) : (
-                    <Icon name={icon} size={20} tone={foreground} />
+                    <Icon name={icon} size={20} tone={glyphRole} />
                 )}
             </View>
         ) : null;
     const content: ReactNode = (
         <>
             {iconPlacement === 'start' ? glyph : null}
-            <Text style={[styles.label, { color: theme.colors[foreground] }]}>{children}</Text>
+            <ButtonLabel surface={surface}>{children}</ButtonLabel>
             {iconPlacement === 'end' ? glyph : null}
         </>
     );
 
     // ONE flat surface per tier (the owner removed the primary gradient, `modernizeB.md` §3).
     // Kept, so busy or disabled (`opacity`) never moves the glyph and label into it (`nativeFlattenFlips.test.ts`).
-    const pill = (
+    // The pill is a function of the press, so the paint answers the touch even where the scale does not (reduce-motion).
+    const pill = (pressed: boolean): ReactNode => (
         <View
             collapsable={false}
-            style={[styles.base, geometry, surfacePaint(theme, surface), inactive ? styles.inactive : null]}
+            style={[
+                styles.base,
+                geometry,
+                buttonSurfacePaint(theme, surface, tone, pressed && !inactive),
+                inactive ? styles.inactive : null,
+            ]}
         >
             {content}
         </View>
@@ -144,25 +149,25 @@ export const Button: FC<ButtonProps> = (props) => {
             busy={busy}
             accessibilityRole="button"
             accessibilityLabel={resolveAccessibilityLabel(accessibilityLabel, children)}
+            accessibilityHint={description}
+            expanded={expanded}
             width={width}
         >
             {/* `sm` draws below the touch floor, so a transparent frame carries the hit area around it. */}
-            {height < touchFloor() ? <View style={[styles.hitFrame, { minHeight: touchFloor() }]}>{pill}</View> : pill}
+            {({ pressed }) =>
+                height < touchFloor() ? (
+                    <View style={[styles.hitFrame, { minHeight: touchFloor() }]}>{pill(pressed)}</View>
+                ) : (
+                    pill(pressed)
+                )
+            }
         </PressScale>
     );
 };
 
 const styles = StyleSheet.create({
-    base: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: nativeTokens.spacing[2],
-        paddingVertical: nativeTokens.spacing[2],
-        paddingHorizontal: nativeTokens.spacing[5],
-    },
+    base: BUTTON_PILL_LAYOUT,
     hitFrame: { justifyContent: 'center' },
     glyph: { flexShrink: 0 },
-    label: nativeTokens.type.label,
     inactive: { opacity: dimmedOpacity },
 });

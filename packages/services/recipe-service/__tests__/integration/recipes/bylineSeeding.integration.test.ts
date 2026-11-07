@@ -17,7 +17,6 @@ import { makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/inde
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import {
     RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -29,12 +28,13 @@ import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
+import type { RecipeStatus } from '@kitchensink/recipe-core';
 
 const COOK = '01JBYLINESEEDINGCOOK0000001';
 const RECIPE_ID = '00000000-0000-4000-8000-0000000000b1';
 const NOW = new Date('2026-10-15T00:00:00.000Z');
 
-const create = vi.fn(async (input: { readonly status?: string }) => {
+const create = vi.fn(async (input: { readonly status?: RecipeStatus }) => {
     const recipe = makeRecipeRow({
         id: RECIPE_ID,
         ownerId: COOK,
@@ -78,8 +78,10 @@ beforeAll(async () => {
             { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            { provide: RECIPE_LINE_VERIFICATIONS_DAL, useValue: { findBandsByKeys: async () => new Map() } },
-            { provide: IngredientResolutionsDal, useValue: { latestResolutionsByLookupIds: async () => new Map() } },
+            {
+                provide: RECIPE_LINE_VERIFICATIONS_DAL,
+                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+            },
             { provide: FoodLookupsDal, useValue: { findByIds: async () => new Map() } },
             { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             { provide: AuthorHandlesDal, useValue: { findByline } },

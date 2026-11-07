@@ -4,12 +4,17 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
 import { Chip } from '../Chip.js';
+import { buttonSurfaceClass } from '../../button/surfaceClass.js';
+import { CHIP_REST_FILL_CLASS, PRESS_FILL_CLASS } from '../../surfaceTone/surfaceToneClass.js';
 import { ChipRow } from '../ChipRow.js';
+import { chipClass, chipRowClass, SCROLL_BOX_CLASS } from '../chipClass.js';
 import type { ChipOption } from '../props.js';
 
 /**
- * Chip and ChipRow (web) — `docs/design/uiOverhaul/buildSpec.md` §1.10/§1.11. The state matrix: `paper` with a
- * `lineControl` edge and an `ink` label at rest, `pearl` on hover and press, and when selected the `selectedFill` tint,
+ * Chip and ChipRow (web) — `docs/design/uiOverhaul/buildSpec.md` §1.10/§1.11 and `componentFixes.md` §4 (owner ruling
+ * 2026-10-26: buttons stay pills, so a chip is told apart by fill, height and type, not by shape). The state matrix: a
+ * 32 px pill on `surfaceMuted` with no visible edge and an `ink` caption (14/500) label at rest, an ink wash on hover
+ * and press, and when selected the `selectedFill` tint,
  * a 1.5 px `selectedEdge`, an `actionText` label AND a 16 px check before it — so selection never rests on colour alone
  * (SC 1.4.1). jsdom lays nothing out, so the state matrix is pinned on the class contract.
  */
@@ -43,22 +48,72 @@ describe('Chip (web) — filter', () => {
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('rests on paper with a lineControl edge and an ink label, pearl on hover and press', () => {
+    it('rests on its surface’s chip fill (surfaceMuted by default) with no visible edge and an ink caption label, and presses to that fill’s row', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
 
-        expect(tokensOf(screen.getByRole('button', { name: 'Vegan' }))).toEqual(
+        const tokens = tokensOf(screen.getByRole('button', { name: 'Vegan' }));
+
+        expect(tokens).toEqual(
             expect.arrayContaining([
-                'bg-paper',
-                'border-line-control',
+                ...CHIP_REST_FILL_CLASS.split(' '),
+                'border-transparent',
                 'text-ink',
-                'hover:bg-ink/6',
-                'active:bg-ink/6',
+                'text-caption',
+                ...PRESS_FILL_CLASS.chip.split(' '),
                 'rounded-full',
-                'min-h-9',
+                'min-h-8',
                 'focus-visible:ring-focus-ring',
                 'disabled:opacity-40',
             ]),
         );
+        expect(tokens).not.toContain('bg-paper');
+        expect(tokens).not.toContain('bg-surface-muted');
+        expect(tokens).not.toContain('hover:bg-line-divider');
+        expect(tokens).not.toContain('border-line-control');
+        expect(tokens).not.toContain('min-h-9');
+        // The label is the caption role (14/500), never the 14/600 `label` role a button sets.
+        expect(tokens).not.toContain('text-label');
+    });
+
+    // Parity item 10 (`componentFixes` §6): a 1 px edge at rest and 1.5 px selected made a chip grow when it was selected.
+    // The edge is 1.5 px in BOTH states (transparent at rest), so selecting changes colour, never size. The 16 px check
+    // may widen the chip (that change is where the cook just tapped); the edge may not.
+    it('holds the same 1.5 px edge at rest (transparent) and selected, so the edge never moves layout', () => {
+        const rest = chipClass(false).split(/\s+/u);
+        const selected = chipClass(true).split(/\s+/u);
+
+        expect(rest).toContain('border-[1.5px]');
+        expect(rest).toContain('border-transparent');
+        expect(rest).not.toContain('border');
+        expect(selected).toContain('border-[1.5px]');
+        expect(selected).toContain('border-selected-edge');
+    });
+
+    it('gives a selected chip a hover and press edge of 2 px selectedEdge, its padding giving the half pixel back', () => {
+        const selected = chipClass(true).split(/\s+/u);
+
+        expect(selected).toEqual(
+            expect.arrayContaining(['hover:border-2', 'active:border-2', 'hover:px-[calc(var(--spacing)*3_-_0.5px)]']),
+        );
+        expect(selected).toContain('active:px-[calc(var(--spacing)*3_-_0.5px)]');
+        // A resting chip's own press is the lineDivider fill: it never takes the selected edge.
+        expect(
+            chipClass(false)
+                .split(/\s+/u)
+                .filter((token) => token.includes('border-2')),
+        ).toEqual([]);
+    });
+
+    it('⛔ cannot be mistaken for a secondary button: they share neither a fill nor an edge at rest', () => {
+        const fillAndEdge = (className: string): readonly string[] =>
+            className.split(/\s+/u).filter((token) => /^(bg|border)-/u.test(token));
+
+        const chip = fillAndEdge(chipClass(false));
+        const secondary = fillAndEdge(buttonSurfaceClass('secondary'));
+
+        expect(chip.length).toBeGreaterThan(0);
+        expect(secondary.length).toBeGreaterThan(0);
+        expect(chip.filter((token) => secondary.includes(token))).toEqual([]);
     });
 
     it('shows selection by tint, a 1.5 px edge, the actionText label AND a check — never colour alone', () => {
@@ -80,10 +135,11 @@ describe('Chip (web) — filter', () => {
         expect(glyphIn(screen.getByRole('button', { name: 'Vegan' }))).toBeNull();
     });
 
-    // ⚠️ REWRITTEN: the overlay reaches 6 px past the padding box (it was 4, which a selected chip's 1.5 px edge left one
-    // pixel short of 44 — measured by `recipeHomeResponsive.spec.ts`'s tap band, which is the real proof; jsdom lays
-    // nothing out, so this only pins the recipe).
-    it('keeps a 44px hit area on a coarse pointer around its 36px pill', () => {
+    // ⚠️ REWRITTEN: the pill is 32 px (it was 36), so the overlay now reaches 8 px past the padding box. It is placed from
+    // inside the edge, so a selected chip's 1.5 px edge leaves 32 - 3 + 16 = 45 px, and an unselected 1 px edge 46 px;
+    // at the old 6 px a selected chip would hit only 41. `recipeHomeResponsive.spec.ts`'s tap band is the real proof;
+    // jsdom lays nothing out, so this only pins the recipe.
+    it('keeps a 44px hit area on a coarse pointer around its 32px pill', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
 
         expect(tokensOf(screen.getByRole('button', { name: 'Vegan' }))).toEqual(
@@ -91,7 +147,7 @@ describe('Chip (web) — filter', () => {
                 'relative',
                 "before:content-['']",
                 'before:absolute',
-                'pointer-coarse:before:-inset-y-1.5',
+                'pointer-coarse:before:-inset-y-2',
             ]),
         );
     });
@@ -391,5 +447,18 @@ describe('ChipRow (web) — filter and input', () => {
         expect(tokensOf(screen.getByRole('group', { name: 'Diet' }))).not.toContain('overflow-x-auto');
         // A wrapping row is never a scroller: it has no chevron and nothing to scroll.
         expect(screen.getByRole('group', { name: 'Diet' }).closest('[class*="overflow-x-auto"]')).toBeNull();
+    });
+});
+
+describe('chip row geometry — the scroller room follows the chip overlay', () => {
+    // The overlay reaches 8 px past a 32 px pill (`chipClass`), and a row that scrolls sideways clips vertically too, so the
+    // line must keep 8 px above and below it on a coarse pointer — and the wrapper must cancel exactly that, or the layout
+    // moves. Two numbers, one fact: they are derived from each other here so one cannot change without the other.
+    it('keeps 8 px of room above and below a scrolling line, and cancels exactly that in the wrapper', () => {
+        const overlay = /pointer-coarse:before:-inset-y-(\d+(?:\.\d+)?)/u.exec(chipClass(false))?.[1];
+
+        expect(overlay).toBe('2');
+        expect(chipRowClass('scroll').split(/\s+/u)).toContain(`pointer-coarse:py-${overlay ?? ''}`);
+        expect(SCROLL_BOX_CLASS.split(/\s+/u)).toContain(`pointer-coarse:-my-${overlay ?? ''}`);
     });
 });

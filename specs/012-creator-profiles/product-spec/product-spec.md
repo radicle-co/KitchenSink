@@ -16,7 +16,7 @@ This feature closes that gap by giving every user the option to become a public 
 
 ## Vision
 
-KitchenSink becomes the home for food creators who want a professional public presence without leaving the platform where they already cook. P11 Robin — a food blogger building an audience — gets a canonical `commise.com/@handle` URL, a curated collection surface, and the analytics to understand what resonates. P5 Morgan, the discovery-oriented home cook, gains a trusted follow graph that surfaces new recipes from creators they care about, replacing aimless search with a personalised feed. P9 Drew, the professional chef, can embed a live recipe widget on their restaurant website and point clients to a verified, branded profile. Together these three personas define the core value loop: creators publish, followers discover, professionals extend reach. All paid mechanics — tipping, subscription tiers, premium gating — are intentionally deferred to feature 010 (Subscriptions) so that 012 can ship a clean, fast, free-to-use identity layer first.
+KitchenSink becomes the home for food creators who want a professional public presence without leaving the platform where they already cook. P11 Robin — a food blogger building an audience — gets a canonical `commise.app/@handle` URL, a curated collection surface, and the analytics to understand what resonates. P5 Morgan, the discovery-oriented home cook, gains a trusted follow graph that surfaces new recipes from creators they care about, replacing aimless search with a personalised feed. P9 Drew, the professional chef, can embed a live recipe widget on their restaurant website and point clients to a verified, branded profile. Together these three personas define the core value loop: creators publish, followers discover, professionals extend reach. All paid mechanics — tipping, subscription tiers, premium gating — are intentionally deferred to feature 010 (Subscriptions) so that 012 can ship a clean, fast, free-to-use identity layer first.
 
 ---
 
@@ -75,7 +75,7 @@ KitchenSink becomes the home for food creators who want a professional public pr
 
 ### Public Profile URL & Discovery
 
-**FR-006** Every active `CreatorProfile` MUST be accessible at `commise.com/@{handle}` (canonical URL) without authentication.
+**FR-006** Every active `CreatorProfile` MUST be accessible at `commise.app/@{handle}` (canonical URL) without authentication.
 
 **FR-007** Profile pages MUST be server-side rendered (Next.js SSR) with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields.
 
@@ -175,11 +175,11 @@ Aggregated snapshots written by a scheduled Lambda (daily cron). Metrics stored 
 
 > _(monetization handled by 010 Subscriptions; out of scope for 012)_ The table below documents the integration boundary only; 012 exposes thin delegation endpoints but owns no billing, payment, or subscription logic.
 
-| Feature             | Owner                    | 012's Role                                                                             |
-| ------------------- | ------------------------ | -------------------------------------------------------------------------------------- |
-| Tip jar             | 010 (payment processing) | 012 exposes `POST /api/v1/creators/:handle/tip`; delegates to 010's payment intent API |
-| Premium recipe gate | 010 (paywall)            | 012 sets `isPremium` flag on recipe-collection membership; 010 enforces access         |
-| Paid follow tier    | 010 (billing)            | 012 defines follow tiers (`free`, `paid`); 010 handles subscription lifecycle          |
+| Feature                                        | Owner                    | 012's Role                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tip jar                                        | 010 (payment processing) | 012 exposes `POST /api/v1/creators/:handle/tip`; delegates to 010's payment intent API                                                                                                                                                                                                                                                                                                                                        |
+| Creator-priced private recipes and collections | 010 (payments)           | _(Amended 2026-11-03, owner ruling, ADR-0082. Was: "Premium recipe gate, none".)_ 012 lets a creator choose public or private per recipe and per collection, and list a PRIVATE recipe or collection for sale at a price the creator sets. 010 takes the payment and grants the buyer access. Only sellable content (O14d). No `isPremium` flag on collection membership. Counsel review is owed before launch (`016-FR-050`) |
+| Paid follow tier                               | 010 (billing)            | 012 defines follow tiers (`free`, `paid`); 010 handles subscription lifecycle                                                                                                                                                                                                                                                                                                                                                 |
 
 ---
 

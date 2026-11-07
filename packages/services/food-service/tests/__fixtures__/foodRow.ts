@@ -40,6 +40,9 @@ export function makeFoodRow(overrides: Partial<FoodRow> = {}): FoodRow {
         rankFolded: null,
         rankTokens: null,
         rankHead: null,
+        rankAliasKeys: [],
+        defaultTerms: [],
+        rankDefaultKeys: [],
         ...overrides,
     };
 }

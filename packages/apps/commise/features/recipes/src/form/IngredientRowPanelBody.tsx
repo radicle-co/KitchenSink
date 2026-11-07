@@ -82,8 +82,6 @@ export const IngredientRowPanelBody: FC<IngredientRowPanelBodyProps> = ({ row, m
             // this line (SPECIFY.1 rows 6 and 7, S7 list contract P12).
             return <ShortlistPanel {...row.shortlist(close)} />;
         case 'foodRemovedNameless':
-            return (
-                <p>{fillTemplate(m.statusExplainFoodRemovedUnnamed, { changeFoodLabel: m.statusActionChangeFood })}</p>
-            );
+            return <p>{m.statusExplainFoodRemovedUnnamed}</p>;
     }
 };

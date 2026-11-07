@@ -4,8 +4,9 @@
  * fields, ingredient lines with/without a calorie chip, the "changed from current" summary), error (not a
  * dead end), Restore, and dismissal (Cancel) — so the two platform renders can't drift on behaviour.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { role, roleDark } from '@commise/ui/colors';
@@ -21,6 +22,7 @@ import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { BRISKET_FLAT_HALF_PARTS, BRISKET_FLAT_HALF_SPOKEN } from '../../detail/__fixtures__/variantLines.js';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -190,6 +192,32 @@ describe('VersionPreviewModal (native) — populated version', () => {
         expect(screen.getByText('Changed from current: 1 ingredient, 1 step')).toBeTruthy();
     });
 
+    // A title-only edit used to read "0 ingredients, 0 steps", which at the top of the sheet says nothing changed.
+    it('names a changed title rather than counting zero ingredients and steps', () => {
+        const titleOnly: SnapshotDiff = {
+            changedFields: ['title'],
+            steps: { added: 0, removed: 0, modified: 0 },
+            ingredients: { added: 0, removed: 0, modified: 0 },
+            summary: { added: 0, removed: 0, modified: 1 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: titleOnly })} />);
+
+        expect(screen.getByText('Changed from current: Title')).toBeTruthy();
+        expect(screen.queryByText(/0 ingredients/)).toBeNull();
+    });
+
+    it('says so when the version is the same as the current one', () => {
+        const same: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 0, removed: 0, modified: 0 },
+            ingredients: { added: 0, removed: 0, modified: 0 },
+            summary: { added: 0, removed: 0, modified: 0 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: same })} />);
+
+        expect(screen.getByText('Same as the current version.')).toBeTruthy();
+    });
+
     it('omits the "changed from current" line when no diff was supplied', () => {
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
 
@@ -330,7 +358,7 @@ describe('VersionPreviewModal (native) — error', () => {
         const onCancel = vi.fn();
         render(<VersionPreviewModal {...baseProps({ error: true, onCancel })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Try again.');
         expect(screen.queryByRole('progressbar')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
 
@@ -346,7 +374,7 @@ describe('VersionPreviewModal (native) — error', () => {
         const onCancel = vi.fn();
         render(<VersionPreviewModal {...baseProps({ isLoading: false, onCancel })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Try again.');
         expect(screen.queryByRole('progressbar')).toBeNull();
 
         await user.click(screen.getByRole('button', { name: 'Keep current version' }));
@@ -424,6 +452,86 @@ describe('VersionPreviewModal (native) — a long ingredient line cannot push it
         render(<VersionPreviewModal {...baseProps({ version: longLineVersion })} />);
 
         expect(appliedStyle(screen.getByText('420 cal'), 'flex-shrink')).toBe('0');
+    });
+});
+
+/**
+ * Android local Maestro run, flow `recipes/versions`: on a 360 dp phone the two actions (each an icon plus a full
+ * label) are wider than the sheet's content box. A row that cannot wrap, pushed to the end, overflows on its START
+ * side, so "Keep current version" was sliced at the left edge. The row first WRAPPED, which cured the clipping but left
+ * two right-aligned buttons of different widths on two lines. It now STACKS (`versionPreviewParity.md`): each button
+ * fills the row, Restore on top and Keep nearest the thumb, and from 600 dp the pair sits in one row. The
+ * "Changed from current" line, which sat last in a scroller taller than the screen, is drawn above that scroller where
+ * it is always on screen.
+ */
+describe('VersionPreviewModal (native) — a narrow phone', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        observer.observed.clear();
+    });
+
+    /** Lay the action row out at `width`: the row is the parent of the Keep button's press-scale frame. */
+    function layOutActions(width: number): HTMLElement {
+        const row = pressFrameOf(screen.getByRole('button', { name: 'Keep current version' }))
+            .parentElement as HTMLElement;
+
+        Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
+        Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
+        act(() => {
+            observer.callback?.([{ target: row } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        return row;
+    }
+
+    // REWRITES "wraps the actions rather than slicing the first one at the sheet edge": the wrap is gone, so the
+    // old assertion (`flex-wrap: wrap`) is replaced by the stack that took its place.
+    it('stacks the actions at 350 dp, each filling the row, rather than wrapping them', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        const row = layOutActions(350);
+
+        expect(row.contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(true);
+        expect(appliedStyle(row, 'flex-direction')).toBe('column-reverse');
+        expect(appliedStyle(row, 'flex-wrap')).not.toBe('wrap');
+
+        for (const name of ['Keep current version', 'Restore this version']) {
+            const button = screen.getByRole('button', { name });
+
+            // The press-scale frame is what the row lays out, and Tamagui, not react-native-web, writes its stretch.
+            expect(getComputedStyle(pressFrameOf(button)).alignSelf).toBe('stretch');
+        }
+    });
+
+    it('sets the actions in one row at 700 dp', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        expect(appliedStyle(layOutActions(700), 'flex-direction')).toBe('row');
+    });
+
+    it('does not keep either action label to one line', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        for (const name of ['Keep current version', 'Restore this version']) {
+            expect(appliedStyle(screen.getByText(name), 'white-space')).not.toBe('nowrap');
+        }
+    });
+
+    it('draws the "changed from current" line above the scroller, not at the end of a long one', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const summary = screen.getByText('Changed from current: 3 ingredients, 1 step');
+        const firstField = screen.getByText('Title');
+
+        expect(summary.compareDocumentPosition(firstField) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(summary.contains(firstField)).toBe(false);
     });
 });
 
@@ -621,5 +729,71 @@ describe.each(['light', 'dark'] as const)('VersionPreviewModal (native) — the 
         render(<VersionPreviewModal {...baseProps({ error: true })} />);
 
         expect(getComputedStyle(screen.getByRole('alert')).color).toBe(rgb(colours.dangerText));
+    });
+});
+
+/**
+ * The pinned-footer limit (`docs/design/compactHeightLayout.md` §3.1, `versionPreviewParity.md` §3). At large text on a
+ * short phone the pinned title, summary and stacked actions can take most of the sheet and leave the recipe a sliver.
+ * Past half the sheet the actions become the scroller's last item; below it they stay pinned. Each part states its height
+ * through the recorded layout observer.
+ */
+describe('VersionPreviewModal (native) — the pinned-footer limit', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        observer.observed.clear();
+    });
+
+    /** Report `heights` for the sheet's content (the frame), its pinned top and its actions. */
+    function layOut(heights: { readonly frame: number; readonly top: number; readonly footer: number }): void {
+        // The Keep button's press-scale frame sits in the action row, and the row in the footer.
+        const keep = pressFrameOf(screen.getByRole('button', { name: 'Keep current version' }));
+        const footer = keep.parentElement?.parentElement as HTMLElement;
+        const top = screen.getByRole('heading', { name: /^Version 10 Preview/u }).parentElement as HTMLElement;
+        const frame = top.parentElement as HTMLElement;
+
+        for (const [node, height] of [
+            [frame, heights.frame],
+            [top, heights.top],
+            [footer, heights.footer],
+        ] as const) {
+            Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
+        }
+
+        act(() => {
+            observer.callback?.(
+                [frame, top, footer].map((target) => ({ target }) as unknown as ResizeObserverEntry),
+                {} as ResizeObserver,
+            );
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+    }
+
+    const scrollerOf = (): HTMLElement => screen.getByText('Title').closest('[class*="r-overflowY"]') as HTMLElement;
+
+    it('keeps the actions pinned under the scroller while the pinned parts are under half the sheet', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+        layOut({ frame: 600, top: 120, footer: 120 });
+
+        expect(scrollerOf().contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(false);
+    });
+
+    it('makes the actions the scroller’s last item once the pinned parts pass half the sheet', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+        layOut({ frame: 400, top: 120, footer: 120 });
+
+        const restore = screen.getByRole('button', { name: 'Restore this version' });
+
+        expect(scrollerOf().contains(restore)).toBe(true);
+        expect(scrollerOf().contains(screen.getByText(/^Changed from current:/))).toBe(false);
+        expect(
+            screen.getByText('Steps at v10').compareDocumentPosition(restore) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
     });
 });

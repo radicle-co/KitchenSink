@@ -5,12 +5,13 @@
  * nothing is assertive, because the cook did not just act. Native moves no focus on Dismiss (React Native cannot read
  * where the reading cursor is, and the platform re-anchors when a focused node goes).
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { UnreadableWorkNoticeProps } from '../props.js';
 import { UnreadableWorkNotice } from '../UnreadableWorkNotice.native.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 
 afterEach(cleanup);
 

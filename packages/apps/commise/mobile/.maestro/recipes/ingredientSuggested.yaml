@@ -1,0 +1,96 @@
+appId: ${APP_ID}
+---
+# Suggested foods in the editor's add-ingredient field (owner ruling 2026-11-03; designer answer N2 in
+# `docs/design/uiRefreshWorkshop5/nativeBoards/designAnswers.md`: "no new step ... show the memo's food as the first option
+# with a caption 'Suggested'. It is never the active option when the list opens"; ADR-0070: the UI never auto-selects).
+# Mobile mirror of the web Playwright `ingredientSuggested.spec.ts`.
+#
+# ⚠️ NOT YET RUN. It was written against `ingredientCandidates.yaml`'s fixtures without a device or a deployed stack.
+#
+# The remembered answer is made the way a cook makes one, so the flow needs no seed of its own: the first line is made
+# `UNRESOLVED` with `E2E_UNRESOLVED_WORD` (see `ingredientCandidates.yaml` for why that word is chosen and verified at
+# provision) and the cook picks one of USDA's foods for it, which records that cook's own correction for the word. The
+# second line then types the same word in the add field, and the list leads with that food, tagged "Suggested". The
+# flow spends one name lookup and one remote pick from the signer's source budget, as `ingredientCandidates.yaml` does,
+# and `e2e-seed resetPool --tier maestro` takes the root and the correction back.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Suggested Food'
+
+# Line one: the word by name, landing UNRESOLVED, then one remote pick, which is the cook's correction for the word.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: '${E2E_UNRESOLVED_WORD}'
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: 'Find nutrition for “${E2E_UNRESOLVED_WORD}”'
+- extendedWaitUntil:
+      visible:
+          text: 'Choose a match.*'
+      timeout: 60000
+- tapOn: 'Choose a match: .*'
+- extendedWaitUntil:
+      visible:
+          text: 'From USDA'
+      timeout: 40000
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: '.*, from USDA'
+- extendedWaitUntil:
+      notVisible:
+          text: 'Search for another food'
+      timeout: 40000
+- assertNotVisible: 'Choose a match.*'
+
+# Line two: the same word in the add field. The remembered food leads the list, tagged, and nothing is chosen for the cook.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add an ingredient'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Add an ingredient'
+- inputText: '${E2E_UNRESOLVED_WORD}'
+- extendedWaitUntil:
+      visible:
+          # The option's name is the food, then ", suggested" (WCAG 2.5.3); its tag draws "Suggested" after the food.
+          text: '.*, suggested'
+      timeout: 30000
+      label: 'the cook’s own correction for the word is offered first in the add field’s list'
+- assertVisible: 'Suggested'
+# Nothing is chosen until the cook taps it: the list is still open, and the field still holds the typed word.
+- assertVisible: 'Find nutrition for “${E2E_UNRESOLVED_WORD}”'
+- assertVisible: '${E2E_UNRESOLVED_WORD}'
+
+# One tap picks it and the line is bound: the list closes, the field empties, and the new row asks for no choice.
+- runFlow:
+      file: common/pickFromOpenList.yaml
+      env:
+          TARGET: '.*, suggested'
+- extendedWaitUntil:
+      notVisible:
+          text: '.*, suggested'
+      timeout: 40000
+- assertNotVisible: 'Find nutrition for “${E2E_UNRESOLVED_WORD}”'
+- assertNotVisible: 'Choose a match.*'
+
+# Leave with ×, which creates the titled draft; the next flow's reset deletes it.
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000
+- assertVisible: 'My recipes'

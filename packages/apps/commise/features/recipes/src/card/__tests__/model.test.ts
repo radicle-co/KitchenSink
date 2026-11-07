@@ -29,6 +29,8 @@ describe('toRecipeCardModel', () => {
             difficulty: RecipeDifficulty.HARD,
             averageRating: 3.8,
             ratingCount: 9,
+            // ADR-0073: the fixture's default private user_created recipe is no longer PRO, so the badge is stated.
+            usesPremiumCapability: true,
             coverPhotoUrl: 'https://cdn.commise.app/r/42.jpg',
             createdAt: '2026-04-28T12:00:00.000Z',
             updatedAt: '2026-05-01T12:00:00.000Z',

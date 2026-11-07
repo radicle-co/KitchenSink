@@ -8,13 +8,26 @@
  * @pattern Visitor — the `form` discriminated union picks the roles; the look is shared
  */
 import type { FC } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
+import { Text } from '../text/Text.native.js';
+import {
+    SEGMENT_EDGE,
+    SEGMENT_GAP,
+    SEGMENT_ICON,
+    SEGMENT_ICON_GAP,
+    SEGMENT_CHROME_CAP,
+    SEGMENT_LABEL_ROLE,
+    SEGMENT_PADDING_X,
+    TRACK_INSET,
+} from './nativeSegmentGeometry.js';
 
 /** Where an `adaptive` route control stops filling the row and takes its content's width, in dp (`containerThreshold.regular`). */
 const ADAPTIVE_FROM = 600;
@@ -22,8 +35,8 @@ const ADAPTIVE_FROM = 600;
 /** A content-width route segment's floor, in dp: two place names must not squeeze (W-25). */
 const CONTENT_SEGMENT_MIN = 136;
 
-/** The track's height: 44 pt on iOS, 48 dp on Android (spec §1.6). */
-const trackHeight = (): number => (Platform.OS === 'android' ? 48 : 44);
+/** A segment's vertical hit slop: the track's inset above and below it. */
+const SEGMENT_HIT_SLOP = { top: TRACK_INSET, bottom: TRACK_INSET } as const;
 
 /** One segment, with the roles its control's form gives it. */
 interface SegmentFace {
@@ -65,15 +78,11 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
               }));
 
     return (
-        <View
-            collapsable={false}
+        <Surface
+            tone="muted"
             role={roles.track}
             aria-label={props.label}
-            style={[
-                styles.track,
-                compactTrack ? styles.trackContent : null,
-                { minHeight: trackHeight(), backgroundColor: colors.surfaceMuted },
-            ]}
+            style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: touchFloor() }]}
         >
             {faces.map((face) => (
                 <Pressable
@@ -84,23 +93,31 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                         : { 'aria-checked': face.selected })}
                     aria-label={face.label}
                     onPress={face.onPress}
+                    // The track pads each segment by TRACK_INSET; the slop gives the target back that band, so it spans the track.
+                    hitSlop={SEGMENT_HIT_SLOP}
                     style={[
                         styles.segment,
                         compactTrack ? styles.segmentContent : null,
-                        face.selected ? [styles.selected, { backgroundColor: colors.paper }] : null,
+                        face.selected
+                            ? [styles.selected, { backgroundColor: colors.paper, borderColor: colors.lineControl }]
+                            : null,
                     ]}
                 >
                     {face.icon === undefined ? null : (
-                        <Icon name={face.icon} size={20} tone={face.selected ? 'ink' : 'inkMuted'} />
+                        <Icon name={face.icon} size={SEGMENT_ICON} tone={face.selected ? 'ink' : 'inkMuted'} />
                     )}
                     {props.form === 'view' && props.labelVisibility === 'hidden' ? null : (
-                        <Text style={[styles.label, { color: face.selected ? colors.ink : colors.inkMuted }]}>
+                        <Text
+                            typeRole={SEGMENT_LABEL_ROLE}
+                            chromeCap={SEGMENT_CHROME_CAP}
+                            color={face.selected ? '$ink' : '$inkMuted'}
+                        >
                             {face.label}
                         </Text>
                     )}
                 </Pressable>
             ))}
-        </View>
+        </Surface>
     );
 };
 
@@ -108,9 +125,9 @@ const styles = StyleSheet.create({
     track: {
         flexDirection: 'row',
         alignItems: 'stretch',
-        gap: nativeTokens.spacing[1],
-        padding: nativeTokens.spacing[1],
-        borderRadius: 999,
+        gap: SEGMENT_GAP,
+        padding: TRACK_INSET,
+        borderRadius: nativeTokens.radius.full,
     },
     trackContent: { alignSelf: 'flex-start' },
     segmentContent: { flexGrow: 0, flexBasis: 'auto', minWidth: CONTENT_SEGMENT_MIN },
@@ -121,10 +138,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: nativeTokens.spacing[2],
-        borderRadius: 999,
-        paddingHorizontal: nativeTokens.spacing[3],
+        gap: SEGMENT_ICON_GAP,
+        borderRadius: nativeTokens.radius.full,
+        // A transparent 1 pt edge on every segment; the selected one colours it `lineControl` (`componentFixes.md` §8),
+        // so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
+        borderWidth: SEGMENT_EDGE,
+        borderColor: 'transparent',
+        paddingHorizontal: SEGMENT_PADDING_X,
     },
     selected: nativeTokens.elevation.sm,
-    label: nativeTokens.type.label,
 });

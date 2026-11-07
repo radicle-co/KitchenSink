@@ -26,8 +26,8 @@ describe('nativeTokens.elevation — Android elevation by level', () => {
     });
 
     it('no longer reads the elevation off the shadow’s vertical offset', () => {
-        expect(nativeTokens.elevation.md.elevation).not.toBe(elevation.md.offsetY);
-        expect(nativeTokens.elevation.xl.elevation).not.toBe(elevation.xl.offsetY);
+        expect(nativeTokens.elevation.lg.elevation).not.toBe(elevation.lg[elevation.lg.length - 1].offsetY);
+        expect(nativeTokens.elevation.xl.elevation).not.toBe(elevation.xl[0].offsetY);
     });
 
     it('rises with the level, so a higher surface always reads as higher', () => {
@@ -38,11 +38,14 @@ describe('nativeTokens.elevation — Android elevation by level', () => {
         expect(lg.elevation).toBeLessThan(xl.elevation);
     });
 
-    it('keeps the iOS shadow composed from the spec', () => {
+    // REWRITTEN for the redesign: `lg` is a two-layer web shadow, and a view has one shadow, so iOS takes the last (diffuse) layer.
+    it('keeps the iOS shadow composed from the spec’s last layer', () => {
+        const layer = elevation.lg[elevation.lg.length - 1];
+
         expect(nativeTokens.elevation.lg).toMatchObject({
-            shadowOffset: { width: elevation.lg.offsetX, height: elevation.lg.offsetY },
-            shadowRadius: elevation.lg.blur,
-            shadowOpacity: elevation.lg.opacity,
+            shadowOffset: { width: layer.offsetX, height: layer.offsetY },
+            shadowRadius: layer.blur,
+            shadowOpacity: layer.opacity,
         });
     });
 });

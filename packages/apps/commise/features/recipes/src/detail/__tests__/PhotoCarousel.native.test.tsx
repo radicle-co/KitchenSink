@@ -14,9 +14,15 @@
  *
  * The lightbox is drawn edge to edge, so its Close and its photo sit inside the safe area: this file serves a sideways
  * phone's insets (a 3-button navigation bar on the right).
+ *
+ * HERO PAGING (`nativeBoards/buildLists.md` item 1): paging chevrons at the sides and dots that track the page. The page
+ * is read from the strip's scroll offset and set directly when a chevron is pressed, which also scrolls the strip. react-native-web's `ScrollView` scrolls its node with `node.scroll`, which jsdom does not implement, so the
+ * suite serves one and asserts the offset a press asks for.
  */
 import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render, rendersNothing, resolvedColour } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
 import type { Modal as ModalType } from 'react-native';
@@ -152,7 +158,7 @@ describe('PhotoCarousel (native)', () => {
     it('renders nothing when the recipe has no photos', () => {
         const { container } = render(<PhotoCarousel title="Grilled Lamb" photos={[]} />);
 
-        expect(container.firstChild).toBeNull();
+        expect(rendersNothing(container)).toBe(true);
     });
 
     it('draws no slide before it knows how wide its strip is', () => {
@@ -204,7 +210,8 @@ describe('PhotoCarousel (native)', () => {
         }
 
         // D15: the lightbox dims with the `scrim` role (the web leaf's `bg-scrim`), and its Close is a `paper` disc
-        // under an `ink` glyph; the dots are `lineDivider`. Each follows the device's scheme.
+        // under an `ink` glyph; the dots are `lineDivider`, except the current page's, which is `ink` (REWRITTEN IN SLICE 1:
+        // the dots track the page). Each follows the device's scheme.
         it.each(['light', 'dark'] as const)(
             'paints its scrim, Close and the dots from the roles (%s)',
             async (scheme) => {
@@ -215,10 +222,16 @@ describe('PhotoCarousel (native)', () => {
 
                 expect(getComputedStyle(close).backgroundColor).toBe(rgb(colours.paper));
                 expect(getComputedStyle(close.parentElement as Element).backgroundColor).toBe(colours.scrim);
-                expect(getComputedStyle(screen.getByText('×')).color).toBe(rgb(colours.ink));
+                // REWRITTEN: the close mark was a 24 px `×` text glyph (a hard-coded size, retired by the type-scale ruling); it is
+                // now the Registry's `x` Icon, so the colour is read off the icon the control draws.
+                expect(close.querySelector('[data-icon-name="x"]')?.getAttribute('data-icon-color')).toBe(colours.ink);
 
-                for (const dot of screen.getAllByLabelText(/^Go to Grilled Lamb photo/)) {
-                    expect(getComputedStyle(dot).backgroundColor).toBe(rgb(colours.lineDivider));
+                const [current, ...others] = screen.getAllByLabelText(/^Go to Grilled Lamb photo/);
+
+                expect(resolvedColour(current as Element, 'backgroundColor')).toBe(rgb(colours.ink));
+
+                for (const dot of others) {
+                    expect(resolvedColour(dot, 'backgroundColor')).toBe(rgb(colours.lineDivider));
                 }
             },
         );
@@ -260,5 +273,131 @@ describe('PhotoCarousel (native)', () => {
             expect(appliedStyle(box, 'padding-right')).toBe('48px');
             expect(appliedStyle(box, 'padding-bottom')).toBe('21px');
         });
+    });
+});
+
+describe('PhotoCarousel (native) — paging chevrons and tracking dots', () => {
+    const threePhotos = [...twoPhotos, makePhoto({ id: 'pho_3', order: 3 })];
+    const scroll = vi.fn();
+
+    /** Lay the strip out at 361 and serve the node scroll that jsdom lacks. */
+    function renderLaidOut(photos = threePhotos): void {
+        windowHeight(851);
+        Object.defineProperty(HTMLElement.prototype, 'scroll', { value: scroll, configurable: true, writable: true });
+        render(<PhotoCarousel title="Grilled Lamb" photos={photos} />);
+        layOutStrip(361);
+    }
+
+    /** The dot for photo `index` (1-based). */
+    const dot = (index: number): HTMLElement => screen.getByLabelText(`Go to Grilled Lamb photo ${index}`);
+
+    /** Settle a swipe on the strip at `x`: react-native-web reports a scroll of the strip's node, and a last one 100 ms after. */
+    function swipeTo(x: number): void {
+        const strip = screen.getByLabelText('Open Grilled Lamb photo 1 full screen').closest('[class*="r-overflowX"]');
+
+        act(() => {
+            fireEvent.scroll(strip as Element, { target: { scrollLeft: x } });
+        });
+        act(() => {
+            vi.advanceTimersByTime(200);
+        });
+    }
+
+    afterEach(() => {
+        scroll.mockReset();
+        Reflect.deleteProperty(HTMLElement.prototype, 'scroll');
+    });
+
+    it('draws no chevron before the strip is laid out, and none for a single photo', () => {
+        render(<PhotoCarousel title="Grilled Lamb" photos={threePhotos} />);
+
+        expect(screen.queryByRole('button', { name: /^(Next|Previous) Grilled Lamb photo$/u })).toBeNull();
+        cleanup();
+        renderLaidOut([makePhoto({ id: 'pho_1', order: 1 })]);
+
+        expect(screen.queryByRole('button', { name: 'Next Grilled Lamb photo' })).toBeNull();
+    });
+
+    it('opens on the first photo: Next is drawn, Previous is not, and the first dot is the current one', () => {
+        renderLaidOut();
+
+        expect(screen.getByRole('button', { name: 'Next Grilled Lamb photo' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Previous Grilled Lamb photo' })).toBeNull();
+        expect(dot(1).getAttribute('aria-selected')).toBe('true');
+        expect(dot(2).getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('scrolls the strip one slide on Next, and moves the dot with it', () => {
+        renderLaidOut();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+
+        expect(scroll).toHaveBeenCalledTimes(1);
+        expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ left: 361, behavior: 'smooth' }));
+        expect(dot(2).getAttribute('aria-selected')).toBe('true');
+        expect(dot(1).getAttribute('aria-selected')).toBe('false');
+        expect(screen.getByRole('button', { name: 'Previous Grilled Lamb photo' })).toBeTruthy();
+    });
+
+    it('scrolls back one slide on Previous', () => {
+        renderLaidOut();
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+        scroll.mockClear();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Previous Grilled Lamb photo' }));
+
+        expect(scroll).toHaveBeenCalledWith(expect.objectContaining({ left: 0 }));
+        expect(dot(1).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('draws no Next on the last photo and no Previous on the first', () => {
+        renderLaidOut();
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Next Grilled Lamb photo' }));
+
+        expect(screen.queryByRole('button', { name: 'Next Grilled Lamb photo' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Previous Grilled Lamb photo' })).toBeTruthy();
+        expect(dot(3).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('follows a swipe: the dot and the chevrons move to the page the strip settled on', () => {
+        renderLaidOut();
+
+        swipeTo(722);
+
+        expect(dot(3).getAttribute('aria-selected')).toBe('true');
+        expect(screen.queryByRole('button', { name: 'Next Grilled Lamb photo' })).toBeNull();
+    });
+
+    it('rounds a swipe that settles between two slides to the nearer one', () => {
+        renderLaidOut();
+
+        swipeTo(361 + 120);
+
+        expect(dot(2).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('rounds up a swipe that settles past the midpoint of a slide', () => {
+        renderLaidOut();
+
+        swipeTo(361 + 250);
+
+        expect(dot(3).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('stays on the last photo for a scroll past the end', () => {
+        renderLaidOut();
+
+        swipeTo(5000);
+
+        expect(dot(3).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('paints the current dot in ink and the others in the divider tone', () => {
+        renderLaidOut();
+        const colours = rolesFor('light');
+
+        expect(resolvedColour(dot(1), 'backgroundColor')).toBe(rgb(colours.ink));
+        expect(resolvedColour(dot(2), 'backgroundColor')).toBe(rgb(colours.lineDivider));
     });
 });

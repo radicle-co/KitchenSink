@@ -56,5 +56,5 @@ const styles = StyleSheet.create({
     line: { height: 12, borderRadius: nativeTokens.radius.sm },
     wide: { width: '66%' },
     narrow: { width: '33%' },
-    circle: { width: 28, height: 28, borderRadius: 14 },
+    circle: { width: 28, height: 28, borderRadius: nativeTokens.radius.full },
 });

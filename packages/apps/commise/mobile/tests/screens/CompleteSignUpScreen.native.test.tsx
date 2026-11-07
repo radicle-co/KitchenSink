@@ -8,7 +8,9 @@
  * field, any other failure in the alert, a status it cannot finish (reported), busy, and the way out.
  */
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+// The auth screens set their text with the design system's Tamagui `Text`, so they render in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useClerk } from '@clerk/expo';

@@ -1,78 +1,66 @@
 /**
- * U4 — THE LEXICAL TIER IN THE REAL CASCADE (plan U4 / KTD-A, KTD-C; R20).
+ * U4 — THE LEXICAL TIER IN THE REAL PROPOSAL CHAIN (plan U4; ADR-0070, ADR-0071), on a developer's machine.
  *
- * The unit suite (`resolution/__tests__/lexicalTier.test.ts`) proves the tier's judgement against a mocked
- * gateway. This is the tier that plan U4's Files list calls the "cascade integration test", and it exists
- * because four of the tier's load-bearing claims are STRUCTURALLY invisible to a mock:
+ * The unit suite (`resolution/__tests__/lexicalTier.test.ts`) proves the tier's judgement against a mocked gateway.
+ * This suite runs the tier where production runs it, the paste matcher's proposal chain, against a REAL migrated
+ * PostgreSQL, because three of its claims are invisible to a mock:
  *
- *  1. **Consultation order.** `['curated', 'lexical', 'memo']` is R11's PRECEDENCE, not an implementation
- *     detail. A mocked tier array asserts the array; only the real registry running against a real mapping
- *     row proves that a curated hit stops the chain before the catalog is ever searched — the "the call that
- *     does NOT happen" assertion `curatedResolution.integration.test.ts` established.
- *  2. **The KTD-C shortlist round-trips through JSONB.** The verification producer re-parses the stored
- *     `ScoredCandidate[]` with a zod schema and DOWNGRADES a line to `unattributed` when it does not parse
- *     (`verificationRequests.ts`). A unit test hands the producer an in-memory array and can never observe
- *     the column that actually feeds it.
- *  3. **`author_augmented` (R20) is a persisted column** added by migration 0040. A unit test cannot observe
- *     a migration that did not apply, and this flag is what excludes one user's private catalog from shared
- *     band statistics on BOTH sides.
- *  4. **The reach itself.** The cascade is consulted on the WRITE path (`addByName`) and nowhere else — the
- *     read route (`/search`) presents foods to a human who decides.
- *     Asserted here as a live fact about the shipped service rather than as a sentence in a docstring.
+ *  1. **Consultation order against a real mapping row.** `['curated', 'memo', 'lexical']` is the PRECEDENCE
+ *     (`resolutionRegistry.ts`). Only the real registry reading a real mapping row proves a curated answer is the
+ *     proposal while the catalog is still searched once beside it, for the candidates (ADR-0071 decision 5).
+ *  2. **The proposal round-trips through the real table.** The rung, the margin and the JSONB candidates are read back
+ *     from `recipe_parse_job_matches`, including a rung-less hit stored with no rung.
+ *  3. **The reach.** The cascade is consulted on the paste matcher and on by-name's settled chain, and nowhere else:
+ *     the read route (`/search`) presents foods to a human who decides, and admits nothing.
  *
- * The food service is stubbed at its client boundary — the one dependency 001 does not own — but the
- * GATEWAY above it is real, so the availability discipline (`ok` / `disabled` / degraded) under test is the
- * production one rather than a fixture's idea of it.
+ * ⚠️ Re-targeted (ADR-0071). This suite drove `IngredientsService.addByName` with the proposal chain injected and
+ * asserted the ranked resolution EVENT (its KTD-C shortlist through JSONB, and R20's `author_augmented`). By-name now
+ * runs the settled chain only, and that event write and its read were deleted as unreachable, so those two cases went
+ * with them. The tier's cases now assert the matcher's stored proposal instead.
  *
- * ⚠️ REWRITTEN (plan 002): a cascade hit is bound only after food's `refs/resolve` answer about the food (R51),
- * so the stub's golden record answers `resolveRefs` where it answered `getStatus`, and the read case asserts
- * that bind check never ran. Provenance events key on the BINDING (`food_lookups`) since migration 0051 and are
- * read with `latestResolutionsByLookupIds`. A phrase food is still working on is a FAILURE RECORD, not a
- * food-backed row, so the two fall-through cases assert food's handle on that record where they asserted the
- * returned `foodId`. The curator correction's surfacing is `row_rebind`, the store's one writer since plan 002 S6
- * deleted the correction route.
+ * The food service is stubbed at its client boundary; the GATEWAY above it is real, so the availability discipline
+ * (`ok` / `disabled` / degraded) under test is the production one.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi, type Mock } from 'vitest';
 import pg from 'pg';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
-import { queryShapeOf } from '@kitchensink/recipe-core/resolution/band-policy';
-import { RANKER_VERSION } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 import type { FoodRef, FoodServiceClient } from '@kitchensink/food-service-client';
 
 import type { Principal } from '../../../src/auth/principal.js';
+import { sha256Hex } from '../../../src/common/sha256.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import { FoodRefsGateway } from '../../../src/ingredients/foodRefs.gateway.js';
 import { CURATOR_MAPPING_SCOPE } from '../../../src/ingredients/domain/mappingScopePolicy.js';
 import { FoodCatalogGateway } from '../../../src/ingredients/foodCatalog.gateway.js';
+import { FoodRefsGateway } from '../../../src/ingredients/foodRefs.gateway.js';
 import { IngredientsService } from '../../../src/ingredients/ingredients.service.js';
-import { createCuratedTier } from '../../../src/ingredients/resolution/curatedTier.js';
-import { createLexicalTier } from '../../../src/ingredients/resolution/lexicalTier.js';
-import { createMemoTier } from '../../../src/ingredients/resolution/memoTier.js';
 import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import { MappingPromotionAudit } from '../../../src/ingredients/resolution/mappingPromotionAudit.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
 import { ResolutionMappingsService } from '../../../src/ingredients/resolution/resolutionMappings.service.js';
 import {
-    CALLER_TOKEN as CALLER,
-    makeCanonicalName,
-} from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
+    createBindingRegistry,
+    createProposalRegistry,
+} from '../../../src/ingredients/resolution/resolutionRegistry.js';
+import { CALLER_TOKEN as CALLER } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
+import { fakeVerificationQueue } from '../../../src/recipes/__fixtures__/verificationQueue.fixture.js';
+import { LineVerificationsDal } from '../../../src/recipes/dal/lineVerifications.dal.js';
+import { ParseJobMatchesDal } from '../../../src/recipes/dal/parseJobMatches.dal.js';
+import { ParseJobsDal } from '../../../src/recipes/dal/parseJobs.dal.js';
+import { DEFAULT_MATCH_PROPOSAL_LIMITS, MatchProposalService } from '../../../src/recipes/matchProposal.service.js';
 import { deleteBindingsMatching } from '../../support/bindingCleanup.js';
-import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
-import { makeFakeResolutionBandsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
-/** Every phrase this suite resolves shares this prefix, so cleanup is exact. */
+/** Every phrase this suite matches shares this prefix, so cleanup is exact. */
 const PREFIX = 'u4 lexical';
 
 const TOP_FOOD = '01JU4LEXICAL00000000000TOP';
 const RUNNER_FOOD = '01JU4LEXICAL0000000RUNNER1';
 const CURATED_FOOD = '01JU4LEXICAL000000CURATED1';
 const EGGPLANT_FOOD = '01JU4LEXICAL00000EGGPLANT1';
-const PRIVATE_FOOD = '01JU4LEXICAL000000PRIVATE1';
-const FALLTHROUGH_FOOD = '01JU4LEXICAL00000FALLTHRU1';
 
 const AUTHOR = '01JU4LEXICAL000000000AUTHR';
 const CURATOR = '01JU4LEXICAL00000000CURATR';
@@ -90,47 +78,70 @@ function principal(userId: string, scopes: string[] = []): Principal {
     };
 }
 
-/** One food-service search row, in the wire spelling the gateway narrows. */
-function searchRow(id: string, name: string, score: number, visibility?: 'private' | 'promoted') {
+/**
+ * One food-service search row, in the wire spelling the gateway narrows. A NAME hit carries the rung food ranked it on
+ * (ADR-0070); `rung: undefined` builds a crosswalk hit or an unknown rung, on purpose.
+ */
+function searchRow(
+    id: string,
+    name: string,
+    score: number,
+    options: { readonly rung?: 'head' | 'base' | undefined } = { rung: 'head' },
+) {
     return {
         id,
         name,
         score,
+        ...(options.rung === undefined ? {} : { rung: options.rung }),
         caloriesPer100g: 364,
         proteinGPer100g: 10.3,
-        ...(visibility === undefined ? {} : { visibility }),
     };
 }
 
-describe('U4 — the lexical tier inside the real cascade', () => {
+/** One stored match row, as the matcher wrote it. */
+interface StoredMatch {
+    readonly matched_by: string | null;
+    readonly food_id: string | null;
+    readonly rung: string | null;
+    readonly margin: number | null;
+    readonly candidates: readonly { kind: string; id: string; rung: string | null }[];
+}
+
+describe('U4 — the lexical tier inside the real proposal chain', () => {
     let pool: pg.Pool;
     let db: RecipeDrizzle;
     let mappings: ResolutionMappingsDal;
-    let resolutions: IngredientResolutionsDal;
     let corrections: ResolutionMappingsService;
     let foodClient: {
         search: ReturnType<typeof vi.fn>;
         addByName: ReturnType<typeof vi.fn>;
         resolveRefs: Mock<FoodServiceClient['resolveRefs']>;
     };
-    let ingredients: IngredientsService;
 
-    /** Build the service over a REAL gateway whose blend switch the test controls. */
-    function serviceWith(enabled: boolean): IngredientsService {
-        const clients = {
+    /** The food clients, all answering from the one stubbed client. */
+    const clients = (): never =>
+        ({
             standard: () => foodClient as unknown as FoodServiceClient,
             typeahead: () => foodClient as unknown as FoodServiceClient,
-        } as never;
-        const catalog = new FoodCatalogGateway(clients, { enabled });
+            readClient: () => foodClient as unknown as FoodServiceClient,
+            readDeadlineMs: () => 5_000,
+            typeaheadTimeoutMs: () => 600,
+        }) as never;
 
-        return new IngredientsService(
-            new FoodLookupsDal(db),
-            clients,
+    /** The matcher over the REAL registry, gateway and tables, with a blend switch the test controls. */
+    function matcherWith(enabled: boolean): MatchProposalService {
+        const catalog = new FoodCatalogGateway(clients(), { enabled });
+
+        return new MatchProposalService(
+            new ParseJobsDal(db, pool),
+            new ParseJobMatchesDal(db),
+            createProposalRegistry(mappings, catalog, { onUnrankedHits: () => undefined }),
             catalog,
-            new FoodRefsGateway(clients),
-            [createCuratedTier(mappings), createLexicalTier(catalog), createMemoTier(mappings)],
-            resolutions,
-            makeFakeResolutionBandsDal(),
+            new FoodRefsGateway(clients()),
+            fakeVerificationQueue(),
+            new LineVerificationsDal(db),
+            DEFAULT_MATCH_PROPOSAL_LIMITS,
+            () => undefined,
         );
     }
 
@@ -138,28 +149,18 @@ describe('U4 — the lexical tier inside the real cascade', () => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
         db = createRecipeDrizzle(pool);
         mappings = new ResolutionMappingsDal(db);
-        resolutions = new IngredientResolutionsDal(db);
         corrections = new ResolutionMappingsService(mappings, {
             recordPromotion: vi.fn(),
         } as unknown as MappingPromotionAudit);
 
         foodClient = { search: vi.fn(), addByName: vi.fn(), resolveRefs: vi.fn() };
-        ingredients = serviceWith(true);
     });
 
     afterEach(async () => {
-        // ⛔ RESET, not CLEAR. `clearAllMocks` forgets the CALLS and keeps the queued `mockResolvedValueOnce`
-        // implementations, so a spec whose reformulation retry did not fire would leave its second queued
-        // answer to be served to the NEXT spec — a mutation run caught exactly that cross-contamination, one
-        // failing assertion manufacturing a second, unrelated one.
+        // ⛔ RESET, not CLEAR: a queued `mockResolvedValueOnce` left behind would be served to the NEXT spec.
         vi.resetAllMocks();
-        await pool.query(
-            `DELETE FROM ingredient_resolution_mappings WHERE normalized_key LIKE $1 AND origin = 'corroboration'`,
-            [`${PREFIX}%`],
-        );
+        await pool.query('DELETE FROM recipe_parse_jobs WHERE owner_id = $1', [AUTHOR]);
         await pool.query('DELETE FROM ingredient_resolution_mappings WHERE normalized_key LIKE $1', [`${PREFIX}%`]);
-        // Resolution events cascade from their binding (0051), so deleting the bindings takes the events too: the
-        // phrases' failure records by name, the suite's foods by id (they share the `01JU4LEXICAL` prefix).
         await deleteBindingsMatching(pool, `${PREFIX}%`);
         await deleteBindingsMatching(pool, '01JU4LEXICAL%');
     });
@@ -168,144 +169,155 @@ describe('U4 — the lexical tier inside the real cascade', () => {
         await pool.end();
     });
 
-    /** Point the food client's `resolveRefs` at one RESOLVED golden record; any other food is `absent`. */
-    function goldenRecord(id: string, name: string, visibility?: 'private'): void {
+    /** Point `resolveRefs` at the given foods, each found and named; any other food is `absent`. */
+    function foodsFound(named: Record<string, string>): void {
         foodClient.resolveRefs.mockImplementation(async (refs: readonly FoodRef[]) => ({
             entries: refs.map((ref) =>
-                ref.id === id
-                    ? {
-                          outcome: 'found' as const,
-                          ref,
-                          name,
-                          status: FoodResolutionStatus.RESOLVED,
-                          ...(visibility === undefined ? {} : { visibility }),
-                      }
-                    : { outcome: 'absent' as const, ref },
+                named[ref.id] === undefined
+                    ? { outcome: 'absent' as const, ref }
+                    : { outcome: 'found' as const, ref, name: named[ref.id], status: FoodResolutionStatus.RESOLVED },
             ),
         }));
     }
 
-    /** Add the phrase by name, as the given user, through the REAL cascade. */
-    async function addByName(phrase: string, userId: string | undefined = AUTHOR) {
-        return ingredients.addByName(CALLER, makeCanonicalName(`${PREFIX} ${phrase}`), userId);
+    /** A live job with ONE parsed line naming `${PREFIX} ${phrase}`, as the worker would land it. */
+    async function pastedJob(phrase: string): Promise<string> {
+        const name = `${PREFIX} ${phrase}`;
+        const sourceLine = `2 cups ${name}`;
+        const job = await pool.query<{ id: string }>(
+            `INSERT INTO recipe_parse_jobs (owner_id, expires_at, status)
+             VALUES ($1, now() + interval '1 day', 'complete') RETURNING id`,
+            [AUTHOR],
+        );
+        const id = job.rows[0]?.id ?? '';
+        const proposal = {
+            raw: sourceLine,
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'cup',
+            statedMeasure: '2 cups',
+            foods: [{ name, prep: null }],
+            reviewReasons: [],
+        };
+
+        await pool.query(
+            `INSERT INTO recipe_parse_job_lines (job_id, line_index, source_line, line_digest, status, proposal)
+             VALUES ($1, 0, $2, $3, 'parsed', $4::jsonb)`,
+            [id, sourceLine, lineDigest(sourceLine, sha256Hex), JSON.stringify(proposal)],
+        );
+
+        return id;
     }
 
-    /** The persisted provenance event for an admitted ingredient. */
-    async function provenanceOf(ingredientId: string) {
-        return (await resolutions.latestResolutionsByLookupIds([ingredientId])).get(ingredientId);
+    /** Propose for a fresh one-line job and read back the row the matcher stored, if any. */
+    async function proposeFor(phrase: string, enabled = true): Promise<StoredMatch | undefined> {
+        const jobId = await pastedJob(phrase);
+
+        await matcherWith(enabled).propose(principal(AUTHOR), CALLER, jobId);
+
+        const rows = await pool.query<StoredMatch>(
+            `SELECT matched_by, food_id, rung, margin, candidates FROM recipe_parse_job_matches WHERE job_id = $1`,
+            [jobId],
+        );
+
+        return rows.rows[0];
     }
 
-    it('resolves from the ranked catalog and persists the FULL KTD-C provenance through JSONB', async () => {
+    it('proposes the ranked top hit, and its rung, margin and candidates round-trip through the real table', async () => {
         foodClient.search.mockResolvedValue({
             results: [
                 searchRow(TOP_FOOD, 'Flour, wheat, all-purpose', 0.91),
                 searchRow(RUNNER_FOOD, 'Carob flour', 0.62),
             ],
         });
-        goldenRecord(TOP_FOOD, 'Flour, wheat, all-purpose');
+        foodsFound({ [TOP_FOOD]: 'Flour, wheat, all-purpose', [RUNNER_FOOD]: 'Carob flour' });
 
-        const admitted = await addByName('flour');
+        const stored = await proposeFor('flour');
 
-        // The tier answered, so the expensive add-by-name path was never reached.
+        // A proposal binds nothing: food's add-by-name is never reached.
         expect(foodClient.addByName).not.toHaveBeenCalled();
-        expect(admitted.foodId).toBe(TOP_FOOD);
-
-        const event = await provenanceOf(admitted.id);
-
-        expect(event).toMatchObject({
-            tier: 'lexical',
-            rung: 'head',
-            queryShape: queryShapeOf(`${PREFIX} flour`),
-            rankerVersion: RANKER_VERSION,
-            authorAugmented: false,
-        });
-        // The measured margin, stored as numeric and read back as a number.
-        expect(event?.margin).toBeCloseTo(0.29, 5);
-        // ⛔ The shortlist the verification producer re-parses. Stored as JSONB, so this is the only tier
-        // that can prove the nutrient snapshot survives the round trip — the producer downgrades the whole
-        // line to `unattributed` when it does not.
-        expect(event?.shortlist).toEqual([
-            { foodId: TOP_FOOD, score: 0.91, energyKcalPer100g: 364, proteinGPer100g: 10.3 },
-            { foodId: RUNNER_FOOD, score: 0.62, energyKcalPer100g: 364, proteinGPer100g: 10.3 },
+        expect(stored).toMatchObject({ matched_by: 'lexical', food_id: TOP_FOOD, rung: 'head' });
+        expect(stored?.margin).toBeCloseTo(0.29, 5);
+        expect(stored?.candidates).toEqual([
+            { kind: 'root', id: TOP_FOOD, rung: 'head' },
+            { kind: 'root', id: RUNNER_FOOD, rung: 'head' },
         ]);
     });
 
-    it('⛔ a CURATED mapping stops the chain — the catalog is never searched (R11 precedence)', async () => {
+    it('⛔ a CROSSWALK top hit (score 1, no rung) is proposed with no rung, keeping its margin and candidates', async () => {
+        foodClient.search.mockResolvedValue({
+            results: [
+                searchRow(TOP_FOOD, 'Flour, wheat, all-purpose', 1, { rung: undefined }),
+                searchRow(RUNNER_FOOD, 'Carob flour', 0.62),
+            ],
+        });
+        foodsFound({ [TOP_FOOD]: 'Flour, wheat, all-purpose', [RUNNER_FOOD]: 'Carob flour' });
+
+        const stored = await proposeFor('crosswalk flour');
+
+        expect(stored).toMatchObject({ matched_by: 'lexical', food_id: TOP_FOOD, rung: null });
+        expect(stored?.margin).toBeCloseTo(0.38, 5);
+        expect(stored?.candidates[0]).toStrictEqual({ kind: 'root', id: TOP_FOOD, rung: null });
+    });
+
+    it('⛔ a CURATED mapping is the proposal (R11 precedence), and the catalog is searched once beside it', async () => {
         await corrections.recordCorrection({
             principal: principal(CURATOR, [CURATOR_MAPPING_SCOPE]),
             phrase: `${PREFIX} plain flour`,
             food: { kind: 'root', id: CURATED_FOOD },
             surfacing: 'row_rebind',
         });
-        goldenRecord(CURATED_FOOD, 'Flour, wheat, all-purpose');
         foodClient.search.mockResolvedValue({ results: [searchRow(TOP_FOOD, 'Flour, wheat, all-purpose', 0.99)] });
+        foodsFound({ [CURATED_FOOD]: 'Flour, wheat, all-purpose', [TOP_FOOD]: 'Flour, wheat, bread' });
 
-        const admitted = await addByName('plain flour');
+        const stored = await proposeFor('plain flour');
 
-        // The call that does NOT happen is the requirement: tier 1 answered, so tier 2 was never consulted.
-        expect(foodClient.search).not.toHaveBeenCalled();
-        expect(admitted.foodId).toBe(CURATED_FOOD);
-        expect(await provenanceOf(admitted.id)).toMatchObject({ tier: 'curated', rung: null });
+        expect(stored).toMatchObject({ matched_by: 'curated', food_id: CURATED_FOOD });
+        // The shortlist runs for every proposal (ADR-0071 decision 5): it supplies the candidates and the default.
+        expect(foodClient.search).toHaveBeenCalledTimes(1);
+        expect(stored?.candidates.map((candidate) => candidate.id)).toStrictEqual([CURATED_FOOD, TOP_FOOD]);
     });
 
-    it('an EMPTY catalog passes and the add falls through to the food service — never a false bind', async () => {
+    it('an EMPTY catalog stores a no-match row — a deterministic answer, never a false proposal', async () => {
         foodClient.search.mockResolvedValue({ results: [] });
-        foodClient.addByName.mockResolvedValue({ id: FALLTHROUGH_FOOD, status: FoodResolutionStatus.PENDING });
 
-        const admitted = await addByName('blorvik');
+        const stored = await proposeFor('blorvik');
 
-        expect(foodClient.addByName).toHaveBeenCalledTimes(1);
-        expect(admitted.foodResolutionStatus).toBe(FoodResolutionStatus.PENDING);
-        expect((await readFailureRecord(pool, admitted.id))?.foodHandleId).toBe(FALLTHROUGH_FOOD);
-        // A tier that PASSED records nothing: absence is what the producer reads as `unattributed`.
-        expect(await provenanceOf(admitted.id)).toBeUndefined();
+        expect(stored).toMatchObject({ matched_by: null, food_id: null, candidates: [] });
+        expect(foodClient.addByName).not.toHaveBeenCalled();
     });
 
-    it('the synonym reformulation retries ONCE and the resolution says so (origin D11)', async () => {
+    it('the synonym reformulation retries ONCE, and the retried hit is the proposal (origin D11)', async () => {
         foodClient.search
             .mockResolvedValueOnce({ results: [] })
             .mockResolvedValueOnce({ results: [searchRow(EGGPLANT_FOOD, 'Eggplant, raw', 0.9)] });
-        goldenRecord(EGGPLANT_FOOD, 'Eggplant, raw');
+        foodsFound({ [EGGPLANT_FOOD]: 'Eggplant, raw' });
 
-        const admitted = await addByName('aubergine');
+        const stored = await proposeFor('aubergine');
 
         expect(foodClient.search).toHaveBeenCalledTimes(2);
-        expect(foodClient.addByName).not.toHaveBeenCalled();
-        expect(admitted.foodId).toBe(EGGPLANT_FOOD);
-        expect(await provenanceOf(admitted.id)).toMatchObject({ tier: 'lexical' });
+        expect(stored).toMatchObject({ matched_by: 'lexical', food_id: EGGPLANT_FOOD });
     });
 
-    it('R20 — a hit that is the CALLER’s own private food flags the resolution author-augmented', async () => {
-        foodClient.search.mockResolvedValue({
-            results: [
-                searchRow(PRIVATE_FOOD, 'Gran’s pie filling', 0.95, 'private'),
-                searchRow(TOP_FOOD, 'Pie filling, canned', 0.4),
-            ],
-        });
-        goldenRecord(PRIVATE_FOOD, 'Gran’s pie filling', 'private');
-
-        const admitted = await addByName('grans pie filling');
-        const event = await provenanceOf(admitted.id);
-
-        expect(admitted.foodId).toBe(PRIVATE_FOOD);
-        // The flag rides the persisted column added by 0040 — it is what excludes one user's private catalog
-        // from shared band statistics, so no band epoch is observed for it either.
-        expect(event).toMatchObject({ tier: 'lexical', authorAugmented: true, bandEpoch: null });
-    });
-
-    it('⛔ a DISABLED blend passes quietly and the add falls through — an operator switch is not an outage', async () => {
-        const disabled = serviceWith(false);
-
-        foodClient.addByName.mockResolvedValue({ id: FALLTHROUGH_FOOD, status: FoodResolutionStatus.PENDING });
-
-        const admitted = await disabled.addByName(CALLER, makeCanonicalName(`${PREFIX} switched off`), AUTHOR);
+    it('⛔ a DISABLED blend stores NOTHING and searches nothing — a no-match then would stick', async () => {
+        const stored = await proposeFor('switched off', false);
 
         expect(foodClient.search).not.toHaveBeenCalled();
-        expect((await readFailureRecord(pool, admitted.id))?.foodHandleId).toBe(FALLTHROUGH_FOOD);
+        expect(stored).toBeUndefined();
     });
 
     it('⛔ THE CASCADE IS THE WRITE PATH’S — the filter search resolves nothing and admits nothing', async () => {
-        // Ran on the blended `/suggest` typeahead until plan 002 S6 deleted it; `/search` is the read left.
+        // Ran on the blended `/suggest` typeahead until plan 002 S6 deleted it; `/search` is the read left. Built as
+        // production builds by-name: the settled chain.
+        const catalog = new FoodCatalogGateway(clients(), { enabled: true });
+        const ingredients = new IngredientsService(
+            new FoodLookupsDal(db),
+            clients(),
+            catalog,
+            new FoodRefsGateway(clients()),
+            createBindingRegistry(mappings),
+            new IngredientResolutionsDal(db),
+        );
+
         foodClient.search.mockResolvedValue({ results: [searchRow(TOP_FOOD, 'Flour, wheat, all-purpose', 0.91)] });
 
         const found = await ingredients.search(CALLER, `${PREFIX} flour`, AUTHOR, 5);

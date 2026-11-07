@@ -42,6 +42,17 @@ export const recipeVisibilitySchema = z.enum([RecipeVisibility.PUBLIC, RecipeVis
 
 /**
  * Allowed recipe source types.
+ *
+ * A source type says how a recipe entered Commise. It is NOT a rights label and does not decide who can read the
+ * recipe's words: `016-FR-015d` derives the label, and the label decides what opens to the web (`021-FR-002`,
+ * amended 2026-11-03, owner rulings, ADR-0082).
+ *
+ * - `imported_public` means "copied from a publicly reachable page". That page is fully protected, the opposite of
+ *   public domain. Its public form is a linked card, facts only (`021-FR-014a`). Public domain text under the curator
+ *   grant is also this type, and opens only with a passing record (`021-FR-006`).
+ * - `imported_physical` and `imported_paid` are the usual channels for a verbatim copy from a cookbook, magazine or
+ *   paid site (`016-FR-015c` label 4). That copy stays private in full, and its public form is a book card, facts only
+ *   (`021-FR-004`). A photographed family card is also `imported_physical`, and its own label decides what opens.
  */
 export const RecipeSourceType = {
     USER_CREATED: 'user_created',
@@ -190,7 +201,11 @@ export interface Recipe {
  * The only premium-gated recipe capability today is CHOOSING private visibility. Note this is
  * deliberately NOT `visibility === 'private'`: per C-004, `imported_physical` and `imported_paid`
  * recipes are private for EVERY tier (their privacy is forced, not chosen), so badging them PRO would
- * mark a free-tier user's OCR import as premium content. That is latent today — 004 has not shipped,
+ * mark a free-tier user's OCR import as premium content.
+ *
+ * STALE NOTE (2026-11-03, ADR-0082): `001-FR-003a` now says no recipe uses a premium-only capability, and a book or
+ * paid-site recipe can be public as a book card (`021-FR-004`). This design artifact's body is not updated here. The
+ * shipped derivation lives in `@kitchensink/recipe-core` and is a code follow-up. That is latent today — 004 has not shipped,
  * so every row is `user_created` — which is exactly why it is encoded correctly now, while the rule
  * costs nothing to get right.
  *

@@ -27,12 +27,12 @@ import { useClerk, useSignUp } from '@clerk/expo';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import { authSurfaceMessages } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import type { JSX } from 'react';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 import { authFailureCopy, authFailureMessage } from '../auth/authFailureMessage.js';
@@ -63,7 +63,6 @@ export interface SignUpScreenProps {
 export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.Element {
     const { auth: t } = useMessages(mobileMessages);
     const shared = useMessages(authSurfaceMessages);
-    const { colors } = useTheme();
     const { setActive } = useClerk();
     const { signUp } = useSignUp();
     const [values, setValues] = useState<SignUpValues>({});
@@ -333,7 +332,9 @@ export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.
                             onSubmit={() => void handleSignUp()}
                         />
                         {fieldErrors.password === undefined ? null : (
-                            <Text style={[styles.error, { color: colors.dangerText }]}>{fieldErrors.password}</Text>
+                            <Text typeRole="meta" color="$dangerText">
+                                {fieldErrors.password}
+                            </Text>
                         )}
                     </View>
                 </View>
@@ -354,5 +355,4 @@ const styles = StyleSheet.create({
     // A label and its field are one group: closer to each other than to the next field (spec §1.6).
     field: { gap: nativeTokens.spacing[1] },
     fields: { gap: nativeTokens.spacing[3] },
-    error: { ...nativeTokens.type.meta },
 });

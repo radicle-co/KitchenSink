@@ -8,7 +8,7 @@
  * A statement, not a one-card radio group: a group with one option is not a choice, and a disabled Private card would
  * itself be an upsell. Whether a recipe is public is still a fact the cook needs before publishing, so it is said.
  *
- * It says, too, when a kept draft's Private will not be kept (`privateUnavailable`). And when it replaces the field the
+ * When it replaces the field the
  * cook just used to confirm Public (`focusOnMount`, UX SPECIFY 2026-10-15), it takes the focus the unmounted radio had,
  * so the keyboard is not dropped to the top of the page (WCAG 2.4.3) — only when focus is lost (`focusIfLost`).
  *
@@ -25,7 +25,7 @@ import { editorMessages } from '../editor/messages.js';
 import type { RecipeVisibilityStatementProps } from './props.js';
 
 /** "Who can see it: Public". */
-export const RecipeVisibilityStatement: FC<RecipeVisibilityStatementProps> = ({ privateUnavailable, focusOnMount }) => {
+export const RecipeVisibilityStatement: FC<RecipeVisibilityStatementProps> = ({ focusOnMount }) => {
     const { visibility: v } = useMessages(editorMessages);
     // Stable, so React attaches it once per mount rather than on every render.
     const takeFocus = useCallback((node: HTMLDivElement | null) => focusIfLost(node), []);
@@ -35,7 +35,6 @@ export const RecipeVisibilityStatement: FC<RecipeVisibilityStatementProps> = ({ 
             <span className="text-label text-ink-muted">{v.legend}</span>
             <span className="text-body font-semibold text-ink">{v.public}</span>
             <span className="text-meta text-ink-muted">{v.publicHint}</span>
-            {privateUnavailable ? <span className="text-meta text-ink-muted">{v.privateUnavailable}</span> : null}
         </div>
     );
 };

@@ -16,8 +16,8 @@
  *
  * The lesson is the one `natEgressConsumers.test.ts` and `listenerPriority.ts` already record in this repo:
  * a precedence written down in prose, or a list copied into a test, cannot detect that the thing it
- * describes has changed. So everything below is DERIVED from {@link createResolutionRegistry}'s actual
- * output and from {@link RESOLUTION_TIER_IDS}, and the probe table is keyed by the tier-id union so a tier
+ * describes has changed. So everything below is DERIVED from the two registries' actual output
+ * (`createBindingRegistry`, `createProposalRegistry`; ADR-0071) and from {@link RESOLUTION_TIER_IDS}, and the probe table is keyed by the tier-id union so a tier
  * that ships without a way to reach it is a COMPILE error before it is a test failure.
  *
  * ## The properties, and what each one alone would miss
@@ -47,7 +47,7 @@ import { normalizedIngredientKey } from '@kitchensink/recipe-core/resolution/nor
 
 import type { CatalogHit, FoodCatalogGateway } from '../../foodCatalog.gateway.js';
 import type { MappingInForce, MemoHit, ResolutionMappingsDal } from '../resolutionMappings.dal.js';
-import { createResolutionRegistry } from '../resolutionRegistry.js';
+import { createBindingRegistry, createProposalRegistry } from '../resolutionRegistry.js';
 import {
     RESOLUTION_TIER_IDS,
     evidenceClassOf,
@@ -56,13 +56,14 @@ import {
     runResolutionCascade,
     type CascadeObservers,
     type ResolutionQuery,
+    type ResolutionTier,
     type ResolutionTierId,
 } from '../resolutionCascade.js';
 
 /** The phrase every probe answers for. Deliberately synonym-free, so no reformulation retry is in play. */
 const PHRASE = 'plain flour';
 const QUERY: ResolutionQuery = { key: normalizedIngredientKey(PHRASE)!, phrase: PHRASE };
-const CONTEXT = { userId: '01JU10GUARD000000000AUTHOR', caller: undefined } as const;
+const CONTEXT = { userId: '01JU10GUARD000000000AUTHOR', caller: undefined, signal: undefined } as const;
 
 /** A distinct food per tier, so the answer names WHICH evidence was believed and not merely that one was. */
 const CURATED_FOOD = '01JU10GUARD000000CURATEDFD';
@@ -159,7 +160,22 @@ const OBSERVERS: CascadeObservers = {
     },
 };
 
-describe('the resolution registry', () => {
+/**
+ * The two chains production builds (ADR-0071), each held to every property below. A chain is a Registry, so the guard
+ * reads the array each factory actually returns.
+ */
+const REGISTRIES: readonly (readonly [
+    string,
+    (mappings: ResolutionMappingsDal, catalog: FoodCatalogGateway) => readonly ResolutionTier[],
+])[] = [
+    ['the BINDING registry (by-name)', (mappings) => createBindingRegistry(mappings)],
+    [
+        'the PROPOSAL registry (paste matches)',
+        (mappings, catalog) => createProposalRegistry(mappings, catalog, { onUnrankedHits: () => undefined }),
+    ],
+];
+
+describe.each(REGISTRIES)('%s', (_name, createRegistry) => {
     /** Mutated per case; the doubles read it at call time so ONE registry serves every world. */
     let world: EvidenceWorld = EMPTY_WORLD;
 
@@ -172,17 +188,17 @@ describe('the resolution registry', () => {
     } as unknown as FoodCatalogGateway;
 
     /** THE SUBJECT: the registry production wires, not a re-listing of it. */
-    const registry = createResolutionRegistry(mappings, catalog);
+    const registry = createRegistry(mappings, catalog);
     const registeredIds = registry.map((tier) => tier.id);
 
     beforeEach(() => {
         world = EMPTY_WORLD;
     });
 
-    it('probes exactly the tiers it registers, in both directions', () => {
-        // An unprobed registered tier is an untested tier; a probe for an unregistered tier asserts against a
-        // chain that does not exist. Set equality is the only form that catches both.
-        expect([...registeredIds].sort()).toEqual([...PROBED_TIER_IDS].sort());
+    it('probes every tier it registers', () => {
+        // An unprobed registered tier is an untested tier. The other direction is the proposal chain's own case below,
+        // because the binding chain deliberately registers fewer tiers than the probe table holds.
+        expect(registeredIds.filter((id) => !PROBED_TIER_IDS.includes(id))).toEqual([]);
     });
 
     it('registers no tier that has no chain evidence class', () => {
@@ -242,15 +258,19 @@ describe('the resolution registry', () => {
     });
 
     it('⛔ answers from a NEAR memo NOWHERE in the chain — the safety condition this order ships under', async () => {
+        if (!registeredIds.includes('lexical')) {
+            // The binding chain has no tier to fall through to; the next case covers it.
+            return;
+        }
+
         // ⚠️ THE COUNTERPART OF THE REORDER, asserted at the CHAIN level rather than only on `decideMemoTier`,
         // because it is a property of the whole chain that must survive a future tier being added.
         //
         // `verifiedBy` is a fact about the STORED key, so a k-NN hit is an identity nobody agreed for the
-        // phrase being asked about. Downstream, `pendingStateOf` withholds only `tier === 'lexical'` and
-        // `pendingRedrives` covers only `ranked` evidence — so a near memo that RESOLVED would publish
-        // immediately, counted and un-redriveable. Before the reorder that needed an empty catalog and was
-        // nearly unreachable; after it, it would be the common path. The chain must fall through to a tier
-        // whose binds are WITHHELD, which is what this asserts.
+        // phrase being asked about. A near memo that RESOLVED would be proposed as a `confident` remembered match
+        // (ADR-0071). Before the reorder that needed an empty catalog and was nearly unreachable; after it, it would
+        // be the common path. The chain must fall through to the lexical tier, whose proposal binds nothing and is
+        // reviewed, which is what this asserts.
         world = {
             ...worldWith(['lexical']),
             memo: { food: { kind: 'root', id: MEMO_FOOD }, match: 'near', similarity: 0.72 },
@@ -271,5 +291,42 @@ describe('the resolution registry', () => {
         const outcome = await runResolutionCascade(registry, QUERY, CONTEXT, OBSERVERS);
 
         expect(outcome.kind).toBe('exhausted');
+    });
+});
+
+describe('the BINDING registry binds nothing on catalog ranking alone (ADR-0071)', () => {
+    let world: EvidenceWorld = EMPTY_WORLD;
+    const mappings = {
+        findInForce: async () => world.curated,
+        findMemo: async () => world.memo,
+    } as unknown as ResolutionMappingsDal;
+    const registry = createBindingRegistry(mappings);
+
+    beforeEach(() => {
+        world = EMPTY_WORLD;
+    });
+
+    it('registers no tier whose evidence is catalog ranking', () => {
+        // A lexical top hit has zero authority (KTD-A). The by-name path binds, so a top hit there published
+        // "milk → milk crackers" for every cook who typed "milk". Only settled evidence may bind.
+        expect(registry.map((tier) => evidenceClassOf(tier.id))).not.toContain('catalog-ranking');
+    });
+
+    it('⛔ EXHAUSTS when the catalog alone holds a candidate — the lexical top hit is never bound', async () => {
+        world = worldWith(['lexical']);
+
+        const outcome = await runResolutionCascade(registry, QUERY, CONTEXT, OBSERVERS);
+
+        expect(outcome.kind).toBe('exhausted');
+    });
+});
+
+describe('the PROPOSAL registry holds the whole chain', () => {
+    it('registers exactly the probed tiers, in both directions', () => {
+        const registry = createProposalRegistry({} as ResolutionMappingsDal, {} as FoodCatalogGateway, {
+            onUnrankedHits: () => undefined,
+        });
+
+        expect(registry.map((tier) => tier.id).sort()).toEqual([...PROBED_TIER_IDS].sort());
     });
 });

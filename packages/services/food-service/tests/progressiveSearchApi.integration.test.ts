@@ -48,7 +48,7 @@ import { RollingWindowLimiter } from '../src/sources/RollingWindowLimiter.js';
 import { SearchServiceRemoteSearch } from '../src/sources/remote/SearchServiceRemoteSearch.js';
 import { countingLedger, type LedgerCall } from './support/countingLedger.js';
 import { bootMockedFoodsApi, principalFor, type MockedFoodsApi } from './support/mockedFoodsApi.js';
-import { startSearchEdgeStandIn, type SearchEdgeStandIn } from './support/searchEdgeStandIn.js';
+import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '@kitchensink/remote-search-edge/edge';
 import { searchFunctionDouble } from './support/searchFunctionDouble.js';
 import { fakeSourceBudget, type FakeSourceBudget } from './support/sourceBudgetFake.js';
 
@@ -306,6 +306,14 @@ describe('GET /api/v1/foods/search/progressive — the answer', () => {
 
         expect(picked.status).toBe(200);
         expect(picked.body).toStrictEqual({ id: 'R-new' });
+    });
+
+    it('shows a Branded name in capitals as the catalog writes names, lowercase (naming rule 14)', async () => {
+        origin.mode = { kind: 'found', items: [{ externalKey: '900002', name: 'KALE CHIPS', lineageKey: null }] };
+
+        const frames = await framesOf(await open('query=kale', 'author'));
+
+        expect(frames[1]).toMatchObject({ type: 'source', outcome: 'answered', items: [{ name: 'kale chips' }] });
     });
 
     it('⛔ hides a hit whose name a catalog root holding a record carries, and records it as a gap (R66)', async () => {

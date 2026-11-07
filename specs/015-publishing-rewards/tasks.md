@@ -17,7 +17,7 @@
 - [ ] A001 — Land 016 Legal Compliance Framework: ToS content licence granting display + clone rights
       Paths: unknown
       Size: XL
-      Blocks: NOTHING in 015 newly — the licence gap is pre-existing (001-FR-004 public read and 001-FR-005 clone already ship). 015 amplifies it via inducement rather than creating it. Sequence for the product's sake, not as a 015 gate.
+      Blocks: NOTHING in 015 newly — the licence gap is pre-existing (001-FR-004 public read and 001-FR-005 clone already ship). 015 adds only a low inducement risk (amended 2026-11-03, ADR-0082) and does not create the gap. Sequence for the product's sake, not as a 015 gate.
 - [ ] A002 — Land 016's registered DMCA agent + repeat-infringer policy (D24)
       Paths: unknown
       Size: L
@@ -81,7 +81,14 @@
 
 ---
 
-## Group D — The C-004 amendment (D4a — sequence FIRST, behind a flag)
+## Group D — The C-004 amendment (D4a — now delivered by ADR-0073, outside 015)
+
+> ⚠️ **Owner ruling, 2026-10-26.** [ADR-0073](../../docs/architecture/decisions/0073-free-tier-private-slots.md)
+> builds this group now, with a base of 50 slots and no flag. Its "Code owed" list is the authority, and it
+> differs from these tasks in three ways. `imported_physical` and `imported_paid` are slot-bound too. The real call
+> sites are `create`, `setVisibility`, `clone` and the bulk import save; `update` never changes visibility. TC034's
+> "clone and import behaviour unchanged" no longer holds, because a clone that lands private now takes the slot
+> check. When 015 resumes, its part here is only to add earned slots to the limit.
 
 - [ ] TC030 — Unit tests: C-004 matrix re-asserted with the new `hasAvailablePrivateSlot` input; free+slot→private ALLOWED, free+no-slot→DENIED, premium unchanged
       Paths: packages/services/recipe-service/src/recipes/domain/**tests**/visibilityPolicy.test.ts

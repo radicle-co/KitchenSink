@@ -9,9 +9,10 @@
  * Mutation lens: point the body role at a CSS stack, at another weight's face, or add a `fontWeight`, and a row fails.
  */
 import { nativeTokens } from '@commise/ui/native';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it } from 'vitest';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

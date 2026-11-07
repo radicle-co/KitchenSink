@@ -55,10 +55,11 @@ describe('useRecipeListPresentation', () => {
         expect(result.current).toEqual({ viewMode: 'list', variant: 'row', chipOverflow: 'scroll' });
     });
 
+    // REWRITTEN (designer, 2026-11-02): this width is narrow, where the library's grid is the compact tile (two to a row).
     it('honours the cook’s stored choice over the width’s default', () => {
         const { result } = renderHook(() => useRecipeListPresentation('grid'));
 
-        expect(result.current).toEqual({ viewMode: 'grid', variant: 'grid', chipOverflow: 'scroll' });
+        expect(result.current).toEqual({ viewMode: 'grid', variant: 'compact', chipOverflow: 'scroll' });
     });
 });
 

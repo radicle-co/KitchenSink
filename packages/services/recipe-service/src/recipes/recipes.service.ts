@@ -12,13 +12,14 @@
  * Ownership is ALWAYS the app-user ULID, never the Clerk `sub` (D2 / REQ-IF-007).
  */
 import * as Sentry from '@sentry/nestjs';
-import { createHash } from 'node:crypto';
-import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { quantitiesEqual, type RecipeSnapshot, type VersionConflictSide } from '@kitchensink/recipe-core';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    verifiedLineIdentityOfMessage,
+    type VerifyIngredientLineMessage,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 import { PROVISIONAL_VERIFICATION_THRESHOLDS } from '@kitchensink/recipe-core/resolution/verification-gate-policy';
-import { bandKeyText } from '@kitchensink/recipe-core/resolution/band-authority-store';
-import { shadowRateFor } from '@kitchensink/recipe-core/resolution/band-policy';
 import {
     RecipeSourceType,
     RecipeStatus,
@@ -37,14 +38,24 @@ import { userNutritionFromColumns } from './dal/userNutritionColumns.js';
 import {
     invalidVisibility,
     notOwner,
+    privateSlotsFull,
     provenanceNotPermitted,
     publishRequirementsUnmet,
     recipeNotFound,
     versionConflict,
 } from './recipe.error.js';
+import type { PrivateSlotUsage } from './recipes.schema.js';
 import { evaluateProvenance } from './domain/provenancePolicy.js';
 import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
-import { defaultCloneVisibility, evaluateVisibility } from './domain/visibilityPolicy.js';
+import {
+    SLOT_NOT_NEEDED,
+    privateSlotAllowanceOf,
+    privateSlotStandingOf,
+    requiresPrivateSlotCheck,
+    slotRuleApplies,
+    type PrivateSlotStanding,
+} from './domain/privateSlotPolicy.js';
+import { defaultCloneVisibility, evaluateVisibility, type VisibilityPolicyInput } from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
@@ -53,17 +64,9 @@ import { toRecipeSummaryResponse } from './mappers/recipeResponse.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
 import { carryForwardTranscription } from './domain/transcriptionCarryForward.js';
-import {
-    buildVerificationRequests,
-    type VerifiableLine,
-    bandKeyOf,
-    type BandConsultation,
-} from './domain/verificationRequests.js';
-import { IngredientResolutionsDal } from '../ingredients/resolution/ingredientResolutions.dal.js';
-import type { LatestResolution } from '../ingredients/resolution/ingredientResolutions.dal.js';
-import { ResolutionBandsDal } from '../ingredients/resolution/resolutionBands.dal.js';
-import { VerificationRedriveDal } from '../ingredients/resolution/verificationRedrive.dal.js';
+import { buildVerificationRequests, type VerifiableLine } from './domain/verificationRequests.js';
 import { VERIFICATION_QUEUE, type VerificationQueuePort } from './verification.queue.js';
+import { withoutVerdictsOnRecord } from './verdictDedup.js';
 import type { UpdateRecipeDto } from './dto/updateRecipe.dto.js';
 import type { ListRecipesQueryDto } from './dto/listRecipes.query.dto.js';
 import type { PaginatedRecipesResponse, RecipeResponse } from './dto/recipeResponse.dto.js';
@@ -82,7 +85,14 @@ import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { resolveByline, type Byline } from '../authors/domain/bylinePolicy.js';
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { NutritionReadBudget } from '../ingredients/foodNutrition.gateway.js';
-import { RECIPES_DAL, RECIPES_SHADOW_RNG, RECIPE_PHOTOS_CDN_URL, RECIPE_RATINGS_DAL } from './recipes.tokens.js';
+import {
+    RECIPES_DAL,
+    RECIPE_LINE_VERIFICATIONS_DAL,
+    RECIPE_PHOTOS_CDN_URL,
+    RECIPE_RATINGS_DAL,
+} from './recipes.tokens.js';
+import type { LineVerificationsDal } from './dal/lineVerifications.dal.js';
+import { sha256Hex } from '../common/sha256.js';
 import { RecipeDetailAssembler } from './recipeDetail.assembler.js';
 import { IngredientLinePlanner } from './ingredientLine.planner.js';
 import { ingredientNamesText } from './domain/ingredientNamesText.js';
@@ -113,11 +123,7 @@ type LineIdentities = ReadonlyMap<string, IngredientLineIdentity>;
  * @param resolutions - The latest resolution events, by lookup id.
  * @returns The verifiable projection. Pure.
  */
-function storedLineToVerifiable(
-    row: IngredientRow,
-    identities: LineIdentities,
-    resolutions: ReadonlyMap<string, LatestResolution>,
-): VerifiableLine {
+function storedLineToVerifiable(row: IngredientRow, identities: LineIdentities): VerifiableLine {
     const identity = identities.get(row.foodLookupId);
     const name = identity?.name;
 
@@ -136,8 +142,6 @@ function storedLineToVerifiable(
         // adapter, and never omitted: a projection that dropped it would key the resulting verdict the pre-0027
         // way, so the corrected line could never find it.
         statedMeasure: statedMeasureFromColumns(row),
-        // U2/U4: the latest recorded resolution EVENT for this line's binding — absence maps to `unattributed`.
-        resolution: resolutions.get(row.foodLookupId),
         // U11 (0040): whether this line's food is someone's PRIVATE authored one. Rides to the worker as the
         // message's `privateFood` — no memo write, no band observation for a food only its author sees. The owner
         // is on the binding, so this can no longer fail to be read.
@@ -381,6 +385,74 @@ function bylineColumnsOf(byline: Byline): { authorDisplayName?: string; authorUs
     };
 }
 
+/**
+ * The refusal of a move to private for want of a slot (ADR-0073), with the count and the limit the cook is told. Pure.
+ *
+ * ONE place builds it: `create`, `setVisibility` and `clone` all end here, so the three cannot word it differently.
+ */
+function slotsFullError(standing: Extract<PrivateSlotStanding, { hasAvailablePrivateSlot: false }>): Error {
+    return privateSlotsFull(standing.used, standing.limit);
+}
+
+/**
+ * Judge a visibility request against the cook's standing and throw its refusal.
+ *
+ * The policy's slot fact is DERIVED from `standing` here, never passed beside it: two facts that must agree could be built
+ * to disagree. Three denials, three answers: a contained test principal's publish is a 403 of its own (ADR-0040), a full
+ * set of private slots is the 403 `PRIVATE_SLOTS_FULL` carrying `used` and `limit` (ADR-0073), and any other C-004 refusal
+ * is the 400 `INVALID_VISIBILITY`.
+ *
+ * @param ask - The request, without the slot fact.
+ * @param standing - The cook's standing, read under the per-user lock where a slot matters.
+ * @throws {HttpException} The refusal, when the policy denies.
+ */
+function assertVisibilityAllowed(
+    ask: Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'>,
+    standing: PrivateSlotStanding,
+): void {
+    const decision = evaluateVisibility({ ...ask, hasAvailablePrivateSlot: standing.hasAvailablePrivateSlot });
+
+    if (decision.allowed) {
+        return;
+    }
+
+    if (decision.denial === 'contained') {
+        throw testPrincipalContained(decision.reason);
+    }
+
+    // The policy denies for want of a slot only when the standing it was handed has none, so `used` is there to state.
+    if (decision.denial === 'privateSlots' && !standing.hasAvailablePrivateSlot) {
+        throw slotsFullError(standing);
+    }
+
+    throw invalidVisibility(decision.reason, { visibility: ask.requested, sourceType: ask.sourceType });
+}
+
+/**
+ * The C-004 question for a recipe asking to hold `requested`, without the slot fact. Pure.
+ *
+ * The one place that builds it, so create, update (publishing a private draft) and set-visibility cannot disagree about
+ * which fields the policy is asked with.
+ *
+ * @param principal - The verified caller.
+ * @param recipe - The recipe's provenance label and whether it carries a substantive edit once the write lands.
+ * @param requested - The visibility asked for.
+ */
+function visibilityAskOf(
+    principal: Principal,
+    recipe: { readonly sourceType: RecipeSourceType; readonly hasSubstantiveEdit: boolean },
+    requested: RecipeVisibility,
+): Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> {
+    return {
+        principalKind: principal.principalKind,
+        containment: principal.containment,
+        sourceType: recipe.sourceType,
+        isPremium: isPremiumPrincipal(principal),
+        hasSubstantiveEdit: recipe.hasSubstantiveEdit,
+        requested,
+    };
+}
+
 @Injectable()
 export class RecipesService {
     public constructor(
@@ -411,31 +483,19 @@ export class RecipesService {
         // gate's consumer with nothing sending it a message, and a collaborator that defaults to a no-op is
         // how that state comes back — silently, past a green suite. Every construction site must name it.
         @Inject(VERIFICATION_QUEUE) private readonly verificationQueue: VerificationQueuePort,
-        // U2 — REQUIRED, for the reason the verification queue above is: production has always supplied it,
-        // and an optional collaborator is how a feature goes silently absent past a green suite. A fixture
-        // that does not care passes a double; it may not omit it.
-        private readonly ingredientResolutions: IngredientResolutionsDal,
-        // U4 — required for the same reason.
-        // ⚠️ A VALUE import, not a type-only one: this class is registered by reflection, so the param type
-        // must be a runtime class Nest can resolve (a type-only import emits `Object` into
-        // design:paramtypes and the app fails to BOOT — observed, not theorized).
-        private readonly resolutionBands: ResolutionBandsDal,
-        // U4c — required like its siblings.
-        private readonly verificationRedrive: VerificationRedriveDal,
+        // ADR-0071 — the producer's dedup read: a verdict already on record under a line's key is not paid for again.
+        // REQUIRED like the queue above. Token-injected, so the `Pick` type emits nothing Nest must resolve.
+        @Inject(RECIPE_LINE_VERIFICATIONS_DAL)
+        private readonly verdicts: Pick<LineVerificationsDal, 'findExistingKeys'>,
         // U-DA — the READ-side collaborator (`recipeDetail.assembler.ts`). Every detail projection that needs
         // the food service lives there, behind three public methods; this class keeps the orchestration and
         // the writes. ⛔ Call it only AFTER a transaction has committed: no signature there accepts a `RecipeTx`, so
         // it cannot USE one — but nothing stops a caller awaiting it inside a transaction callback, so ADR-0034's
         // "never hold a transaction across a network call" is still a rule each call site keeps.
         private readonly detailAssembler: RecipeDetailAssembler,
-        // LAST, and the only optional one left: injected so the shadow coin is testable, with production
-        // falling back to Math.random — the coin needs no cryptographic strength, only an unbiased rate.
-        // ⚠️ Token-injected: a bare `() => number` param emits `Function` into design:paramtypes, which
-        // Nest cannot resolve.
         // Plan 2026-10-15-010 D8 — the read model a write's byline is resolved from. Required like the others.
         // ⚠️ Token-injected with a VALUE import: the `Pick` type emits `Object` into design:paramtypes.
         @Inject(AuthorHandlesDal) private readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>,
-        @Optional() @Inject(RECIPES_SHADOW_RNG) private readonly rng?: () => number,
     ) {}
 
     /** One logger for the producer — a queue that is refusing work must be visible, never silent. */
@@ -561,28 +621,33 @@ export class RecipesService {
 
         const provenance = provenanceDecision.provenance;
         const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
-        const decision = evaluateVisibility({
-            principalKind: principal.principalKind,
-            containment: principal.containment,
-            sourceType: provenance.sourceType,
-            isPremium: isPremiumPrincipal(principal),
-            hasSubstantiveEdit: false,
+        const isPremium = isPremiumPrincipal(principal);
+        const visibilityAsk = visibilityAskOf(
+            principal,
+            { sourceType: provenance.sourceType, hasSubstantiveEdit: false },
             requested,
+        );
+        // ADR-0073: only a free cook's private PUBLISHED recipe takes a slot, and THAT decision is made inside the write's transaction,
+        // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
+        // exactly as it always was - a pure refusal must not cost a call to food. (A slot refusal does: it is only known
+        // under the lock, after the planner has run. That is accepted: the cook out of slots pays one round trip per try.)
+        // An ABSENT status means published, resolved ONCE here and written explicitly below, so the policy and the row
+        // agree on what "published" means rather than the policy assuming the column default. It is resolved BEFORE the slot
+        // question because a slot is a private PUBLISHED recipe (ADR-0073 section 12): a private draft holds none.
+        const status = dto.status ?? RecipeStatus.PUBLISHED;
+        const needsSlot = requiresPrivateSlotCheck({
+            sourceType: provenance.sourceType,
+            isPremium,
+            before: undefined,
+            after: { visibility: requested, status },
         });
 
-        if (!decision.allowed) {
-            // ADR-0040: a contained test principal's publish is a 403 of its own, never a 400 C-004 refusal.
-            throw decision.denial === 'contained'
-                ? testPrincipalContained(decision.reason)
-                : invalidVisibility(decision.reason, { visibility: requested, sourceType: provenance.sourceType });
+        if (!needsSlot) {
+            assertVisibilityAllowed(visibilityAsk, SLOT_NOT_NEEDED);
         }
 
         // ── Then what Publish needs (owner rulings 2026-10-13) ─────────────────────────────────────────
-        // An ABSENT status means published, resolved ONCE here and written explicitly below, so the policy and the row
-        // agree on what "published" means rather than the policy assuming the column default. Judged before the
-        // planner, because a pure refusal must not cost a call to food.
-        const status = dto.status ?? RecipeStatus.PUBLISHED;
-
+        // Judged before the planner, because a pure refusal must not cost a call to food.
         assertPublishable({
             status,
             sourceType: provenance.sourceType,
@@ -597,6 +662,14 @@ export class RecipesService {
         // 2026-09-06). Everything above stays OUTSIDE — reads, policy and pure derivation — and so does
         // everything below, because a Postgres transaction must never be held across a network call.
         const aggregate = await this.dal.transaction(async (tx) => {
+            // ⛔ ADR-0073: the per-user lock and the count are the FIRST statements of this transaction, and the verdict is
+            // read from the number counted under that lock - a count taken before the transaction is the race the lock closes.
+            if (needsSlot) {
+                const standing = await this.slotStandingIn(tx, principal.userId, isPremium);
+
+                assertVisibilityAllowed(visibilityAsk, standing);
+            }
+
             // The author's byline (plan 2026-10-15-010 D8): the read model first, read INSIDE this transaction.
             const byline = await this.bylineIn(tx, principal);
             const created = await this.dal.create(
@@ -677,7 +750,11 @@ export class RecipesService {
      *  - **⛔ Nothing at all for a CONTAINED test principal (ADR-0040).** The worker spends ADR-0024's shared
      *    production LLM pool and writes the GLOBAL `ingredient_resolution_memos` tier, which answers for every future
      *    cook and has no user column the test purge could reach — so, like analytics, it can only be PREVENTED. The
-     *    return is the FIRST statement, before the provenance read, so a request never sent pays for nothing.
+     *    return is the FIRST statement, before the dedup read, so a request never sent pays for nothing.
+     *  - **⛔ A judgement already on record is not asked again (ADR-0071).** Before enqueueing, the verdict table
+     *    is read by each request's key — the exact answer `alreadyRequested` approximates. It covers a line two
+     *    recipes share, and a pasted line whose proposal the gate already judged. The read fails OPEN: on any
+     *    error every request is sent, because a missed dedup costs a duplicate question, never a skipped check.
      *    `subject` is REQUIRED so a new caller cannot reach the queue without deciding.
      *
      * @param subject - Who is saving, and whether this stage contains test principals.
@@ -698,28 +775,14 @@ export class RecipesService {
             return;
         }
 
-        // U2/U4: the latest resolution event per binding, batched over every line this call names.
-        // Inside the same never-throws boundary as the enqueue — a failed read degrades to `unattributed`.
-        const resolutions = await this.ingredientResolutions
-            .latestResolutionsByLookupIds([...lines, ...previous].map((row) => row.foodLookupId))
-            .catch((error: unknown) => {
-                this.logger.warn(
-                    'Resolution provenance read failed; verification proceeds unattributed.',
-                    error instanceof Error ? error.stack : String(error),
-                );
-
-                return new Map<string, LatestResolution>();
-            });
-
-        const plan = buildVerificationRequests({
+        // ADR-0071: no provenance is read here; the plan declares every line `unattributed`.
+        const { requests: planned, unasked } = buildVerificationRequests({
             recipeId,
-            lines: lines.map((row) => storedLineToVerifiable(row, identities, resolutions)),
-            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, identities, resolutions)),
+            lines: lines.map((row) => storedLineToVerifiable(row, identities)),
+            alreadyRequested: previous.map((row) => storedLineToVerifiable(row, identities)),
             thresholds: PROVISIONAL_VERIFICATION_THRESHOLDS,
             requestedAt: new Date().toISOString(),
-            bands: await this.consultBands(resolutions),
         });
-        const { requests, unasked } = plan;
 
         // ⛔ An over-cap line is the ONE unasked reason worth a log line. `authored` and
         // `no-catalog-identity` are the normal, dominant cases and would drown it; `over-cap` means the
@@ -736,6 +799,8 @@ export class RecipesService {
                     )} characters)`,
             );
         }
+
+        const requests = await this.withoutVerdictsOnRecord(recipeId, planned);
 
         if (requests.length === 0) {
             // ⛔ Not an empty batch — no call at all. `SendMessageBatch` REFUSES an empty `Entries` list
@@ -760,95 +825,36 @@ export class RecipesService {
                 error instanceof Error ? error.stack : String(error),
             );
         }
-
-        // KTD-A: identity settlements granted by band authority this save, persisted so revocation can
-        // re-verify them (R14). Quietly — a lost skip row costs one re-verification, never a save.
-        // Concurrent, not sequential: the rows are independent, and each write keeps its OWN catch, so a
-        // failure still costs exactly one re-verification rather than the rest of the batch.
-        await Promise.all(
-            plan.bandSkips.map(async (skip) => {
-                try {
-                    await this.resolutionBands.recordSkip(skip.band, skip.epoch, skip.message);
-                } catch (error) {
-                    this.logger.warn(
-                        'band-skip record failed; the settlement is unlogged for the drain',
-                        error instanceof Error ? error.stack : String(error),
-                    );
-                }
-            }),
-        );
-
-        // KTD-A: the withholding lines' ready messages, stored under the verdict store's own content key so
-        // the scheduled drain can re-send any that age out with no verdict (plan U4c). Quietly — if BOTH
-        // the enqueue above and this write fail, the age-bounded needs-review treatment is the backstop.
-        // Concurrent for the same reason as the skips above: independent rows, per-write catch preserved.
-        await Promise.all(
-            plan.pendingRedrives.map(async (redrive) => {
-                try {
-                    await this.verificationRedrive.record(
-                        verificationKey(redrive.judgement, (input) => createHash('sha256').update(input).digest('hex')),
-                        redrive.message,
-                    );
-                } catch (error) {
-                    this.logger.warn(
-                        'pending-redrive record failed; the line relies on the age-bounded review treatment',
-                        error instanceof Error ? error.stack : String(error),
-                    );
-                }
-            }),
-        );
     }
 
     /**
-     * Load band authority (and roll the shadow coin) for every complete band key among this save's
-     * resolution events.
+     * Drop the requests whose judgement already has a verdict on record (ADR-0071).
      *
-     * ⚠️ Quiet and total: with no bands DAL, or on any read failure, the map is simply missing entries —
-     * and an absent consultation verifies identity, the safe direction (KTD-B's stale-read rule).
+     * Fails OPEN: an unreadable verdict table sends everything, because a missed dedup costs a duplicate question
+     * whose verdict write is idempotent by key, never a skipped check.
      *
-     * @param resolutions - The latest events, by lookup id.
-     * @returns Consultations by `bandKeyText`. @sideEffect Band-authority reads; one RNG roll per
-     *   authorized band.
+     * @param recipeId - For the log line only.
+     * @param requests - The plan's messages.
+     * @returns The messages to send. @sideEffect One keyed read of `recipe_ingredient_verifications`.
      */
-    private async consultBands(
-        resolutions: ReadonlyMap<string, LatestResolution>,
-    ): Promise<ReadonlyMap<string, BandConsultation>> {
-        const consultations = new Map<string, BandConsultation>();
-
-        for (const resolution of resolutions.values()) {
-            const key = bandKeyOf(resolution);
-
-            if (key === undefined) {
-                continue;
-            }
-
-            const text = bandKeyText(key);
-
-            if (consultations.has(text)) {
-                continue;
-            }
-
-            try {
-                const authority = await this.resolutionBands.authorityFor(key);
-                let shadow = false;
-
-                if (authority?.state === 'authorized') {
-                    // The ramped shadow rate: 50% during the burn-in after a grant, 5% steady — what keeps
-                    // an authorized band's measured record accruing (plan U3).
-                    const observed = await this.resolutionBands.observationsSinceGrant(key);
-                    shadow = (this.rng ?? Math.random)() < shadowRateFor(observed);
-                }
-
-                consultations.set(text, { authority, shadow });
-            } catch (error) {
-                this.logger.warn(
-                    'band-authority read failed; the affected lines verify identity',
-                    error instanceof Error ? error.stack : String(error),
-                );
-            }
+    private async withoutVerdictsOnRecord(
+        recipeId: string,
+        requests: readonly VerifyIngredientLineMessage[],
+    ): Promise<readonly VerifyIngredientLineMessage[]> {
+        if (requests.length === 0) {
+            return requests;
         }
 
-        return consultations;
+        return withoutVerdictsOnRecord(
+            this.verdicts,
+            requests,
+            (message) => verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex),
+            (error) =>
+                this.logger.warn(
+                    `recipe ${recipeId}: verdict dedup read failed; asking about all ${String(requests.length)} line(s)`,
+                    error instanceof Error ? error.stack : String(error),
+                ),
+        );
     }
 
     /**
@@ -1071,6 +1077,15 @@ export class RecipesService {
                   };
         const newlySubstantive = !existing.recipe.hasSubstantiveEdit && detectSubstantiveEdit(existing, storedDto);
 
+        // Whether this write could take a slot: only publishing a DRAFT can (a published recipe already holds or never held
+        // one, and set-visibility counts its own moves). The precise verdict needs the row's visibility, read under the lock.
+        const sourceType = recipeSourceTypeSchema.parse(existing.recipe.sourceType);
+        const isPremium = isPremiumPrincipal(principal);
+        const existingStatus = recipeStatusSchema.parse(existing.recipe.status);
+        const afterStatus = dto.status ?? existingStatus;
+        const publishesDraft = existingStatus === RecipeStatus.DRAFT && afterStatus === RecipeStatus.PUBLISHED;
+        const takesSlotLock = publishesDraft && slotRuleApplies({ sourceType, isPremium });
+
         // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
         // calls `dal.readConflict`, which opens its own transaction AND issues
         // `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ` — a second pooled connection, and a statement
@@ -1078,10 +1093,55 @@ export class RecipesService {
         // raised outside; nothing was written, so committing an empty transaction is correct and cheaper
         // than forcing a rollback.
         const updated = await this.dal.transaction(async (tx) => {
+            // ⛔ ADR-0073 sections 3 and 12: publishing a draft is where it may come to hold a slot (a private draft holds
+            // none; the same recipe published does). The per-user lock and the count are the FIRST statements of the
+            // transaction; the row's facts are read FOR UPDATE below, after the byline (see the order note there).
+            const counted = takesSlotLock ? await this.slotStandingIn(tx, ownerId, isPremium) : undefined;
+
             // The version's attribution: the editor's byline, read-model-first inside this transaction (plan
             // 2026-10-15-010 D8). Read BEFORE the recipe row is written, as `create` and `clone` do: the handle-sync
-            // fan-out locks `author_handles` and then the cook's recipes, so the opposite order here can deadlock.
+            // fan-out locks `author_handles` and then the cook's recipes, so the opposite order here can deadlock. The
+            // order is therefore slot lock, byline, row lock (below), write - and set-visibility takes the slot lock before
+            // the row lock too, so the two never wait on each other the other way round.
             const editor = await this.bylineIn(tx, principal);
+
+            if (publishesDraft) {
+                // The visibility NOW, under the lock: set-visibility does not bump the version, so the CAS below cannot see a
+                // flip made after `existing` was read.
+                const current = await this.dal.lockSlotFacts(tx, id);
+
+                if (current === undefined) {
+                    return undefined;
+                }
+
+                if (current.visibility === RecipeVisibility.PRIVATE) {
+                    // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy (the
+                    // only door a private `imported_public` recipe has is Premium plus a substantive edit - a slot never makes
+                    // one private, ADR-0073 section 6) with the slot fact counted under the lock where a slot can matter.
+                    const takesSlot = requiresPrivateSlotCheck({
+                        sourceType,
+                        isPremium,
+                        before: { visibility: current.visibility, status: existingStatus },
+                        after: { visibility: current.visibility, status: afterStatus },
+                    });
+
+                    if (takesSlot && counted === undefined) {
+                        // Unreachable: a move that takes a slot is a draft being published by a cook the slot rule applies to,
+                        // which is exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
+                        throw new Error('A private draft was published without the per-user slot lock being taken.');
+                    }
+
+                    assertVisibilityAllowed(
+                        visibilityAskOf(
+                            principal,
+                            { sourceType, hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit || newlySubstantive },
+                            RecipeVisibility.PRIVATE,
+                        ),
+                        takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
+                    );
+                }
+            }
+
             const result = await this.dal.update(
                 id,
                 {
@@ -1243,7 +1303,7 @@ export class RecipesService {
             assertNotContained(principal, 'cloneForeign');
         }
 
-        const sourceType = source.recipe.sourceType as RecipeSourceType;
+        const sourceType = source.recipe.sourceType;
         // An imported source's attribution is kept verbatim. A user_created original has none, and none is
         // invented: provenance is `clonedFromId`, and a stored "Cloned from <owner id>" put a raw user id on
         // Discover cards and outlived the original author's erasure (W-03).
@@ -1259,6 +1319,11 @@ export class RecipesService {
         );
         const hiddenCount = countHiddenFromViewer(source.ingredients, identities, ownerId);
 
+        // ADR-0073 section 12: a clone is always written as a DRAFT (below), and a draft holds no slot, so a clone is never
+        // counted or refused for slots - whatever visibility it lands with. The slot is taken when the cook publishes it
+        // (`update`).
+        const cloneVisibility = defaultCloneVisibility(sourceType, principal, source.recipe.visibility);
+
         // ⛔ ONE TRANSACTION, exactly as `create` — the clone and its first version row commit together.
         const created = await this.dal.transaction(async (tx) => {
             // The CLONER's byline: the clone is theirs, so they are its author and its first version's editor.
@@ -1269,7 +1334,7 @@ export class RecipesService {
                     title: source.recipe.title,
                     ...(source.recipe.description !== null ? { description: source.recipe.description } : {}),
                     ...(source.recipe.cuisine !== null ? { cuisine: source.recipe.cuisine } : {}),
-                    visibility: defaultCloneVisibility(sourceType, principal),
+                    visibility: cloneVisibility,
                     // Owner 2026-10-13: a copy is a DRAFT until the cook makes a real edit and publishes. It is never
                     // born published, whatever the source's status was — and, being a never-published draft, it
                     // records no version of its own yet (ADR-0058).
@@ -1335,22 +1400,47 @@ export class RecipesService {
         this.assertOwner(principal.userId, existing.recipe);
 
         const isPremium = isPremiumPrincipal(principal);
-        const decision = evaluateVisibility({
-            principalKind: principal.principalKind,
-            containment: principal.containment,
-            sourceType: existing.recipe.sourceType as RecipeSourceType,
-            isPremium,
-            hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit,
-            requested: visibility,
+        const sourceType = existing.recipe.sourceType;
+        const visibilityAsk = visibilityAskOf(
+            principal,
+            { sourceType, hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit },
+            visibility,
+        );
+        // The row's facts are only known for certain UNDER the lock (set-visibility does not bump the version, and another
+        // request may publish a draft in between), so the lock is taken whenever the slot rule could apply to a move to
+        // private, and the precise verdict is made from the facts read under it.
+        const mayNeedSlot = visibility === RecipeVisibility.PRIVATE && slotRuleApplies({ sourceType, isPremium });
+
+        // ONE TRANSACTION (ADR-0073): set-visibility used to be a single UPDATE; it now needs the per-user lock, the count
+        // and the write to be one unit, or two requests racing at 49 both pass.
+        const updated = await this.dal.transaction(async (tx) => {
+            let standing: PrivateSlotStanding = SLOT_NOT_NEEDED;
+
+            if (mayNeedSlot) {
+                const counted = await this.slotStandingIn(tx, principal.userId, isPremium);
+                const current = await this.dal.lockSlotFacts(tx, id);
+
+                if (current === undefined) {
+                    return undefined;
+                }
+
+                // A recipe that already holds its slot (private and published) needs none: a downgraded cook holding 60 must
+                // not be refused a recipe they already keep private, and a second concurrent request for it must not be
+                // counted twice. A DRAFT holds none, so making it private needs none either - its slot is taken on publish.
+                standing = requiresPrivateSlotCheck({
+                    sourceType,
+                    isPremium,
+                    before: current,
+                    after: { visibility, status: current.status },
+                })
+                    ? counted
+                    : SLOT_NOT_NEEDED;
+            }
+
+            assertVisibilityAllowed(visibilityAsk, standing);
+
+            return this.dal.setVisibility(id, visibility, tx);
         });
-
-        if (!decision.allowed) {
-            throw decision.denial === 'contained'
-                ? testPrincipalContained(decision.reason)
-                : invalidVisibility(decision.reason, { visibility, sourceType: existing.recipe.sourceType });
-        }
-
-        const updated = await this.dal.setVisibility(id, visibility);
 
         if (!updated) {
             // The active row vanished between the read and the write (a concurrent tombstone).
@@ -1362,6 +1452,48 @@ export class RecipesService {
             budget: 'postCommit',
             viewerId: principal.userId,
         });
+    }
+
+    /**
+     * The caller's private-slot standing for DISPLAY (ADR-0073): how many they hold and what they get.
+     *
+     * Counted WITHOUT the per-user lock - a stale-by-a-moment number is harmless on a screen, and a read that took the lock
+     * would serialise the cook's own writes behind a label. ⛔ Never decide a write from this; every write counts again under
+     * the lock in its own transaction.
+     *
+     * @param principal - The verified caller (Premium is read from the signed token).
+     * @returns `unlimited` for Premium (no count is taken), else the live count and the limit.
+     */
+    public async getPrivateSlotUsage(principal: Principal): Promise<PrivateSlotUsage> {
+        const allowance = privateSlotAllowanceOf({ isPremium: isPremiumPrincipal(principal) });
+
+        if (allowance.kind === 'unlimited') {
+            return { kind: 'unlimited' };
+        }
+
+        return { kind: 'limited', used: await this.dal.countPrivateSlots(principal.userId), limit: allowance.limit };
+    }
+
+    /**
+     * A cook's private-slot standing, read UNDER the per-user lock (ADR-0073).
+     *
+     * ⛔ Call it as the FIRST statement of the transaction that writes the recipe, and judge from what it returns inside
+     * that same transaction. Premium never counts, so it takes no lock and no count.
+     *
+     * @param tx - The write's open transaction.
+     * @param ownerId - The cook.
+     * @param isPremium - Whether the cook holds Premium (from the signed token).
+     * @returns Whether one more private recipe fits and, when it does not, the count and the limit.
+     * @sideEffect Takes a transaction-scoped advisory lock keyed by the cook (free cooks only).
+     */
+    private async slotStandingIn(tx: RecipeTx, ownerId: string, isPremium: boolean): Promise<PrivateSlotStanding> {
+        const allowance = privateSlotAllowanceOf({ isPremium });
+
+        if (allowance.kind === 'unlimited') {
+            return SLOT_NOT_NEEDED;
+        }
+
+        return privateSlotStandingOf(allowance, await this.dal.lockAndCountPrivateSlots(tx, ownerId));
     }
 
     /** Owner-only guard for mutations: `owner_id == principal.userId` or `NOT_OWNER`. */

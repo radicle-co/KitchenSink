@@ -20,7 +20,13 @@ import type { AddressInfo } from 'node:net';
 import { CONTRACT_HASH } from '@kitchensink/schema-recipe';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { NotFoundError, ParseJobExpiredError, RecipeServiceClient } from '../index.js';
+import {
+    ImportQuotaExceededError,
+    NotFoundError,
+    ParseJobExpiredError,
+    RecipeServiceClient,
+    shouldRetryRecipeServiceFailure,
+} from '../index.js';
 import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import { FIXTURE_PARSE_JOB_UUID, makeCompleteParseJob, makeParseJob } from '../__fixtures__/parseJobs.js';
 
@@ -171,6 +177,30 @@ describe('parse jobs (integration, real HTTP server)', () => {
         await expect(clientFor(server).retryParseJob(FIXTURE_PARSE_JOB_UUID)).rejects.toBeInstanceOf(
             ParseJobExpiredError,
         );
+    });
+
+    it('⛔ maps a real 429 IMPORT_QUOTA_EXCEEDED to the typed quota error, sends ONE request, and refuses a retry', async () => {
+        server = await startServer([
+            {
+                status: 429,
+                json: {
+                    code: 'IMPORT_QUOTA_EXCEEDED',
+                    message: 'The daily import allowance is spent.',
+                    details: { resetsAt: '2026-10-27T03:30:00.000Z' },
+                },
+            },
+        ]);
+
+        const failure = await clientFor(server)
+            .createParseJob({ text: '2 cups flour' })
+            .catch((thrown: unknown) => thrown);
+
+        expect(failure).toBeInstanceOf(ImportQuotaExceededError);
+        expect((failure as ImportQuotaExceededError).resetsAt).toBe('2026-10-27T03:30:00.000Z');
+        // The transport itself does not replay a 429, and the retry POLICY must not ask it to: a spent allowance
+        // stays spent for hours, so a backoff loop only hammers the server and the cook never sees the notice.
+        expect(server.received).toHaveLength(1);
+        expect(shouldRetryRecipeServiceFailure(failure)).toBe(false);
     });
 
     it('maps a real 404 PARSE_JOB_NOT_FOUND response body to NotFoundError', async () => {

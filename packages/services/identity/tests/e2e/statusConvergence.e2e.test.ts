@@ -223,6 +223,24 @@ describe('status convergence (integration)', () => {
             expect(await isOwed(ctx.userId)).toBe(true);
         });
 
+        // ADR-0081: suspension is a provider state now (the worker writes and clears the token mark), so both
+        // directions advance the intent by exactly one and leave the account owed until the worker settles it.
+        it('a suspension and its lifting each bump the version once and leave the account owed', async () => {
+            const ctx = await provisionViewer('user_conv_suspension_writer');
+            const before = await readState(ctx.userId);
+
+            await adminService.suspendUser(ctx.userId, ctx);
+            const suspended = await readState(ctx.userId);
+
+            await adminService.unsuspendUser(ctx.userId, ctx);
+            const lifted = await readState(ctx.userId);
+
+            expect(suspended).toMatchObject({ status: 'suspended', statusVersion: before.statusVersion + 1 });
+            expect(lifted).toMatchObject({ status: 'active', statusVersion: before.statusVersion + 2 });
+            expect(await isOwed(ctx.userId)).toBe(true);
+            expect(enqueueDeletion).toHaveBeenCalledTimes(2);
+        });
+
         it('a reactivation (reactivateUser) bumps the version once more and leaves the account owed', async () => {
             const ctx = await provisionViewer('user_conv_reactivation_writer');
             await usersService.deleteUserMe(ctx);

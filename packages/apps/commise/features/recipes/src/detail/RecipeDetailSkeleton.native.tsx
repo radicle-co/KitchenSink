@@ -30,9 +30,11 @@ export const RecipeDetailSkeleton: FC<RecipeDetailSkeletonProps> = ({ label }) =
 
     return (
         <View style={styles.page}>
-            <LiveRegion politeness="polite" style={[styles.caption, { color: colors.inkMuted }]}>
-                {label}
-            </LiveRegion>
+            <View style={styles.caption}>
+                <LiveRegion politeness="polite" typeRole="caption" tone="inkMuted">
+                    {label}
+                </LiveRegion>
+            </View>
             <View aria-hidden style={styles.page}>
                 <View style={[styles.hero, fill]} />
                 <View style={styles.block}>
@@ -56,7 +58,7 @@ export const RecipeDetailSkeleton: FC<RecipeDetailSkeletonProps> = ({ label }) =
 
 const styles = StyleSheet.create({
     page: { gap: nativeTokens.spacing[6] },
-    caption: { ...nativeTokens.type.caption, paddingHorizontal: nativeTokens.spacing[4] },
+    caption: { paddingHorizontal: nativeTokens.spacing[4] },
     hero: { width: '100%', aspectRatio: 4 / 3, borderRadius: nativeTokens.radius.lg },
     block: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
     line: { height: 20, borderRadius: nativeTokens.radius.md },

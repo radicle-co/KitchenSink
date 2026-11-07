@@ -17,11 +17,13 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { globSync } from 'glob';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { nativeSources } from './nativeSources.js';
 import { repoRoot } from './serviceSources.js';
+import { isTamaguiStyledCall, tamaguiStyledNames } from './tamaguiElements.js';
+import { styledConfig } from './tamaguiStyleObjects.js';
 
 /** A spread that names a face: a type role (`nativeTokens.type.label`, `type.body`, `nativeType.caption`). */
 const TYPE_ROLE_SPREAD = /(?:^|\.)(?:type|nativeType)\.[A-Za-z]+/u;
@@ -38,7 +40,9 @@ function keyOf(property: ts.ObjectLiteralElementLike): string | undefined {
 }
 
 /**
- * The 1-based lines of every object literal that both names a face and sets `fontWeight`. Pure.
+ * The 1-based lines of every object literal that both names a face and sets `fontWeight`, and of every Tamagui
+ * `styled(…)` call whose configuration does, at any depth: a face in its base and a weight in a variant is the same
+ * defect in two objects (ADR-0080). Pure.
  *
  * @param source - The module's text.
  * @param fileName - Its name, which decides whether it is parsed as TSX.
@@ -47,8 +51,17 @@ function keyOf(property: ts.ObjectLiteralElementLike): string | undefined {
 function faceWithWeightLines(source: string, fileName: string): readonly number[] {
     const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
     const lines: number[] = [];
+    const styledNames = tamaguiStyledNames(file);
 
     const visit = (node: ts.Node): void => {
+        if (isTamaguiStyledCall(node, styledNames)) {
+            const keys = new Set(styledConfig(node).properties.map(({ key }) => key));
+
+            if (keys.has('fontFamily') && keys.has('fontWeight')) {
+                lines.push(file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1);
+            }
+        }
+
         if (ts.isObjectLiteralExpression(node)) {
             const keys = node.properties.map(keyOf);
             const namesFace =
@@ -68,7 +81,8 @@ function faceWithWeightLines(source: string, fileName: string): readonly number[
 
     visit(file);
 
-    return lines;
+    // A pair in one object is met twice, as the object and as its call.
+    return [...new Set(lines)].sort((a, b) => a - b);
 }
 
 describe('the face-with-weight reader', () => {
@@ -101,6 +115,52 @@ describe('the face-with-weight reader', () => {
             source: `const s = [{ fontFamily: F }, { fontWeight: '700' }];`,
             lines: [],
         },
+        // Tamagui `styled(…)` definitions (ADR-0080): the face and the weight may sit in different objects of one config.
+        {
+            shape: 'a styled() face and weight in one object',
+            source: `import { styled, Text } from 'tamagui';\nconst T = styled(Text, { fontFamily: '$heading', fontWeight: '700' });`,
+            lines: [2],
+        },
+        {
+            shape: 'a styled() face in the base and a weight in a variant',
+            source: `import { styled, Text } from 'tamagui';\nconst T = styled(Text, {\n  fontFamily: '$heading',\n  variants: { bold: { true: { fontWeight: '700' } } },\n});`,
+            lines: [2],
+        },
+        {
+            shape: 'a styled() weight in the base and a face in a variant',
+            source: `import { styled, Text } from 'tamagui';\nconst T = styled(Text, {\n  fontWeight: '700',\n  variants: { serif: { true: { fontFamily: '$heading' } } },\n});`,
+            lines: [2],
+        },
+        {
+            shape: 'a styled() face and weight in two variants',
+            source: `import { styled, Text } from 'tamagui';\nconst T = styled(Text, {\n  variants: { a: { true: { fontFamily: '$heading' } }, b: { true: { fontWeight: '700' } } },\n});`,
+            lines: [2],
+        },
+        {
+            shape: 'a styled() variant called fontWeight is a name, not a weight',
+            source: `import { styled, Text } from 'tamagui';\nconst T = styled(Text, {\n  fontFamily: '$heading',\n  variants: { fontWeight: { true: { color: '$ink' } } },\n});`,
+            lines: [],
+        },
+        {
+            shape: 'a styled() weight alone',
+            source: `import { styled, Text } from 'tamagui';\nconst T = styled(Text, { fontWeight: '700' });`,
+            lines: [],
+        },
+        {
+            shape: 'a styled() face alone',
+            source: `import { styled, Text } from 'tamagui';\nconst T = styled(Text, { fontFamily: '$heading' });`,
+            lines: [],
+        },
+        {
+            shape: 'two styled() definitions, one face and one weight',
+            source: `import { styled, Text } from 'tamagui';\nconst A = styled(Text, { fontFamily: '$heading' });\nconst B = styled(Text, { fontWeight: '700' });`,
+            lines: [],
+        },
+        {
+            shape: 'a styled() from another module',
+            source: `import { styled } from 'other';\nconst T = styled(Text, {\n  fontFamily: '$heading',\n  variants: { bold: { true: { fontWeight: '700' } } },\n});`,
+            lines: [],
+        },
     ];
 
     for (const { shape, source, lines } of cases) {
@@ -110,29 +170,14 @@ describe('the face-with-weight reader', () => {
     }
 });
 
-/** Every native-rendered app module: `.native.*` anywhere in the apps, and all of the mobile app. */
-const nativeModules = (): readonly string[] =>
-    [
-        ...globSync('packages/apps/**/*.native.{ts,tsx}', {
-            cwd: repoRoot,
-            ignore: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/android/**', '**/ios/**'],
-        }),
-        ...globSync('packages/apps/commise/mobile/{src,app}/**/*.{ts,tsx}', {
-            cwd: repoRoot,
-            ignore: ['**/node_modules/**'],
-        }),
-    ]
-        .filter((file, index, all) => all.indexOf(file) === index)
-        .sort();
-
 describe('native faces carry their own weight', () => {
     it('discovers the native modules, including the Home greeting (a vacuous pass would hide the rule)', () => {
-        expect(nativeModules()).toContain('packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx');
-        expect(nativeModules()).toContain('packages/apps/commise/ui/src/button/Button.native.tsx');
+        expect(nativeSources()).toContain('packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx');
+        expect(nativeSources()).toContain('packages/apps/commise/ui/src/button/Button.native.tsx');
     });
 
     it('lets no native style name a face and also set fontWeight', () => {
-        const offenders = nativeModules().flatMap((file) =>
+        const offenders = nativeSources().flatMap((file) =>
             faceWithWeightLines(readFileSync(path.join(repoRoot, file), 'utf8'), file).map((line) => `${file}:${line}`),
         );
 

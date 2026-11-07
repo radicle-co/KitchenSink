@@ -4,7 +4,7 @@
  * one visible way out, through the same callback Android back reaches.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
 import { AccessibilityInfo, Text, type Modal as ModalType } from 'react-native';
@@ -14,6 +14,7 @@ import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourcesPage } from '../DataSourcesPage.native.js';
 import { dataSourcesMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const state = vi.hoisted(() => ({ modal: undefined as ComponentProps<typeof ModalType> | undefined }));
 

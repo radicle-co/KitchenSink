@@ -8,7 +8,7 @@
  * remove control is now a menu item, the card is the shared one, and the source label moved to the last line.
  */
 import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,6 +17,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 import { CollectionMemberRow } from '../CollectionMemberRow.native.js';
 import type { CollectionMemberRowProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
@@ -123,5 +124,26 @@ describe.each(['row', 'grid', 'compact'] as const)('CollectionMemberRow (native,
         if (variant !== 'compact') {
             expect(screen.getByText('612 cal')).toBeTruthy();
         }
+    });
+});
+
+// UI Designer ruling (2026-11-03): a collection-detail tile is the compact tile, so it keeps the Home line (time, then
+// calories) and draws no difficulty or rating.
+describe('CollectionMemberRow (native) — the compact tile’s meta line', () => {
+    it('draws the time and no difficulty or rating', () => {
+        renderRow({
+            variant: 'compact',
+            member: makeCollectionMemberRecipe({
+                id: 'rec_1',
+                title: 'Pasta',
+                totalTimeMinutes: 45,
+                difficulty: 'easy',
+                ratingCount: 0,
+            }),
+        });
+
+        expect(screen.getByText('45 min')).toBeTruthy();
+        expect(screen.queryByText('Easy')).toBeNull();
+        expect(screen.queryByText(/No ratings yet/u)).toBeNull();
     });
 });

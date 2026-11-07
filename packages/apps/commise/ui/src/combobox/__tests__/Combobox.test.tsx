@@ -1102,6 +1102,68 @@ describe('Combobox (web) — an option’s detail line and own name (system chan
     });
 });
 
+describe('Combobox (web) — a quiet tag after an option’s label (the picker’s Default, owner ruling 2026-10-25)', () => {
+    // The default food is listed by the server, wherever it falls; the tag follows the option, never its position.
+    const tagged: readonly ComboboxGroup[] = [
+        {
+            key: 'catalog',
+            label: 'Food catalog',
+            options: [
+                { key: 'skim', label: 'Skim milk' },
+                { key: 'whole', label: 'Whole milk', tag: 'Default', accessibleName: 'Whole milk, Default' },
+                {
+                    key: 'oat',
+                    label: 'Oat milk',
+                    detailParts: ['unsweetened'],
+                    tag: 'Default',
+                    accessibleName: 'Oat milk, unsweetened, Default',
+                },
+            ],
+        },
+    ];
+
+    it('a tagged option shows its tag after its label, and its name says the tag', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        const whole = option('Whole milk, Default');
+        expect(within(whole).getByText('Whole milk')).toBeTruthy();
+        expect(within(whole).getByText('Default')).toBeTruthy();
+    });
+
+    it('an option without a tag shows none', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        expect(within(option('Skim milk')).queryByText('Default')).toBeNull();
+    });
+
+    it('a tagged option keeps its variant’s parts', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        const oat = option('Oat milk, unsweetened, Default');
+        expect(within(oat).getByText('unsweetened')).toBeTruthy();
+        expect(within(oat).getByText('Default')).toBeTruthy();
+    });
+
+    it('⛔ a tag never makes its option active or selected: nothing is picked for the cook', async () => {
+        const user = userEvent.setup();
+        render(<Host groups={tagged} />);
+
+        await user.type(field(), 'm');
+
+        expect(activeOptionName()).toBeUndefined();
+        expect(screen.getAllByRole('option').some((row) => row.getAttribute('aria-selected') === 'true')).toBe(false);
+    });
+});
+
 describe('Combobox (web) — leaving the entry (system change 8, item 4)', () => {
     it('⛔ Escape on a CLOSED list asks the host to abandon the entry, and is consumed', () => {
         const onAbandon = vi.fn();
@@ -1517,26 +1579,79 @@ describe('Combobox (web) — where the list is placed (2.4.11, §8e; `docs/desig
 
     // P9: "A popup above its field takes its full height at once", so content that arrives fills it from the top down
     // and its top edge never moves.
-    it('takes its full height at once when it opens above its field, and only grows to fit when below', async () => {
+    // P9 REVERSED by the designer (NoMatch and Loading retakes): a popup above its field no longer takes a fixed full
+    // height, loader or not. A short loading popup must be short, so both sides size to their content, up to the maximum.
+    it.each([
+        { name: 'with a loader', trailingStatus: [{ kind: 'loading', label: 'Still searching' }] },
+        { name: 'with a note', trailingStatus: [{ kind: 'note', text: 'Nothing else matches.' }] },
+        { name: 'with no status line', trailingStatus: [] },
+    ] as const)('sizes to its content, capped at the maximum, above its field $name and below it', async (host) => {
         const user = userEvent.setup();
-        layOut(640);
-        render(<Host />);
+        const capped = 'max-h-[min(20rem,var(--combobox-available-height,20rem))]';
 
+        layOut(640);
+        render(<Host trailingStatus={[...host.trailingStatus]} />);
         await user.type(field(), 'f');
         await waitFor(() => {
-            expect(popup().className.split(/\s+/)).toContain('h-[min(20rem,var(--combobox-available-height,20rem))]');
+            expect(popup().className.split(/\s+/)).toContain(capped);
         });
+        expect(popup().className.split(/\s+/)).not.toContain('h-[min(20rem,var(--combobox-available-height,20rem))]');
 
         cleanup();
         layOut(300);
-        render(<Host />);
+        render(<Host trailingStatus={[...host.trailingStatus]} />);
         await user.type(field(), 'f');
-
         await waitFor(() => {
-            expect(popup().className.split(/\s+/)).toContain(
-                'max-h-[min(20rem,var(--combobox-available-height,20rem))]',
-            );
+            expect(popup().className.split(/\s+/)).toContain(capped);
         });
+    });
+});
+
+describe('Combobox (web) — a press whose list changed under the finger picks nothing', () => {
+    const A = { key: 'a', label: 'Aubergine' } as const;
+    const B = { key: 'b', label: 'Basil' } as const;
+    const listOf = (...options: readonly (typeof A | typeof B)[]): readonly ComboboxGroup[] => [{ key: 'g', options }];
+
+    it('pressing A, then the list changes so B sits there, and releasing on B picks nothing', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const { rerender } = render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+
+        await user.type(field(), 'x');
+        fireEvent.pointerDown(option('Aubergine'));
+        // A content update lands while the press is down: A is gone, B takes its place.
+        rerender(<Host groups={listOf(B)} onSelect={onSelect} />);
+        fireEvent.pointerUp(option('Basil'));
+        fireEvent.click(option('Basil'));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('a press with no list change still picks', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+
+        render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+        await user.type(field(), 'x');
+        fireEvent.pointerDown(option('Aubergine'));
+        fireEvent.pointerUp(option('Aubergine'));
+        fireEvent.click(option('Aubergine'));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('a');
+    });
+
+    it('a later press, after the cancelled one, picks normally', async () => {
+        const user = userEvent.setup();
+        const onSelect = vi.fn();
+        const { rerender } = render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+
+        await user.type(field(), 'x');
+        fireEvent.pointerDown(option('Aubergine'));
+        rerender(<Host groups={listOf(B)} onSelect={onSelect} />);
+        fireEvent.click(option('Basil'));
+        await user.click(option('Basil'));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('b');
     });
 });
 
@@ -1611,7 +1726,7 @@ describe('Combobox (web) — status lines never squeeze the list (1.4.4; `docs/d
 });
 
 describe('Combobox (web) — the active option shows a ring (`docs/design/rowEditorOpenDecisions.md` V3-4)', () => {
-    it('the active option takes the pearl fill and the inset seafoam ring the details dialog’s active row takes', async () => {
+    it('the active option takes the pearl fill and the inset steel ring the details dialog’s active row takes', async () => {
         const user = userEvent.setup();
         render(<Host />);
         await user.type(field(), 'f');

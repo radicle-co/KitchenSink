@@ -66,14 +66,17 @@ import { useFieldTargetReveal } from '../fieldReveal/useFieldTargetReveal.native
 import { useFocusReveal } from '../fieldReveal/useFocusReveal.native.js';
 import { ScrollerDragContext } from '../fieldReveal/scrollerDrag.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
+import { OptionLabel } from '../optionLabel/OptionLabel.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { FIELD_PADDING, fieldGeometry, fieldPaint } from '../input/fieldStyle.js';
 import { FieldLabel } from '../input/FieldLabel.native.js';
 import { fieldAccessibilityHint } from '../input/props.js';
 import { TextInput } from '../textInput/TextInput.native.js';
+import { surfaceFill } from '../surfaceTone/surfaceFill.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.native.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 
@@ -109,6 +112,46 @@ const StatusLine: FC<{ readonly line: ComboboxStatus; readonly loadingIcon: Reac
         </View>
     ) : (
         <Text style={[styles.status, styles.statusText, { color: colors.inkMuted }]}>{line.text}</Text>
+    );
+};
+
+/**
+ * One option of the open list. A component of its own so it reads the press fill from INSIDE the list's surface: the list
+ * states `paperOverlay`, and a hook called in `Combobox` itself would read what the field sits on instead.
+ */
+const OptionRow: FC<{
+    readonly option: ComboboxOption;
+    readonly onChoose: (option: ComboboxOption) => void;
+    /** The touch began on this option: the list it began on is recorded. */
+    readonly onPressStart: () => void;
+}> = ({ option, onChoose, onPressStart }) => {
+    const wash = usePressFill();
+
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={option.accessibleName}
+            aria-busy={option.busy === true}
+            // React Native's own busy control is `disabled` (`@commise/ui/button`): it reads disabled, keeps its place,
+            // and stays reachable by the screen reader.
+            disabled={option.busy === true}
+            onPressIn={onPressStart}
+            onPress={() => {
+                onChoose(option);
+            }}
+            style={({ pressed }) => [
+                styles.option,
+                pressed && { backgroundColor: wash },
+                option.busy === true && styles.busy,
+            ]}
+        >
+            <OptionLabel
+                label={option.label}
+                textSize="bodyMd"
+                {...(option.tag === undefined ? {} : { tag: option.tag })}
+                {...(option.detailParts === undefined ? {} : { detailParts: option.detailParts })}
+            />
+        </Pressable>
     );
 };
 
@@ -154,7 +197,8 @@ export const Combobox: FC<ComboboxProps> = ({
     const typedIsValue = typedText === 'isValue';
     const { height: windowHeight, fontScale } = useWindowDimensions();
     const theme = useTheme();
-    const { colors, wash } = theme;
+    const { colors } = theme;
+    const wash = usePressFill();
     const labelShown = labelVisibility === 'visible';
     // Whether the field's last blur closed an open list: the list a blur closes is reopened by the field's next focus
     // (below), while a close the field chose — a pick — and a focus no list ever followed stay shut. A refocus on
@@ -260,8 +304,18 @@ export const Combobox: FC<ComboboxProps> = ({
         };
     }, [typedIsValue, focused]);
 
+    // The list a press began on, from touch start to release. A content update between the two can put a different
+    // option under the finger, so a press that ends on another list picks nothing (shared by every caller). It is
+    // cleared with the pick and when the list closes; a press that slid off leaves it until the next touch overwrites it.
+    const optionsSignature = groups.flatMap((group) => group.options.map((option) => option.key)).join('\u0000');
+    const [pressedOn, setPressedOn] = useState<string | undefined>(undefined);
+
     const choose = (option: ComboboxOption): void => {
-        if (option.busy === true) {
+        const listChanged = pressedOn !== undefined && pressedOn !== optionsSignature;
+
+        setPressedOn(undefined);
+
+        if (option.busy === true || listChanged) {
             return;
         }
 
@@ -278,28 +332,12 @@ export const Combobox: FC<ComboboxProps> = ({
     };
 
     const renderOption = (option: ComboboxOption) => (
-        <Pressable
+        <OptionRow
             key={option.key}
-            accessibilityRole="button"
-            accessibilityLabel={option.accessibleName}
-            aria-busy={option.busy === true}
-            // React Native's own busy control is `disabled` (`@commise/ui/button`): it reads disabled, keeps its place,
-            // and stays reachable by the screen reader.
-            disabled={option.busy === true}
-            onPress={() => {
-                choose(option);
-            }}
-            style={({ pressed }) => [
-                styles.option,
-                pressed && { backgroundColor: wash },
-                option.busy === true && styles.busy,
-            ]}
-        >
-            <View style={styles.optionText}>
-                <Text style={[styles.optionLabel, { color: colors.ink }]}>{option.label}</Text>
-                {option.detailParts !== undefined && <VariantPartsLine parts={option.detailParts} tone="secondary" />}
-            </View>
-        </Pressable>
+            option={option}
+            onChoose={choose}
+            onPressStart={() => setPressedOn(optionsSignature)}
+        />
     );
 
     const renderGroups = () =>
@@ -315,7 +353,8 @@ export const Combobox: FC<ComboboxProps> = ({
         ));
 
     // P2: `listMaxRows + 0.5` rows at the current font scale (the half row shows the list scrolls), never past 45% of
-    // the window; only when there are more options than the bound.
+    // the window; only when there are more options than the bound. ⚠️ The RAW scale, because the option rows' text is
+    // not capped yet; the slice that caps it switches this to `cappedFontScale` in the same change (ADR-0080 §8).
     const boundedHeight =
         listMaxRows !== undefined && optionCount > listMaxRows
             ? Math.min((listMaxRows + 0.5) * TARGET_DP * fontScale, windowHeight * BOUNDED_LIST_WINDOW_SHARE)
@@ -426,35 +465,37 @@ export const Combobox: FC<ComboboxProps> = ({
                 {alertAnnouncement}
             </LiveRegion>
             {popupShown && (
-                <View
-                    collapsable={false}
-                    accessibilityLabel={listLabel}
-                    onTouchStart={() => setTouchInList(true)}
-                    onTouchEnd={() => setTouchInList(false)}
-                    style={[styles.list, { backgroundColor: colors.paperOverlay }]}
-                >
-                    {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}
-                    {listShown &&
-                        (boundedHeight === undefined ? (
-                            renderGroups()
-                        ) : (
-                            // P2: a long list scrolls inside itself, so the rest of the page stays in reach. It stays in
-                            // the page's flow, so nothing is drawn outside its parent (Android takes no touches there),
-                            // and a drag that began on it still keeps it open — the drag now scrolls the list.
-                            <ScrollView
-                                nestedScrollEnabled
-                                keyboardShouldPersistTaps="handled"
-                                onScrollEndDrag={() => setTouchInList(false)}
-                                style={{ maxHeight: boundedHeight }}
-                            >
-                                {renderGroups()}
-                            </ScrollView>
+                <ToneScope tone="paperOverlay">
+                    <View
+                        collapsable={false}
+                        accessibilityLabel={listLabel}
+                        onTouchStart={() => setTouchInList(true)}
+                        onTouchEnd={() => setTouchInList(false)}
+                        style={[styles.list, { backgroundColor: surfaceFill(theme, 'paperOverlay') }]}
+                    >
+                        {status !== undefined && <StatusLine line={status} loadingIcon={loadingIcon} />}
+                        {listShown &&
+                            (boundedHeight === undefined ? (
+                                renderGroups()
+                            ) : (
+                                // P2: a long list scrolls inside itself, so the rest of the page stays in reach. It stays in
+                                // the page's flow, so nothing is drawn outside its parent (Android takes no touches there),
+                                // and a drag that began on it still keeps it open — the drag now scrolls the list.
+                                <ScrollView
+                                    nestedScrollEnabled
+                                    keyboardShouldPersistTaps="handled"
+                                    onScrollEndDrag={() => setTouchInList(false)}
+                                    style={{ maxHeight: boundedHeight }}
+                                >
+                                    {renderGroups()}
+                                </ScrollView>
+                            ))}
+                        {trailingStatus.map((line, index) => (
+                            // A line has no identity beyond its place: the host passes them in the order they arrived.
+                            <StatusLine key={index} line={line} loadingIcon={loadingIcon} />
                         ))}
-                    {trailingStatus.map((line, index) => (
-                        // A line has no identity beyond its place: the host passes them in the order they arrived.
-                        <StatusLine key={index} line={line} loadingIcon={loadingIcon} />
-                    ))}
-                </View>
+                    </View>
+                </ToneScope>
             )}
         </View>
     );
@@ -478,8 +519,7 @@ const styles = StyleSheet.create({
     groupLabel: {
         paddingHorizontal: nativeTokens.spacing[3],
         paddingTop: nativeTokens.spacing[2],
-        fontSize: nativeTokens.fontSize.caption,
-        fontWeight: '600',
+        ...nativeTokens.type.label,
     },
     iconButton: { minWidth: TARGET_DP, minHeight: TARGET_DP, alignItems: 'center', justifyContent: 'center' },
     leadingIcon: { position: 'absolute', start: FIELD_PADDING, zIndex: 1 },
@@ -492,7 +532,7 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.full,
     },
     error: nativeTokens.type.label,
-    textButtonLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500' },
+    textButtonLabel: { ...nativeTokens.type.caption },
     option: {
         minHeight: TARGET_DP,
         flexDirection: 'row',
@@ -502,15 +542,13 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[1],
     },
     // `minWidth: 0`: a column that cannot shrink below its parts line is how a dot came to start a line.
-    optionText: { flex: 1, minWidth: 0 },
     busy: { opacity: 0.6 },
-    optionLabel: { fontSize: nativeTokens.fontSize.bodyMd },
     status: {
         gap: nativeTokens.spacing[1],
         paddingHorizontal: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
     },
-    statusText: { fontSize: nativeTokens.fontSize.bodySm },
+    statusText: { ...nativeTokens.type.meta },
     loadingLine: { flexDirection: 'row', alignItems: 'center' },
     // `minWidth: 0` and `flexShrink: 1`: the label wraps beside its glyph rather than pushing the row past 320 px.
     loadingLabel: { flexShrink: 1, minWidth: 0 },

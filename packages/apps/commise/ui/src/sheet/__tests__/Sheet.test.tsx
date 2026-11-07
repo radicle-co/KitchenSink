@@ -143,6 +143,16 @@ describe('Sheet (web)', () => {
         expect(onOpenChange).toHaveBeenLastCalledWith(false);
     });
 
+    describe('onShown', () => {
+        it('is called once when the sheet opens, so a host can move focus into it', async () => {
+            const onShown = vi.fn();
+
+            await openHost(<Host overrides={{ onShown }} />);
+
+            expect(onShown).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('onDismissed', () => {
         it('is called once after each close, by any route, off screen and with focus back on the opener', async () => {
             const dialogsSeen: (HTMLElement | null)[] = [];
@@ -301,6 +311,31 @@ describe('Sheet (web)', () => {
     });
 
     /**
+     * Owner ruling 2026-10-26 (platform guidelines): a `dialog` presentation is a bottom sheet below `sm`, as `content`, and
+     * from `sm` a CENTRED DIALOG at most 448 px wide (`max-w-md`) - one `sm:max-w-` utility, not two.
+     */
+    describe('presentation dialog', () => {
+        const smUtilities = (prefix: string): readonly string[] =>
+            screen
+                .getByRole('dialog')
+                .className.split(/\s+/u)
+                .filter((utility) => utility.startsWith(prefix));
+
+        it('is at most 448 px wide from sm, and still a bottom sheet below it', async () => {
+            await openHost(<Host overrides={{ presentation: 'dialog' }} />);
+
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-md']);
+            expect(smUtilities('bottom-')).toHaveLength(1);
+        });
+
+        it('leaves the default presentation at the house dialog width', async () => {
+            await openHost(<Host />);
+
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-lg']);
+        });
+    });
+
+    /**
      * F11 (`evaluateFinal.md`): every web sheet filled a phone, short tasks included. Native was right. A `content` sheet
      * below sm is a bottom sheet: anchored to the foot of the VISIBLE box (so a keyboard lifts it), as tall as its
      * content up to the visible height less a gap, with rounded top corners. `full` keeps the whole visible box.
@@ -326,7 +361,7 @@ describe('Sheet (web)', () => {
         expect(classes.some((utility) => utility.startsWith('bottom-'))).toBe(false);
     });
 
-    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Playfair sets names only.
+    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Manrope sets names only.
     it('sets the title in the barTitle role, never the display face', async () => {
         await openHost(<Host />);
 
@@ -336,16 +371,17 @@ describe('Sheet (web)', () => {
         expect(title.className).not.toContain('font-display');
     });
 
-    // W-23 (bs §5.1 "sheet header truncate:1"): a long title (a 60-character collection name in "Add to {name}") never
-    // wraps to a second line. The full string stays the heading's text, so it is still the dialog's accessible name.
-    it('keeps a long title on one line, ending in an ellipsis, with the full text still its name', async () => {
+    // REWRITTEN from W-23 ("sheet header truncate:1"): the designer ruled that a sheet title wraps and is never clipped, so
+    // a cook at a large text size reads all of it. The full string is the heading's text and the dialog's accessible name.
+    it('wraps a long title in full instead of clipping it, with the full text still its name', async () => {
         const long = 'Add to Weeknight dinners for the whole family and any guests who drop by';
 
         await openHost(<Host overrides={{ title: long }} />);
 
         const title = screen.getByRole('heading', { name: long });
 
-        expect(title.className.split(/\s+/u)).toContain('truncate');
+        expect(title.className.split(/\s+/u)).not.toContain('truncate');
+        expect(title.className.split(/\s+/u)).toContain('break-words');
         expect(screen.getByRole('dialog', { name: long })).toBeTruthy();
     });
 

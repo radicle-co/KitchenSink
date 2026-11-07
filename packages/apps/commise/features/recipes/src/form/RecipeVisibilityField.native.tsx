@@ -17,6 +17,7 @@ import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -30,27 +31,28 @@ import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } 
 export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     values,
     onChange,
-    paidFeatures,
+    facts,
     heldVisibility: held,
     privateRefusal,
     onPremiumRequired,
     onConfirmPublic,
+    onFreeASlot,
 }) => {
     const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
-    const { shown, options } = visibilityFieldOf({
+    const { shown, options, slotsFull } = visibilityFieldOf({
         draft: values.visibility,
         saved: savedVisibility,
-        state: paidFeatures,
+        facts,
         refusal: privateRefusal,
         messages: v,
     });
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(shown, chosen, savedVisibility, paidFeatures);
+        const next = visibilityChoice(shown, chosen, savedVisibility, facts);
 
         if (next === 'premiumRequired') {
             onPremiumRequired?.();
@@ -76,6 +78,14 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                             key={option.value}
                             role="radio"
                             aria-checked={chosen}
+                            // Refused, NOT disabled: the `disabled` prop would take the card out of the focus order and the reason
+                            // with it. A screen reader lands on it, hears it dimmed, and reads the reason as its hint; the
+                            // press is a no-op (`visibilityChoice`). The label is the title alone so the reason (also drawn
+                            // as text) is not read twice.
+                            accessibilityState={option.refused ? { disabled: true } : undefined}
+                            aria-disabled={option.refused ? true : undefined}
+                            accessibilityLabel={option.refused ? option.title : undefined}
+                            accessibilityHint={option.refused ? option.note : undefined}
                             onPress={() => choose(option.value)}
                             style={[
                                 styles.card,
@@ -97,6 +107,39 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     );
                 })}
             </View>
+            {slotsFull === undefined ? null : (
+                // ADR-0073: the refusal's ways forward. Premium is among them only where paid features are shown.
+                <View style={styles.ways}>
+                    <Text accessibilityRole="header" style={[styles.legend, { color: colors.ink }]}>
+                        {slotsFull.title}
+                    </Text>
+                    {slotsFull.overLimit === undefined ? null : (
+                        <View style={styles.overLimit}>
+                            <Text style={[styles.hint, { color: colors.inkMuted }]}>{slotsFull.overLimit.text}</Text>
+                            {slotsFull.overLimit.premiumLink === undefined ? null : (
+                                <Pressable role="button" onPress={onPremiumRequired} style={styles.link}>
+                                    <Text style={[styles.linkText, { color: colors.action }]}>
+                                        {slotsFull.overLimit.premiumLink}
+                                    </Text>
+                                </Pressable>
+                            )}
+                        </View>
+                    )}
+                    {slotsFull.ways.map((way) => (
+                        <Pressable
+                            key={way.id}
+                            role="button"
+                            onPress={way.id === 'premium' ? onPremiumRequired : onFreeASlot}
+                            style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineControl }]}
+                        >
+                            <View style={styles.words}>
+                                <Text style={[styles.title, { color: colors.ink }]}>{way.label}</Text>
+                                <Text style={[styles.hint, { color: colors.inkMuted }]}>{way.detail}</Text>
+                            </View>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
         </View>
     );
 };
@@ -105,6 +148,10 @@ const styles = StyleSheet.create({
     field: { gap: nativeTokens.spacing[2] },
     legend: nativeTokens.type.label,
     cards: { gap: nativeTokens.spacing[2] },
+    overLimit: { gap: nativeTokens.spacing[1], alignItems: 'flex-start' },
+    link: { minHeight: touchFloor(), justifyContent: 'center' },
+    linkText: { ...nativeTokens.type.label, textDecorationLine: 'underline' },
+    ways: { gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[1] },
     card: {
         minHeight: 56,
         flexDirection: 'row',

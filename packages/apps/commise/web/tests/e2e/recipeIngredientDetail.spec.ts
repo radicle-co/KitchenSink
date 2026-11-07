@@ -5,6 +5,7 @@ import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
+import { openNutritionRow } from './utils/nutritionRow';
 import { addStep, chooseCuisine, openIngredientEditor, setServings } from './utils/recipeEditor';
 
 /**
@@ -61,9 +62,12 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         // ruling D21 (`ownerDecisions.md`): the row shows the cook's OWN amount and unit ("2 cups"), then the catalog
         // food name, then the preparation. It used to show the reader's canonical unit ("2 cup"); that spelling is no
         // longer shown, so the row's name and text carry the unit as typed.
+        // The accessible name reads the preparation after a comma, with no dot: the "·" is aria-hidden (UI Designer condition, 2026-11-06).
         await expect(
-            page.getByRole('list', { name: 'For the marinade' }).getByRole('button', { name: 'Edit 2 cups Salt' }),
-        ).toHaveText('2 cupsSalt · finely chopped');
+            page
+                .getByRole('list', { name: 'For the marinade' })
+                .getByRole('button', { name: 'Edit 2 cups Salt, finely chopped', exact: true }),
+        ).toBeVisible();
 
         await addStep(page, 'Marinate and grill.');
         // Cuisine is required to publish (2026-10-13).
@@ -78,9 +82,15 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
         // whole row is now the checkbox, named with the full line (build spec §6.3) — the food, then the
         // preparation as its own clause after a comma.
         const ingredients = page.getByRole('region', { name: 'Ingredients' });
-        await expect(ingredients.getByText('finely chopped', { exact: true })).toBeVisible();
+        // The accessible name reads "Salt, finely chopped" (the dot is never spoken); the visible text joins the
+        // preparation with a no-break space and a dot, "Salt · finely chopped" (designAnswers.md 2026-11-06, fractions
+        // item 6). The preparation's text carries the joiner, so it is read through the row. Playwright normalizes the
+        // no-break space, so ' · ' matches it.
+        const salt = ingredients.getByRole('checkbox', { name: /Salt, finely chopped$/u });
+        await expect(salt).toBeVisible();
+        await expect(salt).toContainText('Salt · ');
+        await expect(salt).toContainText('finely chopped');
         await expect(ingredients.getByText('Salt', { exact: true })).toBeVisible();
-        await expect(ingredients.getByRole('checkbox', { name: /Salt, finely chopped$/u })).toBeVisible();
 
         // RE-OPEN — both values are re-seeded. Dropping either here is the narrowing defect.
         await page.getByRole('link', { name: 'Edit recipe' }).click();
@@ -261,7 +271,7 @@ test.describe('variant details on the read view (curated U15)', () => {
             },
         ]);
 
-        const nutrition = page.getByRole('region', { name: 'Nutrition (per serving)' });
+        const nutrition = await openNutritionRow(page);
         await expect(nutrition).toContainText('Nutrition comes from public food databases.');
         await expect(nutrition).toContainText('Custom ingredients count only the nutrition you entered for them.');
         await expect(page.getByRole('article', { name: 'Brisket and Chicken' })).not.toContainText('USDA');

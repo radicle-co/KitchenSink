@@ -5,6 +5,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 import { BEEF_BRISKET, BONELESS_SKINLESS_CHICKEN_THIGHS } from '../__fixtures__/seedVariants.js';
 import { editEntry, loadedRead, makeDetailsModel } from '../__fixtures__/detailsModel.js';
 import type { DetailsDialogEntry } from '../detailsDialogMachine.js';
@@ -86,6 +87,11 @@ describe('read states', () => {
         const retry = screen.getByRole('button', { name: 'Try again' });
 
         expect(document.activeElement).toBe(retry);
+        // `componentFixes.md` §1: the failed read's Try again is the quiet Button, described by the failure.
+        expectDesignSystemButton(retry, 'quiet', 'refresh-cw');
+        expect(document.getElementById(retry.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+            'We couldn’t load the details. Your ingredient hasn’t changed.',
+        );
         fireEvent.click(retry);
         expect(details.onRetry).toHaveBeenCalledTimes(1);
     });

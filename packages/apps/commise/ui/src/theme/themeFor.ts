@@ -5,10 +5,19 @@
  *
  * @pattern Registry — one frozen theme per scheme, keyed by the scheme name
  */
-import { role, roleDark, tint, type Role } from '../tokens/colors.js';
+import { pressFillsOf, type SurfaceTone } from '../surfaceTone/surfaceTone.js';
+import { role, roleDark, type Role } from '../tokens/colors.js';
 import { coverTint, coverTintDark, type CoverTintName } from '../tokens/covers.js';
 import { gradient, heroDark, type GradientSpec } from '../tokens/gradients.js';
-import { statusTone, statusToneDark, type RecipeStatus, type StatusTone } from '../tokens/tones.js';
+import {
+    proTone,
+    proToneDark,
+    statusTone,
+    statusToneDark,
+    type RecipeStatus,
+    type StatusTone,
+    type Tone,
+} from '../tokens/tones.js';
 
 /** A colour scheme. */
 export type ColorSchemeName = 'light' | 'dark';
@@ -24,8 +33,13 @@ export interface Theme {
     readonly hero: GradientSpec;
     /** The status badge tones. */
     readonly status: Readonly<Record<RecipeStatus, StatusTone>>;
-    /** The press (and fine-pointer hover) wash: `ink` at 6% (`darkTheme.md` §1), the native twin of `bg-ink/6`. */
-    readonly wash: string;
+    /** The PRO badge's fill and label. */
+    readonly pro: Tone;
+    /**
+     * Each surface's press fill: the surface with the theme's ink laid over it (`surfaceTone.ts`, `componentFixes.md`
+     * §10a). A control reads the one for the surface it sits on (`usePressFill`), never one of these by hand.
+     */
+    readonly press: Readonly<Record<SurfaceTone, string>>;
 }
 
 const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
@@ -35,7 +49,8 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         covers: coverTint,
         hero: gradient.hero,
         status: statusTone,
-        wash: tint(role.ink, 0.06),
+        pro: proTone,
+        press: pressFillsOf(role, 'light'),
     },
     dark: {
         scheme: 'dark',
@@ -43,7 +58,8 @@ const THEMES: Readonly<Record<ColorSchemeName, Theme>> = {
         covers: coverTintDark,
         hero: heroDark,
         status: statusToneDark,
-        wash: tint(roleDark.ink, 0.06),
+        pro: proToneDark,
+        press: pressFillsOf(roleDark, 'dark'),
     },
 };
 

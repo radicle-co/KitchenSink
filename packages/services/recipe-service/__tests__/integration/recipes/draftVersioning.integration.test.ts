@@ -16,6 +16,7 @@ import 'reflect-metadata';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
+import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
@@ -24,7 +25,6 @@ import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js'
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import {
     RECIPES_DAL,
@@ -63,33 +63,35 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
 }
 
 /** The 0053 trigger's rule, played by the double: set on the first publish, never cleared. */
-function afterWrite(previous: RecipeRow | undefined, status: string): Date | null {
+function afterWrite(previous: RecipeRow | undefined, status: RecipeStatus): Date | null {
     return previous?.firstPublishedAt ?? (status === 'published' ? PUBLISHED_AT : null);
 }
 
-const create = vi.fn(async (input: { readonly status?: string }) => {
+const create = vi.fn(async (input: { readonly status?: RecipeStatus }) => {
     const status = input.status ?? 'published';
 
     stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status, firstPublishedAt: afterWrite(undefined, status) });
 
     return aggregateOf(stored);
 });
-const update = vi.fn(async (_id: string, patch: { readonly expectedVersion: number; readonly status?: string }) => {
-    if (patch.expectedVersion !== stored.currentVersion) {
-        return undefined;
-    }
+const update = vi.fn(
+    async (_id: string, patch: { readonly expectedVersion: number; readonly status?: RecipeStatus }) => {
+        if (patch.expectedVersion !== stored.currentVersion) {
+            return undefined;
+        }
 
-    const status = patch.status ?? stored.status;
+        const status = patch.status ?? stored.status;
 
-    stored = {
-        ...stored,
-        status,
-        currentVersion: stored.currentVersion + 1,
-        firstPublishedAt: afterWrite(stored, status),
-    };
+        stored = {
+            ...stored,
+            status,
+            currentVersion: stored.currentVersion + 1,
+            firstPublishedAt: afterWrite(stored, status),
+        };
 
-    return aggregateOf(stored);
-});
+        return aggregateOf(stored);
+    },
+);
 const createSnapshot = vi.fn(async (input: { readonly recipeId: string; readonly versionNumber: number }) => ({
     id: `version-${String(input.versionNumber)}`,
     ...input,
@@ -141,6 +143,13 @@ beforeAll(async () => {
                     create,
                     update,
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
+                    // Publishing a draft reads the row's slot facts under the lock and counts (ADR-0073 section 12); this cook
+                    // holds none, so a slot is free.
+                    lockAndCountPrivateSlots: async () => 0,
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility as RecipeVisibility,
+                        status: stored.status as RecipeStatus,
+                    }),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
@@ -148,8 +157,10 @@ beforeAll(async () => {
             { provide: PendingArchivesDal, useValue: { enqueueMany } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            { provide: RECIPE_LINE_VERIFICATIONS_DAL, useValue: { findBandsByKeys: async () => new Map() } },
-            { provide: IngredientResolutionsDal, useValue: { latestResolutionsByLookupIds: async () => new Map() } },
+            {
+                provide: RECIPE_LINE_VERIFICATIONS_DAL,
+                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+            },
             {
                 provide: FoodLookupsDal,
                 useValue: {

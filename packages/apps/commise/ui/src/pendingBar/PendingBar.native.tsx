@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/pending-bar — the native bar that says the results on screen are being replaced.
  *
- * The same still, 4pt `seafoam` bar as the web leaf, for the same reasons: the results stay at full strength and
+ * The same still, 4pt `steel` bar as the web leaf, for the same reasons: the results stay at full strength and
  * usable, and nothing moves. React Native has no CSS delay, so the wait is a timer: the bar mounts only once
  * `pending` has held for {@link PENDING_BAR_DELAY_MS}. The timer lives in a child that exists only while pending, so
  * settling unmounts it (cancelling the wait) and the next pending search starts the full delay again — no state to

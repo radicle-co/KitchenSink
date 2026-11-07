@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/widget — the Home widget's deferred calorie lookup (ADR-0021 §6).
+ * @module @commise/features-recipes/widget — the Home widget's deferred calorie lookup (ADR-0079 §6).
  */
 import { useMemo } from 'react';
 
@@ -11,7 +11,7 @@ import type { RenderRecipeNutrition } from '../nutrition/model.js';
 import { nutritionSlotRenderer } from '../nutrition/nutritionSlotRenderer.js';
 
 /**
- * Start the deferred calorie batch for the recent recipes the widget is about to paint, and hand back the render prop
+ * Subscribe to the deferred calorie batch for the recent recipes the widget is about to paint, and hand back the render prop
  * that mounts one `RecipeNutritionSlot` per card. One request covers every card.
  *
  * It asks about the first {@link MAX_RECENT_RECIPES} only: the widget paints no more, so an answer for a wider page is
@@ -19,11 +19,11 @@ import { nutritionSlotRenderer } from '../nutrition/nutritionSlotRenderer.js';
  *
  * The caller owns the read of `recipes` (web resolves a promise, mobile a suspense query); this starts where the
  * recipes are known. `null` from the lookup means no batch covers the recipe (never asked), which renders nothing:
- * never a boundary with no promise to settle.
+ * never a slot with no reading to settle.
  *
  * @param recipes - The recent recipes the page returned, in render order.
  * @returns The widget's `renderNutrition` prop.
- * @sideEffect Starts (or joins) the nutrition request and seeds the query cache during render, as
+ * @sideEffect Starts (or joins) the nutrition request through the query cache when the widget commits, as
  *   `useRecipeNutritionBatches` does.
  */
 export function useRecentRecipesNutrition(recipes: readonly Recipe[]): RenderRecipeNutrition {

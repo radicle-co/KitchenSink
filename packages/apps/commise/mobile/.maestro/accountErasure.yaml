@@ -82,16 +82,47 @@ appId: ${APP_ID}
 # header shows the signed-in email (`ProfileHeader.tsx`), so the flow stops here, before the danger zone, unless it is
 # this run's erasure subject. The email holds a `+`, which as a regex would not match itself; Maestro also accepts an
 # exact text match, as `signinHome.yaml` relies on for the same address.
-- extendedWaitUntil:
-      visible: '${E2E_ERASURE_EMAIL}'
-      timeout: 20000
+# ⚠️ The Email row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS names it "Email, <address>" as a
+# single node, and Android publishes the address as its own node.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - extendedWaitUntil:
+                visible: 'Email, ${E2E_ERASURE_EMAIL}'
+                timeout: 20000
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - extendedWaitUntil:
+                visible: '${E2E_ERASURE_EMAIL}'
+                timeout: 20000
 # Audit 2026-10-19, A1.1: the wait above proves the erasure subject's address is on screen, but a surviving signer session
 # could show its own address beside it. The signer's address must be ABSENT before anything is destroyed
 # (`accountDangerZone.yaml` shows the address is readable on iOS, so this can fail).
-- assertNotVisible: '${E2E_SIGNIN_EMAIL}'
-- scrollUntilVisible:
-      element: 'Erase my data'
-      direction: DOWN
+# On iOS the signer's address would be drawn as "Email, <address>", so the bare address could never match: the combined
+# name is what must be absent there, or this assertion would pass whatever session survived.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertNotVisible: 'Email, ${E2E_SIGNIN_EMAIL}'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertNotVisible: '${E2E_SIGNIN_EMAIL}'
+# ⛔ `scrollIntoTapView`, not a bare scroll and not `centerElement`. A bare scroll stops as soon as the row is "visible",
+# which is while it still sits under the tab bar, and the tap below then lands on the Recipes tab (iOS run, 2026-10-31:
+# the sheet never opened). `centerElement` cannot centre a row that ends the page, so on iOS it reported "No visible
+# element found" with the row fully on screen (deployed run 42134419670). The helper scrolls to the row, centres only if
+# it can, and then lifts it clear of the tab bar and asserts it is still visible.
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Erase my data'
+          DIRECTION: DOWN
 
 - assertVisible: 'Erase my data'
 - tapOn: 'Erase my data'
@@ -127,10 +158,20 @@ appId: ${APP_ID}
 # the auth gate has put the viewer back on the sign-in form. If the ACCOUNT leg had failed, the flow would
 # still be sitting in the dialog with its error copy, and this would (correctly) time out.
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 40000
-- assertVisible: 'Password'
-- assertVisible: 'Sign in'
+# At the largest text sizes the form's controls sit below its title, so each is scrolled into view; the scroll is the
+# check, and it fails when its target never appears.
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Password'
+          DIRECTION: DOWN
+- runFlow:
+      file: recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Sign in'
+          DIRECTION: DOWN
 
 # Nothing authenticated survives: the danger zone the viewer was just standing in is gone, not merely covered.
 - assertNotVisible: 'Erase my data'

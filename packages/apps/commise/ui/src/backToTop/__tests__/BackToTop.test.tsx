@@ -84,13 +84,30 @@ describe('BackToTop (web)', () => {
         expect(screen.queryByRole('button', { name: 'Back to top' })).toBeNull();
     });
 
+    // REWRITTEN for the designer ruling of 2026-11-01 (`nativeBoards/designAnswers.md`): it stands on the room the
+    // floating button reserves, `--fab-reserved-bottom` (its height, its margin and 16), not a `5.5rem` literal.
     it('sits 16 px above a floating create button where one shows', async () => {
         renderButton(vi.fn(), true);
 
         await scroll(4400);
         await scroll(4000);
         const button = await screen.findByRole('button', { name: 'Back to top' });
+        const classes = (button.closest('div.fixed')?.className ?? '').split(' ');
 
-        expect(button.closest('div.fixed')?.className).toContain('bottom-[calc(var(--bottom-chrome,0px)+5.5rem)]');
+        expect(classes).toContain('bottom-[calc(var(--bottom-chrome,0px)+var(--fab-reserved-bottom))]');
+        expect(classes).toContain('nav:bottom-[calc(var(--bottom-chrome,0px)+var(--fab-bottom-margin))]');
+        expect(classes.filter((name) => /\d(?:\.\d+)?rem/u.test(name))).toEqual([]);
+    });
+
+    it('rests at the floating button’s margin where no button shows', async () => {
+        renderButton(vi.fn(), false);
+
+        await scroll(4400);
+        await scroll(4000);
+        const button = await screen.findByRole('button', { name: 'Back to top' });
+        const classes = (button.closest('div.fixed')?.className ?? '').split(' ');
+
+        expect(classes).toContain('bottom-[calc(var(--bottom-chrome,0px)+var(--fab-bottom-margin))]');
+        expect(classes.filter((name) => /\d(?:\.\d+)?rem/u.test(name))).toEqual([]);
     });
 });

@@ -33,7 +33,7 @@ export const DataSourcesSkeleton: FC = () => {
                 {PLACEHOLDER_CARDS.map((card) => (
                     <div
                         key={card}
-                        className="h-40 animate-pulse rounded-2xl bg-surface-muted motion-reduce:animate-none"
+                        className="h-40 animate-pulse rounded-lg bg-surface-muted motion-reduce:animate-none"
                     />
                 ))}
             </div>

@@ -182,6 +182,18 @@ describe('rowSettledView — what a settled commit makes its row say, by the sur
         ).toEqual(SILENT);
     });
 
+    it('⛔ a paste pick says nothing at the row, committed or failed: the paste list’s one region is the only voice', () => {
+        expect(rowSettledView(settled({ origin: { kind: 'paste' } }), () => row, COPY, NAMING)).toEqual(SILENT);
+        expect(
+            rowSettledView(
+                settled({ origin: { kind: 'paste' }, outcome: { kind: 'failed' } }),
+                () => row,
+                COPY,
+                NAMING,
+            ),
+        ).toEqual(SILENT);
+    });
+
     it('an authored food that failed says nothing at the row: the Sheet keeps it, with the draft', () => {
         expect(
             rowSettledView(

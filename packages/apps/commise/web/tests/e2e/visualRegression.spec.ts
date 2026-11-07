@@ -38,7 +38,7 @@ import {
  *  - **The brand webfonts actually loaded.** Substituted faces rasterize host fonts, so the baseline would
  *    flap between a WSL2 laptop and a `ubuntu-latest` runner for reasons unrelated to the change under
  *    review. It is also a shipped defect class in this repo: an `@import` moved below another rule in
- *    `globals.css` drops every webfont (Playfair → Georgia, Inter → system-ui) and only a real build shows it.
+ *    `globals.css` drops every webfont (Manrope → Inter, Inter → system-ui) and only a real build shows it.
  *  - **The pinned clock reached the render.** `RecipeCard` renders `formatRelativeTime(recipe.updatedAt,
  *    new Date())`, so an unpinned capture of the library says "Created 31w ago" this week and "32w ago" next
  *    week — a brand-new baseline every seven days. The library capture therefore asserts the exact string the
@@ -113,7 +113,7 @@ const PINNED_GREETING = /^Good afternoon(, \S.*)?$/u;
  * The date subtitle the same pin must produce. 2026-05-31 is a SUNDAY — the wireframe's "Saturday" is fictional
  * copy, and `formatHomeDate` renders the real weekday.
  */
-const PINNED_GREETING_DATE = 'Sunday, May 31, 2026';
+const PINNED_GREETING_DATE = 'Sunday, May 31';
 
 /** A capture must be more than a trivially small PNG; a blank page still encodes to a valid image. */
 const MIN_PNG_BYTES = 5_000;

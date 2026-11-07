@@ -19,6 +19,13 @@ export interface SheetToolbar {
 export interface SheetProps {
     readonly open: boolean;
     /**
+     * The host has set the sheet aside for a moment (a question is up) and will bring it back as it was. `open` stays true.
+     * The window leaves at once, with no exit and no scrim fade; nothing is reported as dismissed; and the opening is not a
+     * new one, so the panel's scroll position is put back when it returns. What the cook typed is the host's, and so is
+     * focus on the field that had it. Native only: React Native shows one window at a time on iOS. Absent: not held.
+     */
+    readonly held?: boolean;
+    /**
      * Every close route calls this with `false`: Close, Escape, the overlay or scrim, a swipe, Android back, and any
      * footer control the host wires to it.
      */
@@ -29,6 +36,12 @@ export interface SheetProps {
      * mount, and never while open.
      */
     readonly onDismissed?: () => void;
+    /**
+     * Called each time the sheet is on screen, once its window is shown: on native after the window's own `onShow`, on web
+     * when it opens. The moment a host can move focus into a field of a sheet that has just come back: before it, the field
+     * is not attached to a window yet and the focus is lost.
+     */
+    readonly onShown?: () => void;
     /** The heading: the dialog's title (`h2` on web, header role on native). */
     readonly title: string;
     /** More elements that name the dialog, by id. Web `aria-labelledby` is the title's own id, then these; no native form. */
@@ -43,6 +56,13 @@ export interface SheetProps {
      * as the detail column (72 rem). Native has no wider-than-phone variant, so there it is the same as `full`.
      */
     readonly size: 'content' | 'full' | 'page';
+    /**
+     * `sheet` (the default): the sheet at its own width. `dialog`: a bottom sheet on a phone and, from the tablet width
+     * (native 600 dp, web `sm`), a CENTRED dialog at most 448 wide (owner ruling 2026-10-26, from the platform guidelines:
+     * Apple HIG alerts and sheets, Material 3 dialogs). For an ask that is a decision, not a task. Only `size="content"`
+     * is centred; the other sizes keep their own geometry.
+     */
+    readonly presentation?: 'sheet' | 'dialog';
     /** Pinned under the title, outside the scroll region. ⛔ With a toolbar, `children` holds no text input. */
     readonly toolbar?: SheetToolbar;
     /** The scroll region. */

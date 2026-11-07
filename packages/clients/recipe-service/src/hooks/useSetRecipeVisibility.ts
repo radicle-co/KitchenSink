@@ -62,6 +62,8 @@ export function useSetRecipeVisibility() {
             // after this visibility change cannot clobber the fresh response (symmetric with the other hooks).
             await queryClient.cancelQueries({ queryKey: recipeServiceKeys.recipe(vars.id) });
             queryClient.setQueryData(recipeServiceKeys.recipe(vars.id), data);
+            // ADR-0073: a flip moves a recipe in or out of the private slots.
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePrivateSlots });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeLists });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipeSearches });
             void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.collections });

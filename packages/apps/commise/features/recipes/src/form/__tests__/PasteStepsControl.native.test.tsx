@@ -4,7 +4,7 @@
  * field's own system paste menu pastes (Settled 34), so the tests type into the field.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
@@ -28,6 +28,7 @@ import { pasteStepsFieldId } from '../fieldIds.js';
 import { recipeFormMessages } from '../messages.js';
 import { editorMessages } from '../../editor/messages.js';
 import { PasteStepsControl } from '../PasteStepsControl.native.js';
+import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
 
 const s = editorMessages.en.steps;
 
@@ -83,7 +84,9 @@ describe('PasteStepsControl (native)', () => {
         render(<PasteStepsControl onAdd={onAdd} />);
         fireEvent.click(screen.getByRole('button', { name: s.paste }));
 
-        expect(screen.getByRole('button', { name: 'Add 0 steps' }).style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(screen.getByRole('button', { name: 'Add 0 steps' }))).alignSelf).toBe(
+            'stretch',
+        );
         expect(screen.queryByRole('button', { name: s.pasteCancel })).toBeNull();
 
         fireEvent.change(field(), { target: { value: 'Boil.' } });

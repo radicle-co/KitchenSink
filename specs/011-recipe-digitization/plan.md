@@ -91,7 +91,7 @@ Two paths require strict isolation:
 
 **Language/Version**: TypeScript 5.x, Node.js 24.x
 **Primary Dependencies**: NestJS 11, Drizzle ORM, `pg`, `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/client-sqs`, AWS Textract SDK client, `@aws-lambda-powertools/logger`, `@sentry/aws-serverless`, Clerk networkless session-token verification stack from 002 (`@clerk/backend` `verifyToken` with `CLERK_JWT_KEY` + `CLERK_AUTHORIZED_PARTIES`)
-**Storage**: S3 objects (`digitization/...`) hold every in-flight digitization artifact, SQS + DLQ, CloudFront edge delivery of archived originals, and RDS PostgreSQL 16 **for Circles only** — ⛔ the image-processing service owns **no** database (ADR-0019 §3; corrected 2026-08-16)
+**Storage**: S3 objects (`digitization/...`) hold every in-flight digitization artifact, SQS + DLQ, CloudFront edge delivery of kept originals _(amended 2026-11-03, ADR-0082: the page image is deleted after extraction unless the cook asks to keep it, T-113)_, and RDS PostgreSQL 16 **for Circles only** — ⛔ the image-processing service owns **no** database (ADR-0019 §3; corrected 2026-08-16)
 **Testing**: Vitest (unit/integration/contract), Playwright + accessibility checks for web/mobile flows
 **Target Platform**: AWS Lambda + NestJS APIs, web + mobile clients consuming API
 **Project Type**: Monorepo, multi-package backend/shared + app clients

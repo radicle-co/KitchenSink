@@ -7,6 +7,7 @@
 export { FieldRevealContext, type FieldRevealer, type RevealRequest, type RevealTarget } from './fieldRevealContext.js';
 export { spanTarget, type SpanPlace } from './spanReveal.js';
 export { RevealSpacer, type RevealSpacerProps } from './RevealSpacer.native.js';
+export { useRevealedField, type RevealedFieldProps } from './useRevealedField.native.js';
 export { useFieldRevealHost, type FieldRevealHost } from './useFieldRevealHost.native.js';
 export { isRevealScroller, type RevealScroller } from './measureField.native.js';
 export { ScrollerDragContext, type ScrollerDragSubscribe } from './scrollerDrag.js';

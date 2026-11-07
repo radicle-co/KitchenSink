@@ -45,12 +45,14 @@ export const Input: FC<InputProps> = ({
     maxLength,
     focusRequested = false,
     onFocusRequestHandled,
+    onFocus,
 }) => {
     const node = useRef<HTMLInputElement>(null);
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     return (
         <input
+            onFocus={onFocus}
             ref={node}
             id={id}
             type={secret ? 'password' : 'text'}

@@ -11,7 +11,8 @@ import { renderWithProviders } from '@commise/test-utils';
 import { role, roleDark } from '@commise/ui/colors';
 import { LoadingNotice } from '@commise/ui/loading-notice';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
-import { cleanup, render, screen } from '@testing-library/react';
+import { render as renderInDesignSystem, resolvedColour } from '@commise/ui/testing/tamagui';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async (importOriginal) => {
@@ -54,7 +55,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
 
     it('LoadingNotice captions its spinner in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<LoadingNotice label="Loading recipe…" />);
+        renderInDesignSystem(<LoadingNotice label="Loading recipe…" />);
 
         expect(colourOf(screen.getByText('Loading recipe…'))).toBe(rgb(colours.inkMuted));
     });
@@ -64,7 +65,9 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         vi.mocked(useAuth).mockReturnValue({
             state: { status: 'blocked', reason: { code: 'account_suspended' } },
         } as unknown as ReturnType<typeof useAuth>);
-        render(
+        // REWRITTEN for ADR-0080: the gate's notices are the design system's Tamagui `Text`, so it renders in the
+        // provider and its colours are read through the resolver that follows the theme variables.
+        renderInDesignSystem(
             <AuthGate>
                 <></>
             </AuthGate>,
@@ -72,30 +75,34 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
 
         const suspended = authBlockMessages.en.account_suspended;
 
-        expect(colourOf(screen.getByText(suspended.title))).toBe(rgb(colours.ink));
-        expect(colourOf(screen.getByText(suspended.body))).toBe(rgb(colours.inkMuted));
+        expect(resolvedColour(screen.getByText(suspended.title), 'color')).toBe(rgb(colours.ink));
+        expect(resolvedColour(screen.getByText(suspended.body), 'color')).toBe(rgb(colours.inkMuted));
     });
 
     it('BoundaryErrorNotice titles the crash in ink, with its body in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<BoundaryErrorNotice body={boundaryMessages.en.errorBodyHome} onRetry={() => undefined} />);
+        renderInDesignSystem(
+            <BoundaryErrorNotice body={boundaryMessages.en.errorBodyHome} onRetry={() => undefined} />,
+        );
 
         expect(colourOf(screen.getByText(boundaryMessages.en.errorTitle))).toBe(rgb(colours.ink));
         expect(colourOf(screen.getByText(boundaryMessages.en.errorBodyHome))).toBe(rgb(colours.inkMuted));
     });
 
+    // REWRITTEN for ADR-0080 (both): the notice and the nudge's copy are the design system's Tamagui `Text`, so they
+    // render in the provider and their colours are read through the resolver that follows the theme variables.
     it('HomeWidgetErrorNotice says the failure in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<HomeWidgetErrorNotice />);
+        renderInDesignSystem(<HomeWidgetErrorNotice />);
 
-        expect(colourOf(screen.getByRole('status'))).toBe(rgb(colours.inkMuted));
+        expect(resolvedColour(screen.getByRole('status'), 'color')).toBe(rgb(colours.inkMuted));
     });
 
     it('SubscriptionNudge writes its body in inkMuted', () => {
         systemScheme.current = scheme;
-        render(<SubscriptionNudge open onDismiss={() => undefined} />);
+        renderInDesignSystem(<SubscriptionNudge open onDismiss={() => undefined} />);
 
-        expect(colourOf(screen.getByText(homeMessages.en.nudge.body))).toBe(rgb(colours.inkMuted));
+        expect(resolvedColour(screen.getByText(homeMessages.en.nudge.body), 'color')).toBe(rgb(colours.inkMuted));
     });
 
     it('a roadmap card titles itself in ink, its badge in inkMuted, inside a lineDivider edge', () => {
@@ -103,8 +110,10 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         renderWithProviders(<NutritionWidgetSkeleton />);
         const title = screen.getByText(homeMessages.en.roadmap.titles.nutrition);
 
-        expect(colourOf(title)).toBe(rgb(colours.ink));
-        expect(colourOf(screen.getByText(homeMessages.en.roadmap.soon))).toBe(rgb(colours.inkMuted));
+        // REWRITTEN for ADR-0080: the title and the badge are the design system's Tamagui `Text`, read through the
+        // resolver that follows the theme variables. The edge below is still React Native's, read as computed.
+        expect(resolvedColour(title, 'color')).toBe(rgb(colours.ink));
+        expect(resolvedColour(screen.getByText(homeMessages.en.roadmap.soon), 'color')).toBe(rgb(colours.inkMuted));
 
         let card: Element | null = title;
 
@@ -146,6 +155,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
             Array.from({ length: 7 }, () => rgb(colours.lineDivider)),
         );
         expect(filledWith(container, rgb(colours.surfaceMuted))).toHaveLength(7);
-        expect(colourOf(days[0]?.firstElementChild as Element)).toBe(rgb(colours.inkMuted));
+        // REWRITTEN for ADR-0080: the day is the design system's Tamagui `Text`, read through the theme resolver.
+        expect(resolvedColour(days[0]?.firstElementChild as Element, 'color')).toBe(rgb(colours.inkMuted));
     });
 });

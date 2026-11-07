@@ -332,12 +332,14 @@ describe('the shared step leaves an on-screen target where it is', () => {
         return isRecord(run) && Array.isArray(run['commands']) ? [run] : [];
     });
 
+    const scrollBlocks = blocks.filter((block) => JSON.stringify(block['commands']).includes('scrollUntilVisible'));
+
     it('has one scroll block per direction', () => {
-        expect(blocks).toHaveLength(2);
+        expect(scrollBlocks).toHaveLength(2);
     });
 
     it('gates every scroll block on the target NOT being visible yet', () => {
-        const ungated = blocks.filter((block) => {
+        const ungated = scrollBlocks.filter((block) => {
             const when = isRecord(block['when']) ? block['when'] : {};
             const notVisible = when['notVisible'];
             const target = isRecord(notVisible) ? notVisible['text'] : notVisible;
@@ -346,5 +348,42 @@ describe('the shared step leaves an on-screen target where it is', () => {
         });
 
         expect(ungated).toEqual([]);
+    });
+});
+
+/**
+ * Scrolling DOWN also lifts the target clear of the tab bar. XCUITest counts an element visible while the tab bar covers
+ * it, and Maestro's `above` compares a target's TOP edge, so no `above` anchor can say "its bottom is inside the bar"
+ * (device check at 1cc473ed3, QA Private at the cap: the button at [16,752][232,808] against a bar at [0,774][402,874],
+ * 752 < 774). `centerElement` cannot help either: the target is already on screen, so the scroll block never runs. So,
+ * whenever the tab bar is on screen, one fixed short swipe up follows a downward step and the target must still be
+ * visible after it. At a page end the swipe moves nothing. No tab bar (the editor, a keyboard) means no swipe.
+ */
+describe('the shared step lifts the target clear of the tab bar', () => {
+    const source = readFileSync(join(REPO_ROOT, FLOW_ROOT, 'recipes', SHARED_STEP), 'utf8');
+    const steps = parseAllDocuments(source).at(-1)?.toJS() as unknown;
+    const clearance = (Array.isArray(steps) ? steps : []).flatMap((step: unknown) => {
+        const run = isRecord(step) ? step['runFlow'] : undefined;
+
+        return isRecord(run) && JSON.stringify(run).includes('"swipe"') ? [run] : [];
+    });
+
+    it('has one swipe block, for a downward step with the tab bar on screen', () => {
+        expect(clearance).toHaveLength(1);
+        expect(clearance[0]?.['when']).toMatchObject({ visible: { id: 'appTabBar' } });
+        expect(JSON.stringify(clearance[0]?.['when'])).toContain("DIRECTION != 'UP'");
+    });
+
+    it('swipes once, never in a loop, and asserts the target is still visible afterwards', () => {
+        const commands = JSON.stringify(clearance[0]?.['commands']);
+
+        expect(commands).not.toContain('repeat');
+        expect(commands.match(/"swipe"/gu)).toHaveLength(1);
+        expect(commands).toContain('assertVisible');
+        expect(commands).toContain('${TARGET}');
+    });
+
+    it('anchors nothing to a position, which a top-edge comparison cannot read', () => {
+        expect(JSON.stringify(clearance[0])).not.toContain('above');
     });
 });

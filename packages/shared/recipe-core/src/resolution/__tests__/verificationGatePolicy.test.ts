@@ -26,6 +26,7 @@ import { describe, expect, it } from 'vitest';
 import {
     PROVISIONAL_VERIFICATION_THRESHOLDS,
     curatedExactEvidence,
+    decideProposalVerification,
     decideVerification,
     rankedEvidence,
     rememberedEvidence,
@@ -486,5 +487,59 @@ describe('a line bound to a VARIANT (curated U9)', () => {
         expect(aspectsOf(decideVerification(input({ evidence: curatedExactEvidence(), boundTo: 'variant' })))).toEqual([
             'quantity',
         ]);
+    });
+});
+
+/**
+ * A PASTE PROPOSAL (ADR-0071, owner ruling 2026-10-25: "the review LLM checks every paste-import match"). A proposal
+ * is a candidate the cook has not chosen, so NO door opens on it — not the band door (earned autonomy, D1) and not
+ * the curated door either. Every case below holds a door open that {@link decideVerification} honours, so each one
+ * fails if the proposal rule ever delegates to the binding rule.
+ */
+describe('a paste PROPOSAL never skips identity (ADR-0071)', () => {
+    const proposal = (overrides: Partial<VerificationGateInput> = {}): Omit<VerificationGateInput, 'bandAuthority'> => {
+        const { bandAuthority: _ignored, ...rest } = input(overrides);
+
+        return rest;
+    };
+
+    it('⛔ asks identity on CURATED evidence — the door a binding keeps open', () => {
+        expect(aspectsOf(decideVerification(input({ evidence: curatedExactEvidence() })))).toEqual(['quantity']);
+        expect(aspectsOf(decideProposalVerification(proposal({ evidence: curatedExactEvidence() })))).toEqual([
+            'identity',
+            'quantity',
+        ]);
+    });
+
+    it('⛔ asks identity on a wide-margin, nutrient-agreeing shortlist — there is no band authority to consult', () => {
+        const wide = rankedEvidence([candidate(0.95), candidate(0.1)]);
+
+        expect(aspectsOf(decideVerification(input({ evidence: wide, bandAuthority: AUTHORIZED })))).toEqual([
+            'quantity',
+        ]);
+        expect(aspectsOf(decideProposalVerification(proposal({ evidence: wide })))).toEqual(['identity', 'quantity']);
+    });
+
+    it('asks identity for a curated VARIANT too', () => {
+        expect(
+            aspectsOf(decideProposalVerification(proposal({ evidence: curatedExactEvidence(), boundTo: 'variant' }))),
+        ).toEqual(['identity', 'quantity']);
+    });
+
+    it('still skips a blank line and still rejects an over-cap one — the free judgements are the same rule', () => {
+        expect(decideProposalVerification(proposal({ sourceLine: ' ​ ' })).kind).toBe('skip');
+        expect(decideProposalVerification(proposal({ sourceLine: 'x'.repeat(401) }))).toMatchObject({
+            kind: 'reject',
+            reason: 'source-line-over-cap',
+            observedChars: 401,
+        });
+    });
+
+    it('reports the same observations the binding rule measures', () => {
+        const evidence = rankedEvidence([candidate(0.9), candidate(0.2)]);
+
+        expect(decideProposalVerification(proposal({ evidence })).observations).toEqual(
+            decideVerification(input({ evidence })).observations,
+        );
     });
 });

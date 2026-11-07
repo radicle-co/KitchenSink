@@ -14,21 +14,35 @@ afterEach(cleanup);
 
 describe('BoundaryErrorNotice (web)', () => {
     it('renders an alert with the shared title, the app’s body and a retry', () => {
-        render(<BoundaryErrorNotice body="We couldn’t load this page. Please try again." onRetry={vi.fn()} />);
+        render(<BoundaryErrorNotice body="We couldn’t load this page. Try again." onRetry={vi.fn()} />);
 
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.getByRole('heading', { name: boundaryMessages.en.errorTitle })).toBeTruthy();
-        expect(screen.getByText('We couldn’t load this page. Please try again.')).toBeTruthy();
+        // The button carries the body again as an aria-hidden description, so the visible copy is found past it.
+        expect(
+            screen.getByText('We couldn’t load this page. Try again.', {
+                ignore: '[aria-hidden="true"], script, style',
+            }),
+        ).toBeTruthy();
         expect(screen.getByRole('button', { name: boundaryMessages.en.retry })).toBeTruthy();
     });
 
-    it('⛔ the retry is a design-system button, not an unstyled control', () => {
+    /**
+     * Rewritten for the componentFixes §1 decision ("every Try again uses quiet"): `StateNotice`'s Try again is the QUIET
+     * design-system button, not secondary, and it is described by the body. The old assertion (secondary surface) pinned
+     * the superseded design; the control must still be the design system's surface, never a bare `<button>`.
+     */
+    it('⛔ the retry is the quiet design-system button, described by the body', () => {
         render(<BoundaryErrorNotice body="Body." onRetry={vi.fn()} />);
 
-        // The old web fallback drew a bare `<button>`; the design system’s surface is what makes it a control.
-        expect(screen.getByRole('button', { name: boundaryMessages.en.retry }).className).toContain(
-            buttonSurfaceClass('secondary'),
-        );
+        const retry = screen.getByRole('button', { name: boundaryMessages.en.retry });
+        expect(retry.className).toContain(buttonSurfaceClass('quiet'));
+
+        const visibleBody = screen.getByText('Body.', { ignore: '[aria-hidden="true"], script, style' });
+        expect(visibleBody).toBeTruthy();
+        const describedBy = retry.getAttribute('aria-describedby');
+        expect(describedBy).not.toBeNull();
+        expect(document.getElementById(describedBy ?? '')?.textContent).toBe(visibleBody.textContent);
     });
 
     it('invokes onRetry when the retry action is activated', () => {

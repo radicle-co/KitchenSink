@@ -389,6 +389,32 @@ describe('every state of the food list (S5 list contract L1 to L4, §S13 P3 to P
         expect(shown.alerts).toEqual([]);
     });
 
+    // Dogfooding PR 132: a slow answer's end said `No more foods found.` beside the foods it listed (P7).
+    it('⛔ a slow answer that ends with nothing more says the search finished, never "no foods", beside its foods', async () => {
+        const user = userEvent.setup();
+        render(
+            <Harness
+                initial={valuesWith(withLineKeys([NO_FOOD]))}
+                over={{
+                    entry: {
+                        view: settledFoodView(answeredGroup(MINE), answeredGroup(RAW)),
+                        databaseSaidEarly: true,
+                    },
+                }}
+            />,
+        );
+        await user.click(screen.getByRole('combobox', { name: 'Ingredient 1 name' }));
+        await user.keyboard('{ArrowDown}');
+        const list = screen.getByRole('listbox', { name: 'Food suggestions for ingredient 1' });
+        const polite = screen
+            .getAllByText(shared.ingredientRemoteSearch.finished)
+            .filter((element) => element.getAttribute('aria-live') === 'polite');
+
+        expect(within(list).getByRole('option', { name: 'Kale, raw' })).toBeTruthy();
+        expect(polite).toHaveLength(1);
+        expect(screen.queryByText('No more foods found.')).toBeNull();
+    });
+
     // REWRITTEN for plan 002 S7.8 (S7 list contract P2, P3): before the database part only the loader shows, one still
     // line after where the options will land; no placeholder rows and no options, so nothing can move.
     it('searching: the loader alone, after the field, said politely, with no option yet (P2, P3)', async () => {
@@ -864,7 +890,8 @@ describe('the add field reads the amount first (build spec §7.5.3; blueprint A1
             render(<Harness initial={valuesWith([])} />);
             await user.type(trailing(), '2 tbsp olive oil, for frying');
 
-            expect(screen.getByText('2 tbsp · olive oil · for frying')).toBeTruthy();
+            // UI Designer condition: the "·" is never spoken. The caption is for the eye; the status region says it.
+            expect(screen.getByText('2 tbsp · olive oil · for frying').closest('[aria-hidden="true"]')).not.toBeNull();
             const spoken = 'Amount 2, unit tablespoon, food olive oil, preparation for frying.';
             // Not per keystroke: nothing is said until the 500 ms pause.
             expect(screen.queryAllByRole('status').some((region) => region.textContent === spoken)).toBe(false);

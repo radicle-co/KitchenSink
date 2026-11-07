@@ -29,13 +29,19 @@ Both P12 and P13 are co-primary. This feature cannot be designed for one side wi
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all learner and educator sessions are authenticated                          |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — recipe entity used as source material for lesson scripts                   |
-| [005-ai-integration](../005-ai-integration/spec.md)         | **Referenced** — AI-assisted lesson script drafting from recipes (P13 Reese "Should" story) |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — course purchases, educator subscription tiers, revenue share                 |
-| [012-creator-profiles](../012-creator-profiles/spec.md)     | **Required** — `CreatorProfile` provides educator identity and `@handle` pages              |
+| Spec                                                        | Relationship                                                                                                                                                                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all learner and educator sessions are authenticated                                                                                                                                           |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Referenced** — recipe entity used as source material for lesson scripts                                                                                                                                    |
+| [005-ai-integration](../005-ai-integration/spec.md)         | **Referenced** — AI-assisted lesson script drafting from recipes (P13 Reese "Should" story)                                                                                                                  |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Required** — course purchases, educator subscription tiers, revenue share                                                                                                                                  |
+| [012-creator-profiles](../012-creator-profiles/spec.md)     | **Required** — `CreatorProfile` provides educator identity and `@handle` pages                                                                                                                               |
+| [026-chef-spaces](../026-chef-spaces/spec.md)               | **Referenced (owner rulings 2026-10-29).** Courses are a chef income line on the chef corner. The commission is deferred to the royalties and chef-payments work (026 Q6), so FR-010's 20%/80% stays a draft |
+
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
 ## Source-of-Truth Note
 
@@ -56,6 +62,12 @@ functional-requirement enumeration. The crosswalk from `product-spec/product-spe
 - Educator profile page powered by 012 `CreatorProfile`
 
 ## Functional Requirements
+
+> _(added 2026-11-03, owner ruling, ADR-0082)_ **Every door to public passes 020's hold.** Any recipe text, lesson
+> text, photo or video description this feature shows to anyone other than its owner counts as "publicly visible" for
+> `020-FR-001`. It goes through 020's one hold before it is shown, and fails closed (020 section K). A copy delivered
+> to a buyer carries its source's checked-content digest (`020-FR-057`). [House rule] This keeps every path to public
+> behind one gate. Counsel review is owed before launch (`016-FR-050`).
 
 Canonical enumeration — crosswalked from `product-spec/product-spec.md` §Functional Requirements
 (2026-08-02). `plan.md`, `tasks.md`, and `v-model/` trace to these IDs. Prior to this crosswalk

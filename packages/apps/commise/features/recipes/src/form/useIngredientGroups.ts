@@ -26,7 +26,7 @@ import { groupNameFieldId } from './fieldIds.js';
 import { groupLabelOf, ingredientGroupLabels } from './ingredientGroups.js';
 import type { IngredientLineKey } from './lineKey.js';
 import type { RecipeFormMessages } from './messages.js';
-import type { ControlFocus } from './useRowFocus.js';
+import type { ControlFocus } from '../common/controlFocus.js';
 import type { RecipeFormValues } from './values.js';
 
 /** The inline group-name field (§7.5.5), for a new group or a rename. */

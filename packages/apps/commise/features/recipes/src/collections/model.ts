@@ -71,11 +71,23 @@ export interface CollectionListFrameProps {
     readonly headingFocusSignal: number;
     /** The large title's action (slice 3): the avatar, which opens Profile. The app supplies it. */
     readonly headerAction?: HeaderAction;
-    /**
-     * The floating button yields (§3.4): while the first read loads, and on the first run, whose own start buttons take
-     * its place. Offline or failed it shows.
-     */
+    /** The floating button yields (§3.4) only while the first read loads. On the first run and offline or failed it shows. */
     readonly createEntryYields?: boolean;
+    /**
+     * The pinned search (native; designer ruling 2026-11-02): where the list has a search field it slides with the scroll and pins
+     * at the top on a band, and the frame draws it. Absent, or not `visible`, the frame draws none.
+     */
+    readonly search?: {
+        readonly value: string;
+        readonly onChange: (value: string) => void;
+        readonly visible: boolean;
+    };
+    /**
+     * The floating button takes focus (native): raised when the new-collection sheet closes without creating one, so
+     * focus returns to the control that opened it. The frame passes it to the button, which acknowledges it.
+     */
+    readonly createFocusRequested?: boolean;
+    readonly onCreateFocusHandled?: () => void;
     /** The read boundary: its loading or error fallback, or the settled results. */
     readonly children: ReactNode;
 }
@@ -133,8 +145,6 @@ export interface CollectionListResultsProps {
     /** The first run's action, which depends on whether the cook has recipes to group yet (§5.1 States). */
     readonly firstRun: {
         readonly hasRecipes: boolean;
-        /** Open the new-collection sheet. */
-        readonly onCreate: () => void;
         /** Open the editor: a collection needs recipes first. */
         readonly onAddRecipe: () => void;
     };

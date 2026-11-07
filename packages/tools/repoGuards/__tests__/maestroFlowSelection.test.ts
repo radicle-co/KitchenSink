@@ -258,6 +258,26 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // after 360 s of nothing moving, and every planned run drives a deployed stage whose worker answers first. Hand-run on
     // a local stage without `recipe-workers`; there is no planned stage it could pass on.
     'recipes/pasteListStalled',
+    // Mark Private, then Publish (pre-push fix pass 2026-10-26): written with the fix that sends the visibility BEFORE the first
+    // Publish and NOT run, because it was built without a device. Promote it to FLOW_PLAN once an emulator run has passed it.
+    'recipes/publishPrivateDraft',
+    // Publish with Private chosen, where the server will refuse Private, opens a sheet (owner ruling 2026-10-26): written NOT run. It needs a seeded
+    // draft of an imported public-web recipe, held public, with a device draft saying Private, for a cook who is not entitled,
+    // and the e2e seed does not mint that. Promote it to FLOW_PLAN once the seed carries it and an emulator run has passed it.
+    'recipes/publishBlockedAsk',
+    // The Suggested option in the add field (owner rulings 2026-11-03; designer ruling N2): a remembered answer is the first
+    // option, tagged, never active, and only a tap binds it. Written test-first with the slice and NOT run (built without a
+    // device); it needs the deployed stage's catalog and a food the cook has corrected before. Promote it to FLOW_PLAN, in the
+    // sandbox-only list, once an emulator run has passed it.
+    'recipes/ingredientSuggested',
+    // The matched paste (ADR-0071; owner rulings 2026-10-25), the two flows still unplanned. Choosing a food and
+    // publishing with open choices passed on the local Android stack and were promoted (2026-11-06). These two depend on
+    // what the stage's catalog and review gate answer. `pasteMatchConfident` assumes a catalog food named "Egg, whole,
+    // raw, fresh", and the curated catalog names it "eggs" (issue #140), so it cannot pass until its line is re-chosen.
+    // `pasteMatchChecking` needs a review that answers late; it passed one local Android run (2026-11-06) and waits on the
+    // lead's call to promote it. Promote `pasteMatchConfident` to FLOW_PLAN once an emulator run has passed it.
+    'recipes/pasteMatchConfident',
+    'recipes/pasteMatchChecking',
     // The offline write path: the editor saves through the outbox (ADR-0057), and these flows assert the cook-visible
     // half (a save that succeeds offline, a queued write surviving an app restart). Android-bound like their siblings
     // (`setAirplaneMode` has no iOS Simulator equivalent), so they run by hand on an emulator.
@@ -276,6 +296,10 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // Slice 3: the iOS edge swipe needs the iOS Simulator, which does not run on Linux (blueprint Q4); it runs by name on
     // a Mac until an iOS lane exists.
     'shell/iosSwipeBack',
+    // The window overlay dismiss routes (OverlayHost). Back order is Android only; swipe-dismiss runs on BOTH platforms. Neither
+    // is planned, so no planned suite runs them on either platform; run by name. The QA engineer's device run decides whether
+    // either joins FLOW_PLAN.
+    'shell/overlayBackOrder',
     'recipes/sourceTabs',
     // Plan 012: the native Google sign-in's cancel (iOS) / no-Play-services error (Android) path. It must start signed
     // OUT, so planning it costs one more Clerk email-code sign-in per platform per run (to restore the session the next
@@ -659,9 +683,12 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(KNOWN_UNRUN_FLOWS).toContain('auth/signUpFlow');
     });
 
+    // REWRITTEN 2026-11-01: the guard keys on the login form's TITLE, its first element, not the email placeholder. At
+    // the system's largest text the fields sit below the first screen, where Android does not report them visible, so a
+    // placeholder guard skipped the sign-in of a signed-out cook. The title is unique to the login form.
     it('keeps that credential block guarded on the login form being visible', () => {
         const body = readFileSync(join(MAESTRO_DIR, 'auth/signinHome.yaml'), 'utf8');
-        const guard = body.indexOf("visible: 'you@example.com'");
+        const guard = body.indexOf("visible: 'Sign in to Commise'");
 
         expect(guard, 'without the guard every flow would sign in again').toBeGreaterThan(0);
         expect(body.indexOf("inputText: '424242'")).toBeGreaterThan(guard);
@@ -678,6 +705,39 @@ describe('the Clerk email-code budget — only the flows that test sign-in clear
         expect(script).not.toMatch(/simctl\s+(?:erase|privacy)\b/u);
         expect(script).not.toMatch(/simctl\s+uninstall\s+\S+\s+["']?io\.commise/u);
         expect(script).toMatch(/simctl install "\$MAESTRO_IOS_UDID" "\$MAESTRO_IOS_APP"/u);
+    });
+});
+
+/**
+ * A flow recognises the sign-in screen by its TITLE, its first element (GATE 2026-11-01). At the system's largest text the
+ * fields sit below the first screen, where Android reports nothing visible, so a wait or a guard on the email placeholder
+ * skipped a sign-in, timed out, or (as `assertNotVisible`) passed when it should not. Scrolling to the placeholder and
+ * tapping it stay allowed: only a VISIBILITY condition keyed on it is refused, in either selector form (`visible: x`
+ * or a nested `text: x`), quoted or not. `notVisible` is named, since `visible` does not match its capital V.
+ */
+const PLACEHOLDER_VISIBILITY =
+    /(?:visible|notVisible|assertVisible|assertNotVisible):\s*(?:text:\s*)?['"]?you@example/mu;
+
+describe('the sign-in screen is recognised by its title, never by the email placeholder', () => {
+    it.each([
+        ['a quoted wait', "- extendedWaitUntil:\n      visible: 'you@example.com'", true],
+        ['a double-quoted assert', '- assertVisible: "you@example.com"', true],
+        ['an unquoted assert', '- assertVisible: you@example.com', true],
+        ['a nested text selector', "- assertVisible:\n      text: 'you@example.com'", true],
+        ['a nested guard', '- runFlow:\n      when:\n          notVisible:\n              text: you@example.com', true],
+        ['a scroll target', "      env:\n          TARGET: 'you@example.com'", false],
+        ['a tap', "- tapOn: 'you@example.com'", false],
+        ['the title', "- extendedWaitUntil:\n      visible: 'Sign in to Commise'", false],
+    ])('%s → refused: %s', (_case, body, refused) => {
+        expect(PLACEHOLDER_VISIBILITY.test(body)).toBe(refused);
+    });
+
+    it('holds for every committed flow', () => {
+        const keyed = discoverFlowFiles().filter((flow) =>
+            PLACEHOLDER_VISIBILITY.test(readFileSync(join(MAESTRO_DIR, `${flow}.yaml`), 'utf8')),
+        );
+
+        expect(keyed).toEqual([]);
     });
 });
 
@@ -791,8 +851,9 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
     });
 
     // Slice 4 of the UI overhaul added `recipes/newCollectionSheet` to the collections vertical, and slice 5 added
-    // `recipes/collectionAddRemoveUndo` (seven flows now).
-    it('selects the spine plus the seven collections flows — the 22%-of-flow-time cluster', () => {
+    // `recipes/collectionAddRemoveUndo`, the sheet-swipe flow made it eight, and the Collections pin added
+    // `recipes/collectionsSearchPinned` (nine), and the first-run large-text flow made it ten.
+    it('selects the spine plus the ten collections flows — the 22%-of-flow-time cluster', () => {
         const selection = select('full=false', 'collections=true');
 
         expect(selection.flows).toEqual([
@@ -803,7 +864,10 @@ describe('selection — a narrowed run is a SUBSEQUENCE of the plan, never a re-
             'recipes/collectionsVisibility',
             'recipes/collectionsSaveCopy',
             'recipes/collectionsPull',
+            'recipes/collectionsSearchPinned',
+            'recipes/collectionsFirstRunLargeText',
             'recipes/newCollectionSheet',
+            'shell/overlaySwipeDismiss',
         ]);
     });
 

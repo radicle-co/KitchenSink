@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * Component tests for the web "Make this collection public?" confirm (plan 2026-10-14-009 T1): what a downgraded owner
- * sees before a private collection goes public. Every consequence's words, the two verb buttons (no Premium button, no
+ * sees before a private collection goes public. Every consequence's words, the two verb buttons (no Pro button, no
  * third choice — the deceptive-pattern rule), focus opening on Keep private, and Escape as Keep.
  */
 import { LocaleProvider } from '@commise/i18n/react';
@@ -45,7 +45,7 @@ describe('CollectionMakePublicDialog (web)', () => {
         ],
         [
             'premium',
-            "Anyone can see a public collection and save a copy. To make this one private again, you'll need Premium.",
+            "Anyone can see a public collection and save a copy. To make this one private again, you'll need Pro.",
         ],
         [
             'unknown',
@@ -67,7 +67,7 @@ describe('CollectionMakePublicDialog (web)', () => {
             'Keep private',
             'Make public',
         ]);
-        expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Pro/u })).toBeNull();
     });
 
     it('opens with focus on Keep private', () => {

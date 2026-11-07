@@ -23,6 +23,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { SearchField } from '@commise/ui/search-field';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import { useId, useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -40,7 +41,7 @@ const GroupName: FC<{ readonly children: string; readonly nameRef?: React.Ref<Te
     const { colors } = useTheme();
 
     return (
-        <Text ref={nameRef} accessibilityRole="header" style={[styles.overline, { color: colors.inkMuted }]}>
+        <Text ref={nameRef} accessibilityRole="header" style={[styles.label, { color: colors.inkMuted }]}>
             {children}
         </Text>
     );
@@ -269,19 +270,18 @@ export const FilterGroups: FC<FilterGroupsProps> = ({ view, chipOverflow, ingred
 const styles = StyleSheet.create({
     groups: { gap: nativeTokens.spacing[5] },
     group: { gap: nativeTokens.spacing[2] },
-    overline: { ...nativeTokens.type.overline },
     label: { ...nativeTokens.type.label },
     body: { ...nativeTokens.type.body },
     meta: { ...nativeTokens.type.meta },
     textButton: {
         alignSelf: 'flex-start',
-        minHeight: 44,
+        minHeight: touchFloor(),
         justifyContent: 'center',
         paddingHorizontal: nativeTokens.spacing[1],
     },
-    option: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[3] },
+    option: { minHeight: touchFloor(), justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[3] },
     disclosure: {
-        minHeight: 44,
+        minHeight: touchFloor(),
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',

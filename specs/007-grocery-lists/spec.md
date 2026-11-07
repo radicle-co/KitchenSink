@@ -2,19 +2,27 @@
 
 **Feature Branch**: `007-grocery-lists`
 **Created**: 2026-04-14
-**Last Updated**: 2026-08-12
+**Last Updated**: 2026-10-28 (household pantry and reminder channels, owner rulings)
 **Status**: Pre-handoff (open questions resolved — see revision log in review.md)
 **Input**: Split from `001-commise-recipe-app` — grocery list generation from meal plans with ingredient aggregation, deduplication, and online ordering integration.
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                               |
-| ----------------------------------------------------------- | ---------------------------------------------------------- |
-| [006-meal-planning](../006-meal-planning/spec.md)           | **Required** — grocery lists are generated from meal plans |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — ingredient data comes from Recipe entities  |
-| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Required** — ingredient identity and unit normalization  |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all grocery features require authentication |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced** — online ordering is a premium feature      |
+| Spec                                                            | Relationship                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [006-meal-planning](../006-meal-planning/spec.md)               | **Required** — grocery lists are generated from meal plans                                                                                                                                                                                                                               |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)     | **Required** — ingredient data comes from Recipe entities                                                                                                                                                                                                                                |
+| [001-FR-003b](../001-commise-recipe-app/spec.md)                | **Required** — a draft, or a recipe in review ([020](../020-content-source-check/spec.md) FR-014a), cannot send its ingredients to a list and is hidden, with no note, in the list picker. Items a recipe already put on a list stay, as plain ingredients, when it is set back to draft |
+| [003-usda-food-data](../003-usda-food-data/spec.md)             | **Required** — ingredient identity and unit normalization                                                                                                                                                                                                                                |
+| [002-user-auth](../002-user-auth/spec.md)                       | **Required** — all grocery features require authentication                                                                                                                                                                                                                               |
+| [010-subscriptions](../010-subscriptions/spec.md)               | **Referenced** — online ordering is a Pro feature. So are the pantry's use-by dates, reminders and suggestions (FR-034 to FR-040, added 2026-10-27). The plan register names the plans                                                                                                   |
+| [014-notification-service](../014-notification-service/spec.md) | **Required for the Pro pantry (added 2026-10-27).** Use-by reminders are published through it (FR-036). Since 2026-10-28 it can also send push and email (014 A-005, `014-FR-046` onward)                                                                                                |
+| [017-recime-parity](../017-recime-parity/spec.md)               | **Referenced (added 2026-10-27).** A covered household member gets the Pro pantry through `017-FR-034a`. Since 2026-10-28 the pantry is the household's on every plan (FR-040)                                                                                                           |
+
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -22,7 +30,7 @@
 
 From a meal plan, a user generates a consolidated grocery list. The list aggregates all ingredients across the planned recipes, combines duplicates (e.g., two recipes needing onions), adjusts quantities, and accounts for items the user already has. The user can then order the groceries online through a supported grocery store — if and when a store integration is available and configured.
 
-**Why this priority**: Grocery list generation is a natural extension of meal planning that delivers tangible time savings. Online ordering integration is a key premium feature that drives subscription value.
+**Why this priority**: Grocery list generation is a natural extension of meal planning that delivers tangible time savings. Online ordering integration is a key Pro feature that drives subscription value.
 
 **Independent Test**: Can be tested by generating a grocery list from a 3-day meal plan and verifying ingredient aggregation and quantity calculations are correct.
 
@@ -31,11 +39,51 @@ From a meal plan, a user generates a consolidated grocery list. The list aggrega
 1. **Given** a completed meal plan, **When** the user generates a grocery list, **Then** all ingredients are aggregated with combined quantities.
 2. **Given** a grocery list, **When** duplicate ingredients exist across recipes, **Then** quantities are summed and displayed as a single line item.
 3. **Given** a grocery list, **When** the user marks items as "already have," **Then** those items are excluded from the shopping list.
-4. **Given** a grocery list and a configured grocery store integration, **When** the user initiates online ordering, **Then** the system maps ingredients to store products and returns a checkout handoff URL. _(Premium feature — requires store integration to be available and configured; see FR-030 and FR-031.)_
+4. **Given** a grocery list and a configured grocery store integration, **When** the user initiates online ordering, **Then** the system maps ingredients to store products and returns a checkout handoff URL. _(Pro feature — requires store integration to be available and configured; see FR-030 and FR-031.)_
 5. **Given** a user has not configured a grocery store, **When** the user attempts to order, **Then** the app guides them through store setup before proceeding.
 6. **Given** a user on the dedicated Shopping Lists page, **When** the user creates a new list, **Then** they can start from scratch or link an existing meal plan.
 7. **Given** a grocery list linked to a meal plan, **When** the user views the list, **Then** a link back to the originating meal plan is visible and navigable.
 8. **Given** a meal plan, **When** the user views the meal plan, **Then** any grocery lists generated from it are listed and navigable from the meal plan view.
+
+---
+
+### User Story 2 - Pantry Use-By Dates, Reminders and "Use It Up" Suggestions (Priority: P3)
+
+_(Added 2026-10-27, owner ruling, Pro match.)_ A Pro cook gives the items in their pantry a use-by date. Before an
+item reaches its date, the app reminds them. It also shows recipes from their own library that use the items that
+are about to run out, ranked by simple rules. No AI is involved, and no AI use is spent.
+
+> **Owner ruling, 2026-10-27.** "Pro stays at $99.99 a year, and Free keeps its 50 private recipes (ADR-0073
+> unchanged). Pro matches Samsung Food+'s $59.99 features: a pantry with use-by dates and simple 'use it up'
+> suggestions, without AI, in Pro." AI-driven waste optimization stays Pro with AI only (`006-FR-027`).
+
+**Why this priority**: It is one of the features that makes Pro match a competitor plan that costs less. It builds on
+the "already have" pantry this spec already has (FR-029).
+
+**Independent Test**: As a Pro cook, add milk with a use-by date of tomorrow and rice with one 30 days away. The next
+morning there is one in-app reminder that names the milk and not the rice. Suggestions list recipes with milk first.
+Eight days later the rice is still in the pantry.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Pro cook, **When** they add or edit a pantry item, **Then** they can set, change or clear a use-by date,
+   and the item keeps it (FR-034).
+2. **Given** an item with a use-by date more than 7 days away, **When** 7 days pass, **Then** the item is still in the
+   pantry. **Given** an item with no use-by date, **When** 7 days pass with no update, **Then** it is removed, as
+   today (FR-035).
+3. **Given** items whose use-by date is today or in the next 2 days, **When** the daily reminder runs, **Then** the
+   cook gets one in-app reminder that lists them, and never a second reminder for the same item and date (FR-036).
+4. **Given** soon-to-expire items, **When** the cook opens the suggestions, **Then** recipes that use them are ranked
+   by the rules of FR-038, and no model is called and no AI use is spent.
+5. **Given** an item past its use-by date, **When** the cook views the pantry, **Then** it is marked as past its date,
+   and no recipe is suggested for it (FR-037).
+6. **Given** a draft, or a recipe in review, **When** suggestions are ranked, **Then** it is never suggested
+   (`001-FR-003b`).
+7. **Given** a Free cook, **When** they use the pantry, **Then** they have the 7-day "already have" pantry with no
+   use-by field, reminder or suggestion. An upgrade prompt shows only while the subscription page is live
+   (`010-FR-042j`).
+8. **Given** a Pro cook whose plan lapses, **When** they open the pantry, **Then** every item and date is still there.
+   Reminders and suggestions are off. If the cook subscribes again, they come back (FR-039).
 
 ---
 
@@ -62,9 +110,69 @@ From a meal plan, a user generates a consolidated grocery list. The list aggrega
 - **FR-028**: System MUST generate a consolidated grocery list from a meal plan, aggregating and deduplicating ingredients with summed quantities.
 - **FR-029**: System MUST allow users to mark grocery items as "already have" to exclude them from the list.
 - **FR-030**: System MUST allow users to configure supported grocery store integrations for online ordering. _(Store integrations are implemented as adapters; availability depends on partner API access — see Assumptions.)_
-- **FR-031**: System MUST map grocery list ingredients to store products and provide a checkout handoff URL when a store integration is active. _(Premium — requires FR-030 store to be configured and reachable.)_
+- **FR-031**: System MUST map grocery list ingredients to store products and provide a checkout handoff URL when a store integration is active. _(Pro — requires FR-030 store to be configured and reachable.)_
 - **FR-032**: System MUST provide a dedicated Shopping Lists page where users can view all their lists, create a new standalone list, or generate a list from a meal plan — independent of navigating through the meal plan view.
 - **FR-033**: System MUST display a link from a grocery list back to its originating meal plan (when one exists), and display a list of associated grocery lists from within the meal plan view.
+
+**Pantry use-by dates, reminders and suggestions (Pro)** _(added 2026-10-27, owner ruling, Pro match. See User
+Story 2. The plans are in 010's [plan register](../010-subscriptions/spec.md#plan-register))_
+
+- **FR-034**: A pantry item MUST be able to carry an optional **use-by date**. It is a calendar date in the cook's own
+  time zone, stored as an ISO 8601 date (`YYYY-MM-DD`) with no time part. The cook MUST be able to set, change and
+  clear it, and to mark an item used, which removes it. Setting a date is a paid-plan feature (FR-039).
+- **FR-035**: The pantry prune MUST apply two rules. An item with no use-by date keeps today's rule: it is removed 7
+  days after its last update (plan §8, Resolved Question 6). An item with a use-by date MUST NOT be removed by the 7-day
+  rule. Three things remove it: the cook removes it, the cook marks it used, or 7 days pass after its use-by date.
+  Without this rule, the prune deletes every item whose date is more than a week away.
+- **FR-036**: Once a day, in the morning in the cook's time zone, the system MUST publish **one** in-app notification
+  through 014. It goes to each Pro cook who has reminders on and at least one item newly due. An item is due on its
+  use-by date and on the 2 days before it. Each item is listed in at most one reminder for a given use-by date. A
+  changed date makes it due again. The notification's `messageType` is registered under its producer in 014's registry
+  (`014-FR-016`, `014-FR-041`). Its `idempotencyKey` is built from stored state: the cook, and the items with their
+  dates. It is never built from a clock or a random value (`014-FR-030`). Reminders are on by default for a paid cook,
+  and the cook can turn them off in settings. The setting is a typed, nullable column in identity's settings table, and
+  NULL means the default (ADR-0059). At launch the reminder is in-app only, because 014 has no push or email transport
+  (014 A-005). When 014 gains one, this FR does not change. The plan states how the cook's time zone is known. _(Amended
+  2026-10-28: 014 gains push and email. This reminder's channels and defaults are in 014's message catalog
+  (`014-FR-052`): in-app and push on, email off until the cook turns it on. The publish here does not change. In a
+  household, the reminder goes to each active member who has reminders on, for the household's pantry
+  (`017-FR-034a`).)_
+- **FR-037**: An item past its use-by date MUST be shown as past its date. It MUST NOT be used to rank a suggestion,
+  and the app MUST NOT say or imply that the food is still safe to eat. The date is the cook's own, and the app
+  makes no food-safety judgement about it.
+- **FR-038**: The system MUST suggest recipes that use soon-to-expire items, ranked by fixed rules and **never by
+  AI**. A suggestion calls no model and spends no AI use (`005-FR-015a`). The rules:
+    - **Candidates** are recipes in the cook's own library. The plan names the exact set. V1 MUST NOT search the
+      whole public corpus. A draft or a recipe in review is never a candidate (`001-FR-003b`).
+    - **A match** is an ingredient line bound to the same food as the pantry item, by food id. An unresolved line
+      never matches.
+    - **Soon-to-expire** means a use-by date of today or the next 2 days, never a past date (FR-037).
+    - **The order** uses four rules. Each rule breaks the ties of the one before: more soon-to-expire items used, then
+      the earliest use-by date among them, then fewer ingredient lines the pantry does not hold, then the recipe id, so
+      the order is stable.
+    - Each suggestion MUST say which items it uses, so the cook can see why it is there.
+    - The ranking is one pure function, testable with no database.
+- **FR-039**: Use-by dates, reminders and suggestions MUST be on the plans that 010's plan register names: Pro and Pro
+  with AI, as recorded on 2026-10-27. A member of a covered household gets them through `017-FR-034a`, on the
+  household's pantry only (amended 2026-10-28). The server
+  enforces the gate and fails closed (`010-FR-044`). Free keeps the "already have" pantry with the 7-day rule
+  (FR-029). On a lapse or a downgrade, every item and date is kept (`010-FR-043`). Reminders and suggestions stop,
+  the cook cannot set a new date, and FR-035 still applies. A cook who subscribes again gets them back.
+- **FR-040**: Two data-model questions are open for `staff-architect` at plan time, and this spec does not answer
+  them:
+    - **One row per food, or one per pack.** `user_pantry_items` has the key `(owner_id, usda_fdc_id)`, so one food
+      holds one row and one date. Two packs of milk with different dates cannot both be recorded. This spec requires
+      only one thing: a cook can record a use-by date for each item.
+    - **A cook's pantry or a household's.** _(Answered 2026-10-28, owner ruling: "Let's plan that for the household
+      then".)_ The pantry is the household's, on every plan (`017-FR-034a`). One member's Pro adds use-by dates,
+      reminders and suggestions for every member. `user_pantry_items` moves from `owner_id` to `household_id`,
+      EXPAND-FIRST, and `staff-architect` designs the move with the first question. _(Was: "`017-FR-030` shares
+      plans, lists and aisle categories in a household, not the pantry. Until that is decided, the pantry belongs to
+      the cook.")_
+
+    Every new pantry surface ships on web and mobile in the same release (CODING_STANDARDS §14). Each one goes through
+    `staff-ux-engineer` DESIGN and SPECIFY before it is built. The AI kind of waste optimization is a different feature,
+    `006-FR-027`, on Pro with AI only.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -75,6 +183,8 @@ From a meal plan, a user generates a consolidated grocery list. The list aggrega
 
 ### Key Entities
 
+- **Pantry Item**: A food the cook already has, persisted in `user_pantry_items`. It can carry a use-by date (FR-034,
+  Pro). It is removed by the cook, or by the prune rule of FR-035. _(Added 2026-10-27.)_
 - **Grocery List**: An aggregated, deduplicated list of ingredients. May be generated from a meal plan or created standalone. Items can be marked as "already have" or mapped to store products for online ordering. A list retains a nullable reference to its originating meal plan.
 
 ## API Contract & Input Validation (GR-015 / GR-016)
@@ -191,13 +301,14 @@ adapters are the **OPPOSITE** case:
   is generated from the storage schema and **no storage type enters a wire schema**. **A floor is not a target**:
   `grocery_lists.name` is unbounded `text()`, so its limit is a **product decision 007 owns**. Enforcement is the
   per-service parity test of GR-017 §17-d, its mapping asserted complete **in both directions**.
-- **Non-HTTP ingress — 007 has two.** (1) A **`@Cron` pantry-expiry prune**, implied by `user_pantry_items`' 7-day
-  TTL, and (2) the **order-status polling** loop. Both run in `@kitchensink/recipe-workers` and both parse their
-  own event, because "the payload is ours" is an assumption about a deploy that has already drifted once.
-  **Order status is POLLING, not webhooks** — a deliberate MVP decision, since neither candidate partner
-  guarantees webhook delivery. ⚠️ **If a signed retailer callback is ever added it gets signature THEN schema**,
-  in that order (a signature proves **origin, not shape**), and per GR-018 §18-c a sender that retries on any
-  non-2xx is answered **`2xx`** with the rejection in the body, the logs, a per-`reason` counter and an alarm.
+- **Non-HTTP ingress — 007 has three.** (1) A **`@Cron` pantry-expiry prune**, implied by `user_pantry_items`' 7-day TTL
+  and, since 2026-10-27, by FR-035's use-by rule. (2) The **order-status polling** loop. (3) The daily **use-by reminder
+  scan** of FR-036 (added 2026-10-27). All three run in `@kitchensink/recipe-workers`. Each parses its own event,
+  because "the payload is ours" is an assumption about a deploy that has already drifted once. **Order status is
+  POLLING, not webhooks** — a deliberate MVP decision, since neither candidate partner guarantees webhook delivery. ⚠️
+  **If a signed retailer callback is ever added it gets signature THEN schema**, in that order (a signature proves
+  **origin, not shape**), and per GR-018 §18-c a sender that retries on any non-2xx is answered **`2xx`** with the
+  rejection in the body, the logs, a per-`reason` counter and an alarm.
 - **No request-derived value reaches `sql.raw()`**; a request-selected sort or aisle grouping maps through a
   validated enum to a **closed allowlist of literals** in code.
 
@@ -208,6 +319,10 @@ adapters are the **OPPOSITE** case:
 - **SC-004**: Grocery lists generated from a 7-day meal plan accurately aggregate all ingredients within 5 seconds.
 - **SC-008**: Users can complete a full meal-plan-to-grocery-list workflow in under 10 minutes for a 7-day plan.
 - **SC-009**: Users can reach the Shopping Lists page directly from the main navigation and create a list without first visiting a meal plan.
+- **SC-010** _(added 2026-10-27)_: Zero pantry items with a use-by date are removed by the 7-day rule, and every item
+  is listed in at most one reminder for a given use-by date.
+- **SC-011** _(added 2026-10-27)_: Zero pantry suggestions include a draft, a recipe in review or an item past its
+  use-by date, and zero pantry features call a model or spend an AI use.
 
 ## Assumptions
 

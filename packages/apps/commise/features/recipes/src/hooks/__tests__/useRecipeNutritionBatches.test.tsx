@@ -1,29 +1,24 @@
 /**
- * Tests for {@link useRecipeNutritionBatches} — the RENDER-AS-YOU-FETCH seam for the deferred calorie
- * lookup (ADR-0021 §6). Written test-first, against a hook that did not exist.
+ * Tests for {@link useRecipeNutritionBatches} — the deferred calorie lookup's one read seam (ADR-0079 §6).
  *
- * The hook's whole job is timing and IDENTITY, so that is what these tests pin:
+ * REWRITTEN for ADR-0079. The hook used to hand each card a PROMISE for a Suspense boundary to `use()`, and these tests
+ * pinned that promise's identity. A suspending slot held every deferred update on its screen behind the lookup, so the
+ * hook now subscribes with `useQueries` and hands each card a READING — `pending`, `failed` or `settled` — as a value.
+ * What these tests pin:
  *
- *  1. **The request is in flight BEFORE the cards render.** ADR-0021 §6 says mobile "calls `ensureQueryData`
- *     the moment the ids are known … so render finds an in-flight query". The assertion is therefore made
- *     from INSIDE a child's render pass, reading the query cache's `fetchStatus`. An effect-based
- *     implementation (`useEffect(() => { void ensureQueryData(...) })`) fails it, because effects run after
- *     the render pass — which is exactly the fetch-on-render shape this phase exists to avoid.
- *  2. **One promise, N boundaries.** N cards over one page must cost ONE request.
- *  3. **The promise IDENTITY is stable across re-renders.** This is not tidiness: `queryClient.ensureQueryData`
- *     returns `Promise.resolve(cachedData)` — a BRAND NEW promise — on every call once the data is cached
- *     (query-core `queryClient.js`). Handing `use()` a new promise every render re-suspends the card forever,
- *     so the memo is the mechanism, not an optimization.
- *  4. **A later page does not disturb an earlier one.** Pages are batched SEPARATELY (see the hook's
- *     docblock): an infinite list that re-batched every accumulated id would mint a new promise on every
- *     "load more", and every already-resolved chip on screen would fall back to its skeleton.
- *  5. **An empty group fires nothing.** The service REJECTS an empty id list, and `ensureQueryData` does not
- *     honour the factory's `enabled` gate (that is a hook-level option), so the skip has to live here.
- *  6. **A failed batch does not surface as an unhandled rejection.** The error boundary owns the failure; a
- *     promise nobody has attached to yet must not take the process down first.
+ *  1. **The mapping from query state to reading.** Data present is `settled`, even while a background refetch runs
+ *     (no skeleton flashes back over a figure) and even after a later refetch FAILED (a figure is not withdrawn for a
+ *     transient blip). An error with no data is `failed`, never a skeleton that waits forever. Anything else is
+ *     `pending`.
+ *  2. **One request per page, N cards.** A page of N recipes is ONE read; pages are batched SEPARATELY, so a later page
+ *     never disturbs an earlier one's reading.
+ *  3. **A stable lookup.** Hosts memoize their render prop on the lookup, so an equal set of pages must hand back the
+ *     SAME function, or every card re-renders on every host render.
+ *  4. **No request that must fail.** The service rejects an empty id list, so no page and an empty page fire nothing.
+ *  5. **A failed batch is not an unhandled rejection.**
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FC, ReactElement, ReactNode } from 'react';
 
@@ -31,19 +26,25 @@ import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-se
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { MAX_NUTRITION_RECIPE_IDS, type RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
-import { toRecipeNutritionPages, useRecipeNutritionBatches } from '../useRecipeNutritionBatches.js';
+import type { RecipeNutritionBatchReading } from '../../nutrition/model.js';
+import {
+    toRecipeNutritionPages,
+    useRecipeNutritionBatches,
+    type RecipeNutritionLookup,
+} from '../useRecipeNutritionBatches.js';
 
 const PAGE_ONE = ['00000000-0000-4000-8000-00000000000a', '00000000-0000-4000-8000-00000000000b'];
 const PAGE_TWO = ['00000000-0000-4000-8000-00000000000c'];
+const FIRST = PAGE_ONE[0] ?? '';
 
 /** A response carrying a figure for every id asked about. */
-const respond = (recipeIds: readonly string[]): RecipeNutritionResponse => ({
+const respond = (recipeIds: readonly string[], caloriesPerServing = 420): RecipeNutritionResponse => ({
     nutrition: Object.fromEntries(
         recipeIds.map((id) => [
             id,
             {
                 state: 'known',
-                caloriesPerServing: 420,
+                caloriesPerServing,
                 proteinG: 1,
                 carbsG: 2,
                 fatG: 3,
@@ -57,16 +58,28 @@ const respond = (recipeIds: readonly string[]): RecipeNutritionResponse => ({
 /** A client double narrowed to the ONE method this seam calls. */
 function makeClient(
     getRecipeNutrition: (recipeIds: readonly string[]) => Promise<RecipeNutritionResponse>,
-): RecipeServiceClient {
-    return { getRecipeNutrition: vi.fn(getRecipeNutrition) } as unknown as RecipeServiceClient;
+): RecipeServiceClient & { getRecipeNutrition: ReturnType<typeof vi.fn> } {
+    return { getRecipeNutrition: vi.fn(getRecipeNutrition) } as unknown as RecipeServiceClient & {
+        getRecipeNutrition: ReturnType<typeof vi.fn>;
+    };
+}
+
+/** A promise the test settles by hand. */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason: unknown) => void } {
+    let resolve!: (value: T) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((settle, fail) => {
+        resolve = settle;
+        reject = fail;
+    });
+
+    return { promise, resolve, reject };
 }
 
 let queryClient: QueryClient;
 
 beforeEach(() => {
-    queryClient = new QueryClient({
-        defaultOptions: { queries: { retry: false } },
-    });
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 });
 
 afterEach(() => {
@@ -80,281 +93,284 @@ const wrap = (client: RecipeServiceClient, ui: ReactNode): ReactElement => (
     </QueryClientProvider>
 );
 
-describe('useRecipeNutritionBatches — render-as-you-fetch', () => {
-    it('⛔ has the request IN FLIGHT while the first card renders — not after an effect', () => {
-        const client = makeClient(async (ids) => respond(ids));
-        // Recorded from inside the CHILD's render pass. An effect-based implementation records `undefined`
-        // (no query built yet), which is the fetch-on-render failure this phase exists to remove.
-        let statusDuringChildRender: string | undefined;
+/** A host that records the lookup it was handed on every render. */
+function recordingHost(): {
+    Host: FC<{ readonly pages: readonly (readonly string[])[]; readonly tick?: number }>;
+    lookups: RecipeNutritionLookup[];
+    latest: () => RecipeNutritionLookup;
+} {
+    const lookups: RecipeNutritionLookup[] = [];
 
-        const Card: FC = () => {
-            statusDuringChildRender = queryClient.getQueryState(
-                recipeServiceKeys.recipeNutrition(PAGE_ONE),
-            )?.fetchStatus;
+    const Host: FC<{ readonly pages: readonly (readonly string[])[]; readonly tick?: number }> = ({ pages, tick }) => {
+        lookups.push(useRecipeNutritionBatches(pages));
 
-            return <span>card</span>;
-        };
+        return <span>{tick ?? 0}</span>;
+    };
 
-        const Host: FC = () => {
-            useRecipeNutritionBatches([PAGE_ONE]);
+    return {
+        Host,
+        lookups,
+        latest: () => {
+            const last = lookups.at(-1);
 
-            return <Card />;
-        };
+            if (last === undefined) {
+                throw new Error('the host never rendered');
+            }
 
-        render(wrap(client, <Host />));
+            return last;
+        },
+    };
+}
 
-        expect(screen.getByText('card')).toBeTruthy();
-        expect(statusDuringChildRender).toBe('fetching');
+/** Let the query cache settle what it is doing, inside `act`. */
+async function flush(): Promise<void> {
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
     });
+}
 
-    it('fires ONE request for a page of N recipes', () => {
-        const client = makeClient(async (ids) => respond(ids));
+/** Wait until the page's query reaches `status`, through the read seam's own retry and its backoff. */
+async function waitForStatus(page: readonly string[], status: 'success' | 'error'): Promise<void> {
+    await vi.waitFor(
+        () => {
+            expect(queryClient.getQueryState(recipeServiceKeys.recipeNutrition(page))?.status).toBe(status);
+        },
+        { timeout: 5_000 },
+    );
+    await flush();
+}
 
-        const Host: FC = () => {
-            const lookup = useRecipeNutritionBatches([PAGE_ONE]);
+describe('useRecipeNutritionBatches — the reading each card is handed', () => {
+    it('is PENDING while the batch is in flight', () => {
+        const client = makeClient(() => new Promise<RecipeNutritionResponse>(() => undefined));
+        const { Host, latest } = recordingHost();
 
-            return (
-                <>
-                    {PAGE_ONE.map((id) => (
-                        <span key={id}>{lookup(id) === null ? 'none' : 'promised'}</span>
-                    ))}
-                </>
-            );
-        };
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
 
-        render(wrap(client, <Host />));
-
-        expect(client.getRecipeNutrition).toHaveBeenCalledTimes(1);
-        expect(client.getRecipeNutrition).toHaveBeenCalledWith(PAGE_ONE, expect.anything());
-        expect(screen.getAllByText('promised')).toHaveLength(PAGE_ONE.length);
-    });
-
-    it('hands every recipe on the page the SAME promise object (one lookup, N boundaries)', () => {
-        const client = makeClient(async (ids) => respond(ids));
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
-
-        const Host: FC = () => {
-            const lookup = useRecipeNutritionBatches([PAGE_ONE]);
-            seen.push(...PAGE_ONE.map((id) => lookup(id)));
-
-            return <span>host</span>;
-        };
-
-        render(wrap(client, <Host />));
-
-        expect(seen[0]).not.toBeNull();
-        expect(seen[1]).toBe(seen[0]);
-    });
-
-    it('⛔ keeps the promise IDENTITY stable across re-renders (a new one re-suspends the card forever)', async () => {
-        const client = makeClient(async (ids) => respond(ids));
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
-
-        const Host: FC<{ readonly tick: number }> = ({ tick }) => {
-            seen.push(useRecipeNutritionBatches([PAGE_ONE])(PAGE_ONE[0] ?? ''));
-
-            return <span>{tick}</span>;
-        };
-
-        const view = render(wrap(client, <Host tick={1} />));
-        // Let the fetch settle: past this point `ensureQueryData` answers from cache with a FRESH
-        // `Promise.resolve(...)` every call, which is precisely when an unmemoized hook starts churning.
-        await seen[0];
-        view.rerender(wrap(client, <Host tick={2} />));
-
-        expect(seen).toHaveLength(2);
-        expect(seen[1]).toBe(seen[0]);
-    });
-
-    it('⛔ does not re-enter the query cache on a re-render (a stale query would re-fetch on every one)', async () => {
-        const client = makeClient(async (ids) => respond(ids));
-        const ensureQueryData = vi.spyOn(queryClient, 'ensureQueryData');
-
-        const Host: FC<{ readonly tick: number }> = ({ tick }) => {
-            useRecipeNutritionBatches([PAGE_ONE]);
-
-            return <span>{tick}</span>;
-        };
-
-        const view = render(wrap(client, <Host tick={1} />));
-        await queryClient.getQueryCache().find({ queryKey: recipeServiceKeys.recipeNutrition(PAGE_ONE) })?.promise;
-        view.rerender(wrap(client, <Host tick={2} />));
-        view.rerender(wrap(client, <Host tick={3} />));
-
-        // Identity would survive an unmemoized call (it comes from the query, not the memo), so this is the OTHER
-        // half of the memo's job: `ensureQueryData` re-fetches a query it finds stale, so calling it once per render
-        // turns every render past the 2-minute staleTime into a fresh request — and each response re-renders.
-        expect(ensureQueryData).toHaveBeenCalledTimes(1);
-    });
-
-    it('⛔ survives a RE-ORDER of the same ids — the read is one logical read, so the promise must not churn', () => {
-        const client = makeClient(async (ids) => respond(ids));
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
-
-        const Host: FC<{ readonly ids: readonly string[] }> = ({ ids }) => {
-            seen.push(useRecipeNutritionBatches([ids])(PAGE_ONE[0] ?? ''));
-
-            return <span>host</span>;
-        };
-
-        const view = render(wrap(client, <Host ids={PAGE_ONE} />));
-        // The discovery sort control re-orders the SAME results. `recipeServiceKeys.recipeNutrition` sorts
-        // ids into the key, so this is the same query — and a hook that keyed on raw order would mint a new
-        // promise here and blink every chip back to its skeleton for a re-sort that fetched nothing.
-        view.rerender(wrap(client, <Host ids={[...PAGE_ONE].reverse()} />));
-
-        expect(seen[1]).toBe(seen[0]);
+        expect(latest()(FIRST)).toEqual({ status: 'pending' } satisfies RecipeNutritionBatchReading);
         expect(client.getRecipeNutrition).toHaveBeenCalledTimes(1);
     });
 
-    it('mints a NEW promise when the page of ids changes (the retry / new-data signal)', () => {
+    it('is SETTLED with the response once the batch answers', async () => {
+        const answer = deferred<RecipeNutritionResponse>();
+        const client = makeClient(() => answer.promise);
+        const { Host, latest } = recordingHost();
+
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await act(async () => {
+            answer.resolve(respond(PAGE_ONE));
+        });
+        await waitForStatus(PAGE_ONE, 'success');
+
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE) });
+    });
+
+    // ⛔ THE INVARIANT: a failure is a terminal reading, never a skeleton that waits forever.
+    it('is FAILED once the batch has failed with no answer to fall back on', async () => {
+        const client = makeClient(async () => {
+            throw new Error('food service unavailable');
+        });
+        const { Host, latest } = recordingHost();
+
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await waitForStatus(PAGE_ONE, 'error');
+
+        expect(latest()(FIRST)).toEqual({ status: 'failed' });
+    });
+
+    // ⛔ A figure on screen is not withdrawn for a transient blip: data that landed stays SETTLED after a failed refetch.
+    it('stays SETTLED with the last answer when a later refetch FAILS', async () => {
+        let fail = false;
+        const client = makeClient(async (ids) => {
+            if (fail) {
+                throw new Error('food service unavailable');
+            }
+
+            return respond(ids);
+        });
+        const { Host, latest } = recordingHost();
+
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await waitForStatus(PAGE_ONE, 'success');
+        fail = true;
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: recipeServiceKeys.recipeNutrition(PAGE_ONE) });
+        });
+        await waitForStatus(PAGE_ONE, 'error');
+
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE) });
+    });
+
+    // ⛔ A background refetch must not flash the skeleton back over a figure.
+    it('stays SETTLED, not pending, while a BACKGROUND refetch is in flight', async () => {
+        const refetch = deferred<RecipeNutritionResponse>();
+        let calls = 0;
+        const client = makeClient(async (ids) => {
+            calls += 1;
+
+            return calls === 1 ? respond(ids) : refetch.promise;
+        });
+        const { Host, latest } = recordingHost();
+
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await waitForStatus(PAGE_ONE, 'success');
+        await act(async () => {
+            void queryClient.refetchQueries({ queryKey: recipeServiceKeys.recipeNutrition(PAGE_ONE) });
+        });
+
+        expect(queryClient.getQueryState(recipeServiceKeys.recipeNutrition(PAGE_ONE))?.fetchStatus).toBe('fetching');
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE) });
+
+        await act(async () => {
+            refetch.resolve(respond(PAGE_ONE, 515));
+        });
+        await flush();
+
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE, 515) });
+    });
+
+    it('is `null` for a recipe no page carries — a host renders nothing, never a skeleton with nothing to settle', () => {
         const client = makeClient(async (ids) => respond(ids));
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
+        const { Host, latest } = recordingHost();
 
-        const Host: FC<{ readonly ids: readonly string[] }> = ({ ids }) => {
-            seen.push(useRecipeNutritionBatches([ids])(ids[0] ?? ''));
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
 
-            return <span>host</span>;
-        };
-
-        const view = render(wrap(client, <Host ids={PAGE_ONE} />));
-        view.rerender(wrap(client, <Host ids={[...PAGE_ONE, ...PAGE_TWO]} />));
-
-        expect(seen[1]).not.toBe(seen[0]);
-        expect(client.getRecipeNutrition).toHaveBeenCalledTimes(2);
+        expect(latest()('00000000-0000-4000-8000-0000000000ff')).toBeNull();
     });
 });
 
-describe('useRecipeNutritionBatches — paging', () => {
+describe('useRecipeNutritionBatches — one read per page', () => {
+    it('fires ONE request for a page of N recipes, and every recipe on it reads that batch', async () => {
+        const client = makeClient(async (ids) => respond(ids));
+        const { Host, latest } = recordingHost();
+
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await waitForStatus(PAGE_ONE, 'success');
+
+        expect(client.getRecipeNutrition).toHaveBeenCalledTimes(1);
+        expect(client.getRecipeNutrition).toHaveBeenCalledWith(PAGE_ONE, expect.anything());
+        expect(PAGE_ONE.map((id) => latest()(id))).toEqual(
+            PAGE_ONE.map(() => ({ status: 'settled', response: respond(PAGE_ONE) })),
+        );
+    });
+
     it('batches each page SEPARATELY: one request per page, with only that page’s ids', () => {
         const client = makeClient(async (ids) => respond(ids));
+        const { Host } = recordingHost();
 
-        const Host: FC = () => {
-            useRecipeNutritionBatches([PAGE_ONE, PAGE_TWO]);
-
-            return <span>host</span>;
-        };
-
-        render(wrap(client, <Host />));
+        render(wrap(client, <Host pages={[PAGE_ONE, PAGE_TWO]} />));
 
         expect(client.getRecipeNutrition).toHaveBeenCalledTimes(2);
-        expect(client.getRecipeNutrition).toHaveBeenNthCalledWith(1, PAGE_ONE, expect.anything());
-        expect(client.getRecipeNutrition).toHaveBeenNthCalledWith(2, PAGE_TWO, expect.anything());
+        expect(client.getRecipeNutrition).toHaveBeenCalledWith(PAGE_ONE, expect.anything());
+        expect(client.getRecipeNutrition).toHaveBeenCalledWith(PAGE_TWO, expect.anything());
     });
 
-    it('⛔ leaves page one’s promise UNTOUCHED when page two arrives (no chip falls back to its skeleton)', () => {
+    it('reads each recipe out of the page that CARRIES it', async () => {
+        const client = makeClient(async (ids) => respond(ids, ids.length === 1 ? 615 : 420));
+        const { Host, latest } = recordingHost();
+
+        render(wrap(client, <Host pages={[PAGE_ONE, PAGE_TWO]} />));
+        await waitForStatus(PAGE_ONE, 'success');
+        await waitForStatus(PAGE_TWO, 'success');
+
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE, 420) });
+        expect(latest()(PAGE_TWO[0] ?? '')).toEqual({ status: 'settled', response: respond(PAGE_TWO, 615) });
+    });
+
+    // ⛔ The whole reason pages are batched separately rather than re-sent as one growing id set.
+    it('leaves page one SETTLED and asks nothing again when page two arrives (no chip falls back to its skeleton)', async () => {
         const client = makeClient(async (ids) => respond(ids));
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
-
-        const Host: FC<{ readonly pages: readonly (readonly string[])[] }> = ({ pages }) => {
-            seen.push(useRecipeNutritionBatches(pages)(PAGE_ONE[0] ?? ''));
-
-            return <span>host</span>;
-        };
+        const { Host, latest } = recordingHost();
 
         const view = render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await waitForStatus(PAGE_ONE, 'success');
         view.rerender(wrap(client, <Host pages={[PAGE_ONE, PAGE_TWO]} />));
 
-        // The whole reason pages are batched separately rather than re-sent as one growing id set.
-        expect(seen[1]).toBe(seen[0]);
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE) });
+        expect(client.getRecipeNutrition).toHaveBeenCalledTimes(2);
+        expect(client.getRecipeNutrition).toHaveBeenLastCalledWith(PAGE_TWO, expect.anything());
     });
 
+    it('survives a RE-ORDER of the same ids — one logical read, no second request', async () => {
+        const client = makeClient(async (ids) => respond(ids));
+        const { Host, latest } = recordingHost();
+
+        const view = render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await waitForStatus(PAGE_ONE, 'success');
+        // A sort control re-orders the SAME results. `recipeServiceKeys.recipeNutrition` sorts ids into the key.
+        view.rerender(wrap(client, <Host pages={[[...PAGE_ONE].reverse()]} />));
+
+        expect(client.getRecipeNutrition).toHaveBeenCalledTimes(1);
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE) });
+    });
+
+    // ⛔ Hosts memoize their render prop on the lookup. A new function per render re-renders every card every time.
+    it('hands back the SAME lookup across re-renders with equal pages, even when the caller rebuilds the array', async () => {
+        const client = makeClient(async (ids) => respond(ids));
+        const { Host, lookups } = recordingHost();
+
+        const view = render(wrap(client, <Host pages={[PAGE_ONE]} tick={1} />));
+        await waitForStatus(PAGE_ONE, 'success');
+        const settledLookup = lookups.at(-1);
+        view.rerender(wrap(client, <Host pages={[[...PAGE_ONE]]} tick={2} />));
+        view.rerender(wrap(client, <Host pages={[[...PAGE_ONE]]} tick={3} />));
+
+        expect(lookups.at(-1)).toBe(settledLookup);
+        expect(lookups.at(-2)).toBe(settledLookup);
+    });
+});
+
+describe('useRecipeNutritionBatches — a host that remounts while the batch is in flight', () => {
     /**
-     * ⛔ The realistic load-more: page two arrives AFTER page one's figures have landed. `Query.promise` is the
-     * retryer's promise only WHILE a fetch runs — query-core clears the retryer in the fetch's `finally` — so a memo that
-     * recomputes after the settle cannot recover it, and `ensureQueryData` answers with a fresh `Promise.resolve(...)`
-     * React has never seen. `use()` cannot read an untracked promise synchronously, so it suspends: the settled chips
-     * blink back to their skeletons, and a render that React is holding (a deferred or transition render) waits on it.
-     * A settled page must therefore be handed a promise React can read at once, and the same one on every recompute.
+     * A host can unmount and mount again while its batch is still in flight — Discover's frame moves its results to a
+     * new parent the moment `<main>` is first measured, which remounts every rail. TanStack cancels a query whose last
+     * observer leaves mid-fetch, IF its request read the query's `signal`, and the next mount then asks again. The batch
+     * is one shared, cheap-to-keep answer, so it must survive its observers leaving: ONE request, and the remount reads
+     * that request's answer.
      */
-    it('⛔ hands a page that has SETTLED a promise React reads at once, stable across later pages', async () => {
-        const client = makeClient(async (ids) => respond(ids));
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
+    it('⛔ asks ONCE across an unmount and a remount mid-flight, and the remount reads that one answer', async () => {
+        const answer = deferred<RecipeNutritionResponse>();
+        const client = makeClient(() => answer.promise);
+        const { Host, latest } = recordingHost();
 
-        const Host: FC<{ readonly pages: readonly (readonly string[])[] }> = ({ pages }) => {
-            seen.push(useRecipeNutritionBatches(pages)(PAGE_ONE[0] ?? ''));
+        const first = render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        expect(latest()(FIRST)).toEqual({ status: 'pending' });
+        first.unmount();
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await act(async () => {
+            answer.resolve(respond(PAGE_ONE));
+        });
+        await waitForStatus(PAGE_ONE, 'success');
 
-            return <span>host</span>;
-        };
-
-        const view = render(wrap(client, <Host pages={[PAGE_ONE]} />));
-        await seen[0];
-        view.rerender(wrap(client, <Host pages={[PAGE_ONE, PAGE_TWO]} />));
-        view.rerender(wrap(client, <Host pages={[PAGE_ONE, PAGE_TWO, ['00000000-0000-4000-8000-00000000000d']]} />));
-
-        const settled = seen[1] as (Promise<RecipeNutritionResponse> & { status?: string; value?: unknown }) | null;
-        expect(settled?.status).toBe('fulfilled');
-        expect(settled?.value).toEqual(respond(PAGE_ONE));
-        expect(seen[2]).toBe(seen[1]);
-    });
-
-    it('resolves a recipe to the promise of the page that CARRIES it', () => {
-        const client = makeClient(async (ids) => respond(ids));
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
-
-        const Host: FC = () => {
-            const lookup = useRecipeNutritionBatches([PAGE_ONE, PAGE_TWO]);
-            seen.push(lookup(PAGE_ONE[0] ?? ''), lookup(PAGE_TWO[0] ?? ''));
-
-            return <span>host</span>;
-        };
-
-        render(wrap(client, <Host />));
-
-        expect(seen[0]).not.toBeNull();
-        expect(seen[1]).not.toBeNull();
-        expect(seen[1]).not.toBe(seen[0]);
+        expect(client.getRecipeNutrition).toHaveBeenCalledTimes(1);
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE) });
     });
 });
 
 describe('useRecipeNutritionBatches — the cases that must NOT fire a request', () => {
     it('asks about nothing when there are no pages (the service REJECTS an empty id list)', () => {
         const client = makeClient(async (ids) => respond(ids));
+        const { Host } = recordingHost();
 
-        const Host: FC = () => {
-            useRecipeNutritionBatches([]);
-
-            return <span>host</span>;
-        };
-
-        render(wrap(client, <Host />));
+        render(wrap(client, <Host pages={[]} />));
 
         expect(client.getRecipeNutrition).not.toHaveBeenCalled();
     });
 
-    it('skips an EMPTY page rather than sending it (`enabled` is a hook option; ensureQueryData ignores it)', () => {
+    it('skips an EMPTY page rather than sending it, and reads the pages around it', () => {
         const client = makeClient(async (ids) => respond(ids));
+        const { Host, latest } = recordingHost();
 
-        const Host: FC = () => {
-            useRecipeNutritionBatches([[], PAGE_ONE]);
-
-            return <span>host</span>;
-        };
-
-        render(wrap(client, <Host />));
+        render(wrap(client, <Host pages={[[], PAGE_ONE]} />));
 
         expect(client.getRecipeNutrition).toHaveBeenCalledTimes(1);
         expect(client.getRecipeNutrition).toHaveBeenCalledWith(PAGE_ONE, expect.anything());
-    });
-
-    it('returns `null` for a recipe no page carries — a host must branch, never suspend on nothing', () => {
-        const client = makeClient(async (ids) => respond(ids));
-        let lookedUp: Promise<RecipeNutritionResponse> | null = null;
-
-        const Host: FC = () => {
-            lookedUp = useRecipeNutritionBatches([PAGE_ONE])('00000000-0000-4000-8000-0000000000ff');
-
-            return <span>host</span>;
-        };
-
-        render(wrap(client, <Host />));
-
-        expect(lookedUp).toBeNull();
+        expect(latest()(FIRST)).toEqual({ status: 'pending' });
     });
 });
 
 describe('useRecipeNutritionBatches — failure', () => {
-    it('⛔ does not raise an UNHANDLED rejection when the batch fails (the boundary owns the failure)', async () => {
+    it('⛔ does not raise an UNHANDLED rejection when the batch fails', async () => {
         const client = makeClient(async () => {
             throw new Error('food service unavailable');
         });
@@ -365,28 +381,12 @@ describe('useRecipeNutritionBatches — failure', () => {
         };
 
         process.on('unhandledRejection', record);
-
-        const Host: FC = () => {
-            useRecipeNutritionBatches([PAGE_ONE]);
-
-            return <span>host</span>;
-        };
+        const { Host } = recordingHost();
 
         try {
-            render(wrap(client, <Host />));
-            // Wait for the query to actually FAIL — through the read seam's one retry and its backoff, which
-            // is why a couple of macrotasks is not enough (an earlier draft of this test asserted against a
-            // promise that had not rejected yet, and passed for that reason). Observed through the CACHE, not
-            // by awaiting the promise: awaiting it would attach the very handler whose absence is under test.
-            await vi.waitFor(
-                () => {
-                    expect(queryClient.getQueryState(recipeServiceKeys.recipeNutrition(PAGE_ONE))?.status).toBe(
-                        'error',
-                    );
-                },
-                { timeout: 5_000 },
-            );
-            // Then let Node reach the microtask checkpoint where it decides a rejection went unhandled.
+            render(wrap(client, <Host pages={[PAGE_ONE]} />));
+            await waitForStatus(PAGE_ONE, 'error');
+            // Let Node reach the microtask checkpoint where it decides a rejection went unhandled.
             await new Promise((resolve) => setTimeout(resolve, 0));
             await new Promise((resolve) => setTimeout(resolve, 0));
         } finally {
@@ -396,105 +396,28 @@ describe('useRecipeNutritionBatches — failure', () => {
         expect(unhandled).toEqual([]);
     });
 
-    it('still hands the card a promise when the batch fails — the boundary turns it into a blank slot', async () => {
-        const client = makeClient(async () => {
-            throw new Error('food service unavailable');
-        });
-        let promise: Promise<RecipeNutritionResponse> | null = null;
-
-        const Host: FC = () => {
-            promise = useRecipeNutritionBatches([PAGE_ONE])(PAGE_ONE[0] ?? '');
-
-            return <span>host</span>;
-        };
-
-        render(wrap(client, <Host />));
-
-        expect(promise).not.toBeNull();
-        await expect(promise).rejects.toThrow('food service unavailable');
-    });
-});
-
-describe('useRecipeNutritionBatches — a batch that FAILED is not asked again by the next render', () => {
-    /**
-     * A surface mounts its cards inside a deferred render (`useDeferredValue`), and React may run that render several
-     * times before it commits — after a card's `use()` throws, React re-renders the whole root once more to recover.
-     * Every such attempt starts this hook's memo from scratch. A memo that re-enters `ensureQueryData` for a query that
-     * has FAILED starts a new fetch each time, hands `use()` a new pending promise each time, and so keeps the results
-     * from committing for as long as the attempts keep coming. TanStack's own suspense reads refuse the same loop
-     * (`ensurePreventErrorBoundaryRetry`): a failed query is not refetched by the render that reads it.
-     *
-     * A fresh MOUNT is used to stand for the retried attempt, because a mount is what a never-committed render is to
-     * hooks: no memo survives it.
-     */
-    it('⛔ hands a fresh mount the SAME failed promise and starts no second request', async () => {
-        const failure = new Error('the request body did not satisfy the contract');
-        const getRecipeNutrition = vi.fn(async () => {
-            throw failure;
-        });
-        const client = { getRecipeNutrition } as unknown as RecipeServiceClient;
-        const seen: (Promise<RecipeNutritionResponse> | null)[] = [];
-
-        const Host: FC = () => {
-            seen.push(useRecipeNutritionBatches([PAGE_ONE])(PAGE_ONE[0] ?? ''));
-
-            return <span>host</span>;
-        };
-
-        const first = render(wrap(client, <Host />));
-        // Through the read seam's one retry and its backoff, as in the failure tests above.
-        await vi.waitFor(
-            () => {
-                expect(queryClient.getQueryState(recipeServiceKeys.recipeNutrition(PAGE_ONE))?.status).toBe('error');
-            },
-            { timeout: 5_000 },
-        );
-        first.unmount();
-
-        render(wrap(client, <Host />));
-        render(wrap(client, <Host />));
-
-        // Twice by the first mount — the read seam's own single retry — and never by a later one.
-        expect(getRecipeNutrition, 'no later mount asked for the failed batch again').toHaveBeenCalledTimes(2);
-        expect(seen).toHaveLength(3);
-        expect(seen[2], 'two later mounts read one promise, so a card does not re-suspend').toBe(seen[1]);
-        await expect(seen[1]).rejects.toBe(failure);
-    });
-
-    it('still asks again once the failed query has left the cache — the failure is held only as long as the cache holds it', async () => {
+    it('RECOVERS: a failed page reads SETTLED once a refetch answers', async () => {
         let fail = true;
-        const getRecipeNutrition = vi.fn(async (ids: readonly string[]) => {
+        const client = makeClient(async (ids) => {
             if (fail) {
                 throw new Error('food service unavailable');
             }
 
             return respond(ids);
         });
-        const client = { getRecipeNutrition } as unknown as RecipeServiceClient;
-        let promise: Promise<RecipeNutritionResponse> | null = null;
+        const { Host, latest } = recordingHost();
 
-        const Host: FC = () => {
-            promise = useRecipeNutritionBatches([PAGE_ONE])(PAGE_ONE[0] ?? '');
+        render(wrap(client, <Host pages={[PAGE_ONE]} />));
+        await waitForStatus(PAGE_ONE, 'error');
+        expect(latest()(FIRST)).toEqual({ status: 'failed' });
 
-            return <span>host</span>;
-        };
-
-        const first = render(wrap(client, <Host />));
-        // Through the read seam's one retry and its backoff, as in the failure tests above.
-        await vi.waitFor(
-            () => {
-                expect(queryClient.getQueryState(recipeServiceKeys.recipeNutrition(PAGE_ONE))?.status).toBe('error');
-            },
-            { timeout: 5_000 },
-        );
-        first.unmount();
-        queryClient.removeQueries({ queryKey: recipeServiceKeys.recipeNutrition(PAGE_ONE) });
         fail = false;
+        await act(async () => {
+            await queryClient.refetchQueries({ queryKey: recipeServiceKeys.recipeNutrition(PAGE_ONE) });
+        });
+        await waitForStatus(PAGE_ONE, 'success');
 
-        render(wrap(client, <Host />));
-
-        expect(getRecipeNutrition).toHaveBeenCalledTimes(3);
-        await expect(promise).resolves.toEqual(respond(PAGE_ONE));
+        expect(latest()(FIRST)).toEqual({ status: 'settled', response: respond(PAGE_ONE) });
     });
 });
 

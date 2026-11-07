@@ -39,4 +39,10 @@ export interface StatusBadgeProps {
     readonly status: BadgeStatus;
     /** The badge's words. Announced with the text the badge sits in; never hidden. */
     readonly children: string;
+    /**
+     * Drawn on a picture, such as PRO on a card cover: native keeps the words at their own size at every text scale, so
+     * they cannot grow over the picture, and the caller states the same word in its text at the scaled size (designer
+     * ruling 2026-11-01, M-1). Web text grows by the page zoom with everything around it, so web ignores it.
+     */
+    readonly onPicture?: boolean;
 }

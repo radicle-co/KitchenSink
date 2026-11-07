@@ -12,6 +12,10 @@
  * {@link busyControlProps} for one whose work is in flight, which also says so (`aria-busy`). `Button` applies the
  * busy one.
  *
+ * A control can also be REFUSED because a SIBLING's press is in flight (a list of foods while one food is sent): it
+ * claims no work, but it may be the control that holds focus when the send starts, so it is never natively disabled.
+ * {@link busyControlProps} takes that as `refused`.
+ *
  * ⚠️ Native `disabled` is still right for a control nothing the person pressed made unavailable — a form not yet
  * valid, an option their plan does not include: focusable-but-dead is worse there. A control that is both (a
  * submit that is blocked until the form is valid, and busy once submitted) passes that rule as `blocked`, and
@@ -70,6 +74,11 @@ export function refusedPressProps({ unavailable, onClick }: RefusedPressOptions)
 export interface BusyControlOptions {
     /** Whether the action this control starts is in flight. */
     readonly busy: boolean;
+    /**
+     * Whether a sibling's send in flight refuses this control's press. It stays focusable and claims no work
+     * (`aria-disabled`, never `aria-busy`), and it wins over {@link blocked}.
+     */
+    readonly refused?: boolean;
     /** Whether a rule the press did not cause makes the control unavailable. Natively disables it while idle. */
     readonly blocked?: boolean;
     /** The press handler, called only while idle. */
@@ -84,16 +93,21 @@ export interface BusyControlProps extends RefusedPressProps {
 
 /**
  * Props for a raw `<button>` whose action can be in flight: {@link refusedPressProps}, plus `aria-busy`, plus
- * native `disabled` for a `blocked` rule while idle. Spread it LAST among a control's availability attributes —
- * it states all of them. Pure.
+ * native `disabled` for a `blocked` rule while idle and not refused. Spread it LAST among a control's availability
+ * attributes — it states all of them. Pure.
  *
- * @param options - Whether the control is busy or blocked, and its press handler.
- * @returns The busy and disabled attributes, and a press handler that cancels the click while busy.
+ * @param options - Whether the control is busy, refused or blocked, and its press handler.
+ * @returns The busy and disabled attributes, and a press handler that cancels the click while busy or refused.
  */
-export function busyControlProps({ busy, blocked = false, onClick }: BusyControlOptions): BusyControlProps {
+export function busyControlProps({
+    busy,
+    refused = false,
+    blocked = false,
+    onClick,
+}: BusyControlOptions): BusyControlProps {
     return {
-        ...refusedPressProps({ unavailable: busy, onClick }),
+        ...refusedPressProps({ unavailable: busy || refused, onClick }),
         'aria-busy': busy || undefined,
-        disabled: !busy && blocked,
+        disabled: !busy && !refused && blocked,
     };
 }

@@ -1,0 +1,10 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    // The font-measuring fit tests (`*.fit.test.ts`), with Node's types: `@commise/ui/testing/measure-text` reads the
+    // font files from disk. Their own project, because the check project keeps `types: []` so no Node global can
+    // typecheck in web or native source.
+    "compilerOptions": { "types": ["node"] },
+    "include": ["src/**/*.fit.test.ts"],
+    "exclude": ["node_modules", "dist"]
+}

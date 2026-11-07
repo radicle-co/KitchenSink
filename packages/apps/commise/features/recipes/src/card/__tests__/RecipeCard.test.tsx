@@ -19,6 +19,7 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import type { CardVariant } from '../cardVariant.js';
 import { toRecipeCardModel } from '../model.js';
 import { RecipeCard } from '../RecipeCard.js';
+import { COVER_CHIP_INSET, COVER_CHIP_PADDING } from '../coverChip.js';
 
 afterEach(cleanup);
 
@@ -62,12 +63,12 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
             <RecipeCard headingLevel={3} variant={variant} recipe={model({ usesPremiumCapability: true })} />,
         );
 
-        expect(screen.getByLabelText('Premium recipe')).toBeTruthy();
+        expect(screen.getByLabelText('Pro recipe')).toBeTruthy();
         unmount();
 
         renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={model({ usesPremiumCapability: false })} />);
 
-        expect(screen.queryByLabelText('Premium recipe')).toBeNull();
+        expect(screen.queryByLabelText('Pro recipe')).toBeNull();
     });
 
     it('is inert with no onSelect and no href: no link and no button', () => {
@@ -149,14 +150,61 @@ describe.each(VARIANTS)('RecipeCard (web, %s) — what every variant keeps', (va
     });
 });
 
-describe('RecipeCard (web, grid) — the full CR-002 card', () => {
-    it('lays out six rows, so the subgrid can align them across a grid row (an empty row keeps its track)', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ title: 'Herb Risotto', tags: [] })} />);
-
-        expect(screen.getByRole('article', { name: 'Herb Risotto' }).children).toHaveLength(6);
+describe.each(VARIANTS)('RecipeCard (web, %s) — the fields no card shows (designAnswers.md, 2026-11-02)', (variant) => {
+    const loaded = model({
+        title: 'Herb Risotto',
+        servings: 4,
+        cuisine: 'Italian',
+        tags: ['vegan', 'quick'],
+        currentVersion: 9,
+        totalTimeMinutes: 35,
+        difficulty: RecipeDifficulty.MEDIUM,
+        coverPhotoUrl: undefined,
     });
 
-    it('chips the cover with the status, and the total time in hours and minutes', () => {
+    it('draws no servings, cuisine, tags, version or cover time chip', () => {
+        const { container } = renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant={variant}
+                recipe={loaded}
+                showEdited
+                nutrition={<span>520 cal</span>}
+            />,
+        );
+
+        expect(screen.queryByText(/Serves/u)).toBeNull();
+        expect(screen.queryByLabelText('Serves 4')).toBeNull();
+        expect(screen.queryByText('Italian')).toBeNull();
+        expect(screen.queryByText(/vegan/u)).toBeNull();
+        expect(screen.queryByText(/v9/u)).toBeNull();
+        expect(container.querySelector('[class*="bg-photo-chip"] .tabular-nums')).toBeNull();
+    });
+
+    it('draws no difficulty badge: no meter, and the word is plain text', () => {
+        const { container } = renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={loaded} />);
+
+        expect(container.querySelector('[data-meter-dot]')).toBeNull();
+        const word = screen.queryByText('Medium');
+
+        if (variant === 'compact') {
+            // The compact tile's brief line (time, calories) carries no difficulty.
+            expect(word).toBeNull();
+        } else {
+            expect(word?.className ?? '').not.toContain('truncate');
+            expect(word?.parentElement?.className ?? '').not.toContain('border');
+        }
+    });
+});
+
+describe('RecipeCard (web, grid) — the full CR-002 card', () => {
+    it('lays out four rows (cover, title, meta line, last line), so the subgrid can align them across a grid row', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ title: 'Herb Risotto', tags: [] })} />);
+
+        expect(screen.getByRole('article', { name: 'Herb Risotto' }).children).toHaveLength(4);
+    });
+
+    it('chips the cover with the status only, and says the total time in hours and minutes on the meta line', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -166,7 +214,8 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
         );
 
         expect(screen.getByText('Draft')).toBeTruthy();
-        expect(screen.getByLabelText('330 minutes total time').textContent).toContain('5 h 30 min');
+        const time = screen.getByText('5 h 30 min');
+        expect(time.closest('[class*="bg-photo-chip"]')).toBeNull();
     });
 
     it('draws a published public recipe with no status chip on its cover', () => {
@@ -187,7 +236,7 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
             <RecipeCard headingLevel={3} variant="grid" recipe={model({ difficulty: RecipeDifficulty.MEDIUM })} />,
         );
 
-        expect(screen.getByText('Medium')).toBeTruthy();
+        expect(screen.getByText(/Medium/u)).toBeTruthy();
         unmount();
 
         renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ difficulty: undefined })} />);
@@ -197,35 +246,26 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
         }
     });
 
-    it('names a rated recipe’s stars and shows the short figure', () => {
+    it('names a rated recipe’s star and figure as one unit', () => {
         renderCard(
             <RecipeCard headingLevel={3} variant="grid" recipe={model({ averageRating: 4.75, ratingCount: 12 })} />,
         );
 
-        const stars = screen.getByRole('img', { name: 'Rated 4.8 out of 5, 12 ratings' });
-        expect(stars.textContent).toContain('4.8 (12)');
+        const rating = screen.getByRole('img', { name: 'Rated 4.8 out of 5, 12 ratings' });
+        expect(rating.textContent).toBe('★\u00A04.8\u00A0(12)');
     });
 
     it('says an unrated recipe has no ratings, and draws no stars', () => {
         renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ ratingCount: 0 })} />);
 
-        expect(screen.getByText('No ratings yet')).toBeTruthy();
+        expect(screen.getByText(/No ratings yet/u)).toBeTruthy();
         expect(screen.queryByRole('img', { name: /Rated/u })).toBeNull();
     });
 
-    it('renders the cuisine, the nutrition slot and the servings on the meta line', () => {
-        renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="grid"
-                recipe={model({ cuisine: 'Moroccan', servings: 8 })}
-                nutrition={<span>612 cal</span>}
-            />,
-        );
+    it('renders the nutrition slot on the meta line', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model()} nutrition={<span>612 cal</span>} />);
 
-        expect(screen.getByText('Moroccan')).toBeTruthy();
         expect(screen.getByText('612 cal')).toBeTruthy();
-        expect(screen.getByLabelText('Serves 8').textContent).toBe('Serves 8');
     });
 
     it('renders no nutrition item at all when the slot is absent', () => {
@@ -234,21 +274,7 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
         expect(screen.queryByText(/cal/u)).toBeNull();
     });
 
-    it('says the tags as one line of text with the rest counted, and names the full list', () => {
-        renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="grid"
-                recipe={model({ tags: ['gluten-free', 'slow-cooked', 'braise', 'lamb'] })}
-            />,
-        );
-
-        const line = screen.getByText('gluten-free · slow-cooked · +2');
-        expect(line.getAttribute('title')).toBe('gluten-free, slow-cooked, braise, lamb');
-        expect(screen.queryByRole('listitem')).toBeNull();
-    });
-
-    it('joins the version and the timestamp in the footer', () => {
+    it('puts only the timestamp in the footer, with no version', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -261,32 +287,60 @@ describe('RecipeCard (web, grid) — the full CR-002 card', () => {
             />,
         );
 
-        expect(screen.getByText(/^v12 · Edited /u)).toBeTruthy();
+        expect(screen.getByText(/^Edited /u)).toBeTruthy();
     });
 });
 
 describe('RecipeCard (web, row) — the list row', () => {
-    it('names the time and the servings on its meta line', () => {
+    it('names the time on its meta line', () => {
         renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ totalTimeMinutes: 45, servings: 4 })} />);
 
-        expect(screen.getByLabelText('45 minutes total time').textContent).toContain('45 min');
-        expect(screen.getByLabelText('Serves 4').textContent).toContain('4');
+        expect(screen.getByText('45 min')).toBeTruthy();
     });
 
-    it.each<[RecipeVisibility, string]>([
-        [RecipeVisibility.PRIVATE, 'Private'],
-        [RecipeVisibility.PUBLIC, 'Public'],
-    ])('draws a published %s recipe’s visibility as a named glyph only', (visibility, name) => {
+    it('orders the title, then the meta line (with the difficulty word), then the status line', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
                 variant="row"
-                recipe={model({ status: RecipeStatus.PUBLISHED, visibility })}
+                recipe={model({ title: 'Herb Risotto', totalTimeMinutes: 35, difficulty: RecipeDifficulty.MEDIUM })}
+            />,
+        );
+        const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+        const title = screen.getByRole('heading', { name: 'Herb Risotto' });
+        const meta = screen.getByText('35 min').closest('p') as HTMLElement;
+        const status = screen.getByText(/^Created |^Edited /u);
+
+        expect(meta.textContent).toContain('Medium');
+        expect(before(title, meta)).toBe(true);
+        expect(before(meta, status)).toBe(true);
+    });
+
+    // REWRITTEN (UI Designer ruling, 2026-11-03): a public recipe shows no status mark, and a glyph alone is never a status.
+    it('draws a published private recipe’s status as a pill with its word', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="row"
+                recipe={model({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE })}
             />,
         );
 
-        expect(screen.getByRole('img', { name })).toBeTruthy();
-        expect(screen.queryByText(name)).toBeNull();
+        expect(screen.getByText('Private')).toBeTruthy();
+        expect(screen.queryByRole('img', { name: 'Private' })).toBeNull();
+    });
+
+    it('draws a published public recipe with no status mark', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="row"
+                recipe={model({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PUBLIC })}
+            />,
+        );
+
+        expect(screen.queryByText('Public')).toBeNull();
+        expect(screen.queryByRole('img', { name: 'Public' })).toBeNull();
     });
 
     it('draws a draft as the Draft badge, never its visibility', () => {
@@ -313,7 +367,7 @@ describe('RecipeCard (web, row) — the list row', () => {
 });
 
 describe('RecipeCard (web, compact) — Home below 960', () => {
-    it('is the cover and the title only: no rating, no meta line, no footer', () => {
+    it('has no rating, cuisine or version: its meta line is the time, then the calories', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
@@ -339,12 +393,12 @@ describe('RecipeCard (web) — a custom arrangement', () => {
         renderCard(
             <RecipeCard headingLevel={3} recipe={model({ title: 'Soup', ratingCount: 0 })}>
                 <RecipeCard.Title />
-                <RecipeCard.Rating />
+                <RecipeCard.Meta />
             </RecipeCard>,
         );
         const card = screen.getByRole('article', { name: 'Soup' });
 
-        expect(within(card).getByText('No ratings yet')).toBeTruthy();
+        expect(within(card).getByText(/No ratings yet/u)).toBeTruthy();
         expect(card.getAttribute('data-card-variant')).toBe('custom');
     });
 
@@ -457,71 +511,139 @@ describe('RecipeCard (web) — slots for a surface’s own controls', () => {
     });
 });
 
-const itemClasses = (label: string): readonly string[] => screen.getByLabelText(label).className.split(/\s+/u);
+describe('RecipeCard (web, grid) — cover chips', () => {
+    // REWRITTEN for the designer's ruling (2026-11-03, designAnswers.md bdb2403cb), which reverses W-08's half-cover cap:
+    // the chip takes its content width, its word never truncates, a second chip moves whole to the next line, and a chip
+    // wider than the cover drops its glyph and keeps the word.
+    describe('the status chip takes its content width and never clips its word (designer ruling 2026-11-03)', () => {
+        const draftAndPro = () =>
+            renderCard(
+                <RecipeCard
+                    headingLevel={3}
+                    variant="grid"
+                    recipe={model({ status: RecipeStatus.DRAFT, usesPremiumCapability: true })}
+                />,
+            );
+        const classesOf = (node: HTMLElement) => node.className.split(/\s+/u);
 
-describe('RecipeCard (web) — W-06: a one-line row is one line, and a separator only follows a visible item', () => {
-    it('sizes the meta line to exactly one line of its own type role, so a dropped item leaves no sliver', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="row" recipe={model({ cuisine: 'Moroccan' })} />);
-        const line = screen.getByText('Moroccan').closest('[class*="overflow-hidden"]') as HTMLElement;
+        it('has no half-cover cap: the chip may be as wide as the row it sits in', () => {
+            draftAndPro();
+            const chip = screen.getByText('Draft').parentElement as HTMLElement;
 
-        expect(line.className.split(/\s+/u)).toEqual(expect.arrayContaining(['h-lh', 'text-meta']));
-        expect(line.className.split(/\s+/u)).not.toContain('h-6');
+            expect(classesOf(chip)).toContain('max-w-full');
+            expect(classesOf(chip)).not.toContain('max-w-1/2');
+        });
+
+        it('does not truncate the word', () => {
+            draftAndPro();
+
+            expect(classesOf(screen.getByText('Draft'))).not.toContain('truncate');
+        });
+
+        it('lays the word before the glyph in a reversed, wrapping, clipped line, so a chip too wide drops the glyph and keeps the word', () => {
+            draftAndPro();
+            const chip = screen.getByText('Draft').parentElement as HTMLElement;
+
+            expect(classesOf(chip)).toEqual(
+                expect.arrayContaining(['flex-row-reverse', 'flex-wrap', 'overflow-hidden']),
+            );
+            expect(chip.firstElementChild).toBe(screen.getByText('Draft'));
+        });
+
+        it('reads its insets and padding from coverChip.ts, not from classes that repeat the numbers', () => {
+            draftAndPro();
+            const chip = screen.getByText('Draft').parentElement as HTMLElement;
+            const row = chip.parentElement as HTMLElement;
+
+            expect(row.style.top).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(row.style.left).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(row.style.right).toBe(`${String(COVER_CHIP_INSET)}px`);
+            expect(chip.style.paddingLeft).toBe(`${String(COVER_CHIP_PADDING)}px`);
+            expect(chip.style.paddingRight).toBe(`${String(COVER_CHIP_PADDING)}px`);
+            expect(classesOf(row)).not.toEqual(expect.arrayContaining(['inset-x-2']));
+            expect(classesOf(chip)).not.toContain('px-2');
+        });
+
+        it('keeps the status chip and PRO in one wrapping row, so the second moves whole to the next line', () => {
+            draftAndPro();
+            const row = (screen.getByText('Draft').parentElement as HTMLElement).parentElement as HTMLElement;
+
+            expect(classesOf(row)).toContain('flex-wrap');
+            expect(row.contains(screen.getByLabelText('Pro recipe'))).toBe(true);
+        });
+    });
+});
+
+// Designer ruling (2026-11-02): the Recipes phone grid is the compact tile in size, but it KEEPS the "Edited" footer line,
+// because a Recipes sort may not be by recency. Only Home drops it. So the compact tile carries the line when it is asked
+// for (`showEdited`), and Home, which does not ask, stays the cover and the title.
+describe("RecipeCard (web, compact) — the Edited line is the surface's choice", () => {
+    const edited = {
+        currentVersion: 1,
+        createdAt: '2020-01-01T00:00:00.000Z',
+        updatedAt: '2020-01-02T00:00:00.000Z',
+    } as const;
+
+    it('shows "Edited …" under the title when the surface asks for it (a Recipes tile)', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="compact" showEdited recipe={model(edited)} />);
+
+        expect(screen.getByText(/^Edited /u)).toBeTruthy();
     });
 
-    it('draws the separator after a visible sibling, never `not-first` (an absent cuisine left it as a line-leading dot)', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ cuisine: undefined, servings: 4 })} />);
-        const classes = itemClasses('Serves 4');
+    it('shows no Edited line when it does not (a Home tile)', () => {
+        renderCard(<RecipeCard headingLevel={3} variant="compact" recipe={model(edited)} />);
 
-        expect(classes).toContain('[:not(:empty)~&]:before:content-[attr(data-sep)]');
-        expect(classes.filter((token) => token.startsWith('not-first:'))).toEqual([]);
+        expect(screen.queryByText(/Edited/u)).toBeNull();
     });
 
-    it('caps the row’s cuisine at half the line and truncates it, so it gives way before the time and servings drop', () => {
+    it('says "Created …" for a recipe never edited, and still on one line', () => {
         renderCard(
             <RecipeCard
                 headingLevel={3}
-                variant="row"
-                recipe={model({ cuisine: 'Mediterranean', totalTimeMinutes: 90 })}
+                variant="compact"
+                showEdited
+                recipe={model({ createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z' })}
             />,
         );
-        const item = screen.getByText('Mediterranean').parentElement as HTMLElement;
 
-        expect(item.className.split(/\s+/u)).toContain('max-w-1/2');
-        expect(screen.getByText('Mediterranean').className.split(/\s+/u)).toContain('truncate');
+        expect(screen.getByText(/^Created /u)).toBeTruthy();
+    });
+
+    it('lets a surface footer replace it, as in the grid (a card has one last line)', () => {
+        renderCard(
+            <RecipeCard
+                headingLevel={3}
+                variant="compact"
+                showEdited
+                recipe={model(edited)}
+                footer={<span>@braise.club</span>}
+            />,
+        );
+
+        expect(screen.queryByText(/Edited/u)).toBeNull();
+        expect(screen.getByText('@braise.club')).toBeTruthy();
     });
 });
 
-describe('RecipeCard (web, grid) — W-08: the cuisine overline never sits under the time chip', () => {
-    it('draws no overline on a cover that carries the time chip', () => {
-        renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="grid"
-                recipe={model({ cuisine: 'French', totalTimeMinutes: 15, coverPhotoUrl: undefined })}
-            />,
-        );
+// Designer ruling (2026-11-03): the status chips sit over the cover and never push the cover letter down.
+describe.each(['grid', 'compact'] as const)(
+    'RecipeCard (web, %s) — the chips are an overlay on the cover',
+    (variant) => {
+        it('lays the Draft chip over the cover, out of its flow', () => {
+            renderCard(
+                <RecipeCard
+                    headingLevel={3}
+                    variant={variant}
+                    recipe={model({ title: 'Herb Risotto', status: RecipeStatus.DRAFT, coverPhotoUrl: undefined })}
+                />,
+            );
+            const cover = screen.getByText('H').closest('[aria-hidden="true"]')?.parentElement as HTMLElement;
+            const chip = screen.getByText('Draft');
+            const overlay = chip.closest('.absolute') as HTMLElement;
 
-        // The meta line says it; the monogram must not say it again under the chip.
-        expect(screen.getAllByText('French')).toHaveLength(1);
-    });
-
-    it('keeps the overline on a cover with no time chip', () => {
-        renderCard(
-            <RecipeCard
-                headingLevel={3}
-                variant="grid"
-                recipe={model({ cuisine: 'French', totalTimeMinutes: 0, coverPhotoUrl: undefined })}
-            />,
-        );
-
-        expect(screen.getAllByText('French')).toHaveLength(2);
-    });
-
-    it('caps the status chip at half the cover, truncates its word, and keeps the word as its name', () => {
-        renderCard(<RecipeCard headingLevel={3} variant="grid" recipe={model({ status: RecipeStatus.DRAFT })} />);
-        const chip = screen.getByText('Draft').parentElement as HTMLElement;
-
-        expect(chip.className.split(/\s+/u)).toContain('max-w-1/2');
-        expect(within(chip).getByText('Draft').className.split(/\s+/u)).toContain('truncate');
-    });
-});
+            expect(cover.children).toHaveLength(1);
+            expect(cover.contains(chip)).toBe(false);
+            expect(overlay.parentElement).toBe(cover.parentElement);
+        });
+    },
+);

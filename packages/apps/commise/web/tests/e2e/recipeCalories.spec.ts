@@ -155,8 +155,8 @@ test.describe('recipe list — deferred calorie figures', () => {
         await expect(page.getByRole('img', { name: '615 cal', exact: true })).toBeVisible();
         await expect(page.getByText('Loading calories')).toHaveCount(0);
 
-        // ⛔ ONE REQUEST FOR THE WHOLE PAGE, carrying BOTH ids — the central claim of ADR-0021 §6 ("N
-        // boundaries over one promise cost one fetch"), and the one that fails silently: per-card promises
+        // ⛔ ONE REQUEST FOR THE WHOLE PAGE, carrying BOTH ids — the central claim of ADR-0079 §6 ("one
+        // request per page, N cards"), and the one that fails silently: per-card promises
         // render identically and issue N requests. Asserting the recorded body is also what makes every
         // assertion above non-vacuous, since a client-side schema rejection reaches this endpoint zero times.
         expect(batch.requests).toHaveLength(1);

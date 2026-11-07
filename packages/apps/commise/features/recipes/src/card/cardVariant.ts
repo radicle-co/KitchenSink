@@ -3,8 +3,9 @@
  *
  * The space a card gets picks its variant, never the device (`docs/design/uiOverhaul/buildSpec.md` §4.1). Home follows
  * the owner's D8 ruling: compact cards below a 960 px container (2 × 2 on phones, one row of 4 on tablets) and the full
- * grid card from 960. The library follows the cook's own list/grid choice. Discover results are compact below a 600
- * container and grid cards from 600 (§4.5).
+ * grid card from 960. The library follows the cook's own list/grid choice, and its grid is the compact tile below a 600
+ * container (two to a row, as on Home and Discover) and the full card from 600 (designer, 2026-11-02). Discover results
+ * are compact below a 600 container and grid cards from 600 (§4.5).
  *
  * Pure. The orchestration layer reads the container class and the stored view mode and hands the decided variant to the
  * render component, which never decides it.
@@ -48,7 +49,7 @@ export function cardVariantOf(container: ContainerClass, viewMode: ListViewMode,
         case 'home':
             return container === 'wide' ? 'grid' : 'compact';
         case 'library':
-            return viewMode === 'list' ? 'row' : 'grid';
+            return viewMode === 'list' ? 'row' : container === 'narrow' ? 'compact' : 'grid';
         case 'discover':
             return container === 'narrow' ? 'compact' : 'grid';
     }

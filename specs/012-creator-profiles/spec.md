@@ -13,12 +13,19 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 
 ## Dependencies
 
-| Spec                                                          | Relationship                                                                                                                                                                   |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [002-user-auth](../002-user-auth/spec.md)                     | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account                                                                    |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)   | **Required** — recipes are the primary content surface on a creator profile                                                                                                    |
-| [010-subscriptions](../010-subscriptions/spec.md)             | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001. |
-| [011-recipe-digitization](../011-recipe-digitization/spec.md) | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                          |
+| Spec                                                                            | Relationship                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                                       | **Required** — `@handle` is tied to an authenticated identity; profile creation requires a verified account                                                                                                                                                                                                    |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                     | **Required** — recipes are the primary content surface on a creator profile                                                                                                                                                                                                                                    |
+| [010-subscriptions](../010-subscriptions/spec.md)                               | **Integration** — the tip jar and creator-earnings surface extend 010's billing model. No premium recipes, no paid follows: visibility is binary private/public, owned by 001.                                                                                                                                 |
+| [011-recipe-digitization](../011-recipe-digitization/spec.md)                   | **Peer** — `circle` is owned by 011; `public-profile` is owned here; the two audience scopes are siblings, not nested                                                                                                                                                                                          |
+| [021-public-discovery-and-sharing](../021-public-discovery-and-sharing/spec.md) | **Required (2026-10-27).** Owns what a signed-out visitor sees, the open-to-web rule, indexing, previews and takedown reach. Resolves the conflict with `001-FR-045`. Its Q2 (2026-10-29) opens public collections to signed-out readers                                                                       |
+| [026-chef-spaces](../026-chef-spaces/spec.md)                                   | **Amends (owner rulings 2026-10-29).** Adds site claims, corner sections, a recipe-first page rule, an email sign-up, more analytics and a "Cook this in Commise" card. Phase 1 features are open to any creator, and money features need chef standing (026 Q9). Requirements tagged `→ 012` there merge here |
+
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
 
 ## Personas
 
@@ -29,6 +36,28 @@ This feature owns the `CreatorProfile` entity and the `public-profile` audience 
 ## Audience Scope Defined Here
 
 `public-profile`: content visible to any unauthenticated visitor on a creator's `/@handle` page. It is distinct from `circle` (private invite groups, owned by 011) and `published-lesson` (lesson/course access rules applied by 013).
+
+> **Amended 2026-10-27 (owner ruling, [021](../021-public-discovery-and-sharing/spec.md)). The conflict with
+> `001-FR-045` is resolved.** 001 required sign-in for everything, while this page was "viewable without
+> authentication". The owner ruled for signed-out creator pages. Owner, 2026-10-27: "Let's add a feature and spec for
+> indexing and sharing as you note." The accepted recommendation allows signed-out reading of public recipes that
+> cooks wrote themselves, and of creator pages. Everything else stays behind sign-in. `001-FR-045` now names this page
+> as an exception. To a signed-out visitor the page lists only recipes that are **open to the web** (`021-FR-002`):
+> recipes that carry an open rights label: Written by you, Adapted by you, From a family member or friend, Public
+> domain, and clones of those. _(Amended 2026-11-03, owner ruling, ADR-0082. Was: "recipes the cook wrote, never
+> imported ones". A linked facts card is never listed on a creator page. Counsel review is owed before launch
+> (`016-FR-050`).)_ _(amended 2026-11-03, owner ruling O7, ADR-0082)_ Decided: the page lists recipes the cook wrote or adapted (and their clones where the label
+> carries), and still lists family and public domain recipes by the existing open-recipe rule. It lists no facts
+> card, to anyone. This was an open question. A signed-in visitor sees every public recipe the creator owns. Public
+> collection pages stay behind sign-in until the owner answers 021's Q2 (`021-FR-008`). 021 owns the page's search,
+> preview, privacy and takedown rules. The requirements below are amended to match.
+>
+> **Amended 2026-10-29 (owner ruling, 021 Q2).** The owner answered Q2: "both, but only for public content and
+> nothing that's behind a paywall (like a chef selling a collection)". Public collections are now readable signed out,
+> each on its own address, under the same rules as public recipes (`021-FR-008`, `021-FR-015`). Anything a chef sells
+> is not: a paid collection shows a signed-out reader at most its title, cover, price and the chef's own description,
+> never its recipes (`026-FR-015`). Was: "Public collection pages stay behind sign-in until the owner answers 021's
+> Q2."
 
 ## Source-of-Truth Note
 
@@ -60,7 +89,8 @@ Six capabilities frame the feature. They are narrative groupings, **not** requir
   saves, and collection click-through, aggregated with no individual visitor tracking.
 - **Monetization surface (extends 010)** — a **tip jar** (one-time tips via 010's payment flow) and a
   read-only earnings view. There are **no premium recipes and no paid follows**: recipe visibility is
-  binary private/public and owned by 001, so 012 has no gated content to sell. Following is free.
+  binary private/public and owned by 001. Following is free. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ A
+  creator can list PRIVATE recipes and collections for sale (FR-034a). That is a sale, not a visibility state.
 
 > **Monetization is now enumerated** as `FR-031` … `FR-034` below (tip jar + earnings), **marked DRAFT** and
 > blocked on marketplace payments. An earlier revision of this PR also invented premium recipes and paid
@@ -80,15 +110,15 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-004** A creator MUST be able to deactivate their profile, which hides the public page and removes them from discovery surfaces without deleting underlying recipes.
 
-- **FR-005** Handle changes MUST be rate-limited to once per 30 days; the previous handle MUST be reserved for 14 days to prevent squatting.
+- **FR-005** Handle changes MUST be rate-limited to once per 30 days; the previous handle MUST be reserved for 14 days to prevent squatting. _(Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md).)_ During those 14 days the previous handle redirects to the new one. After them it stops redirecting, but it is still never given to another account, because search engines and old links point at it. An erased cook's handle is never given to another account either (`021-FR-073`).
 
 ### Public Profile URL & Discovery (FR-006 … FR-009)
 
-- **FR-006** Every active `CreatorProfile` MUST be accessible at `commise.com/@{handle}` (canonical URL) without authentication.
+- **FR-006** _(domain corrected 2026-10-26, owner ruling. Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Every active `CreatorProfile` MUST be accessible at `commise.app/@{handle}` (canonical URL) without authentication, as `001-FR-045` now allows. A deactivated or suspended profile gets 021's one not-available answer (`021-FR-013`). An erased cook's handle, and a renamed handle, is never given to another account (`021-FR-073`).
 
-- **FR-007** Profile pages MUST be server-side rendered (Next.js SSR) with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields.
+- **FR-007** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ Profile pages MUST be server-side rendered with `<title>`, `<meta description>`, and Open Graph tags populated from `CreatorProfile` fields. Indexing, `ProfilePage` structured data, canonical addresses and sitemaps follow `021-FR-020` to `021-FR-029a`. A page with no indexable recipe answers `noindex` (`021-FR-025`). The HTML response is the same for every viewer and sets no cookie (`021-FR-012`).
 
-- **FR-008** The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes.
+- **FR-008** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md). Amended 2026-10-29, owner ruling, 021 Q2)_ The public profile page MUST display: avatar, display name, bio, follower count, public collections, and a paginated list of public recipes. To a signed-out visitor it lists only recipes that are open to the web (`021-FR-002`) under every open label (written, adapted, family, public domain, clone), each showing its label (_(amended 2026-11-03, owner ruling O7, ADR-0082)_: never a facts card, signed in or out), and its licence where the cook chose CC BY 4.0 (`016-FR-010`, schema.org `license` on the recipe page, owned by 021), at most 24 per page, and its public collections, each readable signed out on its own address (`021-FR-015`, `021-FR-008`). A collection a chef sells MUST show a signed-out visitor at most its title, cover, price and the chef's own description, never its recipes (`026-FR-015`). The avatar address carries no user id (`021-FR-071`). _(Was, 2026-10-27: "and no public collections until 021's Q2 is answered".)_
 
 - **FR-009** Follower lists MUST NOT be publicly visible; only the aggregate `followerCount` is exposed.
 
@@ -112,11 +142,11 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Content Publishing (FR-017 … FR-019)
 
-- **FR-017** A creator MUST be able to organise public recipes into named collections (max 20 collections per creator in v1; max 60-char name, max 200-char description).
+- **FR-017** A creator MUST be able to organise recipes into named collections, each public or private (max 20 collections per creator in v1; max 60-char name, max 200-char description). _(Amended 2026-11-03, owner ruling, ADR-0082.)_ A public collection's description is public text, so 020 checks it (`020-FR-071`). A hit hides the description, not the page, until a person decides. A cover the creator uploads is checked as a photo. The shipped schema allows a 1000-character description (`collections.schema.ts`), against this 200. Counsel review is owed before launch (`016-FR-050`).
 
 - **FR-018** Collections MUST support manual ordering of recipes; the order MUST be persisted and returned in API responses.
 
-- **FR-019** Only recipes with `visibility = public` (owned by 001) and authored by the creator MAY be added to a collection.
+- **FR-019** Only recipes with `visibility = public` (owned by 001) and authored by the creator MAY be added to a collection. _(Amended 2026-11-03, owner ruling O14, ADR-0082.)_ This holds for a PUBLIC collection. A PRIVATE collection MAY hold the creator's private recipes, and a collection for sale MUST hold only sellable recipes (FR-034b). A FREE public collection MAY also hold a facts card or another person's recipe that the open-recipe rule allows (`021-FR-002`, O14d). A paid collection never holds one.
 
 ### Moderation (FR-020 … FR-022)
 
@@ -124,7 +154,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-021** A suspended creator MUST receive an in-app notification stating the reason and an appeal path.
 
-- **FR-022** DMCA takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice.
+- **FR-022** DMCA takedown requests targeting a creator's recipe MUST be routable to the Compliance Reviewer role; the affected recipe MUST be unpublished within 24 hours of a valid notice. _(Amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md).)_ The route is 016's one notice mechanism (`016-FR-026`). Every public page carries a Report link to it (`021-FR-045`). A removal reaches every public surface within 021's purge bound (`021-FR-061`).
 
 ### Analytics (FR-023 … FR-025)
 
@@ -136,7 +166,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 ### Embed Widget (FR-026 … FR-027)
 
-- **FR-026** `GET /api/v1/creators/:handle/widget` MUST return a static HTML fragment (no JavaScript) rendering: avatar, display name, follower count, and the 3 most-recently-published public recipes.
+- **FR-026** _(amended 2026-10-27, [021](../021-public-discovery-and-sharing/spec.md))_ `GET /api/v1/creators/:handle/widget` MUST return a static HTML fragment (no JavaScript) rendering: avatar, display name, follower count, and the 3 most-recently-published recipes that are open to the web. The widget is signed-out, so it reads 021's one open-to-web rule (`021-FR-001`) and never lists an imported recipe.
 
 - **FR-027** The widget response MUST carry `Cache-Control: public, max-age=300` for CloudFront CDN caching; p95 latency on a cache hit MUST be < 50 ms.
 
@@ -160,7 +190,61 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 
 - **FR-034** 012 MUST present a creator's earnings read-only (tip revenue, aggregated by period). 012 MUST NOT compute revenue splits, hold balances, or initiate disbursement.
 
+### Creator sales: private recipes and collections (FR-034a to FR-034d)
+
+_(Added 2026-11-03, owner ruling O14, ADR-0082.)_ The owner, verbatim: "For creator recipes, a creator can choose to make recipes public or private. Same for
+collections. They can also choose to list private recipes and collections for sale." These requirements merge the
+product-spec row "Creator-priced private recipes and collections". They add no visibility state and reverse none of the
+retired IDs below.
+
+- **FR-034a** A creator MUST be able to choose public or private for each recipe and for each collection (O14b). A
+  creator MAY list a PRIVATE recipe or a PRIVATE collection for sale at a price the creator sets (O14c). 010 takes the
+  payment and grants the buyer access, through 018's seller model (`018-FR-026`, `018-FR-029`, `018-FR-087`) and 026's
+  cookbooks (`026-FR-043`). 012 holds no billing logic. Listing for sale does not change visibility.
+  _(amended 2026-11-03, owner ruling O15, ADR-0082. Amended again the same day, owner ruling, ADR-0082 §9. Was: every
+  buyer gets a live view of the creator's current recipe or collection and no copy.)_ A buyer **purchases** the sold
+  version and can download it to keep (`018-FR-029`, `018-FR-029a`). A buyer can also **subscribe** to the creator for
+  the live view of the creator's current versions (`018-FR-029h`, FR-034d). The creator sees aggregate sales and no
+  named buyer (`018-FR-029g`). The creator's confirm step for unpublishing from sale, deleting or erasing MUST say that
+  buyers and subscribers lose in-app access, get a 30-day download of the last approved version, and get no refund
+  (`018-FR-029e`, `018-FR-029i`). A public recipe or
+  collection MUST NOT be for sale (`018-FR-029c`), and reading a public one is never paid for (O14a, `021`).
+- **FR-034b** [Law] Only content the creator owns MAY be sold (O14d). That is "Written by you", "Adapted by you" in the
+  creator's own words, and a family recipe whose giver's permission covers selling. It MUST NOT be an
+  `imported_public`, `imported_physical` or `imported_paid` copy, a facts card, public-domain curator text, or anything
+  holding another person's text, because selling is distribution (17 U.S.C. §106(3), `016-FR-029a`). A collection for
+  sale MUST hold only sellable recipes, and adding a non-sellable recipe MUST be refused. A facts card or another
+  person's recipe MAY sit only in a FREE public collection. 012 MUST NOT put an `isPremium` flag on collection
+  membership. The one eligibility rule is owned by 018 (`018-FR-027`), and 012 reads it. [House rule] Counsel review is
+  owed before launch (`016-FR-050`).
+  _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A recipe the creator imported from their own page with "This is
+  my recipe, from my site or account" (`004-FR-014a` statement 1a) is "Written by you", so it is sellable when kept
+  private. The creator page lists it like any recipe the creator wrote when it is public and 020 allows it
+  (`021-FR-002`). Neither reads the site claim. A recipe is public or for sale, never both (`018-FR-029c`). Counsel
+  review is owed before launch (`016-FR-050`).
+- **FR-034c** Every sold recipe MUST pass 020's hold before it is listed and before it is delivered, because selling is a
+  door to others like publishing (O14e, `020-FR-057`). A held recipe MUST NOT be listed. _(amended 2026-11-03, owner ruling O15b,
+  ADR-0082. Was: a buyer's copy carries its source's checked-content digest.)_ A buyer reads the same recipe through the
+  same hold. An edit to a sold recipe re-runs the hold, and buyers see the last approved version meanwhile
+  (`018-FR-029d`, `020-FR-064`). [House rule] Counsel review is owed before launch (`016-FR-050`).
+- **FR-034d** _(added 2026-11-03, owner ruling, ADR-0082 §9)_ The sale page of a recipe or collection MUST offer two
+  products by these names. **Purchase** gives the sold version, to read in the app and to download and keep
+  (`018-FR-029`, `018-FR-029a`). **Subscribe** gives the live view of the creator's current versions while the
+  subscription runs, and nothing after it ends (`018-FR-029h`). Each button MUST say what it gives, before payment
+  (`018-FR-046`). The copy goes through the localization path. 012 holds no billing logic (FR-034a). A
+  subscription covers everything the creator sells while it is active, and the chef club is this subscription (owner
+  ruling 2026-11-03, `018` FQ-018-4). [House rule] A subscription is an access grant on
+  private items for sale. It is not the paid follow tier that FR-038 retired, because following stays free and no
+  public recipe is withheld. Counsel review is owed before launch (`016-FR-050`).
+- _(Note 2026-11-03, owner ruling, ADR-0082 §9.)_ A profile can show the creator's linked social accounts. Linking
+  proves ownership of that account's posts through the platform's own sign-in, and is specified in `026-FR-061`. 012
+  shows the link only. It does not verify it.
+
 > ### ⛔ Withdrawn 2026-08-02 — there is no such thing as a premium recipe
+>
+> _(Clarified 2026-11-03, owner ruling O14, ADR-0082.)_ What is withdrawn is a paywalled **visibility state**, a paid
+> follow tier and server-side withholding of a public recipe. A creator selling a PRIVATE recipe or collection is a
+> different thing. It is FR-034a to FR-034c. The retired IDs below stay retired and are not reused.
 >
 > An earlier revision of this section (in this same PR, never ratified) invented **premium recipes** and
 > **paid follows**: a creator marking a recipe premium, server-side withholding of its ingredients and
@@ -169,7 +253,7 @@ Canonical enumeration — promoted verbatim from `product-spec/product-spec.md` 
 > content model.
 >
 > **The visibility model is binary, and 001 owns it**: a recipe is **private** or **public**
-> (`001-FR-003`, `001-FR-004`). There is no third, paywalled state, and 012 does not get to introduce one.
+> (`001-FR-003`, `001-FR-004`). There is no third, paywalled state, and 012 does not get to introduce one. _(Clarified 2026-11-03, O14: a sale of a private recipe is not a visibility state, FR-034a.)_
 > A **private** recipe may be shared with contacts **read-only** — that is 011's `circle` audience scope
 > (`{ scope: 'circle', ref_id }`) with member read-only access per `011` US-006, **not** a purchase.
 >
@@ -198,7 +282,7 @@ any of the above.
 > ### Dependency status — creator compensation is blocked
 >
 > `FR-031` … `FR-034` assume 010 provides one-time payments and payouts. **It provides neither.** Feature
-> 010's entire functional scope is `010-FR-040` … `010-FR-044`: a free/premium **subscriber** tier on Stripe
+> 010's entire functional scope is `010-FR-040` … `010-FR-044`: a free/Pro **subscriber** tier on Stripe
 > Checkout + Customer Portal, upgrade prompts, downgrade retention, and the tier as a signed token claim. It
 > has no one-time payment, marketplace, revenue-split, or payout surface, and its Out-of-Scope section rules
 > out even multi-seat family plans.

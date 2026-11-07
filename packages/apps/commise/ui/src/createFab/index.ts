@@ -4,6 +4,15 @@
  * are its own parts; the interim create dial that also drew them is retired (D4, slice 8), so they are not exported.
  */
 export { CreateFab } from './CreateFab.js';
-export { FAB_HEIGHT_PX, FAB_RESERVED_BOTTOM_PX, fabPresentationOf } from './createFabPolicy.js';
+export {
+    FAB_BOTTOM_MARGIN_PX,
+    FAB_FLOATS_FROM_HEIGHT_PX,
+    FAB_HEIGHT_PX,
+    FAB_RESERVED_BOTTOM_PX,
+    fabHeightAt,
+    fabPresentationOf,
+    fabReservedBottomOf,
+} from './createFabPolicy.js';
+export { useFabReservedBottom } from './useFabReservedBottom.js';
 export type { FabInputs, FabPresentation } from './createFabPolicy.js';
 export type { CreateFabProps, FabSelf } from './props.js';

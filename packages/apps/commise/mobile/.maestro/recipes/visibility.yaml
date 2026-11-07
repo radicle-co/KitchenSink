@@ -49,8 +49,8 @@ appId: ${APP_ID}
 - assertVisible: 'My recipes'
 
 # E1 (UI walk 2026-10-13; build spec §6.4, §7.7 item 2) — the editor's own visibility choice, PREMIUM path. Private is a
-# real choice for this signer: it selects, with no Premium sheet. The FREE-tier leg (Private opens "Private recipes are
-# part of Premium.") has no on-device check for the reason above — the fixture contract provides no free-tier signer —
+# real choice for this signer: it selects, with no Pro sheet. The FREE-tier leg (Private opens a Pro sheet, "Keep more
+# recipes private" or "Private needs Pro for this recipe") has no on-device check for the reason above — the fixture contract provides no free-tier signer —
 # and is covered by `RecipeEditorScreen.native.test.tsx` and the web Playwright suite. Leaving by × keeps nothing the
 # next flow can meet: every flow is reseeded, and a draft with no title never reaches the server.
 - tapOn: 'New recipe'
@@ -62,7 +62,8 @@ appId: ${APP_ID}
           DIRECTION: DOWN
           TIMEOUT: 30000
 - tapOn: 'Private, Only you can see it'
-- assertNotVisible: 'Private recipes are part of Premium.'
+- assertNotVisible: 'Keep more recipes private'
+- assertNotVisible: 'Private needs Pro for this recipe'
 # Maestro reads `checked` on iOS only from a switch's `1`/`0` value; a React Native radio's value is the phrase
 # `radio button, checked` (run 38433716728). So iOS asserts that phrase on the radio below Public, which in a
 # two-radio group is Private.
@@ -97,19 +98,21 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: '${E2E_RECIPE_LAMB}'
 # Owner-only actions confirm we are the owner — the visibility control renders only for the owner, so without
-# this the assertions below could vacuously pass on a non-owned detail. The owner block is in the detail's
-# TITLE BAND (it used to be at the foot); the visibility control sits behind the ⋯ "More actions for {title}" overflow there.
+# this the assertions below could vacuously pass on a non-owned detail. The visibility control sits behind the ⋯ "More actions
+# for {title}" overflow in the detail's top bar.
 - scrollUntilVisible:
       element: 'Edit recipe'
       direction: DOWN
       timeout: 20000
 # The visibility change is a secondary owner action in the ⋯ menu (§6.4): "Make public" on a private recipe,
 # "Make private" on a public one. The recipe is seeded private.
+# The ⋯ is in the detail's TOP BAR and scrolls away with the header, so reach it the way a cook does: scroll back UP
+# (DOWN adds a nudge that would push a visible ⋯ off the top).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'More actions for .*'
-          DIRECTION: DOWN
+          DIRECTION: UP
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 # C-004 for a PREMIUM owner nothing is gated; a private recipe offers the way to public.

@@ -23,5 +23,6 @@
         "vitest.setup.ts",
         "vitest.setup.native.ts"
     ],
-    "exclude": ["node_modules", "dist"]
+    // Font-measuring fit tests read the font files from disk, so they need Node; they check in tsconfig.fit.json.
+    "exclude": ["node_modules", "dist", "src/**/*.fit.test.ts"]
 }

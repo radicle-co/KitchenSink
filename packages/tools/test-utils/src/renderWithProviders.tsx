@@ -4,6 +4,8 @@ import type { ReactElement } from 'react';
 import type { Locale } from '@commise/i18n';
 import { LocaleProvider } from '@commise/i18n/react';
 
+import { DesignSystemFrame } from './DesignSystemFrame.js';
+
 /** Options accepted by {@link renderWithProviders}. */
 export interface RenderWithProvidersOptions {
     /** The locale supplied to `LocaleProvider`. Defaults to `'en'`. */
@@ -13,7 +15,8 @@ export interface RenderWithProvidersOptions {
 /**
  * Shared RTL custom-render helper for the Commise apps (web + mobile). Wraps `ui` in the shared
  * `LocaleProvider` — the one context every Home/app-shell component under test needs — so component tests
- * stop hand-declaring their own `<LocaleProvider>` wrapper. Returns RTL's own `render` result unchanged.
+ * stop hand-declaring their own `<LocaleProvider>` wrapper. In a native lane the tree also sits in the design
+ * system's Tamagui provider (`DesignSystemFrame`). Returns RTL's own `render` result unchanged.
  *
  * Callers that additionally need a data/service provider (e.g. `RecipeServiceProvider`) nest it INSIDE the
  * `ui` element they pass in — `renderWithProviders(<RecipeServiceProvider client={client}><Widget /></RecipeServiceProvider>)`
@@ -22,5 +25,9 @@ export interface RenderWithProvidersOptions {
 export function renderWithProviders(ui: ReactElement, options?: RenderWithProvidersOptions): RenderResult {
     const locale = options?.locale ?? 'en';
 
-    return render(<LocaleProvider locale={locale}>{ui}</LocaleProvider>);
+    return render(
+        <DesignSystemFrame>
+            <LocaleProvider locale={locale}>{ui}</LocaleProvider>
+        </DesignSystemFrame>,
+    );
 }

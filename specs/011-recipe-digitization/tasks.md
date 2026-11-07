@@ -430,6 +430,15 @@ GR-017 §17-a's obligations are not deferred to "when it has clients".
     - **Acceptance**: two writers for one job id is unrepresentable in the design, and the test that proves it is a **concurrency** test, not an assertion about a comment.
     - **Tests**: unit (the group key is derived from the job id and nothing else) **AND** an integration test running two overlapping re-runs and asserting they serialise rather than interleaving.
 
+- [ ] **T-113\*\*** _(added 2026-11-03, owner ruling, ADR-0082, R7)_ Delete the page image **after extraction** unless the cook asks to keep it. The 72 h reaper (T-109) stays as the backstop.
+    - [Law, EU] DSM Art. 4(2) limits retention of mining copies, and GDPR storage limitation applies where people appear. Counsel review is owed before launch (`016-FR-050`).
+    - **Acceptance**: after a successful extraction the S3 object is gone unless a "keep this photo" flag is set. A kept photo stays private and follows `FR-022`. The correction screen asks once, with equal buttons.
+    - **Tests**: unit (the keep/delete decision) **AND** integration against LocalStack S3 (object gone after extraction, kept when asked). Web and mobile in lockstep: component tests for each state, a Playwright test and a Maestro flow.
+
+- [ ] **T-114\*\*** _(added 2026-11-03, owner ruling, ADR-0082)_ Offer "Publish my own version" on a digitized recipe: the cook rewrites the method in their own words with credit (`016-FR-015b`), or marks a handwritten card as a family recipe with the giver's permission (`004-FR-014a`, statement 6). The verbatim copy stays private.
+    - **Acceptance**: the verbatim copy is never public. The Adapted or family version goes through `020`'s check and `evaluateVisibility`. An AI rewrite is not offered as "your own words" (`016-FR-015i`).
+    - **Tests**: unit and integration, plus the Playwright and Maestro paths. Counsel review is owed before launch (`016-FR-050`).
+
 ### Condition → Task Map
 
 | Condition | Resolved By                                                                              | Status                     |

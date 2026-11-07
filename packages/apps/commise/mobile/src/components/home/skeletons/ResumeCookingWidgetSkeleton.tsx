@@ -8,6 +8,7 @@
  */
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -47,9 +48,9 @@ export function ResumeCookingWidgetSkeleton(): JSX.Element {
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    thumb: { width: 64, height: 64, borderRadius: 12 },
+    thumb: { width: 64, height: 64, borderRadius: nativeTokens.radius.md },
     middle: { flex: 1, gap: 8 },
-    titleBar: { height: 16, width: '75%', borderRadius: 4 },
-    progressTrack: { height: 4, width: '100%', borderRadius: 999 },
-    action: { height: 36, width: 96, borderRadius: 999 },
+    titleBar: { height: 16, width: '75%', borderRadius: nativeTokens.radius.sm },
+    progressTrack: { height: 4, width: '100%', borderRadius: nativeTokens.radius.full },
+    action: { height: 36, width: 96, borderRadius: nativeTokens.radius.full },
 });

@@ -758,6 +758,40 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(control.txStatements().filter((s) => /test_principals|test_reset_jobs/i.test(s.text))).toHaveLength(2);
     });
 
+    it('⛔ DELETES the erasing user’s import allowance ledger, in the erasure transaction, keyed on the owner (004 FR-022)', async () => {
+        // The ledger holds an opaque ULID, a channel and a count — and it is the only thing in the database that
+        // records WHEN a person last pasted. Nothing downstream needs it once the person is gone, so it is deleted,
+        // not de-identified (`erasureSweepCoverage.test.ts` fails for any user-keyed table the sweep misses).
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const ledger = control.statements().filter((s) => /import_allowance_events/i.test(s.text));
+
+        expect(ledger).toHaveLength(1);
+        expect(ledger[0]?.text).toMatch(/^delete from import_allowance_events where user_id = \$\d$/i);
+        expect(ledger[0]?.params).toEqual([OWNER]);
+        expect(control.txStatements().filter((s) => /import_allowance_events/i.test(s.text))).toHaveLength(1);
+    });
+
+    it('⛔ DELETES the erasing user’s bulk imports, in the erasure transaction, keyed on the owner (ADR-0072 §4)', async () => {
+        // `recipe_imports.user_id` is the only user key of the three import tables. Its items and snapshot lines go with
+        // it by cascade, and the recipes the import saved are swept as recipes; each ingredient's `import_line_id` is
+        // SET NULL by the database. So ONE statement, and no hand-delete of items or lines.
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const imports = control.statements().filter((s) => /recipe_import/i.test(s.text));
+
+        expect(imports).toHaveLength(1);
+        expect(imports[0]?.text).toMatch(/^delete from recipe_imports where user_id = \$\d$/i);
+        expect(imports[0]?.params).toEqual([OWNER]);
+        expect(control.txStatements().filter((s) => /recipe_import/i.test(s.text))).toHaveLength(1);
+    });
+
     it('does not hand-delete rows the FK cascade already removes', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);
@@ -765,7 +799,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         await eraseRecipeRows(control.db, OWNER, []);
 
         const cascaded =
-            /delete from (recipe_steps|ingredients|recipe_photos|recipe_versions|recipe_collections|recipe_version_pending_archives)/i;
+            /delete from (recipe_steps|ingredients|recipe_photos|recipe_versions|recipe_collections|recipe_version_pending_archives|recipe_import_items|recipe_import_lines)/i;
 
         for (const statement of control.statements()) {
             expect(statement.text).not.toMatch(cascaded);
@@ -1536,6 +1570,26 @@ describe('purgeTestPrincipalRows (ADR-0040 — TOTAL, repeatable purge of a regi
             expect(matches, String(pattern)).toHaveLength(1);
             expect(matches[0]?.params).toEqual([OWNER]);
         }
+    });
+
+    it('⛔ deletes the principal’s import allowance ledger, so a reset principal starts a run with a full allowance', async () => {
+        // The ledger outlives a run by up to 24 h. A purge that left it would make the k6 pool and every deployed
+        // fixture user that pastes hit `429 IMPORT_QUOTA_EXCEEDED` on a repeat run within the day.
+        const control = await purge();
+        const ledger = control.statements().filter((s) => /import_allowance_events/i.test(s.text));
+
+        expect(ledger).toHaveLength(1);
+        expect(ledger[0]?.text).toMatch(/^delete from import_allowance_events where user_id = \$\d$/i);
+        expect(ledger[0]?.params).toEqual([OWNER]);
+    });
+
+    it('⛔ deletes the principal’s bulk imports, so a reset principal starts a run with no half-finished import', async () => {
+        const control = await purge();
+        const imports = control.statements().filter((s) => /recipe_import/i.test(s.text));
+
+        expect(imports).toHaveLength(1);
+        expect(imports[0]?.text).toMatch(/^delete from recipe_imports where user_id = \$\d$/i);
+        expect(imports[0]?.params).toEqual([OWNER]);
     });
 
     it('deletes the principal’s private-food bindings ONLY when unreferenced, and only AFTER its own recipes go', async () => {

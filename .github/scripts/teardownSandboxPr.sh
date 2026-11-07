@@ -93,7 +93,7 @@ discover_pr_stacks() {
         --query 'StackSummaries[].StackName' --output text 2>/dev/null) || return 1
     for stack in $names; do
         envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
-            --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null)
+            --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null) || return 1
         if belongs "$stack" || environment_tag_belongs "$envtag"; then
             printf '%s\t%s\n' "$stack" "$envtag"
         fi
@@ -224,7 +224,7 @@ settle_timed_out=0
 settle_deadline=$((SECONDS + ${TEARDOWN_SETTLE_TIMEOUT_SECONDS:-1800}))
 while :; do
     if ! in_flight=$(discover_pr_stacks "${CFN_IN_PROGRESS_STATES[@]}"); then
-        echo "::error::could not list $PR's in-flight CloudFormation stacks — a deploy may still be creating its database, so the drop is deferred rather than attempted"
+        echo "::error::cloudformation list-stacks or describe-stacks failed for $PR's in-flight stacks — a deploy may still be creating its database, so the drop is deferred rather than attempted"
         settle_timed_out=1
         teardown_failed=1
         break
@@ -247,7 +247,7 @@ done
 # comment is explicit that nothing may be queued ahead of it. A bounded discovery call is not a stack delete,
 # but the ordering rule is about what may PRECEDE the DNS reclaim, not about how long each thing takes.
 if ! PR_STACKS=$(discover_pr_stacks "${CFN_RESTING_STATES[@]}"); then
-    echo "::error::could not list CloudFormation stacks — $PR's stacks cannot be found and will be left behind"
+    echo "::error::cloudformation list-stacks or cloudformation describe-stacks failed — $PR's stacks cannot be found and will be left behind"
     PR_STACKS=''
     teardown_failed=1
 fi
@@ -370,18 +370,31 @@ fi
 while IFS=$'\t' read -r s envtag; do
     [ -n "$s" ] || continue
     echo "[stack] delete $s (Environment=$envtag)"
-    aws cloudformation delete-stack --region "$REGION" --stack-name "$s"
-    aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s" 2>/dev/null ||
-        echo "::warning::stack $s did not finish deleting in time — check it"
+    if ! aws cloudformation delete-stack --region "$REGION" --stack-name "$s"; then
+        echo "::error::could not start deleting stack $s — it is still running and billed"
+        teardown_failed=1
+        continue
+    fi
+    if ! aws cloudformation wait stack-delete-complete --region "$REGION" --stack-name "$s"; then
+        echo "::error::stack $s did not finish deleting (DELETE_FAILED or timed out) — it is still running and billed"
+        teardown_failed=1
+    fi
 done <<<"$PR_STACKS"
 
 ## 3. Tag sweep — anything else carrying one of this PR's Environment values that the stacks did not own.
 ##    The `Values=` list is an OR of EXACT values (the API matches no prefixes), and it is printed by
 ##    `prScope.sh` rather than spelled here: a literal `Values=$PR` is what silently matched nothing the
 ##    moment the CDK apps started emitting `pr-{N}-sandbox`, and a sweep that matches nothing reports success.
-for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
+# A listing that FAILS is an error, never "nothing matched": the sweep would report success over resources it
+# never saw. The per-resource deletes below stay `|| true` so one refused delete cannot hide the rest.
+if ! tagged_arns=$(aws resourcegroupstaggingapi get-resources --region "$REGION" \
     --tag-filters "Key=Environment,Values=$ENVIRONMENT_TAG_VALUES" \
-    --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null); do
+    --query 'ResourceTagMappingList[].ResourceARN' --output text); then
+    echo "::error::aws resourcegroupstaggingapi get-resources failed — $PR's tagged resources were not swept"
+    tagged_arns=''
+    teardown_failed=1
+fi
+for arn in $tagged_arns; do
     case "$arn" in
         *:log-group:*)
             lg="${arn##*:log-group:}"
@@ -399,15 +412,25 @@ for arn in $(aws resourcegroupstaggingapi get-resources --region "$REGION" \
 done
 
 ## 4. Name-prefix sweep — auto-created resources that could not be tagged.
-for lg in $(aws logs describe-log-groups --region "$REGION" \
-    --query 'logGroups[].logGroupName' --output text 2>/dev/null); do
+if ! log_groups=$(aws logs describe-log-groups --region "$REGION" \
+    --query 'logGroups[].logGroupName' --output text); then
+    echo "::error::aws logs describe-log-groups failed — $PR's log groups were not swept"
+    log_groups=''
+    teardown_failed=1
+fi
+for lg in $log_groups; do
     if path_belongs "$lg"; then
         echo "[logs/name] delete $lg"
         aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
     fi
 done
-for repo in $(aws ecr describe-repositories --region "$REGION" \
-    --query 'repositories[].repositoryName' --output text 2>/dev/null); do
+if ! ecr_repos=$(aws ecr describe-repositories --region "$REGION" \
+    --query 'repositories[].repositoryName' --output text); then
+    echo "::error::aws ecr describe-repositories failed — $PR's ECR repositories were not swept"
+    ecr_repos=''
+    teardown_failed=1
+fi
+for repo in $ecr_repos; do
     if belongs "$repo"; then
         echo "[ecr/name] delete $repo (force)"
         aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true

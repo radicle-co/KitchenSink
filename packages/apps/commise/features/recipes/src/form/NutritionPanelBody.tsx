@@ -57,7 +57,7 @@ export const NutritionPanelBody: FC<NutritionPanelBodyProps> = ({ state, onRetry
             return (
                 <div className="flex flex-col items-start gap-2">
                     <p>{m.nutritionLoadFailed}</p>
-                    <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
+                    <Button variant="quiet" icon="refreshCw" description={m.nutritionLoadFailed} onPress={onRetry}>
                         {m.statusActionRetry}
                     </Button>
                 </div>

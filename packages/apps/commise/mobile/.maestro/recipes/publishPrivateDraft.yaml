@@ -1,0 +1,51 @@
+appId: ${APP_ID}
+---
+# Mark Private, then Publish (owner rule: nothing may turn a private recipe public on its own). The draft is stored on the
+# server while the cook types, at its default visibility; the cook then chooses Private and publishes. The editor writes the
+# visibility BEFORE the publish update (`writeVisibilityFirst`), so the recipe is never published public. The flow proves
+# the end state the cook asked for: the published recipe's detail reads Private.
+#
+# The signer is Pro (`visibility.yaml`), so Private is a real choice with no sheet. Every flow is reseeded before it
+# runs, so the recipe this publishes does not outlive it.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Private Soup'
+- runFlow: common/chooseCuisine.yaml
+- runFlow: common/addTomatoAndStep.yaml
+
+# Choose Private after the draft exists on the server. The radio is named by its full label (`visibility.yaml`).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Private, Only you can see it'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn: 'Private, Only you can see it'
+
+- tapOn:
+      text: 'Publish'
+      # Publishing moves the screen for seconds, and the notice below lasts 6 s (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Private Soup.*'
+      timeout: 40000
+
+# The server holds it Private: the detail says so, and no refusal notice stands over it.
+- extendedWaitUntil:
+      visible:
+          text: '^Private$'
+      timeout: 40000
+- assertNotVisible: 'This recipe stays public.*'

@@ -56,7 +56,7 @@ describe('RecipeCalorieChip (web) — known', () => {
         const { container: staleTree } = renderChip(reading({ freshness: 'stale' }));
         const stale = screen.getByRole('img', { name: '420 cal, may be out of date' });
 
-        expect(stale.textContent).toBe('420 cal');
+        expect(stale.textContent).toBe('420\u00A0cal');
         cleanup();
 
         renderChip(reading());
@@ -101,7 +101,7 @@ describe('RecipeCalorieChip (web) — known', () => {
         const { container } = renderChip(reading({ caloriesPerServing: 0 }));
 
         expect(screen.getByText('0 cal')).toBeTruthy();
-        expect(container.textContent).toBe('0 cal');
+        expect(container.textContent).toBe('0\u00A0cal');
     });
 });
 

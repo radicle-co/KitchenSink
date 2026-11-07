@@ -50,6 +50,44 @@ jobs:
         # guard also blocks a future `pull_request_target` foot-gun from running fork code with creds.
         if: github.event.pull_request.head.repo.full_name == github.repository
         steps:
+            - name: Deactivate path-routed preview deployment on close
+              if: github.event.action == 'closed'
+              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+              with:
+                  script: |
+                      const pr = context.payload.pull_request.number;
+                      // ⚠️ Scoped by SHA, not by environment. Every PR's preview now shares the one
+                      // `sandbox-preview` environment, so listing by environment alone would return EVERY
+                      // open PR's deployments and this loop would mark them all inactive — killing the live
+                      // "View deployment" links on every other open PR each time any one of them closed.
+                      // The head sha is what makes a deployment this PR's.
+                      const deps = await github.rest.repos.listDeployments({
+                          ...context.repo,
+                          environment: 'sandbox-preview',
+                          sha: context.payload.pull_request.head.sha,
+                      });
+                      for (const d of deps.data) {
+                          await github.rest.repos.createDeploymentStatus({
+                              ...context.repo,
+                              deployment_id: d.id,
+                              state: 'inactive',
+                          });
+                      }
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - name: Sign in to AWS
+              id: aws
+              uses: ./.github/actions/awsAuth
+              with:
+                  tier: nonprod
+                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
+                  region: ${{ env.AWS_REGION }}
             # Surface the sandbox preview as a GitHub deployment, so the PR's "View deployment" button opens
             # the working, azp-matched friendly URL. Vercel's own preview button opens the bare deployment
             # host, which 404s/401s under our router + azp, so we publish our own. Independent of the
@@ -60,8 +98,11 @@ jobs:
             #   `subdomain`   → https://pr-{N}.sandbox.commise.app/   (per-PR subdomains, post-cutover)
             # Flip this in lockstep with the Vercel build's SANDBOX_PREVIEW_MODE (which drives basePath) and
             # the backend CLERK_AZP_PREVIEW_MODE=transition. Default MUST stay path until the live cutover.
+            #
+            # It runs only for a run signed in to AWS, after the sign-in step it reads. A Dependabot run gets no repo
+            # secrets, so it can deploy no preview, and this link would point at a page that never exists.
             - name: Publish sandbox preview deployment
-              if: github.event.action != 'closed'
+              if: github.event.action != 'closed' && steps.aws.outputs.authenticated == 'true'
               uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
               env:
                   PREVIEW_MODE: ${{ vars.SANDBOX_PREVIEW_MODE }}
@@ -106,46 +147,12 @@ jobs:
                           environment_url: url,
                           description: `Open the ${mode} sandbox preview`,
                       });
-            - name: Deactivate path-routed preview deployment on close
-              if: github.event.action == 'closed'
-              uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-              with:
-                  script: |
-                      const pr = context.payload.pull_request.number;
-                      // ⚠️ Scoped by SHA, not by environment. Every PR's preview now shares the one
-                      // `sandbox-preview` environment, so listing by environment alone would return EVERY
-                      // open PR's deployments and this loop would mark them all inactive — killing the live
-                      // "View deployment" links on every other open PR each time any one of them closed.
-                      // The head sha is what makes a deployment this PR's.
-                      const deps = await github.rest.repos.listDeployments({
-                          ...context.repo,
-                          environment: 'sandbox-preview',
-                          sha: context.payload.pull_request.head.sha,
-                      });
-                      for (const d of deps.data) {
-                          await github.rest.repos.createDeploymentStatus({
-                              ...context.repo,
-                              deployment_id: d.id,
-                              state: 'inactive',
-                          });
-                      }
-            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-              with:
-                  persist-credentials: false
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-              with:
-                  node-version: 24
-                  cache: npm
-            - run: npm ci
-            - name: Sign in to AWS
-              id: aws
-              uses: ./.github/actions/awsAuth
-              with:
-                  tier: nonprod
-                  account-id: ${{ vars.AWS_ACCOUNT_ID }}
-                  region: ${{ env.AWS_REGION }}
             - name: Resolve the router KVS ARN (from the router stack output)
               id: kvs
+              # Only a signed-in run can read the router stack. `awsAuth` answers `authenticated=false` for a fork's
+              # pull request and for Dependabot, which get no repo secrets (ADR-0063); for them every route step is
+              # skipped, because the preview is a sandbox surface. The deployment-record cleanup on close still runs.
+              if: steps.aws.outputs.authenticated == 'true'
               run: |
                   # The router is a SINGLETON deployed separately (sandbox-router-deploy). Until it
                   # exists, per-PR routing simply can't be wired — that's a missing prerequisite, not a
@@ -206,7 +213,8 @@ jobs:
             # No `target` field: the API rejects `"preview"` ("should be 'production', 'staging', or a custom
             # environment identifier"), and omitting it yields a preview deployment, which is what we want.
             - name: Deploy this PR's Vercel preview
-              if: github.event.action == 'opened' || github.event.action == 'reopened'
+              # Gated on sign-in for the same reason as the KVS step: a Dependabot run has no VERCEL_TOKEN.
+              if: (github.event.action == 'opened' || github.event.action == 'reopened') && steps.aws.outputs.authenticated == 'true'
               env:
                   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
                   VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}

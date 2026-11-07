@@ -55,5 +55,5 @@ const styles = StyleSheet.create({
     message: { flex: 2, alignItems: 'center', justifyContent: 'center' },
     spacer: { flex: 1 },
     content: { alignItems: 'center', gap: 8 },
-    caption: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
+    caption: { ...nativeTokens.type.meta, textAlign: 'center' },
 });

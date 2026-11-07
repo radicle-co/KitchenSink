@@ -234,6 +234,12 @@ Phase 1, so the first endpoint must not land before the contract it serves is au
     - **⛔ "Converging" a third-party client deletes a validation boundary — a security regression, not a cleanup. `packages/clients/usda/src/schemas.ts` is the reference implementation and must NEVER be touched in this rule's name.**
     - **Tests**: unit (the delegation's outbound body is rejected before send when malformed; 010's response is parsed on receipt) **AND** integration (delegation against a booted identity/billing surface).
 
+- [ ] **T-067** [US-001] Public profile lists every open label and shows each recipe's label and CC BY licence — `packages/services/creator-profiles-service/src/`, web and mobile profile screens _(added 2026-11-03, owner ruling, ADR-0082)_
+    - **Depends on**: T-044
+    - **Implements**: FR-008 as amended 2026-11-03, `021-FR-002`
+    - **Acceptance**: A signed-out profile lists recipes under Written by you, Adapted by you, From a family member or friend, Public domain and clones of those, each with its label, and never a linked facts card. A recipe the cook put under CC BY 4.0 shows that licence. _(Amended 2026-11-03, owner ruling O7, ADR-0082.)_ The list never includes a facts card, for any viewer, signed in or out. A test seeds a cook with a facts card and asserts it is absent from every creator page read, the widget (`FR-026`) and the sitemap list.
+    - **Tests**: unit (the list filter by label), integration (signed-out read of a mixed profile), vitest component tests for the label states on both platforms, Playwright and Maestro for the signed-out profile.
+
 ---
 
 ## Traceability
@@ -254,3 +260,61 @@ Phase 1, so the first endpoint must not land before the contract it serves is au
 
 **Task count: 66** (was 55). T-056…T-066 close GR-017 §17-e.12 — the schema package, the `CONTRACT_HASH` gate
 and receipt validation had **no task** in this file, while `plan.md` L85-96 stated all three in prose.
+
+- [ ] **T-068** [US-001] Public collection text passes 020's check. The description limit matches FR-017. Files: `packages/services/recipe-service/src/collections/`, `packages/schemas/recipe` _(added 2026-11-03, owner ruling, ADR-0082)_
+    - **Implements**: FR-017 as amended 2026-11-03, `020-FR-071`
+    - **Acceptance**: `MAX_COLLECTION_DESCRIPTION_LENGTH` is 200, as FR-017 states, or FR-017 is amended to the shipped 1000 by the owner. A public collection's description passes the rule detectors and, past `020-FR-012f`'s minimum length, the web search. A hit hides the description until a person decides. An uploaded cover is checked as a photo.
+    - **Tests**: unit (the limit at its edge, and a description with a valid ISBN is hidden). Integration (a public collection read hides a held description). A row in 020's deployed bypass suite (`020-FR-074`).
+
+- [ ] **T-069** [US-001] Bio and avatar skip the outside-copy check and stay reachable by notice-and-takedown — `packages/services/creator-profiles-service/src/`, `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O11, ADR-0082)_
+    - **Implements**: FR-002, FR-008, `020-FR-071` as amended 2026-11-03
+    - **Acceptance**: [House rule] Saving a bio or an avatar starts no 020 check. An actioned 016 notice (`016-FR-017`) removes a bio or avatar from every public surface (page, widget, preview image) within `021-FR-061`'s purge bound, and the cook gets a statement of reasons (`016-FR-018`). Counsel review is owed before launch (`016-FR-050`).
+    - **Tests**: unit (the bio save path does not call the check), integration (a notice on an avatar removes it from the page and the widget), deployed e2e row in 020's bypass suite is NOT added, because there is no gate to bypass.
+
+- [ ] **T-070** [US-002] Creator chooses public or private per collection, and lists a private recipe or collection for sale — `packages/services/creator-profiles-service/src/collections/`, `packages/services/recipe-service/src/collections/`, `packages/schemas/recipe` _(added 2026-11-03, owner ruling O14, ADR-0082)_
+    - **Depends on**: T-020, T-022
+    - **Implements**: FR-017 and FR-019 as amended 2026-11-03, FR-034a, `018-FR-087`
+    - **Acceptance**: A creator can set each recipe and each collection public or private. A private recipe or collection can carry a price through 018's listing, and 012 holds no billing logic and no `isPremium` flag on membership. A public recipe or collection cannot be listed for sale. A signed-out reader of a paid collection sees only its title, cover, price and description (`026-FR-015`). Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: unit (listing a public collection for sale is refused, and a price on a private one is accepted). Integration (the collection endpoint rejects `isPremium` on membership, and a paid collection read by a signed-out caller returns no recipes). Playwright and Maestro for the set-private and list-for-sale story.
+
+- [ ] **T-071** [US-002] A non-sellable label is refused for sale, and a paid collection rejects a non-sellable recipe — `packages/services/recipe-service/src/collections/`, `packages/services/recipe-service/src/recipes/domain/` _(added 2026-11-03, owner ruling O14d, ADR-0082)_
+    - **Depends on**: T-070
+    - **Implements**: FR-034b, `018-FR-026`, `018-FR-027`
+    - **Acceptance**: [Law] Only "Written by you", "Adapted by you" in the creator's own words, and family recipes with a selling permission can be listed. `imported_public`, `imported_physical`, `imported_paid`, a facts card, public-domain curator text and any recipe holding another person's text are refused. Adding one to a collection for sale is refused, and a recipe that turns non-sellable after listing delists the collection until it is removed. Facts cards and others' recipes can sit in a FREE public collection. The rule is read from 018's single eligibility policy and not copied. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: unit (each non-sellable label is refused for sale, table-driven over every label, and the mutation lens: a rule that checked only `sourceType` fails the facts-card row). Integration (a paid collection rejects a non-sellable recipe on add and on a later label change, and a free public collection accepts a facts card).
+
+- [ ] **T-072** [US-002] Every sold recipe passes 020's hold before listing and delivery — `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O14e, ADR-0082)_
+    - **Depends on**: T-071, `020` K082-23
+    - **Implements**: FR-034c, `020-FR-057`
+    - **Acceptance**: A held recipe cannot be listed, and a listed recipe that becomes held is delisted and its sale paused until a person decides. _(amended 2026-11-03, owner ruling O15b, ADR-0082. Was: delivery to a buyer carries the source digest.)_ A buyer reads the live recipe through the same hold, and sees the last approved version while an edit is checked.
+    - **Tests (write first, watch them fail)**: unit (a held recipe is refused for listing). Integration (a listed recipe that is held disappears from the listing, and a buyer read during a check returns the last approved version). A row in 020's deployed bypass suite (`020-FR-074`, door 38).
+
+- [ ] **T-073** [US-002] The creator's confirm step says buyers lose access, on unpublish from sale, delete and account erasure — web and mobile screens, `packages/services/creator-profiles-service/src/` _(added 2026-11-03, owner ruling O15d, ADR-0082)_
+    - **Depends on**: T-070, `018-L06`
+    - **Implements**: FR-034a, `018-FR-029e`
+    - **Acceptance**: Before a creator unpublishes a sold recipe or collection from sale, deletes it, or erases their account, the screen says how many buyers and subscribers lose in-app access, that each gets a 30-day download of the last approved version and an email, and that no refund is given (`018-FR-029e`, `018-FR-029i`). _(rewritten 2026-11-03, ADR-0082 §9, to prove the new behaviour. Was: the refund question is handled by 018.)_ The creator can cancel. Every state has copy and a localisation key. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: component (every state, with and without buyers), unit (the count comes from the aggregate and names nobody). Playwright and Maestro for the unpublish-from-sale story.
+
+- [ ] **T-074** [US-002] The creator's sales view shows aggregates and no named buyer — `packages/services/creator-profiles-service/src/`, web and mobile earnings surface _(added 2026-11-03, owner ruling O15f, ADR-0082)_
+    - **Depends on**: T-070, `018-L09`
+    - **Implements**: FR-034, FR-034a, `018-FR-029g`
+    - **Acceptance**: The creator sees sales count and amount by period and by listing. The response has no buyer identifier, name, email or avatar. No existing 012 rule gave a buyer list, so none is kept.
+    - **Tests (write first, watch them fail)**: unit (the response shape has no buyer field), contract test on the schema, integration (the endpoint for a creator with sales returns only aggregates). Mutation lens: a response that adds a `buyerId` fails the shape test.
+
+- [ ] **T-075** [US-002] An edit to a sold recipe shows its checking state to the creator and keeps buyers on the last approved version — creator edit screen, `packages/services/recipe-service/src/source-check/` _(added 2026-11-03, owner ruling O15b, ADR-0082)_
+    - **Depends on**: T-072, `018-L05`, `020` K082-24
+    - **Implements**: FR-034c, `018-FR-029d`, `020-FR-064`
+    - **Acceptance**: After the creator saves an edit, the screen says "Subscribers still see the last approved version while this is checked". When the check allows the new digest, subscribers see it. A buyer who only purchased keeps the sold version (`018-FR-029`). _(amended 2026-11-03, ADR-0082 §9. Was: every buyer sees the edit.)_ If the check holds it, the creator sees why and buyers keep the old version.
+    - **Tests (write first, watch them fail)**: unit (state mapping), integration (a buyer read during the check returns the old version, a read after approval returns the new one). A row in 020's deployed bypass suite (`020-FR-074`, door 38).
+
+- [ ] **T-076** [US-002] An owner import with statement 1a is listed on the creator page when public, and is sellable when private _(added 2026-11-03, owner ruling O16, ADR-0082)_. Files: `packages/services/creator-profiles-service/src/`, `packages/services/recipe-service/src/recipes/domain/`
+    - **Depends on**: T-067, T-071, `004` T-040
+    - **Implements**: FR-034b as amended 2026-11-03, `018-FR-026`, `021-FR-002`
+    - **Acceptance**: A public, 020-allowed recipe with statement 1a is listed on the creator page with "Written by you". The same recipe kept private can be listed for sale. Neither path reads the site claim, so a claim that fails changes neither. A recipe is never public and for sale at once. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: unit (eligibility table over statement 1a with and without a live claim gives the same answer). Integration (list the recipe on the page, then make it private and list it for sale). Mutation lens: an eligibility rule that refuses every URL-imported recipe by route fails the owner row.
+
+- [ ] **T-077** [US-002] The sale page offers "Purchase" and "Subscribe", each saying what it gives before payment — web and mobile sale page, `packages/services/creator-profiles-service/src/` _(added 2026-11-03, owner ruling, ADR-0082 §9)_
+    - **Depends on**: T-070, `018-L01`, `018-L13`
+    - **Implements**: FR-034d, `018-FR-029`, `018-FR-029h`, `018-FR-046`
+    - **Acceptance**: The page shows a Purchase button with the base rate and "Read this version and download it to keep", and a Subscribe button with the recurring price and "Read every update while you subscribe". Both name the two ways access can end (`018-FR-029i`, `018-FR-029j`). Every state has copy and a localisation key: loading, priced, subscribe not offered, already purchased, already subscribed, held by 020, and error. Counsel review is owed before launch (`016-FR-050`).
+    - **Tests (write first, watch them fail)**: component (every state, and a page that labels the purchase "live view" or omits the download line fails), unit (the offered products come from the listing and the creator's subscription setting). Playwright and Maestro: purchase, then download the sold version. Subscribe, then read an approved update.

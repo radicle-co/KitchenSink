@@ -85,7 +85,7 @@ first.** Allergen and dietary data is health-adjacent; nothing in this feature m
 
 The numbers that separate serious options from theatre. **Third-party rates are cited; the conversion and
 engagement assumptions are labelled illustrative and are NOT claims about our users.** The product's own
-recorded price is $6.99/month (`010-FR-041`).
+recorded price is $6.99/month (`010-FR-041`). _(Out of date 2026-10-26: `010-FR-041` now prices Pro at $9.99 a month and Pro with AI at $19.99 a month. The illustration below keeps the old figure.)_
 
 ### 2.1 What a free user is worth — and why the naive number is wrong
 

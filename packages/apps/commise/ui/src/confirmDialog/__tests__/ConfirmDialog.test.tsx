@@ -59,6 +59,17 @@ function baseProps(overrides: Partial<ConfirmDialogProps> = {}): ConfirmDialogPr
     };
 }
 
+// Parity item 8: a dialog takes the largest surface step (24 px), not the notice step (18 px).
+describe('ConfirmDialog (web) — the corner radius', () => {
+    it('rounds at the xl step, not lg', () => {
+        render(<ConfirmDialog {...baseProps({ open: true })} />);
+        const tokens = screen.getByRole('alertdialog').className.split(/\s+/u);
+
+        expect(tokens).toContain('rounded-xl');
+        expect(tokens).not.toContain('rounded-lg');
+    });
+});
+
 describe('ConfirmDialog (web)', () => {
     it('renders nothing while closed', () => {
         render(<ConfirmDialog {...baseProps({ open: false })} />);
@@ -175,7 +186,9 @@ describe('ConfirmDialog (web) — the overhaul contract', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep editing' }));
     });
 
-    it('draws the confirm in the filled destructive tone with its glyph, and Keep as secondary with an x', () => {
+    // REWRITTEN: Keep used to default to an x, which reads as close or discard, the opposite of "keep my work". It is text only
+    // unless a caller names a glyph that means something (designer ruling 2026-11-03).
+    it('draws the confirm in the filled destructive tone with its glyph, and Keep as secondary with no glyph', () => {
         render(<ConfirmDialog {...baseProps()} />);
 
         const confirm = screen.getByRole('button', { name: 'Discard changes' });
@@ -184,7 +197,7 @@ describe('ConfirmDialog (web) — the overhaul contract', () => {
         expect(tokensOf(confirm)).toContain('bg-danger');
         expect(confirm.querySelector('svg.lucide-trash')).not.toBeNull();
         expect(tokensOf(keep)).toEqual(expect.arrayContaining(['bg-paper', 'border-line-control']));
-        expect(keep.querySelector('svg.lucide-x')).not.toBeNull();
+        expect(keep.querySelector('svg')).toBeNull();
     });
 
     it('draws Keep with the glyph it is given', () => {

@@ -14,6 +14,7 @@
  *   inert there.
  */
 import type { ReactNode, RefObject } from 'react';
+import type { Animated } from 'react-native';
 
 import type { CurrentChangeListener } from './currentChange.js';
 
@@ -113,6 +114,12 @@ export interface ScrollHostApi {
      * empty. Read it from the render that uses it; a handle kept from an earlier render stays empty.
      */
     readonly handle: RefObject<ScrollTarget | null>;
+    /**
+     * The scroller's vertical offset as one stable `Animated.Value` (native). The host only OWNS it: a list that attaches a
+     * native `Animated.event` writes the offset into it, and a chrome `interpolate`s from it with no JS hop per frame.
+     * ⛔ `bind.onScroll` stays a plain function for every scroller. Absent on web, where the document scrolls.
+     */
+    readonly scrollY?: Animated.Value;
 }
 
 /** The cross-platform `ScrollHost` contract. */

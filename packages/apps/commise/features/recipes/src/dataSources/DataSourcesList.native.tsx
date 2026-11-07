@@ -41,5 +41,5 @@ export const DataSourcesList: FC<DataSourcesListNativeProps> = ({ sources, onOpe
 
 const styles = StyleSheet.create({
     column: { gap: nativeTokens.spacing[3] },
-    empty: { fontSize: nativeTokens.fontSize.bodyMd },
+    empty: { ...nativeTokens.type.body },
 });

@@ -30,6 +30,7 @@ vi.mock('@commise/ui/scroll-host', () => ({
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
 import { ingredientNameFieldId } from '../../form/fieldIds.js';
 import type { RecipeFormErrors } from '../../form/validate.js';
+import type { GateOutcome } from '../gate.js';
 import type { EditorPage } from '../useEditorPage.js';
 import { useEditorPage } from '../useEditorPage.js';
 import type { EditorSectionId } from '../sections.js';
@@ -46,9 +47,10 @@ function mountRefusing(
     errors: RecipeFormErrors,
     section: EditorSectionId | undefined,
     pendingEntryFieldId: string | undefined = undefined,
+    outcome: GateOutcome = { kind: 'refused', errors, section },
 ) {
     const seen: { page?: EditorPage } = {};
-    const editor = makeEditorResult({ publish: () => ({ kind: 'refused', errors, section }) });
+    const editor = makeEditorResult({ publish: () => outcome });
 
     const Page = (): ReactElement => {
         const page = useEditorPage({
@@ -144,6 +146,19 @@ describe('useEditorPage — a refused Publish', () => {
         press();
 
         expect(host.scrollToSection).not.toHaveBeenCalled();
+        expect(page().refusalHeadings).toEqual({});
+    });
+
+    // REWRITTEN for the owner ruling of 2026-10-26 (blocked-publish dialog): a Publish refused for want of a slot used to
+    // take the cook to the visibility field's section. The editor now opens the dialog (its own tests), so the page does not
+    // jump and counts no heading.
+    it('does not jump anywhere when Publish is refused for want of a slot: the dialog is the answer', () => {
+        const { page, press } = mountRefusing({}, undefined, undefined, { kind: 'slotsFull' });
+
+        press();
+
+        expect(host.scrollToSection).not.toHaveBeenCalled();
+        expect(host.scrollToField).not.toHaveBeenCalled();
         expect(page().refusalHeadings).toEqual({});
     });
 

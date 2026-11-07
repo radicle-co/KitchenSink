@@ -33,6 +33,10 @@ export default defineConfig({
     resolve: {
         alias: {
             'react-native': 'react-native-web',
+            // The device driver throws on Tamagui's web build, which this lane runs.
+            '@tamagui/animations-react-native': fileURLToPath(
+                new URL('./src/testing/animationsShim.ts', import.meta.url),
+            ),
             // The Expo native modules have no jsdom/react-native-web implementation; alias them to
             // lightweight stubs so the `.native` surface leaves render (and assert) under Vitest. The real
             // gradient rendering is emulator-only (Maestro).

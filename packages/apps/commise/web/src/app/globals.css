@@ -4,10 +4,10 @@
    CSS drops any `@import` that follows another rule, and `theme.css` is INLINED here: it carries its own
    `@import "tailwindcss"` plus a `@theme { … }` block, so anything after it is "after a rule" and gets
    discarded. Sitting below the `@source` rules is how this shipped a production bundle with no webfonts at
-   all (Playfair Display silently degraded to Georgia, Inter to system-ui) — and moving it to just below the
+   all (Manrope fell back to Inter, and Inter to system-ui) — and moving it to just below the
    theme import does NOT fix that, which a real `next build` shows and the file-shape guard alone cannot.
    Guarded by `tests/globalsCss.test.ts`; verified by grepping `.next/static/css` after a production build. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400..700&family=Manrope:wght@600&display=swap');
 /* Clerk's own styles live in the `clerk` layer (`CLERK_CSS_LAYER`) so that the role classes on its elements win: the
    statement ranks the layer between `base` and `components`, below `utilities`. It must come BEFORE the theme import,
    whose Tailwind import declares its own order, because the first ordering statement of a layer name fixes its place.
@@ -19,6 +19,8 @@
    discovery, collections, …) is rendered from the shared @commise/features-recipes building blocks, so
    scan their source too — otherwise the utility classes they use are never generated. */
 @source "../../../features/recipes/src/**/*.{ts,tsx}";
+/* A test file spells classes in prose; it must never build a utility. */
+@source not "../../../features/recipes/src/**/__tests__/**";
 /* The account surfaces (profile, danger zone, erase and close dialogs) render from @commise/features-account. */
 @source "../../../features/account/src/**/*.{ts,tsx}";
 /* The cross-feature surfaces (Home, route boundaries) render from @commise/features-core. */
@@ -28,19 +30,29 @@
 @source "../../../ui/src/**/*.{ts,tsx}";
 
 @layer base {
-    /* The document is the scroller, so the reservation under the tab bar and the floating create button (88 px) is its
-       `scroll-padding-bottom`: a focused control scrolled into view is never left under them (WCAG 2.2 SC 2.4.11).
+    /* The document is the scroller, so the reservation under the tab bar and the floating create button (88 px,
+       `--fab-reserved-bottom` from `@commise/ui`'s theme) is its `scroll-padding-bottom`: a focused control scrolled
+       into view is never left under them (WCAG 2.2 SC 2.4.11).
        Keyed on the bar being in the page, so a page without it (sign-in, a focused task) reserves nothing; the bar is
        `display: none` from 840, where `:has` still matches, so the value is reset there. Same numbers as `<main>`'s foot
        in `HomeChrome.tsx`. */
     html:has([data-tab-bar]) {
-        scroll-padding-bottom: calc(4rem + env(safe-area-inset-bottom) + 6.5rem);
+        scroll-padding-bottom: calc(4rem + env(safe-area-inset-bottom) + var(--fab-reserved-bottom));
     }
 
     @media (width >= 52.5rem) {
         html:has([data-tab-bar]) {
             scroll-padding-bottom: 0;
         }
+    }
+
+    /* Bulk import's review wizard and mode choice pin their action bar to the bottom of the document below the wide
+       container class (`[data-import-bar]`, U8). Its tallest form, the wizard's at 320 px, is two 44 px rows, an 8 px gap,
+       12 px above and below and a 1 px rule: 7.5rem + 1px, reserved as `scroll-padding-bottom` so a focused line is never
+       left under it (WCAG 2.2 SC 2.4.11). The bar turns static at the wide CONTAINER class, which this rule cannot see,
+       so from there the reservation is surplus: a focused control lands a little higher, and is never covered. */
+    html:has([data-import-bar]) {
+        scroll-padding-bottom: calc(7.5rem + 1px);
     }
 
     /* The same for the top. A pushed page pins its Back bar over the document below 840 (`PushedPageFrame`,
@@ -66,7 +78,7 @@
         font-family: var(--font-body);
         /* The brand beach-glow canvas (issue #145). All nine wireframes paint their `body` with the SAME named
            token — `--gradient-beach-glow`, which IS `@commise/ui`'s `gradient.hero` — while the app painted a
-           flat colour, so every surface read as a plain sand page. Applying it HERE, once, is what makes the
+           flat colour, so every surface read as a plain flat page. Applying it HERE, once, is what makes the
            whole app (and every route added later) inherit the wash: the shell used to hand-spell its own
            three-stop `bg-gradient-to-br` ramp, which covered only shell-hosted routes, left sign-in/sign-up
            flat, and had already drifted from the token it duplicated (its mid/end tints were #F5F8FA and
@@ -74,7 +86,7 @@
            comments included, so those classes are DESCRIBED here and never spelled out — writing one verbatim
            regenerates the very utility this replaced.
            `background-color` STAYS as the fallback beneath it — an unsupported or not-yet-painted canvas shows
-           sand rather than nothing, and it is what `prefers-contrast`/forced-colors modes fall back to.
+           the canvas colour rather than nothing, and it is what `prefers-contrast`/forced-colors modes fall back to.
            Verified in the COMPILED stylesheet (`tests/__integration__/tailwindTheme.integration.test.ts`) and
            in a real browser (`tests/e2e/visualRegression.spec.ts`) — a token that exists is not a token that
            renders. Deliberately NOT `background-attachment: fixed`: the wireframes let the ramp span the whole

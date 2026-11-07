@@ -9,7 +9,7 @@
  * - The screen-reader cursor opens on Keep, through the DS `Button`'s focus request, raised once per opening.
  * - The confirm is the DS `Button` in its filled `confirm` tone, which brings the spinner and the busy guard.
  * - The buttons stack full width with the destructive one on top until the dialog measures 400 pt or wider, then sit
- *   side by side, Keep first (spec §6.5) — the frame's own width, read from layout, not the window's.
+ *   side by side, Keep first (spec §6.5) — `DialogActions` reads the frame's own width from layout, not the window's.
  *
  * Renders NOTHING while `open` is false (the frame returns early), so each opening mounts a fresh body.
  *
@@ -20,6 +20,7 @@ import { useState, type FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '../button/Button.native.js';
+import { DialogActions } from '../dialogActions/DialogActions.native.js';
 import { DialogFrame } from '../dialogFrame/DialogFrame.native.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
@@ -43,12 +44,10 @@ const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
 }) => {
     // Asked once per opening (this body mounts with the frame), and cleared when the Keep button has taken it.
     const [keepFocusAsked, setKeepFocusAsked] = useState(true);
-    const [width, setWidth] = useState<number | null>(null);
-    const sideBySide = width !== null && width >= SIDE_BY_SIDE_FROM;
     const { colors } = useTheme();
 
     return (
-        <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={styles.stack}>
+        <View style={styles.stack}>
             <Text style={[styles.body, { color: colors.inkMuted }]}>{body}</Text>
             {error === undefined || busy ? null : (
                 <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
@@ -56,20 +55,20 @@ const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
                 </Text>
             )}
             {busy && busyLabel !== undefined ? (
-                <LiveRegion politeness="polite" style={[styles.status, { color: colors.inkMuted }]}>
+                <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                     {busyLabel}
                 </LiveRegion>
             ) : null}
             {unavailable !== undefined && !busy ? (
-                <LiveRegion politeness="polite" style={[styles.status, { color: colors.inkMuted }]}>
+                <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                     {unavailable}
                 </LiveRegion>
             ) : null}
-            <View style={sideBySide ? styles.row : styles.stacked}>
+            <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
                 <Button
                     variant="secondary"
-                    icon={keep.icon ?? 'x'}
-                    width={sideBySide ? 'auto' : 'fill'}
+                    {...(keep.icon === undefined ? {} : { icon: keep.icon })}
+                    width="fill"
                     onPress={onKeep}
                     focusRequested={keepFocusAsked}
                     onFocusRequestHandled={() => setKeepFocusAsked(false)}
@@ -82,12 +81,12 @@ const Body: FC<Omit<ConfirmDialogProps, 'open' | 'title'>> = ({
                     icon={confirm.icon}
                     busy={busy}
                     disabled={unavailable !== undefined}
-                    width={sideBySide ? 'auto' : 'fill'}
+                    width="fill"
                     onPress={onConfirm}
                 >
                     {confirm.label}
                 </Button>
-            </View>
+            </DialogActions>
         </View>
     );
 };
@@ -102,7 +101,4 @@ const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[4] },
     body: nativeTokens.type.body,
     error: nativeTokens.type.body,
-    status: nativeTokens.type.meta,
-    stacked: { flexDirection: 'column-reverse', alignItems: 'stretch', gap: nativeTokens.spacing[3] },
-    row: { flexDirection: 'row', justifyContent: 'flex-end', gap: nativeTokens.spacing[3] },
 });

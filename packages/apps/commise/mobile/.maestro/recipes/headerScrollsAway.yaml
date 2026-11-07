@@ -1,0 +1,33 @@
+appId: ${APP_ID}
+---
+# Designer finding C-2 (`docs/design/uiRefreshWorkshop5/nativeBoards/reviews/mergedUiIos1.md`, corrected in
+# `designAnswers.md`): on the Recipes tab the title, segments, chips and count bar scroll away WITH the list; only the
+# search field sticks, and only while its own height is under a third of the visible window.
+#
+# What only a device proves: that a long library actually scrolls at the iOS text cap (the jsdom test proves only the
+# structure), and that the sticky field stays reachable. Run it once at the default text size, and once with the iOS
+# text size at its largest (Settings > Accessibility > Display & Text Size > Larger Text).
+#
+# It needs a library of at least a screenful of recipes, so its reset seeds the signer's filler recipes
+# (`e2e-seed reset --mode library`, `LONG_LIBRARY_FLOWS` in `runMaestroFlows.sh`); every other flow's library stays at three.
+# It only reads (it types nothing).
+- runFlow: ../auth/signin.yaml
+
+# 'My recipes' is drawn only on the Recipes root (audit 2026-10-19, A1.15).
+- extendedWaitUntil:
+      visible: 'My recipes'
+      timeout: 40000
+- assertVisible: 'Search your recipes'
+
+# Scroll the list up: the segments leave the screen with the cards, the search field stays.
+- scroll
+- scroll
+- assertNotVisible: 'My recipes'
+- assertVisible: 'Search your recipes'
+
+# Back to the top: the whole header is there again.
+- scrollUntilVisible:
+      element: 'My recipes'
+      direction: UP
+      timeout: 20000
+- assertVisible: 'My recipes'

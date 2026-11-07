@@ -77,7 +77,8 @@ test.describe('removing an ingredient (plan 002 US6)', () => {
         await expect(rows).toHaveCount(2);
         // §7.5.1: focus moves on to the NEXT row's open control, never to the page.
         await expect(ingredientOpen(ingredients, 'Stock')).toBeFocused();
-        await expect(rows).toHaveText(['1 cupRice', '1 cupStock']);
+        // One text run per row (#144): the amount, a space, then the food.
+        await expect(rows).toHaveText(['1 cup Rice', '1 cup Stock']);
 
         // And the first row, by pointer.
         await ingredients.getByRole('button', { name: 'Actions for Rice' }).click();

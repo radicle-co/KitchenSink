@@ -49,9 +49,14 @@
  */
 import { sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { describeRankingQuery } from '@kitchensink/recipe-core/resolution/ranking-terms';
 import type { RankingTerms } from '@kitchensink/recipe-core/resolution/ranking-terms';
-import { BASE_METRIC_MAX, SCORE_CEILING, TIER_GAP } from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import {
+    BASE_METRIC_MAX,
+    SCORE_CEILING,
+    TIER_GAP,
+    rankTierOrdinal,
+} from '@kitchensink/recipe-core/resolution/ranking-tiers';
+import type { RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
 /**
  * The columns migration `0008_food_rank_terms.sql` materializes: the SQL mirror of `foldForRanking(name)`
@@ -67,6 +72,26 @@ const RANK_FOLDED = 'food.rank_folded';
 
 /** The materialized token array. The head term lives in `rank_head` (U1) — not `[1]`. */
 const RANK_TOKENS = 'food.rank_tokens';
+
+/** The materialized synonym keys (migration 0026): `rankingKeyOf` of each alias. */
+const RANK_ALIAS_KEYS = 'food.rank_alias_keys';
+
+/** The materialized default keys (migration 0027): `rankingKeyOf` of each default term (ADR-0070 §4). */
+const RANK_DEFAULT_KEYS = 'food.rank_default_keys';
+
+/** The materialized head term (migrations 0011, 0025): `rankingHeadOf(name)`. */
+const RANK_HEAD = 'food.rank_head';
+
+/**
+ * A rung's ordinal as a BOUND integer. Read from `RANK_TIERS`, so inserting a rung cannot leave a stale number in the
+ * `CASE`. ⚠️ The `::int` is required: a `CASE` whose every branch is a parameter resolves its type to text.
+ *
+ * @param tier - The rung.
+ * @returns The bound ordinal. Pure.
+ */
+function rung(tier: RankTier): SQL {
+    return sql`${rankTierOrdinal(tier)}::int`;
+}
 
 /**
  * The tier expression: a `CASE` whose branches are the ladder, highest rung first, so the first branch that
@@ -90,13 +115,30 @@ function rankTierSql(terms: RankingTerms): SQL {
     // to an array, which is a different expression that happens to parse. Asserted by the unit test.
     const queryTokens = sql`${sql.param([...terms.tokens])}::text[]`;
 
+    // ⚠️ The column names below are spelled again in `CATALOG_RANK_TERM_COLUMNS`; the unit test holds the two equal.
     return sql`(CASE
-        WHEN food.rank_folded = ${terms.folded} THEN 4
-        WHEN food.rank_tokens <@ ${queryTokens} AND ${queryTokens} <@ food.rank_tokens THEN 3
-        WHEN food.rank_head = ${terms.head ?? null} THEN 2
-        WHEN ${queryTokens} <@ food.rank_tokens THEN 1
-        ELSE 0
+        WHEN food.rank_folded = ${terms.folded} THEN ${rung('exact')}
+        WHEN ${terms.key} = ANY(food.rank_alias_keys) THEN ${rung('synonym')}
+        WHEN ${terms.key} = ANY(food.rank_default_keys) THEN ${rung('default')}
+        WHEN food.rank_tokens <@ ${queryTokens} AND ${queryTokens} <@ food.rank_tokens THEN ${rung('tokenSet')}
+        WHEN food.rank_head = ${terms.head ?? null} THEN ${rung('head')}
+        WHEN ${queryTokens} <@ food.rank_tokens THEN ${rung('covered')}
+        ELSE ${rung('base')}
     END)`;
+}
+
+/**
+ * The rung a row sits on for one query, as an integer ordinal: the same `CASE` the sort key is built from, selected
+ * on its own so a hit can publish its rung without decoding it from a float score.
+ *
+ * ⚠️ The statement therefore carries the `CASE` twice (here and inside the score). Postgres evaluates both; folding
+ * them into one subquery is a separate change, measured against SC-007 before it is made.
+ *
+ * @param terms - The query's terms (`describeRankingQuery`), computed once per statement.
+ * @returns An integer expression in `[0, RANK_TIERS.length - 1]`. Pure.
+ */
+export function catalogRankTierOrdinal(terms: RankingTerms): SQL {
+    return rankTierSql(terms);
 }
 
 /**
@@ -106,12 +148,11 @@ function rankTierSql(terms: RankingTerms): SQL {
  * that alias, so the ranking has exactly one authoritative definition and cannot drift from the order rows
  * come back in.
  *
- * @param query - The trimmed user query.
+ * @param terms - The query's terms (`describeRankingQuery`), computed once per statement.
  * @param baseMetric - This statement's base metric expression (the catalog's `GREATEST(…, similarity(…))`).
  * @returns The score to select and order by. Pure.
  */
-export function catalogTieredSortKey(query: string, baseMetric: SQL): SQL {
-    const terms = describeRankingQuery(query);
+export function catalogTieredSortKey(terms: RankingTerms, baseMetric: SQL): SQL {
     const clampedBase = sql`LEAST(GREATEST(${baseMetric}, 0::float8), ${BASE_METRIC_MAX}::float8)`;
 
     return sql`((${TIER_GAP}::float8 * ${rankTierSql(terms)}::float8
@@ -120,4 +161,10 @@ export function catalogTieredSortKey(query: string, baseMetric: SQL): SQL {
 }
 
 /** The materialized columns this policy reads, exported so the unit test can assert the statement names them. */
-export const CATALOG_RANK_TERM_COLUMNS = [RANK_FOLDED, RANK_TOKENS] as const;
+export const CATALOG_RANK_TERM_COLUMNS = [
+    RANK_FOLDED,
+    RANK_TOKENS,
+    RANK_HEAD,
+    RANK_ALIAS_KEYS,
+    RANK_DEFAULT_KEYS,
+] as const;

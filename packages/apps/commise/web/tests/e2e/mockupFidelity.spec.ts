@@ -5,7 +5,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { palette, semantic } from '@commise/ui/colors';
 import { gradient } from '@commise/ui/tokens/gradients';
-import { elevation, fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
+import { elevation, fontFamily, fontSize, fontWeight, lineHeightPx, radius, spacing } from '@commise/ui/scale';
 
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
@@ -60,11 +60,17 @@ import {
  * not build artifacts. Where the owning requirement lives in a different spec (the profile surface is
  * `002-user-auth`'s), the id is prefixed with that spec.
  *
+ * ## ⚠️ The archive is the OLD look (redesign, 2026-10-27)
+ *
+ * `docs/mockups` still draws teal on sand with Playfair titles and a three-stop ramp. This pass is kept (it is the only
+ * tier that photographs the pairs, and it is useful for LAYOUT), but its COLOUR and FONT deltas against the archive are
+ * expected now and mean nothing. What it still asserts is about the implementation alone: it paints the tokens.
+ *
  * ## Known asymmetries, stated so a reviewer is not misled by the images
  *
  *  1. **The wireframes render with NO webfonts.** Their Google-Fonts `@import`s sit below other rules and CSS
  *     drops them (measured: zero network requests, an empty `document.fonts`). So their headings fall back to
- *     a host serif while the app renders real Playfair Display. Read the typeface from the `fontFamily` delta,
+ *     a host serif while the app renders real Manrope. Read the typeface from the `fontFamily` delta,
  *     never from the raster.
  *  2. **`screenProfile.html` is one page, and so is the app's Profile** (slice 9 folded `/account` and `/settings` into
  *     `/profile`). This pass pairs them, the surface `002-user-auth` FR-018 describes; the wireframe's Notifications
@@ -340,12 +346,15 @@ const TOKEN_SCALE = {
     fontFamily,
     fontSize,
     fontWeight,
-    lineHeightRatio,
+    lineHeightPx,
     elevation,
 };
 
 // Browser-level, so it MUST sit at the file top level: Playwright rejects `launchOptions` inside a
 // `test.describe` because it is worker-scoped. These are the rasterization-determinism flags.
+/** The direction CSS assumes for `linear-gradient`; a browser leaves it out when it serializes one. */
+const DEFAULT_GRADIENT_ANGLE = 180;
+
 test.use(VISUAL_LAUNCH);
 
 test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
@@ -486,7 +495,7 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
         //
         // Asserted against the SPECIFIC `semantic.background` token, not against "any colour in the palette".
         // The looser version was written first and the hardcoding regression walked straight through it: white
-        // is `palette.white`, so a surface painted `#FFFFFF` is still "on palette" while the ROLE it is meant to
+        // is `palette.snow`, so a surface painted `#FFFFFF` is still "on palette" while the ROLE it is meant to
         // express has been abandoned. Set membership over a 20-colour palette is nearly always satisfiable by
         // accident; the role-specific check is not.
         const expectedSurface = tokenRgbStrings({ background: semantic.background });
@@ -504,7 +513,7 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
         }
 
         // ---------------------------------------------------------------------------------------------------
-        // Issue #145 — the page surface must paint the beach-glow GRADIENT, not only a flat colour.
+        // Issue #145 — the page surface must paint the token's wash (a flat gradient since the redesign), not only a bare colour.
         //
         // Every one of the nine wireframes paints its page with `--gradient-beach-glow`; the app painted a flat
         // fill, and the check above could not see the difference because it only ever read `backgroundColor` —
@@ -528,19 +537,24 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
             const image = surface?.implementation.style?.backgroundImage ?? '<no surface probed>';
             const context =
                 `${pair.route} paints backgroundImage=${image}. The wireframe ${pair.mockupFile} paints the ` +
-                'beach-glow ramp on its page, so the implementation must too (issue #145).';
+                'page wash, and the implementation must paint the shipped wash too (issue #145). The wash is flat since the redesign.';
 
             expect(image, context).toContain('linear-gradient(');
-            expect(image, context).toContain('135deg');
+
+            // A computed `background-image` drops the direction when it is the default (180deg, "to bottom"), so a
+            // flat wash at 180 never contains "180deg". The angle is asserted only where the browser keeps it.
+            if (gradient.hero.angle !== DEFAULT_GRADIENT_ANGLE) {
+                expect(image, context).toContain(`${String(gradient.hero.angle)}deg`);
+            }
 
             for (const stop of heroStops) {
                 expect(image, `${context} Missing token stop ${stop}.`).toContain(stop);
             }
 
-            // A ramp whose stops are all one colour is a flat fill wearing a gradient's syntax.
-            expect(new Set(heroStops).size, 'the hero token itself has collapsed to a single colour').toBe(
-                heroStops.length,
-            );
+            // REWRITTEN for the redesign: the wash is FLAT on purpose (owner ruling), so every stop is the canvas colour. The
+            // check that the ramp had not collapsed would now fail by design; what is held instead is that every stop IS the
+            // canvas role, so the page colour keeps one authority.
+            expect(new Set(heroStops).size, 'the hero must be the single canvas colour').toBe(1);
         }
 
         // The artifact IS the deliverable, so it is read back from disk: a run that captured everything and then
@@ -552,7 +566,7 @@ test.describe('mockup fidelity — wireframe vs implementation (U10a)', () => {
         expect(written).toMatchObject({
             summary: { pairs: PAIRS.length, unpaired: UNPAIRED.length },
             environment: { clockIso: VISUAL_CLOCK_ISO, timezone: VISUAL_TIMEZONE, locale: VISUAL_LOCALE },
-            tokens: { palette: { seafoam: palette.seafoam } },
+            tokens: { palette: { steel: palette.steel } },
         });
 
         await mockupContext.close();

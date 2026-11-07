@@ -68,6 +68,18 @@ describe('HomeSidebar (web)', () => {
         expect(nav.textContent).not.toMatch(/soon/i);
     });
 
+    // Steel is an accent, never a large fill (redesign): the active row is a wide selected area, so it takes the
+    // selected-fill wash, not a tint of the action colour.
+    it('paints the active row with the selected fill, never the action colour', () => {
+        renderSidebar();
+        const active = within(screen.getByRole('navigation', { name: chrome.primaryNavLabel })).getByRole('link', {
+            name: 'Recipes',
+        });
+
+        expect(active.className).toContain('bg-selected-fill');
+        expect(active.className).not.toMatch(/bg-action/u);
+    });
+
     it('has a profile row to Profile, named "Profile, {name}", whose long name truncates', () => {
         renderSidebar();
 

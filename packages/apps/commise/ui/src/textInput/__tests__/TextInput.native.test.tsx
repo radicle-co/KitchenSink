@@ -10,7 +10,8 @@
  * ⚠️ The real `TextInput` is wrapped to record the props it was given: react-native-web has no full-screen editor, so
  * the recorded prop is the contract, and a device check is the proof.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { createElement, createRef, type ComponentProps } from 'react';
 import type { TextInput as NativeTextInput, TextInput as TextInputType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';

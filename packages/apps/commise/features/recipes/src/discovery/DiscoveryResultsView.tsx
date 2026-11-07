@@ -5,7 +5,7 @@
  * or the cards, the no-result state, and one nutrition batch per fetched page. Shared by the settled read and by the
  * "previous results" kept under a failed search.
  *
- * The deferred calorie lookup (ADR-0021) is ONE REQUEST PER FETCHED PAGE: "Load more" appends, so a single batch over every
+ * The deferred calorie lookup (ADR-0079) is ONE REQUEST PER FETCHED PAGE: "Load more" appends, so a single batch over every
  * accumulated id would change its key on every page and drop the figures already on screen to skeletons. While the rails
  * are the body these cards are not on screen, so nothing is asked about them; and the compact card draws no figure, so a
  * batch for it would have nobody to read the promise (a rejection would go unhandled). The id list is unmemoized on
@@ -89,9 +89,8 @@ export const DiscoveryResultsView: FC<DiscoveryResultsViewProps> = ({
     ...actions
 }) => {
     const browsing = isDiscoveryBrowsing(criteria);
-    const renderNutrition = useDiscoveryPlatform().useRenderNutrition(
-        browsing || cardVariant === 'compact' ? [] : recipeIdPagesOf(pages),
-    );
+    // The compact card asks too: a Discover card draws the full meta line, calories included (UI Designer ruling 2026-11-03).
+    const renderNutrition = useDiscoveryPlatform().useRenderNutrition(browsing ? [] : recipeIdPagesOf(pages));
 
     return (
         <RecipeDiscoveryResults

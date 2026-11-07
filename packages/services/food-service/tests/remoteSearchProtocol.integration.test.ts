@@ -2,7 +2,7 @@
  * Integration (mocked, `docs/CODING_STANDARDS.md` §7.1a): food's remote search over real HTTP — the real
  * `SearchServiceRemoteSearch` signing real URLs, the real `CacheFirstAdmissionTransport`, the real
  * `RequesterWindowAdmission` and `RollingWindowLimiter` — through a CloudFront stand-in that checks signatures and
- * keeps answers by path and `q` (`support/searchEdgeStandIn.ts`), in front of a double of the search function that
+ * keeps answers by path and `q` (`@kitchensink/remote-search-edge`), in front of a double of the search function that
  * keeps its contract (`support/searchFunctionDouble.ts`). The budget, the call ledger and the block ledger are
  * in-memory fakes; their SQL is the LOCAL e2e tier's.
  *
@@ -26,7 +26,7 @@ import type { RemoteSourceOutcome } from '../src/sources/remote/remoteSearchPort
 import { SearchServiceRemoteSearch } from '../src/sources/remote/SearchServiceRemoteSearch.js';
 import type { SourceBlock } from '../src/sources/transport/transportPorts.js';
 import { countingLedger, type LedgerCall } from './support/countingLedger.js';
-import { startSearchEdgeStandIn, type SearchEdgeStandIn } from './support/searchEdgeStandIn.js';
+import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '@kitchensink/remote-search-edge/edge';
 import { searchFunctionDouble, type SearchFunctionDouble } from './support/searchFunctionDouble.js';
 import { fakeSourceBudget, type FakeSourceBudget } from './support/sourceBudgetFake.js';
 

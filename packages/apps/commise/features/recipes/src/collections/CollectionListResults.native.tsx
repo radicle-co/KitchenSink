@@ -7,7 +7,7 @@
  * auto-measures — no `estimatedItemSize`), pull-to-refresh is wired through the recycler, and the styles derive from
  * the shared design scale (`nativeTokens`).
  */
-import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -17,25 +17,23 @@ import { nativeTokens } from '@commise/ui/native';
 import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { SearchField } from '@commise/ui/search-field';
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
-import { useId, type FC } from 'react';
-import { RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useContext, type FC } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { libraryGridColumnsOf } from '../card/cardGridLayout.js';
+import { cappedFontScale } from '@commise/ui/font-scale-cap';
+import { compactColumnsOf, libraryGridColumnsOf } from '../card/cardGridLayout.js';
+import { HostAnimatedScroll } from '../list/HostAnimatedScroll.native.js';
 import { formatRecipeCount } from '../list/model.js';
+import { RecipeListHeaderContext } from '../list/recipeListHeaderContext.js';
 import { recipeMessages } from '../messages.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';
-import {
-    COLLECTION_SEARCH_FROM,
-    cardCoverOf,
-    type CollectionCardSource,
-    type CollectionListResultsProps,
-} from './model.js';
+import { cardCoverOf, type CollectionCardSource, type CollectionListResultsProps } from './model.js';
 
 export const CollectionListResults: FC<CollectionListResultsProps> = ({
     collections,
@@ -49,101 +47,111 @@ export const CollectionListResults: FC<CollectionListResultsProps> = ({
     scrollBind,
 }) => {
     const { list } = useMessages(collectionMessages);
-    const { colors } = useTheme();
     const locale = useLocale();
-    const searchId = useId();
-    const contentWidth = contentWidthOf(useWindowDimensions().width);
-    // Two columns on a phone; from a 600 container, as many columns of at least 240 as fit (§5.1).
-    const columns = containerClassOf(contentWidth) === 'narrow' ? 2 : libraryGridColumnsOf(contentWidth);
+    // The frame's large title and segments, which this list draws as its first child so they scroll away with it.
+    const header = useContext(RecipeListHeaderContext);
+    const fabRoom = useFabReservedBottom();
+    const { width, fontScale } = useWindowDimensions();
+    const contentWidth = contentWidthOf(width);
+    // On a phone, two columns while a column keeps 320 pt at the capped text scale, else one (designer rule, 2026-11-02); from
+    // a 600 container, as many columns of at least 240 as fit (§5.1).
+    const textScale = cappedFontScale(fontScale);
+    const columns =
+        containerClassOf(contentWidth) === 'narrow'
+            ? compactColumnsOf(contentWidth, textScale)
+            : libraryGridColumnsOf(contentWidth);
 
     if (total === 0) {
+        // A scroller, not a bare View: at the largest text size the block is taller than the screen, and "New collection"
+        // must stay reachable. It ends with the room the floating button needs (`cards`), as the populated list does.
         return (
-            <View style={styles.firstRun}>
-                <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
-                    {list.emptyTitle}
-                </Text>
-                <Text style={[styles.body, styles.centred, { color: colors.inkMuted }]}>{list.emptyBody}</Text>
-                {firstRun.hasRecipes ? (
-                    <Button icon="plus" size="lg" width="fill" onPress={firstRun.onCreate}>
-                        {list.createCta}
-                    </Button>
-                ) : (
-                    <>
-                        <Text style={[styles.body, { color: colors.inkMuted }]}>{list.needRecipes}</Text>
-                        <Button icon="pencilLine" size="lg" width="fill" onPress={firstRun.onAddRecipe}>
-                            {list.addRecipe}
-                        </Button>
-                    </>
-                )}
-            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: fabRoom }} keyboardShouldPersistTaps="handled">
+                {header}
+                <View style={styles.firstRun}>
+                    <Text role="heading" aria-level={2} typeRole="sectionTitle">
+                        {list.emptyTitle}
+                    </Text>
+                    <Text typeRole="body" color="$inkMuted" textAlign="center">
+                        {list.emptyBody}
+                    </Text>
+                    {/* "New collection" is the frame's floating button (shared with New recipe), so only the no-recipes case
+                        needs a start button of its own: a collection needs recipes first. */}
+                    {firstRun.hasRecipes ? null : (
+                        <>
+                            <Text typeRole="body" color="$inkMuted">
+                                {list.needRecipes}
+                            </Text>
+                            <Button icon="pencilLine" size="lg" width="fill" onPress={firstRun.onAddRecipe}>
+                                {list.addRecipe}
+                            </Button>
+                        </>
+                    )}
+                </View>
+            </ScrollView>
         );
     }
 
     return (
-        <>
-            {total >= COLLECTION_SEARCH_FROM && (
-                <SearchField
-                    id={searchId}
-                    label={list.searchLabel}
-                    labelVisibility="hidden"
-                    clearLabel={list.clearSearch}
-                    placeholder={list.searchLabel}
-                    value={search.value}
-                    onChangeText={search.onChange}
-                />
+        <FlashList
+            keyboardShouldPersistTaps="handled"
+            key={`${String(columns)}-${String(textScale)}`}
+            {...scrollBind}
+            // The host's offset reaches the pinned search through this scroller (a plain one left it at 0: no slide, no band).
+            renderScrollComponent={HostAnimatedScroll}
+            data={collections}
+            numColumns={columns}
+            keyExtractor={(collection) => collection.id}
+            renderItem={({ item }) => (
+                <View style={columns > 1 ? styles.cell : null}>
+                    <CollectionCard collection={item} onSelect={onSelect} />
+                </View>
             )}
-            <Text style={[styles.count, { color: colors.ink }]}>
-                {formatRecipeCount(total, { one: list.countOne, other: list.countOther }, locale)}
-            </Text>
-            {refreshNotice !== undefined && (
-                <RefreshNotice
-                    failed={refreshNotice.failed}
-                    refreshing={refreshNotice.refreshing}
-                    onRetry={refreshNotice.onRetry}
-                    labels={{ failed: list.refreshError, retry: list.retry }}
-                />
-            )}
-            {collections.length === 0 ? (
-                <Text role="status" style={[styles.body, { color: colors.inkMuted }]}>
+            ItemSeparatorComponent={CardSeparator}
+            // The frame's header (title, segments, and the pinned search's spacer) is the list's first child, full width; the count and
+            // the refresh notice follow it, inside the list's side padding. A new layout, and a new text scale, is a NEW list (the key
+            // above): FlashList starts with an empty size cache, and the host resets its scroll offset when the new scroller attaches.
+            ListHeaderComponent={
+                <View>
+                    <View style={styles.headerBleed}>{header}</View>
+                    <Text typeRole="label" figures>
+                        {formatRecipeCount(total, { one: list.countOne, other: list.countOther }, locale)}
+                    </Text>
+                    {refreshNotice !== undefined && (
+                        <RefreshNotice
+                            failed={refreshNotice.failed}
+                            refreshing={refreshNotice.refreshing}
+                            onRetry={refreshNotice.onRetry}
+                            labels={{ failed: list.refreshError, retry: list.retry }}
+                        />
+                    )}
+                </View>
+            }
+            ListEmptyComponent={
+                <Text role="status" typeRole="body" color="$inkMuted">
                     {fillTemplate(list.noMatch, { query: search.value.trim() })}
                 </Text>
-            ) : (
-                <FlashList
-                    keyboardShouldPersistTaps="handled"
-                    key={columns}
-                    {...scrollBind}
-                    data={collections}
-                    numColumns={columns}
-                    keyExtractor={(collection) => collection.id}
-                    renderItem={({ item }) => (
-                        <View style={styles.cell}>
-                            <CollectionCard collection={item} onSelect={onSelect} />
-                        </View>
-                    )}
-                    ItemSeparatorComponent={CardSeparator}
-                    ListFooterComponent={
-                        loadMore === undefined ? null : (
-                            <LoadMoreControl
-                                {...loadMore}
-                                labels={{
-                                    loadMore: list.loadMore,
-                                    loadingMore: list.loadingMore,
-                                    retry: list.retry,
-                                    failed: list.loadMoreError,
-                                }}
-                            />
-                        )
-                    }
-                    style={styles.cardsScroll}
-                    contentContainerStyle={styles.cards}
-                    refreshControl={
-                        refresh !== undefined ? (
-                            <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
-                        ) : undefined
-                    }
-                />
-            )}
-        </>
+            }
+            ListFooterComponent={
+                loadMore === undefined ? null : (
+                    <LoadMoreControl
+                        {...loadMore}
+                        labels={{
+                            loadMore: list.loadMore,
+                            loadingMore: list.loadingMore,
+                            retry: list.retry,
+                            failed: list.loadMoreError,
+                        }}
+                    />
+                )
+            }
+            style={styles.cardsScroll}
+            contentContainerStyle={{ paddingBottom: fabRoom, paddingHorizontal: nativeTokens.spacing[4] }}
+            refreshControl={
+                refresh !== undefined ? (
+                    <RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.onRefresh} />
+                ) : undefined
+            }
+        />
     );
 };
 
@@ -218,14 +226,16 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
                 <View style={styles.clip}>
                     <CollectionCover collection={collection} />
                     <View style={styles.cardBody}>
-                        <Text numberOfLines={2} style={[styles.cardTitle, { color: colors.ink }]}>
+                        <Text numberOfLines={2} typeRole="cardTitle">
                             {collection.name}
                         </Text>
                         <View style={styles.meta}>
                             {count === undefined ? null : (
                                 <>
-                                    <Text style={[styles.metaText, { color: colors.inkMuted }]}>{count}</Text>
-                                    <Text accessible={false} style={[styles.metaText, { color: colors.inkMuted }]}>
+                                    <Text typeRole="meta" color="$inkMuted">
+                                        {count}
+                                    </Text>
+                                    <Text accessible={false} typeRole="meta" color="$inkMuted">
                                         {card.separator.trim()}
                                     </Text>
                                 </>
@@ -235,10 +245,12 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
                                 size={16}
                                 tone="inkMuted"
                             />
-                            <Text style={[styles.metaText, { color: colors.inkMuted }]}>{visibility}</Text>
+                            <Text typeRole="meta" color="$inkMuted">
+                                {visibility}
+                            </Text>
                         </View>
                         {copiedFrom === undefined ? null : (
-                            <Text numberOfLines={1} style={[styles.caption, { color: colors.inkMuted }]}>
+                            <Text numberOfLines={1} typeRole="caption" color="$inkMuted">
                                 {fillTemplate(list.copiedFrom, { byline: copiedFrom })}
                             </Text>
                         )}
@@ -260,23 +272,19 @@ const styles = StyleSheet.create({
         maxWidth: 448,
         gap: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[8],
+        paddingHorizontal: nativeTokens.spacing[4],
     },
-    sectionTitle: { ...nativeTokens.type.sectionTitle },
-    body: { ...nativeTokens.type.body },
-    centred: { textAlign: 'center' },
-    count: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
     cardsScroll: { flex: 1 },
-    // The floating create button is drawn over the foot of the list (§3.4): reserve it in every state.
-    cards: { paddingBottom: FAB_RESERVED_BOTTOM_PX },
+    // The frame's header insets its own sides, so under the list's 16 pt side padding it steps back out by that much.
+    headerBleed: { marginHorizontal: -nativeTokens.spacing[4] },
     cardSeparator: { height: nativeTokens.spacing[4] },
-    cell: { flex: 1, paddingHorizontal: nativeTokens.spacing[2] },
+    // No `flex: 1`: a cell that grows vertically fills the recycler's ESTIMATE and is measured at it, which left a blank slot
+    // between rows. The cell takes its card's height, and its width from the column.
+    cell: { paddingHorizontal: nativeTokens.spacing[2] },
     card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth, ...nativeTokens.elevation.sm },
     clip: { borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
     cardBody: { padding: nativeTokens.spacing[3], gap: nativeTokens.spacing[1] },
-    cardTitle: { ...nativeTokens.type.cardTitle },
     meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[1] },
     album: { flexDirection: 'row', flexWrap: 'wrap', gap: 2 },
     albumTile: { flexBasis: '49%', flexGrow: 1 },
-    metaText: { ...nativeTokens.type.meta },
-    caption: { ...nativeTokens.type.caption },
 });

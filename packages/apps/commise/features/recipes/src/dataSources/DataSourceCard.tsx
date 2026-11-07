@@ -65,7 +65,7 @@ export const DataSourceCard: FC<DataSourceCardProps> = ({ source }) => {
             aria-labelledby={headingId}
             // `break-word`: a source's own long words (Livsmedelsdatabasen, Bundeslebensmittelschlüssel) must wrap at
             // 320 px and 200% text, where the text box is 128 px wide (§S16, "everything wraps").
-            className="flex flex-col gap-2 rounded-2xl bg-paper p-4 shadow-sm [overflow-wrap:break-word]"
+            className="flex flex-col gap-2 rounded-lg bg-paper p-4 shadow-sm [overflow-wrap:break-word]"
         >
             <h2 id={headingId} className="text-section-title text-ink">
                 {source.publisher}

@@ -7,8 +7,8 @@
  * closure — and not before, and not any other account).
  *
  * WHY THIS TIER EXISTS. `innerHandler`'s `where(and(eq(users.status, 'tombstoned'), lte(users.deletedAt,
- * cutoff)))` is the most dangerous statement in the identity domain: every row it returns gets its Clerk
- * identity DELETED and its PII destroyed, irreversibly. The handler's unit spec drives a mock whose
+ * cutoff)))` is the most dangerous statement in the identity domain: every row it returns gets its PII
+ * destroyed and its Clerk identity queued for deletion, irreversibly. The handler's unit spec drives a mock whose
  * `select().from().where()` resolves a list the TEST supplied — `select: () => ({ from: () => ({ where: () =>
  * Promise.resolve(expired) }) })` — so `expect(result).toMatchObject({ scanned: 1 })` is a tautology: the
  * test tells the handler what to find, then asserts it found it. The predicate itself is never evaluated by
@@ -67,10 +67,7 @@ import {
 } from '../__fixtures__/makeIdentityUser.js';
 
 /** The sweep's result shape (the handler is wrapped, so its public signature is the 2-arg Lambda one). */
-type SweepHandler = (
-    event: ScheduledEvent,
-    ctx: Context,
-) => Promise<{ scanned: number; erased: number; failed: number }>;
+type SweepHandler = (event: ScheduledEvent, ctx: Context) => Promise<{ scanned: number; erased: number }>;
 
 const handler = rawHandler as unknown as SweepHandler;
 const mockGetDb = vi.mocked(getDb);
@@ -217,10 +214,13 @@ describe('tombstone-sweep selection predicate (integration — real Postgres)', 
         expect(row!.name).not.toBeNull();
     });
 
-    it('does NOT re-select an already-erased row — no duplicate Clerk delete, no duplicate audit row', async () => {
-        expect(mockDeleteUser).toHaveBeenCalledTimes(2);
-        expect(mockDeleteUser.mock.calls.flat()).not.toContain((await readUser(population.alreadyErased))!.identityId);
+    it('claims the row WITHOUT calling Clerk — the deletion worker owns the provider delete', async () => {
+        expect(mockDeleteUser).not.toHaveBeenCalled();
+        // The provider deletion is still owed, so reconciliation keeps driving it until the worker confirms.
+        expect((await readUser(population.expired))!.providerDeletedAt).toBeNull();
+    });
 
+    it('does NOT re-select an already-erased row — no duplicate audit row', async () => {
         const audit = await db
             .select()
             .from(lifecycleEvents)
@@ -231,7 +231,7 @@ describe('tombstone-sweep selection predicate (integration — real Postgres)', 
     it('reports scanned/erased counts derived from the REAL predicate, and audits only the erased rows', async () => {
         // Two of seven seeded rows are eligible. This count comes from Postgres evaluating the predicate —
         // not, as in the unit spec, from a list the test handed the handler.
-        expect(result).toMatchObject({ scanned: 2, erased: 2, failed: 0 });
+        expect(result).toMatchObject({ scanned: 2, erased: 2 });
 
         const audit = await db.select().from(lifecycleEvents);
         expect(audit).toHaveLength(2);

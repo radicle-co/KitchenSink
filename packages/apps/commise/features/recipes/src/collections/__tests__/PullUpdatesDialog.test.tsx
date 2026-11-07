@@ -120,7 +120,7 @@ describe('PullUpdatesDialog (web) — generic error', () => {
     it('shows a generic error alert', () => {
         render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff, error: 'generic' })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t check for updates. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t check for updates. Try again.');
     });
 });
 
@@ -207,5 +207,38 @@ describe('PullUpdatesDialog (web) — the design-system Button (UI overhaul slic
 
         expectDesignSystemButton(screen.getByRole('button', { name: 'Pull 2 Recipes' }), 'primary', 'check');
         expectDesignSystemButton(screen.getByRole('button', { name: 'Cancel' }), 'secondary', 'x');
+    });
+});
+
+/**
+ * The action row cannot overflow a phone (`versionPreviewParity.md` §3). "Cancel" and "Pull N Recipes" are wider than a
+ * 320 px dialog's content box, and a row that cannot wrap overflows on its start side. The pair STACKS full width, Pull on
+ * top, and sits in one row from 440 px of dialog (the longest pair, "Pull 1000 Recipes", at +35% needs about 407).
+ */
+describe('PullUpdatesDialog (web) — the action row', () => {
+    it('stacks the actions, Pull on top, and sets them in a row from 440', () => {
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        const cancel = screen.getByRole('button', { name: 'Cancel' });
+        const row = cancel.parentElement as HTMLElement;
+        const classes = row.className.split(/\s+/u);
+
+        expect(classes).toContain('flex-col-reverse');
+        expect(classes).toContain('@[27.5rem]/dialog:flex-row');
+        expect([...row.querySelectorAll('button')].map((button) => button.textContent)).toStrictEqual([
+            'Cancel',
+            'Pull 2 Recipes',
+        ]);
+    });
+
+    it('fills the stacked row with Cancel as well as Pull', () => {
+        render(<PullUpdatesDialog {...baseProps({ diff: populatedDiff })} />);
+
+        expect(screen.getByRole('button', { name: 'Cancel' }).className.split(/\s+/u)).toEqual(
+            expect.arrayContaining(['w-full', '@[27.5rem]/dialog:w-auto']),
+        );
+        expect(screen.getByRole('button', { name: 'Pull 2 Recipes' }).parentElement?.className).toContain(
+            'self-stretch',
+        );
     });
 });

@@ -48,7 +48,7 @@
  *    confident OK — the never-fires defect `serviceInfraWiringInvariants` W4 exists for.
  */
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
-import { engineResponseSchema, MAX_LINES } from '@kitchensink/ingredient-parser';
+import { engineResponseSchema, MAX_LINE_CHARS, MAX_LINES } from '@kitchensink/ingredient-parser';
 import { promoteCrfReading, type EngineAnswer, type ParseEnginePort } from '@kitchensink/recipe-import-core';
 
 import { logger } from '../common/logger.js';
@@ -235,14 +235,30 @@ export function createCrfInvokeEngine(options: CrfInvokeOptions): ParseEnginePor
         // form and not the bare version the engine reports.
         engineVersion: options.declaredEngineVersion,
         async parse(lines): Promise<readonly EngineAnswer[]> {
-            const answers: EngineAnswer[] = [];
+            // ⛔ A line over the engine's own limit is absence for THAT line (ADR-0026 §3) and is never sent: the
+            // Lambda refuses it, and the refusal would fail the whole batch and retry until the allowance ran
+            // out. The paste limit is looser than the engine's, so such lines exist; the LLM leg reads them.
+            const sendable = lines.filter((line) => line.length <= MAX_LINE_CHARS);
+            const parsed: EngineAnswer[] = [];
 
-            for (let start = 0; start < lines.length; start += MAX_LINES) {
-                const chunk = lines.slice(start, start + MAX_LINES);
-                answers.push(...(await invokeChunk(options, pin, chunk)));
+            for (let start = 0; start < sendable.length; start += MAX_LINES) {
+                const chunk = sendable.slice(start, start + MAX_LINES);
+                parsed.push(...(await invokeChunk(options, pin, chunk)));
             }
 
-            return answers;
+            let next = 0;
+
+            return lines.map((line): EngineAnswer => {
+                if (line.length > MAX_LINE_CHARS) {
+                    return { unavailable: true };
+                }
+
+                // `invokeChunk` guarantees one answer per line it sent, so this index is always filled.
+                const answer = parsed[next];
+                next += 1;
+
+                return answer;
+            });
         },
     };
 }
@@ -350,6 +366,16 @@ async function invokeChunk(
         // deploy SKEW between two CDK apps nothing orders (ADR-0022's residual risk) — the engine being
         // unusable, not the corpus being difficult.
         return abandon(options, 'contract', `pinned ${pin.version}, engine reported ${parsed.data.engineVersion}`);
+    }
+
+    // ⛔ One answer per line sent. A short or long response cannot be lined up with its lines: reading it would
+    // give some line another line's parse, or drop one. The engine broke its contract.
+    if (parsed.data.results.length !== lines.length) {
+        return abandon(
+            options,
+            'contract',
+            `sent ${lines.length} lines, engine answered ${parsed.data.results.length}`,
+        );
     }
 
     publishAvailability(options, false);

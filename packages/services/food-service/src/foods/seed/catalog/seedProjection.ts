@@ -327,6 +327,7 @@ export function projectSeed(image: SeedImage): CatalogSnapshot {
             seedKey: root.seedKey,
             name: root.name,
             synonyms: root.synonyms,
+            defaultFor: root.defaultFor,
             item: root.item,
             nutrition,
         });

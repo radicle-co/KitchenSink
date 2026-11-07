@@ -5,7 +5,7 @@
  * (`docs/design/rowEditorOpenDecisions.md`, S7 list contract P5, P6, P8, P10 and P12).
  */
 import type { ProgressiveFrame } from '@kitchensink/food-service-client';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { createElement } from 'react';
 import type { ViewProps } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -23,10 +23,13 @@ import {
 import { entrySearchViewOf, type EntrySearchView } from '../../hooks/foodSuggestions.model.js';
 import { recipeMessages } from '../../messages.js';
 import { role, roleDark } from '@commise/ui/colors';
-import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
+import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { CandidatesPanelBody } from '../CandidatesPanelBody.native.js';
 import { recipeFormMessages } from '../messages.js';
 import { shortlistPanelOf, type ShortlistPanelInput } from '../shortlistPanel.model.js';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
 // Every `View`'s props, recorded: React Native 0.86 flattens a View that only lays out its children out of Android's
 // native tree, label and all (`ViewShadowNode.cpp`), and react-native-web, which renders every View, cannot show that.
@@ -199,6 +202,20 @@ describe('CandidatesPanelBody (native)', () => {
         expect(onRetryRead).toHaveBeenCalledTimes(1);
     });
 
+    // `componentFixes.md` §1: Try again is the quiet pill with the refreshCw glyph, named by its label. (The description
+    // reaches a screen reader as the native accessibility hint, which react-native-web does not draw into the DOM.)
+    it('draws Try again as the quiet Button with the retry glyph, and it stays pressable after a press', () => {
+        const { onRetryRead } = renderBody(viewOf([]));
+        const retry = screen.getByRole('button', { name: en.statusActionRetry });
+
+        expectNativeDesignSystemButton(retry, 'quiet', 'refresh-cw');
+
+        fireEvent.click(retry);
+
+        expect(onRetryRead).toHaveBeenCalledTimes(1);
+        expect(retry.getAttribute('aria-disabled')).not.toBe('true');
+    });
+
     it('a remote pick food refused is said assertively, and the list stays to choose again (P8)', () => {
         renderBody(LISTED, {
             lastPick: {
@@ -278,5 +295,53 @@ describe.each(['light', 'dark'] as const)('CandidatesPanelBody (native) — the 
 
         expect(getComputedStyle(screen.getByText(en.statusExplainUnresolved)).color).toBe(rgb(colours.ink));
         expect(getComputedStyle(screen.getByText('Kale, raw')).color).toBe(rgb(colours.ink));
+    });
+});
+
+/**
+ * The polite lines are typed live regions (ADR-0080 §8): the design-system Text in the `meta` role, in `inkMuted`, so
+ * they grow with the system text size, size and leading together, to the 2× cap. One is the waiting line under the
+ * options; the other says the read is loading or parked offline. Each is read in both schemes.
+ */
+describe('CandidatesPanelBody (native) — the polite lines', () => {
+    const POLITE_LINES: readonly (readonly [string, EntrySearchView, string])[] = [
+        ['the waiting line', viewOf([databaseFrame({ catalog: [KALE] })], 'asking'), remote.stillSearching],
+        ['loading', viewOf([], 'asking'), en.candidatesLoading],
+        ['parked offline', { kind: 'offline' }, READ_OFFLINE],
+    ];
+
+    const renderIn = (view: EntrySearchView, scheme: 'light' | 'dark', textScale = 1) =>
+        renderWithTamagui(
+            <CandidatesPanelBody
+                view={panelView(view)}
+                onPick={vi.fn()}
+                onRetryRead={vi.fn()}
+                onNoneOfThese={vi.fn()}
+            />,
+            scheme,
+            textScale,
+        );
+
+    it.each(POLITE_LINES)(
+        '%s: in the meta role, grown with the system text size to the 2× cap',
+        (_case, view, text) => {
+            const spec = nativeTokens.type.meta;
+            renderIn(view, 'light', 3.1);
+            const style = getComputedStyle(screen.getByText(text));
+
+            expect(style.fontFamily).toContain(spec.fontFamily);
+            expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
+            expect(style.lineHeight).toBe(`${String(spec.lineHeight * 2)}px`);
+        },
+    );
+
+    it.each(
+        POLITE_LINES.flatMap(([name, view, text]) =>
+            (['light', 'dark'] as const).map((scheme) => [name, scheme, view, text] as const),
+        ),
+    )('%s: in inkMuted in the %s scheme', (_case, scheme, view, text) => {
+        renderIn(view, scheme);
+
+        expect(resolvedColour(screen.getByText(text), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
     });
 });

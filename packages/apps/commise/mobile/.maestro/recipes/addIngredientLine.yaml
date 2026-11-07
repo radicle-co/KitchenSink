@@ -38,10 +38,17 @@ appId: ${APP_ID}
 - tapOn: 'Add an ingredient'
 - inputText: '2 cups Flou'
 # The live reading: the amount and the known unit, then the food the search is asked for.
-- extendedWaitUntil:
-      visible: '2 cups · Flou'
-      timeout: 20000
-      label: 'the leading-measure reader ran on Hermes and read "2 cups"'
+# The caption is drawn for the eye only (`aria-hidden`: the live region below says it in words), and iOS leaves a hidden
+# view out of the accessibility tree, so only Android can read it. On iOS the reader is proved by the pick below: the
+# line is added as "Edit 2 cups Flour" only if the reader took "2 cups" off the front.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - extendedWaitUntil:
+                visible: '2 cups · Flou'
+                timeout: 20000
+                label: 'the leading-measure reader ran on Hermes and read "2 cups"'
 - extendedWaitUntil:
       visible: 'Your foods'
       timeout: 30000

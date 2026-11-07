@@ -6,7 +6,8 @@
  * system's `ConfirmDialog` resolves to its Radix leaf on web and its `DialogFrame` leaf on native.
  *
  * Making a private recipe public is destructive in the design system's sense — anyone may save a copy of a public
- * recipe, and this cook cannot simply make it private again — so the primitive is used as it is: the danger-filled
+ * recipe — so the primitive is used as it is (public is NOT final, owner ruling 2026-10-26, and the body never says it
+ * is): the danger-filled
  * "Make public" against "Keep private", where focus opens. The body says the cost plainly, per reason
  * (`makePublicConsequence`). ⛔ Nothing here sells: no Premium button and no third choice (DSA Art. 25; the
  * deceptive-pattern rule) — under `upsell` the body states the fact and the ⋯ menu's Make private is where Premium is.
@@ -32,7 +33,7 @@ export const RecipeMakePublicDialog: FC<RecipeMakePublicDialogProps> = ({
     onKeep,
 }) => {
     const { makePublicDialog: m, visibility } = useMessages(recipeActionMessages);
-    const body = { final: m.bodyFinal, premium: m.bodyPremium, unknown: m.bodyUnknown }[consequence];
+    const body = { frees: m.bodyFrees, premium: m.bodyPremium }[consequence];
 
     return (
         <ConfirmDialog

@@ -6,10 +6,10 @@
  * can't drift on behaviour or the destructive gate.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { createElement, type ComponentProps } from 'react';
-import type { KeyboardAvoidingView as KeyboardAvoidingViewType, ScrollView as ScrollViewType } from 'react-native';
+import { createElement, type ComponentProps, type ComponentType } from 'react';
+import type { KeyboardAvoidingView as KeyboardAvoidingViewType } from 'react-native';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
@@ -18,24 +18,28 @@ import { AccountEraseDialog } from '../AccountEraseDialog.native.js';
 import { accountDangerMessages } from '../messages.js';
 import type { AccountEraseDialogProps } from '../model.js';
 import { makeDonatableRecipe } from '../__fixtures__/index.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const PHRASE = 'ERASE MY DATA';
 
 // The real ScrollView and KeyboardAvoidingView, their elements marked: jsdom has no keyboard and no layout, so "the
 // field and the actions move clear of the keyboard" is asserted as "they sit in the keyboard avoider, in a scroll
 // region whose first tap reaches a control".
+// REWRITTEN for the Tamagui card: the dialog's scroller is Tamagui's `ScrollView`, marked the same way.
+vi.mock('tamagui', async (importOriginal) => {
+    const { withMarkedScrollView } = await import('@commise/ui/testing/marked-scroll-view');
+
+    return withMarkedScrollView(
+        await importOriginal<{ ScrollView: ComponentType<{ keyboardShouldPersistTaps?: string }> }>(),
+    );
+});
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
     return withSystemScheme({
         ...actual,
-        ScrollView: (props: ComponentProps<typeof ScrollViewType>) =>
-            createElement(
-                'div',
-                { 'data-scroll-region': props.keyboardShouldPersistTaps ?? 'never' },
-                createElement(actual.ScrollView, props),
-            ),
         KeyboardAvoidingView: (props: ComponentProps<typeof KeyboardAvoidingViewType>) =>
             createElement('div', { 'data-keyboard-avoider': true }, createElement(actual.KeyboardAvoidingView, props)),
     });
@@ -204,7 +208,7 @@ describe('AccountEraseDialog (native) — submitting / error (B17: no silent sto
     it('surfaces the failure copy when the erasure request fails', () => {
         renderDialog({ phrase: PHRASE, submitError: true });
 
-        expect(screen.getByText('We couldn’t start erasing your data. Please try again.')).toBeTruthy();
+        expect(screen.getByText('We couldn’t start erasing your data. Try again.')).toBeTruthy();
     });
 
     it('does not show the error while a submit is still in flight', () => {

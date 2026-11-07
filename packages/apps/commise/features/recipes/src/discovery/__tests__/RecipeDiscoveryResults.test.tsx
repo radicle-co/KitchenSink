@@ -257,7 +257,8 @@ describe('RecipeDiscoveryResults (web) — populated', () => {
         });
 
         expect(screen.getByText(`${isolate('@tuscan_cook')} (${isolate('Tuscan Cook')})`)).toBeTruthy();
-        expect(screen.getByText('Tuscan')).toBeTruthy();
+        // No card shows a cuisine (designAnswers.md, 2026-11-02).
+        expect(screen.queryByText('Tuscan')).toBeNull();
         expect(screen.queryByText('0 cal')).toBeNull();
         expect(screen.getByRole('button', { name: 'Save a copy of Ribollita' })).toBeTruthy();
     });
@@ -295,7 +296,8 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
         renderResults({ results: threeResults, loadMore: { hasMore: true, loading: false, failed: true, onLoadMore } });
 
         expect(screen.getByText('Mediterranean Grilled Lamb')).toBeTruthy();
-        expect(screen.getByText('We couldn’t load more recipes.')).toBeTruthy();
+        // The reason is the announced alert; the quiet Button also describes itself with it (hidden, so not a second match).
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load more recipes.');
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
         expect(onLoadMore).toHaveBeenCalledTimes(1);
@@ -328,7 +330,10 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
         expect(screen.queryByRole('button', { name: /Load more|Loading/ })).toBeNull();
     });
 
-    it('gives the load-more action the 44px touch floor, reset for the mouse at md', () => {
+    // ⚠️ REWRITTEN twice: first the control became the quiet Button, whose floor a FINE pointer reset at md; now (owner
+    // ruling B1, parity item 3) that reset is gone, because it drew a desktop button 40 px. The 44 px floor holds at every
+    // width and for every pointer.
+    it('gives the load-more action the 44px touch floor at every width and for every pointer', () => {
         renderResults({
             results: threeResults,
             loadMore: { onLoadMore: noop, loading: false, hasMore: true, failed: false },
@@ -336,7 +341,7 @@ describe('RecipeDiscoveryResults (web) — load more (S4)', () => {
 
         const control = screen.getByRole('button', { name: 'Load more' });
         expect(control.className).toContain('min-h-11');
-        expect(control.className).toContain('md:min-h-0');
+        expect(control.className).not.toMatch(/min-h-0/u);
     });
 });
 

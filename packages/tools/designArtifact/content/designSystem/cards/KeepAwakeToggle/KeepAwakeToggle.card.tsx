@@ -26,10 +26,8 @@ function Toggles({ KeepAwakeToggle, className }: CardUi<'KeepAwakeToggle'> & { r
 
     return (
         <div className={className}>
-            <KeepAwakeToggle on={a} onChange={setA} label="Screen on" display="labelled" />
-            <KeepAwakeToggle on={b} onChange={setB} label="Screen on" display="labelled" />
-            <KeepAwakeToggle on={a} onChange={setA} label="Screen on" display="icon" />
-            <KeepAwakeToggle on={b} onChange={setB} label="Screen on" display="icon" />
+            <KeepAwakeToggle on={a} onChange={setA} label="Screen on" />
+            <KeepAwakeToggle on={b} onChange={setB} label="Screen on" />
         </div>
     );
 }

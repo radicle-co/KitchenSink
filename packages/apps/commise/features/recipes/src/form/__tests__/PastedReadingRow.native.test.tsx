@@ -4,7 +4,7 @@
  * action that state allows.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 const focus = vi.hoisted(() => ({ moved: vi.fn() }));
@@ -20,6 +20,7 @@ import { pasteRowViewOf } from '../pasteStatusCopy.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PastedReadingRow } from '../PastedReadingRow.native.js';
 import type { PasteRowState } from '../props.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = recipeFormMessages.en;
 const LINE = '2 tbsp olive oil, for frying';
@@ -80,6 +81,14 @@ describe('PastedReadingRow (native)', () => {
         fireEvent.click(screen.getByRole('button', { name: `Add as written: ${LINE}` }));
 
         expect(onAddAsWritten).toHaveBeenCalledWith(3);
+    });
+
+    // The owner's type-scale ruling (2026-10-25): the line 16 px, the state under it 14 px (`list`); it was 12 px caption.
+    it('sets the line at 16 px and its state at 14 px', () => {
+        renderRow('reading');
+
+        expect(getComputedStyle(screen.getByText(LINE)).fontSize).toBe('16px');
+        expect(getComputedStyle(screen.getByText(pasteRowViewOf('reading', m).stateText)).fontSize).toBe('14px');
     });
 
     it('a failed lookup offers Try again, named for its line', () => {

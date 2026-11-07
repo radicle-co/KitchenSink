@@ -19,7 +19,7 @@ import { Button } from '@commise/ui/button';
 import { SegmentedControl } from '@commise/ui/segmented-control';
 import { useState, type FC } from 'react';
 
-import { COMPACT_GRID_CLASS, GRID_CELL_CLASS, LIBRARY_GRID_CLASS, LIBRARY_LIST_CLASS } from '../card/cardGridClass.js';
+import { CARD_LIST_CLASS, GRID_CELL_CLASS } from '../card/cardGridClass.js';
 import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
 import { formatRecipeCount } from '../list/model.js';
@@ -27,9 +27,6 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { CollectionMemberRow } from './CollectionMemberRow.js';
 import { MEMBER_WINDOW_SIZE, type CollectionMembersProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
-
-/** The list's class for a variant: a column of rows, a grid of full cards, or two-up compact cards. */
-const LIST_CLASS = { row: LIBRARY_LIST_CLASS, grid: LIBRARY_GRID_CLASS, compact: COMPACT_GRID_CLASS } as const;
 
 export const CollectionMembers: FC<CollectionMembersProps> = ({
     members,
@@ -106,7 +103,7 @@ export const CollectionMembers: FC<CollectionMembersProps> = ({
                             }))}
                         />
                     </div>
-                    <ul className={LIST_CLASS[variant]}>
+                    <ul className={CARD_LIST_CLASS[variant]}>
                         {visible.map((member) => (
                             <li
                                 key={member.id}

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 
+import { GLYPH_CORNER } from '../props.js';
 import { CheckBoxGlyph } from '../CheckBoxGlyph.js';
 
 /**
@@ -24,9 +25,25 @@ describe('CheckBoxGlyph (web)', () => {
         const box = container.firstElementChild;
 
         expect(box?.className).toContain('border-line-control');
+        // C6 (redesign): a thin outline, 1 px, not the 2 px frame it was.
+        expect(box?.className).not.toContain('border-2');
+        expect(box?.className).toMatch(/(^|\s)border(\s|$)/u);
         expect(box?.className).not.toContain('bg-action');
         expect(container.querySelector('[data-check]')?.className).toContain('scale-90');
         expect(container.querySelector('[data-check]')?.className).toContain('opacity-0');
+    });
+
+    // Owner C5/T1: the visual box is 18 px with a 4 px corner (a rounded square; the larger radius reads as a radio). The
+    // glyph is smaller than the 44 px touch target, which belongs to the row.
+    it('is an 18 px box with a 4 px corner', () => {
+        const { container } = render(<CheckBoxGlyph checked={false} />);
+        const box = container.firstElementChild;
+
+        expect(box?.className).toContain('size-[18px]');
+        // REWRITTEN: the corner is the glyph's named constant, read as an inline style, not a `rounded-[4px]` class.
+        expect((box as HTMLElement).style.borderRadius).toBe(`${String(GLYPH_CORNER)}px`);
+        expect(GLYPH_CORNER).toBe(4);
+        expect(box?.className).not.toMatch(/size-6|rounded-/u);
     });
 
     it('checked: the action fill and the check at full scale', () => {

@@ -16,6 +16,7 @@ import userEvent from '@testing-library/user-event';
 import { LocaleProvider } from '@commise/i18n/react';
 
 import { makeRecipeListItem } from '../../__fixtures__/index.js';
+import { COMPACT_GRID_CLASS } from '../../card/cardGridClass.js';
 import { RecipeListResults } from '../RecipeListResults.js';
 import type { RecipeListResultsProps } from '../model.js';
 
@@ -215,7 +216,7 @@ describe('RecipeListResults (web) — the first run', () => {
         expect(screen.queryByRole('group', { name: 'Quick filters' })).toBeNull();
         expect(screen.queryByRole('radiogroup', { name: 'View' })).toBeNull();
 
-        await userEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
         await userEvent.click(screen.getByRole('button', { name: 'Paste ingredients' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
@@ -300,5 +301,31 @@ describe('RecipeListResults (web) — past 500 recipes, and a failed refresh', (
         await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
         expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+});
+
+// Designer ruling (2026-11-02): below a 600 container the Recipes grid is the compact tile in two columns, as Home and
+// Discover draw it, and it KEEPS the "Edited" line (a Recipes sort may not be by recency).
+describe('RecipeListResults (web) — the phone grid is the compact tile with its Edited line', () => {
+    const editedRecipes = [
+        makeRecipeListItem({
+            id: 'rec_1',
+            title: 'Mediterranean Grilled Lamb',
+            createdAt: '2020-01-01T00:00:00.000Z',
+            updatedAt: '2020-01-02T00:00:00.000Z',
+        }),
+    ];
+
+    it('lays compact tiles out in the shared two-column class, not the full-card grid', () => {
+        render(results({ variant: 'compact', recipes: editedRecipes }));
+        const list = screen.getByRole('list');
+
+        expect(list.className).toBe(COMPACT_GRID_CLASS);
+    });
+
+    it('draws the compact tile with its Edited line', () => {
+        render(results({ variant: 'compact', recipes: editedRecipes }));
+
+        expect(screen.getByText(/^Edited /u)).toBeTruthy();
     });
 });

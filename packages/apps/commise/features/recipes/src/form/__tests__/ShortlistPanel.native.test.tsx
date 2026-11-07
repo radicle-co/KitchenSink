@@ -8,7 +8,7 @@
  * `CandidatesPanelBody.native.test.tsx`'s and `shortlistPanel.test.ts`'s.
  */
 import type { ProgressiveFrame } from '@kitchensink/food-service-client';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { headedGroup } from '@commise/test-utils';
 
@@ -35,6 +35,7 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
 
 // One leaf for both platforms: its body, `CandidatesPanelBody`, is the platform fork (the native twin was identical).
 import { ShortlistPanel } from '../ShortlistPanel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const en = recipeFormMessages.en;
 const KEY = seedLineKey(2, 0);

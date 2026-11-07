@@ -42,6 +42,7 @@ const EVERY_KIND: { readonly [Kind in CatalogChange['kind']]: Extract<CatalogCha
     rootRestored: { kind: 'rootRestored', seedKey: 'fdc:200', name: 'chicken breast' },
     rootRenamed: { kind: 'rootRenamed', seedKey: 'fdc:100', from: 'Beef, brisket, whole', to: 'beef brisket' },
     rootSynonymsChanged: { kind: 'rootSynonymsChanged', seedKey: 'fdc:100', from: [], to: ['brisket'] },
+    rootDefaultsChanged: { kind: 'rootDefaultsChanged', seedKey: 'fdc:746782', from: ['dairy'], to: ['milk'] },
     rootItemChanged: { kind: 'rootItemChanged', seedKey: 'curated:saffron', from: 'curated:saffron', to: 'fdc:300' },
     rootRetired: { kind: 'rootRetired', seedKey: 'fdc:400', name: 'veal' },
     rootRemoved: { kind: 'rootRemoved', seedKey: 'fdc:171268', name: 'Beef, flat', reason: 'merged', to: BRISKET },
@@ -95,6 +96,7 @@ describe('renderCatalogDiff', () => {
             '`fdc:200` chicken breast',
             '`fdc:100` Beef, brisket, whole → beef brisket',
             '`fdc:100` (none) → brisket',
+            '`fdc:746782` dairy → milk',
             '`curated:saffron` item `curated:saffron` → `fdc:300`',
             '`fdc:400` veal',
             '`fdc:171268` Beef, flat → root `fdc:100`',
@@ -116,6 +118,7 @@ describe('renderCatalogDiff', () => {
         expect(markdown).toContain('| Roots merged | 1 |\n');
         expect(markdown).toContain('| Variants promoted to roots | 1 |\n');
         expect(markdown).toContain('| Citations or tiers changed | 1 |\n');
+        expect(markdown).toContain('| Root default terms changed | 1 |\n');
         expect(markdown).not.toContain('| Roots aliased |');
     });
 

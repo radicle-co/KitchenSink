@@ -3,10 +3,33 @@
  * section's paste reads (`/api/v1/recipe-parse-jobs`). Local, so this package's tests depend on no client package's
  * fixtures. Each accepts a `Partial<T>`; the defaults are the state a fresh job is in (one PENDING line, no proposal).
  */
-import type { ParseJobLineView, ParseJobResponse, ParseProposal, ParseProposalFood } from '@kitchensink/schema-recipe';
+import type {
+    ParseJobLineView,
+    ParseJobResponse,
+    ParseProposal,
+    ParseProposalCandidate,
+    ParseProposalFood,
+    ParseProposalMatch,
+} from '@kitchensink/schema-recipe';
 
 /** A job id; the wire's `id` is a UUID. */
 export const PASTE_JOB_ID = '00000000-0000-4000-8000-00000000e001';
+
+/** One candidate food of a match. */
+export function makeParseCandidate(overrides: Partial<ParseProposalCandidate> = {}): ParseProposalCandidate {
+    return { kind: 'root', id: 'whole', name: 'Whole milk', isDefault: false, ...overrides };
+}
+
+/** A food's match (ADR-0071): confident, proposing whole milk, unless overridden. */
+export function makeParseMatch(overrides: Partial<ParseProposalMatch> = {}): ParseProposalMatch {
+    return {
+        state: 'confident',
+        reason: 'exactName',
+        proposed: { kind: 'root', id: 'whole', name: 'Whole milk' },
+        candidates: [makeParseCandidate()],
+        ...overrides,
+    };
+}
 
 /** One proposed food: a name to resolve, never a binding (R19). */
 export function makeParseProposalFood(overrides: Partial<ParseProposalFood> = {}): ParseProposalFood {

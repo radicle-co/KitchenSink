@@ -10,10 +10,13 @@
  * registered Adapter — this leaf holds no ref of its own). The keyboard stays as the host's
  * `keyboardShouldPersistTaps` leaves it.
  *
+ * `focusSignal` hands the field KEYBOARD focus when a counter the screen owns advances (`useFocusInputOnSignal`), for a
+ * proxy elsewhere in the reading order.
+ *
  * @pattern Adapter over `@commise/ui/text-input` — the label, glyph and clear control are the primitive's
  */
 import { useState, type FC } from 'react';
-import { Platform, Pressable, StyleSheet, View, type TextInput as NativeTextInput } from 'react-native';
+import { Pressable, StyleSheet, View, type TextInput as NativeTextInput } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import { FieldLabel } from '../input/FieldLabel.native.js';
@@ -23,12 +26,18 @@ import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SearchFieldProps } from './props.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
+import { useFocusInputOnSignal } from './useFocusInputOnSignal.native.js';
 
 /** The pill's height, in points. */
 const PILL_HEIGHT = 48;
 
-/** The clear control's target: 44 pt on iOS, 48 dp on Android. */
-const clearTarget = (): number => (Platform.OS === 'android' ? 48 : 44);
+/** The input's own minimum height: the pill less its border and its vertical padding. */
+const INPUT_MIN_HEIGHT = PILL_HEIGHT - 2 - 2 * nativeTokens.spacing[2];
+
+/** The pill's border and padding sit outside the input: the slop gives the input's target that band back. */
+const INPUT_HIT_SLOP = { top: 1 + nativeTokens.spacing[2], bottom: 1 + nativeTokens.spacing[2] } as const;
 
 /** The native design-system search field. */
 export const SearchField: FC<SearchFieldProps> = ({
@@ -42,19 +51,22 @@ export const SearchField: FC<SearchFieldProps> = ({
     placeholder,
     onFocus,
     onBlur,
+    focusSignal,
 }) => {
     const { colors } = useTheme();
     const [clears, setClears] = useState(0);
     const field = useScreenReaderFocusOnSignal<NativeTextInput>(clears);
+    useFocusInputOnSignal(field, focusSignal);
 
     return (
         <View style={styles.stack}>
             {labelVisibility === 'visible' ? <FieldLabel forId={id} label={label} /> : null}
-            <View style={[styles.pill, { borderColor: colors.lineControl, backgroundColor: colors.paper }]}>
+            <Surface tone="paper" style={[styles.pill, { borderColor: colors.lineControl }]}>
                 <Icon name="search" size={20} tone="inkMuted" />
                 <TextInput
                     ref={field}
                     nativeID={id}
+                    hitSlop={INPUT_HIT_SLOP}
                     {...(labelVisibility === 'visible'
                         ? { 'aria-labelledby': fieldLabelId(id) }
                         : { 'aria-label': label })}
@@ -78,12 +90,12 @@ export const SearchField: FC<SearchFieldProps> = ({
                             onChangeText('');
                             setClears((count) => count + 1);
                         }}
-                        style={[styles.clear, { minWidth: clearTarget(), minHeight: clearTarget() }]}
+                        style={[styles.clear, { minWidth: touchFloor(), minHeight: touchFloor() }]}
                     >
                         <Icon name="x" size={20} />
                     </Pressable>
                 )}
-            </View>
+            </Surface>
         </View>
     );
 };
@@ -95,11 +107,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: nativeTokens.spacing[2],
         minHeight: PILL_HEIGHT,
+        // The pill GROWS with the text at the system cap, and keeps this much above and below it (designer, 2026-11-03).
+        paddingVertical: nativeTokens.spacing[2],
         borderRadius: PILL_HEIGHT / 2,
         borderWidth: 1,
         paddingStart: nativeTokens.spacing[4],
         paddingEnd: nativeTokens.spacing[1],
     },
-    input: { ...nativeTokens.type.body, flex: 1, minHeight: PILL_HEIGHT - 2 },
-    clear: { alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
+    input: { flex: 1, minHeight: INPUT_MIN_HEIGHT },
+    clear: { alignItems: 'center', justifyContent: 'center', borderRadius: nativeTokens.radius.full },
 });

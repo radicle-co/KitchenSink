@@ -28,4 +28,6 @@ export const idleDetailBodyState = {
     screenOn: { on: false, onChange: (): void => undefined },
     descriptionExpanded: false,
     onToggleDescription: (): void => undefined,
+    nutritionExpanded: false,
+    onToggleNutrition: (): void => undefined,
 } as const;

@@ -18,7 +18,7 @@ import {
     makeParseProposal,
     makeParseProposalFood,
 } from '../../__fixtures__/parseJobs.js';
-import { pastedLinesOf, type PastedLinesInput } from '../pastedLines.js';
+import { pastedLinesOf, readerLinesOf, type PastedLinesInput } from '../pastedLines.js';
 
 const NOW = Date.parse('2026-10-09T10:01:00.000Z');
 
@@ -96,6 +96,7 @@ describe('pastedLinesOf', () => {
                         // The unit as the cook stated it ("2 cups"), not the parse's canonical "cup" (F12).
                         measure: { quantity: { kind: 'exact', value: 2 }, unit: 'cups', preparation: 'sifted' },
                         sourcePhrase: 'flour',
+                        foodIndex: 0,
                     },
                 ],
             },
@@ -120,13 +121,30 @@ describe('pastedLinesOf', () => {
         const [line] = pastedLinesOf(input({ job }));
 
         expect(line?.kind === 'settled' ? line.rows : []).toEqual([
-            { name: 'salt', measure: { quantity: ABSENT_QUANTITY, unit: '', preparation: '' }, sourcePhrase: 'salt' },
+            {
+                name: 'salt',
+                measure: { quantity: ABSENT_QUANTITY, unit: '', preparation: '' },
+                sourcePhrase: 'salt',
+                foodIndex: 0,
+            },
             {
                 name: 'pepper',
                 measure: { quantity: ABSENT_QUANTITY, unit: '', preparation: '' },
                 sourcePhrase: 'pepper',
+                foodIndex: 1,
             },
         ]);
+    });
+
+    it('⛔ a reader row carries no foodIndex: it has no proposal food, so no match, and joins as written', () => {
+        const job = makeParseJob({
+            lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil', status: 'unparseable', proposal: null })],
+        });
+        const [line] = pastedLinesOf(input({ job }));
+        const rows = line?.kind === 'settled' ? line.rows : [];
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).not.toHaveProperty('foodIndex');
     });
 
     it('a heading names no food, so it settles into no row', () => {
@@ -209,6 +227,98 @@ describe('pastedLinesOf', () => {
             preparation: '',
         });
     });
+
+    /**
+     * Dogfooding PR 132: "3 large eggs" read "3 eggs". The parse keeps a leading size word in the food's name (`large
+     * eggs`, no unit), and the matched catalog food names the line, so "large" vanished. ADR-0026 §8: a size word is a
+     * unit. The row takes it as its unit and keeps the rest as its name; the phrase the parse lifted stays whole, as the
+     * memo key.
+     */
+    it('a counted line takes its leading size word as the unit', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine: '3 large eggs',
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        quantity: { kind: 'exact', value: 3 },
+                        unit: null,
+                        statedMeasure: '3',
+                        foods: [makeParseProposalFood({ name: 'large eggs', prep: null })],
+                    }),
+                }),
+            ],
+        });
+        const [settled] = pastedLinesOf(input({ job }));
+
+        expect(settled?.kind === 'settled' ? settled.rows : undefined).toEqual([
+            {
+                name: 'eggs',
+                measure: { quantity: { kind: 'exact', value: 3 }, unit: 'large', preparation: '' },
+                sourcePhrase: 'large eggs',
+                foodIndex: 0,
+            },
+        ]);
+    });
+
+    /** Owner ruling 2026-11-06: a form the cook buys is part of the row's name, never its preparation. */
+    it('keeps `dried` in the row’s name', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine: '1 tsp dried thyme',
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: 'teaspoon',
+                        statedMeasure: '1 tsp',
+                        foods: [makeParseProposalFood({ name: 'dried thyme', prep: null })],
+                    }),
+                }),
+            ],
+        });
+        const [settled] = pastedLinesOf(input({ job }));
+
+        expect(settled?.kind === 'settled' ? settled.rows[0] : undefined).toMatchObject({
+            name: 'dried thyme',
+            measure: { preparation: '' },
+            sourcePhrase: 'dried thyme',
+        });
+    });
+
+    /**
+     * Owner ruling 2026-11-06: `whipped` before the food is part of the row's name, after the comma it is the row's
+     * preparation. The typed reader (`leadingMeasure.test.ts`) answers the same two lines the same way.
+     */
+    it.each([
+        ['1 cup whipped cream', 'whipped cream', null, 'whipped cream', ''],
+        ['1 cup heavy cream, whipped', 'heavy cream', 'whipped', 'heavy cream', 'whipped'],
+    ] as const)(
+        'keeps %j as the name %j and the preparation %j',
+        (sourceLine, name, prep, sourcePhrase, preparation) => {
+            const job = makeParseJob({
+                lines: [
+                    makeParseJobLine({
+                        sourceLine,
+                        status: 'parsed',
+                        proposal: makeParseProposal({
+                            quantity: { kind: 'exact', value: 1 },
+                            unit: 'cup',
+                            statedMeasure: '1 cup',
+                            foods: [makeParseProposalFood({ name, prep })],
+                        }),
+                    }),
+                ],
+            });
+            const [settled] = pastedLinesOf(input({ job }));
+
+            expect(settled?.kind === 'settled' ? settled.rows[0] : undefined).toMatchObject({
+                name,
+                measure: { preparation },
+                sourcePhrase,
+            });
+        },
+    );
 
     /**
      * 2026-10-09 review, Medium 1: the heading test ran only on the reader path, so a parse that proposed a food for a
@@ -426,5 +536,35 @@ describe('pastedLinesOf', () => {
         });
 
         expect(pastedLinesOf(input({ job })).map((line) => line.sourceLine)).toEqual(['a', 'b']);
+    });
+});
+
+/**
+ * 004 FR-022: a paste past the daily allowance is refused with no parse job, so nothing is parsed or matched. Every line
+ * the cook pasted still joins, AS WRITTEN, through the add field's own reader.
+ */
+describe('readerLinesOf (the lines of a paste the daily limit refused)', () => {
+    it('settles every line through the reader, in paste order, indexed from 0', () => {
+        const lines = readerLinesOf(['2 tbsp olive oil, for frying', 'salt']);
+
+        expect(lines.map((line) => [line.kind, line.lineIndex, line.sourceLine])).toEqual([
+            ['settled', 0, '2 tbsp olive oil, for frying'],
+            ['settled', 1, 'salt'],
+        ]);
+        expect(lines[0]?.kind === 'settled' ? lines[0].rows : []).toEqual([OLIVE_OIL_FALLBACK]);
+    });
+
+    it('⛔ claims no parsed phrase and no food index: no engine read the line, and there is no match to find', () => {
+        const [line] = readerLinesOf(['2 tbsp olive oil']);
+        const [row] = line?.kind === 'settled' ? line.rows : [];
+
+        expect(row).not.toHaveProperty('sourcePhrase');
+        expect(row).not.toHaveProperty('foodIndex');
+    });
+
+    it('a heading, and a measure alone, name no food on this path either', () => {
+        const lines = readerLinesOf(['For the sauce:', '2 cups']);
+
+        expect(lines.map((line) => (line.kind === 'settled' ? line.rows : undefined))).toEqual([[], []]);
     });
 });

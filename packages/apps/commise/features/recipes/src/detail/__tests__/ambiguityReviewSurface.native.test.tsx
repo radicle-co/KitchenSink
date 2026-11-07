@@ -25,7 +25,11 @@ import type { ProgressiveFrame } from '@kitchensink/food-service-client';
 
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { tint } from '@commise/ui';
+import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
+// REWRITTEN for ADR-0080: the shared render frames the tree in Tamagui's provider, whose web build adds elements that
+// draw no box, so "renders nothing" is read through `rendersNothing` rather than an empty `innerHTML`.
+import { rendersNothing, resolvedColour } from '@commise/ui/testing/tamagui';
 
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
@@ -48,6 +52,8 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
 }));
 
 // react-native-web does not implement `sendAccessibilityEvent`; a cursor hand-off is asserted as the call it makes.
+// The window's text scale is a holder, so a test can read how the design system's Text grows (ADR-0080 §8).
+const window_ = vi.hoisted(() => ({ fontScale: 1 }));
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -55,6 +61,7 @@ vi.mock('react-native', async (importOriginal) => {
     return withSystemScheme({
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), fontScale: window_.fontScale }),
     });
 });
 
@@ -83,8 +90,9 @@ const SPOON = makeIngredientView({
     unit: 'tbsp',
     resolutionStatus: FoodResolutionStatus.AMBIGUOUS,
 });
-const CUP_ROW = '1 cup apple sauce';
-const SPOON_ROW = '2 tbsp apple sauce';
+// Each row is named by its summary, which joins the amount to its unit with a no-break space (Q5).
+const CUP_ROW = '1\u00A0cup apple sauce';
+const SPOON_ROW = '2\u00A0tbsp apple sauce';
 
 /** A recipe whose lines are `ingredients`. */
 const recipeOf = (ingredients: RecipeDetail['ingredients'], extra: Partial<RecipeDetail> = {}): RecipeDetail =>
@@ -237,6 +245,7 @@ afterEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
     systemScheme.current = null;
+    window_.fontScale = 1;
 });
 
 describe('AmbiguityReview (native) — every state', () => {
@@ -245,7 +254,7 @@ describe('AmbiguityReview (native) — every state', () => {
         (viewerIsOwner) => {
             const { container } = renderReview(recipeOf([FLOUR]), viewerIsOwner);
 
-            expect(container.innerHTML).toBe('');
+            expect(rendersNothing(container)).toBe(true);
         },
     );
 
@@ -253,7 +262,7 @@ describe('AmbiguityReview (native) — every state', () => {
         const { container } = renderReview(SIBLINGS, false);
 
         expect(screen.queryByRole('button', { name: ENTRY_NAME })).toBeNull();
-        expect(container.innerHTML).toBe('');
+        expect(rendersNothing(container)).toBe(true);
     });
 
     it('the ENTRY counts lines (singular), and the surface stays closed until toggled', () => {
@@ -687,7 +696,7 @@ describe('AmbiguityReview (native) — every state', () => {
     it('a clone that kept NOTHING private shows no banner — the ordinary clone is silent', () => {
         const { container } = renderReview(recipeOf([FLOUR], { clonePrivateFoodLineCount: 0 }));
 
-        expect(container.innerHTML).toBe('');
+        expect(rendersNothing(container)).toBe(true);
     });
 });
 
@@ -741,7 +750,7 @@ describe('AmbiguityReview (native) — a candidate carrying a variant (curated U
         const candidate = screen.getByRole('button', { name: 'beef brisket' });
 
         expect(commaJoinedTexts(document.body, BRISKET_FLAT_HALF_PARTS)).toEqual([
-            '2 lb flat half, separable lean and fat',
+            '2\u00A0lb flat half, separable lean and fat',
         ]);
         expect(commaJoinedTexts(candidate, BRISKET_FLAT_HALF_PARTS)).toEqual([]);
     });
@@ -843,5 +852,38 @@ describe.each(['light', 'dark'] as const)('AmbiguityReview (native) — the %s s
         const group = row(CUP_ROW);
 
         expect(window.getComputedStyle(group).backgroundColor).toBe(rgb(colours.paper));
+    });
+});
+
+/**
+ * A row's status sentence (finding matches, nothing to choose from, a failed search) is a typed live region
+ * (ADR-0080 §8): the design-system Text in the `meta` role, in `inkMuted`, so it grows with the system text size, size
+ * and leading together, to the 2× cap. It is read in both schemes.
+ */
+describe('AmbiguityReview (native) — a row’s status sentence', () => {
+    const renderSearching = (): HTMLElement => {
+        useIngredientSuggestionSourceMock.mockReturnValue(
+            searched({ kind: 'asking', answer: answerOf(), resumed: false }),
+        );
+        renderReview(recipeOf([CUP]));
+        open();
+
+        return screen.getByText(en.ambiguousReviewLoading);
+    };
+
+    it('sets it in the meta role, grown with the system text size to the 2× cap', () => {
+        const spec = nativeTokens.type.meta;
+        window_.fontScale = 3.1;
+        const style = getComputedStyle(renderSearching());
+
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight * 2)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints it in inkMuted in the %s scheme', (scheme) => {
+        systemScheme.current = scheme;
+
+        expect(resolvedColour(renderSearching(), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
     });
 });

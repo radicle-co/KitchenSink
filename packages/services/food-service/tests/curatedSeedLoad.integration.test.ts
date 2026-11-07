@@ -271,4 +271,40 @@ describe('the committed curated seed', () => {
         expect(kinds.filter(([stated, resolved]) => !(allowed[String(stated)] ?? []).includes(resolved))).toEqual([]);
         expect(kinds.map(([, resolved]) => resolved)).toEqual(expect.arrayContaining(['usdaBranded', 'none']));
     });
+
+    it('names exactly the owner’s ten bare-noun defaults, and nothing else (ADR-0070 §4, rulings of 2026-10-25)', () => {
+        // Both directions: a default missing here, or one added without a ruling, fails. Bread, cream and oil have none.
+        const defaults = [...image.roots.values()]
+            .filter((root) => root.defaultFor.length > 0)
+            .map((root) => [root.seedKey, root.name, root.defaultFor] as const)
+            .sort(([left], [right]) => left.localeCompare(right));
+
+        expect(defaults).toEqual([
+            ['curated:black-peppercorns', 'black peppercorns', ['peppercorns']],
+            ['fdc:168877', 'long-grain white rice', ['rice']],
+            ['fdc:170404', 'Belgian endive', ['endive']],
+            ['fdc:170931', 'black pepper', ['pepper']],
+            ['fdc:171320', 'ground cinnamon', ['cinnamon']],
+            ['fdc:171326', 'ground nutmeg', ['nutmeg']],
+            ['fdc:173468', 'table salt', ['salt']],
+            ['fdc:2346396', 'rolled oats', ['oatmeal']],
+            ['fdc:746782', 'whole milk', ['milk']],
+            ['fdc:789890', 'all-purpose flour', ['flour']],
+        ]);
+    });
+
+    it('holds the four words the owner moved from synonym to default as no root’s synonym', () => {
+        // A synonym is identity and binds with no cook involved; these four now only list a root first.
+        const moved = new Set(['nutmeg', 'peppercorns', 'endive', 'oatmeal']);
+        const stillSynonyms = [...image.roots.values()].flatMap((root) =>
+            root.synonyms.filter((synonym) => moved.has(synonym)).map((synonym) => `${root.seedKey} ${synonym}`),
+        );
+
+        expect(stillSynonyms).toEqual([]);
+    });
+
+    it('gives abiyuch no synonym: "sacred garlic pear" is not a well-known US name (naming rule 16)', () => {
+        // Its synonym put abiyuch, a tropical fruit, in the catalog results for "garlic" (PR 132 dogfooding).
+        expect(image.roots.get(fdcKey(167782))).toMatchObject({ name: 'abiyuch', synonyms: [] });
+    });
 });

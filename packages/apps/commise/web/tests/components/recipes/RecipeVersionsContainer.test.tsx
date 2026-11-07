@@ -160,10 +160,10 @@ describe('RecipeVersionsContainer', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent(/couldn.t load the version history/i);
         expect(versionsSpy).toHaveBeenCalledTimes(1);
-        // D13: the failed state keeps the history's header and wears the design-system button, not a raw one.
+        // D13: the failed state keeps the history's header and wears the design-system button, not a raw one. (Try again is the quiet tier since componentFixes.md §1)
         expect(screen.getByRole('heading', { level: 1, name: 'Version history' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Try again' }).className.split(/\s+/u)).toEqual(
-            expect.arrayContaining(buttonSurfaceClass('secondary').split(/\s+/u)),
+            expect.arrayContaining(buttonSurfaceClass('quiet').split(/\s+/u)),
         );
 
         await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -300,9 +300,7 @@ describe('RecipeVersionsContainer', () => {
             await chooseRowAction(user, 1, 'Restore this version');
 
             await vi.waitFor(() =>
-                expect(screen.getByRole('alert').textContent).toBe(
-                    'We couldn’t restore that version. Please try again.',
-                ),
+                expect(screen.getByRole('alert').textContent).toBe('We couldn’t restore that version. Try again.'),
             );
         });
 
@@ -513,9 +511,9 @@ describe('RecipeVersionsContainer', () => {
 
             expect(screen.getByRole('dialog')).toBeInTheDocument();
             expect(screen.getByText('Version 1 Preview: Weeknight Pasta')).toBeInTheDocument();
-            // v1 (previewed) vs v2 (current): 0 ingredient changes, 1 step (instruction) changed — "1 step"
+            // v1 (previewed) vs v2 (current): the title differs, 0 ingredient changes, 1 step (instruction) changed — "1 step"
             // singular, never the ungrammatical "1 steps".
-            expect(screen.getByText('Changed from current: 0 ingredients, 1 step')).toBeInTheDocument();
+            expect(screen.getByText('Changed from current: Title, 1 step')).toBeInTheDocument();
         });
 
         it('Keep current version closes the modal without restoring', async () => {

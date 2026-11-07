@@ -1,14 +1,16 @@
 /**
  * @module @commise/features-account/profile/ProfileGroup — a grouped list of Profile rows (native): the settings-list
- * pattern (`docs/design/uiOverhaul/buildSpec.md` §9.1). The heading is a header-role `Text`; the card clips its rows to
- * the radius and draws a hairline between them. Colour comes from the theme at render.
+ * pattern (`docs/design/uiOverhaul/buildSpec.md` §9.1). The heading is the design system's capped `Text` with the
+ * heading role (ADR-0080); the card clips its rows to the radius and draws a hairline between them, its fill and its
+ * hairlines coloured from the theme at render.
  *
  * Presentational: props → JSX.
  */
+import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { nativeTokens } from '@commise/ui/native';
 import { Children, isValidElement, type FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { ProfileGroupProps } from './props.js';
 
@@ -20,7 +22,7 @@ export const ProfileGroup: FC<ProfileGroupProps> = ({ heading, children }) => {
     return (
         <View style={styles.group}>
             {heading === undefined ? null : (
-                <Text role="heading" aria-level={2} style={[styles.heading, { color: colors.ink }]}>
+                <Text role="heading" aria-level={2} typeRole="sectionTitle" color="$ink">
                     {heading}
                 </Text>
             )}
@@ -40,7 +42,6 @@ export const ProfileGroup: FC<ProfileGroupProps> = ({ heading, children }) => {
 
 const styles = StyleSheet.create({
     group: { gap: nativeTokens.spacing[2] },
-    heading: { ...nativeTokens.type.sectionTitle },
     card: { borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
     divided: { borderTopWidth: StyleSheet.hairlineWidth },
 });

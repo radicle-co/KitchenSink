@@ -24,6 +24,7 @@ import { Button } from '@commise/ui/button';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 
+import { recipeIsPublished, type PrivateRule, type SlotStanding } from '../actions/recipePrivateGate.js';
 import { usePrivateChoice } from '../actions/usePrivateChoice.js';
 import { RecipeMakePublicDialog } from '../actions/RecipeMakePublicDialog.js';
 import { RecipeUpsellSheet } from '../actions/RecipeUpsellSheet.js';
@@ -38,9 +39,11 @@ import { RecipeVisibilityStatement } from '../form/RecipeVisibilityStatement.js'
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
+import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { RecipeEditorViewProps } from './frameProps.js';
 import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
+import { PublishBlockedSheet } from './PublishBlockedSheet.js';
 import { RecipeEditorView } from './RecipeEditorView.js';
 import { RecipePreviewSheet } from './RecipePreviewSheet.js';
 import { errorsStillHolding } from './gate.js';
@@ -67,6 +70,10 @@ export interface RecipeEditorSurfaceProps {
     readonly paidFeatures: PaidFeatureState;
     /** The profile's own answer, for what will be SENT (`knownPaidFeaturesOf`); never the display's fail-closed `hidden`. */
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
+    /** Which rule the recipe's Private is under (`useRecipePrivate`): the cook's slots, or (an imported public-web recipe) Premium. */
+    readonly privateRule: PrivateRule;
+    /** Where the cook stands on private slots (`useRecipePrivate`), from the server's read. */
+    readonly slotStanding: SlotStanding;
     /** The app's photo uploader. Called only once the recipe exists on the server. */
     readonly renderPhotos: (target: PhotoUploaderTarget) => ReactNode;
     /** The section a deep link names, jumped to once on mount (blueprint A16). */
@@ -85,6 +92,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     keep,
     paidFeatures,
     knownPaidFeatures,
+    privateRule,
+    slotStanding,
     renderPhotos,
     initialSection,
     onClose,
@@ -96,12 +105,22 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
-    // E1 + plan 2026-10-14-009 D14: Private from the viewer's paid features alone — applied when granted, the Premium sheet
-    // under upsell, the plain statement when hidden or still loading. "Saved" is what the server held when the editor
-    // opened (a new recipe is public), so a choice back to it needs no entitlement.
+    // Kept while the sheet closes, so its words do not change under its own animation.
+    const blocked = useLastDefined(editor.publishBlocked);
+    // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
+    // here and refused with its ways forward when none is left); for an imported public-web recipe still from the viewer's
+    // paid features alone. "Saved" is what the server held when the editor opened (a new recipe is public), so a choice
+    // back to it needs no slot and no entitlement.
     const privateChoice = usePrivateChoice({
         state: paidFeatures,
         knownPaidFeatures,
+        rule: privateRule,
+        standing: slotStanding,
+        // ADR-0073 section 12: a draft holds no slot, so the field counts and refuses nothing for one. A Publish that
+        // needs a slot asks in the blocked-publish dialog instead (owner ruling 2026-10-26).
+        // `published` is the recipe's STATUS, not its lifecycle: a published recipe sent back to draft keeps its lifecycle
+        // (versions) but holds no slot.
+        publication: { published: recipeIsPublished(seed.recipe) },
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,
@@ -157,6 +176,9 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                         {...privateChoice.field}
                         onPremiumRequired={privateChoice.onPremiumRequired}
                         onConfirmPublic={privateChoice.onConfirmPublic}
+                        // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
+                        // in the cook's recipes (the session checkpoints the draft as the cook leaves).
+                        onFreeASlot={onOpenMyRecipes}
                     />
                 ) : (
                     <RecipeVisibilityStatement {...privateChoice.statement} />
@@ -174,6 +196,10 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 pendingEntryText={session.rowEditor.entry.pendingEntryText}
                 pendingEntryFieldId={pendingFieldId}
                 pastePending={paste.pending}
+                pasteReading={paste.reading}
+                pasteNeedsYou={paste.needYou}
+                pasteAdded={paste.added}
+                openChoices={paste.openChoices}
                 sections={sections}
                 // §7.2 and §7.5.6: the rail's foot shows the Ingredients total too, from the same draft and read.
                 railFooter={<IngredientsNutritionFoot values={editor.values} nutrition={session.nutrition} />}
@@ -202,6 +228,21 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             />
             <RecipeUpsellSheet {...privateChoice.sheet} />
             <RecipeMakePublicDialog {...privateChoice.confirm} />
+            {blocked === undefined ? null : (
+                <PublishBlockedSheet
+                    open={editor.publishBlocked !== undefined}
+                    ask={blocked}
+                    slotTotal={
+                        blocked.kind === 'noSlot' && blocked.total !== undefined
+                            ? blocked.total
+                            : slotStanding.kind === 'full' || slotStanding.kind === 'open'
+                              ? slotStanding.limit
+                              : undefined
+                    }
+                    onKeepDraft={editor.keepAsDraft}
+                    onPublishPublic={editor.publishAsPublic}
+                />
+            )}
         </>
     );
 };

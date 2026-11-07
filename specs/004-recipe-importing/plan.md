@@ -210,22 +210,28 @@ This feature's entire input side is untrusted external data, and none of it is a
 
 | Method   | Path                                              | Auth        | Success | Notes                                                                                                                                       |
 | -------- | ------------------------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST     | `/api/v1/recipes/import/url`                      | user        | `202`   | Async job; `Idempotency-Key` required                                                                                                       |
-| POST     | `/api/v1/recipes/import/instagram`                | user        | `202`   | Gated by capability flag (D-002)                                                                                                            |
-| POST     | `/api/v1/recipes/import/file`                     | user        | `201`   | Sync — local parse, no outbound call                                                                                                        |
-| POST     | `/api/v1/recipes/import/text`                     | user        | `201`   | Sync — raw-text paste, no outbound call (`FR-052`)                                                                                          |
-| ~~POST~~ | ~~`/api/v1/recipes/import/photo`~~                | —           | —       | ⛔ **011 owns the photo channel** (D-001 as amended, ADR-0019 §3). 004 keeps only the `imported_physical` `sourceType` in the bulk contract |
-| GET      | `/api/v1/recipes/import/jobs/{id}`                | user, owner | `200`   | Job status → `draftId` or error code                                                                                                        |
-| GET      | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | Draft for review                                                                                                                            |
-| PATCH    | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `200`   | User corrections                                                                                                                            |
-| POST     | `/api/v1/recipes/import/drafts/{id}/confirm`      | user, owner | `201`   | Creates the Recipe; the only write path                                                                                                     |
-| DELETE   | `/api/v1/recipes/import/drafts/{id}`              | user, owner | `204`   | Discard                                                                                                                                     |
-| GET      | `/api/v1/recipes/import/sources`                  | user        | `200`   | Enabled channels + blocklist summary                                                                                                        |
+| POST     | `/api/v1/import/url`                              | user        | `202`   | Async job; `Idempotency-Key` required                                                                                                       |
+| POST     | `/api/v1/import/instagram`                        | user        | `202`   | Gated by capability flag (D-002)                                                                                                            |
+| POST     | `/api/v1/import/file`                             | user        | `201`   | Sync — local parse, no outbound call                                                                                                        |
+| POST     | `/api/v1/import/text`                             | user        | `201`   | Sync — raw-text paste, no outbound call (`FR-052`)                                                                                          |
+| ~~POST~~ | ~~`/api/v1/import/photo`~~                        | —           | —       | ⛔ **011 owns the photo channel** (D-001 as amended, ADR-0019 §3). 004 keeps only the `imported_physical` `sourceType` in the bulk contract |
+| GET      | `/api/v1/import/jobs/{id}`                        | user, owner | `200`   | Job status → `draftId` or error code                                                                                                        |
+| GET      | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | Draft for review                                                                                                                            |
+| PATCH    | `/api/v1/import/drafts/{id}`                      | user, owner | `200`   | User corrections                                                                                                                            |
+| POST     | `/api/v1/import/drafts/{id}/confirm`              | user, owner | `201`   | Creates the Recipe; the only write path                                                                                                     |
+| DELETE   | `/api/v1/import/drafts/{id}`                      | user, owner | `204`   | Discard                                                                                                                                     |
+| GET      | `/api/v1/import/sources`                          | user        | `200`   | Enabled channels + blocklist summary                                                                                                        |
 | GET      | `/api/v1/admin/import/paywalled-domains`          | admin scope | `200`   | D-004                                                                                                                                       |
 | POST     | `/api/v1/admin/import/paywalled-domains`          | admin scope | `201`   | D-004                                                                                                                                       |
 | DELETE   | `/api/v1/admin/import/paywalled-domains/{domain}` | admin scope | `204`   | D-004                                                                                                                                       |
 
 **Clone is NOT here** — `POST /api/v1/recipes/{id}/clone` already ships in 001.
+
+> ⚠️ **Routes live under `/api/v1/import/*`.** Owner ruling, 2026-10-26. The single-recipe channels above sit beside
+> the bulk import resource of [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §1
+> (`POST /api/v1/import`, `GET /api/v1/import/{importId}`). An import id is a ULID, so it never collides with a
+> literal word such as `url`, `file`, `jobs` or `drafts`. A many-recipe export file goes through ADR-0072's
+> resource, not through `file` and `confirm-bulk`. How `file` and `confirm-bulk` fold into that resource is owed.
 
 `confirm-bulk` returns **`207 Multi-Status`**: a 187-recipe migration where 3 fail is neither a success nor a
 failure, and collapsing it to one status would force the client to guess. The body carries one entry per draft
@@ -241,8 +247,10 @@ with `created` / `already_existed` / `failed` plus a reason.
 | `createMany(principal, items, provenance)` | New. Per-recipe transaction and per-recipe outcome — **not** an all-or-nothing batch (HAZ-058). Ingredient resolution stays async and batched (HAZ-059).                               |
 
 **Provenance whitelist (`FR-025`, HAZ-057).** The DTO for `POST /api/v1/recipes` accepts only a
-`declaredSource` of `own` or `paid-source + citation`. `imported_public` and `imported_physical` are **not
-representable** in that DTO — they are set server-side from the channel actually observed. This is why the
+`declaredSource` of `own` or `paid-source + citation`. _(Amended 2026-11-03, ADR-0082: the statement kind is the
+D3 set `authored`, `adapted`, `source`, `family`, `publicDomain`. `publicDomain` is curator-grant only and needs the D1
+record. A book or paid-site `source` keeps its verbatim copy private and can publish a facts card, `FR-014b`.)_
+`imported_public` and `imported_physical` are **not representable** in that DTO — they are set server-side from the channel actually observed. This is why the
 whitelist lives in the type, not in a validation branch someone can forget.
 
 **Object-level authorization** (OWASP API #1) applies to every `{id}`-bearing route: a draft or job belonging to
@@ -304,20 +312,20 @@ the boundary parse is not hygiene here, it is the feature's primary control surf
 
 ### Error codes — added to `RecipeErrorCode`, mapped in `ApiExceptionFilter`
 
-| Code                          | HTTP  | Meaning                                                                                                                       |
-| ----------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `IMPORT_SOURCE_BLOCKED`       | `422` | Domain on the paywalled blocklist                                                                                             |
-| `IMPORT_SOURCE_UNREACHABLE`   | `422` | DNS/TLS/timeout/4xx/5xx from the source                                                                                       |
-| `IMPORT_NO_RECIPE_FOUND`      | `422` | Fetched successfully, no recognisable recipe                                                                                  |
-| `IMPORT_NO_CAPTION`           | `422` | Instagram post has no recipe text in caption                                                                                  |
-| `IMPORT_UNSUPPORTED_FORMAT`   | `415` | File magic bytes are not JSON/YAML/Markdown                                                                                   |
-| `IMPORT_PAYLOAD_TOO_LARGE`    | `413` | Response or upload exceeded its bound                                                                                         |
-| `IMPORT_TEXT_UNPARSEABLE`     | `422` | A pasted body contained no recognisable recipe content (`FR-052`). _(`IMPORT_OCR_FAILED` transfers to 011 with the channel.)_ |
-| `IMPORT_PROVIDER_UNAVAILABLE` | `503` | Circuit open / provider down — retryable                                                                                      |
-| `IMPORT_DRAFT_INCOMPLETE`     | `422` | Confirm attempted with missing required fields                                                                                |
-| `IMPORT_DRAFT_EXPIRED`        | `410` | Draft passed `expires_at`                                                                                                     |
-| `IMPORT_QUOTA_EXCEEDED`       | `429` | Daily import allowance exhausted; carries `resetsAt`                                                                          |
-| `IMPORT_REQUIRES_PREMIUM`     | `403` | Channel produces a non-public recipe and the caller has no entitlement (D-014)                                                |
+| Code                          | HTTP  | Meaning                                                                                                                                                 |
+| ----------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IMPORT_SOURCE_BLOCKED`       | `422` | Domain on the paywalled blocklist                                                                                                                       |
+| `IMPORT_SOURCE_UNREACHABLE`   | `422` | DNS/TLS/timeout/4xx/5xx from the source                                                                                                                 |
+| `IMPORT_NO_RECIPE_FOUND`      | `422` | Fetched successfully, no recognisable recipe                                                                                                            |
+| `IMPORT_NO_CAPTION`           | `422` | Instagram post has no recipe text in caption                                                                                                            |
+| `IMPORT_UNSUPPORTED_FORMAT`   | `415` | File magic bytes are not JSON/YAML/Markdown                                                                                                             |
+| `IMPORT_PAYLOAD_TOO_LARGE`    | `413` | Response or upload exceeded its bound                                                                                                                   |
+| `IMPORT_TEXT_UNPARSEABLE`     | `422` | A pasted body contained no recognisable recipe content (`FR-052`). _(`IMPORT_OCR_FAILED` transfers to 011 with the channel.)_                           |
+| `IMPORT_PROVIDER_UNAVAILABLE` | `503` | Circuit open / provider down — retryable                                                                                                                |
+| `IMPORT_DRAFT_INCOMPLETE`     | `422` | Confirm attempted with missing required fields                                                                                                          |
+| `IMPORT_DRAFT_EXPIRED`        | `410` | Draft passed `expires_at`                                                                                                                               |
+| `IMPORT_QUOTA_EXCEEDED`       | `429` | Daily import allowance exhausted; carries `resetsAt`                                                                                                    |
+| `PRIVATE_SLOTS_FULL`          | `403` | A free cook has no free private slot for a recipe that must be private (004-FR-028 as amended 2026-10-26, ADR-0073). Replaces `IMPORT_REQUIRES_PREMIUM` |
 
 `422` (not `400`) for policy and extraction failures: the request is well-formed but semantically
 unprocessable — the meaning `ENGINEERING_EXCELLENCE.md §1` assigns it. The previous revision used `400` in
@@ -415,20 +423,31 @@ Catastrophic. Required, non-negotiable:
 
 ### Robots and politeness (HAZ-021, D-007)
 
-`robots.txt` is fetched once per host and cached with a TTL. Group selection follows the robots.txt
-specification — a group naming our agent wins over `*`. Application then differs by group:
+`robots.txt` is fetched once per host and cached with a TTL. Group selection follows RFC 9309: the group that names
+our agent binds the fetch, and if no group names us the `*` group binds it. _(Amended 2026-11-03, owner ruling,
+ADR-0082: the earlier asymmetric table, which let a bare wildcard `Disallow: /` through for a user-chosen page, is
+withdrawn. Counsel review is owed before launch (`016-FR-050`).)_
 
-| Directive applies to                      | Bare `Disallow: /`     | Path-specific `Disallow` |
-| ----------------------------------------- | ---------------------- | ------------------------ |
-| A group naming `Commise` (agent-specific) | **Honoured** — blocks  | **Honoured** — blocks    |
-| Only the wildcard `*` group               | **Ignored** — proceeds | **Honoured** — blocks    |
+| Directive applies to                      | Bare `Disallow: /`   | Path-specific `Disallow` |
+| ----------------------------------------- | -------------------- | ------------------------ |
+| A group naming `Commise` (agent-specific) | **Honoured**, blocks | **Honoured**, blocks     |
+| Only the wildcard `*` group               | **Honoured**, blocks | **Honoured**, blocks     |
 
-The one asymmetric cell is deliberate: a bare wildcard `Disallow: /` is aimed at search indexing, and an import
-is a single user-chosen page, not a crawl. A site owner who wants us out writes one line naming our agent and we
-comply completely. A `robots.txt` that is unreachable or unparseable is treated as **permissive** (absence of a
-directive is not a prohibition), but a _fetch_ of it that times out must not extend the import's own budget.
+A `robots.txt` that is unreachable or unparseable is treated as **permissive** (absence of a directive is not a
+prohibition), but a _fetch_ of it that times out must not extend the import's own budget.
 
-Every robots-derived block increments a counter (`robots_block_rate`) so D-007 can be revisited on evidence
+**Data-mining opt-outs (`FR-023`).** The same pre-fetch step reads TDMRep (`/.well-known/tdmrep.json` and the
+`tdm-reservation` header), `noai` and `noimageai` tags, AI-crawler blocks (GPTBot, ClaudeBot, Google-Extended, CCBot)
+and Content Signals `ai-input=no`. [Judgement, strong] Our parse uses an LLM, so we honour them everywhere from v1.
+A new pure `FetchSignalPolicy` returns allow or deny from the signals. The fetch writes one **signal log row per
+fetch** with what each signal said, including "none found". Known pirate hosts sit on the paywall blocklist. The fetch
+never passes a paywall, login or meter, never uses a cook's cookies, and never rotates addresses.
+
+**Per-market private copy (D6).** A new pure `MarketCopyPolicy` maps the cook's market to `keepPrivateCopy`
+(US) or `factsAndLinkOnly` (EU and UK). Any market counsel has not cleared defaults to `factsAndLinkOnly`. The
+extractor stores no verbatim method, headnote or photo reference when the policy says facts and link only.
+
+Every robots-derived block increments a counter (`robots_block_rate`) so the policy can be reviewed on evidence
 rather than argument.
 
 ### Rate limiting and backpressure
@@ -444,6 +463,13 @@ principal's `import_jobs` in the trailing 24h and rejects with `IMPORT_QUOTA_EXC
 
 The quota function takes the principal's tier as a parameter and today returns the same limits for every tier —
 the seam 010-subscriptions needs, without inventing tier rules 010 hasn't specified yet.
+
+> ⚠️ **Where the count lives, and the bulk allowance.** Owner ruling, 2026-10-26. The allowance is not counted over
+> `import_jobs`. It is counted in the `import_allowance_events` ledger (recipe-service migration 0058), under a
+> per-user advisory lock. Each channel counts only its own rows: **paste, 200 a rolling day**, one unit per paste, and
+> **bulk import, 1,000 recipes a rolling day on a paid plan and 200 on Free** (owner, 2026-10-27), one unit per recipe. This replaces "across all channels" above for
+> these two channels. [ADR-0072](../../docs/architecture/decisions/0072-bulk-recipe-import.md) §8 holds the rule, and
+> spec `FR-022` carries the same note.
 
 Queue depth is bounded; over-capacity sheds with `429`.
 
@@ -494,7 +520,11 @@ Ordered by dependency. Each step is test-first (§7.1) and ships web **and** mob
 7. **File channel**: magic-byte sniff, JSON/YAML/MD parsers.
 8. **Blocklist + admin endpoints** (D-004).
 9. **OCR channel** (D-001): S3 upload, Textract adapter, image lifecycle deletion.
-10. **Instagram channel** (D-002): oEmbed adapter behind the capability flag, contract fake in CI.
+10. **Instagram channel** (D-002): oEmbed adapter behind the capability flag, contract fake in CI. _(Amended
+    2026-11-03, ADR-0082: official APIs only, no video download, paste or screenshot fallback, no frames or audio kept.)_
+    10a. **Open-library policies** _(added 2026-11-03, ADR-0082)_: `FetchSignalPolicy` and its signal log, `MarketCopyPolicy`
+    (D6), the per-source cap counter for facts cards (`FR-014b`, `FR-026`), and the image-deletion step after
+    extraction. See tasks T-033 to T-037. Counsel review is owed before launch (`016-FR-050`).
 11. **UI — web and mobile in lockstep**: import entry, draft review/complete, attribution display, error states.
 12. **Load and soak** (k6) against the §7 SLOs.
 

@@ -7,7 +7,7 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { focusManager } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useContext, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -101,6 +101,67 @@ describe('the frame', () => {
 
         expect(screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true }).length).toBeGreaterThan(0);
         expect(screen.getByRole('button', { name: 'Sections. Current: Details.', hidden: true })).toBeTruthy();
+    });
+
+    /**
+     * A paste whose lines are still being read must not read as done (dogfooding PR 132: "Ingredients complete" with 2
+     * of 6 lines read). The page's `pastePending` is the paste's own pending fact; the wording is the paste's "Reading…".
+     */
+    it('shows Ingredients as Reading… in the section index while a paste is pending, never Complete', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pasteReading: true }));
+
+        const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
+        const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
+
+        expect(ingredients.textContent).toContain('Reading…');
+        expect(ingredients.textContent).not.toContain('Complete');
+    });
+
+    it('shows Ingredients as Complete once nothing is pending', () => {
+        render(view(makeEditorResult({ values: makeFilledRecipeFormValues() }), { pasteReading: false }));
+
+        const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
+        const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
+
+        expect(ingredients.textContent).not.toContain('Reading…');
+        expect(ingredients.textContent).toContain('Complete');
+    });
+
+    it('shows Needs you, not Complete, while a pasted line that failed waits on the cook; Publish waits too', () => {
+        render(
+            view(makeEditorResult({ values: makeFilledRecipeFormValues() }), {
+                pastePending: true,
+                pasteReading: false,
+                pasteNeedsYou: 2,
+            }),
+        );
+
+        const [rail] = screen.getAllByRole('navigation', { name: 'Recipe sections', hidden: true });
+        const ingredients = within(rail as HTMLElement).getByRole('link', { name: /^Ingredients/u, hidden: true });
+        const publish = screen.getByRole('button', { name: 'Publish' });
+
+        expect(ingredients.textContent).toContain('Needs you');
+        expect(ingredients.textContent).not.toContain('Complete');
+        expect(ingredients.textContent).not.toContain('Needs a match');
+        expect(publish.getAttribute('aria-disabled') === 'true' || publish.hasAttribute('disabled')).toBe(true);
+    });
+
+    it('says "Ingredients complete" only when the paste has settled, not while lines are still being read', () => {
+        const filled = makeEditorResult({ values: makeFilledRecipeFormValues() });
+        // Details and Steps are already done, so Ingredients is the first section to become complete.
+        const noLines = makeEditorResult({ values: makeFilledRecipeFormValues({ ingredients: [] }) });
+        const { rerender } = render(view(noLines, { pasteReading: true }));
+
+        rerender(view(filled, { pasteReading: true }));
+        expect(screen.queryByText('Ingredients complete')).toBeNull();
+
+        rerender(view(filled, { pasteReading: false }));
+        expect(screen.getAllByText('Ingredients complete')).toHaveLength(1);
+
+        // Said once: a later render, even one that holds Publish for a line that needs the cook, says nothing more.
+        rerender(view(filled, { pasteReading: false, pastePending: true }));
+        rerender(view(filled, { pasteReading: false }));
+        expect(screen.getAllByText('Ingredients complete')).toHaveLength(1);
     });
 
     it('× never asks: it checkpoints the exit, then leaves', () => {
@@ -230,6 +291,73 @@ describe('the action bar', () => {
 
         expect(primary.getAttribute('aria-disabled') === 'true' || primary.hasAttribute('disabled')).toBe(true);
         expect(publish).not.toHaveBeenCalled();
+    });
+
+    describe('Publish asks about lines that have no food yet (R23)', () => {
+        const FACTS = { openNames: ['milk', 'bread'], checkingNames: ['cream'], counted: 7, total: 9 };
+
+        it('⛔ asks first, naming the open lines, and sends nothing until the cook says so', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow: vi.fn() },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+            const sheet = screen.getByRole('dialog', { name: '2 ingredients have no food yet' });
+
+            expect(within(sheet).getByText(/milk and bread/u)).toBeTruthy();
+            expect(within(sheet).getByText(/7 of 9/u)).toBeTruthy();
+            expect(publish).not.toHaveBeenCalled();
+        });
+
+        it('Publish anyway publishes', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow: vi.fn() },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Publish anyway' }));
+
+            expect(publish).toHaveBeenCalledExactlyOnceWith('');
+        });
+
+        // REWRITTEN: Choose now hands off once the sheet is gone (`PublishOpenChoicesSheet.test.tsx` says why), so the line
+        // is opened after the dismissal, not on the press.
+        it('Choose now publishes nothing and opens the first open line', async () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            const chooseNow = vi.fn();
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: FACTS, chooseNow },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Choose now' }));
+
+            await waitFor(() => expect(chooseNow).toHaveBeenCalledTimes(1));
+            expect(publish).not.toHaveBeenCalled();
+        });
+
+        it('does not ask when no line needs a pick', () => {
+            const publish = vi.fn(() => ({ kind: 'send' }) as const);
+            render(
+                view(makeEditorResult({ publish, values: makeFilledRecipeFormValues({ cuisine: 'Italian' }) }), {
+                    openChoices: { facts: undefined, chooseNow: vi.fn() },
+                }),
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+            expect(screen.queryByRole('dialog')).toBeNull();
+            expect(publish).toHaveBeenCalledTimes(1);
+        });
     });
 
     it('a Publish passes the entry`s uncommitted text to the gate', () => {
@@ -970,5 +1098,59 @@ describe('a Discard storage refused', () => {
 
         fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
         expect(cancelDiscard).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * What the cook hears when a paste settles (designer rulings): ONE string, "Added 6 ingredients. Ingredients complete.",
+ * composed in the editor's one polite region (the section no longer speaks the count itself); "Needs you" is never
+ * announced (the block already says "N lines need you"); a typed completion and a resolved last line still say
+ * "Ingredients complete", once.
+ */
+describe('the polite region when a paste settles (web)', () => {
+    const FILLED = makeEditorResult({ values: makeFilledRecipeFormValues() });
+    const NO_LINES = makeEditorResult({ values: makeFilledRecipeFormValues({ ingredients: [] }) });
+    const said = () => screen.queryAllByText(/Added \d|Ingredients complete/u).map((node) => node.textContent);
+
+    it('says exactly one string at settle: the count and the completion together', () => {
+        const { rerender } = render(view(NO_LINES, { pasteReading: true }));
+
+        rerender(view(FILLED, { pasteReading: false, pasteAdded: { count: 6, occurrence: 1 } }));
+
+        expect(said()).toEqual(['Added 6 ingredients. Ingredients complete.']);
+    });
+
+    it('says only the count when the settle does not complete Ingredients', () => {
+        const { rerender } = render(view(NO_LINES, { pasteReading: true }));
+
+        rerender(view(NO_LINES, { pasteReading: false, pasteNeedsYou: 2, pasteAdded: { count: 4, occurrence: 1 } }));
+
+        expect(said()).toEqual(['Added 4 ingredients.']);
+    });
+
+    it('says nothing when a failed line starts to wait on the cook: Needs you has no announcement', () => {
+        const { rerender } = render(view(FILLED, { pasteReading: true }));
+
+        rerender(view(FILLED, { pasteReading: false, pasteNeedsYou: 1 }));
+
+        expect(said()).toEqual([]);
+    });
+
+    it('says "Ingredients complete" once when the last waiting line is resolved', () => {
+        const { rerender } = render(view(FILLED, { pasteNeedsYou: 1 }));
+
+        rerender(view(FILLED, { pasteNeedsYou: 0 }));
+        expect(said()).toEqual(['Ingredients complete']);
+
+        rerender(view(FILLED, { pasteNeedsYou: 0, pastePending: true }));
+        expect(said()).toEqual(['Ingredients complete']);
+    });
+
+    it('still says "Ingredients complete" once for a line the cook typed', () => {
+        const { rerender } = render(view(NO_LINES));
+
+        rerender(view(FILLED));
+
+        expect(said()).toEqual(['Ingredients complete']);
     });
 });

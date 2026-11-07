@@ -26,6 +26,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import pg from 'pg';
+import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { SEED_ERASURE_QUEUE_URL, SEED_VERIFICATION_QUEUE_URL } from '../../support/localHarness.js';
@@ -34,6 +35,7 @@ import { startFoodFake, type FoodFake } from '../../support/foodFake.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE } from '../../../src/account/dto/erasure.dto.js';
+import { sha256Hex } from '../../../src/common/sha256.js';
 
 const AZP = 'https://recipes.example.com';
 /** A signed test principal the registry will learn from its first request. */
@@ -146,6 +148,7 @@ describe('test-principal containment + self-purge over the wire (ADR-0040)', () 
         await pool.query('DELETE FROM test_reset_jobs WHERE user_id = ANY($1)', [users]);
         await pool.query('DELETE FROM account_erasure_jobs WHERE owner_id = ANY($1)', [users]);
         await pool.query('DELETE FROM recipes WHERE owner_id = ANY($1)', [users]);
+        await pool.query('DELETE FROM recipe_parse_jobs WHERE owner_id = ANY($1)', [users]);
     }
 
     beforeAll(async () => {
@@ -247,6 +250,67 @@ describe('test-principal containment + self-purge over the wire (ADR-0040)', () 
         });
     });
 
+    describe('⛔ a contained test principal’s paste matches never reach the verification gate (ADR-0071)', () => {
+        /** A live job with one parsed line naming a food the fake catalog holds, owned by `ownerId`. */
+        async function parsedJob(ownerId: string): Promise<string> {
+            const { rows } = await pool.query<{ id: string }>(
+                `INSERT INTO recipe_parse_jobs (owner_id, expires_at, status)
+                 VALUES ($1, now() + interval '1 day', 'complete') RETURNING id`,
+                [ownerId],
+            );
+            const jobId = rows[0]?.id ?? '';
+            const line = '2 cups pastry flour';
+            const proposal = {
+                raw: line,
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'cup',
+                statedMeasure: '2 cups',
+                foods: [{ name: 'flour', prep: null }],
+                reviewReasons: [],
+            };
+
+            await pool.query(
+                `INSERT INTO recipe_parse_job_lines (job_id, line_index, source_line, line_digest, status, proposal)
+                 VALUES ($1, 0, $2, $3, 'parsed', $4::jsonb)`,
+                [jobId, line, lineDigest(line, sha256Hex), JSON.stringify(proposal)],
+            );
+
+            return jobId;
+        }
+
+        beforeAll(async () => {
+            food.foods.set(VERIFIABLE_FOOD_ID, { name: 'Flour, wheat, all-purpose', status: 'RESOLVED' });
+            // The verification queue is SHARED across this tier's files: a sibling's messages must not count here.
+            await drainQueue(SEED_VERIFICATION_QUEUE_URL);
+        });
+
+        afterEach(async () => {
+            await drainQueue(SEED_VERIFICATION_QUEUE_URL);
+        });
+
+        it('stores the TEST principal’s proposal but sends nothing, and ONE request for a real user', async () => {
+            // The real user is the control, as in HIGH-2 below: it proves the line, the catalog and the queue work.
+            const containedJob = await parsedJob(TEST_USER);
+            const contained = await call(
+                'POST',
+                `/api/v1/recipe-parse-jobs/${containedJob}/matches`,
+                bearer(TEST_USER, true),
+            );
+
+            expect(contained.status).toBe(202);
+            expect(
+                (await pool.query('SELECT 1 FROM recipe_parse_job_matches WHERE job_id = $1', [containedJob])).rows,
+            ).toHaveLength(1);
+            expect(await drainQueue(SEED_VERIFICATION_QUEUE_URL)).toEqual([]);
+
+            const realJob = await parsedJob(REAL_USER);
+            const real = await call('POST', `/api/v1/recipe-parse-jobs/${realJob}/matches`, bearer(REAL_USER, false));
+
+            expect(real.status).toBe(202);
+            expect(await drainQueue(SEED_VERIFICATION_QUEUE_URL)).toHaveLength(1);
+        });
+    });
+
     describe('⛔ a contained test principal’s save never reaches the verification gate (HIGH-2)', () => {
         /** A food-BACKED binding — the seeded ingredients are author-declared, which the producer skips anyway. */
         const FOOD_BACKED_INGREDIENT_ID = '00000000-0000-4000-8000-0000004e5a01';
@@ -289,7 +353,8 @@ describe('test-principal containment + self-purge over the wire (ADR-0040)', () 
             const sent = await drainQueue(SEED_VERIFICATION_QUEUE_URL);
 
             expect(sent).toHaveLength(1);
-            expect(sent[0]?.['recipeId']).toBe(real.body['id']);
+            // The producer names its origin (7140fbed8); this read the legacy `recipeId` and was red at that commit.
+            expect(sent[0]?.['origin']).toStrictEqual({ kind: 'recipe', recipeId: real.body['id'] });
         });
     });
 

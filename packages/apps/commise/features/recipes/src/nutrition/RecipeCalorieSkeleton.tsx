@@ -1,7 +1,9 @@
+'use client';
+
 /**
  * @module @commise/features-recipes/nutrition — web calorie skeleton (pure render component).
  *
- * **Pattern: Null Object for the pending phase.** The Suspense fallback that stands in for
+ * **Pattern: Null Object for the pending phase.** What the slot renders for its `pending` reading, standing in for
  * `RecipeCalorieChip` while the deferred lookup is in flight — and the ONLY component in this feature
  * that renders the client-only `pending` state. Keeping it separate from the chip is what makes a permanent
  * skeleton unrepresentable: a settled answer is rendered by a component that has no spinner to fall back to.
@@ -24,7 +26,9 @@
  * The shimmer's box is sized to the chip it replaces, so the card's meta row does not reflow when the figure
  * lands — a row that jumps on every card in a grid is the visible cost of a fallback that reserves nothing.
  */
-import type { FC } from 'react';
+import { useContext, type FC } from 'react';
+
+import { MetaLeadContext } from '../card/metaLine.js';
 
 /** Props for {@link RecipeCalorieSkeleton}. */
 export interface RecipeCalorieSkeletonProps {
@@ -37,7 +41,7 @@ export interface RecipeCalorieSkeletonProps {
  * lands in the space the skeleton already held. `inline-block` keeps it in the row's flex flow exactly as the
  * chip's `<span>` sits there.
  */
-const SHIMMER_CLASS = 'inline-block h-4 w-14 animate-pulse rounded bg-surface-muted motion-reduce:animate-none';
+const SHIMMER_CLASS = 'inline-block h-4 w-14 animate-pulse rounded-sm bg-surface-muted motion-reduce:animate-none';
 
 /**
  * The in-flight placeholder for one recipe's calorie figure.
@@ -45,9 +49,16 @@ const SHIMMER_CLASS = 'inline-block h-4 w-14 animate-pulse rounded bg-surface-mu
  * @param props - The localized loading label.
  * @returns The decorative, reduced-motion-safe shimmer beside visually-hidden text naming the state.
  */
-export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label }) => (
-    <span className="inline-flex items-center">
-        <span className="sr-only">{label}</span>
-        <span aria-hidden="true" className={SHIMMER_CLASS} />
-    </span>
-);
+export const RecipeCalorieSkeleton: FC<RecipeCalorieSkeletonProps> = ({ label }) => {
+    const lead = useContext(MetaLeadContext);
+
+    return (
+        <>
+            {lead}
+            <span className="inline-flex items-center">
+                <span className="sr-only">{label}</span>
+                <span aria-hidden="true" className={SHIMMER_CLASS} />
+            </span>
+        </>
+    );
+};

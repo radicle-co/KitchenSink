@@ -56,10 +56,9 @@ test.describe('clone + visibility (T080)', () => {
         await expect(page.getByRole('menuitem', { name: 'Make public' })).toBeVisible();
     });
 
-    // Owner 2026-10-13 (B2 E1): Make private is visible to every owner; a free-tier tap opens the Premium sheet.
-    test('a free-tier owner taps Make private and meets the Premium sheet; the recipe stays public', async ({
-        page,
-    }) => {
+    // Owner 2026-10-13 (B2 E1), REWRITTEN for ADR-0073 (owner ruling 2026-10-26): a free-tier owner's tap on Make private
+    // used to open the Pro sheet. A recipe the cook wrote now uses one of their private slots, so the tap makes it private.
+    test('a free-tier owner taps Make private and the recipe uses a private slot', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const ownPublic = makeRecipeDetail({
@@ -76,14 +75,45 @@ test.describe('clone + visibility (T080)', () => {
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        const sheet = page.getByRole('dialog', { name: 'Private recipes are part of Premium.' });
-        await expect(sheet).toBeVisible();
-        await sheet.getByRole('button', { name: 'Not now' }).click();
-        await expect(sheet).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
+        await expect(page.getByText('Private', { exact: true })).toBeVisible();
 
-        // Still public: the sheet is the whole answer for a free-tier cook.
-        await page.reload();
         await page.getByRole('button', { name: /^More actions for /u }).click();
-        await expect(page.getByRole('menuitem', { name: 'Make private' })).toBeVisible();
+        await expect(page.getByRole('menuitem', { name: 'Make public' })).toBeVisible();
+    });
+
+    test('⛔ with every slot used, a free-tier owner’s Make private is refused and the page says it stayed public', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const held = makeRecipeDetail({
+            id: 'ec000000-0000-4000-8000-000000000019',
+            ownerId: viewerId,
+            title: 'Held Dish',
+            visibility: 'private',
+        });
+        const ownPublic = makeRecipeDetail({
+            id: 'ec000000-0000-4000-8000-000000000018',
+            ownerId: viewerId,
+            title: 'My Free Dish',
+            visibility: 'public',
+        });
+        await mockRecipeApi(page, {
+            viewerId,
+            paidFeatures: 'upsell',
+            recipes: [held, ownPublic],
+            privateSlotLimit: 1,
+        });
+
+        await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000018'));
+        await expect(page.getByRole('heading', { name: 'My Free Dish' })).toBeVisible();
+
+        await page.getByRole('button', { name: /^More actions for /u }).click();
+        await page.getByRole('menuitem', { name: 'Make private' }).click();
+
+        // The total is the server's number (ADR-0073), here the stub's `privateSlotLimit: 1`, not the default 50.
+        await expect(page.getByText('Not available. All 1 of your private slots are in use.')).toBeVisible();
     });
 });

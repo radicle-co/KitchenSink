@@ -81,7 +81,9 @@ function service(db: NodePgDatabase, avatarMedia: AvatarMediaPort): UsersService
     return new UsersService(
         db,
         {} as unknown as SqsService,
-        {} as unknown as ResolveUserService,
+        {
+            resolveUser: () => Promise.resolve({ user: EXISTING[0], account: ACCOUNT[0] }),
+        } as unknown as ResolveUserService,
         noopHandleSyncPublisher,
         avatarMedia,
         false,
@@ -96,7 +98,7 @@ describe('patchUserMe { avatarKey }', () => {
         ['a nested path', `avatars/${USER_ID}/a/1.png`],
         ['an absolute URL', `${CDN}/avatars/${USER_ID}/1.png`],
     ])('refuses a key it does not own: %s', async (_name, key) => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[profileRow()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[profileRow()]]);
         const m = media();
 
         await expect(service(db, m).patchUserMe(CTX, { avatarKey: key })).rejects.toBeInstanceOf(BadRequestException);
@@ -107,7 +109,7 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('refuses a key whose object is not there (the upload never happened)', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[profileRow()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[profileRow()]]);
         const m = media({ exists: vi.fn().mockResolvedValue(false) });
 
         await expect(service(db, m).patchUserMe(CTX, { avatarKey: OWN_KEY })).rejects.toBeInstanceOf(
@@ -119,7 +121,7 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('lets an S3 failure surface as an error rather than reading it as "not there"', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[profileRow()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[profileRow()]]);
         const m = media({ exists: vi.fn().mockRejectedValue(new Error('s3 down')) });
 
         await expect(service(db, m).patchUserMe(CTX, { avatarKey: OWN_KEY })).rejects.toThrow('s3 down');
@@ -127,7 +129,7 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('stores the key and clears the Clerk URL in one statement (the XOR check)', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
 
         await service(db, media()).patchUserMe(CTX, { avatarKey: OWN_KEY });
 
@@ -136,7 +138,7 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('composes avatarUrl in the response from the key and the CDN host', async () => {
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
+        const { db } = fakeDb([ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
 
         const result = await service(db, media()).patchUserMe(CTX, { avatarKey: OWN_KEY });
 
@@ -144,7 +146,7 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('removes superseded objects AFTER the write, keeping the new key', async () => {
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
+        const { db } = fakeDb([ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
         const m = media();
 
         await service(db, m).patchUserMe(CTX, { avatarKey: OWN_KEY });
@@ -154,7 +156,7 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('does not fail the save when removing superseded objects fails (the new avatar is already stored)', async () => {
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
+        const { db } = fakeDb([ACCOUNT], [[profileRow({ avatarKey: OWN_KEY })]]);
         const m = media({ removeSuperseded: vi.fn().mockRejectedValue(new Error('cloudfront down')) });
 
         await expect(service(db, m).patchUserMe(CTX, { avatarKey: OWN_KEY })).resolves.toMatchObject({
@@ -163,7 +165,7 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('null clears the avatar: both columns, every object, no existence check', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[profileRow()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[profileRow()]]);
         const m = media();
 
         const result = await service(db, m).patchUserMe(CTX, { avatarKey: null });
@@ -175,14 +177,14 @@ describe('patchUserMe { avatarKey }', () => {
     });
 
     it('does not fail the clear when removing the objects fails', async () => {
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[profileRow()]]);
+        const { db } = fakeDb([ACCOUNT], [[profileRow()]]);
         const m = media({ removeAll: vi.fn().mockRejectedValue(new Error('s3 down')) });
 
         await expect(service(db, m).patchUserMe(CTX, { avatarKey: null })).resolves.toBeDefined();
     });
 
     it('touches no storage when the PATCH carries no avatarKey', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[profileRow()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[profileRow()]]);
         const m = media();
 
         await service(db, m).patchUserMe(CTX, { displayName: 'Ada' });
@@ -227,7 +229,7 @@ describe('avatarUrl composition on read', () => {
 
     it('a row from before the column existed (avatarKey undefined) still composes the Clerk URL', async () => {
         const { db } = fakeDb(
-            [EXISTING, ACCOUNT],
+            [ACCOUNT],
             [[profileRow({ avatarKey: undefined, avatarUrl: 'https://img.clerk.com/a.png' })]],
         );
 

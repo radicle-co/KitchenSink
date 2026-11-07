@@ -1,7 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccessibilityInfo, Animated, Text, View } from 'react-native';
 
+import { scrollViewSizes, stubBoundingRects } from '../../testing/boundingRects.js';
+import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { HorizontalScroller } from '../HorizontalScroller.native.js';
@@ -13,46 +15,52 @@ import type { ScrollExtent } from '../scrollHint.js';
  * react-native-web: the native indicator is left to the platform, a chevron shows only while the content overflows and
  * the scroller rests at its start, and a gradient to the surface colour shows while more lies ahead.
  *
- * react-native-web reports layout through the view's layout handler and emits `scroll` on a 32 ms throttle, so a test
- * lays the views out by calling the handler and moves the clock between two scrolls. The chevron's opacity is read
- * from its computed style: the OS reduce-motion preference is still unknown during these tests, which the design
- * defines as an instant change.
+ * The scroller is a Tamagui `ScrollView`, whose web build reports a view's size once, at mount, from
+ * `getBoundingClientRect`: a test states the three sizes with `stubBoundingRects` before it renders (the box around the
+ * scroller and the chevron's column, the scroller, its content). A size cannot change after mount, so a test that needs
+ * another size renders again. The chevron's opacity is read from its computed style: the OS reduce-motion preference is
+ * still unknown during these tests, which the design defines as an instant change.
  */
 
 const FADE = '[data-commise-stub="linear-gradient"]';
 
 beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
+    // A click makes the scroll view report a scroll 100 ms later, on a timer. Faked, it is flushed in afterEach, so it
+    // cannot fire after the environment is gone.
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
     // The OS preference is read asynchronously; a promise that never settles keeps it unknown, which is instant motion.
     vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockReturnValue(new Promise(() => undefined));
     vi.spyOn(AccessibilityInfo, 'addEventListener').mockReturnValue(undefined as never);
 });
 
 afterEach(() => {
+    act(() => {
+        vi.runOnlyPendingTimers();
+    });
     cleanup();
     vi.restoreAllMocks();
     vi.useRealTimers();
 });
 
-/** Report a laid-out size to a view, the way react-native-web's ResizeObserver does. */
-function layOut(element: Element, width: number): void {
-    const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
+let restoreRects: (() => void) | undefined;
 
-    if (handler === undefined) {
-        throw new Error('the view has no layout handler');
+afterEach(() => {
+    restoreRects?.();
+    restoreRects = undefined;
+});
+
+function mount(
+    props: Partial<HorizontalScrollerProps> = {},
+    sizes: readonly [number, number] | null = [300, 640],
+    // The box around the scroller and the chevron's column; by default as wide as the scroller, i.e. no column yet.
+    outer: number | undefined = undefined,
+) {
+    if (sizes !== null) {
+        restoreRects = stubBoundingRects(
+            scrollViewSizes({ scroller: sizes[0], content: sizes[1], box: outer ?? sizes[0] }),
+        );
     }
 
-    act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
-}
-
-/** The views of a rendered scroller that report their size: the scroller, then the content inside it. */
-function measured(container: HTMLElement): readonly Element[] {
-    return [...container.querySelectorAll('*')].filter(
-        (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
-    );
-}
-
-function mount(props: Partial<HorizontalScrollerProps> = {}, sizes: readonly [number, number] | null = [300, 640]) {
     const result = render(
         <HorizontalScroller {...props}>
             <View>
@@ -60,14 +68,8 @@ function mount(props: Partial<HorizontalScrollerProps> = {}, sizes: readonly [nu
             </View>
         </HorizontalScroller>,
     );
-    const [scroller, content] = measured(result.container);
 
-    if (sizes !== null) {
-        layOut(scroller as Element, sizes[0]);
-        layOut(content as Element, sizes[1]);
-    }
-
-    return { ...result, scroller: scroller as HTMLElement };
+    return { ...result, scroller: result.container.querySelector<HTMLElement>('[style*="overflow-x"]') as HTMLElement };
 }
 
 /** Scroll the native scroller to `x`, past the emit throttle of the one before. */
@@ -83,6 +85,9 @@ function chevronOf(container: HTMLElement): HTMLElement | undefined {
 
     return glyph?.closest<HTMLElement>('[style*="opacity"]') ?? undefined;
 }
+
+/** The Tamagui frame around the chevron: it owns the 24 dp column, and the opacity view inside it owns the fade. */
+const columnOf = (container: HTMLElement): HTMLElement => chevronOf(container)?.parentElement as HTMLElement;
 
 const chevronOpacity = (container: HTMLElement): string => {
     const chevron = chevronOf(container);
@@ -109,23 +114,44 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
         expect(container.querySelector(FADE)).toBeNull();
     });
 
-    it('shows the chevron on a 40 dp band at the start of a scroller that overflows', () => {
+    it('shows the chevron at the start of a scroller that overflows, over the same 16 dp fade the scroller always has', () => {
         const { container } = mount();
         const fade = container.querySelector<HTMLElement>(FADE);
 
         expect(chevronOpacity(container)).toBe('1');
-        expect(getComputedStyle(fade?.parentElement as HTMLElement).width).toBe('40px');
+        expect(resolvedStyle(fade?.parentElement as HTMLElement, 'width')).toBe('16px');
     });
 
-    it('hides the chevron on the first scroll and narrows the fade to 24 dp while more lies ahead', () => {
-        const { container, scroller } = mount();
+    // The chevron sits in a column of its own beside the scroller (`horizontalScrollHint.md` §3.6): drawn over the
+    // scroller on a solid 24 dp band it hid the last characters of the chip at the edge.
+    it('puts the chevron in a 24 dp column beside the scroller, not over it, while the content overflows', () => {
+        const { container } = mount({}, [276, 640], 300);
+        const column = columnOf(container);
+
+        expect(resolvedStyle(column, 'position')).not.toBe('absolute');
+        expect(resolvedStyle(column, 'display')).not.toBe('none');
+        expect(resolvedStyle(column, 'width')).toBe('24px');
+    });
+
+    it('keeps the column through a scroll, so nothing reflows when the chevron fades', () => {
+        const { container, scroller } = mount({}, [276, 640], 300);
 
         scrollTo(scroller, 5);
 
         expect(chevronOpacity(container)).toBe('0');
-        expect(getComputedStyle(container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement).width).toBe(
-            '24px',
+        expect(resolvedStyle(columnOf(container), 'display')).not.toBe('none');
+        expect(resolvedStyle(container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement, 'width')).toBe(
+            '16px',
         );
+    });
+
+    it('takes no room while the content fits, though the scroller is as narrow as a column would leave it', () => {
+        // 280 fits the 300 box; read against the 276 scroller it would overflow and the column would flip on and off.
+        const { container } = mount({}, [276, 280], 300);
+
+        expect(resolvedStyle(columnOf(container), 'display')).toBe('none');
+        expect(chevronOpacity(container)).toBe('0');
+        expect(container.querySelector(FADE)).toBeNull();
     });
 
     it('shows neither at the end, and both again back at the start', () => {
@@ -148,26 +174,14 @@ describe('HorizontalScroller (native) — the chevron and the fade', () => {
         expect(chevronOpacity(container)).toBe('1');
     });
 
-    it('measures again when the content grows', () => {
-        const { container, scroller } = mount({}, [400, 240]);
-        const content = measured(container)[1] as Element;
-
-        expect(chevronOpacity(container)).toBe('0');
-        expect(scroller).toBeTruthy();
-
-        layOut(content, 900);
-
-        expect(chevronOpacity(container)).toBe('1');
-    });
-
     it('is decorative and takes no touch', () => {
         const { container } = mount();
         const chevron = chevronOf(container) as HTMLElement;
         const fadeBox = container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement;
 
         for (const node of [chevron, fadeBox]) {
-            expect(node.getAttribute('aria-hidden')).toBe('true');
-            expect(getComputedStyle(node).pointerEvents).toBe('none');
+            expect(node.closest('[aria-hidden="true"]')).not.toBeNull();
+            expect(resolvedStyle(node.closest('[aria-hidden="true"]') as HTMLElement, 'pointerEvents')).toBe('none');
         }
     });
 

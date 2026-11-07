@@ -26,6 +26,7 @@ import type { RecipeResponse } from '../../recipes/dto/recipeResponse.dto.js';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { makeRecipeRow } from '../../__fixtures__/index.js';
+import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 const RATER_ID = '01JRATER00000000000000000A';
 /** A REAL rater on an enforcing stage — the production case (ADR-0040). */
@@ -36,7 +37,9 @@ const OWNER = '01JOWNER00000000000000000B';
 const RECIPE_ID = '00000000-0000-4000-8000-00000000a001';
 
 /** A recipe aggregate with a controllable owner + visibility + status (steps/ingredients irrelevant to authz). */
-function aggregate(overrides: Partial<{ ownerId: string; visibility: string; status: string }> = {}): RecipeAggregate {
+function aggregate(
+    overrides: Partial<{ ownerId: string; visibility: RecipeVisibility; status: RecipeStatus }> = {},
+): RecipeAggregate {
     return {
         recipe: makeRecipeRow({
             id: RECIPE_ID,

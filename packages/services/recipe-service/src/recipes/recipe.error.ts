@@ -107,6 +107,63 @@ export function publishRequirementsUnmet(
     return new RecipeDomainError(RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET, reason, { missing: [...missing] });
 }
 
+/**
+ * `IMPORT_QUOTA_EXCEEDED` (→ 429) — the caller's daily import allowance is spent (004 FR-022). `details.resetsAt` is the
+ * instant it reopens for them, as an ISO string, and is the ONLY detail: the count and the limit are not on the wire.
+ *
+ * @param resetsAt - When the next unit of the caller's allowance on that channel becomes available (the oldest counted unit leaves the window).
+ * @returns The error.
+ */
+export function importQuotaExceeded(resetsAt: Date): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_QUOTA_EXCEEDED,
+        'The daily import allowance is spent. It reopens at the time in details.resetsAt.',
+        { resetsAt: resetsAt.toISOString() },
+    );
+}
+
+/**
+ * `IMPORT_NOT_FOUND` (→ 404) — no bulk import with that id belongs to the caller (ADR-0072).
+ *
+ * ONE answer for a stranger's import and a missing one: a 403 would confirm another cook's import id exists.
+ *
+ * @param id - The import id the caller asked for.
+ * @returns The error.
+ */
+export function importNotFound(id: string): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.IMPORT_NOT_FOUND, `Import '${id}' not found`);
+}
+
+/**
+ * `IMPORT_CURSOR_MOVED` (→ 409) — the wizard's cursor is not where the caller said it was (ADR-0072): another device
+ * moved it. `details.cursorOrdinal` is where it is now, so the caller can resync without a second read.
+ *
+ * @param cursorOrdinal - The item the cursor is on now, or `null` when it is past the last item.
+ * @returns The error.
+ */
+export function importCursorMoved(cursorOrdinal: number | null): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_CURSOR_MOVED,
+        'The import has moved on from where this request expected it to be.',
+        { cursorOrdinal },
+    );
+}
+
+/**
+ * `IMPORT_ITEM_ALREADY_SAVED` (→ 409) — the item's recipe was already saved (ADR-0072 §2/§3). An item is saved once, so
+ * a request that would change it after the save is refused, and a client that retried a save learns the first landed.
+ *
+ * @param ordinal - The item that is already saved.
+ * @returns The error.
+ */
+export function importItemAlreadySaved(ordinal: number): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED,
+        `Import item ${String(ordinal)} has already been saved.`,
+        { ordinal },
+    );
+}
+
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */
 export function notOwner(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.NOT_OWNER, `Recipe ${id} is not owned by the caller.`);
@@ -186,4 +243,21 @@ export function invalidVisibility(reason: string, details?: Record<string, unkno
  */
 export function provenanceNotPermitted(reason: string, details?: Record<string, unknown>): HttpException {
     return apiError('FORBIDDEN', reason, details);
+}
+
+/**
+ * `PRIVATE_SLOTS_FULL` (→ 403) - a free cook has no private slot left (ADR-0073). NOTHING was written.
+ *
+ * `used` is the live count the write saw under the per-user lock; it can exceed `limit` for a cook who lost Premium with
+ * more than the limit, and is reported as it is.
+ *
+ * @param used - The cook's private, undeleted recipes.
+ * @param limit - The cook's limit.
+ * @returns The error.
+ */
+export function privateSlotsFull(used: number, limit: number): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.PRIVATE_SLOTS_FULL, 'All of your private slots are in use.', {
+        used,
+        limit,
+    });
 }

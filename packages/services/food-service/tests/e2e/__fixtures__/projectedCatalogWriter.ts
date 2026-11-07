@@ -170,13 +170,14 @@ export async function writeProjectedCatalog(client: pg.ClientBase, content: Cata
 
         roots.set(root.seedKey, id);
         await client.query(
-            `INSERT INTO food (id, name, normalized_name, aliases, status, item_id, seed_key)
-             VALUES ($1, $2, $3, $4, 'RESOLVED', $5, $6)`,
+            `INSERT INTO food (id, name, normalized_name, aliases, default_terms, status, item_id, seed_key)
+             VALUES ($1, $2, $3, $4, $5::text[], 'RESOLVED', $6, $7)`,
             [
                 id,
                 root.name,
                 normalizeName(root.name),
                 root.synonyms.length === 0 ? null : root.synonyms.join('; '),
+                [...root.defaultFor],
                 items.get(root.item),
                 root.seedKey,
             ],

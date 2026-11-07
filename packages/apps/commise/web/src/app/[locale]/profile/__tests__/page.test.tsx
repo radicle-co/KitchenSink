@@ -62,7 +62,8 @@ describe('ProfileContent — the route', () => {
     it('renders the Profile page inside the nav chrome', () => {
         mount();
 
-        expect(screen.getByText('ada@example.com', { selector: 'p' })).toBeInTheDocument();
+        // The email is a read-only Account row now, not a header line (owner ruling S2).
+        expect(screen.getByText('ada@example.com')).toBeInTheDocument();
         expect(screen.getAllByRole('navigation').length).toBeGreaterThan(0);
     });
 

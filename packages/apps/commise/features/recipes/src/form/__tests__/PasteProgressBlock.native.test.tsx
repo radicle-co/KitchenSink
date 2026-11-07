@@ -3,7 +3,7 @@
  * jsdom. Mirrors `PasteProgressBlock.test.tsx`; the focus move is the screen reader's (`useScreenReaderFocusOnSignal`).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 const focus = vi.hoisted(() => ({ moved: vi.fn() }));
@@ -18,6 +18,7 @@ vi.mock('react-native', async (importOriginal) => {
 import { PasteProgressBlock } from '../PasteProgressBlock.native.js';
 import { recipeFormMessages } from '../messages.js';
 import type { PasteProgress } from '../props.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 

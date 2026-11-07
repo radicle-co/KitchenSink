@@ -17,10 +17,27 @@ export interface ProfileGroupProps {
     readonly children: ReactNode;
 }
 
+/**
+ * A label with its value: beside it at the end of the line, or under it at the start when the column has too little room
+ * for the text size (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). The rows that show a value draw it
+ * through this pair, so the rule is written once per platform.
+ */
+export interface LabelValuePairProps {
+    /**
+     * The label: the caller's own element, so it keeps its colour, its hint and, on web, its id. Beside the value it
+     * never shrinks, so it never breaks inside a word; a long hint beside a value is not a shape any row draws today.
+     */
+    readonly label: ReactNode;
+    /** The value. It wraps and never truncates. */
+    readonly value: string;
+    /** Web only: the value's id, so a control can be described by it. Native ignores it. */
+    readonly valueId?: string;
+}
+
 /** A pressable row (56 px): a label, a value, an optional hint, and a chevron when it opens something. */
 export interface ProfileRowProps {
     readonly label: string;
-    /** The current value, one line, truncated. */
+    /** The current value. It wraps and never truncates, and stacks under the label when the row has little room. */
     readonly value?: string;
     /** A caption under the label (the danger rows' consequence). */
     readonly hint?: string;
@@ -45,6 +62,12 @@ export interface ProfileRowProps {
      * where the cursor was. The first value moves nothing. Web ignores it: Radix returns focus to the opener itself.
      */
     readonly focusSignal?: number;
+}
+
+/** A read-only Profile row: a label and a fact the cook cannot change here. */
+export interface ProfileFactRowProps {
+    readonly label: string;
+    readonly value: string;
 }
 
 /** The header: the avatar disc, the name and the email — or its loading skeleton, or its failure. */

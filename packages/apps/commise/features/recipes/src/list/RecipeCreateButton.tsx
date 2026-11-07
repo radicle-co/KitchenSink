@@ -18,6 +18,7 @@ import { Button } from '@commise/ui/button';
 import { CreateFab } from '@commise/ui/create-fab';
 import { Icon } from '@commise/ui/icon';
 import { Tooltip } from '@commise/ui/tooltip';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { FC } from 'react';
 
 import { recipeMessages } from '../messages.js';
@@ -34,7 +35,7 @@ const RailButton: FC<{ readonly label: string; readonly onPress: () => void }> =
             type="button"
             aria-label={label}
             onClick={onPress}
-            className="inline-flex size-14 items-center justify-center rounded-full bg-action text-on-action transition-colors hover:bg-action-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2"
+            className={`inline-flex size-14 items-center justify-center rounded-full bg-action text-on-action transition-colors hover:bg-action-pressed ${FOCUS_RING_CLASS.offset} `}
         >
             <Icon name="plus" size={24} />
         </button>

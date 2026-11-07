@@ -20,12 +20,14 @@ import { Icon } from '../icon/Icon.js';
 import type { IconName } from '../icon/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { stepFrom, type StepperProps } from './props.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** A step button: a 44 px circle on the neutral surface. */
 const STEP =
     'inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ' +
-    'hover:bg-ink/6 active:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ' +
-    'focus-visible:ring-offset-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
+    `${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset} ` +
+    'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
 
 /** The web design-system stepper. */
 export const Stepper: FC<StepperProps> = ({

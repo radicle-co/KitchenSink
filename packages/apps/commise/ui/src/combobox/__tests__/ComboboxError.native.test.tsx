@@ -6,7 +6,8 @@
  * and so would pass a test of them in jsdom while doing nothing on a device. So this suite stands in for the platform's
  * text input, reads the props the leaf hands it, and asserts the hint text, never `aria-invalid`.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import type { ComponentProps } from 'react';
 import { StyleSheet } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';

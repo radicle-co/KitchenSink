@@ -2,9 +2,16 @@
 
 Tactical conventions for the KitchenSink monorepo. This document is the authoritative
 reference for day-to-day coding decisions. The [Constitution](../.specify/memory/constitution.md)
-defines immutable principles; this document translates them into enforceable rules.
+summarises the principles. Its Governance section sets the order of authority: the owner's dated
+rulings first, then CLAUDE.md, the ADRs and this document together.
 
-**Version**: 1.8.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-08-12
+**Version**: 1.9.0 | **Created**: 2026-04-19 | **Last Updated**: 2026-10-31
+
+> **1.9.0** — **§3 and §10 now match §4's barrel directive** (owner, 2026-10-31). §3's example tree
+> no longer shows an `index.ts` barrel, and its fixed component folder layout (`types.ts`, `styles.ts`,
+> `index.ts`) is gone: no `styles.ts` existed in the tree, and the owner ruled there is no fixed layout.
+> §10 no longer says to put barrels "at module boundaries"; a barrel exists only as a `package.json`
+> `exports` target. The header now defers to the Constitution's Governance order (Constitution 2.0.0).
 
 > **1.8.0** — **§8 gains the `{@link}` resolution rule** and **§9 gains the static-analysis coverage rule**, both
 > now mechanically enforced. A link must reach a declaration or be written in backticks; the obvious alternative
@@ -264,7 +271,6 @@ src/
     parseIngredient.ts
     RecipeCard.tsx
     types.ts
-    index.ts            # Barrel: re-exports only
   ingredients/
     ...
   photos/
@@ -280,7 +286,8 @@ src/
 - `helpers/` directories are banned. Use `utils/` co-located with consumers, or `common/`
   for cross-cutting concerns.
 - `lib/` is reserved for third-party library wrappers only.
-- Component folders follow: `ComponentName.tsx`, `types.ts`, `styles.ts`, `index.ts`, `__tests__/`.
+- There is no fixed component folder layout (owner, 2026-10-31). File names follow §1, and an
+  `index.ts` exists in a folder only when it is a `package.json` `exports` target (§4).
 
 ### Utility Placement
 
@@ -1119,11 +1126,12 @@ export default function createRecipeService() { ... }
 
 ### Barrel Files (`index.ts`)
 
-Use barrel files at module boundaries to define the public API. Separate type-only
-exports from value exports.
+A barrel is permitted ONLY as the target of a `package.json` `exports` entry — the public
+surface of a workspace package (§4). Do not add one at any other module boundary. Inside a
+permitted barrel, separate type-only exports from value exports.
 
 ```typescript
-// src/recipes/index.ts
+// src/index.ts — the target of this package's `exports["."]`
 export { RecipeService } from './RecipeService.js';
 export { parseIngredient } from './parseIngredient.js';
 export type { Recipe, Ingredient, CreateRecipeInput } from './types.js';
@@ -1465,6 +1473,22 @@ PR reviewers MUST verify:
    public API.
 4. No `.mobile.*` files introduced.
 5. `tasks.md` (if present) lists paired web + mobile tasks.
+
+### 14.6 Native Styling Is Tamagui (Hard Rule)
+
+Mobile UI is styled with Tamagui only (owner rulings 2026-10-31,
+[ADR-0080](architecture/decisions/0080-mobile-ui-is-styled-with-tamagui.md)).
+
+- A new native file uses no `StyleSheet` and no `style` or `…Style` attribute. It lays out with `styled()` from
+  `tamagui`, or with a design-system primitive, and takes its tokens from `@commise/ui/tamagui-config`.
+- An existing file's React Native styling only falls. `nativeStylingRatchet` holds the count per file, and
+  `themeColourReadsRatchet` holds the colour reads through `useTheme()` the same way.
+- A colour is a theme key (`$paper`), a radius is a radius token (`$md`), and text is set by type role. A raw value
+  is a type error under the config's strict style values.
+- Tamagui and `@commise/ui/tamagui-config` are imported only by `.native` leaves and the mobile app. The config export
+  is native-only and has no web sibling, an exception to §14.3 with `./modal` as the precedent.
+
+ADR-0080 lists every guard that holds this rule.
 
 ---
 

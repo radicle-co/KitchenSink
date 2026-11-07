@@ -12,12 +12,15 @@
  * `useReduceMotion` and the safe-area insets are mocked because their platforms do not exist under jsdom. The
  * on-device proof is the Maestro flow.
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { createElement, useState, type ComponentProps, type JSX, type ReactNode } from 'react';
 import { AccessibilityInfo, Pressable, Text, type Modal as ModalType } from 'react-native';
+import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { scaledTypeSize } from '../../text/scaledType.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { palette, tint } from '../../tokens/colors.js';
+import { role } from '../../tokens/colors.js';
 import { radius } from '../../tokens/scale.js';
 import type { SheetProps } from '../props.js';
 import { SHEET_EDGE_PADDING_DP, SHEET_MAX_WIDTH_DP } from '../sheetPresentation.js';
@@ -66,7 +69,11 @@ beforeEach(() => {
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    // jsdom's own width, so a test that resized the window leaves the next one the default.
+    windowWidth(0);
+});
 
 /**
  * The value react-native-web applied for a CSS property: `StyleSheet.create` styles compile to atomic `r-*` classes
@@ -94,6 +101,14 @@ function appliedStyle(element: Element, property: string): string | undefined {
     return resolved;
 }
 
+/** Resize the window: react-native-web's `Dimensions` reads the root element's width on a resize event. */
+function windowWidth(width: number): void {
+    Object.defineProperty(document.documentElement, 'clientWidth', { value: width, configurable: true });
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+}
+
 function renderSheet(overrides: Partial<SheetProps> = {}): { readonly onOpenChange: ReturnType<typeof vi.fn> } {
     const onOpenChange = vi.fn();
 
@@ -119,11 +134,48 @@ function renderSheet(overrides: Partial<SheetProps> = {}): { readonly onOpenChan
 const dialog = (): HTMLElement =>
     screen.getByRole('heading', { name: 'Filter recipes' }).closest('[role="dialog"]') as HTMLElement;
 
-/** The dimmed window behind the sheet: the dialog sits in the keyboard-avoiding layer, inside it. */
-const backdrop = (): Element => dialog().parentElement?.parentElement as Element;
+/**
+ * The window's root view. A centred dialog pads it by the top inset; a bottom sheet does NOT (its engine frame must start at
+ * the window top, see `topInsetPadding`), so the root is then the outermost ancestor that sets how the frame stands.
+ */
+const backdrop = (): Element => {
+    const chain: Element[] = [];
 
-/** The scrim: the backdrop's first child, behind the keyboard-avoiding layer. */
-const scrim = (): Element => backdrop().firstElementChild as Element;
+    for (let node = dialog().parentElement; node !== null; node = node.parentElement) {
+        chain.push(node);
+    }
+
+    const padded = chain.find((node) => appliedStyle(node, 'padding-top') === `${state.insets.top}px`);
+    const roots = chain.filter((node) => appliedStyle(node, 'justify-content') !== undefined);
+
+    return padded ?? (roots[roots.length - 1] as Element);
+};
+
+/**
+ * The element that takes the status bar's room off the panel's space on a bottom sheet: the keyboard lift's box, the nearest
+ * ancestor of the dialog that pads its head by the top inset. It sits INSIDE the engine's frame, so the frame itself starts at
+ * the window's top and ends at its foot.
+ */
+const topInsetPadding = (): Element => {
+    for (let node = dialog().parentElement; node !== null; node = node.parentElement) {
+        if (resolvedStyle(node, 'paddingTop') === `${state.insets.top}px`) {
+            return node;
+        }
+    }
+
+    throw new Error('no ancestor of the dialog pads its head by the top inset');
+};
+
+/** The scrim catcher: the sibling that stands right behind the panel (and the tone scope around it). */
+const scrim = (): Element => {
+    let node: Element | null = dialog();
+
+    while (node !== null && node.previousElementSibling === null) {
+        node = node.parentElement;
+    }
+
+    return node?.previousElementSibling as Element;
+};
 
 describe('Sheet (native)', () => {
     it('renders nothing while closed', () => {
@@ -132,27 +184,72 @@ describe('Sheet (native)', () => {
         expect(screen.queryByRole('heading', { name: 'Filter recipes' })).toBeNull();
     });
 
-    // F8: a sheet title is `barTitle`, Inter 17/600 (`buildSpec.md` §1.5). Playfair sets names only.
+    // F8: a sheet title is `barTitle`, Inter 16/600 (`buildSpec.md` §1.5). Manrope sets names only. REWRITTEN for the
+    // owner's type-scale ruling (2026-10-25): the role was 17, and 17 is off the 14/16/18/28 scale.
     it('sets the title in the barTitle role, never the display face', () => {
         renderSheet();
 
         const title = screen.getAllByText('Filter recipes').find((node) => node.getAttribute('role') === 'heading');
 
-        expect(appliedStyle(title as Element, 'font-family')).not.toMatch(/Playfair/u);
-        expect(appliedStyle(title as Element, 'font-size')).toBe('17px');
+        expect(resolvedStyle(title as Element, 'fontFamily')).not.toMatch(/Manrope/u);
+        expect(resolvedStyle(title as Element, 'fontSize')).toBe(`${String(nativeTokens.type.barTitle.fontSize)}px`);
+        expect(resolvedStyle(title as Element, 'fontSize')).toBe('16px');
     });
 
-    // W-23 (bs §5.1 "sheet header truncate:1"): a long title never wraps to a second line. `numberOfLines={1}` is what
-    // react-native-web compiles to a no-wrap, clipped, ellipsised line (and to one native line on a device).
-    it('keeps a long title on one line, ending in an ellipsis', () => {
+    // REWRITTEN from W-23 ("sheet header truncate:1"): the designer ruled that a sheet title wraps and is never clipped.
+    // At the iOS cap (3.1x) the Sort sheet's "Sort recipes" read "Sort recip…". A title is the dialog's name, so a cook who
+    // needs the large text must be able to read all of it. No line limit, no ellipsis, no no-wrap.
+    it('wraps a long title in full at the largest text scale, with no line limit and no ellipsis', () => {
         const long = 'Add to Weeknight dinners for the whole family and any guests who drop by';
 
-        renderSheet({ title: long });
+        renderWithTamagui(
+            <Sheet open onOpenChange={vi.fn()} title={long} closeLabel="Close filters" size="content">
+                <Text>Dietary</Text>
+            </Sheet>,
+            'light',
+            3.1,
+        );
 
         const title = screen.getByRole('heading', { name: long });
 
-        expect(appliedStyle(title, 'white-space')).toBe('nowrap');
-        expect(appliedStyle(title, 'text-overflow')).toBe('ellipsis');
+        expect(title.textContent).toBe(long);
+        expect(appliedStyle(title, 'white-space')).not.toBe('nowrap');
+        expect(appliedStyle(title, 'text-overflow')).not.toBe('ellipsis');
+        expect(appliedStyle(title, '-webkit-line-clamp')).toBeUndefined();
+    });
+
+    // The title is the design-system Text (role `barTitle`), so it grows with the system text scale up to the role's ceiling
+    // (1.5x) instead of staying at 16 px while the rest of the screen scales.
+    it('draws the title at the scaled barTitle size at the largest text scale', () => {
+        renderWithTamagui(
+            <Sheet open onOpenChange={vi.fn()} title="Sections" closeLabel="Close" size="content">
+                <Text>Dietary</Text>
+            </Sheet>,
+            'light',
+            3.1,
+        );
+
+        const title = screen.getByRole('heading', { name: 'Sections' });
+        const scaled = scaledTypeSize('barTitle', 3.1);
+
+        expect(resolvedStyle(title, 'fontSize')).toBe(`${String(scaled.fontSize)}px`);
+        expect(resolvedStyle(title, 'lineHeight')).toBe(`${String(scaled.lineHeight)}px`);
+        expect(scaled.fontSize).toBeGreaterThan(nativeTokens.type.barTitle.fontSize);
+    });
+
+    // The window is shown each time the Modal reports `onShow`, and a host that wants to focus a field of a sheet that has just
+    // come back (Keep editing after a discard question) must wait for that, or the field is not on screen yet and the focus is lost.
+    it('tells the host each time its window is shown', () => {
+        const onShown = vi.fn();
+        renderSheet({ onShown });
+
+        expect(onShown).not.toHaveBeenCalled();
+
+        act(() => state.modal?.onShow?.({} as never));
+        expect(onShown).toHaveBeenCalledOnce();
+
+        act(() => state.modal?.onShow?.({} as never));
+        expect(onShown).toHaveBeenCalledTimes(2);
     });
 
     it('is a modal dialog', () => {
@@ -181,8 +278,11 @@ describe('Sheet (native)', () => {
         expect(onOpenChange).toHaveBeenCalledWith(false);
     });
 
-    it('closes through a tap on the scrim, which is not an accessibility element', () => {
-        const { onOpenChange } = renderSheet();
+    // REWRITTEN for the Tamagui Sheet: a bottom sheet's scrim is the engine's overlay (`dismissOnOverlayPress`, asserted in
+    // `SheetEngine.native.test.tsx`), which a test cannot press. A centred dialog keeps the pressable scrim this tests.
+    it('closes a centred dialog through a tap on the scrim, which is not an accessibility element', () => {
+        windowWidth(834);
+        const { onOpenChange } = renderSheet({ presentation: 'dialog' });
         expect(scrim().getAttribute('aria-hidden')).toBe('true');
         fireEvent.click(scrim());
 
@@ -358,11 +458,31 @@ describe('Sheet (native)', () => {
     });
 
     describe('insets', () => {
-        it('stops the sheet at the top inset', () => {
+        // REWRITTEN: the backdrop no longer pads a bottom sheet's frame by the status bar (that put the frame's foot below the
+        // screen on a device). The lift takes it inside the frame, which has the same effect on the panel and none on the foot.
+        it('keeps the panel below the top inset, inside a frame that starts at the window top', () => {
             renderSheet();
 
-            expect(appliedStyle(backdrop(), 'padding-top')).toBe(`${state.insets.top}px`);
+            expect(topInsetPadding()).toBeTruthy();
+            expect(appliedStyle(backdrop(), 'padding-top')).toBeUndefined();
         });
+
+        // Designer ruling 2026-11-03: the scrim dims the WHOLE screen, status bar strip included, as iOS and Material both do
+        // behind a modal sheet. The earlier iOS shot showed the strip undimmed because the backdrop padded the engine's frame
+        // (and so its overlay) down by the top inset. Nothing between the window and the overlay may pad or inset it, and the
+        // window must not be a page sheet (which leaves a strip of the presenting screen above it).
+        it.each(['ios', 'android'] as const)(
+            '%s: the scrim reaches the top of the window, over the status bar',
+            (os) => {
+                state.os = os;
+                renderSheet();
+
+                expect(appliedStyle(backdrop(), 'padding-top')).toBeUndefined();
+                expect(appliedStyle(backdrop(), 'margin-top')).toBeUndefined();
+                expect([undefined, 'overFullScreen', 'fullScreen']).toContain(state.modal?.presentationStyle);
+                expect(state.modal?.transparent).toBe(true);
+            },
+        );
 
         it('pads the whole sheet by the side insets, for a camera cutout', () => {
             renderSheet();
@@ -398,14 +518,6 @@ describe('Sheet (native)', () => {
     });
 
     describe('geometry and motion', () => {
-        /** Resize the window: react-native-web's `Dimensions` reads the root element's width on a resize event. */
-        function windowWidth(width: number): void {
-            Object.defineProperty(document.documentElement, 'clientWidth', { value: width, configurable: true });
-            act(() => {
-                window.dispatchEvent(new Event('resize'));
-            });
-        }
-
         afterEach(() => {
             Reflect.deleteProperty(document.documentElement, 'clientWidth');
             act(() => {
@@ -439,15 +551,41 @@ describe('Sheet (native)', () => {
             expect(appliedStyle(dialog(), 'max-width')).toBe(`${SHEET_MAX_WIDTH_DP}px`);
         });
 
-        it('rounds its top corners at radius.lg and dims the screen behind it', () => {
+        // Owner ruling 2026-10-26 (platform guidelines): a `dialog` presentation is a bottom sheet on a phone and a CENTRED
+        // dialog at most 448 dp wide on a tablet (834 and 1194 alike).
+        it('presentation dialog: a bottom sheet below 600 dp, a centred 448 dp dialog from it', () => {
+            windowWidth(390);
+            renderSheet({ presentation: 'dialog' });
+            expect(appliedStyle(dialog(), 'max-width')).toBeUndefined();
+            expect(appliedStyle(dialog(), 'border-bottom-left-radius')).toBeUndefined();
+            expect(appliedStyle(backdrop(), 'justify-content')).toBe('flex-end');
+            cleanup();
+
+            for (const width of [834, 1194]) {
+                windowWidth(width);
+                renderSheet({ presentation: 'dialog' });
+                expect(appliedStyle(dialog(), 'max-width')).toBe('448px');
+                expect(appliedStyle(dialog(), 'border-bottom-left-radius')).toBe(`${radius.xl}px`);
+                expect(appliedStyle(backdrop(), 'justify-content')).toBe('center');
+                cleanup();
+            }
+        });
+
+        // REWRITTEN for parity item 7: a sheet is a dialog-class surface, so its corners are radius.xl (24); lg (18) is a
+        // notice's. The centred dialog above rounds all four at the same step.
+        it('rounds its top corners at radius.xl, and a centred dialog dims the screen behind it', () => {
             renderSheet();
 
-            expect(appliedStyle(dialog(), 'border-top-left-radius')).toBe(`${radius.lg}px`);
-            expect(appliedStyle(dialog(), 'border-top-right-radius')).toBe(`${radius.lg}px`);
+            expect(appliedStyle(dialog(), 'border-top-left-radius')).toBe(`${radius.xl}px`);
+            expect(appliedStyle(dialog(), 'border-top-right-radius')).toBe(`${radius.xl}px`);
+            cleanup();
+
+            windowWidth(834);
+            renderSheet({ presentation: 'dialog' });
 
             const scrimColour = appliedStyle(backdrop(), 'background-color');
 
-            expect(scrimColour?.replace(/\s/gu, '')).toBe(tint(palette.charcoal, 0.4).replace(/\s/gu, ''));
+            expect(scrimColour?.replace(/\s/gu, '')).toBe(role.scrim.replace(/\s/gu, ''));
         });
 
         it('takes the available height at size full, and grows with its content at size content', () => {
@@ -468,14 +606,18 @@ describe('Sheet (native)', () => {
             expect(appliedStyle(dialog(), 'max-height')).toBeUndefined();
         });
 
-        it('does not animate while reduce motion is on or unknown, and slides when it is off', () => {
+        // REWRITTEN: a bottom sheet draws no window animation (the engine animates it, under `motionPropsOf`: see
+        // `SheetEngine.native.test.tsx`); a centred dialog keeps the window's, by the same reduce-motion rule.
+        it('gives a centred dialog no window animation while reduce motion is on or unknown, and a slide when it is off', () => {
+            windowWidth(834);
+
             for (const [reduceMotion, animationType] of [
                 [undefined, 'none'],
                 [true, 'none'],
                 [false, 'slide'],
             ] as const) {
                 state.reduceMotion = reduceMotion;
-                renderSheet();
+                renderSheet({ presentation: 'dialog' });
                 expect(state.modal?.animationType).toBe(animationType);
                 cleanup();
             }

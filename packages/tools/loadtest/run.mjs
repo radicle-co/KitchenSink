@@ -25,8 +25,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // regardless of the directory run.mjs was invoked from.
 const OUT_DIR = resolve(process.env['OUT_DIR'] ?? '.');
 const SK = process.env['CLERK_SECRET_KEY'] ?? process.env['CLERK_SK'];
-// Bounded by the fixed pool's k6 VU lanes (20); `provisionPool.ts` refuses more rather than minting users.
-const POOL_SIZE = Number(process.env['POOL_SIZE'] ?? process.env['MAX_VUS'] ?? 20);
+// Bounded by the fixed pool's k6 VU lanes (10); `provisionPool.ts` refuses more rather than minting users.
+const POOL_SIZE = Number(process.env['POOL_SIZE'] ?? process.env['MAX_VUS'] ?? 10);
 const COLLECT_INTERVAL_S = Number(process.env['COLLECT_INTERVAL_S'] ?? 10);
 // Reuse the pool files an earlier `npm run provision:pool` wrote, skipping the lease. The files must exist.
 const REUSE_POOL = process.env['REUSE_POOL'] === '1' || process.env['REUSE_POOL'] === 'true';

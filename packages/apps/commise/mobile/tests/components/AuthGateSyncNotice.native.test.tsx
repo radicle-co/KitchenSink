@@ -7,7 +7,7 @@
  * signed-out surfaces, where there is no cook and no queue.
  */
 import { onlineManager } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { Text } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +16,7 @@ import { appendToQuarantine, createMemoryOutboxStore, storeKeyFor } from '@kitch
 
 import { AuthGate } from '../../src/components/AuthGate.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: vi.fn() }));
 vi.mock('../../src/screens/login', () => ({ LoginScreen: () => <Text>stub-login</Text> }));

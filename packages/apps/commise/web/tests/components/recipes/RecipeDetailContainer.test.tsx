@@ -27,7 +27,7 @@ import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SetRatingRequest } from '@kitchensink/schema-recipe';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { BadRequestError, NotFoundError } from '@kitchensink/recipe-service-client';
+import { BadRequestError, NotFoundError, PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import {
     RECIPE_VISIBILITY_MUTATION_KEY,
     recipeServiceKeys,
@@ -626,7 +626,7 @@ describe('RecipeDetailContainer', () => {
 
             const back = await screen.findByRole('link', { name: 'My recipes' });
             expect(back).toHaveAttribute('href', '/en/recipes');
-            expect(back.className).toContain(buttonSurfaceClass('ghost', 'sm'));
+            expect(back.className).toContain(buttonSurfaceClass('ghost', { size: 'sm' }));
             // Below 840 the hero's disc is Back; the eyebrow link shows from there (a VIEWPORT query: the sidebar replaces
             // the tab bar at 840, not at a container width).
             expect(back.closest('[class*="nav:contents"]')?.className.split(' ')).toContain('hidden');
@@ -738,12 +738,14 @@ describe('RecipeDetailContainer', () => {
             await renderDone();
 
             expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
-            expect(screen.queryByText(/couldn't be made private|part of Premium/iu)).not.toBeInTheDocument();
+            expect(screen.queryByText(/couldn't be made private|part of Pro/iu)).not.toBeInTheDocument();
         });
 
         describe('the refused Private, said inline on the page (§6.4)', () => {
             const FINAL = 'This recipe is still public: it couldn’t be made private.';
-            const PREMIUM = 'This recipe is still public. Private recipes are part of Premium.';
+            const PREMIUM =
+                'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.';
+            const SLOTS = 'Not available. All 50 of your private slots are in use.';
 
             /** The recipe page for `ownerId` with `visibility`, arrived at through the editor's hand-off. */
             const renderArrival = async (
@@ -752,14 +754,28 @@ describe('RecipeDetailContainer', () => {
                     paidFeatures?: 'granted' | 'upsell' | 'hidden';
                     ownerId?: string;
                     visibility?: RecipeVisibility;
+                    /**
+                     * REWRITTEN for ADR-0073: a page's refusal depends on the recipe's rule. The Pro sentences are the
+                     * rule of an imported public-web recipe (the default here); a recipe the cook wrote is refused only for
+                     * every slot used (`slots`).
+                     */
+                    sourceType?: 'user_created' | 'imported_public';
+                    slots?: { used: number; limit: number };
                 } = {},
             ): Promise<void> => {
-                const { paidFeatures = 'hidden', ownerId = OWNER_ID, visibility = RecipeVisibility.PUBLIC } = options;
+                const {
+                    paidFeatures = 'hidden',
+                    ownerId = OWNER_ID,
+                    visibility = RecipeVisibility.PUBLIC,
+                    sourceType = 'imported_public',
+                    slots = { used: 3, limit: 50 },
+                } = options;
                 useUserProfileMock.mockReturnValue(profileWith(paidFeatures));
                 arriveWith(query);
                 const client = createFakeRecipeServiceClient();
+                vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', ...slots });
                 vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                    makeRecipeDetail({ id: 'rec_1', title: 'Lamb', ownerId, visibility }),
+                    makeRecipeDetail({ id: 'rec_1', title: 'Lamb', ownerId, visibility, sourceType }),
                 );
                 renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
                 await screen.findByRole('heading', { level: 1, name: 'Lamb' });
@@ -783,11 +799,29 @@ describe('RecipeDetailContainer', () => {
             });
 
             it('takes the words from the PROFILE, never from the link', async () => {
-                // The link says `.final`; the profile says the upsell, so the Premium sentence is the true one.
+                // The link says `.final`; the profile says the upsell, so the Pro sentence is the true one.
                 await renderArrival('done=changesSaved.final', { paidFeatures: 'upsell' });
 
                 expect(await screen.findByText(PREMIUM)).toBeInTheDocument();
                 expect(screen.queryByText(FINAL)).not.toBeInTheDocument();
+            });
+
+            it('⛔ says the slots sentence for a recipe the cook wrote when every slot is known used', async () => {
+                await renderArrival('done=changesSaved.slots', {
+                    paidFeatures: 'upsell',
+                    sourceType: 'user_created',
+                    slots: { used: 50, limit: 50 },
+                });
+
+                expect(await screen.findByText(SLOTS)).toBeInTheDocument();
+            });
+
+            it('⛔ says nothing to a cook with a slot free who follows a forged slots link', async () => {
+                await renderArrival('done=changesSaved.slots', { paidFeatures: 'upsell', sourceType: 'user_created' });
+                await screen.findByText('Changes saved.');
+
+                expect(screen.queryByText(SLOTS)).not.toBeInTheDocument();
+                expect(screen.queryByText(PREMIUM)).not.toBeInTheDocument();
             });
 
             it('keeps saying it while the recipe is shown and public, after the parameter has gone', async () => {
@@ -1038,12 +1072,29 @@ describe('RecipeDetailContainer', () => {
 
     describe('the action row and the ⋯ menu (build spec §6.1, §6.4)', () => {
         /** Renders the detail for the OWNER of a recipe. */
-        const renderOwnerDetail = (visibility: RecipeVisibility = RecipeVisibility.PUBLIC) => {
+        const renderOwnerDetail = (
+            visibility: RecipeVisibility = RecipeVisibility.PUBLIC,
+            options: {
+                /** An imported public-web recipe is under the Pro rule; every other label is under the slots rule. */
+                readonly sourceType?: 'user_created' | 'imported_public' | 'imported_physical' | 'imported_paid';
+                /** What the server says about the cook's slots; the page has it before the menu opens (a warm cache). */
+                readonly slots?: { readonly used: number; readonly limit: number } | 'unlimited';
+            } = {},
+        ) => {
+            const { sourceType = 'user_created', slots = { used: 3, limit: 50 } } = options;
+            const usage =
+                slots === 'unlimited' ? ({ kind: 'unlimited' } as const) : ({ kind: 'limited', ...slots } as const);
             const client = createFakeRecipeServiceClient();
+            vi.spyOn(client, 'getPrivateSlots').mockResolvedValue(usage);
             vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility }),
+                makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility, sourceType }),
             );
-            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
+            // The standing is already known when the page opens, as it is for a cook who has just come from their library.
+            const queryClient = new QueryClient({
+                defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+            });
+            queryClient.setQueryData(recipeServiceKeys.recipePrivateSlots, usage);
+            renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client, { queryClient });
 
             return client;
         };
@@ -1060,13 +1111,16 @@ describe('RecipeDetailContainer', () => {
             return client;
         };
 
+        // REWRITTEN IN SLICE 1: Edit recipe is a TEXT action, the DS ghost tier, not the filled primary
+        // (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullet
+        // "Start cooking", and `buildLists.md` "Recipe detail" item 8).
         it('gives the OWNER Edit recipe as a real DS link, and Version history in the ⋯ menu', async () => {
             const user = userEvent.setup();
             renderOwnerDetail();
 
             const edit = await screen.findByRole('link', { name: 'Edit recipe' });
             expect(edit).toHaveAttribute('href', '/en/recipes/rec_1/edit');
-            expect(edit.className).toBe(buttonSurfaceClass('primary'));
+            expect(edit.className).toBe(buttonSurfaceClass('ghost'));
 
             await user.click(screen.getAllByRole('button', { name: /^More actions for /u })[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Version history' }));
@@ -1138,6 +1192,37 @@ describe('RecipeDetailContainer', () => {
             expect(screen.getByRole('button', { name: 'Save a copy' })).not.toBeDisabled();
         });
 
+        it.each(['imported_physical', 'imported_paid'] as const)(
+            '⛔ offers NO Make public on a private %s recipe: it can never be public',
+            async (sourceType) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith('upsell'));
+                renderOwnerDetail(RecipeVisibility.PRIVATE, { sourceType });
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+
+                expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeInTheDocument();
+                expect(screen.queryByRole('menuitem', { name: 'Make public' })).not.toBeInTheDocument();
+            },
+        );
+
+        it.each(['user_created', 'imported_public'] as const)(
+            'still offers Make public on a private %s recipe',
+            async (sourceType) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith('upsell'));
+                renderOwnerDetail(RecipeVisibility.PRIVATE, { sourceType });
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+
+                expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeInTheDocument();
+            },
+        );
+
         it('offers Clear checks while a check is set, and it clears them', async () => {
             const user = userEvent.setup();
             renderOthersDetail();
@@ -1155,7 +1240,7 @@ describe('RecipeDetailContainer', () => {
         it('makes a granted owner’s private recipe public from the menu, at once', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('granted'));
-            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { slots: 'unlimited' });
             const setVisibilitySpy = vi
                 .spyOn(client, 'setRecipeVisibility')
                 .mockResolvedValue(
@@ -1172,7 +1257,7 @@ describe('RecipeDetailContainer', () => {
         it('surfaces a failed visibility change rather than snapping back silently (B17)', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('granted'));
-            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { slots: 'unlimited' });
             vi.spyOn(client, 'setRecipeVisibility').mockRejectedValue(new Error('network down'));
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
@@ -1180,29 +1265,91 @@ describe('RecipeDetailContainer', () => {
 
             // §6.4: the generic failure shares the slot under the rating and visibility line, not the foot of the page.
             expect(
-                (await screen.findByText('We couldn’t change who can see this recipe. Please try again.')).closest(
-                    'header',
-                ),
+                (await screen.findByText('We couldn’t change who can see this recipe. Try again.')).closest('header'),
             ).not.toBeNull();
         });
 
         /**
-         * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15): a downgraded owner cannot simply make the recipe private again,
-         * so Make public asks first, says what it costs, and sends nothing until confirmed.
+         * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is
+         * NEVER final. A cook with private slots is asked first and told it frees one; an imported public-web recipe under
+         * the upsell is told Pro is needed to return; every other case goes public at once. Nothing is sent until the
+         * cook confirms.
          */
         it.each([
             [
+                'a recipe the cook wrote, under hidden paid features',
                 'hidden',
-                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+                'user_created',
+                'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
             ],
             [
+                'a recipe the cook wrote, under the upsell',
                 'upsell',
-                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
+                'user_created',
+                'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
             ],
-        ] as const)('⛔ under %s, Make public asks first and sends nothing until confirmed', async (state, body) => {
+            [
+                'an imported public-web recipe, under the upsell',
+                'upsell',
+                'imported_public',
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
+            ],
+        ] as const)(
+            '⛔ for %s, Make public asks first and sends nothing until confirmed',
+            async (_label, state, sourceType, body) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith(state));
+                const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { sourceType });
+                const setVisibilitySpy = vi
+                    .spyOn(client, 'setRecipeVisibility')
+                    .mockResolvedValue(
+                        makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                    );
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+                await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+
+                const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+                expect(within(dialog).getByText(body)).toBeInTheDocument();
+                expect(setVisibilitySpy).not.toHaveBeenCalled();
+
+                await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
+
+                expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+                await vi.waitFor(() =>
+                    expect(screen.queryByRole('alertdialog', { name: 'Make this recipe public?' })).toBeNull(),
+                );
+            },
+        );
+
+        it.each(['hidden', 'granted'] as const)(
+            '⛔ for an imported public-web recipe under %s, Make public goes at once: there is no cost to confirm and public is never final',
+            async (state) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith(state));
+                const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { sourceType: 'imported_public' });
+                const setVisibilitySpy = vi
+                    .spyOn(client, 'setRecipeVisibility')
+                    .mockResolvedValue(
+                        makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
+                    );
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+                await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
+
+                expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
+                expect(screen.queryByRole('alertdialog')).toBeNull();
+            },
+        );
+
+        it('Pro (no slots to free) makes a private recipe public at once', async () => {
             const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue(profileWith(state));
-            const client = renderOwnerDetail(RecipeVisibility.PRIVATE);
+            useUserProfileMock.mockReturnValue(profileWith('granted'));
+            const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { slots: 'unlimited' });
             const setVisibilitySpy = vi
                 .spyOn(client, 'setRecipeVisibility')
                 .mockResolvedValue(
@@ -1212,16 +1359,8 @@ describe('RecipeDetailContainer', () => {
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
 
-            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
-            expect(within(dialog).getByText(body)).toBeInTheDocument();
-            expect(setVisibilitySpy).not.toHaveBeenCalled();
-
-            await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
-
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
-            await vi.waitFor(() =>
-                expect(screen.queryByRole('alertdialog', { name: 'Make this recipe public?' })).toBeNull(),
-            );
+            expect(screen.queryByRole('alertdialog')).toBeNull();
         });
 
         it('Keep private closes the confirm and sends nothing', async () => {
@@ -1252,12 +1391,10 @@ describe('RecipeDetailContainer', () => {
             await user.click(within(dialog).getByRole('button', { name: 'Make public' }));
 
             expect(
-                await within(dialog).findByText('We couldn’t change who can see this recipe. Please try again.'),
+                await within(dialog).findByText('We couldn’t change who can see this recipe. Try again.'),
             ).toBeInTheDocument();
             // Said once, inside the confirm — not again under the page behind it.
-            expect(screen.getAllByText('We couldn’t change who can see this recipe. Please try again.')).toHaveLength(
-                1,
-            );
+            expect(screen.getAllByText('We couldn’t change who can see this recipe. Try again.')).toHaveLength(1);
         });
 
         /**
@@ -1292,7 +1429,7 @@ describe('RecipeDetailContainer', () => {
             expect(notice.closest('[role="alert"]')).not.toBeNull();
             // §6.4: in the header under the rating and visibility line, where the cook lands, not at the page foot.
             expect(notice.closest('header')).not.toBeNull();
-            expect(screen.queryByText('We couldn’t change who can see this recipe. Please try again.')).toBeNull();
+            expect(screen.queryByText('We couldn’t change who can see this recipe. Try again.')).toBeNull();
         });
 
         // Review S3: an earlier failure is not news to a confirm opened afresh.
@@ -1313,7 +1450,7 @@ describe('RecipeDetailContainer', () => {
 
             const first = await openConfirm();
             await user.click(within(first).getByRole('button', { name: 'Make public' }));
-            await within(first).findByText('We couldn’t change who can see this recipe. Please try again.');
+            await within(first).findByText('We couldn’t change who can see this recipe. Try again.');
             await user.click(within(first).getByRole('button', { name: 'Keep private' }));
 
             const second = await openConfirm();
@@ -1321,11 +1458,27 @@ describe('RecipeDetailContainer', () => {
             expect(within(second).queryByRole('alert')).toBeNull();
         });
 
-        // Plan 2026-10-14-009 D14: Make private is offered when Private is offered — granted or upsell. The paid features
-        // decide what it does. Under hidden, a failed profile read or a profile still loading it is not offered at all.
-        it.each(['granted', 'upsell'] as const)('offers Make private to a %s owner', async (state) => {
+        // Plan 2026-10-14-009 D14, REWRITTEN for ADR-0073. Make private is offered whenever Private is: for a recipe the cook
+        // wrote that is always (a slot, whatever the paid features say); for an imported public-web recipe it is granted
+        // or upsell, and not under hidden, a failed profile read or a profile still loading.
+        it.each(['granted', 'upsell', 'hidden'] as const)(
+            'offers Make private on a recipe the cook wrote to an owner under %s paid features',
+            async (state) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith(state));
+                renderOwnerDetail();
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+
+                expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeInTheDocument();
+            },
+        );
+
+        it('offers Make private on a recipe the cook wrote while the profile is still loading', async () => {
             const user = userEvent.setup();
-            useUserProfileMock.mockReturnValue(profileWith(state));
+            useUserProfileMock.mockReturnValue({ status: 'pending', data: undefined });
             renderOwnerDetail();
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
@@ -1333,16 +1486,31 @@ describe('RecipeDetailContainer', () => {
             expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeInTheDocument();
         });
 
+        it.each(['granted', 'upsell'] as const)(
+            'offers Make private on an imported public-web recipe to a %s owner',
+            async (state) => {
+                const user = userEvent.setup();
+                useUserProfileMock.mockReturnValue(profileWith(state));
+                renderOwnerDetail(RecipeVisibility.PUBLIC, { sourceType: 'imported_public' });
+
+                await user.click(
+                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
+                );
+
+                expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeInTheDocument();
+            },
+        );
+
         it.each([
             ['hidden', profileWith('hidden')],
             ['a failed profile read', { status: 'error', data: undefined }],
             ['a profile still loading', { status: 'pending', data: undefined }],
         ] as const)(
-            '⛔ under %s, offers no Make private (and still offers the rest of the menu)',
+            '⛔ under %s, an imported public-web recipe offers no Make private (and still offers the rest of the menu)',
             async (_label, stub) => {
                 const user = userEvent.setup();
                 useUserProfileMock.mockReturnValue(stub);
-                renderOwnerDetail();
+                renderOwnerDetail(RecipeVisibility.PUBLIC, { sourceType: 'imported_public' });
 
                 await user.click(
                     (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
@@ -1363,19 +1531,53 @@ describe('RecipeDetailContainer', () => {
             expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeInTheDocument();
         });
 
-        it('⛔ under upsell, an owner who taps Make private meets the Premium sheet, and nothing is sent', async () => {
+        it('⛔ under upsell, an owner who taps Make private on an imported public-web recipe meets the Pro sheet, and nothing is sent', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('upsell'));
-            const client = renderOwnerDetail();
+            const client = renderOwnerDetail(RecipeVisibility.PUBLIC, { sourceType: 'imported_public' });
             const setVisibilitySpy = vi.spyOn(client, 'setRecipeVisibility');
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            const sheet = await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' });
+            const sheet = await screen.findByRole('dialog', { name: 'Private needs Pro for this recipe' });
             expect(sheet).toBeInTheDocument();
             await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
             expect(setVisibilitySpy).not.toHaveBeenCalled();
+        });
+
+        it('a free cook who taps Make private on a recipe they wrote with a slot free makes it private, with no sheet', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('upsell'));
+            const client = renderOwnerDetail();
+            const setVisibilitySpy = vi
+                .spyOn(client, 'setRecipeVisibility')
+                .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
+
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
+        });
+
+        it('⛔ with every slot used, Make private still SENDS the write, and the server`s refusal is said on the page', async () => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(profileWith('upsell'));
+            const client = renderOwnerDetail(RecipeVisibility.PUBLIC, { slots: { used: 50, limit: 50 } });
+            const setVisibilitySpy = vi
+                .spyOn(client, 'setRecipeVisibility')
+                .mockRejectedValue(new PrivateSlotsFullError(50, 50));
+
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
+            await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
+
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(
+                await screen.findByText('Not available. All 50 of your private slots are in use.'),
+            ).toBeInTheDocument();
+            expect(screen.queryByText('We couldn’t change who can see this recipe. Try again.')).toBeNull();
         });
 
         it('a granted owner who taps Make private makes the recipe private, with no sheet', async () => {
@@ -1390,7 +1592,8 @@ describe('RecipeDetailContainer', () => {
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
             expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
-            expect(screen.queryByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Keep more recipes private' })).toBeNull();
+            expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
         });
     });
 
@@ -1519,7 +1722,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="rec_1" />), client);
 
-            expect(await screen.findByText('You can’t rate your own recipe.')).toBeInTheDocument();
+            expect(await screen.findByText('Only other cooks can rate your recipe.')).toBeInTheDocument();
             expect(screen.queryByRole('radiogroup', { name: 'Your rating' })).not.toBeInTheDocument();
             expect(screen.queryByRole('radio', { name: 'Rate 4 stars' })).not.toBeInTheDocument();
             expect(setRatingMutateMock).not.toHaveBeenCalled();

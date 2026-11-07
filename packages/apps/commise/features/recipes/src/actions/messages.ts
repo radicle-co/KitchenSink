@@ -8,6 +8,8 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
+import type { PrivateRefusal } from './privateGate.js';
+
 /** Copy for the delete-confirmation dialog (T068). */
 export interface RecipeDeleteDialogMessages {
     /** Dialog title / accessible name. */
@@ -25,18 +27,19 @@ export interface RecipeDeleteDialogMessages {
 }
 
 /**
- * Copy for the confirm a downgraded owner sees before a private recipe goes public (UX SPECIFY 2026-10-15). The body
- * states the cost plainly and per reason (`makePublicConsequence`), describes public recipes in general (a public DRAFT
- * is still the owner's alone), and offers nothing to buy: two verbs, no third choice.
+ * Copy for the confirm a cook sees before a private recipe goes public (UX SPECIFY 2026-10-15, amended by owner ruling
+ * 2026-10-26 / ADR-0073). The body states the cost plainly and per reason (`recipeMakePublicConsequence`), describes public
+ * recipes in general (a public DRAFT is still the owner's alone), and offers nothing to buy: two verbs, no third choice.
+ *
+ * ⛔ Public is NEVER final, so there is no "you won't be able to" body: going public frees a private slot, and a free slot
+ * is all it takes to make the recipe private again.
  */
 interface RecipeMakePublicDialogMessages {
     readonly title: string;
-    /** Under hidden paid features: no copy mentions Premium. */
-    readonly bodyFinal: string;
-    /** Under the upsell. */
+    /** A free cook's recipe going public: it frees one of their private slots. */
+    readonly bodyFrees: string;
+    /** An imported public-web recipe under the upsell, where Premium is still the rule. */
     readonly bodyPremium: string;
-    /** While the paid-feature state loads: true in every state it can settle to. */
-    readonly bodyUnknown: string;
     readonly confirm: string;
     /** The safe action; focus opens on it. */
     readonly keep: string;
@@ -59,7 +62,7 @@ export interface RecipeVisibilityToggleMessages {
      * (`useServerRefusedPrivate`), or the editor withheld it because the server would. Trying again cannot succeed, so it
      * is not offered. `premium` under the upsell; otherwise `final`.
      */
-    readonly privateRefused: { readonly final: string; readonly premium: string };
+    readonly privateRefused: Readonly<Record<PrivateRefusal, string>>;
 }
 
 /** Copy for the "More actions" overflow (C4) that groups the detail header's secondary owner actions. */
@@ -93,10 +96,18 @@ export interface RecipeActionMessages {
     readonly upsell: RecipeUpsellMessages;
 }
 
-/** The Premium sheet for "Private": the plain fact, then two equal choices (DSA Art. 25). */
-export interface RecipeUpsellMessages {
+/** One variant of the Premium sheet: its title and the plain fact under it. */
+export interface RecipeUpsellVariantMessages {
     readonly title: string;
     readonly body: string;
+}
+
+/** The Premium sheet for "Private": the plain fact, then two equal choices (DSA Art. 25). */
+export interface RecipeUpsellMessages {
+    /** A full set of private slots (`{total}` is the server's limit): how to free one, and that Premium has no limit. */
+    readonly noSlot: RecipeUpsellVariantMessages;
+    /** An imported public-web recipe, where Premium and a change of the cook's own are still the rule. */
+    readonly webImport: RecipeUpsellVariantMessages;
     readonly seePremium: string;
     readonly notNow: string;
     /** The sheet's Close control name. */
@@ -156,12 +167,10 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
         },
         makePublicDialog: {
             title: 'Make this recipe public?',
-            bodyFinal:
-                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
+            bodyFrees:
+                'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
             bodyPremium:
-                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
-            bodyUnknown:
-                'Anyone can see a public recipe and save a copy. You may not be able to make this one private again.',
+                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
             confirm: 'Make public',
             keep: 'Keep private',
             busy: 'Making public…',
@@ -170,10 +179,16 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             groupLabel: 'Recipe visibility',
             publicLabel: 'Public',
             privateLabel: 'Private',
-            error: 'We couldn’t change who can see this recipe. Please try again.',
+            error: 'We couldn’t change who can see this recipe. Try again.',
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
-                premium: 'This recipe is still public. Private recipes are part of Premium.',
+                // The owner's design wording of 2026-10-26 (`actions privateRefused.premium`): the premium rule is the imported
+                // public-web recipe's.
+                premium:
+                    'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.',
+                // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's
+                // limit (`visibilityNoticeOf` fills it); this package states no number of its own.
+                slots: 'Not available. All {total} of your private slots are in use.',
             },
         },
         moreMenu: {
@@ -203,9 +218,15 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             backToRecipes: 'My recipes',
         },
         upsell: {
-            title: 'Private recipes are part of Premium.',
-            body: 'Public recipes are free. Premium lets you keep a recipe to yourself.',
-            seePremium: 'See Premium',
+            noSlot: {
+                title: 'Keep more recipes private',
+                body: 'All {total} of your private slots are in use. Pro has no limit. To free a slot, make a private recipe public or delete one.',
+            },
+            webImport: {
+                title: 'Private needs Pro for this recipe',
+                body: 'This recipe is from a public web page. To keep it private, you need Pro and a change of your own to the recipe.',
+            },
+            seePremium: 'See Pro',
             notNow: 'Not now',
             close: 'Close',
         },

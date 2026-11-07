@@ -15,10 +15,12 @@ import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MoveToGroupView } from './useIngredientGroups.js';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** The Move to group sheet. */
 export const MoveToGroupSheet: FC<{ readonly view: MoveToGroupView }> = ({ view }) => {
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
 
     return (
         <Sheet

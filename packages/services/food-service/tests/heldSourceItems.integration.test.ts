@@ -57,7 +57,7 @@ const ROOT_ID = '01JQZK8N7QF3B2X4M6T0V5C1RT';
 const KALE_ID = '01JQZK8N7QF3B2X4M6T0V5C1KA';
 const GONE_ID = '01JQZK8N7QF3B2X4M6T0V5C1GN';
 const HELD_KEY = '747447';
-const BROCCOLI: CatalogSearchHit = { id: ROOT_ID, name: 'Broccoli', aliases: 'calabrese', score: 1 };
+const BROCCOLI: CatalogSearchHit = { id: ROOT_ID, name: 'Broccoli', aliases: 'calabrese', score: 1, rung: 'exact' };
 
 /** The crosswalk owner of each held key: a seed-owned root. */
 const CROSSWALK: Readonly<Record<string, string>> = { [HELD_KEY]: ROOT_ID, '1001': KALE_ID, '9999': GONE_ID };

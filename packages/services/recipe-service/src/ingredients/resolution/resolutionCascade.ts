@@ -62,6 +62,7 @@ import type { ScoredCandidate } from '@kitchensink/recipe-core/resolution/verifi
 
 import type { CallerToken } from '../../auth/CallerToken.js';
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
+import type { CorrectionOrigin, CorrectionScope } from '../domain/correctionScopePolicy.js';
 
 /**
  * The four tier identifiers R11 names — as a SET, in no meaningful order.
@@ -95,17 +96,17 @@ export type CascadeTierId = Exclude<ResolutionTierId, 'llm'>;
  *
  * ⛔ **THIS IS AN ORDERING KEY, NOT A TRUST LEVEL, and the distinction is load-bearing.** It answers "which
  * tier gets asked first"; it says nothing about whether the resulting bind may be PUBLISHED. Publish-trust
- * is KTD-A's question and it has its own home — `pendingStateOf` in `recipes/domain/lineVerification.ts`,
- * the policy layer ADR-0023 rules on. The two were nearly conflated here, and the conflation would have
- * made the type lie: a memo tier declared "gate-agreed" is telling the truth about its SOURCE and a lie
+ * is a question of which CHAIN a tier sits in (ADR-0071): the binding chain holds settled evidence only, and the
+ * proposal chain binds nothing, its state derived by `matchStateOf`, the policy layer ADR-0023 rules on. The two were
+ * nearly conflated here, and the conflation would have made the type lie: a memo tier declared "gate-agreed" is telling the truth about its SOURCE and a lie
  * about its NEAR-match branch, where nobody ever agreed the query phrase means that food. Naming the
  * classes after the SOURCE keeps every branch of every tier honest.
  *
  * ⛔ The order is the repair for a real defect. The registry shipped as `[curated, lexical, memo]` —
  * R11's literal order, written when R12 still gave tier 2 a confidence threshold to fall through on. KTD-A
- * then removed that threshold (the lexical tier resolves on ANY non-empty candidate set, because a wrong
- * top hit costs a withheld `pending-verification` line rather than a published bind), and with it the only
- * route to the memo tier for any phrase the catalog can find. That tier was dead and nothing went red,
+ * then removed that threshold (the lexical tier resolves on ANY non-empty candidate set; since ADR-0071 it runs only
+ * in the proposal chain, which binds nothing), and with it the only route to the memo tier for any phrase the
+ * catalog can find. That tier was dead and nothing went red,
  * because the order was a literal nobody could compare against its own reason.
  *
  * The classes, and why they are in this order:
@@ -262,11 +263,21 @@ export type TierOutcome =
           /** The top hit's ladder rung — the band key's first axis. Ranking tiers only. */
           readonly rung?: string | undefined;
           /**
+           * ADR-0071: the ranked foods a cook may choose from, each with its own rung — what the paste matcher shows
+           * and marks the default in. Ranking tiers only; the scored `shortlist` above ranks root ids alone.
+           */
+          readonly candidates?: readonly RankedCandidate[] | undefined;
+          /**
            * U11 (R20): the shortlist contained the CALLER's own private authored food, so its margins are
            * facts about one user's catalog rather than the shared ranker. The event records the flag, no
            * band epoch is observed, and the verification is excluded from band feedback on both sides.
            */
           readonly authorAugmented?: boolean | undefined;
+          /**
+           * The curated tier only: WHICH mapping answered, as structured facts. The name proposals read the source of a
+           * proposal from here, never from the `evidence` prose, which is for a human reading an audit.
+           */
+          readonly mapping?: { readonly scope: CorrectionScope; readonly origin: CorrectionOrigin } | undefined;
       }
     | {
           readonly kind: 'pass';
@@ -274,6 +285,13 @@ export type TierOutcome =
           /** Why this tier declined: a miss, or a hit it did not trust enough to answer with. */
           readonly reason: string;
       };
+
+/** One ranked food a cook may choose (ADR-0071): the hit's food (its named variant when food named one) and rung. */
+export interface RankedCandidate {
+    readonly food: FoodRef;
+    /** The rung food ranked the hit on, or `undefined` when food sent none (a crosswalk hit, or an older food). */
+    readonly rung: string | undefined;
+}
 
 /** The phrase being resolved, parsed once at the boundary and passed down. */
 export interface ResolutionQuery {
@@ -302,6 +320,15 @@ export interface ResolutionContext {
      * discipline `VerifiableLine.resolutionTier` applies (plan U2).
      */
     readonly caller: CallerToken | undefined;
+    /**
+     * The request deadline a tier's outbound calls must end with, or `undefined` when the request has none (by-name,
+     * the typeahead: each call is already bounded by its own transport timeout). The paste matcher's request has one
+     * (ADR-0071), so a catalog search cannot outlive it.
+     *
+     * ⛔ REQUIRED, not optional: like `caller`, every construction site decides, so a new site cannot silently run
+     * unbounded work under a deadline it forgot to forward.
+     */
+    readonly signal: AbortSignal | undefined;
 }
 
 /**
@@ -329,24 +356,19 @@ export interface ResolutionTier {
     resolve(query: ResolutionQuery, context: ResolutionContext): Promise<TierOutcome>;
 }
 
-/** What the cascade as a whole concluded. */
+/**
+ * What the cascade as a whole concluded.
+ *
+ * The `resolved` member IS the winning tier's {@link TierOutcome} `resolved` member, plus the two facts only the cascade
+ * knows, so a field added to a tier's answer reaches the cascade's without a second edit (one authoritative shape).
+ */
 export type CascadeOutcome =
-    | {
-          readonly kind: 'resolved';
-          readonly tier: ResolutionTierId;
-          /** The food the winning tier resolved to: a root or a variant. */
-          readonly food: FoodRef;
-          readonly evidence: string;
-          /** Passed through from the winning tier's outcome — see {@link TierOutcome}'s resolved member. */
-          readonly confidence?: number | undefined;
-          readonly shortlist?: readonly ScoredCandidate[] | undefined;
-          readonly rung?: string | undefined;
-          readonly authorAugmented?: boolean | undefined;
+    | (Extract<TierOutcome, { readonly kind: 'resolved' }> & {
           /** The tiers consulted, in order, up to and including the one that answered. */
           readonly consulted: readonly ResolutionTierId[];
           /** The consulted tiers whose I/O FAILED. Never overlaps with the tier that answered. */
           readonly unavailable: readonly ResolutionTierId[];
-      }
+      })
     | {
           readonly kind: 'exhausted';
           readonly consulted: readonly ResolutionTierId[];
@@ -419,6 +441,7 @@ export async function runResolutionCascade(
                 confidence: outcome.confidence,
                 shortlist: outcome.shortlist,
                 rung: outcome.rung,
+                candidates: outcome.candidates,
                 authorAugmented: outcome.authorAugmented,
                 consulted,
                 unavailable,
@@ -427,6 +450,54 @@ export async function runResolutionCascade(
     }
 
     return { kind: 'exhausted', consulted, unavailable };
+}
+
+/**
+ * What {@link consultEveryTier} heard: every tier's answer, and the tiers that could not be asked.
+ */
+export interface EveryTierAnswer {
+    /** The tiers' answers in consultation order, resolved and passed alike. A tier that failed has none. */
+    readonly outcomes: readonly TierOutcome[];
+    /** The tiers whose I/O FAILED. */
+    readonly unavailable: readonly ResolutionTierId[];
+}
+
+/**
+ * Ask EVERY tier and keep every answer: the read-only sibling of {@link runResolutionCascade}.
+ *
+ * The cascade stops at the first resolution because binding wants ONE answer, in precedence order. The editor's name
+ * proposals want what each settled source remembers, so the cook can pick among them, and nothing here binds. The two
+ * loops stay apart on purpose: one loop with a flag would make a boolean choose between binding and proposing, and the
+ * first-wins contract is what keeps a machine guess from outranking a person's ruling.
+ *
+ * Tier order is kept, so a caller can rank by it. A failing tier is reported and skipped, exactly as in the cascade.
+ *
+ * @param tiers - The tiers to ask, in order. An empty list answers nothing.
+ * @param query - The phrase and its key.
+ * @param context - Per-request facts, passed to every tier unchanged.
+ * @param observers - Where a tier failure is reported.
+ * @returns Every answer, and which tiers could not be asked.
+ * @sideEffect Delegates to tiers, which perform I/O.
+ */
+export async function consultEveryTier(
+    tiers: readonly ResolutionTier[],
+    query: ResolutionQuery,
+    context: ResolutionContext,
+    observers: CascadeObservers,
+): Promise<EveryTierAnswer> {
+    const outcomes: TierOutcome[] = [];
+    const unavailable: ResolutionTierId[] = [];
+
+    for (const tier of tiers) {
+        try {
+            outcomes.push(await tier.resolve(query, context));
+        } catch (error) {
+            unavailable.push(tier.id);
+            report(observers, tier.id, error);
+        }
+    }
+
+    return { outcomes, unavailable };
 }
 
 /**

@@ -44,6 +44,10 @@ describe('recipeServiceKeys — literal key contract', () => {
         expect(recipeServiceKeys.recipeList()).toEqual(['recipe-service', 'recipes', 'list', {}]);
     });
 
+    it('keys the private-slot standing under the recipes prefix, so a create or delete reaches it', () => {
+        expect(recipeServiceKeys.recipePrivateSlots).toEqual(['recipe-service', 'recipes', 'private-slots']);
+    });
+
     it('keys a recipe detail by id', () => {
         expect(recipeServiceKeys.recipe('rec_1')).toEqual(['recipe-service', 'recipes', 'detail', 'rec_1']);
     });
@@ -228,6 +232,15 @@ describe('recipeServiceKeys — key distinctness (no accidental cache sharing)',
     it('gives two different version numbers of one recipe distinct keys', () => {
         expect(recipeServiceKeys.recipeVersion('rec_1', 1)).not.toEqual([
             ...recipeServiceKeys.recipeVersion('rec_1', 2),
+        ]);
+    });
+
+    it('keys an ingredient name-proposals read by the typed name, outside the search prefix', () => {
+        expect(recipeServiceKeys.ingredientNameProposals('milk')).toEqual([
+            'recipe-service',
+            'ingredients',
+            'name-proposals',
+            'milk',
         ]);
     });
 

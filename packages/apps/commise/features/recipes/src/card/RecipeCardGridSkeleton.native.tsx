@@ -59,9 +59,7 @@ const SHAPE: Readonly<Record<CardVariant, FC>> = {
             <Cover />
             <View style={styles.body}>
                 <Bar width="75%" tall />
-                <Bar width="50%" tall />
                 <Bar width="66%" tall />
-                <Bar width="50%" />
                 <Bar width="33%" />
             </View>
         </>

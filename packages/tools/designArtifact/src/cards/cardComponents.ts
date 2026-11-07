@@ -37,6 +37,7 @@ import type { Avatar, AvatarDisc } from '@commise/ui/avatar';
 import type { BackToTop } from '@commise/ui/back-to-top';
 import type { Button } from '@commise/ui/button';
 import type { CheckBoxGlyph } from '@commise/ui/check-box-glyph';
+import type { ChoiceRow } from '@commise/ui/choice-row';
 import type { Chip, ChipRow } from '@commise/ui/chip';
 import type { ChromeSurface } from '@commise/ui/chrome-surface';
 import type { Combobox } from '@commise/ui/combobox';
@@ -61,11 +62,14 @@ import type { LoadingNotice } from '@commise/ui/loading-notice';
 import type { Modal } from '@commise/ui/modal';
 import type { EnterTransition } from '@commise/ui/motion';
 import type { OfflineReadSlot } from '@commise/ui/offline-notice';
+import type { OptionLabel } from '@commise/ui/option-label';
 import type { PendingBar } from '@commise/ui/pending-bar';
 import type { PhotoControl } from '@commise/ui/photo-control';
 import type { Popover } from '@commise/ui/popover';
 import type { PressScale } from '@commise/ui/press-scale';
+import type { ProgressBar } from '@commise/ui/progress-bar';
 import type { PushedPageFrame } from '@commise/ui/pushed-page';
+import type { RadioList } from '@commise/ui/radio-list';
 import type { RecipeCover } from '@commise/ui/recipe-cover';
 import type { RefreshNotice } from '@commise/ui/refresh-notice';
 import type { RouteAction } from '@commise/ui/route-link';
@@ -80,6 +84,7 @@ import type { StandIn } from '@commise/ui/stand-in';
 import type { StateNotice } from '@commise/ui/state-notice';
 import type { StatusBadge } from '@commise/ui/status-badge';
 import type { GradientSurface } from '@commise/ui/surface';
+import type { Surface } from '@commise/ui/surface-tone';
 import type { SyncNotice, SyncNoticeStack, UnreadableWorkNotice } from '@commise/ui/sync-notice';
 import type { TextInput } from '@commise/ui/text-input';
 import type { Tooltip } from '@commise/ui/tooltip';
@@ -121,6 +126,7 @@ export interface CardComponents {
     readonly BottomSheetPanel: typeof BottomSheetPanel;
     readonly Button: typeof Button;
     readonly CheckBoxGlyph: typeof CheckBoxGlyph;
+    readonly ChoiceRow: typeof ChoiceRow;
     readonly Chip: typeof Chip;
     readonly ChipRow: typeof ChipRow;
     readonly ChromeSurface: typeof ChromeSurface;
@@ -155,14 +161,17 @@ export interface CardComponents {
     readonly Modal: typeof Modal;
     readonly NutritionFigure: typeof NutritionFigure;
     readonly OfflineReadSlot: typeof OfflineReadSlot;
+    readonly OptionLabel: typeof OptionLabel;
     readonly PendingBar: typeof PendingBar;
     readonly PhotoControl: typeof PhotoControl;
     readonly Popover: typeof Popover;
     readonly PressScale: typeof PressScale;
+    readonly ProgressBar: typeof ProgressBar;
     readonly ProfileGroup: typeof ProfileGroup;
     readonly ProfileRow: typeof ProfileRow;
     readonly PublishLine: typeof PublishLine;
     readonly PushedPageFrame: typeof PushedPageFrame;
+    readonly RadioList: typeof RadioList;
     readonly RecentRecipeGrid: typeof RecentRecipeGrid;
     readonly RecipeCard: typeof RecipeCard;
     readonly RecipeCover: typeof RecipeCover;
@@ -187,6 +196,7 @@ export interface CardComponents {
     readonly StandIn: typeof StandIn;
     readonly StateNotice: typeof StateNotice;
     readonly StatusBadge: typeof StatusBadge;
+    readonly Surface: typeof Surface;
     readonly Stepper: typeof Stepper;
     readonly SyncNotice: typeof SyncNotice;
     readonly SyncNoticeStack: typeof SyncNoticeStack;
@@ -213,7 +223,7 @@ export type CardUi<Used extends CardComponentName> = Pick<CardComponents, Used>;
  *   `@commise/ui/hero-button`), so it is the shared {@link HeroButtonProps} plus that one prop.
  * - `EditorHeader`, `EditorActionBar` and `IngredientRow` take their own native contracts from the `.native.tsx` leaf
  *   (the web header and bar also take the `placeRef` the page measures them by, and the web bar `pinned`; the native
- *   row has `amountColumn`, `onLayout`, `m` and `speak`).
+ *   row has `m` and `onLayout`).
  * - `HomeTabBar` is a different component on each platform: the web bar is a router-driven `nav` of links, the mobile
  *   bar takes `onPress`, the insets and `compact`.
  *

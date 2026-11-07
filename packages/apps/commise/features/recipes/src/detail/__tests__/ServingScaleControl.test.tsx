@@ -3,7 +3,7 @@
  * Component tests for the web serving-count control — the configurable yield the recipe scales to.
  *
  * REWRITTEN for F8 (`evaluateFinal.md`): the control is the design system's `Stepper` (`[−] value [+]`, the value in
- * Inter tabular digits, `buildSpec.md` §1.11), not a hand-built twin with a Playfair number field. The Stepper has no
+ * Inter tabular digits, `buildSpec.md` §1.11), not a hand-built twin with a Manrope number field. The Stepper has no
  * typed field, so the two typed-count tests are deleted: stepping is the spec's only input, and the range clamp they
  * guarded now lives in `servingsRange` + `stepFrom`, which the step tests below still exercise at both ends.
  *
@@ -34,7 +34,7 @@ describe('ServingScaleControl (web)', () => {
         expect(within(screen.getByRole('group', { name: 'Servings' })).getByText('4')).toBeTruthy();
     });
 
-    // F8: Playfair never sets a number (`buildSpec.md` §1.5); the count is Inter `figure` with tabular digits.
+    // F8: Manrope never sets a number (`buildSpec.md` §1.5); the count is Inter `figure` with tabular digits.
     it('sets the count in tabular digits, never the display face', () => {
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
 

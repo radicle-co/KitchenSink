@@ -16,11 +16,11 @@ import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { LiveRegion } from '@commise/ui/live-region';
 import { Sheet } from '@commise/ui/sheet';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import { nativeTokens } from '@commise/ui/native';
 import { useMessages } from '@commise/i18n/react';
 import { useId, type FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { profileMessages } from './messages.js';
 import { DISPLAY_NAME_MAX_LENGTH, formatNameCounter, nameCounterOf } from './model.js';
@@ -38,7 +38,6 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
     onSave,
 }) => {
     const t = useMessages(profileMessages);
-    const { colors } = useTheme();
     const fieldId = useId();
     const counter = nameCounterOf(draft);
 
@@ -75,7 +74,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     }}
                 />
                 {counter === undefined ? null : (
-                    <Text style={[styles.counter, { color: counter.atLimit ? colors.dangerText : colors.inkMuted }]}>
+                    <Text typeRole="caption" color={counter.atLimit ? '$dangerText' : '$inkMuted'}>
                         {formatNameCounter(t.nameCounter, counter)}
                     </Text>
                 )}
@@ -83,7 +82,7 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
                     {counter?.atLimit === true ? t.nameLimitReached : ''}
                 </LiveRegion>
                 {failed ? (
-                    <Text role="alert" style={[styles.error, { color: colors.dangerText }]}>
+                    <Text role="alert" typeRole="meta" color="$dangerText">
                         {t.saveFailed}
                     </Text>
                 ) : null}
@@ -95,6 +94,4 @@ export const DisplayNameSheet: FC<DisplayNameSheetProps> = ({
 const styles = StyleSheet.create({
     // No padding of its own: the sheet already pads its content, and a second inset narrowed the field.
     body: { gap: nativeTokens.spacing[2] },
-    counter: { ...nativeTokens.type.caption },
-    error: { ...nativeTokens.type.meta },
 });

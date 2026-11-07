@@ -18,6 +18,7 @@ export type { ProgressiveAnswer } from './progressiveAnswer.js';
 // failure can say whether repeating it is worth anything (`@commise/query` composes the halves).
 export { shouldRetryFoodServiceFailure } from './retryPolicy.js';
 
+export { AccountSuspendedError, isAccountSuspendedError } from './accountSuspendedError.js';
 export {
     BadRequestError,
     CandidateMismatchError,
@@ -82,6 +83,7 @@ export type {
     PendingFoodStatus,
     PendingResponse,
     PortionView,
+    RankTierView,
     RemoteFoodView,
     ResolveFoodRefsResponse,
     ResolveResponse,

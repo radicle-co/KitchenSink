@@ -29,8 +29,8 @@ import { signInWithTicket } from './utils/auth';
  * the More-actions Popover. Chip, ChipRow, SegmentedControl, SearchField, Stepper and the UndoSnackbar have no screen
  * consumer yet (slices 3–5 adopt them); they are measured when a screen first renders them.
  *
- * The app is built with `COMMISE_PSEUDO_LOCALE=1` for this tier (`_ci.yml` `build`; `playwright.config.ts` locally),
- * the only build that routes `en-XA` (`pseudoLocaleBuildGate.test.ts`).
+ * The app is built with `COMMISE_PSEUDO_LOCALE=1` for this tier (`_ci.yml` `build`; locally `scripts/e2eLocal.sh`'s build,
+ * or `playwright.config.ts` for a dev server), the only build that routes `en-XA` (`pseudoLocaleBuildGate.test.ts`).
  */
 
 test.use({ viewport: { width: 320, height: 640 } });
@@ -169,18 +169,18 @@ test.describe('control labels at 320 px in en-XA', () => {
         await seed(page, 'none');
         await page.goto(pseudoRoute('/recipes'));
 
-        await expect(page.getByRole('button', { name: pseudoString('Add your first recipe') })).toBeVisible();
+        await expect(page.getByRole('button', { name: pseudoString('Add a recipe') })).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
 
     // Was a known defect, asserted with `test.fail` while "Create your first recipe" wrapped at 320 px. Slice 4's copy
-    // ("Add your first recipe", `buildSpec.md` §4.3) fits one line there, so the expectation is now the plain one.
+    // ("Add a recipe", `buildSpec.md` §4.3, shortened from "Add your first recipe" which wrapped in en-XA) fits one line there, so the expectation is now the plain one.
     test('the empty recipe list’s create label stays on one line', async ({ page }) => {
         await seed(page, 'none');
         await page.goto(pseudoRoute('/recipes'));
 
         await expectOneLine({
-            'Add your first recipe': page.getByRole('button', { name: pseudoString('Add your first recipe') }),
+            'Add a recipe': page.getByRole('button', { name: pseudoString('Add a recipe') }),
         });
     });
 

@@ -20,6 +20,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { BUSY_CONTROL_CLASS, Button, busyControlProps } from '@commise/ui/button';
 import { LiveRegion } from '@commise/ui/live-region';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC, ReactElement } from 'react';
 
 import type { CandidatesPanelBody as Body, CandidatesPanelBodyProps } from './candidatesPanel.js';
@@ -54,7 +55,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                                                     blocked: option.blocked,
                                                     onClick: () => onPick(option.candidateId),
                                                 })}
-                                                className={`w-full rounded-lg px-3 py-2 text-left text-body-sm text-ink transition hover:bg-ink/6 ${BUSY_CONTROL_CLASS}`}
+                                                className={`w-full rounded-lg px-3 py-2 text-left text-body-sm text-ink transition ${PRESS_FILL_CLASS.pointer} ${BUSY_CONTROL_CLASS}`}
                                             >
                                                 {option.name}
                                                 {option.summary !== undefined && (
@@ -79,7 +80,7 @@ export const CandidatesPanelBody: FC<CandidatesPanelBodyProps> = ({ view, onPick
                 return (
                     <>
                         <p role="alert">{body.text}</p>
-                        <Button variant="secondary" icon="refreshCw" onPress={onRetryRead}>
+                        <Button variant="quiet" icon="refreshCw" description={body.text} onPress={onRetryRead}>
                             {m.statusActionRetry}
                         </Button>
                     </>

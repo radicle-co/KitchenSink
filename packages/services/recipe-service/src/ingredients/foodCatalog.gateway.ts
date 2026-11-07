@@ -36,7 +36,7 @@
  * @implements FR-007 FR-047
  */
 import { Logger } from '@nestjs/common';
-import type { SearchResultView } from '@kitchensink/food-service-client';
+import type { RankTierView, SearchResultView } from '@kitchensink/food-service-client';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { FoodServiceClients } from './FoodServiceClients.factory.js';
@@ -69,6 +69,16 @@ export interface CatalogHit {
     readonly name: string;
     /** food-service's relevance score (higher is better). */
     readonly score: number;
+    /**
+     * The ranking rung food ordered this hit by (ADR-0070). Food's SQL is the one authority for it, so the lexical tier
+     * records it rather than classifying the name again. Absent on a crosswalk hit, which matched an identifier.
+     */
+    readonly rung?: RankTierView;
+    /**
+     * How food matched this hit (ADR-0070): by its `name`, or by an `identifier` (a barcode or external-key crosswalk).
+     * Absent when food is older than this service; the lexical tier then falls back to the crosswalk score.
+     */
+    readonly matchedBy?: SearchResultView['matchedBy'];
     /**
      * Per-100g macros, present only on an enriched search (`withNutrition` — plan U4b, the lexical tier's
      * path) and only where the catalog stores a qualifying row. Absent means UNKNOWN, never zero. Named in
@@ -115,6 +125,8 @@ function toCatalogHit(row: SearchResultView): CatalogHit | null {
         ...(typeof row.variant?.id === 'string' && row.variant.id.length > 0 ? { variantId: row.variant.id } : {}),
         name,
         score: typeof row.score === 'number' ? row.score : 0,
+        ...(row.rung === undefined ? {} : { rung: row.rung }),
+        ...(row.matchedBy === undefined ? {} : { matchedBy: row.matchedBy }),
         // Present only on an enriched search; the boundary renames food's projection fields into
         // `ScoredCandidate`'s spelling (energy/carbohydrate) so nothing downstream translates again.
         ...(typeof row.caloriesPer100g === 'number' ? { energyKcalPer100g: row.caloriesPer100g } : {}),
@@ -142,6 +154,21 @@ export class FoodCatalogGateway {
         private readonly options: FoodCatalogGatewayOptions,
     ) {}
 
+    /** Whether the operator has the catalog blend switched on. A switched-off catalog answers `disabled`. */
+    public get enabled(): boolean {
+        return this.options.enabled;
+    }
+
+    /**
+     * The most one {@link FoodCatalogGateway.search} can take: the typeahead client's timeout, enforced at the transport.
+     * The paste matcher starts a wave only when its searches can finish inside its request deadline (ADR-0071).
+     *
+     * @returns Milliseconds. Pure.
+     */
+    public searchTimeoutMs(): number {
+        return this.clients.typeaheadTimeoutMs();
+    }
+
     /**
      * Search the food-service golden catalog, AS the calling user.
      *
@@ -154,6 +181,8 @@ export class FoodCatalogGateway {
      *   substituted with another credential.
      * @param query - The (already trimmed) user query. Blank → no call, `ok` with no hits.
      * @param limit - Max hits to keep, applied AFTER ranking. Non-positive → no call.
+     * @param options - `withNutrition`: per-100g macros; `signal`: the caller's deadline (ADR-0071), which ends the request
+     *   as the transport timeout does, so an aborted search is `unavailable` like any other failure.
      * @returns The ranked hits plus whether the catalog contributed. Never throws.
      * @sideEffect Performs one authenticated, short-timeout food-service HTTP request (unless short-circuited).
      */
@@ -161,7 +190,7 @@ export class FoodCatalogGateway {
         caller: CallerToken | undefined,
         query: string,
         limit: number,
-        options: { readonly withNutrition?: boolean } = {},
+        options: { readonly withNutrition?: boolean; readonly signal?: AbortSignal | undefined } = {},
     ): Promise<CatalogSearchOutcome> {
         if (!this.options.enabled) {
             return { hits: [], availability: 'disabled' };
@@ -181,7 +210,13 @@ export class FoodCatalogGateway {
         }
 
         try {
-            const result = await this.clients.typeahead(caller).search(trimmed, options.withNutrition === true);
+            const result = await this.clients
+                .typeahead(caller)
+                .search(
+                    trimmed,
+                    options.withNutrition === true,
+                    ...(options.signal === undefined ? [] : [{ signal: options.signal }]),
+                );
 
             if (!Array.isArray(result?.results)) {
                 throw new TypeError('food-service search returned no `results` array');

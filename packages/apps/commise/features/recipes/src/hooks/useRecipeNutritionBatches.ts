@@ -1,56 +1,52 @@
 /**
- * @module @commise/features-recipes/hooks — the RENDER-AS-YOU-FETCH seam for the deferred calorie lookup.
+ * @module @commise/features-recipes/hooks — the deferred calorie lookup's one read seam, for both platforms.
  *
- * **Pattern: Repository read seam (`recipeQueries().nutritionBatch`) driven as a Command at render time.**
- * The surface knows which recipes are on screen; this hook turns that into an in-flight request and a
- * per-recipe promise the card's Suspense boundary can `use()`.
+ * **Pattern: Repository read seam (`recipeQueries().nutritionBatch`) observed through `useQueries`, folded by `combine`
+ * into a lookup.** The surface knows which recipes are on screen, grouped as they were loaded; this hook subscribes to
+ * ONE batch query per page and hands the surface a lookup from recipe id to that page's READING — `pending`, `failed`
+ * or `settled` (`RecipeNutritionBatchReading`).
  *
- * ⛔ WHY `ensureQueryData` AND NOT `useQuery`. ADR-0021 §6: mobile "calls `ensureQueryData` the moment the
- * ids are known, which returns a promise AND seeds the cache, so render finds an in-flight query". A
- * `useQuery` would hand the surface `isPending` — the prop-driven, fetch-ON-render shape — and the card
- * would have to re-derive a loading state the Suspense fallback already expresses. The promise is the
- * contract, and the skeleton is mounted from the first frame rather than from the first effect.
+ * ⛔ A READING, NEVER A PROMISE (ADR-0079). This hook used to hand each card a promise for a Suspense boundary to
+ * `use()`. A committed calorie skeleton's retry lane then ran ahead of every pinged deferred update on its screen —
+ * "See all", a library sort, a collection switch — so each of them waited on the calorie lookup, up to its 12 s
+ * deadline. A reading cannot suspend, so the lookup cannot hold anything up. `repoGuards`' `nutritionNeverSuspends`
+ * refuses `use(`, `Suspense` and `useSuspense*` in this file.
  *
- * ⛔ TWO DIFFERENT MECHANISMS, and confusing them is how this breaks. `use()` memoizes per PROMISE and the
- * nutrition boundary keys its error reset on promise IDENTITY, so what a card receives must be the same
- * object every render. It is NOT the memo below that guarantees that — `queryClient.ensureQueryData` answers
- * a cached query with a fresh `Promise.resolve(cachedData)` on every call, so its return value is useless as
- * an identity. The identity is `Query.promise`, the retryer's own promise, which is the same object during
- * the fetch and after it settles. The memo does the OTHER job: `ensureQueryData` re-fetches a query it finds
- * stale, so calling it once per render would fire a fresh request on every render past the 2-minute
- * `staleTime` — each of which re-renders. Both halves are pinned by their own test, and each was watched to
- * fail alone.
+ * ⚠️ THE MAPPING IS THE CONTRACT ({@link toBatchReading}). Data present is `settled` — through a background refetch
+ * (no skeleton flashes back over a figure) and through a later FAILED refetch (a figure is not withdrawn for a blip).
+ * An error with no data is `failed`, a terminal answer. Anything else is `pending`, which the read seam's deadline
+ * (`NUTRITION_BATCH_DEADLINE_MS`, in the client) always ends.
  *
- * ⚠️ PAGES ARE BATCHED SEPARATELY, and that is a decision rather than an accident of the signature. An
- * infinite surface (discovery) accumulates results; batching every accumulated id as ONE request would
- * change the id set — and therefore the query key AND the promise — on every "load more", so every chip
- * already on screen would fall back to its skeleton and the whole set would be re-fetched. One request per
- * page keeps each page's promise settled forever and asks food only about the recipes that are new. A
- * non-paged surface passes a single page.
+ * ⚠️ PAGES ARE BATCHED SEPARATELY, and that is a decision rather than an accident of the signature. An infinite
+ * surface (discovery) accumulates results; batching every accumulated id as ONE request would change the id set — and
+ * therefore the query key — on every "load more", so every chip already on screen would fall back to its skeleton and
+ * the whole set would be re-fetched. One query per page keeps each page's answer and asks food only about the recipes
+ * that are new. A non-paged surface passes a single page.
  *
- * ⚠️ THE CAP IS THE CONTRACT'S, and this hook does NOT truncate to it. A page above the published 500-id
- * maximum is refused by the client before the round trip (REQ-IF-008 forbids silent truncation), the promise
- * rejects, and every card on that page renders a blank slot — the same terminal outcome as any other failed
- * lookup, never a skeleton. Every surface that uses this hook pages far below the cap.
+ * ⚠️ THE CAP IS THE CONTRACT'S, and this hook does NOT truncate to it. A page above the published 500-id maximum is
+ * refused by the client before the round trip (REQ-IF-008 forbids silent truncation), the query fails, and every card
+ * on that page reads `failed` — never a skeleton. Every surface that uses this hook pages far below the cap.
  *
  * Platform-agnostic: no DOM and no React Native imports, so web and mobile drive the same seam.
  */
-import { useQueryClient, type QueryClient, type QueryState } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useQueries, type QueryObserverResult } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { MAX_NUTRITION_RECIPE_IDS, type RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
+import type { RecipeNutritionBatchReading } from '../nutrition/model.js';
+
 /**
- * Resolve the batch promise covering ONE recipe.
+ * Resolve the batch reading covering ONE recipe.
  *
  * Returns `null` when no page on screen carries that recipe — a value the host must branch on, exactly as
- * `selectRecipeCalorieState` returns `null` for a recipe the RESPONSE omitted. The two nulls are different
- * facts ("we never asked" vs "the answer says nothing about it") that happen to render the same way: no
- * figure, and no skeleton left running.
+ * `selectRecipeCalorieState` returns `null` for a recipe the RESPONSE omitted. The two nulls are different facts ("we
+ * never asked" vs "the answer says nothing about it") that render the same way: no figure, and no skeleton left
+ * running.
  */
-export type RecipeNutritionLookup = (recipeId: string) => Promise<RecipeNutritionResponse> | null;
+export type RecipeNutritionLookup = (recipeId: string) => RecipeNutritionBatchReading | null;
 
 /**
  * Split a flat list of recipe ids into batchable pages for {@link useRecipeNutritionBatches}. Pure.
@@ -79,13 +75,11 @@ export function toRecipeNutritionPages(recipeIds: readonly string[]): readonly (
 }
 
 /**
- * Build the identity of a set of pages — what this memo re-batches on.
+ * Build the identity of a set of pages — what the hook rebuilds its queries and its `combine` on.
  *
- * Each page is sorted, mirroring `recipeServiceKeys.recipeNutrition`, which sorts ids INTO the query key so
- * that the same recipes in a different order are ONE logical read (the discovery sort control re-orders the
- * same results). Keeping the two sorts in step means a re-sort neither rebuilds this map nor re-enters the
- * cache. It is NOT what makes the returned promise stable — that is `Query.promise`, in the loop below — so
- * dropping this sort degrades work, not correctness, which is why no test here can distinguish it. Pure.
+ * Each page is sorted, mirroring `recipeServiceKeys.recipeNutrition`, which sorts ids INTO the query key so that the
+ * same recipes in a different order are ONE logical read (a sort control re-orders the same results). Keeping the two
+ * sorts in step means a re-sort keeps the same queries AND the same lookup, so no card re-renders for it. Pure.
  *
  * @param recipeIdPages - The pages of recipe ids currently on screen.
  * @returns A string that changes if and only if the batched READS change.
@@ -95,183 +89,103 @@ function pagesSignature(recipeIdPages: readonly (readonly string[])[]): string {
 }
 
 /**
- * The pages a {@link pagesSignature} was built from — each page's ids SORTED, which is how the nutrition query
- * keys them anyway (`recipeServiceKeys.recipeNutrition` sorts), so reading pages back from the signature asks for
- * exactly the queries the caller's pages would.
+ * The pages a {@link pagesSignature} was built from — each page's ids SORTED, which is how the nutrition query keys
+ * them anyway, so reading pages back from the signature asks for exactly the queries the caller's pages would.
  *
- * The memo below reads its pages from HERE rather than closing over the caller's array: the array is rebuilt on
- * most renders, so the memo is keyed on the signature, and a memo that read anything else would be depending on a
+ * The hook reads its pages from HERE rather than closing over the caller's array: the array is rebuilt on most
+ * renders, so the hook's memo is keyed on the signature, and a memo that read anything else would be depending on a
  * value its key does not cover.
  *
  * @param signature - A signature from {@link pagesSignature}. Ids never contain a space or `|`.
- * @returns The pages the signature encodes. ⚠️ NOT a total inverse of {@link pagesSignature}: no pages and
- *   one empty page both encode to `''` and both read back as NO pages. An empty page in any other
- *   position survives (`'a|'` → `[['a'], []]`), which is why the memo still skips empty pages.
+ * @returns The pages the signature encodes, an empty page as `[]`. ⚠️ NOT a total inverse: no pages and one empty
+ *   page both encode to `''`, which reads back as one empty page. Both mean "ask about nothing", and the hook skips
+ *   every empty page, so the two readings cannot differ in what is asked.
  */
 function pagesFromSignature(signature: string): readonly (readonly string[])[] {
-    // ⛔ NO PAGES ROUND-TRIPS TO NO PAGES. `[].map(…).join('|')` is `''`, and `''.split('|')` is `['']` — so
-    // without this line `[]` came back as `[[]]`, ONE EMPTY PAGE, and the pair stopped round-tripping at its
-    // most common input.
-    //
-    // ⛔ THIS GUARD AND THE MEMO'S `continue` COVER DISJOINT INPUTS, AND BOTH ARE REQUIRED. This one answers a
-    // surface with NO pages (`[]` → `''`), which never reaches the loop. The `continue` answers a surface with
-    // SOME empty pages (`[['a'], []]` → `'a|'`) — a non-empty signature, which DOES round-trip its empty page
-    // back out, and without the `continue` that page sends `recipeIds: []`, which
-    // `recipeNutritionRequestSchema`'s `.min(1)` refuses. Each has its own test ("asks about nothing when
-    // there are no pages", "skips an EMPTY page rather than sending it") and NEITHER TEST CAN DETECT THE
-    // OTHER'S GUARD, because given either one the other is inert. Do not "simplify" one away on that evidence.
-    //
-    // ⚠️ `''` is genuinely AMBIGUOUS — `[]` and `[[]]` both produce it — and `[]` is the right reading: both
-    // mean "ask about nothing", and answering with zero pages needs no downstream skip to be correct.
-    if (signature === '') {
-        return [];
-    }
-
     return signature.split('|').map((page) => (page === '' ? [] : page.split(' ')));
 }
 
-/** The settled promise handed out for each response object — see {@link settledBatch}. */
-const settledBatches = new WeakMap<RecipeNutritionResponse, Promise<RecipeNutritionResponse>>();
-
 /**
- * The ONE promise for a batch response that has already landed, marked `fulfilled` with its value under React's
- * thenable protocol, so `use()` reads it synchronously instead of suspending to find out. Keyed on the response object,
- * so it is the same promise for as long as the cached data is the same, and a refetch that brings new data brings a new
- * one. A `WeakMap` holds nothing a dropped response would otherwise release.
+ * Read one page's query as a batch reading. Pure, and TOTAL over every query state.
  *
- * @param data - A response the query cache holds.
- * @returns The fulfilled promise for that response.
+ * Data first, on purpose: a query keeps its last data through a background refetch and through a failed one, and a
+ * card that has a figure keeps showing it. Only with NO data does an error become `failed`.
+ *
+ * @param result - The page's query observer result (only its data and status are read).
+ * @returns The reading a card renders.
  */
-function settledBatch(data: RecipeNutritionResponse): Promise<RecipeNutritionResponse> {
-    const known = settledBatches.get(data);
-
-    if (known !== undefined) {
-        return known;
+function toBatchReading(
+    result: Pick<QueryObserverResult<RecipeNutritionResponse>, 'data' | 'status'>,
+): RecipeNutritionBatchReading {
+    if (result.data !== undefined) {
+        return { status: 'settled', response: result.data };
     }
 
-    const settled = Object.assign(Promise.resolve(data), { status: 'fulfilled' as const, value: data });
-    settledBatches.set(data, settled);
-
-    return settled;
-}
-
-/** The rejected promise handed out for each failed query state — see {@link failedBatch}. */
-const failedBatches = new WeakMap<QueryState<RecipeNutritionResponse>, Promise<RecipeNutritionResponse>>();
-
-/**
- * The ONE promise for a batch that has FAILED and is not being fetched again, marked `rejected` under React's thenable
- * protocol so `use()` throws at once instead of suspending to find out — the twin of {@link settledBatch}.
- *
- * ⛔ WHY A FAILED QUERY IS NOT HANDED BACK TO `ensureQueryData`. For a query with no data, `ensureQueryData` FETCHES,
- * and this hook's memo starts from scratch on every render React does not commit — including the root re-render React
- * makes to recover after a card's `use()` throws. So each attempt started a new request and handed the cards a new
- * pending promise, and a deferred render (`useDeferredDiscoveryCriteria`) waited behind every one of them: a refused
- * batch kept the previous body on screen for as long as the attempts kept coming. TanStack's own suspense reads refuse
- * the same loop (`ensurePreventErrorBoundaryRetry`: a failed query is not refetched by the render that reads it). A
- * failure is held exactly as a success is — for as long as the cache holds the query — and a refetch from anywhere else
- * brings a new state, and with it a new promise, which is what resets the card's error boundary.
- *
- * Keyed on the query's STATE object, which query-core replaces on every change, so the promise is the same for as long
- * as the failure is the same.
- *
- * @param state - The failed state the query cache holds.
- * @returns The rejected promise for that state, with a handler attached so it is never an unhandled rejection.
- */
-function failedBatch(state: QueryState<RecipeNutritionResponse>): Promise<RecipeNutritionResponse> {
-    const known = failedBatches.get(state);
-
-    if (known !== undefined) {
-        return known;
-    }
-
-    const failed = Object.assign(Promise.reject(state.error), { status: 'rejected' as const, reason: state.error });
-    failed.catch(() => undefined);
-    failedBatches.set(state, failed);
-
-    return failed;
+    return result.status === 'error' ? { status: 'failed' } : { status: 'pending' };
 }
 
 /**
- * The promise for ONE page's batch, starting its request when the cache has no answer for it.
+ * Subscribe to the deferred nutrition lookup for the recipes on screen and hand each recipe its page's reading.
  *
- * ⛔ THE IDENTITY COMES FROM THE QUERY, NOT FROM THE CALLER'S MEMO. `ensureQueryData` answers a cached query with a fresh
- * `Promise.resolve(data)` every call, and the memo recomputes whenever ANY page changes — and on every retry of a render
- * React has not committed. A page whose data has landed is handed `settledBatch(data)`: one promise per response, already
- * marked fulfilled, which `use()` reads at once and which survives every recompute. A page whose batch failed is handed
- * `failedBatch(state)` and is NOT asked again (see there). A page still fetching is handed `Query.promise`, the
- * retryer's own promise — but only while the fetch runs: query-core clears the retryer when the fetch settles, which is
- * why it cannot serve a settled page. `ensured` covers the rest.
- *
- * The card's error boundary is what turns a failed lookup into a blank slot, but it can only do that once it has
- * rendered. Until then nothing of ours is attached to the promise, and a rejection with no handler is an unhandled
- * rejection — which crashes a React Native app rather than blanking a chip. So a handler is attached here; `.catch`
- * returns a NEW promise, and the identity handed to the boundary is the original.
- *
- * @param queryClient - The app's query cache.
- * @param options - The page's `nutritionBatch` read.
- * @returns The page's batch promise, stable for as long as the cached answer is the same.
- * @sideEffect Starts the page's request when the cache holds neither an answer nor a failure for it.
- */
-function batchPromise(
-    queryClient: QueryClient,
-    options: ReturnType<ReturnType<typeof recipeQueries>['nutritionBatch']>,
-): Promise<RecipeNutritionResponse> {
-    const known = queryClient.getQueryCache().find<RecipeNutritionResponse>({ queryKey: options.queryKey });
-
-    if (known?.state.status === 'error' && known.state.fetchStatus === 'idle') {
-        return failedBatch(known.state);
-    }
-
-    const ensured = queryClient.ensureQueryData(options);
-    const query = queryClient.getQueryCache().find<RecipeNutritionResponse>({ queryKey: options.queryKey });
-    const promise = query?.state.data === undefined ? (query?.promise ?? ensured) : settledBatch(query.state.data);
-
-    promise.catch(() => undefined);
-    ensured.catch(() => undefined);
-
-    return promise;
-}
-
-/**
- * Start the deferred nutrition lookup for the recipes on screen and hand each recipe the promise that
- * covers it.
- *
- * @param recipeIdPages - The recipe ids on screen, grouped as they were LOADED (one page per fetched page).
- *   An empty page is skipped rather than sent: the service rejects an empty id list, and `ensureQueryData`
- *   does not honour the read seam's own `enabled` gate (that is a hook-level option).
- * @returns A lookup from recipe id to the batch promise covering it, or `null` for a recipe no page carries.
- * @sideEffect Starts (or joins) one HTTP request per page and seeds the query cache — during render, by
- *   design. Repeat renders with the same pages re-use the memoized promises and start nothing.
+ * @param recipeIdPages - The recipe ids on screen, grouped as they were LOADED (one page per fetched page). An empty
+ *   page is skipped rather than sent: the service rejects an empty id list.
+ * @returns A lookup from recipe id to the reading of the page that carries it, or `null` for a recipe no page carries.
+ *   The SAME function for as long as the pages and their readings are the same, so a host may memoize on it.
+ * @sideEffect Starts (or joins) one HTTP request per page when the host commits, through the query cache.
  */
 export function useRecipeNutritionBatches(recipeIdPages: readonly (readonly string[])[]): RecipeNutritionLookup {
     const client = useRecipeServiceClient();
-    const queryClient = useQueryClient();
     const signature = pagesSignature(recipeIdPages);
 
-    const byRecipeId = useMemo(() => {
-        const lookup = new Map<string, Promise<RecipeNutritionResponse>>();
+    // Keyed on the SIGNATURE, not on `recipeIdPages` itself: a container that rebuilds its id array every render (the
+    // common case — `pages.map(...)`) would otherwise rebuild the query list and the `combine` below on every render.
+    // The pages are READ from that signature (`pagesFromSignature`), so the key covers everything this depends on.
+    // ⛔ EVERY empty page is skipped: the service REJECTS an empty id list (`.min(1)`), so sending one is a
+    // guaranteed failure, and it covers both `[]` and `[[]]`, which share the signature `''`.
+    const pages = useMemo(() => pagesFromSignature(signature).filter((page) => page.length > 0), [signature]);
 
-        for (const page of pagesFromSignature(signature)) {
-            if (page.length === 0) {
-                continue;
-            }
+    // ⛔ STABLE BY CONSTRUCTION. `useQueries` re-runs `combine` only when the function or a query result changes, so a
+    // `combine` rebuilt every render would hand every host a new lookup — and a new render prop, and a re-render of
+    // every card — on every render.
+    const combine = useCallback(
+        (results: readonly Pick<QueryObserverResult<RecipeNutritionResponse>, 'data' | 'status'>[]) => {
+            const byRecipeId = new Map<string, RecipeNutritionBatchReading>();
 
-            const promise = batchPromise(queryClient, recipeQueries(client).nutritionBatch(page));
+            pages.forEach((page, index) => {
+                const result = results[index];
 
-            for (const recipeId of page) {
-                // First page wins: a recipe that appeared on page one keeps page one's settled promise even
-                // if a later page repeats it, so its chip never falls back to a skeleton.
-                if (!lookup.has(recipeId)) {
-                    lookup.set(recipeId, promise);
+                // Index-bound (`noUncheckedIndexedAccess` is off): `results` follows `queries`, which is `pages`.
+                if (result === undefined) {
+                    return;
                 }
-            }
-        }
 
-        return lookup;
-        // Keyed on the SIGNATURE, not on `recipeIdPages` itself: a container that rebuilds its id array every
-        // render (the common case — `pages.map(...)`) would otherwise re-batch on every render. The pages are
-        // READ from that signature (`pagesFromSignature`), so the key covers everything the memo depends on.
-    }, [signature, client, queryClient]);
+                const reading = toBatchReading(result);
 
-    return useMemo(() => (recipeId: string) => byRecipeId.get(recipeId) ?? null, [byRecipeId]);
+                for (const recipeId of page) {
+                    // First page wins: a recipe that appeared on page one keeps page one's reading even if a later
+                    // page repeats it, so its chip never falls back to a skeleton.
+                    if (!byRecipeId.has(recipeId)) {
+                        byRecipeId.set(recipeId, reading);
+                    }
+                }
+            });
+
+            return (recipeId: string): RecipeNutritionBatchReading | null => byRecipeId.get(recipeId) ?? null;
+        },
+        [pages],
+    );
+
+    return useQueries({
+        queries: useMemo(
+            () =>
+                pages.map((page) => ({
+                    ...recipeQueries(client).nutritionBatch(page),
+                    // Stated, not inherited: a failed lookup is a READING a card renders, never a throw to the screen's
+                    // error boundary, whatever an app's query defaults become.
+                    throwOnError: false,
+                })),
+            [pages, client],
+        ),
+        combine,
+    });
 }

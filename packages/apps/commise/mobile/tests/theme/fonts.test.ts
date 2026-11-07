@@ -5,7 +5,7 @@
  *   design scale (`nativeTokens.fontFace.display` / `.body`) → `theme/fonts.ts` aliases → the faces `App.tsx` LOADS
  *
  * If the last link breaks — a token naming a face nobody registers — React Native falls back to the system
- * serif silently, with no error and no failing type, which is exactly how the Playfair regression this suite
+ * serif silently, with no error and no failing type, which is exactly how the Manrope regression this suite
  * exists for shipped. So the app's own `useFonts` registration is read back from source and matched.
  */
 import { readFileSync } from 'node:fs';
@@ -16,7 +16,7 @@ import { nativeTokens } from '@commise/ui/native';
 
 import { DISPLAY_FONT_BOLD, DISPLAY_FONT_SEMIBOLD } from '../../src/theme/fonts.js';
 
-/** `App.tsx` source — the single place the Playfair faces are registered with `expo-font`. */
+/** `App.tsx` source — the single place the Manrope faces are registered with `expo-font`. */
 const appSource = readFileSync(path.resolve(import.meta.dirname, '../../App.tsx'), 'utf8');
 
 /** The face names passed to `useFonts({ … })` at app start. */
@@ -47,7 +47,7 @@ describe('mobile display-font faces', () => {
     });
 
     // §1.5: native must register Inter 400/500/600/700. A body type role naming a face nobody loads renders the
-    // system font with no error — the same silent failure as the Playfair regression above, one family over.
+    // system font with no error — the same silent failure as the Manrope regression above, one family over.
     it('loads every body (Inter) face the design system names', () => {
         const faces = registeredFaces();
 

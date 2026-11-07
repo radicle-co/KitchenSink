@@ -2,9 +2,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { CatalogSearchResultView } from '@kitchensink/food-service-client';
 import type { RecipeDetail } from '@kitchensink/recipe-core';
 
+import { role } from '@commise/ui/colors';
+
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi, ownFoodLedger } from './utils/foodApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { rgb } from './utils/surfaceToneCascade';
 import { editorTopChrome, ingredientOpen, openIngredientEditor, openRecipeEditor } from './utils/recipeEditor';
 
 /**
@@ -264,8 +267,12 @@ test.describe('the food list keeps clear of the editor’s chrome (V3-1, case B 
 
         expectClearOfChrome(landed);
         expect(landed.popup.bottom).toBeLessThanOrEqual(landed.field.top);
-        // Above its field the popup took its full height at once, so arriving options never moved its top edge (P2).
-        expect(landed.popup.top).toBeCloseTo(held.popup.top, 0);
+        // Reversed by f002ecedc ("reverses P9's fixed height above the field"): both sides size to their content. The
+        // loader is short; the arrived list is taller and grows UPWARD from the same edge against the field, so the
+        // bottom edge stays put and the top edge rises. The side was still chosen at the full height (asserted above).
+        expect(landed.popup.height).toBeGreaterThan(held.popup.height);
+        expect(landed.popup.bottom).toBeCloseTo(held.popup.bottom, 0);
+        expect(landed.popup.top).toBeLessThan(held.popup.top);
     });
 });
 
@@ -302,7 +309,7 @@ test.describe('the food list keeps clear of the header band at desktop width (V3
         expect(frame.popup.bottom).toBeLessThanOrEqual(frame.viewportHeight - 8 + 0.5);
     });
 
-    test('1280 px: the keyboard’s active option has a linen (surfaceMuted) fill and a seafoam ring (V3-4, case F)', async ({
+    test('1280 px: the keyboard’s active option has a surfaceMuted fill and a focus-ring (steel) ring (V3-4, case F)', async ({
         page,
     }) => {
         const field = await middleField(page, await openIngredients(page));
@@ -320,9 +327,10 @@ test.describe('the food list keeps clear of the header band at desktop width (V3
             return { background: style.backgroundColor, ring: style.boxShadow };
         });
 
-        // The `surfaceMuted` role: pearl became linen (#F3EEE6) in the owner's D11 warm greys.
-        expect(paint.background).toBe('rgb(243, 238, 230)');
-        expect(paint.ring).toContain('rgb(49, 128, 122)');
+        // The `surfaceMuted` and `focusRing` roles, read from the tables: the literals here (linen #F3EEE6, a teal ring)
+        // went stale when the storm-ocean redesign moved both (the owner's palette has no teal).
+        expect(paint.background).toBe(rgb(role.surfaceMuted));
+        expect(paint.ring).toContain(rgb(role.focusRing));
         expect(paint.ring).toContain('inset');
     });
 });

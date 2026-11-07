@@ -8,7 +8,7 @@
  * "The new step's field takes focus" (§7.6) is pinned in "adding, empty and refused".
  */
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC } from 'react';
 
@@ -42,6 +42,7 @@ import { stepFieldId } from '../fieldIds.js';
 import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js';
 import type { RecipeFormErrors } from '../validate.js';
 import { defaultRecipeFormValues, type RecipeFormStep, type RecipeFormValues } from '../values.js';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 const e = editorMessages.en;
 
@@ -126,7 +127,9 @@ describe('RecipeInstructionsFields (native) — the list', () => {
         const theme = scheme === 'dark' ? roleDark : role;
 
         expect(getComputedStyle(numeral.parentElement ?? numeral).backgroundColor).toBe(rgb(theme.selectedFill));
-        expect(getComputedStyle(numeral).color).toBe(rgb(theme.ink));
+        // REWRITTEN (designer ruling 2026-11-03): the numeral is the design-system Text, whose colour is a theme variable
+        // (`var(--ink)`), so it is read resolved through the theme, as the Text's own tests do.
+        expect(resolvedColour(numeral, 'color')).toBe(rgb(theme.ink));
     });
 
     it('a return inserts a line break', () => {

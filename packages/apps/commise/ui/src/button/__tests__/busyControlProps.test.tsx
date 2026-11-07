@@ -77,6 +77,42 @@ describe('busyControlProps', () => {
         expect(onClick).not.toHaveBeenCalled();
     });
 
+    /**
+     * A control can be REFUSED because a sibling's press is in flight: a food list while one food is being sent. It
+     * claims no work of its own, and it is never natively disabled, even when a rule also blocks it: it may be the
+     * control that holds focus when the send starts, and a browser drops focus from a disabled control (2.4.3).
+     */
+    it('⛔ a refused control stays FOCUSABLE, says so without claiming to be busy, and refuses the press', () => {
+        const onClick = vi.fn();
+
+        render(
+            <button type="button" {...busyControlProps({ busy: false, refused: true, blocked: true, onClick })}>
+                Skim milk
+            </button>,
+        );
+        const control = screen.getByRole('button', { name: 'Skim milk' });
+        control.focus();
+        fireEvent.click(control);
+
+        expect(control.getAttribute('aria-disabled')).toBe('true');
+        expect(control.hasAttribute('aria-busy')).toBe(false);
+        expect(control.hasAttribute('disabled')).toBe(false);
+        expect(document.activeElement).toBe(control);
+        expect(onClick).not.toHaveBeenCalled();
+    });
+
+    it('busy and refused together read busy: the control just pressed says its work is in flight', () => {
+        render(
+            <button type="button" {...busyControlProps({ busy: true, refused: true })}>
+                Skim milk
+            </button>,
+        );
+        const control = screen.getByRole('button', { name: 'Skim milk' });
+
+        expect(control.getAttribute('aria-busy')).toBe('true');
+        expect(control.getAttribute('aria-disabled')).toBe('true');
+    });
+
     it('is not disabled when nothing blocks it', () => {
         render(
             <button type="button" {...busyControlProps({ busy: false, onClick: vi.fn() })}>

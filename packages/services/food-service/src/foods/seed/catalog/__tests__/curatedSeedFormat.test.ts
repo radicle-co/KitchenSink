@@ -52,6 +52,19 @@ const [FLAT, POINT] = ROOT.variants;
 describe('parseCuratedCatalog — refusals within one line', () => {
     it.each<[string, unknown, SeedRule, string]>([
         [
+            'a default term that is empty (ADR-0070 §4)',
+            { ...ROOT, defaultFor: ['milk', ''] },
+            'malformedRecord',
+            'fdc:100',
+        ],
+        ['a defaultFor that is not a list', { ...ROOT, defaultFor: 'milk' }, 'malformedRecord', 'fdc:100'],
+        [
+            'a defaultFor on a sourceless root that is not a list',
+            { ...makeSourcelessRoot(), defaultFor: null },
+            'malformedRecord',
+            'curated:absinthe',
+        ],
+        [
             'a part with no attribute',
             { ...ROOT, variants: [{ item: 'fdc:101', parts: [{ text: 'flat' }] }] },
             'partWithoutAttribute',
@@ -382,6 +395,26 @@ describe('parseCuratedCatalog — accepted shapes', () => {
 
     it('accepts an empty catalog', () => {
         expect(parseCuratedCatalog('')).toEqual([]);
+    });
+
+    it('reads a root that states no defaultFor as the default for no noun (ADR-0070 §4)', () => {
+        const absent = { seedKey: 'fdc:100', name: 'beef brisket', synonyms: [], item: 'fdc:100', variants: [] };
+        const sourceless = { ...absent, seedKey: 'curated:absinthe', name: 'absinthe', item: null, nutrition: null };
+
+        const roots = parseCuratedCatalog(`${JSON.stringify(absent)}\n${JSON.stringify(sourceless)}\n`);
+
+        expect(roots.map((root) => root.defaultFor)).toEqual([[], []]);
+    });
+
+    it('reads defaultFor on either arm, in written order', () => {
+        const roots = parseCuratedCatalog(
+            catalogText([
+                makeItemRoot({ name: 'whole milk', defaultFor: ['milk', 'Milk, fluid'] }),
+                makeSourcelessRoot({ defaultFor: ['green fairy'] }),
+            ]),
+        );
+
+        expect(roots.map((root) => root.defaultFor)).toEqual([['milk', 'Milk, fluid'], ['green fairy']]);
     });
 });
 

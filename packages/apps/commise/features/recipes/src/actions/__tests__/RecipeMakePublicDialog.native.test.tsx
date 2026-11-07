@@ -4,12 +4,13 @@
  * confirm and keep, busy and failed — so the two platforms cannot drift.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 import { RecipeMakePublicDialog } from '../RecipeMakePublicDialog.js';
 import { recipeActionMessages } from '../messages.js';
 import type { RecipeMakePublicDialogProps } from '../model.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 const m = recipeActionMessages.en.makePublicDialog;
 
@@ -18,7 +19,7 @@ afterEach(cleanup);
 function renderDialog(overrides: Partial<RecipeMakePublicDialogProps> = {}) {
     const props: RecipeMakePublicDialogProps = {
         open: true,
-        consequence: 'final',
+        consequence: 'frees',
         onConfirm: vi.fn(),
         onKeep: vi.fn(),
         ...overrides,
@@ -36,9 +37,8 @@ describe('RecipeMakePublicDialog (native)', () => {
     });
 
     it.each([
-        ['final', m.bodyFinal],
+        ['frees', m.bodyFrees],
         ['premium', m.bodyPremium],
-        ['unknown', m.bodyUnknown],
     ] as const)(
         'under %s, is an interrupting alert titled by the question, saying what it costs',
         (consequence, body) => {
@@ -57,7 +57,7 @@ describe('RecipeMakePublicDialog (native)', () => {
 
         expect(names).toEqual(expect.arrayContaining(['Keep private', 'Make public']));
         expect(names).toHaveLength(2);
-        expect(screen.queryByRole('button', { name: /Premium/u })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Pro/u })).toBeNull();
     });
 
     it('Make public confirms; Keep private keeps', () => {

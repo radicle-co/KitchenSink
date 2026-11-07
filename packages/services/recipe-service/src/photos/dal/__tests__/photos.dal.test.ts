@@ -46,7 +46,7 @@ describe('PhotosDal.create', () => {
     it('appends the photo with sortOrder = current count and returns the inserted row', async () => {
         const inserted = makeRecipePhotoRow({ recipeId: RECIPE_ID, sortOrder: 3 });
         // COUNT (3 existing) → INSERT returning
-        control.enqueue([{ count: 3 }], [inserted]);
+        control.enqueue([], [{ count: 3 }], [inserted]);
 
         const result = await dal.create({
             recipeId: RECIPE_ID,
@@ -69,7 +69,7 @@ describe('PhotosDal.create', () => {
 
     it('inserts the first photo at sortOrder 0', async () => {
         const inserted = makeRecipePhotoRow({ recipeId: RECIPE_ID, sortOrder: 0 });
-        control.enqueue([{ count: 0 }], [inserted]);
+        control.enqueue([], [{ count: 0 }], [inserted]);
 
         await dal.create({ recipeId: RECIPE_ID, s3Key: 'k', contentType: 'image/jpeg', sizeBytes: 10 });
 
@@ -77,7 +77,7 @@ describe('PhotosDal.create', () => {
     });
 
     it('throws MAX_PHOTOS_EXCEEDED (and does NOT insert) when the recipe already has 10 photos', async () => {
-        control.enqueue([{ count: MAX_PHOTOS_PER_RECIPE }]);
+        control.enqueue([], [{ count: MAX_PHOTOS_PER_RECIPE }]);
 
         let caught: unknown;
 
@@ -89,6 +89,77 @@ describe('PhotosDal.create', () => {
 
         expect(isRecipeDomainError(caught) && caught.code).toBe(RecipeErrorCode.MAX_PHOTOS_EXCEEDED);
         expect(control.calls.some((call) => call.method === 'insert')).toBe(false);
+    });
+});
+
+describe('PhotosDal.create — a retried confirm of the same object (audit finding 11)', () => {
+    const KEY = 'recipes/o/r/photos/already-confirmed';
+
+    it('returns the row that key already has, and inserts nothing', async () => {
+        const existing = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: KEY });
+        const control = createFakeDb();
+        control.enqueue([existing]);
+
+        const result = await new PhotosDal(control.db).create({
+            recipeId: RECIPE_ID,
+            s3Key: KEY,
+            contentType: 'image/png',
+            sizeBytes: 10,
+        });
+
+        expect(result).toEqual(existing);
+        expect(control.calls.some((call) => call.method === 'insert')).toBe(false);
+    });
+
+    /** The thumbnail key is the original's key plus a suffix, so a retry writes the SAME object. If the first
+     * confirm degraded to no thumbnail, the retry's rendition must be recorded or it is an orphan. */
+    it("records the retry's thumbnail on the existing row when the first confirm had none", async () => {
+        const existing = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: KEY, thumbnailKey: null });
+        const healed = makeRecipePhotoRow({ ...existing, thumbnailKey: `${KEY}.thumb` });
+        const control = createFakeDb();
+        control.enqueue([existing], [healed]);
+
+        const result = await new PhotosDal(control.db).create({
+            recipeId: RECIPE_ID,
+            s3Key: KEY,
+            thumbnailKey: `${KEY}.thumb`,
+            contentType: 'image/png',
+            sizeBytes: 10,
+        });
+
+        expect(result).toEqual(healed);
+        expect(setPayloads(control)).toEqual([{ thumbnailKey: `${KEY}.thumb`, updatedAt: expect.any(Date) }]);
+    });
+
+    it('leaves an existing thumbnail alone', async () => {
+        const existing = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: KEY, thumbnailKey: `${KEY}.thumb` });
+        const control = createFakeDb();
+        control.enqueue([existing]);
+
+        await new PhotosDal(control.db).create({
+            recipeId: RECIPE_ID,
+            s3Key: KEY,
+            thumbnailKey: `${KEY}.thumb`,
+            contentType: 'image/png',
+            sizeBytes: 10,
+        });
+
+        expect(setPayloads(control)).toEqual([]);
+    });
+
+    it('answers the retry even when the recipe is already at the cap, because it adds no photo', async () => {
+        const existing = makeRecipePhotoRow({ recipeId: RECIPE_ID, s3Key: KEY });
+        const control = createFakeDb();
+        control.enqueue([existing], [{ count: MAX_PHOTOS_PER_RECIPE }]);
+
+        await expect(
+            new PhotosDal(control.db).create({
+                recipeId: RECIPE_ID,
+                s3Key: KEY,
+                contentType: 'image/png',
+                sizeBytes: 10,
+            }),
+        ).resolves.toEqual(existing);
     });
 });
 

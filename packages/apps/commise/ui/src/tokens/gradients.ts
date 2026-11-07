@@ -8,11 +8,11 @@
  * off cards, and the navigation layer's glass is `barMaterial.ts` and `expo-glass-effect`. It imports only the palette (no platform API), so it is
  * safe under web, React Native, and Node/Vitest alike.
  *
- * The `brand` gradient is deliberately the SAME seafoam → ocean-dark ramp the web design-system `Button`
- * already carries as `from-seafoam to-ocean-dark` (round-2 R7): the native `Button` and the shared surface
+ * The `brand` gradient is deliberately the SAME steel → ocean-dark ramp the web design-system `Button`
+ * already carries as `from-steel to-ocean-dark` (round-2 R7): the native `Button` and the shared surface
  * primitives derive from here so the two platforms' CTA gradient converge on one source instead of two.
  */
-import { palette } from './colors.js';
+import { palette, role, roleDark, tint } from './colors.js';
 
 /** One colour stop on a gradient — a CSS colour and its position as a percentage (0..100). */
 export interface GradientStop {
@@ -27,26 +27,25 @@ export interface GradientSpec {
 }
 
 /**
- * The brand gradients. `brand` is the seafoam → ocean-dark CTA ramp (identical to the web Button's
- * `from-seafoam to-ocean-dark`); `hero` is the mockup's "beach-glow" background (sand → cool tints) that
- * paints the home/recipes/auth hero surfaces.
+ * The brand gradients. `brand` is the steel → ocean-dark CTA ramp (identical to the web Button's
+ * `from-steel to-ocean-dark`); `hero` is the flat canvas wash that paints the home/recipes/auth hero surfaces.
  */
 export const gradient = {
     brand: {
         angle: 135,
         stops: [
-            { color: palette.seafoam, position: 0 },
+            { color: palette.steel, position: 0 },
             { color: palette['ocean-dark'], position: 100 },
         ],
     },
-    // The two intermediate/terminal tints are mockup-specific cool washes (not palette colours) — the
-    // beach-glow ramp is a bespoke background, so the literals live here with the spec they belong to.
+    // The canvas wash is FLAT in the redesign: one colour, top to bottom. It is still a gradient spec because the web
+    // paints it through `--background-image-hero` and native through `GradientSurface`, and both read this one record.
+    // Derived from the canvas role so it cannot drift from the page colour.
     hero: {
-        angle: 135,
+        angle: 180,
         stops: [
-            { color: palette.sand, position: 0 },
-            { color: '#F0F7F4', position: 50 },
-            { color: '#E8F4F8', position: 100 },
+            { color: role.canvas, position: 0 },
+            { color: role.canvas, position: 100 },
         ],
     },
     /**
@@ -62,24 +61,38 @@ export const gradient = {
     scrim: {
         angle: 0,
         stops: [
-            { color: 'rgba(45, 52, 54, 0.6)', position: 0 },
-            { color: 'rgba(45, 52, 54, 0)', position: 100 },
+            { color: tint(palette.charcoal, 0.6), position: 0 },
+            { color: tint(palette.charcoal, 0), position: 100 },
         ],
     },
 } as const satisfies Record<string, GradientSpec>;
 
 /**
- * The canvas wash in the dark theme (`darkTheme.md` §3.3): the same warm → green → blue path as `gradient.hero`, at
- * the dark canvas's lightness. Web overrides `--background-image-hero` with it; native paints it under `useTheme()`.
+ * The canvas wash in the dark theme: flat, the dark canvas top to bottom. Web overrides `--background-image-hero` with
+ * it; native paints it under `useTheme()`.
  */
 export const heroDark = {
-    angle: 135,
+    angle: 180,
     stops: [
-        { color: '#141210', position: 0 },
-        { color: '#101714', position: 50 },
-        { color: '#0F181A', position: 100 },
+        { color: roleDark.canvas, position: 0 },
+        { color: roleDark.canvas, position: 100 },
     ],
 } as const satisfies GradientSpec;
+
+/**
+ * The no-photo cover wash (designer ruling C2): the sky tint into the cream tint, leaning 170 degrees. The tints come from
+ * the caller because the theme picks them (`useTheme().covers` on native, the `--color-cover-*` properties on web); the slant
+ * is the token. Pure.
+ */
+export function coverGradient(tints: { readonly sky: string; readonly cream: string }): GradientSpec {
+    return {
+        angle: 170,
+        stops: [
+            { color: tints.sky, position: 0 },
+            { color: tints.cream, position: 100 },
+        ],
+    };
+}
 
 /** The name of a brand gradient (`brand` | `hero`). */
 export type GradientName = keyof typeof gradient;

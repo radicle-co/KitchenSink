@@ -1,5 +1,7 @@
 # Horizontal scroll hint: hidden scrollbar and a "more to the right" chevron
 
+> ⚠️ **§3.6 (2026-10-27) replaces the 40 px hint band of §3.2 and §3.3 with a column of its own for the chevron.**
+>
 > **What this is:** a SPECIFY design spec by `staff-ux-engineer`, written 2026-10-17. **What it is not:** code, or a
 > mockup. I did not render anything for it. `fe-1` builds the feature-side changes from it. The new primitive goes in
 > `@commise/ui`, which the design system owns.
@@ -201,6 +203,41 @@ The web mask also clips anything drawn outside the scroller's border box. So the
 (`RailTrack.tsx:40`, `focus-visible:ring-2`) is lost wherever the band or the fade shows. **Decision:** the track's
 ring becomes `focus-visible:ring-inset`, as the section links already do (`SectionSwitch.tsx:50`). The mask also hides
 the scrollbar thumb while the thumb passes under the band. That is minor, and it is accepted.
+
+### 3.6 The chevron's column (amendment, 2026-10-27; supersedes the 40 px hint band of §3.2 and §3.3)
+
+**Why.** The band sat on the scroller, so it hid whatever lay under it. In a 255 px chip row it hid the last characters
+of the chip at the edge: "Vegan 21" read "Vegan 2›" and "Under 30 min" read "Under 30›" (owner report, design-canvas
+render of `DiscoverFilters`). A band over content cannot avoid that, because the chip at the edge is wherever the widths
+put it. Ruling by `staff-ux-engineer` (ruling B): give the chevron its own column.
+
+**Rule.**
+
+- While the content overflows, the wrapper has two columns: the scroller, and a 24 px column for the chevron. The
+  chevron never overlaps the scroller. Web: a grid `minmax(0, 1fr) 1.5rem`. Native: a row, the scroller in a
+  `flex: 1` track and a 24 dp chevron view.
+- The column is kept for as long as the content overflows. Only the chevron's opacity changes, so nothing reflows on the
+  first scroll, and the column is empty (not removed) once the reader has scrolled or reached the end. While the
+  content fits, the column takes no room and no chevron is drawn.
+- **Overflow is decided against the whole wrapper (`outer`), not the scroller.** The column narrows the scroller by
+  24 px exactly when it exists, so reading the scroller would switch the column on and off for content between the two
+  widths. `scrollExtentOf` takes an optional `outer` for this; "at the end" is still read against the scroller, which
+  is what the reader scrolls.
+- The fade is one 16 px ramp at the scroller's own inline-end edge (it was 24 px, 40 px with the chevron). The first
+  chip at the edge is faded, never covered. `scroll-pe-4` keeps a focused child clear of the ramp.
+- The price, accepted: a 24 px empty column at the end of a scroller that overflows, and on a browse rail the cards
+  lose 24 px of width to it.
+
+| State                 | Chevron column | Chevron | Fade (16 px) |
+| --------------------- | -------------- | ------- | ------------ |
+| Fits the wrapper      | none           | none    | none         |
+| Overflows, at start   | 24 px          | shown   | yes          |
+| Stopped in the middle | 24 px, empty   | hidden  | yes          |
+| At the end            | 24 px, empty   | hidden  | none         |
+
+Tests: `scrollHint.test.ts` (outer), both `HorizontalScroller` component tests, and the rectangle checks in
+`recipeListChips.spec.ts` and `horizontalScrollHint.spec.ts` (the chevron's box does not overlap the scroller's; at the
+end the last chip is whole and passes a trial press).
 
 ## 4. States
 

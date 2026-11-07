@@ -12,7 +12,9 @@
  * which are the only two signed-out transitions that exist.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+// The gate's notices are the design system's Tamagui `Text`, so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { Text } from 'react-native';
 
 import { authBlockMessages } from '@commise/features-account';

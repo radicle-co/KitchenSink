@@ -38,7 +38,7 @@ import { describe, expect, it } from 'vitest';
 
 import { sanitizeFoodName } from '../../foodName.js';
 import { normalizedIngredientKey } from '../normalizedKey.js';
-import { describeRankingName, describeRankingQuery } from '../rankingTerms.js';
+import { describeCatalogName, describeRankingQuery } from '../rankingTerms.js';
 import { classifyRankTier } from '../rankingTiers.js';
 import type { RankTier } from '../rankingTiers.js';
 
@@ -228,7 +228,7 @@ describe('representative typed ingredient names', () => {
         // The measured half of the handoff. Before U5 this file could only record which tier was EXPECTED
         // to bridge a difference; now the tiers exist, so the expectation is executable and a regression in
         // the fold, the plural rule or the head rule fails here as well as in the two services.
-        expect(classifyRankTier(describeRankingName(b), describeRankingQuery(a))).toBe(bridgedAt);
+        expect(classifyRankTier(describeCatalogName(b, [], []), describeRankingQuery(a))).toBe(bridgedAt);
         expect(bridgedAt).not.toBe('base');
     });
 

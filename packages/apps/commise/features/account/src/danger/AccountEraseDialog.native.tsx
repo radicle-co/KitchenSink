@@ -17,8 +17,10 @@
  *     as on web — same dialog, same gate, same actions in every branch.
  */
 import { useMessages } from '@commise/i18n/react';
+import { CheckBoxGlyph } from '@commise/ui/check-box-glyph';
 import { DialogFrame } from '@commise/ui/dialog-frame';
 import { Icon } from '@commise/ui/icon';
+import { nativeTokens } from '@commise/ui/native';
 import { TextInput } from '@commise/ui/text-input';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
@@ -97,7 +99,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                             onPress={() => onToggleRecipe(recipe.id)}
                             style={styles.recipeRow}
                         >
-                            <Text style={[styles.checkbox, ink]}>{checked ? '☑' : '☐'}</Text>
+                            <CheckBoxGlyph checked={checked} />
                             <Text style={[styles.recipeTitle, ink]}>{recipe.title}</Text>
                         </Pressable>
                     );
@@ -149,25 +151,25 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
 };
 
 const styles = StyleSheet.create({
-    sectionHeading: { fontSize: 16, fontWeight: '600', marginTop: 4 },
+    sectionHeading: { ...nativeTokens.type.cardTitle, marginTop: 4 },
     warningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-    warning: { flex: 1, fontSize: 15, lineHeight: 22 },
-    body: { fontSize: 14, lineHeight: 20 },
+    warning: { ...nativeTokens.type.body, flex: 1 },
+    body: { ...nativeTokens.type.meta },
     recipeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-    checkbox: { fontSize: 18 },
-    recipeTitle: { fontSize: 14 },
+    recipeTitle: { ...nativeTokens.type.meta },
     input: {
         borderWidth: 1,
-        borderRadius: 8,
+        borderRadius: nativeTokens.radius.sm,
         paddingVertical: 8,
         paddingHorizontal: 12,
-        fontSize: 15,
+        // The field's old height (a 24 pt line, 16 pt of padding, two edges); its text is the TextInput primitive's.
+        minHeight: 42,
     },
     actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 4 },
-    cancelButton: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
-    cancelLabel: { fontWeight: '500', fontSize: 14 },
-    confirmButton: { borderRadius: 999, paddingVertical: 8, paddingHorizontal: 20 },
+    cancelButton: { borderRadius: nativeTokens.radius.full, paddingVertical: 8, paddingHorizontal: 16 },
+    cancelLabel: { ...nativeTokens.type.caption },
+    confirmButton: { borderRadius: nativeTokens.radius.full, paddingVertical: 8, paddingHorizontal: 20 },
     confirmButtonDisabled: { opacity: 0.5 },
-    confirmLabel: { fontWeight: '600', fontSize: 14 },
-    error: { fontSize: 13 },
+    confirmLabel: { ...nativeTokens.type.label },
+    error: { ...nativeTokens.type.meta },
 });

@@ -22,7 +22,6 @@ import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js'
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import {
     RECIPES_DAL,
@@ -35,6 +34,7 @@ import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
+import type { RecipeStatus } from '@kitchensink/recipe-core';
 
 const COOK = '01JPUBLISHGATECOOK00000001';
 const RECIPE_ID = '00000000-0000-4000-8000-0000000000f1';
@@ -58,7 +58,7 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: { readonly status: string; readonly cuisine?: string }) => {
+const create = vi.fn(async (input: { readonly status: RecipeStatus; readonly cuisine?: string }) => {
     stored = makeRecipeRow({
         id: RECIPE_ID,
         ownerId: COOK,
@@ -72,7 +72,7 @@ const create = vi.fn(async (input: { readonly status: string; readonly cuisine?:
 const update = vi.fn(
     async (
         _id: string,
-        patch: { readonly expectedVersion: number; readonly status?: string; readonly cuisine?: string | null },
+        patch: { readonly expectedVersion: number; readonly status?: RecipeStatus; readonly cuisine?: string | null },
     ) => {
         stored = {
             ...stored,
@@ -142,8 +142,10 @@ beforeAll(async () => {
             { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            { provide: RECIPE_LINE_VERIFICATIONS_DAL, useValue: { findBandsByKeys: async () => new Map() } },
-            { provide: IngredientResolutionsDal, useValue: { latestResolutionsByLookupIds: async () => new Map() } },
+            {
+                provide: RECIPE_LINE_VERIFICATIONS_DAL,
+                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+            },
             {
                 provide: FoodLookupsDal,
                 useValue: {

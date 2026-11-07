@@ -19,10 +19,13 @@ import type { GradientName } from '../tokens/gradients.js';
  */
 export type SurfaceStyle = object | readonly object[];
 
+/** What a surface can paint: a brand gradient, or the themed `cover` wash (sky to cream) behind a recipe with no photo. */
+export type SurfaceGradient = GradientName | 'cover';
+
 /** The contract for the gradient background surface primitive. */
 export interface GradientSurfaceProps {
     /** Which brand gradient to paint. Defaults to `hero` (the beach-glow background). */
-    readonly gradient?: GradientName;
+    readonly gradient?: SurfaceGradient;
     /** The surface content, painted over the gradient. */
     readonly children?: ReactNode;
     /** Web-only layout/positioning classes for the surface element. Ignored on native. */

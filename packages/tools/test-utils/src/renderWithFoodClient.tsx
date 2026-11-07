@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { FoodServiceClient, type CatalogSearchResultView } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 
+import { DesignSystemFrame } from './DesignSystemFrame.js';
 import { makeTestQueryClient } from './testQueryClient.js';
 
 /** The cook a test's food client is mounted for: the apps mount one only for a signed-in cook. */
@@ -89,7 +90,8 @@ export function withFoodClient(ui: ReactElement, client: FoodServiceClient = mak
 }
 
 /**
- * Render `element` under a fresh, retry-free query client and `client`, for a screen that reads only food.
+ * Render `element` under a fresh, retry-free query client and `client`, for a screen that reads only food. In a
+ * native lane the tree also sits in the design system's Tamagui provider (`DesignSystemFrame`).
  *
  * @param element - The screen.
  * @param client - The food client the screen reads from.
@@ -98,6 +100,8 @@ export function withFoodClient(ui: ReactElement, client: FoodServiceClient = mak
  */
 export function renderWithFoodClient(element: ReactElement, client: FoodServiceClient): RenderResult {
     return render(
-        <QueryClientProvider client={makeTestQueryClient()}>{withFoodClient(element, client)}</QueryClientProvider>,
+        <DesignSystemFrame>
+            <QueryClientProvider client={makeTestQueryClient()}>{withFoodClient(element, client)}</QueryClientProvider>
+        </DesignSystemFrame>,
     );
 }

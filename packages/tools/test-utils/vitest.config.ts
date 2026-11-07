@@ -12,6 +12,7 @@ export default defineConfig({
         // jsdom implements neither AnimationEvent nor TransitionEvent — see jsdomPolyfills.js.
         setupFiles: [jsdomPolyfillsSetup],
         include: ['**/__tests__/**/*.test.{ts,tsx}'],
-        exclude: ['node_modules', 'dist'],
+        // Native specs run under `vitest.native.config.ts`, which resolves the `.native` leaves.
+        exclude: ['node_modules', 'dist', '**/*.native.test.tsx'],
     },
 });

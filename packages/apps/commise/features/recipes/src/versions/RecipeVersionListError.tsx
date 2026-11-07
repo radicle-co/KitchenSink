@@ -38,7 +38,7 @@ export interface RecipeVersionListErrorWebProps extends RecipeVersionListErrorPr
 
 /**
  * @param props - The words, the retry and the way back.
- * @returns The header, an alert, and a secondary Try again button.
+ * @returns The header, an alert, and a quiet Try again button.
  */
 export const RecipeVersionListError: FC<RecipeVersionListErrorWebProps> = ({
     title,
@@ -51,11 +51,11 @@ export const RecipeVersionListError: FC<RecipeVersionListErrorWebProps> = ({
     const back = versionBackOf(versionList.backToRecipe, versionList.recipeParent, onBack, backHref);
 
     return (
-        <section className="flex w-full max-w-list flex-col gap-4 pb-10">
+        <section className="flex w-full max-w-list flex-col gap-4 pb-12">
             <RecipeVersionListHeader headingId={VERSION_TITLE_ID} back={back} />
             <div role="alert" className="flex flex-col items-start gap-3">
                 <p className="text-body text-ink">{title}</p>
-                <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
+                <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                     {retryLabel}
                 </Button>
             </div>

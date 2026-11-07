@@ -8,6 +8,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '../theme/useTheme.native.js';
+import { BADGE_BOX } from '../badgeBox/badgeBox.js';
 import { nativeTokens } from '../tokens/native.js';
 import { difficultyTone, difficultyToneDark } from '../tokens/tones.js';
 import { DIFFICULTY_METER, METER_DOTS, type DifficultyBadgeProps } from './props.js';
@@ -19,10 +20,11 @@ import { DIFFICULTY_METER, METER_DOTS, type DifficultyBadgeProps } from './props
  * @returns The badge.
  */
 export const DifficultyBadge: FC<DifficultyBadgeProps> = ({ level, children }) => {
-    const tone = (useTheme().scheme === 'dark' ? difficultyToneDark : difficultyTone)[level];
+    const theme = useTheme();
+    const tone = (theme.scheme === 'dark' ? difficultyToneDark : difficultyTone)[level];
 
     return (
-        <View style={[styles.badge, { backgroundColor: tone.fill }]}>
+        <View style={[styles.badge, { backgroundColor: tone.fill, borderColor: theme.colors.lineDivider }]}>
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.meter}>
                 {Array.from({ length: METER_DOTS }, (_unused, index) => {
                     const filled = index < DIFFICULTY_METER[level];
@@ -30,8 +32,6 @@ export const DifficultyBadge: FC<DifficultyBadgeProps> = ({ level, children }) =
                     return (
                         <View
                             key={index}
-                            // A data attribute, so a test can read the meter without a test id.
-                            {...{ dataSet: { meterDot: filled ? 'filled' : 'empty' } }}
                             style={[
                                 styles.dot,
                                 { borderColor: tone.text, backgroundColor: filled ? tone.text : 'transparent' },
@@ -54,13 +54,15 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
         flexShrink: 0,
         gap: nativeTokens.spacing[1],
-        minHeight: 24,
+        minHeight: BADGE_BOX.minHeight,
         maxWidth: '100%',
         borderRadius: nativeTokens.radius.sm,
+        // The neutral-badge edge (`componentFixes.md` §7); its colour is the theme's, so only the width is static.
+        borderWidth: BADGE_BOX.borderWidth,
         paddingHorizontal: nativeTokens.spacing[2],
-        paddingVertical: 2,
+        paddingVertical: BADGE_BOX.paddingVertical,
     },
     meter: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-    dot: { width: 6, height: 6, borderRadius: 3, borderWidth: 1 },
+    dot: { width: 6, height: 6, borderRadius: nativeTokens.radius.full, borderWidth: 1 },
     word: { ...nativeTokens.type.caption, flexShrink: 1 },
 });

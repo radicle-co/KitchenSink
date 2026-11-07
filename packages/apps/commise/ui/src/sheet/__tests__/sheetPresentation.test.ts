@@ -11,7 +11,9 @@ import {
     SHEET_WIDE_FROM_DP,
     sheetAnimationType,
     sheetSideInsetPadding,
+    sheetIsCentred,
     sheetWidthStyle,
+    SHEET_DIALOG_MAX_WIDTH_DP,
 } from '../sheetPresentation.js';
 
 describe('sheetWidthStyle', () => {
@@ -25,6 +27,29 @@ describe('sheetWidthStyle', () => {
         expect(SHEET_MAX_WIDTH_DP).toBe(560);
         expect(sheetWidthStyle(600)).toStrictEqual({ width: '100%', maxWidth: 560 });
         expect(sheetWidthStyle(1024)).toStrictEqual({ width: '100%', maxWidth: 560 });
+    });
+});
+
+describe('sheetWidthStyle - the dialog presentation (owner ruling 2026-10-26, platform guidelines)', () => {
+    it('is a bottom sheet on a phone: full width, exactly as the sheet presentation is', () => {
+        expect(sheetWidthStyle(390, 'dialog')).toStrictEqual({ width: '100%' });
+    });
+
+    it('is a centred dialog at most 448 dp wide from the tablet width, 834 and 1194 alike', () => {
+        expect(SHEET_DIALOG_MAX_WIDTH_DP).toBe(448);
+        expect(sheetWidthStyle(600, 'dialog')).toStrictEqual({ width: '100%', maxWidth: 448 });
+        expect(sheetWidthStyle(834, 'dialog')).toStrictEqual({ width: '100%', maxWidth: 448 });
+        expect(sheetWidthStyle(1194, 'dialog')).toStrictEqual({ width: '100%', maxWidth: 448 });
+    });
+
+    it('says when it is centred: only the dialog presentation, only from the tablet width', () => {
+        expect(sheetIsCentred('dialog', 599)).toBe(false);
+        expect(sheetIsCentred('dialog', 600)).toBe(true);
+        expect(sheetIsCentred('sheet', 1194)).toBe(false);
+    });
+
+    it('reaches the side insets by the gap to a 448 dp card, not a 560 dp one', () => {
+        expect(sheetSideInsetPadding(834, 200, 'dialog')).toBe(Math.max(0, 200 - (834 - 448) / 2));
     });
 });
 

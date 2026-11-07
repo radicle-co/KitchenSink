@@ -2,6 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-19
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §1: the curator grant carries a public-domain record, judged by the rolling gate in `016-FR-015k`, and public-domain text under the grant is open to the web when that record passes. No `sourceType` value is added. Every other decision here stands.
 - **Drivers**: Seeding the recipe tier with 100+ public-domain recipes from Project Gutenberg cookbooks,
   through the real `POST /api/v1/recipes` rather than a side door, ran straight into two walls:
     - `RecipesService.create` hardcoded `sourceType: RecipeSourceType.USER_CREATED`, so **the service could
@@ -23,7 +24,10 @@
   [ADR-0004](0004-minimize-nat-egress.md) — the blast radius of an automated fetch, and why the corpus is not
   fetched by anything we deploy;
   [ADR-0012](0012-mcp-agent-credential-bridge.md) — the same posture it records: Clerk proves identity, **we**
-  own the grant.
+  own the grant;
+  [ADR-0073](0073-free-tier-private-slots.md) — free private slots, which removed 004-`FR-028`'s Premium gate;
+  [ADR-0072](0072-bulk-recipe-import.md) — the bulk import route, the one place a cook's own per-recipe statement
+  sets `imported_public` without the grant (§1a).
 
 ## ⚠️ Before you change this — the three "improvements" that are all wrong
 
@@ -33,9 +37,9 @@
 2. **Do not make the importer fetch `gutenberg.org` at runtime.** `robots.txt` permits the path; the site's
    Terms do not permit the access. See Decision §2 — this is the "looks wrong, isn't".
 3. **Do not add `imported_physical` or `imported_paid` to the declarable union** "for symmetry". Both are
-   private-only under C-004 and `evaluateVisibility` admits either to `private` with **no premium check**, so
-   admitting them hands a free-tier caller exactly the private recipe 004-`FR-028` says must be
-   entitlement-gated. See Consequences.
+   private-only under C-004, and each carries a source the caller must attest and cite (004-`FR-014a`). That
+   attestation and citation are not built on this route. See Consequences. The bulk import route sets both labels from the cook's per-recipe
+   statement (§1a, ADR-0072 §9). That is a separate route, not a member of this union.
 
 ## Context
 
@@ -111,6 +115,43 @@ Argued on `FR-025`'s **own threat model**, an administrator grant is a **stronge
 attribution than "the server fetched a URL the caller chose" — because a caller-supplied URL can point at
 content the caller wrote. Server-side fetching proves that _a document exists at that URL_. It proves nothing
 about authorship, and `FR-025` is an authorship control.
+
+### 1a. The one exception: bulk import sets the label from the cook's statement
+
+Owner ruling, 2026-10-26, recorded in ADR-0072 §9. On the bulk import route (`/api/v1/import`), the cook makes a
+statement for each recipe. It is either "I wrote this", or "From a source" with a citation. A source is public (a
+public web page) or private (a book or a paid site). The import sets the label from that statement: `user_created`,
+`imported_public`, `imported_physical` or `imported_paid`.
+
+- **This is an exception to §1, for that route only.** A cook with no curator grant sets `imported_public` there.
+  What backs the label is the stored statement and citation, the per-item attestation 004-`FR-014a` and
+  016-`FR-014` rely on.
+- **`POST /api/v1/recipes` is unchanged.** Its union still has two members, `imported_public` still needs the grant,
+  and `imported_paid` and `imported_physical` are still not declarable there.
+- **The false-attribution hazard is still real.** §1 argued that a grant is a stronger control than a fetched URL. On
+  the bulk route the control is weaker: the cook's own statement. The owner accepted that for bulk import. There the
+  cook brings the file and states each source. Counsel confirms the statement's wording before launch
+  (016-`FR-050`).
+
+### 1b. The one route that changes provenance after a save: a one-way downgrade
+
+Owner rulings, 2026-10-26, spec 020 FR-015a and ADR-0074. When the content source check holds a recipe back, one of
+the cook's choices is to change their statement to "From a source", naming a book or a paid site. Until now provenance
+could not change after a save at all, because `source` lives on the create schema only.
+
+- **The route is `POST /api/v1/recipes/{id}/source-statement`.** Its body is a strict union of two members,
+  `imported_physical` and `imported_paid`, each with a required citation. Nothing else is representable, so no caller
+  can move a label upward, to `imported_public`, or to `user_created`.
+- **It is a downgrade only.** The current label must be `user_created` or `imported_public`. A recipe already
+  private-only answers `SOURCE_STATEMENT_NOT_DOWNGRADE`.
+- **The recipe becomes private in the same transaction**, under ADR-0073's per-user lock, and it needs a free private
+  slot. With none, it answers ADR-0073's code and changes nothing.
+- **The new statement and citation are the recipe's attestation** (004-`FR-014a`), which is what these two labels have
+  always needed and `POST /api/v1/recipes` does not carry.
+- **`source` stays off the update schema.** §1's reason holds: `PATCH /api/v1/recipes/{id}` must never re-classify a
+  recipe. The downgrade is its own route with its own schema.
+- **The source statement is part of the content check's digest** (ADR-0074 §1), so the digest moves in the same
+  transaction. The new label is private-only, so no check is owed, and an open referral closes as withdrawn.
 
 ### 2. The corpus is an OPERATOR-DOWNLOADED file. Nothing we deploy fetches Project Gutenberg. ⚠️ looks wrong, isn't
 
@@ -216,11 +257,10 @@ buys nothing that `details.requiredScope` does not already make actionable.
   treat any hash in prose as a timestamp). Once mobile ships against it this is a **one-way door** — removing
   or reshaping `source` breaks installed clients that cannot be redeployed.
 - **`imported_physical` and `imported_paid` are deliberately NOT declarable**, which **narrows** `FR-025`
-  rather than implementing it. Both are private-only classes, and `evaluateVisibility` admits either to
-  `private` with **no premium check** (`visibilityPolicy.ts`) — so admitting them would hand a free-tier
-  caller exactly the private recipe 004-`FR-028` says must be entitlement-gated, and `FR-014a`'s
-  attestation + citation machinery that is supposed to travel with them does not exist yet. They join the
-  union when 004 builds that gate; adding a member is additive.
+  rather than implementing it. Both are private-only classes, and `FR-014a`'s attestation and citation, which
+  must travel with them, do not exist on this route yet. Once 004 builds that, they join the union, and adding a
+  member is additive. 004-`FR-028` puts no Premium gate on these labels (ADR-0073): a free cook holds them
+  within 50 private slots. The bulk import route sets them from the cook's statement instead (§1a).
 - **The corpus is an operator responsibility.** Refreshing it is a manual, out-of-band step with no automation
   behind it, and no job will notice if it goes stale.
 - **A curator token is a real credential.** It must be minted with the grant inside the signed

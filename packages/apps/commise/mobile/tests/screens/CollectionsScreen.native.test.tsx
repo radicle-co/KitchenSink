@@ -134,18 +134,19 @@ describe('CollectionsScreen — loading, error, empty', () => {
         expect(screen.getByRole('button', { name: 'New collection' })).toBeTruthy();
     });
 
-    it('never mounts New collection for a list that turns out empty (the first run has its own buttons)', async () => {
+    // REWRITTEN (designer, 2026-11-03): the floating button stays in the first run, the same as "New recipe". It is absent
+    // while the first fetch is in flight and present once the list has settled empty, as the ONE "New collection".
+    it('floats New collection once a list that turns out empty settles, and not before', async () => {
         vi.spyOn(client, 'listCollections').mockResolvedValue(makeCollectionPage([]));
 
         render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         expect(screen.queryByRole('button', { name: 'New collection' })).toBeNull();
 
         await screen.findByText('Group recipes your way');
-        // The first run's own button is the only "New collection" left.
         expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
     });
 
-    it('a focused floating button stays when the list turns empty, and goes once focus leaves it', async () => {
+    it('the floating button is the same node when the list turns empty', async () => {
         seedPages(makeCollectionPage([makeCollection({ id: 'col_1', name: 'Weeknight dinners' })]));
         render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
         const button = screen.getByRole('button', { name: 'New collection' });
@@ -155,12 +156,9 @@ describe('CollectionsScreen — loading, error, empty', () => {
             seedPages(makeCollectionPage([]));
         });
         await screen.findByText('Group recipes your way');
-        // The first run's own button is also named "New collection"; the focused floating one is still the same node.
+
         expect(button.isConnected).toBe(true);
-
-        act(() => button.blur());
-
-        await waitFor(() => expect(button.isConnected).toBe(false));
+        expect(screen.getAllByRole('button', { name: 'New collection' })).toHaveLength(1);
     });
 
     it('shows New collection once a populated list arrives', async () => {
@@ -295,5 +293,42 @@ describe('CollectionsScreen — a failed next page', () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
         expect(list).toHaveBeenCalledTimes(2);
+    });
+});
+
+// Designer ruling (2026-11-02): from six collections the Collections tab has a search field that pins; below six it has none.
+describe('CollectionsScreen — the pinned search', () => {
+    const named = (count: number) =>
+        Array.from({ length: count }, (_unused, index) =>
+            makeCollection({ id: `col_${String(index)}`, name: `Collection ${String(index)}` }),
+        );
+
+    it('draws the search from six collections, as the stand-in the screen reader reaches', async () => {
+        seedPages(makeCollectionPage(named(6)));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        expect(await screen.findByRole('search', { name: 'Search your collections' })).toBeTruthy();
+        expect(screen.getByLabelText('Search your collections', { selector: 'input' })).toBeTruthy();
+    });
+
+    it('draws no search below six collections', async () => {
+        seedPages(makeCollectionPage(named(3)));
+
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+
+        await screen.findByText('3 collections');
+        expect(screen.queryByLabelText('Search your collections')).toBeNull();
+    });
+
+    it('filters by title as the cook types, in the pinned field', async () => {
+        seedPages(makeCollectionPage(named(6)));
+        render(<CollectionsScreen onSelect={vi.fn()} onCreateRecipe={vi.fn()} />);
+        const field = await screen.findByLabelText('Search your collections', { selector: 'input' });
+
+        fireEvent.change(field, { target: { value: 'Collection 3' } });
+
+        await waitFor(() => expect(screen.queryByRole('link', { name: /Collection 1/u })).toBeNull());
+        expect(screen.getByRole('link', { name: /Collection 3/u })).toBeTruthy();
     });
 });

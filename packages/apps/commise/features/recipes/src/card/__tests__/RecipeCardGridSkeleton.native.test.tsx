@@ -14,7 +14,7 @@
  * is the choice both native surfaces already made and which this leaf preserves.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -22,6 +22,7 @@ import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCardGridSkeleton } from '../RecipeCardGridSkeleton.native.js';
 import { RECIPE_CARD_SKELETON_COUNT } from '../model.js';
+import { ARIA_HIDDEN_CONTENT, render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -44,11 +45,11 @@ describe('RecipeCardGridSkeleton (native)', () => {
     it('paints the default number of placeholder cards, and honours an explicit count', () => {
         const { container } = render(<RecipeCardGridSkeleton label="Loading recipes" />);
 
-        expect(container.querySelectorAll('[aria-hidden="true"]').length).toBe(RECIPE_CARD_SKELETON_COUNT);
+        expect(container.querySelectorAll(ARIA_HIDDEN_CONTENT).length).toBe(RECIPE_CARD_SKELETON_COUNT);
         cleanup();
 
         const { container: three } = render(<RecipeCardGridSkeleton label="Loading recipes" count={3} />);
-        expect(three.querySelectorAll('[aria-hidden="true"]').length).toBe(3);
+        expect(three.querySelectorAll(ARIA_HIDDEN_CONTENT).length).toBe(3);
     });
 
     // The label names the wait ONCE; the cards themselves say nothing, so a six-card grid does not announce
@@ -58,7 +59,7 @@ describe('RecipeCardGridSkeleton (native)', () => {
 
         expect(screen.getAllByLabelText('Loading recipes')).toHaveLength(1);
 
-        for (const card of container.querySelectorAll('[aria-hidden="true"]')) {
+        for (const card of container.querySelectorAll(ARIA_HIDDEN_CONTENT)) {
             expect(card.getAttribute('aria-label')).toBeNull();
             expect(card.textContent).toBe('');
         }
@@ -72,7 +73,7 @@ describe('RecipeCardGridSkeleton (native)', () => {
     ] as const)('draws a %s skeleton in the %s surface-muted role', (variant, name) => {
         systemScheme.current = name;
         const { container } = render(<RecipeCardGridSkeleton label="L" variant={variant} count={1} />);
-        const card = container.querySelector('[aria-hidden="true"]');
+        const card = container.querySelector(ARIA_HIDDEN_CONTENT);
 
         expect(card?.getAttribute('data-skeleton-variant')).toBe(variant);
 

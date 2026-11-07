@@ -30,10 +30,12 @@ import {
     useCollections,
     useCollectionsInfinite,
     useRecipe,
+    usePrivateSlots,
     useRecipePhotos,
     useRecipeVersion,
     useRecipeVersions,
     useRecipes,
+    useIngredientNameProposals,
     useSearchIngredients,
     useSearchRecipes,
     useInfiniteSearchRecipes,
@@ -201,6 +203,49 @@ describe('useRecipe', () => {
 
         await waitFor(() => expect(result.current.isError).toBe(true));
         expect(result.current.error).toBe(error);
+    });
+});
+
+describe('usePrivateSlots', () => {
+    it('caches the standing under the literal private-slots key, beneath the recipes prefix', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', used: 3, limit: 50 });
+
+        const { result, queryClient } = renderRecipeHook(() => usePrivateSlots(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'recipes', 'private-slots']]);
+        expect(result.current.data).toEqual({ kind: 'limited', used: 3, limit: 50 });
+    });
+
+    it('surfaces Premium as unlimited', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'unlimited' });
+
+        const { result } = renderRecipeHook(() => usePrivateSlots(), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.data).toEqual({ kind: 'unlimited' });
+    });
+
+    it('a failed read is an error state, not a guessed count', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getPrivateSlots').mockRejectedValue(new UnauthorizedError('no', 'UNAUTHORIZED'));
+
+        const { result } = renderRecipeHook(() => usePrivateSlots(), { client });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
+        expect(result.current.data).toBeUndefined();
+    });
+
+    it('stays idle when disabled (a Premium-hidden surface asks nothing)', () => {
+        const client = makeGuardedClient();
+        const getPrivateSlots = vi.spyOn(client, 'getPrivateSlots');
+
+        const { result } = renderRecipeHook(() => usePrivateSlots({ enabled: false }), { client });
+
+        expect(result.current.fetchStatus).toBe('idle');
+        expect(getPrivateSlots).not.toHaveBeenCalled();
     });
 });
 
@@ -676,6 +721,63 @@ describe('useInfiniteSearchRecipes', () => {
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
         expect(result.current.hasNextPage).toBe(false);
+    });
+});
+
+describe('useIngredientNameProposals', () => {
+    const answer = {
+        phrase: 'milk',
+        proposals: [{ kind: 'root' as const, id: 'F1', name: 'Whole milk', source: 'remembered' }],
+    };
+
+    it('caches the proposals under the literal name-proposals key', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getIngredientNameProposals').mockResolvedValue(answer);
+
+        const { result, queryClient } = renderRecipeHook(() => useIngredientNameProposals('milk'), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(cachedQueryKeys(queryClient)).toEqual([['recipe-service', 'ingredients', 'name-proposals', 'milk']]);
+        expect(result.current.data).toEqual(answer);
+    });
+
+    it('forwards the typed name to the client', async () => {
+        const client = makeGuardedClient();
+        const spy = vi.spyOn(client, 'getIngredientNameProposals').mockResolvedValue(answer);
+
+        const { result } = renderRecipeHook(() => useIngredientNameProposals('milk'), { client });
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(spy).toHaveBeenCalledWith('milk', expect.objectContaining({ signal: expect.anything() }));
+    });
+
+    it.each(['', '   '])('stays idle and asks nothing for the blank name %j', (name) => {
+        const client = makeGuardedClient();
+        const spy = vi.spyOn(client, 'getIngredientNameProposals');
+
+        const { result } = renderRecipeHook(() => useIngredientNameProposals(name), { client });
+
+        expect(result.current.fetchStatus).toBe('idle');
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('stays idle and asks nothing when explicitly disabled', () => {
+        const client = makeGuardedClient();
+        const spy = vi.spyOn(client, 'getIngredientNameProposals');
+
+        const { result } = renderRecipeHook(() => useIngredientNameProposals('milk', { enabled: false }), { client });
+
+        expect(result.current.fetchStatus).toBe('idle');
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a client rejection as an error without retrying a hint: the field falls back to its own list', async () => {
+        const client = makeGuardedClient();
+        vi.spyOn(client, 'getIngredientNameProposals').mockRejectedValue(new SourceUnavailableError('down'));
+
+        const { result } = renderRecipeHook(() => useIngredientNameProposals('milk'), { client });
+
+        await waitFor(() => expect(result.current.isError).toBe(true));
     });
 });
 

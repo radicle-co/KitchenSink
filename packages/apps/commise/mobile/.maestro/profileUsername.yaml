@@ -1,6 +1,7 @@
 # The Clerk username on Profile (owner ruling 2026-10-13; plan 2026-10-15-010 D12) — the mobile twin of the web
 # Playwright `bylineUsername.spec.ts` profile case. A signed-in cook opens Profile and finds their "@username" in the
-# header, read-only: Clerk owns it, so there is no control to change it.
+# Account group, read-only: Clerk owns it, so there is no control to change it. (Owner ruling S2, 2026-10-27: the header
+# is the avatar and the name; the username and email show once, as rows.)
 #
 # It assumes the signed-in pool user's identity profile carries its Clerk username, which holds for every user
 # provisioned after identity migration 0016 and for any older one once a Clerk `user.updated` has synced it. Pool
@@ -12,12 +13,27 @@ appId: ${APP_ID}
 
 - tapOn: 'Profile.*'
 
-# The header's username line: "@" then the username. Anchored at the start so the email in the header cannot match.
-- extendedWaitUntil:
-      visible: '^@.+'
-      timeout: 40000
-- assertVisible: '^@.+'
+# The Username row. ⚠️ The row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS publishes a single node
+# named "Username, @name", while Android publishes the label and the value as two nodes ("Username", "@name"). So the
+# value is matched per platform: on Android "@" then the username, anchored at the start so the email row cannot match;
+# on iOS the combined name, which also proves the label sits with the value.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - extendedWaitUntil:
+                visible: 'Username, @.+'
+                timeout: 40000
+          - assertVisible: 'Username, @.+'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - extendedWaitUntil:
+                visible: '^@.+'
+                timeout: 40000
+          - assertVisible: '^@.+'
+          - assertVisible: 'Username'
 
-# Read-only: no row or control offers to change it.
-- assertNotVisible: 'Username'
+# Read-only: the row is plain text, and no control offers to change it.
 - assertNotVisible: 'Change username'

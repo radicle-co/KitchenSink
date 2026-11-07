@@ -18,10 +18,8 @@
  */
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
-import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { JSX } from 'react';
-import { StyleSheet, Text } from 'react-native';
 
 /**
  * The stand-in for a Home widget whose body failed to render.
@@ -30,7 +28,6 @@ import { StyleSheet, Text } from 'react-native';
  */
 export function HomeWidgetErrorNotice(): JSX.Element {
     const home = useMessages(homeMessages);
-    const { colors } = useTheme();
 
     // A LIVE REGION, but a POLITE one — `status`, not `alert`. The region is required (the notice appears
     // only after the widget has already failed mid-session, so plain text leaves a viewer using assistive
@@ -43,15 +40,12 @@ export function HomeWidgetErrorNotice(): JSX.Element {
     // reads (TalkBack), while `role` is what react-native-web projects to ARIA and what iOS maps to a trait.
     // Either alone leaves one of the three hosts silent. The assertive pairing in `RecipePhotoManager.native`
     // is the same construction one register louder.
+    //
+    // The `meta` role is the native projection of web's `text-body-sm text-ink-muted` (the same 14 px), drawn through the
+    // design system's `Text` (ADR-0080), so it follows the device's scheme and the 2x text cap.
     return (
-        <Text role="status" accessibilityLiveRegion="polite" style={[styles.notice, { color: colors.inkMuted }]}>
+        <Text role="status" accessibilityLiveRegion="polite" typeRole="meta" color="$inkMuted">
             {home.widgetError}
         </Text>
     );
 }
-
-const styles = StyleSheet.create({
-    // The native projection of web's `text-body-sm text-ink-muted` — sourced from the SHARED tokens, so the two
-    // platforms' failure copy reads at the same weight in the layout rather than drifting apart by hand.
-    notice: { fontSize: nativeTokens.fontSize.bodySm },
-});

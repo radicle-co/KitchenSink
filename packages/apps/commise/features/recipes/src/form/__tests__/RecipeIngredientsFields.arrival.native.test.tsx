@@ -14,7 +14,7 @@ import { resizeObserver as observer } from '@commise/ui/testing/resize-observer'
 import { role } from '@commise/ui/colors';
 import { FieldRevealContext, type FieldRevealer } from '@commise/ui/field-reveal';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import type { FC } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,6 +25,7 @@ import type { SettledRowCommit } from '../../hooks/useIngredientRowEditor.js';
 import { RecipeIngredientsFields } from '../RecipeIngredientsFields.native.js';
 import type { IngredientLineKey } from '../lineKey.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();

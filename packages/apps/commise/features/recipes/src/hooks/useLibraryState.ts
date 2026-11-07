@@ -20,77 +20,18 @@
  *
  * @pattern Observer — a `useSyncExternalStore` read of the query cache
  */
-import { notifyManager, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
-import { useCallback, useSyncExternalStore } from 'react';
+import type { QueryKey } from '@tanstack/react-query';
 
-import { libraryStateOf, type LibraryCacheState, type ReadSnapshot } from './libraryState.js';
-
-/** One member of a library's family of reads: a key, matched as a prefix unless `exact`. */
-export interface LibraryFamilyMember {
-    readonly queryKey: QueryKey;
-    readonly exact?: boolean;
-}
-
-/**
- * The snapshot of one cached read.
- *
- * @param client - The query client.
- * @param queryKey - The read's key, matched exactly.
- * @returns Its snapshot, or `undefined` while it has no cache entry.
- */
-function snapshotOf(client: QueryClient, queryKey: QueryKey): ReadSnapshot | undefined {
-    const state = client.getQueryCache().find({ queryKey, exact: true })?.state;
-
-    return state === undefined ? undefined : snapshotOfState(state);
-}
-
-/**
- * Narrows a query's state to the parts the classifier judges. The cache holds data the wire schemas produced, which
- * always carry `total`; the classifier reads only that.
- */
-function snapshotOfState(state: {
-    readonly data: unknown;
-    readonly dataUpdatedAt: number;
-    readonly status: ReadSnapshot['status'];
-    readonly fetchStatus: ReadSnapshot['fetchStatus'];
-}): ReadSnapshot {
-    const { data, dataUpdatedAt, status, fetchStatus } = state;
-
-    return { data: data as ReadSnapshot['data'], dataUpdatedAt, status, fetchStatus };
-}
+import { libraryStateOf, type LibraryCacheState } from './libraryState.js';
+import { useCacheJudgement, type LibraryFamilyMember } from './useCacheJudgement.js';
 
 /**
  * The state of a library, from the cache.
  *
  * @param family - Every read of the library (the recipe library's is `useRecipeLibraryState`'s family).
  * @param ownKey - The screen's own read, which decides loading vs unreachable while nothing has settled.
- * @returns The library's state.
+ * @returns The library's state. On the server it is `loading`.
  */
 export function useLibraryState(family: readonly LibraryFamilyMember[], ownKey: QueryKey): LibraryCacheState {
-    const client = useQueryClient();
-    const read = (): LibraryCacheState =>
-        libraryStateOf(
-            family.flatMap((member) =>
-                client
-                    .getQueryCache()
-                    .findAll({ queryKey: member.queryKey, exact: member.exact ?? false })
-                    .map((query) => snapshotOfState(query.state)),
-            ),
-            snapshotOf(client, ownKey),
-        );
-    const subscribe = useCallback(
-        (notify: () => void) => client.getQueryCache().subscribe(() => notifyManager.schedule(notify)),
-        [client],
-    );
-
-    return useSyncExternalStore(subscribe, read, serverState);
-}
-
-/**
- * The server render's answer: the cache there is not the browser's.
- *
- * @returns Always `loading`. Pure.
- */
-function serverState(): LibraryCacheState {
-    return 'loading';
+    return useCacheJudgement(family, ownKey, libraryStateOf, 'loading');
 }

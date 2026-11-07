@@ -1,8 +1,11 @@
 'use client';
 
 /**
- * @module @commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value
- * truncated to one line, an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1).
+ * @module @commise/features-account/profile/ProfileRow — a pressable Profile row (web): 56 px, the label, its value,
+ * an optional hint, and a chevron when it opens something (`buildSpec.md` §9.1). A row with a value draws the label and
+ * the value as a `LabelValuePair`: the value wraps and never truncates, and it stacks under the label when the group's
+ * column has too little room (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`). The chevron stays at the
+ * row's end either way.
  *
  * One control: the whole row is the button (or the link, when it has a destination), and its hint is inside it, so the
  * consequence of Close account is read with the name. The danger tone changes the TEXT colour only. Sign out is `ink`:
@@ -14,14 +17,17 @@
  */
 import { Icon } from '@commise/ui/icon';
 import { isModifiedClick } from '@commise/ui/route-link';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useId, type FC, type MouseEvent } from 'react';
 
+import { LabelValuePair } from './LabelValuePair.js';
 import type { ProfileRowProps } from './props.js';
 
 /** The row's box, shared by the button and the link. */
 const BOX =
-    'flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start hover:bg-ink/6 ' +
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring';
+    `flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start ${PRESS_FILL_CLASS.pointer} ` +
+    FOCUS_RING_CLASS.inset;
 
 /** The label colour per tone. */
 const TONE = { ink: 'text-ink', danger: 'text-danger-text' } as const;
@@ -46,22 +52,29 @@ export const ProfileRow: FC<ProfileRowProps> = ({
         .filter((id) => id !== null)
         .join(' ');
     const naming = { 'aria-labelledby': labelId, ...(describedBy === '' ? {} : { 'aria-describedby': describedBy }) };
+    const labelLines = (
+        <>
+            <span id={labelId} className="text-body">
+                {label}
+            </span>
+            {hint === undefined ? null : (
+                <span id={hintId} className="text-caption text-ink-muted">
+                    {hint}
+                </span>
+            )}
+        </>
+    );
     const body = (
         <>
-            <span className="flex min-w-0 flex-1 flex-col">
-                <span id={labelId} className="text-body">
-                    {label}
-                </span>
-                {hint === undefined ? null : (
-                    <span id={hintId} className="text-caption text-ink-muted">
-                        {hint}
-                    </span>
-                )}
-            </span>
-            {value === undefined ? null : (
-                <span id={valueId} className="min-w-0 max-w-[50%] truncate text-body text-ink-muted">
-                    {value}
-                </span>
+            {value === undefined ? (
+                <span className="flex min-w-0 flex-1 flex-col">{labelLines}</span>
+            ) : (
+                // Beside a value the label block keeps its longest word: no zero minimum width.
+                <LabelValuePair
+                    label={<span className="flex flex-col">{labelLines}</span>}
+                    value={value}
+                    valueId={valueId}
+                />
             )}
             {chevron ? <Icon name="chevronRight" size={20} /> : null}
         </>

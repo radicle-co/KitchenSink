@@ -4,8 +4,8 @@
  * that crashed. One title, an optional body, and at most two ways out.
  *
  * Both leaves (web `StateNotice.tsx`, native `StateNotice.native.tsx`) implement this exact surface. The layout is each
- * platform's own: web keeps the notice in the page's flow, native stacks the actions in the bottom third of the screen,
- * within thumb reach, the primary on top.
+ * platform's own: web keeps the notice in the page's flow, native centres the message with its actions under it. On both
+ * the first action is a quiet button (Try again) described by the body, and the way out is ghost.
  */
 import type { IconName } from '../icon/props.js';
 

@@ -35,9 +35,7 @@
  * contract below and the split that puts the identifiers on the log sink.
  */
 import { buildStageCountMetricLine, resolveMetricStage } from '../../common/emfMetricLine.js';
-
-/** CloudWatch namespace every mapping-promotion metric is published under. */
-export const MAPPING_PROMOTION_NAMESPACE = 'Commise/RecipeResolution';
+import { RECIPE_RESOLUTION_NAMESPACE } from './resolutionMetrics.js';
 
 /**
  * The metric name an alarm watches.
@@ -85,7 +83,7 @@ export class MappingPromotionAudit {
         // and a field here would fix the bill while leaving the privacy hazard fully intact.
         this.metricSink(
             buildStageCountMetricLine({
-                namespace: MAPPING_PROMOTION_NAMESPACE,
+                namespace: RECIPE_RESOLUTION_NAMESPACE,
                 metricName: MAPPING_PROMOTION_METRIC,
                 stage: this.stage,
             }),

@@ -28,7 +28,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 import { useRecipePhotoUpload } from '../useRecipePhotoUpload.js';
 import type { RecipePhotoUploadFile } from '../useRecipePhotoUpload.js';
 
-const UPLOAD_ERROR = 'We couldn’t upload that photo. Please try again.';
+const UPLOAD_ERROR = 'We couldn’t upload that photo.';
 const RECIPE_ID = 'rec_1';
 
 /** A minimal, complete upload input. */

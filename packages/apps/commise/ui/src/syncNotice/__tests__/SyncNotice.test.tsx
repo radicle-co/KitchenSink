@@ -7,9 +7,27 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { surfaceToneOf } from '../../testing/surfaceToneOf.js';
 import { SyncNotice } from '../SyncNotice.js';
 
 const LABEL = 'Sync status';
+
+// `componentFixes.md` §10: the notice paints `surfaceMuted`, so it states that surface for anything placed in it later.
+// (Written after the code it covers.)
+describe('SyncNotice (web) — the surface it paints', () => {
+    it('states the muted tone on the notice, on the notice corner', () => {
+        render(
+            <SyncNotice
+                state={{ kind: 'offline', title: 'You’re offline', body: 'Saved here.' }}
+                regionLabel={LABEL}
+            />,
+        );
+        const notice = screen.getByText('You’re offline').parentElement as HTMLElement;
+
+        expect(surfaceToneOf(notice)).toBe('muted');
+        expect(notice.className.split(/\s+/u)).toContain('rounded-lg');
+    });
+});
 
 describe('SyncNotice (web)', () => {
     it('renders nothing while hidden', () => {

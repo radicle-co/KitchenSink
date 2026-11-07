@@ -73,14 +73,15 @@ export function boundByOf(reason: string): Exclude<BoundBy, 'cook'> {
 /**
  * The line as the cook wrote it: the stated measure when it starts the line and ends on a word of it, and the words
  * after it. A `,` or `;` right after the measure stays with it, so the row shows the line as pasted ("2 cups, sifted"
- * is not "2 cups sifted"). The measure ends before any character that is not a letter or digit, as `promoteCrfReading`
- * cuts it. A measure ending inside a word (`2-3 cup` against `2-3 cups`) would draw `cup s`, so the line stays whole.
+ * is not "2 cups sifted"). The measure ends at a space, `,` or `;` (as
+ * `promoteCrfReading` cuts it), so one that stops inside a word (`2-3 cup` against `2-3 cups`) or a number (`1` against
+ * `1/2`) would draw a fragment, and the line stays whole.
  * Pure.
  */
 function lineTextOf(proposal: WireProposal): LineText {
     const measure = proposal.statedMeasure?.trim() ?? '';
     const raw = proposal.raw.trim();
-    const endsOnAWord = !/[\p{L}\p{N}]/u.test(raw.charAt(measure.length));
+    const endsOnAWord = raw.length === measure.length || /[\s,;]/u.test(raw.charAt(measure.length));
 
     if (measure === '' || !endsOnAWord || !raw.toLowerCase().startsWith(measure.toLowerCase())) {
         return { measure: '', words: raw };

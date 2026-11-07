@@ -35,6 +35,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import postcss from 'postcss';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 import tailwind from '@tailwindcss/postcss';
 import { describe, expect, it } from 'vitest';
 
@@ -47,25 +48,30 @@ const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.me
 
 const RECIPES_SRC = fileURLToPath(new URL('../../../features/recipes/src', import.meta.url));
 const WEB_SRC = fileURLToPath(new URL('../../src', import.meta.url));
+/** The other trees `globals.css` scans for production source. */
+const OTHER_SCANNED_SRC = ['account', 'core'].map((name) =>
+    fileURLToPath(new URL(`../../../features/${name}/src`, import.meta.url)),
+);
+const UI_SRC = fileURLToPath(new URL('../../../ui/src', import.meta.url));
 
-/** Source without block and line comments: prose may name a class that no element carries. */
-const stripComments = (source: string): string =>
-    source.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|[^:])\/\/.*$/gmu, '$1');
+const IN_A_TEST = /__tests__|\.test\./u;
 
 /**
- * Every arbitrary-value utility (`w-[4.5rem]`, `grid-cols-[auto_1fr]`) spelled in a source tree. A bare variant such
- * as `@min-[35rem]` or `aria-[current]` (followed by `:`) is not a utility and emits nothing alone, so it is skipped.
+ * Every arbitrary-value utility (`w-[4.5rem]`, `grid-cols-[auto_1fr]`) spelled in the code of a source tree's
+ * `.ts`/`.tsx` files that `keep` accepts (comments do not count: prose may name a class that no element carries). A
+ * bare variant such as `@min-[35rem]` or `aria-[current]` (followed by `:`) is not a utility and emits nothing alone,
+ * so it is skipped.
  *
- * @sideEffect Reads every `.ts`/`.tsx` file under `root` from disk.
+ * @sideEffect Reads every matching file under `root` from disk.
  */
-function arbitraryValueClasses(root: string, productionOnly: boolean): Set<string> {
+function arbitraryValueClasses(root: string, keep: (file: string) => boolean): Set<string> {
     const utility = /(?<![\w:@/.[-])[a-z@!-][\w:@/.-]*-\[[^\]\s'"`]+\](?!:)/gu;
     const files = readdirSync(root, { recursive: true, withFileTypes: true })
         .filter((entry) => entry.isFile() && /\.tsx?$/u.test(entry.name))
         .map((entry) => join(entry.parentPath, entry.name))
-        .filter((file) => !productionOnly || !/__tests__|\.test\./u.test(file));
+        .filter(keep);
 
-    return new Set(files.flatMap((file) => stripComments(readFileSync(file, 'utf8')).match(utility) ?? []));
+    return new Set(files.flatMap((file) => withoutTsComments(readFileSync(file, 'utf8'), file).match(utility) ?? []));
 }
 
 /** Utilities probed below. Forced into the build so the test never depends on current app usage. */
@@ -349,8 +355,10 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         const css = await cssPromise;
         const cssClass = (utility: string): string =>
             `.${utility.replace(/[^\w-]/gu, (character) => `\\${character}`)}`;
-        const webClasses = arbitraryValueClasses(WEB_SRC, false);
-        const sharedOnly = [...arbitraryValueClasses(RECIPES_SRC, true)].filter((utility) => !webClasses.has(utility));
+        const webClasses = arbitraryValueClasses(WEB_SRC, () => true);
+        const sharedOnly = [...arbitraryValueClasses(RECIPES_SRC, (file) => !IN_A_TEST.test(file))].filter(
+            (utility) => !webClasses.has(utility),
+        );
 
         expect(sharedOnly.length, 'the shared package spells at least one class the web app does not').toBeGreaterThan(
             0,
@@ -358,6 +366,32 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
 
         for (const utility of sharedOnly) {
             expect(css, utility).toContain(cssClass(utility));
+        }
+    });
+
+    /**
+     * What it guards: a class spelled ONLY in the shared package's tests builds no utility, which holds only while the
+     * `@source not` line for its `__tests__` is in `globals.css`. Seen red with that line removed.
+     */
+    it('emits no rule for an arbitrary-value class only the shared recipes package tests spell (its `@source not` line is load-bearing)', async () => {
+        const css = await cssPromise;
+        const cssClass = (utility: string): string =>
+            `.${utility.replace(/[^\w-]/gu, (character) => `\\${character}`)}`;
+        const elsewhere = new Set([
+            ...[WEB_SRC, ...OTHER_SCANNED_SRC, UI_SRC].flatMap((root) => [...arbitraryValueClasses(root, () => true)]),
+            ...arbitraryValueClasses(RECIPES_SRC, (file) => !IN_A_TEST.test(file)),
+        ]);
+        const testOnly = [...arbitraryValueClasses(RECIPES_SRC, (file) => IN_A_TEST.test(file))].filter(
+            (utility) => !elsewhere.has(utility),
+        );
+
+        expect(
+            testOnly.length,
+            'the shared package tests spell at least one class no production file does',
+        ).toBeGreaterThan(0);
+
+        for (const utility of testOnly) {
+            expect(css, utility).not.toContain(cssClass(utility));
         }
     });
 });

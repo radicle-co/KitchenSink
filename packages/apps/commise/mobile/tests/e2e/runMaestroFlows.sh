@@ -324,7 +324,6 @@ MAESTRO_PLATFORMS='android ios'
 # Android-only command behind it.
 MAESTRO_PLATFORM_EXCLUSIONS="ios|recipes/discoverBrowse|coverage-gap|closes the filter sheet with Maestro's 'back', which is Android only; Discover browse is untested on iOS until the flow closes the sheet through a control both platforms render
 ios|shell/tabBar|coverage-gap|its Android Back leg presses Maestro's 'back' (Android only) to prove Back from the Recipes root goes Home; the iOS path is the edge swipe, in shell/iosSwipeBack
-ios|recipes/privateFoodStandIn|coverage-gap|leaves the copy's untouched editor with Maestro's 'back' (Android only) to reach the copy's detail and its private-food banner; the stand-in and the copy banner are untested on iOS until the flow leaves the editor through a control both platforms render
 ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test"
 
 # ── THE FLOWS A LOCAL RUN CANNOT SERVE ─────────────────────────────────────────────────────────────────────

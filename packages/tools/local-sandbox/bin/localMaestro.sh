@@ -16,8 +16,8 @@
 #   from real AWS, and this script reads exactly one secret. A stack that is not up is refused with the command to run.
 # - The queue consumers `local:up` planned (`bin/queueConsumer.ts` — the account-erasure worker completes the purge
 #   `resetPool` waits on), the parse worker (`recipe-workers`' `dev`), the API 34 emulator `ci_pixel6` on serial
-#   `emulator-5556`, and Metro are started here when they are not already running, and stopped on exit — only what
-#   this run started.
+#   `emulator-5556`, and Metro are started here and stopped on exit. A consumer or worker this run did not start is
+#   REFUSED by pid, never reused: adopting another run's service is how a purge was left queued with nobody draining it.
 # - The app is the DEBUG APK, with its JavaScript from Metro, so an edit to app code needs no rebuild.
 #
 # ## Whose per-flow lifecycle
@@ -356,9 +356,11 @@ local_maestro_require_services() {
 
 local_maestro_start_worker() {
     local state="$1"
-    if pgrep -f 'recipe-workers.*src/local/main.ts|src/local/main\.ts' >/dev/null 2>&1; then
-        echo 'local:maestro: a parse worker is already running — reusing it' >&2
-        return 0
+    local held
+    # ⛔ Refused, never reused: a run that adopts another run's worker loses it when that run exits.
+    if held="$(pgrep -f 'recipe-workers.*src/local/main.ts|src/local/main\.ts' 2>/dev/null)"; then
+        local_maestro_fail "a parse worker this run did not start is running (pid ${held//$'\n'/ }) — stop it, or the run that owns it, first"
+        return 1
     fi
 
     echo 'local:maestro: starting the parse worker (recipe-workers dev)' >&2
@@ -381,11 +383,12 @@ local_maestro_start_consumers() {
         return 1
     fi
 
-    local name log waited
+    local name log waited held
     for name in $(jq -r '.[].name' "$plan"); do
-        if pgrep -f "bin/queueConsumer.ts ${name}( |$)" >/dev/null 2>&1; then
-            echo "local:maestro: the ${name} queue consumer is already running — reusing it" >&2
-            continue
+        # ⛔ Refused, never reused: an adopted consumer dies with the run that owns it and leaves this run's purge queued.
+        if held="$(pgrep -f "bin/queueConsumer.ts ${name}( |$)" 2>/dev/null)"; then
+            local_maestro_fail "the ${name} queue consumer is running as pid ${held//$'\n'/ }, and this run did not start it — stop it, or the run that owns it, first"
+            return 1
         fi
 
         echo "local:maestro: starting the ${name} queue consumer" >&2

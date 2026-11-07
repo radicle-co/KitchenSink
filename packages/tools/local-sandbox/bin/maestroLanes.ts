@@ -14,7 +14,7 @@
  * @sideEffect Boots emulators, starts the queue consumers and the parse worker, resets the local pool, runs Maestro.
  */
 import { execFile, spawn, spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,7 @@ import { acquireHostLock, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps } from '../src/maestroLanes/laneRun.js';
+import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
 
@@ -262,13 +263,84 @@ async function resolveSelection(
     }
 }
 
-async function main(argv: readonly string[]): Promise<number> {
-    const args = parseLaneArgs(argv, process.env);
+/**
+ * Start the shared services for the run, then build the downgraded owner's world (`recipes/makePublicConfirm` reads
+ * it); building it creates no user.
+ *
+ * @sideEffect Starts the queue consumers and the parse worker; writes the local recipe world.
+ */
+async function startServices(base: Env) {
+    const services = await startSharedServices(serviceSpecs(), {
+        listProcesses: async () =>
+            (await run('ps', ['-eo', 'pid=,args='])).stdout
+                .split('\n')
+                .map((line) => /^\s*(\d+)\s+(.*)$/u.exec(line))
+                .flatMap((match) => (match === null ? [] : [{ pid: Number(match[1]), command: match[2] ?? '' }]))
+                .filter((entry) => entry.pid !== process.pid),
+        start: (spec) => startService(spec, base),
+        resetPool: async (lane) => {
+            await tool(laneEnvFor(base, lane), `the pool reset of lane ${lane.platform}-${lane.index}`, [
+                'packages/tools/e2e-seed/src/resetPool.ts',
+                '--tier',
+                'maestro',
+                '--platform',
+                lane.platform,
+                '--shard',
+                String(lane.index),
+            ]);
+        },
+    });
+    const built = await run('npm', ['run', 'ensure-downgraded', '--workspace=packages/tools/e2e-seed'], {
+        env: { ...base, E2E_ROLE_USERS_NAMESPACE: 'shared' },
+    });
 
-    if (args.platforms.includes('ios')) {
-        throw new Error('maestro:lanes: the iOS lanes are not wired yet - run --platform android');
+    if (built.code !== 0) {
+        process.stderr.write(built.stderr);
+        await services.stop([]);
+        throw new Error('maestro:lanes: the downgraded owner world could not be built');
     }
 
+    return services;
+}
+
+/**
+ * Sample each live lane's processes every few seconds into `<lane>/usage.tsv`, and log each lane's mean CPUs and peak
+ * memory when it ends: the measurement behind an adapter's `laneCost`.
+ *
+ * @sideEffect Runs `ps` on a timer and writes the lane's usage file.
+ */
+function watchUsage(lane: LaneSpec, child: LaneChild, log: (line: string) => void): void {
+    let usage = emptyUsage();
+    const file = path.join(lane.stateDir, 'usage.tsv');
+    writeFileSync(file, 'epochMs\tcpuSeconds\trssKb\n');
+
+    const sample = (): void => {
+        const rows = laneProcesses(
+            parsePs(spawnSync('ps', ['-eo', 'pid=,pgid=,times=,rss=,args='], { encoding: 'utf8' }).stdout),
+            {
+                runnerPgid: child.pid,
+                consolePort: lane.device.replace(/^emulator-/u, ''),
+            },
+        );
+        const at = Date.now();
+        usage = recordSample(usage, rows, at);
+        appendFileSync(file, `${at}\t${usage.cpuSeconds}\t${rows.reduce((sum, row) => sum + row.rssKb, 0)}\n`);
+    };
+
+    const timer = setInterval(sample, 5_000);
+    sample();
+
+    void child.exit.then(() => {
+        clearInterval(timer);
+        const { seconds, meanCpus, peakRssBytes } = summarizeUsage(usage);
+        log(
+            `lane ${lane.platform}-${lane.index} usage: ${meanCpus} CPUs mean, ${(peakRssBytes / 1024 ** 3).toFixed(1)} GiB peak, over ${Math.round(seconds)} s`,
+        );
+    });
+}
+
+async function main(argv: readonly string[]): Promise<number> {
+    const args = parseLaneArgs(argv, process.env);
     mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
     const base = baseEnvironment();
     // `listLocalLanes` and the lane slots read the namespace from this process.
@@ -282,107 +354,76 @@ async function main(argv: readonly string[]): Promise<number> {
     }
 
     const children = new Set<LaneChild>();
+    let aborted = false;
 
-    const stopLanes = (): void => {
+    const abort = (): void => {
+        aborted = true;
+
         for (const child of children) {
             child.stop();
         }
     };
 
-    process.on('SIGINT', stopLanes);
-    process.on('SIGTERM', stopLanes);
+    process.on('SIGINT', abort);
+    process.on('SIGTERM', abort);
 
-    let worst = 0;
+    const log = (line: string): void => {
+        process.stdout.write(`maestro:lanes: ${new Date().toISOString().slice(11, 19)} ${line}\n`);
+    };
 
-    for (const platform of args.platforms) {
-        const adapter = adapterFor(platform, base);
-        const deps: LaneRunDeps = {
-            adapter,
-            stateDir: STATE_DIR,
-            repoRoot: REPO_ROOT,
-            lockDir: path.join(STATE_DIR, 'locks'),
-            baseEnv: base,
-            acquireLock: () => acquireHostLock(path.join(STATE_DIR, 'maestroLanes.lock'), process.pid, pidIsAlive),
-            selectFlows: (target, selector) => selectFlows(base, target, selector),
-            pack: async (index, count, flows) => {
-                const outcome = await run('bash', [RUNNER, 'pack', platform, String(index), String(count), ...flows]);
+    const deps: LaneRunDeps = {
+        adapterFor: (platform) => adapterFor(platform, base),
+        stateDir: STATE_DIR,
+        repoRoot: REPO_ROOT,
+        lockDir: path.join(STATE_DIR, 'locks'),
+        baseEnv: base,
+        acquireLock: () => acquireHostLock(path.join(STATE_DIR, 'maestroLanes.lock'), process.pid, pidIsAlive),
+        selectFlows: (platform, selector) => selectFlows(base, platform, selector),
+        pack: async (platform, index, count, flows) => {
+            const outcome = await run('bash', [RUNNER, 'pack', platform, String(index), String(count), ...flows]);
 
-                if (outcome.code !== 0) {
-                    throw new Error(
-                        `maestro:lanes: the runner could not pack lane ${index}/${count}: ${outcome.stderr.trim()}`,
-                    );
-                }
+            if (outcome.code !== 0) {
+                throw new Error(
+                    `maestro:lanes: the runner could not pack lane ${index}/${count}: ${outcome.stderr.trim()}`,
+                );
+            }
 
-                return outcome.stdout.split('\n').flatMap((line) => (line.startsWith('flow=') ? [line.slice(5)] : []));
-            },
-            identityCap: async (target) =>
-                (await listLocalLanes(clerkPoolAdminPort(base['CLERK_SECRET_KEY'] ?? ''), target)).present,
-            startServices: async () => {
-                const services = await startSharedServices(serviceSpecs(), {
-                    listProcesses: async () =>
-                        (await run('ps', ['-eo', 'pid=,args='])).stdout
-                            .split('\n')
-                            .map((line) => /^\s*(\d+)\s+(.*)$/u.exec(line))
-                            .flatMap((match) =>
-                                match === null ? [] : [{ pid: Number(match[1]), command: match[2] ?? '' }],
-                            )
-                            .filter((entry) => entry.pid !== process.pid),
-                    start: (spec) => startService(spec, base),
-                    resetPool: async (lane) => {
-                        await tool(laneEnvFor(base, lane), `the pool reset of lane ${lane.index}`, [
-                            'packages/tools/e2e-seed/src/resetPool.ts',
-                            '--tier',
-                            'maestro',
-                            '--platform',
-                            lane.platform,
-                            '--shard',
-                            String(lane.index),
-                        ]);
-                    },
-                });
+            return outcome.stdout.split('\n').flatMap((line) => (line.startsWith('flow=') ? [line.slice(5)] : []));
+        },
+        identityCap: async (platform) =>
+            (await listLocalLanes(clerkPoolAdminPort(base['CLERK_SECRET_KEY'] ?? ''), platform)).present,
+        startServices: () => startServices(base),
+        setupLane: async (lane, env) => {
+            await tool(env, `aligning lane ${lane.index}'s identities`, [
+                'packages/tools/local-sandbox/bin/alignIdentities.ts',
+            ]);
+            const manifest = await tool(env, `provisioning lane ${lane.index}`, [
+                'packages/tools/e2e-seed/src/provision.ts',
+            ]);
+            writeFileSync(lane.fixtureEnvFile, manifest, { mode: 0o600 });
+        },
+        spawnLane: (lane, env) => {
+            const child = spawnRunner({
+                script: RUNNER,
+                cwd: REPO_ROOT,
+                env,
+                log: path.join(lane.stateDir, 'runner.log'),
+            });
+            children.add(child);
+            void child.exit.then(() => children.delete(child));
 
-                // The downgraded owner's world, which `recipes/makePublicConfirm` reads; it raises no user.
-                const built = await run('npm', ['run', 'ensure-downgraded', '--workspace=packages/tools/e2e-seed'], {
-                    env: { ...base, E2E_ROLE_USERS_NAMESPACE: 'shared' },
-                });
+            if (lane.platform === 'android') {
+                watchUsage(lane, child, log);
+            }
 
-                if (built.code !== 0) {
-                    process.stderr.write(built.stderr);
-                    await services.stop([]);
-                    throw new Error('maestro:lanes: the downgraded owner world could not be built');
-                }
+            return child;
+        },
+        aborted: () => aborted,
+        staggerMs: Number(process.env['MAESTRO_LANE_STAGGER_SECONDS'] ?? 20) * 1000,
+        log,
+    };
 
-                return services;
-            },
-            setupLane: async (lane, env) => {
-                await tool(env, `aligning lane ${lane.index}'s identities`, [
-                    'packages/tools/local-sandbox/bin/alignIdentities.ts',
-                ]);
-                const manifest = await tool(env, `provisioning lane ${lane.index}`, [
-                    'packages/tools/e2e-seed/src/provision.ts',
-                ]);
-                writeFileSync(lane.fixtureEnvFile, manifest, { mode: 0o600 });
-            },
-            spawnLane: (lane, env) => {
-                const child = spawnRunner({
-                    script: RUNNER,
-                    cwd: REPO_ROOT,
-                    env,
-                    log: path.join(lane.stateDir, 'runner.log'),
-                });
-                children.add(child);
-                void child.exit.then(() => children.delete(child));
-
-                return child;
-            },
-            staggerMs: Number(process.env['MAESTRO_LANE_STAGGER_SECONDS'] ?? 20) * 1000,
-            log: (line) => process.stdout.write(`maestro:lanes: ${line}\n`),
-        };
-
-        worst = Math.max(worst, await runLaneRun(deps, { platform, requested: args.requested, selection }));
-    }
-
-    return worst;
+    return runLaneRun(deps, { platforms: args.platforms, requested: args.requested, selection });
 }
 
 main(process.argv.slice(2)).then(

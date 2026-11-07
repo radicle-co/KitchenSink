@@ -717,3 +717,25 @@ describe('local_maestro_export_build_env — the APK build carries the public Cl
         expect(build.indexOf('local_maestro_export_build_env')).toBeLessThan(build.indexOf('npx expo prebuild'));
     });
 });
+
+/**
+ * ADDED 2026-11-07: a run never ADOPTS a shared service it did not start. Reusing another run's parse worker or queue
+ * consumer is how one run's exit killed another's consumer and left a purge queued (the lane orchestrator's
+ * `sharedServices.ts` refuses the same way).
+ */
+describe('the one-emulator path never adopts a service', () => {
+    it('refuses a parse worker it did not start, names its pid, and starts nothing', () => {
+        const sandbox = makeSandbox();
+        writeFileSync(path.join(sandbox.bin, 'pgrep'), '#!/usr/bin/env bash\necho 4242\nexit 0\n');
+        chmodSync(path.join(sandbox.bin, 'pgrep'), 0o755);
+        writeFileSync(path.join(sandbox.bin, 'npm'), `#!/usr/bin/env bash\necho "npm $*" >> "${sandbox.calls}"\n`);
+        chmodSync(path.join(sandbox.bin, 'npm'), 0o755);
+        mkdirSync(sandbox.state, { recursive: true });
+
+        const result = run(sandbox, `local_maestro_start_worker '${sandbox.state}'`);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/4242/u);
+        expect(readFileSync(sandbox.calls, 'utf8')).toBe('');
+    });
+});

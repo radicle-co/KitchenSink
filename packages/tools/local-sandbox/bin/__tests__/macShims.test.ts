@@ -142,7 +142,9 @@ describe('laneHost.sh', () => {
     /** A fake `xcrun` that answers `simctl list -j devices` from a fixture and logs every other call. */
     function withSimulators(sandbox: Sandbox, devices: readonly { name: string; udid: string }[]): void {
         const json = JSON.stringify({
-            devices: { 'com.apple.CoreSimulator.SimRuntime.iOS-26-5': devices.map((d) => ({ ...d, state: 'Shutdown' })) },
+            devices: {
+                'com.apple.CoreSimulator.SimRuntime.iOS-26-5': devices.map((d) => ({ ...d, state: 'Shutdown' })),
+            },
         });
         const fixture = path.join(sandbox.root, 'devices.json');
         writeFileSync(fixture, json);
@@ -181,7 +183,9 @@ describe('laneHost.sh', () => {
         const sandbox = makeSandbox();
         withSimulators(sandbox, []);
         run('laneHost.sh', ['erase', 'AAAA'], sandbox);
-        const calls = readFileSync(sandbox.log, 'utf8').split('\n').filter((l) => l.startsWith('XCRUN'));
+        const calls = readFileSync(sandbox.log, 'utf8')
+            .split('\n')
+            .filter((l) => l.startsWith('XCRUN'));
         expect(calls).toEqual(['XCRUN simctl shutdown AAAA', 'XCRUN simctl erase AAAA']);
     });
 

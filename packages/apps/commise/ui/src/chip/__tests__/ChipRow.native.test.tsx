@@ -1,5 +1,5 @@
-import { cleanup, fireEvent } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { act, cleanup, fireEvent } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { scrollViewSizes, stubBoundingRects } from '../../testing/boundingRects.js';
@@ -25,6 +25,7 @@ let restoreRects: (() => void) | undefined;
 
 afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     restoreRects?.();
     restoreRects = undefined;
 });
@@ -77,7 +78,13 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
         const scroller = container.querySelector<HTMLElement>('[style*="overflow-x"]') as HTMLElement;
 
         scroller.scrollLeft = 120;
+        // The scroll view reports the end of a scroll on a 100 ms timer. Faked, it is flushed here, while the DOM is
+        // there, and not left to fire after the environment is gone.
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
         fireEvent.scroll(scroller);
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
 
         const box = container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement;
 

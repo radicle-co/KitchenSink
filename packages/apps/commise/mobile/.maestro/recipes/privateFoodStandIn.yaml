@@ -74,7 +74,8 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Close editor'
       timeout: 40000
-- back
+# The editor's own × leaves the untouched editor on both platforms; iOS has no system Back for `back` to press.
+- tapOn: 'Close editor'
 
 # FIRST on the copy: the one-time banner. The count behind it rides only on the copy response, which the app
 # writes into its cache; the detail stays fresh for 30 s (`RECIPE_STANDARD_STALE_TIME_MS`), so it is asserted before

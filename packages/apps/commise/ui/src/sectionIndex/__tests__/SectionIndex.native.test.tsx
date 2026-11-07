@@ -310,18 +310,18 @@ describe('SectionIndex (native): the bar count’s colour', () => {
     });
 });
 
+/** Whether a key of `TONE_ROLE` is a tone: a new tone in the table is tested without a list kept here. */
+const isTone = (key: string): key is SectionIndexTone => Object.hasOwn(TONE_ROLE, key);
+
 describe('SectionIndex (native): every tone’s text colour is its TONE_ROLE', () => {
     // The tone texts spell each colour token in the source (the colour guard reads them there), so this holds the spelled
     // tokens to the one `TONE_ROLE` table that the icons read: the two cannot drift.
-    it.each(['fix', 'attention', 'muted', 'complete'] as const satisfies readonly SectionIndexTone[])(
-        'paints a %s reason in its TONE_ROLE colour',
-        (tone) => {
-            renderIndex({
-                items: [{ id: 'one', label: 'One', tone, reason: `reason ${tone}` }],
-                currentId: 'one',
-            });
+    it.each(Object.keys(TONE_ROLE).filter(isTone))('paints a %s reason in its TONE_ROLE colour', (tone) => {
+        renderIndex({
+            items: [{ id: 'one', label: 'One', tone, reason: `reason ${tone}` }],
+            currentId: 'one',
+        });
 
-            expect(resolvedColour(screen.getByText(`reason ${tone}`), 'color')).toBe(formatRgb(role[TONE_ROLE[tone]]));
-        },
-    );
+        expect(resolvedColour(screen.getByText(`reason ${tone}`), 'color')).toBe(formatRgb(role[TONE_ROLE[tone]]));
+    });
 });

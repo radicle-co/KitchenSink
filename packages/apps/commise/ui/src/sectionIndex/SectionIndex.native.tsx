@@ -106,6 +106,13 @@ const ToneText: FC<ToneTextProps> = ({ tone, typeRole, numberOfLines, hidden = f
                     {children}
                 </Text>
             );
+
+        default: {
+            // A fifth tone is a compile error here, not a text that draws nothing.
+            const unknown: never = tone;
+
+            return unknown;
+        }
     }
 };
 

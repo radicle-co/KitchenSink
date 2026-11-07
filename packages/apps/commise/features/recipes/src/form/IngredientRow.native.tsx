@@ -86,8 +86,12 @@ const OpenControl: FC<{
 
     useFocusRequest(requested, () => moveScreenReaderFocus(node.current), onHandled);
 
+    // The run's body role under the figure face: `figureInline` has no size, and a stand-in's amount has no text parent
+    // to take one from (React Native would draw it at its 14 default), so the amount carries the run's own size.
     const amount =
-        row.amountText === '' ? null : <Text style={[styles.amount, { color: colors.ink }]}>{row.amountText}</Text>;
+        row.amountText === '' ? null : (
+            <Text style={[styles.body, styles.amount, { color: colors.ink }]}>{row.amountText}</Text>
+        );
 
     return (
         <Pressable

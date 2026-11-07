@@ -30,7 +30,7 @@ import { Sheet } from '../sheet/Sheet.native.js';
 import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { SectionIndexItem, SectionIndexProps } from './props.js';
+import type { SectionIndexItem, SectionIndexProps, SectionIndexTone } from './props.js';
 import {
     TONE_GLYPH,
     TONE_ROLE,
@@ -59,6 +59,55 @@ function linkProps(item: SectionIndexItem, current: boolean, withHint: boolean) 
         ...(current ? { 'aria-current': 'location' as const } : {}),
     };
 }
+
+interface ToneTextProps {
+    readonly tone: SectionIndexTone;
+    readonly typeRole: 'label' | 'caption';
+    readonly numberOfLines?: number;
+    readonly hidden?: boolean;
+    readonly children: string | number;
+}
+
+/**
+ * A text in its tone's colour. The colour guard reads tokens from the source, so each is spelled out here, once; it is
+ * `TONE_ROLE` in the same words, and `SectionIndex.native.test.tsx` holds the drawn colours to it.
+ */
+const ToneText: FC<ToneTextProps> = ({ tone, typeRole, numberOfLines, hidden = false, children }) => {
+    // A reason wraps inside its row; a count keeps its width.
+    const common = {
+        typeRole,
+        numberOfLines,
+        'aria-hidden': hidden || undefined,
+        flexShrink: typeRole === 'caption' ? 1 : 0,
+    };
+
+    switch (tone) {
+        case 'fix':
+            return (
+                <Text {...common} color="$dangerText">
+                    {children}
+                </Text>
+            );
+        case 'attention':
+            return (
+                <Text {...common} color="$attention">
+                    {children}
+                </Text>
+            );
+        case 'muted':
+            return (
+                <Text {...common} color="$inkMuted">
+                    {children}
+                </Text>
+            );
+        case 'complete':
+            return (
+                <Text {...common} color="$ink">
+                    {children}
+                </Text>
+            );
+    }
+};
 
 interface ListRowProps {
     readonly item: SectionIndexItem;
@@ -96,9 +145,9 @@ const ListRow: FC<ListRowProps> = ({ item, current, height, colors, onChoose }) 
                     {item.tone !== 'complete' && glyph !== undefined ? (
                         <Icon name={glyph} size={16} tone={TONE_ROLE[item.tone]} />
                     ) : null}
-                    <Text numberOfLines={2} typeRole="caption" color={`$${TONE_ROLE[item.tone]}`} flexShrink={1}>
+                    <ToneText tone={item.tone} typeRole="caption" numberOfLines={2}>
                         {item.reason}
-                    </Text>
+                    </ToneText>
                 </View>
             ) : null}
             {item.hint !== undefined ? (
@@ -135,9 +184,9 @@ const StripItem: FC<StripItemProps> = ({ item, current, colors, onChoose }) => {
                 {item.shortLabel ?? item.label}
             </Text>
             {count !== undefined ? (
-                <Text aria-hidden typeRole="label" color={`$${TONE_ROLE[item.tone]}`}>
+                <ToneText tone={item.tone} typeRole="label" hidden>
                     {count}
-                </Text>
+                </ToneText>
             ) : null}
             {current ? <View style={[styles.underBar, { backgroundColor: colors.hereBar }]} /> : null}
         </Pressable>
@@ -242,7 +291,12 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                     ) : null}
                 </Text>
                 {barCount !== undefined ? (
-                    <Text aria-hidden typeRole="label" chromeCap="1.5" color={`$${barCountRoleOf(items)}`}>
+                    <Text
+                        aria-hidden
+                        typeRole="label"
+                        chromeCap="1.5"
+                        color={barCountRoleOf(items) === TONE_ROLE.fix ? '$dangerText' : '$attention'}
+                    >
                         {barCount}
                     </Text>
                 ) : null}

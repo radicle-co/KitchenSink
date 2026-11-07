@@ -295,3 +295,16 @@ describe('SectionIndex (native) — a pressed row takes the press of the surface
         );
     });
 });
+
+describe('SectionIndex (native): the bar count’s colour', () => {
+    // The count takes `dangerText` when any section needs a fix, and `attention` otherwise (`barCountRoleOf`).
+    it.each([
+        ['a fix', ITEMS, role.dangerText],
+        ['no fix', ITEMS.filter((item) => item.tone !== 'fix'), role.attention],
+    ] as const)('paints the count for %s', (_name, items, colour) => {
+        state.containerClass = 'narrow';
+        renderIndex({ items, barCount: '⚠ 3' });
+
+        expect(resolvedColour(screen.getByText('⚠ 3'), 'color')).toBe(formatRgb(colour));
+    });
+});

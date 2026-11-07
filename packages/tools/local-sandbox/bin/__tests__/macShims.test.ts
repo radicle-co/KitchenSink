@@ -194,6 +194,23 @@ describe('laneHost.sh', () => {
         expect(calls).toEqual(['XCRUN simctl shutdown AAAA', 'XCRUN simctl erase AAAA']);
     });
 
+    it('installs the one .app bundle found in the directory', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, []);
+        mkdirSync(path.join(sandbox.root, 'apps', 'Commise.app'), { recursive: true });
+        run('laneHost.sh', ['install', 'AAAA', path.join(sandbox.root, 'apps')], sandbox);
+        expect(readFileSync(sandbox.log, 'utf8')).toContain(
+            `XCRUN simctl install AAAA ${path.join(sandbox.root, 'apps', 'Commise.app')}`,
+        );
+    });
+
+    it('refuses to install when the directory holds no .app', () => {
+        const sandbox = makeSandbox();
+        withSimulators(sandbox, []);
+        mkdirSync(path.join(sandbox.root, 'empty'));
+        expect(run('laneHost.sh', ['install', 'AAAA', path.join(sandbox.root, 'empty')], sandbox).status).not.toBe(0);
+    });
+
     it('removes only lane Simulators on cleanup, never another one', () => {
         const sandbox = makeSandbox();
         withSimulators(sandbox, [

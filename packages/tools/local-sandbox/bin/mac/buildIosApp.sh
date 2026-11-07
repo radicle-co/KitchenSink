@@ -80,18 +80,28 @@ case "$command_name" in
             "$REPO_ROOT/" "$KS_MAC_HOST:ksIos/build/src/"
         # `npm ci` only when the lockfile changed since the last install here.
         lock_sha="$(sha256sum "$REPO_ROOT/package-lock.json" | cut -d' ' -f1)"
+        # The build runs DETACHED on the Mac and this side polls: a Release build outlasts any ssh link on a loaded Mac
+        # (the first real attempt lost its connection mid-compile and the build died with it).
         # shellcheck disable=SC2016 # the variables are the Mac's
-        mac "set -e; export PATH=\"\${KS_NODE_BIN:-\$(ls -d \$HOME/.nvm/versions/node/v24*/bin | tail -1)}:$MAC_PATH\"; cd ksIos/build/src
-            if [ \"\$(cat ../lock.sha 2>/dev/null)\" != '$lock_sha' ] || [ ! -d node_modules ]; then npm ci && echo '$lock_sha' > ../lock.sha; fi
-            export DEVELOPER_DIR='$MAC_DEVELOPER_DIR' LANG=en_US.UTF-8
-            export EXPO_PUBLIC_RECIPE_API_URL='$EXPO_PUBLIC_RECIPE_API_URL' EXPO_PUBLIC_IDENTITY_API_URL='$EXPO_PUBLIC_IDENTITY_API_URL'
-            export EXPO_PUBLIC_FOOD_API_URL='$EXPO_PUBLIC_FOOD_API_URL' EXPO_PUBLIC_IDP_PUBLISHABLE_KEY='$CLERK_PUBLISHABLE_KEY'
-            export TEST_APP_CONTENT_KEY='$key' GITHUB_SHA='$sha' RUNNER_TEMP=\$HOME/ksIos/build/tmp
-            mkdir -p \$RUNNER_TEMP
-            bash packages/apps/commise/mobile/scripts/buildTestApp.sh ios
-            rm -rf \$HOME/ksIos/apps/$key && mkdir -p \$HOME/ksIos/apps/$key
-            cp packages/apps/commise/mobile/dist-testApp/ios/* \$HOME/ksIos/apps/$key/
-            tar -xzf \$HOME/ksIos/apps/$key/app.tar.gz -C \$HOME/ksIos/apps/$key"
+        mac 'cat > ksIos/build/build.sh' <<REMOTE
+set -e
+export PATH="\${KS_NODE_BIN:-\$(ls -d \$HOME/.nvm/versions/node/v24*/bin | sort -V | tail -1)}:$MAC_PATH"
+cd ksIos/build/src
+if [ "\$(cat ../lock.sha 2>/dev/null)" != '$lock_sha' ] || [ ! -d node_modules ]; then rm -f ../lock.sha; npm ci; echo '$lock_sha' > ../lock.sha; fi
+export DEVELOPER_DIR='$MAC_DEVELOPER_DIR' LANG=en_US.UTF-8
+export EXPO_PUBLIC_RECIPE_API_URL='$EXPO_PUBLIC_RECIPE_API_URL' EXPO_PUBLIC_IDENTITY_API_URL='$EXPO_PUBLIC_IDENTITY_API_URL'
+export EXPO_PUBLIC_FOOD_API_URL='$EXPO_PUBLIC_FOOD_API_URL' EXPO_PUBLIC_IDP_PUBLISHABLE_KEY='$CLERK_PUBLISHABLE_KEY'
+export TEST_APP_CONTENT_KEY='$key' GITHUB_SHA='$sha' RUNNER_TEMP=\$HOME/ksIos/build/tmp
+mkdir -p \$RUNNER_TEMP
+npx turbo run build --filter='@commise/mobile^...'
+bash packages/apps/commise/mobile/scripts/buildTestApp.sh ios
+rm -rf \$HOME/ksIos/apps/$key && mkdir -p \$HOME/ksIos/apps/$key
+cp packages/apps/commise/mobile/dist-testApp/ios/* \$HOME/ksIos/apps/$key/
+tar -xzf \$HOME/ksIos/apps/$key/app.tar.gz -C \$HOME/ksIos/apps/$key
+REMOTE
+        mac 'rm -f ksIos/build/build.rc; nohup sh -c "bash ksIos/build/build.sh > ksIos/build/build.log 2>&1; echo \$? > ksIos/build/build.rc" > /dev/null 2>&1 &'
+        until rc="$(mac 'cat ksIos/build/build.rc' 2>/dev/null)"; do sleep 20; done
+        [ "$rc" = 0 ] || { mac 'tail -60 ksIos/build/build.log' >&2 || true; die "the Mac build failed (exit $rc); log: ksIos/build/build.log on the Mac"; }
         "$0" check "$key"
         ;;
     *)

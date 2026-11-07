@@ -3,7 +3,7 @@
 #   laneHost.sh ensure <k>      print the UDID of lane k's Simulator, creating it when none carries the name
 #   laneHost.sh boot <udid>     boot and wait until it is usable
 #   laneHost.sh erase <udid>    shut down and erase (a clean app state for the next run)
-#   laneHost.sh install <udid> <app>
+#   laneHost.sh install <udid> <dir>   install the one .app bundle inside <dir>
 #   laneHost.sh facts           cpu count, memory bytes, load average and vm_stat, for the lane planner
 #   laneHost.sh cleanup         delete every lane Simulator
 # KS_SIM_DEVICE_TYPE and KS_SIM_RUNTIME choose what `ensure` creates.
@@ -40,7 +40,9 @@ case "${1:-}" in
         xcrun simctl erase "$2"
         ;;
     install)
-        xcrun simctl install "${2:?udid}" "${3:?app}"
+        app="$(find "${3:?dir}" -maxdepth 1 -name '*.app' -type d | head -2)"
+        [ -n "$app" ] && [ "$(printf '%s\n' "$app" | wc -l)" -eq 1 ] || die "expected exactly one .app in $3, found: ${app:-none}"
+        xcrun simctl install "${2:?udid}" "$app"
         ;;
     facts)
         echo "ncpu $(sysctl -n hw.ncpu)"

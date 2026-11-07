@@ -155,6 +155,20 @@ describe('IosAdapter', () => {
         expect(env['KS_MAC_LANE_HOME']).toContain('lane1');
     });
 
+    it('answers an empty environment for a lane that has not started, because the orchestrator asks while provisioning users', () => {
+        const adapter = new IosAdapter(options(makeShell().shell));
+        const lane = {
+            platform: 'ios' as const,
+            index: 1,
+            count: 1,
+            device: adapter.deviceFor(1),
+            driverPort: 7001,
+            stateDir: '/s/lanes/ios-1',
+            fixtureEnvFile: '/s/lanes/ios-1/fixture.env',
+        };
+        expect(adapter.laneEnv(lane)).toEqual({});
+    });
+
     it('stops the tunnel on teardown', async () => {
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
         const adapter = new IosAdapter(options(recorder.shell));

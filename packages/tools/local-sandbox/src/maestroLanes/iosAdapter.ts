@@ -169,8 +169,10 @@ export class IosAdapter implements DeviceAdapter {
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>> {
         const udid = this.udids.get(lane.index);
 
+        // The orchestrator asks while it provisions the lane's users, before any Simulator exists. The runner refuses
+        // an iOS run without MAESTRO_IOS_UDID, so an early answer cannot be driven by mistake.
         if (udid === undefined) {
-            throw new Error(`iOS lane ${String(lane.index)} has no Simulator yet; startDevice must run first`);
+            return {};
         }
 
         return {

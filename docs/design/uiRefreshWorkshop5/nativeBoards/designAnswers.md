@@ -400,3 +400,9 @@ The rule lives in `formatQuantity`, so it reaches web, native, the editor row an
 A paste row shows the line exactly as the cook pasted it. A comma that ends the measure stays, bold with the
 measure, then a space and the rest: "**2 cups,** sifted flour". The row's whole visible text equals the pasted
 line.
+
+## 2026-11-07: editor sections bar at the text cap (asked by Nova Squad)
+
+The sticky sections bar under the editor header is chrome, like the tab bar and the segmented tabs. Its label,
+suffix and count grow to 1.5x at most (`chromeCap`), so the bar never draws larger than the page title. The open
+list's rows are content and keep their roles' 2x cap. Chrome text is never larger than the page title, on any page.

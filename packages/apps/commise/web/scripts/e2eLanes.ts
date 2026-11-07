@@ -357,9 +357,19 @@ export async function chooseSelection(passthrough: readonly string[], env: Env):
         return { kind: 'none', why: 'no change touches a screen or a test that a web spec covers' };
     }
 
-    const tests = flattenReport(listTests(specFilters(web.ids), undefined, env)).filter(
-        (test) => test.project !== 'setup',
-    );
+    let tests: readonly ReportedTest[];
+
+    try {
+        tests = flattenReport(listTests(specFilters(web.ids), undefined, env)).filter(
+            (test) => test.project !== 'setup',
+        );
+    } catch (error) {
+        console.warn(
+            `warning: could not list the selected specs (${error instanceof Error ? error.message : String(error)}); running every spec`,
+        );
+
+        return { kind: 'unselected' };
+    }
 
     if (tests.length === 0) {
         return { kind: 'none', why: `the ${web.ids.length} selected spec(s) hold no test in this configuration` };

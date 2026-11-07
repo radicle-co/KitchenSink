@@ -65,7 +65,9 @@ export type PoolTenant = (typeof POOL_TENANTS)[number];
  *   2. **The tier writes nothing to any stage.** It configures no deployed origin and every `/api/v1/**` call is
  *      intercepted in the browser, so there is no data to share, and nothing to reset.
  *
- * What concurrent stub runs DO share is Clerk's per-user sign-in rate — a flake risk, not a correctness one.
+ * What concurrent stub runs DO share is Clerk's rate limits — a flake risk, not a correctness one. Clerk documents
+ * Frontend API limits per IP address and Backend API limits of 100 requests per 10 seconds per development instance
+ * (https://clerk.com/docs/guides/how-clerk-works/system-limits), so they are not a per-user rate.
  *
  * `roles` (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D12; owner rulings 2026-10-13 and
  * 2026-10-15) is one user per role, for the paid-feature specs and flows: a DEFAULT or an ADMIN user proves only the
@@ -223,7 +225,10 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         coauthor('coauthor'),
         // Each real erasure destroys its subject for good (identity keeps it unresolvable), so the flow takes
         // the first erasure slot that still exists and `poolAdmin` replenishes the rest.
-        ...numbered('erasure', 10, { consumable: true, signsInByPassword: true }),
+        // ONE subject per platform (trimmed from ten 2026-11-06): the refill always takes the FIRST standing subject and
+        // fails unless every declared one can be leased, so spares never helped. Android `erasure01`, iOS `erasure06`.
+        lane('erasure01', { consumable: true, signsInByPassword: true }),
+        lane('erasure06', { consumable: true, signsInByPassword: true }),
         // ⛔ SHARD 2's OWN IDENTITIES — APPENDED, never inserted, so no consumable is renumbered. The Maestro
         // tier runs as a matrix (`_ci-heavy.yml`), and a shard is only safe because its signer and co-author
         // are nobody else's: the per-flow reset RECONCILES the signer's library to the run manifest and
@@ -331,8 +336,8 @@ interface MaestroPlatformLanes {
  *
  * ⛔ Each platform's three lists are NOT the same length by obligation; signer and co-author are, because a shard needs
  * BOTH and {@link maestroShardCapacity} takes the minimum, so a half-declared shard is unrepresentable rather than a
- * run that leases one identity and fails on the other. The erasure set is Android `erasure01-05`, iOS `erasure06-10`:
- * the ten consumable users are split in half, one half per platform, and no new erasure user exists.
+ * run that leases one identity and fails on the other. The erasure set is Android `erasure01`, iOS `erasure06`:
+ * one consumable user per platform (the refill takes the first standing subject, so a spare never helped).
  *
  * The type is a `Record` over the platform union, so a platform added to {@link MAESTRO_PLATFORMS} without lanes is a
  * compile error. This module must not know about workflows; the workflow's side of the contract is held by
@@ -342,12 +347,12 @@ const MAESTRO_PLATFORM_LANES: Readonly<Record<MaestroPlatform, MaestroPlatformLa
     android: {
         signer: ['signer', ...[2, 3, 4, 5, 6, 7, 8].map((n) => `signer${pad(n)}`)],
         coauthor: ['coauthor', ...[2, 3, 4, 5, 6, 7, 8].map((n) => `coauthor${pad(n)}`)],
-        erasure: ['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05'],
+        erasure: ['erasure01'],
     },
     ios: {
         signer: [1, 2, 3, 4, 5].map((n) => `iossigner${pad(n)}`),
         coauthor: [1, 2, 3, 4, 5].map((n) => `ioscoauthor${pad(n)}`),
-        erasure: ['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10'],
+        erasure: ['erasure06'],
     },
 };
 
@@ -429,10 +434,11 @@ export const MAESTRO_ERASURE_SHARD = 1;
  *
  * ## The lease contract (2026-10-08 stride -> one lane; 2026-10-13 one lane PER PLATFORM)
  *
- * The stride split the ten subjects across the shards, which was safe but wasted half of them: the flow plan always
+ * The stride split ten subjects across the shards, which was safe but wasted half of them: the flow plan always
  * packed `accountErasure` onto shard 2, so shard 1's five were leased and never erased while shard 2's five ran dry.
- * Then one shard of the matrix held all ten. Now each PLATFORM's shard 1 holds five of them (Android `erasure01-05`,
- * iOS `erasure06-10`) and the runner pins every erasing flow to it, so what keeps two runs off one subject is the LANE
+ * Then one shard of the matrix held all ten. Now each PLATFORM's shard 1 holds one (Android `erasure01`,
+ * iOS `erasure06`; ten were trimmed to two 2026-11-06, because the refill takes the first standing subject and fails
+ * unless every declared one can be leased) and the runner pins every erasing flow to it, so what keeps two runs off one subject is the LANE
  * that shard leases, not a partition of the slots:
  *
  *   - only a platform's erasure shard leases a subject, refills the subjects, or runs an erasing flow;
@@ -448,10 +454,10 @@ export const MAESTRO_ERASURE_SHARD = 1;
  * nothing, so none can erase the wrong KIND of account:
  *
  *   - **A local run holds no lane.** `local-sandbox`'s `localMaestro.sh` runs as Android shard 1 against the same
- *     sandbox Clerk instance and leases from the same five, so a local run concurrent with a CI Android lane-1 job can
+ *     sandbox Clerk instance and leases the same subject, so a local run concurrent with a CI Android lane-1 job can
  *     lease the same subject, and one of the two erasures fails.
  *   - **A run of OLDER code on another branch.** The previous workflow gave every platform's shard 1 all ten subjects
- *     and one shared group, so an old-code Android shard 1 can draw `erasure06-10` while a new iOS shard 1 holds them.
+ *     and one shared group, so an old-code Android shard 1 can draw `erasure06` while a new iOS shard 1 holds it.
  *     It clears as branches pick up this change.
  *   - **Erasure is asynchronous** (identity, the deletion queue, the worker, then Clerk), so a subject a cancelled
  *     run had started erasing can still exist when the next holder leases it, and be deleted under that holder's
@@ -485,8 +491,9 @@ export const POOL_NAMESPACE_ENV = 'E2E_POOL_NAMESPACE';
  *
  * - `shared` — the sandbox pool CI and the deployed suites lease. The default, and the only value any workflow sets.
  * - `local` — users that exist for a developer's machine alone (`test-local-{id}+clerk_test@…`), on the same Clerk
- *   instance. A local run erases and refills its erasure subjects, and the local stack's deletion worker deletes them
- *   from Clerk; they must never be CI's. `poolAdmin` mints their `external_id` itself, because the identity webhook
+ *   instance. A local run erases and refills its erasure subjects, but the local stack runs NO deletion worker
+ *   (`queueConsumers.ts` marks `deletionWorker` not-run: identity's deletion queue URL is a placeholder locally), so
+ *   `poolAdmin --recycle` / `--delete-consumables` delete them from Clerk instead; they must never be CI's. `poolAdmin` mints their `external_id` itself, because the identity webhook
  *   that writes it for the shared pool belongs to the sandbox and is down when the sandbox is.
  */
 export type PoolNamespace = 'shared' | 'local';

@@ -359,7 +359,7 @@ describe('reconcilePool', () => {
     /**
      * The 2026-10-08 refill: the Maestro job tops the erasure subjects up before it provisions. Its scope is the
      * whole contract of that door, so these pin it against the real roster rather than hand-picked slots.
-     * REWRITTEN 2026-10-13: the scope is now (platform, shard), so each platform refills only ITS OWN five subjects.
+     * REWRITTEN 2026-10-13: the scope is now (platform, shard), so each platform refills only ITS OWN one subject (trimmed from five 2026-11-06).
      */
     describe.each(MAESTRO_PLATFORMS)('the Maestro erasure refill scope, %s', (platform) => {
         const scope = { kind: 'maestroErasure', platform, shard: MAESTRO_ERASURE_SHARD } as const;
@@ -372,7 +372,7 @@ describe('reconcilePool', () => {
             const created = port.createUser.mock.calls.map(([input]) => input.emailAddress[0]);
 
             expect([...created].sort()).toEqual(own.map((slot) => slot.email).sort());
-            expect(own).toHaveLength(5);
+            expect(own).toHaveLength(1);
             expect(port.mergeMetadata).not.toHaveBeenCalled();
             expect(report.healthy).toBe(true);
         });
@@ -1144,7 +1144,7 @@ describe('recycling the consumable users of a local-namespace run', () => {
     });
 
     it('does nothing to a slot outside the scope it was given', async () => {
-        const other = held(slotFor('maestro', 'erasure02'));
+        const other = held(slotFor('maestro', 'erasure06'));
         const { port, deleted } = portWith(other);
 
         await reconcilePool(port, { ...base, slots: [erasure], apply: true, recycle: 'consumables' });

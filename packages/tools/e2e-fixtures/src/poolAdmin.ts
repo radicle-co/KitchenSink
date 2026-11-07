@@ -19,11 +19,11 @@
  * ⛔ AMENDED by owner ruling 2026-10-08: **the pool refills itself before each Maestro run.** The Maestro job (Android
  * and iOS, sandbox tenant only) runs this command right before it provisions, as
  * `poolAdmin.ts --apply --maestro-erasure --platform P --shard N`, which reconciles ONLY the erasure subjects that
- * platform's shard may lease (`maestroErasureSlots` — that platform's five for its erasure shard, none for any other). So a run now tops the pool up, but
+ * platform's shard may lease (`maestroErasureSlots` — that platform's one subject for its erasure shard, none for any other). So a run now tops the pool up, but
  * only through this module, the single writer; the tests themselves still never create a user, and every other slot
  * is still provisioned only by the owner's full run. The reason: each real erasure destroys its subject, the flow
  * runs on every Maestro run and both platforms, and a pool replenished only by hand ran dry
- * (`all 5 consumable slots are consumed`, both platforms, 2026-10-08). This paragraph is the one statement of the
+ * (`all 5 consumable slots are consumed`, both platforms, 2026-10-08; the pool has since been trimmed to one subject per platform, 2026-11-06). This paragraph is the one statement of the
  * amendment; everything else cites it.
  *
  * ## What it does
@@ -272,9 +272,8 @@ export function poolScopeOptions(scope: PoolScope): {
                 slots: [
                     maestroSlotForShard('signer', scope.platform, scope.shard),
                     maestroSlotForShard('coauthor', scope.platform, scope.shard),
-                    // ONE erasure subject, not the five: the lane recycles it, so the first one standing is always the
-                    // one just made and the lease takes it. Five would spend four of the Clerk development instance's
-                    // 100 users (a hard cap CI's pool already sits near) on subjects nothing leases.
+                    // The platform's erasure subject, which is its only one since the 2026-11-06 trim; the lane recycles
+                    // it, so the one standing is always the one just made and the lease takes it.
                     ...maestroErasureSlots(scope.platform, scope.shard).slice(0, 1),
                 ],
                 drift: 'skip',

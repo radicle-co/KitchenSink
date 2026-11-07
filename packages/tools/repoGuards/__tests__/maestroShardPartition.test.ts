@@ -214,7 +214,7 @@ describe('the shell shard ceiling and the Clerk pool roster agree', () => {
         expect(new Set(addresses).size).toBe(addresses.length);
     });
 
-    it('⛔ hands each platform’s erasure shard ITS OWN five subjects and every other shard none — all ten usable, one eraser per platform', () => {
+    it('⛔ hands each platform’s erasure shard ITS OWN one subject and every other shard none — both usable, one eraser per platform', () => {
         const held = MAESTRO_PLATFORMS.flatMap((platform) =>
             Array.from({ length: maestroShardCapacity(platform) }, (_, index) => ({
                 platform,
@@ -225,7 +225,8 @@ describe('the shell shard ceiling and the Clerk pool roster agree', () => {
         const erasers = held.filter(({ shard }) => shard === MAESTRO_ERASURE_SHARD);
 
         expect(erasers.flatMap(({ ids }) => ids)).toStrictEqual(consumableSlots('maestro').map((slot) => slot.id));
-        expect(erasers.every(({ ids }) => ids.length === 5)).toBe(true);
+        // Trimmed 2026-11-06 from five each: the refill takes the first standing subject, so spares never helped.
+        expect(erasers.every(({ ids }) => ids.length === 1)).toBe(true);
         expect(held.filter(({ shard }) => shard !== MAESTRO_ERASURE_SHARD).flatMap(({ ids }) => ids)).toStrictEqual([]);
     });
 

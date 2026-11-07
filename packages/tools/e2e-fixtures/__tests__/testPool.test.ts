@@ -211,7 +211,8 @@ describe('consumableSlots', () => {
     it('are the maestro erasure subjects, in declared order, and nothing else', () => {
         const slots = consumableSlots('maestro');
 
-        expect(slots.length).toBeGreaterThanOrEqual(10);
+        // Two: one per platform (trimmed from ten 2026-11-06).
+        expect(slots.map((slot) => slot.id)).toEqual(['erasure01', 'erasure06']);
         expect(slots.every((slot) => slot.consumable && slot.id.startsWith('erasure'))).toBe(true);
         expect(rosterSlots().filter((slot) => slot.consumable)).toEqual(slots);
     });
@@ -403,7 +404,7 @@ describe('maestro shard allocation', () => {
             ...maestroErasureSlots(platform, shard).map((slot) => slot.email),
         ]);
 
-        expect(emails).toHaveLength((SHARDS_PER_PLATFORM.android + SHARDS_PER_PLATFORM.ios) * 2 + 10);
+        expect(emails).toHaveLength((SHARDS_PER_PLATFORM.android + SHARDS_PER_PLATFORM.ios) * 2 + 2);
         expect(new Set(emails).size).toBe(emails.length);
     });
 
@@ -508,11 +509,17 @@ describe('maestro shard allocation', () => {
         }
     });
 
-    it('⛔ APPENDS the new lanes: the maestro roster before them keeps its old order, so no shard changes user', () => {
-        expect(POOL_ROSTER.maestro.slice(0, 14).map((lane) => lane.id)).toEqual([
+    /**
+     * REWRITTEN 2026-11-06 (pool trim, step 2): the erasure block shrank from ten subjects to two, so the roster INDEX
+     * of later lanes moved. That is safe because a shard resolves its lane by ID through `MAESTRO_PLATFORM_LANES`, never
+     * by roster index; what must hold is that every shard's ids and their order are unchanged.
+     */
+    it('⛔ APPENDS the new lanes: the shard-ordered signer lists keep their ids and order, so no shard changes user', () => {
+        expect(POOL_ROSTER.maestro.slice(0, 6).map((lane) => lane.id)).toEqual([
             'signer',
             'coauthor',
-            ...Array.from({ length: 10 }, (_, i) => `erasure${String(i + 1).padStart(2, '0')}`),
+            'erasure01',
+            'erasure06',
             'signer02',
             'coauthor02',
         ]);
@@ -521,7 +528,9 @@ describe('maestro shard allocation', () => {
 
 /**
  * THE ERASURE LANE, per platform (2026-10-13; it refines the 2026-10-08 lane, which was one lane for both platforms).
- * Each platform's shard 1 leases ITS OWN five subjects: Android `erasure01-05`, iOS `erasure06-10`. The runner still
+ * Each platform's shard 1 leases ITS OWN one subject: Android `erasure01`, iOS `erasure06` (trimmed from five each
+ * 2026-11-06: the refill always takes the FIRST standing subject and fails unless every declared one can be leased,
+ * so the spares never helped and each cost a Clerk user). The runner still
  * pins every erasing flow to shard 1 of its platform, and that shard's concurrency group admits one job at a time, so
  * one job per platform can lease, and the two platforms draw from DISJOINT sets and cannot collide with each other.
  */
@@ -533,9 +542,10 @@ describe('maestro erasure lane', () => {
         expect(MAESTRO_ERASURE_SHARD).toBe(1);
     });
 
-    it('gives Android shard 1 erasure01-05 and iOS shard 1 erasure06-10, in declared order', () => {
-        expect(ids('android')).toEqual(['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05']);
-        expect(ids('ios')).toEqual(['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10']);
+    it('gives Android shard 1 erasure01 and iOS shard 1 erasure06, and the roster holds no other consumable', () => {
+        expect(ids('android')).toEqual(['erasure01']);
+        expect(ids('ios')).toEqual(['erasure06']);
+        expect(consumableSlots('maestro').map((slot) => slot.id)).toEqual(['erasure01', 'erasure06']);
     });
 
     it('⛔ keeps the two platforms’ sets disjoint, and their union is every consumable subject', () => {

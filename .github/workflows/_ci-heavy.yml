@@ -1406,8 +1406,8 @@ jobs:
     # in as Android shard N's users and the two jobs shared a group, which serialised them (run 38322183404: iOS
     # waited 36 minutes behind Android). The three-part act on `maestro_shards` was taken instead — the roster now
     # carries `iossigner01-04` and `ioscoauthor01-04`, `poolAdmin --apply` created them, and the shell's per-platform ceiling was 4
-    # — so the platforms run side by side. Each platform's shard 1 erases from ITS OWN five subjects (Android
-    # `erasure01-05`, iOS `erasure06-10`; `maestroErasureSlots`), and every seed, reset and refill step names its
+    # — so the platforms run side by side. Each platform's shard 1 erases from ITS OWN subject (Android
+    # `erasure01`, iOS `erasure06`; `maestroErasureSlots`), and every seed, reset and refill step names its
     # platform. ⚠️ GitHub keeps ONE pending job per group, so a third arrival cancels a waiting shard (owner ruling
     # 2026-09-14: "Accept, re-run on red").
     #
@@ -1731,7 +1731,7 @@ jobs:
                   MAESTRO_PLATFORM: ios
               run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
             # ⛔ REFILL THE ERASURE SUBJECTS, then provision — the Android job's note says why. The two platforms refill
-            # DISJOINT sets (iOS: `erasure06-10`), so this refill and the Android one may now run at the same time.
+            # DISJOINT sets (iOS: `erasure06`), so this refill and the Android one may now run at the same time.
             - name: Refill the Maestro erasure subjects before provisioning (shard ${{ matrix.shard }}, poolAdmin)
               if: steps.secrets.outcome == 'success'
               env:

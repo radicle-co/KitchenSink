@@ -18,7 +18,10 @@ export interface LaneSpec {
     readonly index: number;
     /** `MAESTRO_SHARD_COUNT` for this platform. */
     readonly count: number;
-    /** The emulator serial or the Simulator UDID. */
+    /**
+     * The adapter's name for the lane's device, opaque to everything else: an emulator serial on Android, the
+     * Simulator's NAME on iOS (its UDID exists only once `startDevice` has run, and reaches the runner through `laneEnv`).
+     */
     readonly device: string;
     /** `7000 + index`, below the ephemeral range on both hosts. */
     readonly driverPort: number;
@@ -52,7 +55,7 @@ export interface DeviceAdapter {
     hostFacts(): Promise<HostFacts>;
     /** Build or verify the app, open tunnels, sync flows. */
     prepareHost(run: RunContext): Promise<void>;
-    /** Pure: the serial or UDID lane `index` drives. */
+    /** Pure: the name of the device lane `index` drives (see {@link LaneSpec.device}). */
     deviceFor(index: number): string;
     /** Boot, install, device settings. */
     startDevice(lane: LaneSpec): Promise<void>;

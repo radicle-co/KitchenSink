@@ -12,8 +12,11 @@ import {
     clerkPoolAdminPort,
     deleteK6RunUsers,
     deleteLocalConsumables,
+    describeLocalLanes,
     describeReport,
+    listLocalLanes,
     metadataSatisfies,
+    parseListLocalLanesArgs,
     parsePoolAdminArgs,
     planPool,
     poolProfileReassert,
@@ -1657,5 +1660,92 @@ describe('refuseUnsafeScope', () => {
 
     it('refuses --local-roles outside the local namespace', () => {
         expect(() => refuseUnsafeScope({ kind: 'localRoles' }, false)).toThrow(/E2E_POOL_NAMESPACE=local/u);
+    });
+});
+
+describe('listing the local Maestro lanes — read only', () => {
+    beforeEach(() => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+    });
+
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    /** A port holding the given users, whose every write throws: a listing that wrote would fail the test. */
+    const readOnlyPort = (...emails: string[]): PoolAdminPort => {
+        const refuse = () => {
+            throw new Error('a listing must not write');
+        };
+
+        return {
+            findUsers: vi.fn(async (email: string) => (emails.includes(email) ? [user(email)] : [])),
+            listUsers: vi.fn(refuse),
+            createUser: vi.fn(refuse),
+            mergeMetadata: vi.fn(refuse),
+            readExternalId: vi.fn(refuse),
+            writeExternalId: vi.fn(refuse),
+            deleteUser: vi.fn(refuse),
+            reassertProfile: vi.fn(refuse),
+        };
+    };
+
+    const local = (id: string): string => slotFor('maestro', id).email;
+
+    it('parses the flag with its platform, and nothing else', () => {
+        expect(parseListLocalLanesArgs(['--list-local-lanes', '--platform', 'ios'])).toEqual({ platform: 'ios' });
+    });
+
+    it.each([
+        [['--list-local-lanes']],
+        [['--list-local-lanes', '--platform', 'tvos']],
+        [['--list-local-lanes', '--platform', 'ios', '--apply']],
+        [['--list-local-lanes', '--platform', 'ios', '--shard', '1']],
+    ])('refuses %j', (argv) => {
+        expect(() => parseListLocalLanesArgs(argv)).toThrow(/poolAdmin/u);
+    });
+
+    it('counts lanes from 1 while both users exist, stops at the first gap, and writes nothing', async () => {
+        expect(local('signer')).toMatch(/^test-local-signer\+/u);
+        const port = readOnlyPort(
+            local('signer'),
+            local('coauthor'),
+            local('signer02'),
+            local('coauthor02'),
+            local('signer03'),
+            local('signer04'),
+            local('coauthor04'),
+        );
+
+        const report = await listLocalLanes(port, 'android');
+
+        expect(report.present).toBe(2);
+        expect(report.lanes.slice(0, 4)).toEqual([
+            { index: 1, signer: true, coauthor: true },
+            { index: 2, signer: true, coauthor: true },
+            { index: 3, signer: true, coauthor: false },
+            { index: 4, signer: true, coauthor: true },
+        ]);
+        expect(report.lanes).toHaveLength(8);
+        expect(report.erasureSubject).toBe(false);
+        expect(describeLocalLanes(report).at(-1)).toBe('lanes=2');
+    });
+
+    it('reports whether the erasure subject of lane 1 exists', async () => {
+        const report = await listLocalLanes(
+            readOnlyPort(local('iossigner01'), local('ioscoauthor01'), local('erasure06')),
+            'ios',
+        );
+
+        expect(report.present).toBe(1);
+        expect(report.erasureSubject).toBe(true);
+    });
+
+    it('refuses outside the local namespace, before any read', async () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', '');
+        const port = readOnlyPort();
+
+        await expect(listLocalLanes(port, 'android')).rejects.toThrow(/E2E_POOL_NAMESPACE=local/u);
+        expect(port.findUsers).not.toHaveBeenCalled();
     });
 });

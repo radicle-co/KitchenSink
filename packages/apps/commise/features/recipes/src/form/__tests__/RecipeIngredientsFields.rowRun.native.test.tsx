@@ -12,7 +12,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, within } from '@testing-library/react';
 
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
-import { render as renderBare } from '@commise/ui/testing/tamagui';
+import { nativeTokens } from '@commise/ui/native';
+import { render as renderBare, resolvedStyle, type StyleProperty } from '@commise/ui/testing/tamagui';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { recipeMessages } from '../../messages.js';
@@ -56,10 +57,10 @@ const line = (over: Partial<UnkeyedFormIngredient>): UnkeyedFormIngredient => ({
     ...over,
 });
 
-const rowButton = (ingredient: UnkeyedFormIngredient, name: string): HTMLElement => {
+const renderRows = (ingredients: readonly UnkeyedFormIngredient[]): void => {
     renderBare(
         <RecipeIngredientsFields
-            values={{ ...defaultRecipeFormValues(), ingredients: withLineKeys([ingredient]) }}
+            values={{ ...defaultRecipeFormValues(), ingredients: withLineKeys([...ingredients]) }}
             onChange={() => undefined}
             nutrition={makeIngredientNutrition()}
             lookupRetry={makeLookupRetry()}
@@ -71,9 +72,17 @@ const rowButton = (ingredient: UnkeyedFormIngredient, name: string): HTMLElement
             ),
         },
     );
+};
+
+const rowButton = (ingredient: UnkeyedFormIngredient, name: string): HTMLElement => {
+    renderRows([ingredient]);
 
     return screen.getByRole('button', { name });
 };
+
+/** The leaf element whose whole text is `text`, inside a row's open control. */
+const leafWithText = (button: HTMLElement, text: string): HTMLElement =>
+    within(button).getByText((_, el) => el?.textContent === text && el.children.length === 0);
 
 const cases = [
     {
@@ -160,5 +169,54 @@ describe('IngredientRow (native) — a stand-in row (#144, UI Designer)', () => 
         expect(Array.from(column.children).every((child) => (child.textContent ?? '') !== '')).toBe(true);
         expect(column.firstElementChild!.contains(chip)).toBe(true);
         expect(button.textContent).toBe(label);
+    });
+
+    // UI Designer ruling 2026-11-06: a kept unit is not an empty line ("pinch", "dash" mean something alone), so a unit
+    // with no amount is that line, and the name reads it before the chip.
+    it('a UNIT with no amount: the unit is the line above the chip, and the name reads it', () => {
+        const button = rowButton(standIn({ quantity: Number.NaN }), `Edit tbsp ${label}`);
+        const unit = leafWithText(button, 'tbsp');
+        const chip = within(button).getByText(label);
+
+        expect(unit.parentElement!.textContent).toBe('tbsp');
+        expect(unit.parentElement!.contains(chip)).toBe(false);
+        expect(button.textContent).toBe(`tbsp${label}`);
+    });
+
+    /**
+     * Device finding 2026-11-06 (Android 1x: 117 × 33 px, was 129 × 42): the stand-in's amount drew smaller than the
+     * typed row's. React Native gives a text its parent TEXT's size; a text under a `View` gets the platform default
+     * (14, no leading), and `figure-inline` has no size of its own. React Native Web models the same rule (a nested
+     * text's font is `inherit`, a root text's is 14px), so the size each amount DRAWS with is read by following
+     * `inherit` up to the text that sets it.
+     */
+    it("the amount draws in EXACTLY the typed row's amount style: size, leading, face, figures and colour", () => {
+        renderRows([line({ name: 'butter', quantity: 2, unit: 'tbsp' }), standIn({})]);
+        const typed = leafWithText(screen.getByRole('button', { name: 'Edit 2 tbsp butter' }), '2\u00A0tbsp');
+        const alone = leafWithText(screen.getByRole('button', { name: `Edit 2 tbsp ${label}` }), '2\u00A0tbsp');
+
+        const drawn = (el: Element, property: StyleProperty): string => {
+            const value = resolvedStyle(el, property);
+
+            return value === 'inherit' && el.parentElement !== null ? drawn(el.parentElement, property) : value;
+        };
+
+        const properties: readonly StyleProperty[] = ['fontSize', 'lineHeight', 'fontFamily', 'fontVariant', 'color'];
+
+        expect(properties.map((p) => drawn(alone, p))).toEqual(properties.map((p) => drawn(typed, p)));
+        // And that style is the row's body size and leading in the figure face, not two equal wrong ones.
+        expect(drawn(alone, 'fontSize')).toBe(`${nativeTokens.type.body.fontSize}px`);
+        expect(drawn(alone, 'lineHeight')).toBe(`${nativeTokens.type.body.lineHeight}px`);
+        expect(drawn(alone, 'fontFamily')).toBe(nativeTokens.type.figureInline.fontFamily);
+    });
+});
+
+describe('IngredientRow (native) — a typed row with a unit and no amount (UI Designer ruling 2026-11-06)', () => {
+    it('the unit starts the run, and the name reads it', () => {
+        const button = rowButton(line({ name: 'salt', quantity: Number.NaN, unit: 'pinch' }), 'Edit pinch salt');
+        const unit = leafWithText(button, 'pinch');
+
+        expect(unit.parentElement!.textContent).toBe('pinch salt');
+        expect(unit.parentElement!.firstChild).toBe(unit);
     });
 });

@@ -45,19 +45,27 @@ const line = (over: Partial<UnkeyedFormIngredient>): UnkeyedFormIngredient => ({
     ...over,
 });
 
-const rowButton = (ingredient: UnkeyedFormIngredient, name: string): HTMLElement => {
+const renderRows = (ingredients: readonly UnkeyedFormIngredient[]): void => {
     render(
         <RecipeIngredientsFields
-            values={{ ...defaultRecipeFormValues(), ingredients: withLineKeys([ingredient]) }}
+            values={{ ...defaultRecipeFormValues(), ingredients: withLineKeys([...ingredients]) }}
             onChange={() => undefined}
             nutrition={makeIngredientNutrition()}
             lookupRetry={makeLookupRetry()}
             rowEditor={makeIngredientRowEditor()}
         />,
     );
+};
+
+const rowButton = (ingredient: UnkeyedFormIngredient, name: string): HTMLElement => {
+    renderRows([ingredient]);
 
     return screen.getByRole('button', { name });
 };
+
+/** The leaf element whose whole text is `text`, inside a row's open control. */
+const leafWithText = (button: HTMLElement, text: string): HTMLElement =>
+    within(button).getByText((_, el) => el?.textContent === text && el.children.length === 0);
 
 const cases = [
     {
@@ -145,5 +153,38 @@ describe('IngredientRow (web) — a stand-in row (#144, UI Designer)', () => {
         expect(Array.from(column.children).every((child) => (child.textContent ?? '') !== '')).toBe(true);
         expect(column.firstElementChild!.contains(chip)).toBe(true);
         expect(button.textContent).toBe(label);
+    });
+
+    // UI Designer ruling 2026-11-06: a kept unit is not an empty line ("pinch", "dash" mean something alone), so a unit
+    // with no amount is that line, and the name reads it before the chip.
+    it('a UNIT with no amount: the unit is the line above the chip, and the name reads it', () => {
+        const button = rowButton(standIn({ quantity: Number.NaN }), `Edit tbsp ${label}`);
+        const unit = leafWithText(button, 'tbsp');
+        const chip = within(button).getByText(label);
+
+        expect(unit.parentElement!.textContent).toBe('tbsp');
+        expect(unit.parentElement!.contains(chip)).toBe(false);
+        expect(button.textContent).toBe(`tbsp${label}`);
+    });
+
+    // Device finding 2026-11-06 (native): the stand-in's amount drew smaller than the typed row's. The two branches each
+    // spell the amount's classes and its line's, so they are pinned equal here and cannot drift apart.
+    it("the amount and its line carry EXACTLY the typed row's amount and run classes", () => {
+        renderRows([line({ name: 'butter', quantity: 2, unit: 'tbsp' }), standIn({})]);
+        const typed = leafWithText(screen.getByRole('button', { name: 'Edit 2 tbsp butter' }), '2\u00A0tbsp');
+        const alone = leafWithText(screen.getByRole('button', { name: `Edit 2 tbsp ${label}` }), '2\u00A0tbsp');
+
+        expect(alone.className).toBe(typed.className);
+        expect(alone.parentElement!.className).toBe(typed.parentElement!.className);
+    });
+});
+
+describe('IngredientRow (web) — a typed row with a unit and no amount (UI Designer ruling 2026-11-06)', () => {
+    it('the unit starts the run, and the name reads it', () => {
+        const button = rowButton(line({ name: 'salt', quantity: Number.NaN, unit: 'pinch' }), 'Edit pinch salt');
+        const unit = leafWithText(button, 'pinch');
+
+        expect(unit.parentElement!.textContent).toBe('pinch salt');
+        expect(unit.parentElement!.firstChild).toBe(unit);
     });
 });

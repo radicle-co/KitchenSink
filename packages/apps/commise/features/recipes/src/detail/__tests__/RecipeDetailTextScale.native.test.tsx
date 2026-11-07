@@ -9,11 +9,11 @@ import { nativeTokens } from '@commise/ui/native';
 import { renderWithTamagui, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { guardedFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import type { FC, ReactElement, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -119,6 +119,37 @@ describe('the recipe page at a system text scale of 3.1 (native)', () => {
         expect(sizeOf('Chicken')).toBe(ceiling(nativeTokens.type.caption.fontSize));
         expect(sizeOf('for 4')).toBe(ceiling(nativeTokens.type.meta.fontSize));
         expect(sizeOf('softened')).toBe(ceiling(nativeTokens.type.body.fontSize));
+    });
+
+    // Device finding 2026-11-06, editor twin: a `figureInline` amount takes its size from the text it sits in, so the
+    // amount above a stand-in grows with the row's body text, as the typed row's amount does, up to the same 2x.
+    it("caps a stand-in row's amount at 2x, with the typed row's amount size and leading", () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail({
+                    ingredients: [
+                        makeIngredientView({
+                            ingredientId: 'private',
+                            name: undefined,
+                            unit: 'tbsp',
+                            resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+                        }),
+                        makeIngredientView({ ingredientId: 'butter', name: 'Butter', unit: 'tbsp' }),
+                    ],
+                })}
+            />,
+        );
+        const amountIn = (row: string): HTMLElement =>
+            within(screen.getByRole('checkbox', { name: row })).getByText(
+                (_, el) => el?.textContent === '2\u00A0tbsp' && el.children.length === 0,
+            );
+        const alone = amountIn(`2 tbsp ${recipeMessages.en.ingredientLineName.privateFood}`);
+        const typed = amountIn('2 tbsp Butter');
+
+        expect(resolvedStyle(alone, 'fontSize')).toBe(ceiling(nativeTokens.type.body.fontSize));
+        expect(resolvedStyle(alone, 'fontSize')).toBe(resolvedStyle(typed, 'fontSize'));
+        expect(resolvedStyle(alone, 'lineHeight')).toBe(resolvedStyle(typed, 'lineHeight'));
     });
 
     it('caps the scaled-from caveat at 2x', () => {

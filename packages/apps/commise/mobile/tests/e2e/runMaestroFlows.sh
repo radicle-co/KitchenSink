@@ -7,7 +7,7 @@
 # For each flow: reset the recipe DB to the clean seed fixture (so a flow never inherits an earlier flow's
 # mutated state), then run just that flow. Every flow runs even if one fails; the job fails if any did.
 #
-# ## PER-VERTICAL FLOW SELECTION (why this script has subcommands at all)
+# ## FLOW SELECTION (why this script has subcommands at all)
 #
 # Measured on nightly run 31471786779, this job is 52.75m: 17.3m of FIXED setup (12.9m Gradle release-APK
 # build + ~1.5m emulator/AVD boot + install + ~2.9m checkout/deps/service build/seed) and 35.5m of FLOW
@@ -19,13 +19,14 @@
 # `recipes/collectionsPagination` alone is 7.75m, 22% of all flow time.
 #
 # Since commit 5832ce7c the tier auto-triggers on the mobile surface, so a large share of PRs pay the
-# emulator. `heavy-e2e.yml` therefore computes WHICH VERTICALS a PR could plausibly break (from
-# `dorny/paths-filter`), threads the answer through `_ci-heavy.yml`'s `maestro_flow_selector` input into
-# `MAESTRO_FLOW_SELECTOR`, and this script narrows the run to those verticals plus the SPINE.
+# emulator. The impact selector (`@kitchensink/e2e-plan`, ADR-0086) therefore names the flows a change can reach,
+# `_ci.yml`'s `select-e2e` job threads them through `_ci-heavy.yml`'s `maestro_flow_selector` input into
+# `MAESTRO_FLOW_SELECTOR` as `flow:<path>=true` keys, and this script narrows the run to those flows plus the SPINE.
+# (The per-area keys, `auth=true` and the like, were retired on 2026-11-07 with the area labels they named.)
 #
 # The asymmetry is deliberate and load-bearing: **running MORE is safe, running less silently is not.** So
 # the full set is both the DEFAULT and the FALLBACK — an absent selector, a malformed one, an unknown key, an
-# unreadable value, or a selector that implicates NO vertical all run every flow. Attribution failure is
+# unreadable value, or a selector that names NO flow all run every flow. Attribution failure is
 # never allowed to look like "there was nothing to do"; a Maestro job reporting green over flows it never
 # executed is exactly the absence-of-work-behind-a-status class this repo has already paid for. Every skipped
 # flow is printed (`skipped: …`), so a narrowed run can never be mistaken for a complete one in the log.
@@ -84,18 +85,18 @@
 #     runMaestroFlows.sh exclusions <platform>
 #     runMaestroFlows.sh erasure-subject <flow>                  # reads MAESTRO_FIXTURE_ENV_FILE
 #     runMaestroFlows.sh pack <platform> <index> <count> <flow> …   # the packer alone (the local lane orchestrator)
-#     runMaestroFlows.sh plan | verticals | platforms | max-shards <platform> | erasure-shard | erasing-flows | role-flows | weights | default-weight
+#     runMaestroFlows.sh plan | platforms | max-shards <platform> | erasure-shard | erasing-flows | role-flows | weights | default-weight
 set -uo pipefail
 
 # The APK to install. CI hands the one `_mobileAppBuild.yml` built, downloaded and verified (`MAESTRO_ANDROID_APK`);
 # the default is the Gradle output path, which only a developer's own local build produces, so a local run is unchanged.
 APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outputs/apk/release/app-release.apk}"
 
-# ── THE PLAN — every flow CI runs, in execution order, each labelled with its vertical ────────────────────
+# ── THE PLAN — every flow CI runs, in execution order, the spine labelled `spine:` ─────────────────────────
 #
-# ONE authoritative list: the order and the vertical membership cannot drift apart, and a narrowed run is
-# this list FILTERED (never a concatenation of per-vertical lists), so it is always a subsequence of the full
-# run and the ordering below holds for every selection.
+# ONE authoritative list, and a narrowed run is this list FILTERED (never the keys in the order they arrived), so
+# it is always a subsequence of the full run and the ordering below holds for every selection. The spine is the
+# only label: a plan entry is a flow, or `spine:<flow>`.
 #
 # Order is deliberate:
 #   - `auth/loginFlow` FIRST, and it is the SPINE: every narrowed run includes it. It is the only
@@ -104,7 +105,7 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     also what crosses Home into the recipes surface). So it re-establishes a session from cleared state for
 #     everything after it AND exercises the app shell, the auth gate, Clerk, the Home widget surface and the
 #     recipes-list crossing that EVERY other flow composes. That is what makes narrowing safe: a change to
-#     the shared entry path is still proven on every run, whatever vertical was selected. (It absorbed
+#     the shared entry path is still proven on every run, whatever flows were selected. (It absorbed
 #     `auth/welcome-flow`, deleted with the welcome screen itself by owner decision on 2026-07-28.)
 #   - `home` next, then the recipe stories.
 #   - `recipes/viewSetting` sits right after `listDetail`: same populated seed. The list's grid/list choice is an ACCOUNT
@@ -119,9 +120,8 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #   - `recipes/detailCooking` follows `servingScale`: the same populated seed, and it writes nothing the service keeps —
 #     its checks, current step and Screen on are in-memory session state that the next flow's relaunch drops.
 #   - `recipes/deferredCalories` sits next to `listDetail`: same populated seed, read-only, and it crosses
-#     into Discover at the end, so it wants the same settled library. It is in the `recipes` vertical rather
-#     than `discovery` because its subject is the CARD's deferred figure, which every card surface shares.
-#     Note what it can prove here: this job runs NO food service (see `deploy`/`_ci-heavy.yml`'s
+#     into Discover at the end, so it wants the same settled library. Its subject is the CARD's deferred
+#     figure, which every card surface shares. Note what it can prove here: this job runs NO food service (see `deploy`/`_ci-heavy.yml`'s
 #     `FOOD_SERVICE_URL`), so no calorie figure can render — the flow asserts the invariant instead, that the
 #     placeholder always comes down. Its own docblock says so; do not "fix" it by asserting a number.
 #   - `recipes/discoverBrowse` sits with the other read-only discovery flows (it types and clears a query but
@@ -169,8 +169,8 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     than three more steps inside `create`: its FIRST assertions are that an empty recipe has NO row and
 #     that typed text is refused rather than appended (B8), and folding those into a flow whose job is to
 #     reach a published recipe would bury the checkpoint that distinguishes typed text from a line.
-#   - `dataSources` just before `accountDangerZone`, in the `auth` vertical: the same walk, avatar → Profile (the one
-#     page that replaced the Account settings hub), and it only reads (curated U25). `flows_auth` lists both its entry point and its feature folder. It needs a stage
+#   - `dataSources` just before `accountDangerZone`: the same walk, avatar → Profile (the one
+#     page that replaced the Account settings hub), and it only reads (curated U25). It needs a stage
 #     whose catalog seed has run and cites USDA and Ciqual (ADR-0051).
 #   - `accountDangerZone` late but BEFORE `delete`: it walks avatar → Profile and CANCELS both
 #     destructive actions (it deliberately never confirms), so it must not run against a state a later flow
@@ -219,88 +219,82 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     inventory test asserts that reason against the live state of `visual/baselines/`, so the day the PNGs
 #     land it fails and asks for the activation instead of leaving four flows quietly dead.
 #   - `homeRecentRecipeTap` and `recipes/sourceTabs` — real story flows that have never executed in CI.
-#     Recorded (with their intended verticals) in that test's `KNOWN_UNRUN_FLOWS`; promoting a flow whose
+#     Recorded in that test's `KNOWN_UNRUN_FLOWS`; promoting a flow whose
 #     only proof is an emulator run belongs in a PR whose Maestro tier is watched.
 FLOW_PLAN="spine:auth/loginFlow
-home:home
-recipes:recipes/rating
-recipes:recipes/listDetail
-recipes:recipes/headerScrollsAway
-recipes:recipes/viewSetting
-recipes:shell/tabBar
-recipes:recipes/landscape
-recipes:recipes/servingScale
-recipes:recipes/detailCooking
-recipes:recipes/detailBack
-recipes:recipes/deferredCalories
-recipes:recipes/emptyLibrary
-recipes:recipes/searchNavigation
-recipes:recipes/edit
-recipes:recipes/versions
-recipes:recipes/visibility
-recipes:recipes/paidFeaturesByRole
-recipes:recipes/makePublicConfirm
-discovery:recipes/discoverBrowse
-discovery:recipes/discoverRecentSearches
-discovery:recipes/discoverIngredientCap
-discovery:recipes/discoverSaveCopy
-discovery:recipes/discoverDetailSaveCopy
-recipes:recipes/privateFoodStandIn
-recipes:recipes/conflictMerge
-collections:recipes/collections
-collections:recipes/collectionAddRemoveUndo
-collections:recipes/collectionsPagination
-collections:recipes/collectionsVisibility
-collections:recipes/collectionsSaveCopy
-collections:recipes/collectionsPull
-collections:recipes/collectionsSearchPinned
-collections:recipes/collectionsFirstRunLargeText
-collections:recipes/newCollectionSheet
-collections:shell/overlaySwipeDismiss
-recipes:recipes/createEntry
-recipes:recipes/systemBackGuard
-recipes:recipes/editorSections
-recipes:recipes/editorDescriptionLimit
-recipes:recipes/create
-recipes:recipes/publishFeedback
-recipes:recipes/cuisineField
-recipes:recipes/pasteList
-recipes:recipes/pasteListSettle
-recipes:recipes/pasteMatchChoose
-recipes:recipes/pastePublishOpenChoices
-recipes:recipes/quantityRange
-recipes:recipes/preparationGroups
-recipes:recipes/ingredientGroups
-recipes:recipes/addIngredientLoop
-recipes:recipes/addIngredientLine
-recipes:recipes/addStepFocus
-recipes:recipes/ingredientUnmatched
-recipes:recipes/ingredientNutritionPanel
-recipes:recipes/ingredientRemove
-recipes:recipes/ingredientArrival
-recipes:recipes/createAuthoredFood
-recipes:recipes/ingredientAddDetails
-recipes:recipes/ingredientVariantSearch
-recipes:recipes/ingredientRowVariant
-recipes:recipes/ingredientRowEditor
-recipes:recipes/ingredientCandidates
-recipes:recipes/ingredientRemoteFoods
-recipes:recipes/pinnedActionBar
-recipes:recipes/ambiguityReview
-recipes:recipes/photos
-recipes:recipes/accessibility
-auth:dataSources
-auth:profileUsername
-auth:accountDangerZone
-auth:sessionHandoff
-recipes:recipes/delete
-auth:accountErasure"
-
-# The vertical tokens a selector may name. `spine` is deliberately NOT among them: it is unconditional, so
-# accepting it as a key would let a caller believe it had selected something when it had selected nothing.
-# `heavy-e2e.yml` composes exactly these names (plus `full`), and the guard suite asserts the two agree —
-# which is what turns a typo'd vertical name from "silently never fires" into a red test.
-MAESTRO_VERTICALS='auth home collections discovery recipes'
+home
+recipes/rating
+recipes/listDetail
+recipes/headerScrollsAway
+recipes/viewSetting
+shell/tabBar
+recipes/landscape
+recipes/servingScale
+recipes/detailCooking
+recipes/detailBack
+recipes/deferredCalories
+recipes/emptyLibrary
+recipes/searchNavigation
+recipes/edit
+recipes/versions
+recipes/visibility
+recipes/paidFeaturesByRole
+recipes/makePublicConfirm
+recipes/discoverBrowse
+recipes/discoverRecentSearches
+recipes/discoverIngredientCap
+recipes/discoverSaveCopy
+recipes/discoverDetailSaveCopy
+recipes/privateFoodStandIn
+recipes/conflictMerge
+recipes/collections
+recipes/collectionAddRemoveUndo
+recipes/collectionsPagination
+recipes/collectionsVisibility
+recipes/collectionsSaveCopy
+recipes/collectionsPull
+recipes/collectionsSearchPinned
+recipes/collectionsFirstRunLargeText
+recipes/newCollectionSheet
+shell/overlaySwipeDismiss
+recipes/createEntry
+recipes/systemBackGuard
+recipes/editorSections
+recipes/editorDescriptionLimit
+recipes/create
+recipes/publishFeedback
+recipes/cuisineField
+recipes/pasteList
+recipes/pasteListSettle
+recipes/pasteMatchChoose
+recipes/pastePublishOpenChoices
+recipes/quantityRange
+recipes/preparationGroups
+recipes/ingredientGroups
+recipes/addIngredientLoop
+recipes/addIngredientLine
+recipes/addStepFocus
+recipes/ingredientUnmatched
+recipes/ingredientNutritionPanel
+recipes/ingredientRemove
+recipes/ingredientArrival
+recipes/createAuthoredFood
+recipes/ingredientAddDetails
+recipes/ingredientVariantSearch
+recipes/ingredientRowVariant
+recipes/ingredientRowEditor
+recipes/ingredientCandidates
+recipes/ingredientRemoteFoods
+recipes/pinnedActionBar
+recipes/ambiguityReview
+recipes/photos
+recipes/accessibility
+dataSources
+profileUsername
+accountDangerZone
+sessionHandoff
+recipes/delete
+accountErasure"
 
 # ── PLATFORMS, and the flows a platform cannot run ─────────────────────────────────────────────────────────
 #
@@ -617,15 +611,14 @@ maestro_erasure_subject_check() {
 # The whole selection decision, as a PURE function. Prints exactly one `reason=` line, then one `flow=` line
 # per selected flow and one `skipped=` line per excluded flow, in PLAN ORDER. Nothing else goes to stdout.
 #
-# Recognised keys: `full`, every token in MAESTRO_VERTICALS, and `flow:<path>` for any flow the plan runs. `full=true`
-# (the schedule, a dispatch, or a PR carrying the `heavy-e2e` label) means the whole plan. A flow key selects exactly that
-# flow (plus the spine, like every narrowed run); flow keys and vertical keys UNION. The impact selector speaks in flow
-# keys, so a flow key naming a flow the plan does not run is a STALE selector and widens like an unknown vertical.
+# Recognised keys: `full`, and `flow:<path>` for any flow the plan runs. `full=true` (a push to main, a dispatch, or a
+# change the impact selector cannot attribute) means the whole plan. A flow key selects exactly that flow, plus the
+# spine like every narrowed run. A flow key naming a flow the plan does not run is a STALE selector, and widens.
 #
-# Anything this function cannot read WIDENS the run and says why: a malformed pair, an unknown key, a
-# non-boolean value, no pairs at all, or pairs that implicate no vertical. The ONLY hard failure (exit 2) is
-# an empty plan, because "no flows to choose from" is a broken script rather than a selection — and
-# answering "run nothing" there would report success over an empty suite.
+# Anything this function cannot read WIDENS the run and says why: a malformed pair, an unknown key (a retired per-area
+# key such as `recipes=true` included), a non-boolean value, no pairs at all, or pairs that name no flow. The ONLY hard
+# failures (exit 2) are an empty plan and a plan entry labelled with anything but `spine:`, because each is a broken
+# script rather than a selection — and answering "run nothing" there would report success over an empty suite.
 maestro_select_flows() {
     if [ "$#" -lt 1 ]; then
         echo "usage: runMaestroFlows.sh select-plan <plan> [<name>=true|false …]" >&2
@@ -645,10 +638,18 @@ maestro_select_flows() {
     # Every flow the plan runs, space-padded for whole-name membership: what a `flow:` key may name.
     local planned=' ' entry
     for entry in $plan; do
-        planned="${planned}${entry#*:} "
+        case "$entry" in
+            spine:*) ;;
+            *:*)
+                echo "runMaestroFlows.sh: plan entry '${entry}' carries a label, and the only label is spine:" >&2
+
+                return 2
+                ;;
+        esac
+        planned="${planned}${entry#spine:} "
     done
 
-    local full=false invalid='' selected=' ' selected_flows=' ' pair name value flow_name
+    local full=false invalid='' selected_flows=' ' pair name value flow_name
     for pair in "$@"; do
         name="${pair%%=*}"
         value="${pair#*=}"
@@ -660,9 +661,9 @@ maestro_select_flows() {
             continue
         fi
 
-        # Space-padded on BOTH sides so membership is a WHOLE-token match: `recipe` must not match `recipes`,
-        # and `recipes_extra` must not either. A substring match here would accept a typo and then narrow the
-        # run to something nobody asked for.
+        # Space-padded on BOTH sides so membership is a WHOLE-name match: `recipes/edit` must not match
+        # `recipes/editorSections`. A substring match here would accept a typo and then narrow the run to something
+        # nobody asked for.
         flow_name=''
         case "$name" in
             flow:*)
@@ -675,14 +676,10 @@ maestro_select_flows() {
                     continue
                 }
                 ;;
+            full) ;;
             *)
-                case " full ${MAESTRO_VERTICALS} " in
-                    *" ${name} "*) ;;
-                    *)
-                        invalid="unknown selector key '${name}' (expected full, one of: ${MAESTRO_VERTICALS}, or flow:<path>)"
-                        continue
-                        ;;
-                esac
+                invalid="unknown selector key '${name}' (expected full or flow:<path>)"
+                continue
                 ;;
         esac
 
@@ -698,10 +695,8 @@ maestro_select_flows() {
 
         if [ "$name" = 'full' ]; then
             full=true
-        elif [ -n "$flow_name" ]; then
-            selected_flows="${selected_flows}${flow_name} "
         else
-            selected="${selected}${name} "
+            selected_flows="${selected_flows}${flow_name} "
         fi
     done
 
@@ -713,36 +708,28 @@ maestro_select_flows() {
         full=true
         reason='no selector supplied — running EVERY flow (the default for callers that do not pass one)'
     elif [ "$full" = 'true' ]; then
-        reason='full run requested (schedule, dispatch, the heavy-e2e label, or an unattributable change)'
-    elif [ "$selected" = ' ' ] && [ "$selected_flows" = ' ' ]; then
+        reason='full run requested (a push to main, a dispatch, or a change the impact selector cannot attribute)'
+    elif [ "$selected_flows" = ' ' ]; then
         full=true
-        reason='the selector implicated NO vertical and no flow, so attribution failed — running EVERY flow'
+        reason='the selector named NO flow, so attribution failed — running EVERY flow'
     else
-        reason=''
-        if [ "$selected" != ' ' ]; then
-            reason="verticals:${selected% }"
-        fi
-        if [ "$selected_flows" != ' ' ]; then
-            reason="${reason:+${reason}; }flows:${selected_flows% }"
-        fi
-        reason="${reason} (plus the spine)"
+        reason="flows:${selected_flows% } (plus the spine)"
     fi
 
     printf 'reason=%s\n' "$reason"
 
-    local entry vertical flow
-    # Word-split on the plan's whitespace deliberately: entries are `<vertical>:<flow>` with no spaces.
+    local flow
+    # Word-split on the plan's whitespace deliberately: an entry is a flow or `spine:<flow>`, with no spaces.
     for entry in $plan; do
-        vertical="${entry%%:*}"
-        flow="${entry#*:}"
+        flow="${entry#spine:}"
 
-        if [ "$full" = 'true' ] || [ "$vertical" = 'spine' ]; then
+        if [ "$full" = 'true' ] || [ "$flow" != "$entry" ]; then
             printf 'flow=%s\n' "$flow"
             continue
         fi
 
-        case "${selected}|${selected_flows}" in
-            *" ${vertical} "*"|"* | *"|"*" ${flow} "*) printf 'flow=%s\n' "$flow" ;;
+        case "$selected_flows" in
+            *" ${flow} "*) printf 'flow=%s\n' "$flow" ;;
             *) printf 'skipped=%s\n' "$flow" ;;
         esac
     done
@@ -1191,16 +1178,10 @@ maestro_shard_matrix() {
         # nothing but the spine used to fall through with `count` unchanged, giving two runners that each boot
         # an emulator and build a release APK to run the spine and nothing else.
         #
-        # ⚠️ DEFENSIVE, NOT A FIX FOR AN OBSERVED DEFECT — stated precisely because a review reported it as
-        # live and the reproduction did not hold. `shard-matrix 2 full=false auth/loginFlow=true` does return
-        # `[1,2]`, but `auth/loginFlow` is not a SELECTOR KEY (the keys are `full` and the verticals), and an
-        # unknown key deliberately fails OPEN to every flow — so that `[1,2]` is correct behaviour, not
-        # waste. Every vertical holds at least one flow besides the spine (`runMaestroFlows.sh verticals`
-        # lists them), so `packable` is at least 1 under every valid selector and 0 is UNREACHABLE today.
-        #
-        # It is kept because it becomes reachable the day a vertical contains only the spine, and because an
-        # unreadable `packable` should clamp DOWN to one — the safe direction for a shard whose flow set the
-        # script cannot size.
+        # ⚠️ DEFENSIVE. `flow:auth/loginFlow=true` names the spine, which the selection always holds, so it selects
+        # nothing packable: that is the one valid selector that reaches 0, and it is clamped to one runner rather
+        # than two that each boot an emulator to run the spine alone. An unreadable `packable` clamps DOWN to one
+        # too — the safe direction for a shard whose flow set the script cannot size.
         if [ "$count" -gt "$packable" ] 2>/dev/null; then
             if maestro_positive_integer "$packable"; then
                 count="$packable"
@@ -1999,12 +1980,8 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             # shellcheck disable=SC2086
             printf '%s\n' $FLOW_PLAN
             ;;
-        verticals)
-            # shellcheck disable=SC2086
-            printf '%s\n' $MAESTRO_VERTICALS
-            ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|role-flows|pack|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|role-flows|pack|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

@@ -112,7 +112,7 @@ async function webModel(repo: string, mergeBase: string | undefined): Promise<Ti
     };
 }
 
-/** The flows a run starts, from the runner's own plan (`vertical:flow` lines), so the list has one source. */
+/** The flows a run starts, from the runner's own plan (one flow per line, the spine as `spine:<flow>`), so the list has one source. */
 function plannedFlows(repo: string): readonly string[] {
     const output = execFileSync('bash', [`${MOBILE}/tests/e2e/runMaestroFlows.sh`, 'plan'], {
         cwd: repo,
@@ -121,8 +121,8 @@ function plannedFlows(repo: string): readonly string[] {
 
     return output
         .split('\n')
-        .filter((line) => line.includes(':'))
-        .map((line) => line.slice(line.indexOf(':') + 1));
+        .filter((line) => line !== '')
+        .map((line) => line.replace(/^spine:/u, ''));
 }
 
 async function mobileModel(repo: string, mergeBase: string | undefined): Promise<TierModel> {

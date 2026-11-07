@@ -5,6 +5,7 @@
  * A registry row that leaves out a screen its test passes through means that test does not run after a change to
  * that screen. That is the one failure the selector must not have, so every way a row can be wrong is a test here.
  */
+import { execFileSync } from 'node:child_process';
 import { globSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -55,6 +56,24 @@ describe('the screen registry, over the real tree', () => {
         ).toEqual([]);
         expect(table.has('auth/signin')).toBe(true);
         expect(models.mobile.tests.length).toBeGreaterThan(0);
+    });
+
+    /**
+     * The top-level flows are the runner's own plan, read through its `plan` door. A plan entry is a flow or
+     * `spine:<flow>` (2026-11-07, when the per-area labels were retired), so a reader that kept only labelled lines would
+     * see the spine alone and treat every other flow as an optional sub-flow: a change to its screens would select nothing.
+     */
+    it('takes every flow the runner plans as a top-level flow, the spine and the unlabelled flows alike', () => {
+        const plan = execFileSync('bash', ['packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh', 'plan'], {
+            cwd: repo,
+            encoding: 'utf8',
+        })
+            .split('\n')
+            .filter((line) => line !== '')
+            .map((line) => line.replace(/^spine:/u, ''));
+
+        expect(models.mobile.tests).toEqual(expect.arrayContaining(['auth/loginFlow', 'home', 'accountErasure']));
+        expect([...models.mobile.tests].sort()).toEqual([...plan].sort());
     });
 
     it('lists, in each spec row, every screen the spec and its helpers navigate to', async () => {

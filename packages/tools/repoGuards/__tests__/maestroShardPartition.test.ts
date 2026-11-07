@@ -114,7 +114,7 @@ function run(...args: readonly string[]): Sharded {
     };
 }
 
-/** The committed plan, as the script prints it: one `<vertical>:<flow>` entry per line. */
+/** The committed plan, as the script prints it: one flow per line, the spine labelled `spine:`. */
 function planEntries(): readonly string[] {
     const result = spawnSync('bash', [SCRIPT, 'plan'], { encoding: 'utf8' });
 
@@ -272,11 +272,13 @@ describe('maestro_shard_flows — every erasing flow is pinned to the erasure sh
     });
 
     const platforms = shell('platforms').split('\n');
+    // The full run, the erasing flow alone, the erasing flow with the flow that must run before it, and a selection
+    // without it (REWRITTEN 2026-11-07: these were the per-area keys, which are retired).
     const selectors: readonly (readonly string[])[] = [
         ['full=true'],
-        ...shell('verticals')
-            .split('\n')
-            .map((vertical) => [`${vertical}=true`]),
+        ['flow:accountErasure=true'],
+        ['flow:recipes/delete=true', 'flow:accountErasure=true'],
+        ['flow:home=true', 'flow:recipes/collections=true'],
     ];
     const cases = platforms.flatMap((platform) =>
         selectors.flatMap((selector) =>
@@ -612,12 +614,23 @@ describe('maestro_shard_flows — the partition', () => {
     });
 
     it('shards a NARROWED selection too, and never strands a flow', () => {
-        const narrowed = spawnSync('bash', [SCRIPT, 'select', 'collections=true'], { encoding: 'utf8' });
+        const narrowed = spawnSync(
+            'bash',
+            [
+                SCRIPT,
+                'select',
+                'flow:recipes/collections=true',
+                'flow:recipes/collectionsPagination=true',
+                'flow:recipes/newCollectionSheet=true',
+            ],
+            { encoding: 'utf8' },
+        );
         const flows = (narrowed.stdout ?? '')
             .split('\n')
             .flatMap((line) => (line.startsWith('flow=') ? [line.slice('flow='.length)] : []));
 
-        expect(flows.length).toBeGreaterThan(2);
+        // The spine and the three named flows: narrowed, not the whole plan (a retired key here would widen silently).
+        expect(flows).toHaveLength(4);
 
         const union = shardAll(2, flows).flat();
 
@@ -661,9 +674,9 @@ describe('maestro_shard_matrix — how many shards the workflow actually runs', 
                 .split('\n')
                 .filter((line) => line.startsWith('flow=') && line !== `flow=${SPINE}`).length;
 
-        // `home` is the ONE-flow vertical: spine + home, so exactly one flow is packable and one shard can hold it.
-        expect(nonSpine('home=true')).toBe(1);
-        expect(matrixFor('home=true')).toStrictEqual([1]);
+        // One flow named: spine + home, so exactly one flow is packable and one shard can hold it.
+        expect(nonSpine('flow:home=true')).toBe(1);
+        expect(matrixFor('flow:home=true')).toStrictEqual([1]);
         // The whole suite has far more than the pool's eight, so it fills every shard the pool can identify.
         expect(nonSpine('full=true')).toBeGreaterThan(shellMaxShards());
         expect(matrixFor('full=true')).toHaveLength(shellMaxShards());

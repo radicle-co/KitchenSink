@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "description": "Pure planning for the end-to-end suites: how many parallel lanes the machine and the test pool can carry",
+    "description": "Pure planning for the end-to-end suites: how many parallel lanes the machine and the test pool can carry, and which Playwright specs and Maestro flows a change affects",
     "main": "./src/lanePlan.ts",
     "types": "./src/lanePlan.ts",
     "exports": {
@@ -15,7 +15,9 @@
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",
-        "format:check": "prettier --check ."
+        "format:check": "prettier --check .",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "plan": "tsx bin/plan.ts"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",
@@ -23,12 +25,21 @@
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/node": "^24.13.3",
+        "@types/picomatch": "^4.0.0",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
-        "typescript": "^6.0.3",
+        "tsx": "^4.23.12",
         "vitest": "^4.1.12"
     },
     "engines": {
         "node": "24.x"
+    },
+    "dependencies": {
+        "dependency-cruiser": "18.7.0",
+        "picomatch": "^4.0.4",
+        "tinyglobby": "^0.2.17",
+        "typescript": "^6.0.3",
+        "watskeburt": "6.0.0",
+        "yaml": "^2.8.1"
     }
 }

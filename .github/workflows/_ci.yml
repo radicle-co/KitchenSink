@@ -1819,6 +1819,10 @@ jobs:
             # recipe sender, the real client's zod parsing), with only `fetch` mocked.
             - name: Run query integration tests
               run: npm run test:integration --workspace=@commise/query
+            # The impacted-test selector over the REAL tree: the import graphs of both apps, the screen registries, and the
+            # four acceptance cases. A registry row that leaves out a screen is a test that silently stops running.
+            - name: Run e2e-plan integration tests
+              run: npm run test:integration --workspace=@kitchensink/e2e-plan
             # The design-artifact build over the REAL sources: esbuild bundles both platforms' component surfaces, Tailwind
             # compiles their stylesheet, and the surface checks run on the actual cards and canvas boards. No browser,
             # no network. The Chromium render of every card and board is the LOCAL e2e tier, on a developer's machine.

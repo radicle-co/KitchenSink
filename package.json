@@ -33,6 +33,7 @@
         "build": "turbo run build",
         "test": "turbo run test",
         "test:e2e": "turbo run test:e2e && npm run test:e2e --prefix packages/infra/global",
+        "e2e:plan": "npm run plan --workspace=@kitchensink/e2e-plan --",
         "lint": "turbo run lint format:check",
         "lint:python": "ruff check packages",
         "contract:generate": "node scripts/contractGenerate.mjs",

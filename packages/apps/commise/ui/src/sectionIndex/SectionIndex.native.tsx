@@ -233,16 +233,16 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                 }}
                 style={styles.bar}
             >
-                <Text numberOfLines={1} typeRole="label" color="$ink" flexShrink={1} minWidth={0}>
+                <Text numberOfLines={1} typeRole="label" chromeCap="1.5" color="$ink" flexShrink={1} minWidth={0}>
                     {barItem?.label}
                     {barSuffix !== undefined ? (
-                        <Text typeRole="meta" color="$inkMuted">
+                        <Text typeRole="meta" chromeCap="1.5" color="$inkMuted">
                             {barSuffix}
                         </Text>
                     ) : null}
                 </Text>
                 {barCount !== undefined ? (
-                    <Text aria-hidden typeRole="label" color={`$${barCountRoleOf(items)}`}>
+                    <Text aria-hidden typeRole="label" chromeCap="1.5" color={`$${barCountRoleOf(items)}`}>
                         {barCount}
                     </Text>
                 ) : null}

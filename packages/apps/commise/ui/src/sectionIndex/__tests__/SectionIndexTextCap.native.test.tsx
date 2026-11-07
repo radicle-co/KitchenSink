@@ -12,6 +12,7 @@ import type { ContainerClass } from '../../layout/containerClass.js';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
 import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
+import { scaledTypeSize } from '../../text/scaledType.js';
 import { nativeTokens } from '../../tokens/native.js';
 import type { SectionIndexItem } from '../props.js';
 import { SectionIndex } from '../SectionIndex.native.js';
@@ -65,6 +66,13 @@ const host: ScrollHostApi = {
     handle: createRef<ScrollTarget | null>(),
 };
 
+/** What a bar text draws at the chrome cap, read from the shared scaling arithmetic. */
+function chromeCapped(role: 'label' | 'meta') {
+    const { fontSize, lineHeight } = scaledTypeSize(role, SCALE, '1.5');
+
+    return { fontSize: `${String(fontSize)}px`, lineHeight: `${String(lineHeight)}px` };
+}
+
 function draw(): void {
     renderWithTamagui(
         <ScrollHostContext.Provider value={host}>
@@ -91,12 +99,26 @@ function drawn(text: string | RegExp): { fontSize: string; lineHeight: string } 
 }
 
 describe('SectionIndex (native) at a system text scale of 3.1', () => {
-    it('⛔ draws the bar’s label, suffix and count at 2× their roles, not 3.1×', () => {
+    // Designer ruling 2026-11-07 (option A): the sticky bar is chrome, so it grows to 1.5× at most and never draws larger
+    // than the page title, `barTitle` at the same chrome cap (EditorHeader).
+    it('⛔ draws the bar’s label, suffix and count at the 1.5× chrome cap, not 3.1×', () => {
         draw();
 
-        expect(drawn(/^Ingredients/u)).toEqual(CAPPED(label));
-        expect(drawn('(2 of 3)')).toEqual(CAPPED(meta));
-        expect(drawn('⚠ 3')).toEqual(CAPPED(label));
+        expect(drawn(/^Ingredients/u)).toEqual(chromeCapped('label'));
+        expect(drawn('(2 of 3)')).toEqual(chromeCapped('meta'));
+        expect(drawn('⚠ 3')).toEqual(chromeCapped('label'));
+    });
+
+    it('⛔ never draws the bar’s label larger than the page title', () => {
+        draw();
+
+        const title = scaledTypeSize('barTitle', SCALE, '1.5');
+
+        for (const text of [/^Ingredients/u, '(2 of 3)', '⚠ 3']) {
+            const { fontSize } = drawn(text);
+
+            expect(Number.parseFloat(fontSize)).toBeLessThanOrEqual(title.fontSize);
+        }
     });
 
     it('⛔ draws the open list’s rows at 2× their roles: label, status line and hint', () => {

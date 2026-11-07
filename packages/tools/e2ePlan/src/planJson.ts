@@ -4,13 +4,30 @@
  * A tier is `{ kind: 'all', reasons }` (run the whole tier; there is no list) or `{ kind: 'some', ids }` (run these;
  * an empty list means run none). Both ends use this module, so the two cannot disagree about which is which.
  */
+import type { GreenStamp } from './greenStamp.js';
+import { readStampValue } from './stampStore.js';
 import type { Plan, TierSelection } from './selection.js';
 
 export type TierJson =
     | { readonly kind: 'all'; readonly reasons: readonly string[] }
     | { readonly kind: 'some'; readonly ids: readonly string[] };
 
-export interface PlanJson {
+/** What the change was measured from, as the doors need to see it. */
+export type BaseJson =
+    | { readonly kind: 'ref'; readonly ref: string }
+    | { readonly kind: 'stamp'; readonly tree: string; readonly owed: readonly string[] }
+    | { readonly kind: 'none'; readonly reason: string };
+
+/** What a plan says about how it was made. */
+export interface PlanMeta {
+    readonly base: BaseJson;
+    /** The tree of the working tree when the plan was made, which a stamp names. Null when no tree was measured. */
+    readonly treeAtStart: string | null;
+    /** The stamp the run started from, which a finished run replaces and nothing else. */
+    readonly previous: GreenStamp | null;
+}
+
+export interface PlanJson extends PlanMeta {
     readonly web: TierJson;
     readonly mobile: TierJson;
     readonly warnings: readonly string[];
@@ -25,10 +42,15 @@ const tierToJson = (selection: TierSelection): TierJson =>
  * Serialises a plan.
  *
  * @param plan - The plan.
+ * @param meta - How the plan was measured.
  * @returns JSON text.
  */
-export const toPlanJson = (plan: Plan): string =>
-    JSON.stringify({ web: tierToJson(plan.web), mobile: tierToJson(plan.mobile), warnings: plan.warnings }, null, 2);
+export const toPlanJson = (plan: Plan, meta: PlanMeta): string =>
+    JSON.stringify(
+        { web: tierToJson(plan.web), mobile: tierToJson(plan.mobile), warnings: plan.warnings, ...meta },
+        null,
+        2,
+    );
 
 const isStrings = (value: unknown): value is readonly string[] =>
     Array.isArray(value) && value.every((item) => typeof item === 'string');
@@ -50,6 +72,28 @@ function parseTier(value: unknown, name: string): TierJson {
     throw new Error(`error: the plan's ${name} tier is neither all-with-reasons nor some-with-ids`);
 }
 
+function failPrevious(): never {
+    throw new Error('error: the plan has a stamp it cannot read');
+}
+
+function parseBase(value: unknown): BaseJson {
+    const base = asRecord(value);
+
+    if (base['kind'] === 'ref' && typeof base['ref'] === 'string') {
+        return { kind: 'ref', ref: base['ref'] };
+    }
+
+    if (base['kind'] === 'stamp' && typeof base['tree'] === 'string' && isStrings(base['owed'])) {
+        return { kind: 'stamp', tree: base['tree'], owed: base['owed'] };
+    }
+
+    if (base['kind'] === 'none' && typeof base['reason'] === 'string') {
+        return { kind: 'none', reason: base['reason'] };
+    }
+
+    throw new Error('error: the plan has no base it was measured from');
+}
+
 /**
  * Reads a serialised plan.
  *
@@ -65,7 +109,20 @@ export function parsePlanJson(text: string): PlanJson {
         throw new Error('error: the plan has no list of warnings');
     }
 
-    return { web: parseTier(parsed['web'], 'web'), mobile: parseTier(parsed['mobile'], 'mobile'), warnings };
+    const tree = parsed['treeAtStart'];
+
+    if (tree !== null && typeof tree !== 'string') {
+        throw new Error('error: the plan has no tree it was measured at');
+    }
+
+    return {
+        web: parseTier(parsed['web'], 'web'),
+        mobile: parseTier(parsed['mobile'], 'mobile'),
+        warnings,
+        base: parseBase(parsed['base']),
+        treeAtStart: tree,
+        previous: parsed['previous'] === null ? null : (readStampValue(parsed['previous']) ?? failPrevious()),
+    };
 }
 
 /**

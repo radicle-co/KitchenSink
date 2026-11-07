@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ANDROID_LANE_SERIALS, createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
+import { planLanes } from '@kitchensink/e2e-plan';
+
+import { ANDROID_LANE_COST, ANDROID_LANE_SERIALS, createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
 import type { LaneSpec } from '../laneTypes.js';
 
 const ORIGINS = {
@@ -76,6 +78,32 @@ const adapter = (port: CommandPort) =>
         bootTimeoutMs: 60_000,
         environment: {},
     });
+
+/**
+ * The lane cost is the PEAK a lane puts on the host, not its mean (lead direction 2026-11-07). At 4 lanes on the 20-CPU
+ * WSL host the mean was 2.7 CPUs a lane, but the load bursts (p90 22.3, peak 58.5) made 9 of 70 flows run out of their
+ * fixed scroll budgets; alone, one lane held the host at p95 4.9 and max 5.7. So this host plans 3 lanes from a quiet start.
+ */
+describe('the Android lane cost — planned from the peak', () => {
+    const plan = (load1: number) =>
+        planLanes({
+            cpus: 20,
+            load1,
+            memAvailable: 40 * 1024 ** 3,
+            perLane: ANDROID_LANE_COST,
+            identityCap: 8,
+            clerkCap: 8,
+            work: 70,
+        });
+
+    it.each([0, 1, 3.5])('plans three lanes on the 20-CPU host at load %s, bound by CPU', (load1) => {
+        expect(plan(load1)).toMatchObject({ count: 3, boundBy: 'cpu' });
+    });
+
+    it('is at least the peak one lane put on the host alone', () => {
+        expect(ANDROID_LANE_COST.cpus).toBeGreaterThanOrEqual(5);
+    });
+});
 
 describe('the Android lane devices', () => {
     it('is the serial table, as a literal, starting past emulator-5554', () => {

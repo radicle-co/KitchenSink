@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url';
 
 import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
 import { planLanes, type LaneCost } from '@kitchensink/e2e-plan';
+import { packLanes } from '@kitchensink/e2e-plan/packLanes';
 import { checkRecordedRoutes } from '@kitchensink/e2e-plan/recordedRoutes';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 import { z } from 'zod';
@@ -90,6 +91,7 @@ export function laneEnv(base: Env, lane: Lane & { readonly port: number }): Env 
         COMMISE_E2E_SHARD: String(lane.index),
         E2E_REPORTER: 'list,blob',
         PLAYWRIGHT_BLOB_OUTPUT_DIR: `${BLOB_DIR}/lane-${lane.index}`,
+        PLAYWRIGHT_BLOB_OUTPUT_NAME: `report-${lane.index}.zip`,
     };
 }
 
@@ -100,20 +102,18 @@ const selection = (passthrough: readonly string[], testList: string | undefined)
 ];
 
 /**
- * The Playwright arguments of one lane: the caller's selection, sharded.
+ * The Playwright arguments of one lane: its own test list and output folder. No `--shard`: the list is what splits
+ * the work, weighted by duration (`laneLists`).
  *
  * @param lane - Which lane, of how many.
- * @param passthrough - The caller's own arguments (spec files, `--grep`, ...).
- * @param testList - A `--test-list` file, if one was given.
+ * @param listFile - The lane's `--test-list` file.
  * @returns The arguments.
  */
-export function laneArgs(lane: Lane, passthrough: readonly string[], testList?: string): readonly string[] {
-    return [
-        ...selection(passthrough, testList),
-        `--shard=${lane.index}/${lane.count}`,
-        `--output=test-results/lane-${lane.index}`,
-    ];
-}
+export const laneArgs = (lane: Lane, listFile: string): readonly string[] => [
+    '--test-list',
+    listFile,
+    `--output=test-results/lane-${lane.index}`,
+];
 
 /**
  * Picks `count` different ports.
@@ -139,7 +139,11 @@ export function distinctPorts(count: number, isTaken: (port: number) => boolean)
     return ports;
 }
 
-const reportTestSchema = z.object({ projectName: z.string(), status: z.string() });
+const reportTestSchema = z.object({
+    projectName: z.string(),
+    status: z.string(),
+    results: z.array(z.object({ duration: z.number() })).optional(),
+});
 const reportSpecSchema = z.object({ title: z.string(), file: z.string().optional(), tests: z.array(reportTestSchema) });
 interface ReportSuite {
     readonly title: string;
@@ -173,6 +177,8 @@ export interface ReportedTest {
     /** `project › file › describe › title`, the form `--list` prints. */
     readonly id: string;
     readonly status: string;
+    /** All attempts added up, in milliseconds. */
+    readonly durationMs: number;
 }
 
 const walk = (suite: ReportSuite, path: readonly string[]): readonly ReportedTest[] => {
@@ -184,6 +190,7 @@ const walk = (suite: ReportSuite, path: readonly string[]): readonly ReportedTes
                 project: test.projectName,
                 id: [test.projectName, ...here, spec.title].join(' › '),
                 status: test.status,
+                durationMs: (test.results ?? []).reduce((sum, result) => sum + result.duration, 0),
             })),
         ),
         ...(suite.suites ?? []).flatMap((child) => walk(child, here)),
@@ -274,6 +281,74 @@ export const testListText = (tests: readonly ReportedTest[]): string =>
         .filter((test) => test.project !== 'setup')
         .map((test) => `[${test.project}] › ${test.id.slice(test.project.length + ' › '.length)}\n`)
         .join('');
+
+/** What a test with no recorded duration is assumed to take when the table is empty too. */
+const FALLBACK_TEST_MS = 3000;
+
+/**
+ * The middle duration of a table: what a test that is not in it is assumed to take.
+ *
+ * @param table - Duration per test id, in milliseconds.
+ * @returns The median, or a fixed fallback for an empty table.
+ */
+export function medianMs(table: Readonly<Record<string, number>>): number {
+    const sorted = Object.values(table).sort((a, b) => a - b);
+
+    return sorted[Math.floor(sorted.length / 2)] ?? FALLBACK_TEST_MS;
+}
+
+/**
+ * The duration table from run reports: each test's time averaged over the reports, retries included, `setup` left out.
+ *
+ * @param reports - Merged or single-run JSON reports.
+ * @returns Whole milliseconds per test id, keys sorted so the committed file diffs cleanly.
+ */
+export function durationTable(reports: readonly PlaywrightReport[]): Record<string, number> {
+    const seen = new Map<string, number[]>();
+
+    for (const test of reports.flatMap((entry) => flattenReport(entry))) {
+        if (test.project !== 'setup') {
+            seen.set(test.id, [...(seen.get(test.id) ?? []), test.durationMs]);
+        }
+    }
+
+    return Object.fromEntries(
+        [...seen.entries()]
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([id, all]) => [id, Math.round(all.reduce((sum, ms) => sum + ms, 0) / all.length)]),
+    );
+}
+
+/**
+ * Splits the listed tests into one `--test-list` text per lane, balanced by recorded duration.
+ *
+ * `setup` is not packed: Playwright runs it in every lane that holds a test needing the shared session.
+ *
+ * @param tests - The tests of a `--list` report.
+ * @param durations - The committed duration table.
+ * @param laneCount - How many lanes the planner allows; fewer come back when there are fewer tests.
+ * @param defaultMs - The assumed duration of a test with no recorded one.
+ * @returns A list text per lane, their estimated durations, and the ids that had no recorded duration.
+ */
+export function laneLists(
+    tests: readonly ReportedTest[],
+    durations: Readonly<Record<string, number>>,
+    laneCount: number,
+    defaultMs: number,
+): {
+    readonly texts: readonly string[];
+    readonly estimateMs: readonly number[];
+    readonly defaulted: readonly string[];
+} {
+    const own = tests.filter((test) => test.project !== 'setup');
+    const packing = packLanes({ ids: own.map((test) => test.id), durations, laneCount, defaultMs });
+
+    return {
+        texts: packing.lanes.map((ids) => testListText(own.filter((test) => ids.includes(test.id)))),
+        estimateMs: packing.estimateMs,
+        defaulted: packing.defaulted,
+    };
+}
 
 // ── The impure part ──────────────────────────────────────────────────────────────────────────────────
 
@@ -466,6 +541,18 @@ export function afterRun(code: number): number {
     }
 }
 
+/** The committed duration table the lanes are balanced by (`npm run e2e:durations` rewrites it). */
+export const DURATIONS_FILE = 'tests/e2e/testDurations.json';
+
+/** @sideEffect Reads the table; an absent or unreadable one is an empty table, so the lanes balance by count. */
+function loadDurations(): Record<string, number> {
+    try {
+        return z.record(z.string(), z.number()).parse(JSON.parse(readFileSync(DURATIONS_FILE, 'utf8')));
+    } catch {
+        return {};
+    }
+}
+
 const memAvailableBytes = (): number => {
     const line = readFileSync('/proc/meminfo', 'utf8')
         .split('\n')
@@ -517,7 +604,8 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
         return single();
     }
 
-    const listed = countTests(listTests(passthrough, testList, env));
+    const listReport = listTests(passthrough, testList, env);
+    const listed = countTests(listReport);
     const requested = env['E2E_LANES'] === undefined ? undefined : Number(env['E2E_LANES']);
     const plan = planLanes({
         cpus: cpus().length,
@@ -554,15 +642,32 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
         return built;
     }
 
+    const durations = loadDurations();
+    const packing = laneLists(flattenReport(listReport), durations, plan.count, medianMs(durations));
+
+    console.log(
+        `▶ lane estimates : ${packing.estimateMs.map((ms) => `${(ms / 60000).toFixed(1)}m`).join(' ')}   (from ${DURATIONS_FILE})`,
+    );
+
+    if (packing.defaulted.length > 0) {
+        console.warn(
+            `warning: ${packing.defaulted.length} test(s) have no recorded duration and were given the median; refresh ${DURATIONS_FILE} with \`npm run e2e:durations\``,
+        );
+    }
+
     const taken = listeningPorts();
-    const ports = distinctPorts(plan.count, (port) => taken.has(port));
+    const ports = distinctPorts(packing.texts.length, (port) => taken.has(port));
     const stagger = Number(env['E2E_LANE_STAGGER_SECONDS'] ?? 3);
     const exits: Promise<number | null>[] = [];
 
     for (const [offset, port] of ports.entries()) {
-        const lane = { index: offset + 1, count: plan.count };
+        const lane = { index: offset + 1, count: packing.texts.length };
+        const listFile = `${LANE_LOG_DIR}/lane-${lane.index}.list`;
+
+        writeFileSync(listFile, packing.texts[offset] ?? '');
+
         const log = openSync(`${LANE_LOG_DIR}/lane-${lane.index}.log`, 'w');
-        const child = spawn('bash', ['scripts/e2eLocal.sh', ...laneArgs(lane, passthrough, testList)], {
+        const child = spawn('bash', ['scripts/e2eLocal.sh', ...laneArgs(lane, listFile)], {
             env: laneEnv(env, { ...lane, port }) as NodeJS.ProcessEnv,
             stdio: ['ignore', log, log],
         });

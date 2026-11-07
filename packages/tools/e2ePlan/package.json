@@ -9,7 +9,8 @@
     "exports": {
         ".": "./src/lanePlan.ts",
         "./runPlan": "./src/runPlan.ts",
-        "./recordedRoutes": "./src/recordedRoutes.ts"
+        "./recordedRoutes": "./src/recordedRoutes.ts",
+        "./packLanes": "./src/packLanes.ts"
     },
     "scripts": {
         "test": "vitest run",

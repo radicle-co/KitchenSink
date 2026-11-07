@@ -12,6 +12,7 @@ import { existsSync, globSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const MOBILE_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -86,7 +87,8 @@ describe('a production build carries none of the recorder', () => {
     });
 
     it('hashes the flag into the content key of both test apps, so a cached app from before records nothing is rebuilt', () => {
-        const turbo = JSON.parse(read('turbo.json').replace(/^\s*\/\/.*$/gmu, '')) as {
+        // turbo.json is JSONC; TypeScript's own parser reads the comments, so no regex has to strip them.
+        const turbo = ts.parseConfigFileTextToJson('turbo.json', read('turbo.json')).config as {
             tasks: Record<string, { env: string[] }>;
         };
 
@@ -103,11 +105,16 @@ describe('a production build carries none of the recorder', () => {
     });
 
     it('keeps the Null Object free of any logging', () => {
-        const code = read('src/screenTrace/useScreenTrace.ts')
-            .replace(/\/\*[\s\S]*?\*\//gu, '')
-            .replace(/\/\/.*$/gmu, '');
+        const source = ts.createSourceFile(
+            'useScreenTrace.ts',
+            read('src/screenTrace/useScreenTrace.ts'),
+            ts.ScriptTarget.Latest,
+        );
+        const hook = source.statements.find(ts.isFunctionDeclaration);
 
-        expect(code).not.toMatch(/console|COMMISE_SCREEN|useEffect/u);
+        expect(hook?.name?.text).toBe('useScreenTrace');
+        expect(hook?.body?.statements).toHaveLength(0);
+        expect(source.statements.filter(ts.isImportDeclaration)).toHaveLength(0);
     });
 
     it('lets no source import a twin by name: only Metro may pick one', () => {

@@ -10,7 +10,7 @@ import {
     READ_RESPONSE_HEADROOM_MS,
 } from '../config.types.js';
 import { MAX_MATCH_SEARCH_TIMEOUT_MS } from '../matchBudget.js';
-import { ConfigValidationError, isConfigValidationError, loadConfig } from '../loadConfig.js';
+import { ConfigValidationError, isConfigValidationError, loadConfig, loadConfigWithSsm } from '../loadConfig.js';
 
 // Mock the SSM client so the fallback path is exercised without any network / AWS credentials.
 const ssmSend = vi.fn();
@@ -186,6 +186,16 @@ describe('loadConfig', () => {
 
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(/FOOD_SERVICE_URL/);
     });
+
+    it.each(['ssm', 'ssmFallback', 'environment'])(
+        'validates synchronously even when the environment holds a key named %s',
+        (key) => {
+            const config = loadConfig(apiConfigSchema, { ...validEnv(), [key]: 'anything' });
+
+            expect(config).not.toBeInstanceOf(Promise);
+            expect(config.PORT).toBe(3000);
+        },
+    );
 
     it('has NO FOOD_SERVICE_TOKEN concept — food is called with the caller’s own Clerk token', () => {
         // A static env bearer cannot satisfy food's Clerk verifier (session tokens live ~60s), so the variable
@@ -414,7 +424,7 @@ describe('loadConfig — SSM fallback', () => {
             ],
         });
 
-        const config = await loadConfig(apiConfigSchema, {
+        const config = await loadConfigWithSsm(apiConfigSchema, {
             ssmFallback: true,
             ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
             environment: 'production',
@@ -431,7 +441,7 @@ describe('loadConfig — SSM fallback', () => {
     });
 
     it('does not touch SSM when the environment already validates', async () => {
-        const config = await loadConfig(apiConfigSchema, {
+        const config = await loadConfigWithSsm(apiConfigSchema, {
             ssmFallback: true,
             ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
             environment: 'production',
@@ -448,7 +458,7 @@ describe('loadConfig — SSM fallback', () => {
         let caught: unknown;
 
         try {
-            await loadConfig(apiConfigSchema, {
+            await loadConfigWithSsm(apiConfigSchema, {
                 ssmFallback: true,
                 ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
                 environment: 'production',

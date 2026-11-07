@@ -20,6 +20,7 @@ import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { JSX } from 'react';
 
 import { nativeDiscoveryPlatform } from './nativeDiscoveryPlatform.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link RecipeDiscoveryScreen}. */
 export interface RecipeDiscoveryScreenProps {
@@ -52,6 +53,7 @@ export function RecipeDiscoveryScreen({
     headerAction,
     scrollBind,
 }: RecipeDiscoveryScreenProps): JSX.Element {
+    useScreenTrace('RecipeDiscoveryScreen');
     const criteria = useStateCriteriaStore(initialFilters);
 
     return (

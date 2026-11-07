@@ -22,6 +22,8 @@ import {
     laneEnv,
     laneLists,
     medianMs,
+    outcomesOf,
+    selectorChose,
     parseReport,
     specFilters,
     testListText,
@@ -225,6 +227,40 @@ describe('flattenReport and countTests', () => {
 
     it('counts the tests that are not setup, because every lane that needs the session runs setup again', () => {
         expect(countTests(report(tests))).toBe(4);
+    });
+});
+
+describe('outcomesOf', () => {
+    const tests = [
+        { project: 'setup', title: 'sign in', status: 'unexpected' },
+        { project: 'chromium', title: 'one', status: 'expected' },
+        { project: 'chromium', title: 'two', status: 'unexpected' },
+        { project: 'own-session', title: 'three', status: 'flaky' },
+        { project: 'chromium', title: 'four', status: 'skipped' },
+    ];
+
+    it('counts a flaky test as a failure: it did not pass on its own, so it cannot move a stamp', () => {
+        expect(outcomesOf(flattenReport(report(tests)))).toEqual({ passed: 1, failed: 2, skipped: 1 });
+    });
+
+    it('leaves setup out, because a lane runs it as a dependency and it is no selected test', () => {
+        expect(outcomesOf(flattenReport(report([tests[0] as (typeof tests)[number]])))).toEqual({
+            passed: 0,
+            failed: 0,
+            skipped: 0,
+        });
+    });
+});
+
+describe('selectorChose', () => {
+    it('is true for a bare run and for FULL_SUITE=1, which the selector answers', () => {
+        expect(selectorChose([], {})).toBe(true);
+        expect(selectorChose([], { FULL_SUITE: '1' })).toBe(true);
+    });
+
+    it('is false once a person named a spec, a test list or Playwright arguments', () => {
+        expect(selectorChose(['tests/e2e/a.spec.ts'], {})).toBe(false);
+        expect(selectorChose([], { E2E_TEST_LIST: 'x.txt' })).toBe(false);
     });
 });
 

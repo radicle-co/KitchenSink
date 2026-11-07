@@ -115,7 +115,7 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
                     },
                 };
             },
-            selectFlows: () => Promise.resolve({ flows: ['a', 'b', 'c', 'd'], notes: [] }),
+            selectFlows: () => Promise.resolve({ flows: ['a', 'b', 'c', 'd'], notes: [], owed: [] }),
             pack: (_platform, index, count) =>
                 Promise.resolve(['a', 'b', 'c', 'd'].filter((_, position) => position % count === index - 1)),
             identityCap: () => Promise.resolve(8),
@@ -140,6 +140,8 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
 
                 return Promise.resolve();
             },
+            checkScreens: () => Promise.resolve({ code: 0, results: new Map() }),
+            settleStamp: () => Promise.resolve(),
             spawnLane: (lane, laneEnv) =>
                 spawnRunner({ script: runner, cwd: state, env: laneEnv, log: path.join(lane.stateDir, 'runner.log') }),
             staggerMs: 50,
@@ -185,6 +187,18 @@ describe('runLaneRun — a lane run over fakes', () => {
         }
     });
 
+    it('tells each lane where to record the screens it shows', async () => {
+        const { state, deps } = harness();
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+        for (const index of [1, 2]) {
+            expect(envOf(laneFile(state, index))['MAESTRO_SCREEN_RECORD']).toBe(
+                path.join(state, 'lanes', `android-${index}`, 'screenRecord.tsv'),
+            );
+        }
+    });
+
     it('runs the full suite as an empty selector', async () => {
         const { state, deps } = harness();
 
@@ -227,7 +241,7 @@ describe('runLaneRun — a lane run over fakes', () => {
 
     it('starts no device, service or lane when nothing is selected, and passes', async () => {
         const { events, state, deps } = harness({
-            selectFlows: () => Promise.resolve({ flows: [], notes: ['nothing local'] }),
+            selectFlows: () => Promise.resolve({ flows: [], notes: ['nothing local'], owed: [] }),
         });
 
         expect(await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: ['x'] })).toBe(0);
@@ -237,7 +251,7 @@ describe('runLaneRun — a lane run over fakes', () => {
 
     it('lowers the lane count until every lane holds a flow, before any device boots', async () => {
         const { events, deps } = harness({
-            selectFlows: () => Promise.resolve({ flows: ['p', 'q', 'r'], notes: [] }),
+            selectFlows: () => Promise.resolve({ flows: ['p', 'q', 'r'], notes: [], owed: [] }),
             pack: (_platform, index) => Promise.resolve(index === 1 ? ['p', 'q', 'r'] : []),
         });
 
@@ -386,7 +400,7 @@ describe('runLaneRun — the run users', () => {
     });
 
     it('makes none, and removes none, when nothing runs', async () => {
-        const { events, deps } = harness({ selectFlows: () => Promise.resolve({ flows: [], notes: [] }) });
+        const { events, deps } = harness({ selectFlows: () => Promise.resolve({ flows: [], notes: [], owed: [] }) });
 
         await runLaneRun(deps, { platforms: ['android'], selection: 'all' });
 
@@ -425,5 +439,168 @@ describe('runLaneRun — the run users', () => {
         expect(events).toContain('stopDevice android-2');
         expect(events).toContain('teardownHost android');
         expect(events.at(-1)).toBe('unlock');
+    });
+});
+
+describe('runLaneRun — the screen check folds into the exit code', () => {
+    it('hands the check every lane, after the lanes exit', async () => {
+        const seen: string[][] = [];
+        const { deps } = harness({
+            checkScreens: (lanes) => {
+                seen.push(lanes.map((lane) => `${lane.platform}-${lane.index}`));
+
+                return Promise.resolve({ code: 0, results: new Map() });
+            },
+        });
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+        expect(seen).toEqual([['android-1', 'android-2']]);
+    });
+
+    it('fails a run whose lanes all passed when the check fails', async () => {
+        const { deps } = harness({ checkScreens: () => Promise.resolve({ code: 1, results: new Map() }) });
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' })).toBe(1);
+    });
+
+    it('keeps the worst lane code when it is worse than the check', async () => {
+        const { deps } = harness(
+            { checkScreens: () => Promise.resolve({ code: 1, results: new Map() }) },
+            { EXIT_2: '3' },
+        );
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' })).toBe(3);
+    });
+
+    it('still tears everything down when the check throws, and reports the throw', async () => {
+        const { events, deps } = harness({
+            checkScreens: () => Promise.reject(new Error('damaged record')),
+        });
+
+        await expect(runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).rejects.toThrow(
+            'damaged record',
+        );
+        expect(events).toContain('stopDevice android-1');
+        expect(events).toContain('unlock');
+    });
+
+    it('does not run the check for a run the operator stopped', async () => {
+        let calls = 0;
+        let stopped = false;
+        const { deps } = harness({
+            aborted: () => stopped,
+            checkScreens: () => {
+                calls += 1;
+
+                return Promise.resolve({ code: 1, results: new Map() });
+            },
+            spawnLane: (lane, env) => {
+                stopped = true;
+
+                return spawnRunner({ script: '/bin/true', cwd: '/', env, log: path.join(lane.stateDir, 'runner.log') });
+            },
+        });
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).toBe(130);
+        expect(calls).toBe(0);
+    });
+});
+
+describe('runLaneRun — a selection per platform', () => {
+    const selectorOf = (state: string, platform: string): string =>
+        envOf(path.join(state, 'lanes', `${platform}-1`, 'fixture.env'))['MAESTRO_FLOW_SELECTOR'] ?? 'missing';
+
+    it('gives each platform its own flows', async () => {
+        const { state, deps } = harness();
+
+        await runLaneRun(deps, {
+            platforms: ['android', 'ios'],
+            requested: 1,
+            selection: { android: ['a'], ios: 'all' },
+        });
+
+        expect(selectorOf(state, 'android')).toBe('flow:a=true');
+        expect(selectorOf(state, 'ios')).toBe('');
+    });
+
+    it('starts nothing on a platform whose selection is empty, and does not read an empty list as every flow', async () => {
+        const { events, state, deps } = harness();
+
+        await runLaneRun(deps, { platforms: ['android', 'ios'], requested: 1, selection: { android: [], ios: ['b'] } });
+
+        expect(events).not.toContain('startDevice android-1');
+        expect(events).toContain('startDevice ios-1');
+        expect(selectorOf(state, 'ios')).toBe('flow:b=true');
+    });
+});
+
+describe('runLaneRun — the green stamp settles after the check', () => {
+    const results = new Map([
+        [
+            'android',
+            new Map([
+                ['a', 'passed'],
+                ['b', 'failed'],
+            ] as const),
+        ],
+    ]);
+
+    it('hands each planned platform its flows, what the sandbox-only drop owes, the results and the check verdict', async () => {
+        const settled: unknown[] = [];
+        const { deps } = harness({
+            selectFlows: () => Promise.resolve({ flows: ['a', 'b'], notes: [], owed: ['spine'] }),
+            pack: () => Promise.resolve(['a', 'b']),
+            checkScreens: () => Promise.resolve({ code: 1, results }),
+            settleStamp: (input) => {
+                settled.push(input);
+
+                return Promise.resolve();
+            },
+        });
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
+
+        expect(settled).toEqual([
+            {
+                platform: 'android',
+                flows: ['a', 'b'],
+                owed: ['spine'],
+                results: results.get('android'),
+                recorderClean: false,
+            },
+        ]);
+    });
+
+    it('settles a platform that had nothing to run, with no flows: an empty selection is a pass of nothing', async () => {
+        const settled: { platform: string; flows: readonly string[] }[] = [];
+        const { deps } = harness({
+            selectFlows: () => Promise.resolve({ flows: [], notes: [], owed: ['spine'] }),
+            settleStamp: (input) => {
+                settled.push(input);
+
+                return Promise.resolve();
+            },
+        });
+
+        await runLaneRun(deps, { platforms: ['android'], selection: 'all' });
+
+        expect(settled).toMatchObject([{ platform: 'android', flows: [] }]);
+    });
+
+    it('settles nothing for a run the operator stopped', async () => {
+        let calls = 0;
+        const { deps } = harness({
+            aborted: () => true,
+            settleStamp: () => {
+                calls += 1;
+
+                return Promise.resolve();
+            },
+        });
+
+        await runLaneRun(deps, { platforms: ['android'], selection: 'all' });
+
+        expect(calls).toBe(0);
     });
 });

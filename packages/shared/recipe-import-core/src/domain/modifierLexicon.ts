@@ -51,6 +51,7 @@
  * safe direction — an unclassified word cannot be moved into the wrong field, it can only fail to settle a
  * disagreement that then reaches the adjudication list (U23) as it would have anyway.
  */
+import { trimEdges } from './trimEdges.js';
 
 /**
  * What KTD-11b says a modifier word IS.
@@ -223,7 +224,7 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
 const QUALIFIERS: ReadonlySet<string> = new Set(['well']);
 
 /** Everything that is not a letter, a digit or an internal hyphen — punctuation an engine carried along. */
-const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+const NON_WORD = /[^\p{L}\p{N}]/u;
 
 /**
  * Reduce a word to the form the sets are keyed on.
@@ -232,7 +233,7 @@ const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
  * @returns Lower-cased and stripped of leading/trailing punctuation. Pure.
  */
 function fold(word: string): string {
-    return word.trim().toLowerCase().replace(NON_WORD_EDGE, '');
+    return trimEdges(word.trim().toLowerCase(), (character) => NON_WORD.test(character));
 }
 
 /**

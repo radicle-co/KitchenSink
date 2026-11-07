@@ -1416,6 +1416,70 @@ maestro_scope_device_log() {
     esac
 }
 
+# The screen recorder (the local lane orchestrator sets MAESTRO_SCREEN_RECORD to a file; CI and a bare run leave it unset
+# and these functions do nothing). A test build logs `COMMISE_SCREEN <name>` each time a screen mounts
+# (`mobile/src/screenTrace`); per flow, the runner collects those lines and appends to the file
+#   screen<TAB><flow><TAB><name>        one per distinct screen, in the order first shown
+#   result<TAB><flow><TAB>passed|failed|skipped
+# which `@kitchensink/e2e-plan/recordedScreens` reads after the run to check each flow's row in maestroFlowScreens.tsv.
+#
+# Android STREAMS logcat from before the flow (its ring buffer is 256 KB and a long flow can push the early lines out).
+# iOS reads the unified log back from the flow's start time, as `maestro_dump_device_log` does: a stream over the Mac
+# shim would leave a `log stream` running on the Mac when the local ssh client is killed.
+MAESTRO_SCREEN_RAW=''
+MAESTRO_SCREEN_PID=''
+
+# maestro_screen_record_start
+#
+# @sideEffect Starts `adb logcat` in the background on Android and makes a temp file for it.
+maestro_screen_record_start() {
+    [ -n "${MAESTRO_SCREEN_RECORD:-}" ] || return 0
+    MAESTRO_SCREEN_RAW="$(mktemp)"
+    MAESTRO_SCREEN_PID=''
+    case "$(maestro_platform 2>/dev/null)" in
+        ios) ;;
+        *)
+            adb logcat -v raw 'ReactNativeJS:E' '*:S' >"$MAESTRO_SCREEN_RAW" 2>/dev/null &
+            MAESTRO_SCREEN_PID=$!
+            ;;
+    esac
+}
+
+# maestro_screen_record_result <flow> passed|failed|skipped
+#
+# @sideEffect Appends a result line to MAESTRO_SCREEN_RECORD.
+maestro_screen_record_result() {
+    [ -n "${MAESTRO_SCREEN_RECORD:-}" ] || return 0
+    printf 'result\t%s\t%s\n' "$1" "$2" >>"$MAESTRO_SCREEN_RECORD"
+}
+
+# maestro_screen_record_stop <flow> <maestro's exit code>
+#
+# @sideEffect Stops the logcat reader this shell started (by pid), appends the flow's screens and result.
+maestro_screen_record_stop() {
+    [ -n "${MAESTRO_SCREEN_RECORD:-}" ] || return 0
+    local flow="$1" rc="$2" result=passed
+
+    if [ -n "$MAESTRO_SCREEN_PID" ]; then
+        kill "$MAESTRO_SCREEN_PID" 2>/dev/null || true
+        wait "$MAESTRO_SCREEN_PID" 2>/dev/null || true
+    elif [ "$(maestro_platform 2>/dev/null)" = 'ios' ]; then
+        xcrun simctl spawn "$MAESTRO_IOS_UDID" log show --style compact --start "${MAESTRO_IOS_LOG_START:-}" \
+            --predicate 'eventMessage CONTAINS "COMMISE_SCREEN"' >"$MAESTRO_SCREEN_RAW" 2>/dev/null || true
+    fi
+    MAESTRO_SCREEN_PID=''
+
+    # awk, not sed: `\t` in a sed replacement is GNU only, and CI runs this on macOS. 15 is length("COMMISE_SCREEN ").
+    awk -v flow="$flow" 'match($0, /COMMISE_SCREEN [A-Za-z0-9_]+/) {
+        key = "screen\t" flow "\t" substr($0, RSTART + 15, RLENGTH - 15)
+        if (!(key in seen)) { seen[key] = 1; print key }
+    }' "$MAESTRO_SCREEN_RAW" >>"$MAESTRO_SCREEN_RECORD"
+    rm -f "$MAESTRO_SCREEN_RAW"
+    MAESTRO_SCREEN_RAW=''
+    [ "$rc" -eq 0 ] || result=failed
+    maestro_screen_record_result "$flow" "$result"
+}
+
 # Print the device's crash-carrying log lines for a failed flow. Best-effort: a diagnostic that fails the job
 # it is diagnosing is worse than no diagnostic.
 #
@@ -1749,6 +1813,7 @@ maestro_run_flow_list() {
         # ⛔ Before the reset AND before Maestro: an erasing flow with no leased subject is not run at all.
         if ! maestro_erasure_subject_check "$f"; then
             rc=1
+            maestro_screen_record_result "$f" skipped
             echo "::endgroup::"
             continue
         fi
@@ -1775,6 +1840,7 @@ maestro_run_flow_list() {
         # failure below is that flow's own result and does not stop the loop. `maestroDriverLifecycle.integration.test.ts`
         # holds both directions.
         if ! maestro_seed_reset "$reseed_mode"; then
+            maestro_screen_record_result "$f" skipped
             # `pending` is single-space padded, so trimming one space from each end leaves the list.
             not_run="${not_run# }"
             not_run="${not_run% }"
@@ -1809,6 +1875,7 @@ maestro_run_flow_list() {
                 fi
                 ;;
         esac
+        maestro_screen_record_start
         maestro ${device_args[@]+"${device_args[@]}"} test ${driver_args[@]+"${driver_args[@]}"} ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml" 2>&1 | tee "$flow_log"
         flow_rc=${PIPESTATUS[0]}
         # ⛔ iOS ONLY, ONCE: a driver that never started ran no step, so the flow is retried on a freshly reset driver. The
@@ -1821,6 +1888,7 @@ maestro_run_flow_list() {
             maestro ${device_args[@]+"${device_args[@]}"} test ${MAESTRO_FIXTURE_ENV_ARGS[@]+"${MAESTRO_FIXTURE_ENV_ARGS[@]}"} -e "APP_ID=${app_id}" --driver-host-port "$MAESTRO_DRIVER_PORT" "packages/apps/commise/mobile/.maestro/${f}.yaml"
             flow_rc=$?
         fi
+        maestro_screen_record_stop "$f" "$flow_rc"
         if [ -n "$role_lock_fd" ]; then
             flock -u "$role_lock_fd"
         fi

@@ -713,8 +713,8 @@ export const testPrincipalContainmentConfigMeta: Record<keyof TestPrincipalConta
  * Usage at app boot:
  * ```typescript
  * import { loadConfig } from './loadConfig.js';
- *   import { apiConfigSchema } from './config.types.js';
- * const config = await loadConfig(apiConfigSchema);
+ * import { apiConfigSchema } from './config.types.js';
+ * const config = loadConfig(apiConfigSchema);
  * ```
  */
 export const apiConfigSchema = baseConfigSchema
@@ -821,7 +821,8 @@ export interface LoadConfigOptions {
 }
 
 /**
- * Config loader function signature.
+ * Signature of the SSM-capable config loader, `loadConfigWithSsm` (the synchronous `loadConfig` takes an env
+ * source instead).
  *
  * Validates all environment variables against the provided Zod schema,
  * optionally fetching secrets from SSM Parameter Store for missing values.
@@ -832,11 +833,11 @@ export interface LoadConfigOptions {
  * @example
  * ```typescript
  * // In the recipe service's NestJS main.ts
- * import { loadConfig } from './loadConfig.js';
- *   import { apiConfigSchema } from './config.types.js';
+ * import { loadConfigWithSsm } from './loadConfig.js';
+ * import { apiConfigSchema } from './config.types.js';
  *
  * async function bootstrap() {
- *   const config = await loadConfig(apiConfigSchema, {
+ *   const config = await loadConfigWithSsm(apiConfigSchema, {
  *     ssmFallback: process.env.NODE_ENV === 'development',
  *     ssm: { prefix: '/commise', region: 'us-east-1' },
  *   });
@@ -849,10 +850,10 @@ export interface LoadConfigOptions {
  * @example
  * ```typescript
  * // In a worker Lambda handler (its own config/ module)
- * import { loadConfig } from './loadConfig.js';
- *   import { workerConfigSchema } from './config.types.js';
+ * import { loadConfigWithSsm } from './loadConfig.js';
+ * import { workerConfigSchema } from './config.types.js';
  *
- * const config = await loadConfig(workerConfigSchema, {
+ * const config = await loadConfigWithSsm(workerConfigSchema, {
  *   ssmFallback: true,
  *   ssm: { prefix: '/commise' },
  * });

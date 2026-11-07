@@ -65,6 +65,13 @@ TEST_APP_SECRET_VARIABLES='CLERK_SECRET_KEY IDP_SECRET_KEY CLERK_WEBHOOK_SECRET 
 # list because `load-secrets` never sets them, and the list above is checked against what it does set.
 TEST_APP_RUNNER_TOKEN_VARIABLES='ACTIONS_ID_TOKEN_REQUEST_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL'
 
+# ⛔ A TEST APP RECORDS THE SCREENS IT SHOWS (the Maestro screen recorder). Metro reads this at bundle time and swaps
+# `src/screenTrace/useScreenTrace.ts` (a Null Object) for `useScreenTrace.maestro.ts`, which logs `COMMISE_SCREEN <name>`.
+# It is exported HERE, at the top level, so the content key (`turbo.json` hashes the name by value) and the build see the
+# same value: an app cached from before the recorder existed carries a different key and is rebuilt. No production build
+# runs this script, so none carries the recorder.
+export COMMISE_SCREEN_TRACE=1
+
 # The manifest keys, in the order they are written.
 TEST_APP_COMMON_KEYS='platform contentKey recipeOrigin foodOrigin identityOrigin publishableKeySha256'
 TEST_APP_PROVENANCE_KEYS='builtFromSha builtInRun'

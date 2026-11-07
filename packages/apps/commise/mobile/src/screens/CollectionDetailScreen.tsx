@@ -49,6 +49,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { useRecipeViewSetting } from '../hooks/useRecipeViewSetting.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link CollectionDetailScreen}. */
 export interface CollectionDetailScreenProps {
@@ -75,6 +76,7 @@ export interface CollectionDetailScreenProps {
  * @returns The boundary: loading, not-found or a retrying error, and the composed detail view once the read settles.
  */
 export function CollectionDetailScreen(props: CollectionDetailScreenProps): JSX.Element {
+    useScreenTrace('CollectionDetailScreen');
     const { collectionId, onBack } = props;
     const messages = useMessages(collectionMessages);
     const headingId = useId();

@@ -1653,3 +1653,33 @@ describe('compareParses — R5, the raw line is the placeholder of last resort',
         expect(result.merged?.reviewReasons).toEqual(['no_food_returned', 'name_is_source_line']);
     });
 });
+
+describe('canonicaliseFood — the list separator an engine leaves beside a word it moves', () => {
+    it.each([
+        ['cream', ';;frozen, whipped,,', { name: 'frozen cream', prep: 'whipped' }],
+        ['butter', 'unsalted;', { name: 'unsalted butter', prep: null }],
+        ['blueberries', 'frozen, thawed', { name: 'frozen blueberries', prep: 'thawed' }],
+        ['flour', 'sifted, 1/2 cup;', { name: 'flour', prep: 'sifted, 1/2 cup;' }],
+        ['celery', 'chopped, 2-3 stalks,', { name: 'celery', prep: 'chopped, 2-3 stalks,' }],
+        ['sugar', 'packed;, 1.5 cups,,', { name: 'sugar', prep: 'packed;, 1.5 cups,,' }],
+    ] as const)('places %j with prep %j', (name, prep, expected) => {
+        expect(canonicaliseFood({ name, prep })).toEqual(expected);
+    });
+
+    it('strips edge separators only, never an inner one, and only from the joined field', () => {
+        expect(canonicaliseFood({ name: 'cream', prep: 'frozen, whipped; and, beaten,' })).toEqual({
+            name: 'frozen cream',
+            prep: 'whipped; and, beaten',
+        });
+    });
+
+    it('finishes in linear time on a field made of tens of thousands of separators', () => {
+        const commas = ','.repeat(50_000);
+        const started = performance.now();
+        const food = canonicaliseFood({ name: 'cream', prep: `frozen a${commas}a` });
+        const elapsed = performance.now() - started;
+
+        expect(food).toEqual({ name: 'frozen cream', prep: `a${commas}a` });
+        expect(elapsed).toBeLessThan(250);
+    });
+});

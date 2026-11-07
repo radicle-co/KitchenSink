@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { LaneSpec } from '../laneTypes.js';
+import { isServiceUnusableError } from '../serviceUnusableError.js';
 import {
     isForeignServiceError,
-    isServiceUnusableError,
     startSharedServices,
     type ServicePorts,
     type ServiceSpec,

@@ -55,25 +55,35 @@ function appPath(url: string, options: RecordOptions): string | undefined {
     return rest === '' ? '/' : rest;
 }
 
+/** How a navigation was seen: a document request, a React Server Components request, or a main-frame navigation. */
+export type NavigationKind = 'document' | 'rsc' | 'framenavigated';
+
 /**
  * Which requests mean "the spec went to this page".
  *
  * @param request - The request.
  * @param options - The app's origin and path prefix.
- * @returns The locale-free path, or undefined. A prefetch is ignored: it loads a page nobody went to.
+ * @returns The locale-free path and the kind of request, or undefined. A prefetch is ignored: it loads a page nobody
+ * went to.
  */
-export function navigationPath(request: RecordedRequest, options: RecordOptions): string | undefined {
+export function navigationOf(
+    request: RecordedRequest,
+    options: RecordOptions,
+): { readonly path: string; readonly via: 'document' | 'rsc' } | undefined {
     if (header(request.headers, 'next-router-prefetch') !== undefined) {
         return undefined;
     }
 
-    const isNavigation = request.resourceType === 'document' || header(request.headers, 'rsc') === '1';
+    const via =
+        request.resourceType === 'document' ? 'document' : header(request.headers, 'rsc') === '1' ? 'rsc' : undefined;
+    const path = via === undefined ? undefined : appPath(request.url, options);
 
-    return isNavigation ? appPath(request.url, options) : undefined;
+    return via === undefined || path === undefined ? undefined : { path, via };
 }
 
-/** One JSON Lines record. */
-export const recordLine = (spec: string, path: string): string => `${JSON.stringify({ spec, path })}\n`;
+/** One JSON Lines record. `via` tells a reader which of the three signals saw the navigation. */
+export const recordLine = (spec: string, path: string, via: NavigationKind): string =>
+    `${JSON.stringify({ spec, path, via })}\n`;
 
 const instrumented = new WeakSet<object>();
 
@@ -104,16 +114,16 @@ export function recordRoutes(page: Page): void {
 
     const options: RecordOptions = { origin: new URL(baseUrl).origin, prefix: `${BASE_PATH}/${LOCALE}` };
 
-    const write = (path: string | undefined): void => {
-        if (path !== undefined) {
+    const write = (seen: { readonly path: string; readonly via: NavigationKind } | undefined): void => {
+        if (seen !== undefined) {
             mkdirSync(dir, { recursive: true });
-            appendFileSync(file, recordLine(spec, path));
+            appendFileSync(file, recordLine(spec, seen.path, seen.via));
         }
     };
 
     context.on('request', (request) => {
         write(
-            navigationPath(
+            navigationOf(
                 { url: request.url(), resourceType: request.resourceType(), headers: request.headers() },
                 options,
             ),
@@ -121,7 +131,9 @@ export function recordRoutes(page: Page): void {
     });
     page.on('framenavigated', (frame) => {
         if (frame === page.mainFrame()) {
-            write(navigationPath({ url: frame.url(), resourceType: 'document', headers: {} }, options));
+            const seen = navigationOf({ url: frame.url(), resourceType: 'document', headers: {} }, options);
+
+            write(seen === undefined ? undefined : { path: seen.path, via: 'framenavigated' });
         }
     });
 }

@@ -23,6 +23,17 @@ describe('parseRecords', () => {
         ]);
     });
 
+    it('reads a record with the source kind, and an old one without it', () => {
+        expect(parseRecords('{"spec":"a","path":"/","via":"rsc"}\n{"spec":"a","path":"/x"}\n', 'x')).toEqual([
+            { spec: 'a', path: '/', via: 'rsc' },
+            { spec: 'a', path: '/x' },
+        ]);
+    });
+
+    it('refuses a source kind that is not one of the three', () => {
+        expect(() => parseRecords('{"spec":"a","path":"/","via":"x"}\n', 'l.jsonl')).toThrow(/l\.jsonl line 1/u);
+    });
+
     it.each(['not json', '{"spec":"a"}', '{"spec":1,"path":"/"}', '[]'])(
         'refuses %s, so damage is never read as "no navigation"',
         (line) => {
@@ -107,6 +118,7 @@ describe('checkRecordsInDir', () => {
         const result = checkRecordsInDir(dir, { table, screens: SCREENS });
 
         expect(result.recorded).toBe(2);
+        expect(result.kinds).toEqual({ document: 0, rsc: 0, framenavigated: 0, unknown: 2 });
         expect(result.missing).toEqual([{ spec: 'a.spec.ts', screens: ['/collections'] }]);
     });
 
@@ -114,6 +126,7 @@ describe('checkRecordsInDir', () => {
         expect(checkRecordsInDir(join(dir, 'absent'), { table, screens: SCREENS })).toEqual({
             recorded: 0,
             missing: [],
+            kinds: { document: 0, rsc: 0, framenavigated: 0, unknown: 0 },
         });
         mkdirSync(join(dir, 'empty'));
         expect(checkRecordsInDir(join(dir, 'empty'), { table, screens: SCREENS }).recorded).toBe(0);

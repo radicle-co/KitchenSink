@@ -48,17 +48,19 @@ function fixture(): Fixture {
     scratch.push(dir);
     const calls = join(dir, 'calls.log');
     writeFileSync(calls, '');
+
     const stub = (name: string, body: string): void => {
         writeFileSync(join(dir, name), `#!/usr/bin/env bash\n${body}\n`);
         chmodSync(join(dir, name), 0o755);
     };
+
     const log = `printf '%s' "$(basename "$0")" >> "${calls}"; printf ' %s' "$@" >> "${calls}"; printf '\\n' >> "${calls}"`;
     const printAll = (lines: readonly string[]): string => lines.map((line) => `echo "${line}"`).join('\n');
 
     // `adb logcat` prints the app's lines and then stays alive, as the real one does; the runner must stop it.
     stub(
         'adb',
-        `${log}\nif [ "\${1:-}" = logcat ] && [[ " \$* " != *" -c "* ]] && [[ " \$* " != *" -d "* ]]; then\n${printAll(ANDROID_LINES)}\nexec sleep 60\nfi\nexit 0`,
+        `${log}\nif [ "\${1:-}" = logcat ] && [[ " $* " != *" -c "* ]] && [[ " $* " != *" -d "* ]]; then\n${printAll(ANDROID_LINES)}\nexec sleep 60\nfi\nexit 0`,
     );
     stub('xcrun', `${log}\n${printAll(IOS_LINES)}`);
     stub('maestro', `${log}\nexit "\${STUB_MAESTRO_EXIT:-0}"`);

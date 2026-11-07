@@ -46,6 +46,10 @@
             "types": "./dist/resolution/verificationVerdict.d.ts",
             "default": "./dist/resolution/verificationVerdict.js"
         },
+        "./parsing/measure-reader": {
+            "types": "./dist/parsing/measureReader.d.ts",
+            "default": "./dist/parsing/measureReader.js"
+        },
         "./parsing/parse-job-message": {
             "types": "./dist/parsing/parseJobMessage.d.ts",
             "default": "./dist/parsing/parseJobMessage.js"

@@ -138,6 +138,15 @@ describe('pasteMatchLinesOf - the line itself', () => {
         expect(only(linesOf(jobWith(confident(), raw, stated))).line).toEqual({ measure: shownMeasure, words });
     });
 
+    /** A measure that stops inside a number or range is not the line's measure: `1` + `/2 cup flour` is wrong. */
+    it.each([
+        ['1/2 cup flour', '1'],
+        ['2-3 cups flour', '2'],
+        ['1.5 cups flour', '1'],
+    ])('a stated measure that ends inside a number or range stays whole: %s', (raw, measure) => {
+        expect(only(linesOf(jobWith(confident(), raw, measure))).line).toEqual({ measure: '', words: raw });
+    });
+
     it('a stated measure that ends inside a word is still not split when a separator follows the word', () => {
         expect(only(linesOf(jobWith(confident(), '2-3 cups, chicken stock', '2-3 cup'))).line).toEqual({
             measure: '',

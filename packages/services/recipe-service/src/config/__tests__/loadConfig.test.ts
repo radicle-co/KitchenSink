@@ -4,14 +4,13 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from '@kitchensink/recipe-service-client';
 
 import {
     apiConfigSchema,
-    type ApiConfig,
     MAX_POST_COMMIT_NUTRITION_TIMEOUT_MS,
     MAX_READ_NUTRITION_DEADLINE_MS,
     POST_COMMIT_RESPONSE_HEADROOM_MS,
     READ_RESPONSE_HEADROOM_MS,
 } from '../config.types.js';
 import { MAX_MATCH_SEARCH_TIMEOUT_MS } from '../matchBudget.js';
-import { ConfigValidationError, isConfigValidationError, loadConfig } from '../loadConfig.js';
+import { ConfigValidationError, isConfigValidationError, loadConfig, loadConfigWithSsm } from '../loadConfig.js';
 
 // Mock the SSM client so the fallback path is exercised without any network / AWS credentials.
 const ssmSend = vi.fn();
@@ -51,7 +50,7 @@ const validEnv = (): Record<string, string> => ({
 
 describe('loadConfig', () => {
     it('parses a fully-valid environment into the typed config with defaults applied', () => {
-        const config: ApiConfig = loadConfig(apiConfigSchema, validEnv());
+        const config = loadConfig(apiConfigSchema, validEnv());
 
         expect(config.NODE_ENV).toBe('production');
         expect(config.CLERK_JWT_KEY).toContain('BEGIN PUBLIC KEY');
@@ -188,10 +187,20 @@ describe('loadConfig', () => {
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(/FOOD_SERVICE_URL/);
     });
 
+    it.each(['ssm', 'ssmFallback', 'environment'])(
+        'validates synchronously even when the environment holds a key named %s',
+        (key) => {
+            const config = loadConfig(apiConfigSchema, { ...validEnv(), [key]: 'anything' });
+
+            expect(config).not.toBeInstanceOf(Promise);
+            expect(config.PORT).toBe(3000);
+        },
+    );
+
     it('has NO FOOD_SERVICE_TOKEN concept — food is called with the caller’s own Clerk token', () => {
         // A static env bearer cannot satisfy food's Clerk verifier (session tokens live ~60s), so the variable
         // is gone rather than left as a decoy for someone to "wire up". Setting it is simply ignored.
-        const config: ApiConfig = loadConfig(apiConfigSchema, { ...validEnv(), FOOD_SERVICE_TOKEN: 'static-token' });
+        const config = loadConfig(apiConfigSchema, { ...validEnv(), FOOD_SERVICE_TOKEN: 'static-token' });
 
         expect('FOOD_SERVICE_TOKEN' in config).toBe(false);
     });
@@ -415,7 +424,7 @@ describe('loadConfig — SSM fallback', () => {
             ],
         });
 
-        const config = await loadConfig(apiConfigSchema, {
+        const config = await loadConfigWithSsm(apiConfigSchema, {
             ssmFallback: true,
             ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
             environment: 'production',
@@ -432,7 +441,7 @@ describe('loadConfig — SSM fallback', () => {
     });
 
     it('does not touch SSM when the environment already validates', async () => {
-        const config = await loadConfig(apiConfigSchema, {
+        const config = await loadConfigWithSsm(apiConfigSchema, {
             ssmFallback: true,
             ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
             environment: 'production',
@@ -449,7 +458,7 @@ describe('loadConfig — SSM fallback', () => {
         let caught: unknown;
 
         try {
-            await loadConfig(apiConfigSchema, {
+            await loadConfigWithSsm(apiConfigSchema, {
                 ssmFallback: true,
                 ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
                 environment: 'production',

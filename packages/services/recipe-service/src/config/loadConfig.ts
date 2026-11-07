@@ -27,19 +27,6 @@ export function isConfigValidationError(error: unknown): error is ConfigValidati
     return error instanceof ConfigValidationError;
 }
 
-/**
- * Whether the second argument is a {@link LoadConfigOptions} object rather than a raw env-var source.
- * SSM-related keys never appear as environment-variable names (which are UPPER_SNAKE), so their
- * presence unambiguously selects the async SSM-capable path. Pure.
- */
-function isLoadConfigOptions(value: unknown): value is LoadConfigOptions {
-    return (
-        typeof value === 'object' &&
-        value !== null &&
-        ('ssmFallback' in value || 'ssm' in value || 'environment' in value)
-    );
-}
-
 /** Parse `env` against `schema`, throwing an aggregated {@link ConfigValidationError} on failure. Pure. */
 function parseOrThrow<Schema extends z.ZodTypeAny>(schema: Schema, env: Record<string, unknown>): z.infer<Schema> {
     const result = schema.safeParse(env);
@@ -109,9 +96,12 @@ async function fetchFromSsm(
  * Async loader implementing the {@link LoadConfigOptions} contract: validate `process.env` and, when
  * `ssmFallback` is enabled, backfill any missing required vars from SSM before re-validating.
  *
+ * A separate function from {@link loadConfig}, not an overload of it: whether a call returns a value or a
+ * Promise must never depend on which keys an environment object happens to hold.
+ *
  * @sideEffect Reads `process.env`; may perform a single SSM `GetParameters` call.
  */
-async function loadConfigAsync<Schema extends z.ZodTypeAny>(
+export async function loadConfigWithSsm<Schema extends z.ZodTypeAny>(
     schema: Schema,
     options: LoadConfigOptions,
 ): Promise<z.infer<Schema>> {
@@ -137,37 +127,18 @@ async function loadConfigAsync<Schema extends z.ZodTypeAny>(
 
 /**
  * Validate a source of environment variables against a Zod config schema, returning the parsed, typed
- * config.
- *
- * Two shapes, distinguished by the second argument:
- * - `loadConfig(schema, env?)` — **synchronous** validation of an explicit env source (defaults to
- *   `process.env`). This is the primary boot-time path; any missing/invalid value fails fast with an
- *   aggregated {@link ConfigValidationError}.
- * - `loadConfig(schema, options)` — **async** validation of `process.env` with an optional SSM
- *   fallback (per {@link LoadConfigOptions}): a required var absent from the environment is resolved
- *   from AWS SSM Parameter Store at `/{prefix}/{environment}/{KEY}` before re-validation.
+ * config — **synchronously**. `env` defaults to `process.env`; any missing/invalid value fails fast with an
+ * aggregated {@link ConfigValidationError}. For SSM-backed loading use {@link loadConfigWithSsm}.
  *
  * Accepts any `ZodType` (not just `ZodObject`) so composite schemas built with `.and()` — such as
  * `apiConfigSchema`, whose either/or DB-connection union makes it a
  * `ZodIntersection` — are supported.
  *
- * @sideEffect Reads `process.env` when no explicit source is provided; the options form may perform a
- *   single SSM `GetParameters` call.
+ * @sideEffect Reads `process.env` when no explicit source is provided.
  */
 export function loadConfig<Schema extends z.ZodTypeAny>(
     schema: Schema,
-    options: LoadConfigOptions,
-): Promise<z.infer<Schema>>;
-
-export function loadConfig<Schema extends z.ZodTypeAny>(schema: Schema, env?: Record<string, unknown>): z.infer<Schema>;
-
-export function loadConfig<Schema extends z.ZodTypeAny>(
-    schema: Schema,
-    source?: Record<string, unknown> | LoadConfigOptions,
-): z.infer<Schema> | Promise<z.infer<Schema>> {
-    if (isLoadConfigOptions(source)) {
-        return loadConfigAsync(schema, source);
-    }
-
-    return parseOrThrow(schema, source ?? process.env);
+    env: Record<string, unknown> = process.env,
+): z.infer<Schema> {
+    return parseOrThrow(schema, env);
 }

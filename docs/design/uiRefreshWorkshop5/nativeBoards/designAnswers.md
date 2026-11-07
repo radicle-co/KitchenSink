@@ -392,3 +392,5 @@ The rule lives in `formatQuantity`, so it reaches web, native, the editor row an
 10. The chip's box (its border) sits on the row's start edge. Its label sits in by the chip's own padding.
 11. When the add field has focus, the editor scrolls so that the field and at least the first suggestion sit
     above the keyboard, at every text size.
+12. The recipe detail page follows item 7 on every platform, web included: a stand-in's amount (or a lone unit)
+    sits on its own line above the chip, never on the chip's line.

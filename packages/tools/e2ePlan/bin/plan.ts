@@ -1,7 +1,7 @@
 /**
  * Prints which Playwright specs and Maestro flows a change affects, and why.
  *
- *   npm run e2e:plan [-- --repo <path>] [-- --base <ref>] [-- --json]
+ *   npm run e2e:plan [-- --repo <path>] [-- --base <ref>] [-- --json | --tier web|mobile]
  *
  * With `--json` it prints one object, `{ web, mobile, warnings }`, where a tier is `{ kind: 'all', reasons }` (run
  * the whole tier; no list) or `{ kind: 'some', ids }` (run these; an empty list means run none).
@@ -13,9 +13,9 @@ import { parseArgs } from 'node:util';
 
 import { changedFiles } from '../src/gitChangeSet.js';
 import { planChange, type Models } from '../src/planChange.js';
-import { renderPlan } from '../src/render.js';
+import { idsOf, renderPlan } from '../src/render.js';
 import { loadRepoModels } from '../src/repoModels.js';
-import { toPlanJson } from '../src/planJson.js';
+import { tierLines, toPlanJson } from '../src/planJson.js';
 import { fullPlan, type Plan } from '../src/selection.js';
 
 const { values } = parseArgs({
@@ -23,6 +23,7 @@ const { values } = parseArgs({
         repo: { type: 'string', default: process.cwd() },
         base: { type: 'string' },
         json: { type: 'boolean', default: false },
+        tier: { type: 'string' },
     },
 });
 
@@ -51,6 +52,28 @@ async function main(): Promise<void> {
         const message = error instanceof Error ? error.message : String(error);
 
         plan = fullPlan('the selector failed', [`the selector failed (${message}); running everything`]);
+    }
+
+    if (values.tier === 'web' || values.tier === 'mobile') {
+        // For a shell: `all`, or `some` and the ids in the tier's own order (the Maestro plan's order matters). The
+        // reasons go to stderr so a person sees them and a pipe does not.
+        const selection = plan[values.tier];
+
+        if (selection.kind === 'all') {
+            selection.reasons.slice(0, 10).forEach((reason) => process.stderr.write(`  ${reason}\n`));
+            process.stdout.write(tierLines({ kind: 'all', reasons: selection.reasons }));
+        } else {
+            const order = models?.[values.tier].tests ?? [];
+
+            process.stdout.write(
+                tierLines({
+                    kind: 'some',
+                    ids: order.length > 0 ? idsOf(selection, order) : selection.picks.map((pick) => pick.id),
+                }),
+            );
+        }
+
+        return;
     }
 
     if (values.json) {

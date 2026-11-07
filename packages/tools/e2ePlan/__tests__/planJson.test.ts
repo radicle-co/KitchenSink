@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parsePlanJson, toPlanJson } from '../src/planJson.js';
+import { parsePlanJson, tierLines, toPlanJson } from '../src/planJson.js';
 import type { Plan } from '../src/selection.js';
 
 const plan: Plan = {
@@ -41,5 +41,19 @@ describe('toPlanJson and parsePlanJson', () => {
         ],
     ])('refuses %s, so a half-read plan is never taken for "run nothing"', (_name, text) => {
         expect(() => parsePlanJson(text)).toThrow();
+    });
+});
+
+describe('tierLines', () => {
+    it('says `all` alone for a tier that runs everything: there is no list to read', () => {
+        expect(tierLines({ kind: 'all', reasons: ['x'] })).toBe('all\n');
+    });
+
+    it('says `some` and then one id per line, in the order given', () => {
+        expect(tierLines({ kind: 'some', ids: ['recipes/create', 'home'] })).toBe('some\nrecipes/create\nhome\n');
+    });
+
+    it('says `some` alone for a tier that runs none, which is not the same as `all`', () => {
+        expect(tierLines({ kind: 'some', ids: [] })).toBe('some\n');
     });
 });

@@ -67,3 +67,12 @@ export function parsePlanJson(text: string): PlanJson {
 
     return { web: parseTier(parsed['web'], 'web'), mobile: parseTier(parsed['mobile'], 'mobile'), warnings };
 }
+
+/**
+ * A tier as lines a shell can read: `all`, or `some` followed by one id per line.
+ *
+ * @param tier - The tier.
+ * @returns The text.
+ */
+export const tierLines = (tier: TierJson): string =>
+    tier.kind === 'all' ? 'all\n' : `some\n${tier.ids.map((id) => `${id}\n`).join('')}`;

@@ -159,6 +159,120 @@ describe('local_maestro_flows — which flows a command runs', () => {
     });
 });
 
+/**
+ * Puts a fake `npx` first on PATH that answers the selector (`npx tsx .../plan.ts --tier mobile`) with `answer` and
+ * the given exit code, and logs that it was called.
+ *
+ * @sideEffect Writes an executable into the sandbox.
+ */
+function fakeSelector(sandbox: Sandbox, answer: string, exitCode = 0): void {
+    writeFileSync(
+        path.join(sandbox.bin, 'npx'),
+        `#!/usr/bin/env bash\necho "npx $*" >> "${sandbox.calls}"\nprintf '%s' '${answer}'\nexit ${exitCode}\n`,
+    );
+    chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+}
+
+describe('local_maestro_flows changed — the flows the impacted-test selector picked', () => {
+    const selectorCalls = (sandbox: Sandbox): readonly string[] =>
+        readFileSync(sandbox.calls, 'utf8')
+            .split('\n')
+            .filter((line) => line.startsWith('npx '));
+
+    it('runs exactly the picked flows, in the order the selector gave', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'some\nhome\nrecipes/create\n');
+
+        const result = run(sandbox, 'local_maestro_flows changed');
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim().split('\n')).toEqual(['home', 'recipes/create']);
+        expect(selectorCalls(sandbox).join('\n')).toContain('--tier mobile');
+    });
+
+    it('runs what `all` runs when the selector says all', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'all\n');
+
+        expect(run(sandbox, 'local_maestro_flows changed').stdout).toBe(run(sandbox, 'local_maestro_flows all').stdout);
+    });
+
+    it('runs what `all` runs, without asking the selector, when FULL_SUITE=1', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'some\nhome\n');
+
+        const result = run(sandbox, 'local_maestro_flows changed', { FULL_SUITE: '1' });
+
+        expect(result.stdout).toBe(run(sandbox, 'local_maestro_flows all').stdout);
+        expect(selectorCalls(sandbox)).toEqual([]);
+    });
+
+    it.each([
+        ['fails', '', 1],
+        ['prints something that is not a selection', 'hello\n', 0],
+        ['names a flow that has no file', 'some\nghost/flow\n', 0],
+    ])('runs everything, and says so, when the selector %s', (_name, answer, code) => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, answer, code);
+
+        const result = run(sandbox, 'local_maestro_flows changed');
+
+        expect(result.status).toBe(0);
+        expect(result.stdout).toBe(run(makeSandbox(), 'local_maestro_flows all').stdout);
+        expect(result.stderr).toMatch(/running every flow/u);
+    });
+
+    it('leaves out a picked flow that needs the sandbox, and NAMES it', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'some\nhome\nrecipes/ambiguityReview\n');
+
+        const result = run(sandbox, 'local_maestro_flows changed');
+
+        expect(result.stdout.trim().split('\n')).toEqual(['home']);
+        expect(result.stderr).toContain('not run locally: needs sandbox - recipes/ambiguityReview');
+    });
+
+    it('returns 3 and says why when the change touches no flow, never a list of zero flows', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'some\n');
+
+        const result = run(sandbox, 'local_maestro_flows changed');
+
+        expect(result.status).toBe(3);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toMatch(/nothing to run/u);
+    });
+
+    it('returns 3 and names them when every picked flow needs the sandbox', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'some\nrecipes/ambiguityReview\n');
+
+        const result = run(sandbox, 'local_maestro_flows changed');
+
+        expect(result.status).toBe(3);
+        expect(result.stderr).toContain('not run locally: needs sandbox - recipes/ambiguityReview');
+    });
+
+    it('exits 0 from the main command, touching no device, AWS or Metro, when there is nothing to run', () => {
+        const sandbox = makeSandbox();
+
+        fakeSelector(sandbox, 'some\n');
+
+        const result = run(sandbox, 'local_maestro_main changed');
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toMatch(/nothing to run/u);
+        expect(readFileSync(sandbox.calls, 'utf8').split('\n').filter((line) => line !== '' && !line.startsWith('npx '))).toEqual([]);
+    });
+});
+
 describe('the device pin — every adb and maestro call targets emulator-5556', () => {
     it('pins a bare `adb` call', () => {
         const sandbox = makeSandbox();

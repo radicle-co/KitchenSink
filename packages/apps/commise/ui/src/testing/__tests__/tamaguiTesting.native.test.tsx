@@ -226,4 +226,18 @@ describe('fireScrollAndSettle', () => {
         expect(onScroll).toHaveBeenCalledTimes(2);
         expect(vi.isFakeTimers()).toBe(false);
     });
+
+    // It ends with real timers on, so a test that fakes its own would lose them without a word: refuse the call instead.
+    it('throws when the test already faked its timers, and leaves them faked', () => {
+        vi.useFakeTimers();
+
+        try {
+            expect(() => {
+                fireScrollAndSettle(document.createElement('div'));
+            }).toThrow(/fake timers/u);
+            expect(vi.isFakeTimers()).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });

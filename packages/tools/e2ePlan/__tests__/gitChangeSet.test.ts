@@ -5,29 +5,8 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { makeFixtureRepo, type FixtureRepo } from '../__fixtures__/makeFixtureRepo.js';
-import { changedFiles, pathsOf } from '../src/gitChangeSet.js';
-
-describe('pathsOf', () => {
-    it('lists the new name of every change, and the old name of a rename, whose importers just broke', () => {
-        expect(
-            pathsOf([
-                { name: 'a.ts', type: 'modified' },
-                { name: 'b2.ts', oldName: 'b.ts', type: 'renamed' },
-                { name: 'c.ts', type: 'deleted' },
-                { name: 'd.ts', type: 'untracked' },
-            ]),
-        ).toEqual(['a.ts', 'b.ts', 'b2.ts', 'c.ts', 'd.ts']);
-    });
-
-    it('lists a path once', () => {
-        expect(
-            pathsOf([
-                { name: 'a.ts', type: 'modified' },
-                { name: 'a.ts', type: 'untracked' },
-            ]),
-        ).toEqual(['a.ts']);
-    });
-});
+import { changedFiles, changedSince } from '../src/gitChangeSet.js';
+import { snapshotTree } from '../src/worktreeSnapshot.js';
 
 describe('changedFiles against a real repository', () => {
     let repo: FixtureRepo;
@@ -103,6 +82,41 @@ describe('changedFiles against a real repository', () => {
         git('add', '-A');
 
         expect((await changedFiles(repo.root, 'main')).files).toEqual(['new.ts', 'old.ts']);
+    });
+
+    it('returns the tree of the working tree it measured, for a stamp to name', async () => {
+        write('mine.ts', 'x\n');
+
+        expect((await changedFiles(repo.root, 'main')).tree).toBe(await snapshotTree(repo.root));
+    });
+
+    it('does not move the process working directory, which other work shares across an await', async () => {
+        const before = process.cwd();
+        const seen = new Set<string>();
+        const watcher = setInterval(() => seen.add(process.cwd()), 1);
+
+        try {
+            await changedFiles(repo.root, 'main');
+        } finally {
+            clearInterval(watcher);
+        }
+
+        expect([...seen].filter((dir) => dir !== before)).toEqual([]);
+    });
+
+    it('measures from a recorded tree: only what changed since then', async () => {
+        write('before.ts', 'x\n');
+        const stamped = await snapshotTree(repo.root);
+
+        write('after.ts', 'x\n');
+
+        expect((await changedSince(repo.root, stamped)).files).toEqual(['after.ts']);
+    });
+
+    it('is empty when nothing changed since the recorded tree', async () => {
+        write('before.ts', 'x\n');
+
+        expect((await changedSince(repo.root, await snapshotTree(repo.root))).files).toEqual([]);
     });
 
     it('fails, naming the ref, when the base does not exist', async () => {

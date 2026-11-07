@@ -64,6 +64,24 @@ describe('planChange', () => {
         expect(loader).not.toHaveBeenCalled();
     });
 
+    it('selects nothing, and never builds the models, when nothing changed since a green run', async () => {
+        const loader = load(model('web', {}), model('mobile', {}));
+        const plan = await planChange([], loader, { fullSuite: false, onEmpty: 'nothing' });
+
+        expect(plan.web).toEqual({ kind: 'some', picks: [] });
+        expect(plan.mobile).toEqual({ kind: 'some', picks: [] });
+        expect(loader).not.toHaveBeenCalled();
+    });
+
+    it('still runs everything for FULL_SUITE when nothing changed since a green run', async () => {
+        const plan = await planChange([], load(model('web', {}), model('mobile', {})), {
+            fullSuite: true,
+            onEmpty: 'nothing',
+        });
+
+        expect(plan.web).toEqual({ kind: 'all', reasons: ['FULL_SUITE=1'] });
+    });
+
     it('selects the whole suite for no change that it can name when FULL_SUITE is set', async () => {
         const plan = await planChange([], load(model('web', {}), model('mobile', {})), { fullSuite: true });
 

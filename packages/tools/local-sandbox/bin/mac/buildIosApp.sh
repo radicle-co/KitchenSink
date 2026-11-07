@@ -14,6 +14,9 @@
 #   KS_REPO_ROOT                     the tree to build (default: this script's repository)
 set -euo pipefail
 
+# The build folder ends in .noindex so Spotlight skips it: indexing a node_modules tree and derived data held the Mac at
+# load 20+ and made the lane planner see no free cpu.
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${KS_REPO_ROOT:-$(cd "$HERE/../../../../.." && pwd)}"
 BUILD_SCRIPT="$REPO_ROOT/packages/apps/commise/mobile/scripts/buildTestApp.sh"
@@ -71,27 +74,27 @@ case "$command_name" in
         key="${2:?build needs a content key}"
         [[ "$key" =~ ^[0-9a-f]+$ ]] || die "'$key' is not a content key"
         sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-        mac 'mkdir -p ksIos/build/src ksIos/apps'
+        mac 'mkdir -p ksIos/build.noindex/src ksIos/apps'
         # The source only: dependencies are installed on the Mac (their native parts are arm64 macOS), and generated
         # folders are rebuilt there.
         rsync -a --delete -e "ssh -F $KS_MAC_SSH_CONFIG" \
             --exclude node_modules --exclude .git --exclude .worktrees --exclude .turbo \
             --exclude 'dist*' --exclude '/packages/apps/commise/mobile/ios' --exclude '/packages/apps/commise/mobile/android' \
-            "$REPO_ROOT/" "$KS_MAC_HOST:ksIos/build/src/"
+            "$REPO_ROOT/" "$KS_MAC_HOST:ksIos/build.noindex/src/"
         # `npm ci` only when the lockfile changed since the last install here.
         lock_sha="$(sha256sum "$REPO_ROOT/package-lock.json" | cut -d' ' -f1)"
         # The build runs DETACHED on the Mac and this side polls: a Release build outlasts any ssh link on a loaded Mac
         # (the first real attempt lost its connection mid-compile and the build died with it).
         # shellcheck disable=SC2016 # the variables are the Mac's
-        mac 'cat > ksIos/build/build.sh' <<REMOTE
+        mac 'cat > ksIos/build.noindex/build.sh' <<REMOTE
 set -e
 export PATH="\${KS_NODE_BIN:-\$(ls -d \$HOME/.nvm/versions/node/v24*/bin | sort -V | tail -1)}:$MAC_PATH"
-cd ksIos/build/src
+cd ksIos/build.noindex/src
 if [ "\$(cat ../lock.sha 2>/dev/null)" != '$lock_sha' ] || [ ! -d node_modules ]; then rm -f ../lock.sha; npm ci; echo '$lock_sha' > ../lock.sha; fi
 export DEVELOPER_DIR='$MAC_DEVELOPER_DIR' LANG=en_US.UTF-8
 export EXPO_PUBLIC_RECIPE_API_URL='$EXPO_PUBLIC_RECIPE_API_URL' EXPO_PUBLIC_IDENTITY_API_URL='$EXPO_PUBLIC_IDENTITY_API_URL'
 export EXPO_PUBLIC_FOOD_API_URL='$EXPO_PUBLIC_FOOD_API_URL' EXPO_PUBLIC_IDP_PUBLISHABLE_KEY='$CLERK_PUBLISHABLE_KEY'
-export TEST_APP_CONTENT_KEY='$key' GITHUB_SHA='$sha' RUNNER_TEMP=\$HOME/ksIos/build/tmp
+export TEST_APP_CONTENT_KEY='$key' GITHUB_SHA='$sha' RUNNER_TEMP=\$HOME/ksIos/build.noindex/tmp
 mkdir -p \$RUNNER_TEMP
 npx turbo run build --filter='@commise/mobile^...'
 bash packages/apps/commise/mobile/scripts/buildTestApp.sh ios
@@ -99,9 +102,9 @@ rm -rf \$HOME/ksIos/apps/$key && mkdir -p \$HOME/ksIos/apps/$key
 cp packages/apps/commise/mobile/dist-testApp/ios/* \$HOME/ksIos/apps/$key/
 tar -xzf \$HOME/ksIos/apps/$key/app.tar.gz -C \$HOME/ksIos/apps/$key
 REMOTE
-        mac 'rm -f ksIos/build/build.rc; nohup sh -c "bash ksIos/build/build.sh > ksIos/build/build.log 2>&1; echo \$? > ksIos/build/build.rc" > /dev/null 2>&1 &'
-        until rc="$(mac 'cat ksIos/build/build.rc' 2>/dev/null)"; do sleep 20; done
-        [ "$rc" = 0 ] || { mac 'tail -60 ksIos/build/build.log' >&2 || true; die "the Mac build failed (exit $rc); log: ksIos/build/build.log on the Mac"; }
+        mac 'rm -f ksIos/build.noindex/build.rc; nohup sh -c "bash ksIos/build.noindex/build.sh > ksIos/build.noindex/build.log 2>&1; echo \$? > ksIos/build.noindex/build.rc" > /dev/null 2>&1 &'
+        until rc="$(mac 'cat ksIos/build.noindex/build.rc' 2>/dev/null)"; do sleep 20; done
+        [ "$rc" = 0 ] || { mac 'tail -60 ksIos/build.noindex/build.log' >&2 || true; die "the Mac build failed (exit $rc); log: ksIos/build.noindex/build.log on the Mac"; }
         "$0" check "$key"
         ;;
     *)

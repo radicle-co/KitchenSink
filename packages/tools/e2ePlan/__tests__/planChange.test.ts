@@ -24,11 +24,16 @@ const model = (
     ]),
     reachFile: (file) => reachByFile[file],
     belongsToOtherPlatform: otherPlatform,
+    shippingImportersOf: () => [],
     problems,
 });
 
-const load = (web: TierModel, mobile: TierModel, serviceDirs: readonly string[] = []) =>
-    vi.fn(async () => ({ web, mobile, serviceDirs }));
+const load = (
+    web: TierModel,
+    mobile: TierModel,
+    serviceDirs: readonly string[] = [],
+    isTestSupport: (file: string) => boolean = () => false,
+) => vi.fn(async () => ({ web, mobile, serviceDirs, isTestSupport }));
 const empty = reached();
 
 describe('planChange', () => {
@@ -213,5 +218,40 @@ describe('planChange', () => {
 
         expect(plan.web.kind).toBe('some');
         expect(plan.mobile.kind).toBe('all');
+    });
+
+    it('selects nothing for test support the graphs prove no shipping file imports', async () => {
+        const plan = await planChange(
+            ['packages/ui/src/testing/helper.tsx'],
+            load(model('web', {}), model('mobile', {}), [], (file) => file.includes('/testing/')),
+            { fullSuite: false },
+        );
+
+        expect(plan.web).toEqual({ kind: 'some', picks: [] });
+        expect(plan.mobile).toEqual({ kind: 'some', picks: [] });
+    });
+
+    it('does not take a file for test support when the graph says something ships it', async () => {
+        const plan = await planChange(
+            ['packages/ui/src/testing/shipped.tsx'],
+            load(
+                model('web', { 'packages/ui/src/testing/shipped.tsx': reached({ screens: ['/a'] }) }),
+                model('mobile', {}),
+            ),
+            { fullSuite: false },
+        );
+
+        expect(plan.web.kind).toBe('some');
+        expect(plan.mobile.kind).toBe('all');
+    });
+
+    it('still runs the whole suite for test support inside a service closure', async () => {
+        const plan = await planChange(
+            ['packages/shared/core/src/testing/x.ts'],
+            load(model('web', {}), model('mobile', {}), ['packages/shared/core'], () => true),
+            { fullSuite: false },
+        );
+
+        expect(plan.web.kind).toBe('all');
     });
 });

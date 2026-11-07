@@ -153,5 +153,12 @@ describe('the impact of a change, over the real tree', () => {
 
             expect(picked(result.mobile)).toEqual(expect.arrayContaining(['recipes/rating', 'home']));
         });
+
+        it('test support that no shipping file imports selects zero, on the graph`s proof and not on its path', async () => {
+            const result = await plan(['packages/apps/commise/ui/src/testing/tamaguiTesting.native.tsx']);
+
+            expect(result.web).toEqual({ kind: 'some', picks: [] });
+            expect(result.mobile).toEqual({ kind: 'some', picks: [] });
+        });
     });
 });

@@ -1,0 +1,34 @@
+{
+    "name": "@kitchensink/e2e-plan",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Pure planning for the end-to-end suites: how many parallel lanes the machine and the test pool can carry",
+    "main": "./src/lanePlan.ts",
+    "types": "./src/lanePlan.ts",
+    "exports": {
+        ".": "./src/lanePlan.ts",
+        "./lanePlan": "./src/lanePlan.ts"
+    },
+    "scripts": {
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.12"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

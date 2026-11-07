@@ -896,9 +896,8 @@ export async function reconcilePool(
  * Delete the users of the k6 tier at the end of a dispatched load test, and create nothing.
  *
  * ⛔ As narrow as the creation door. Every slot is checked BEFORE the first lookup: it must belong to the `k6` tier and
- * carry the SHARED address, so a signer, an erasure subject, a web or role user, or a local copy is refused. (Unlike
- * {@link deleteLocalConsumables} it admits shared users, because the k6 tier's users are made for the run and are nobody
- * else's; that is the one reason it is a separate function rather than a flag.)
+ * carry the SHARED address, so a signer, an erasure subject, a web or role user, or a local copy is refused. It admits
+ * shared users because the k6 tier's users are made for the run and are nobody else's.
  *
  * @param port - Must be able to `deleteUser`.
  * @param slots - The slots whose holders to delete.

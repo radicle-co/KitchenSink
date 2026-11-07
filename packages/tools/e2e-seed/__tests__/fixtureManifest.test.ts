@@ -103,8 +103,9 @@ describe('deriveFixtureManifest', () => {
         );
         const emails = manifests.flatMap((manifest) => [manifest.signInEmail, manifest.coAuthorEmail]);
 
+        // 13 = Android's 8 shards + iOS's 5 (iOS lanes 6-8 were trimmed 2026-11-06: CI's macOS ceiling is five).
         expect(manifests, 'the roster must declare more than one lane for this to be a real assertion').toHaveLength(
-            16,
+            13,
         );
         expect(new Set(emails).size).toBe(emails.length);
     });

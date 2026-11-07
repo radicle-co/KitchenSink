@@ -243,17 +243,19 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         coauthor('ioscoauthor03'),
         lane('iossigner04', { roles: ['premium'], signsInByPassword: true }),
         coauthor('ioscoauthor04'),
-        // ⛔ SHARDS 5 TO 8 OF EACH PLATFORM — APPENDED after the sixteen above, never interleaved, so no existing lane
-        // changes index and no shard signs in as a user another shard's data was reset for. Android first, then iOS,
-        // the order the first eight were declared in. Each needs `poolAdmin --apply` before a run can lease it.
+        // ⛔ SHARDS 5 TO 8 OF ANDROID AND SHARD 5 OF iOS — APPENDED after the sixteen above, never interleaved, so no
+        // existing lane changes index and no shard signs in as a user another shard's data was reset for. Android
+        // first, then iOS. Each needs `poolAdmin --apply` before a run can lease it.
+        // iOS stops at FIVE on purpose (2026-11-06, owner: "trim idle users first"): CI's macOS runner ceiling is five
+        // concurrent jobs, so `iossigner06-08` / `ioscoauthor06-08` could never be leased and were idle Clerk users on a
+        // 100-user development instance. The iOS pool IS that ceiling (see MAESTRO_PLATFORM_LANES); raising it is an
+        // append here plus an owner run of `poolAdmin --apply`.
         ...[5, 6, 7, 8].flatMap((n) => [
             lane(`signer${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
             coauthor(`coauthor${pad(n)}`),
         ]),
-        ...[5, 6, 7, 8].flatMap((n) => [
-            lane(`iossigner${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
-            coauthor(`ioscoauthor${pad(n)}`),
-        ]),
+        lane('iossigner05', { roles: ['premium'], signsInByPassword: true }),
+        coauthor('ioscoauthor05'),
     ],
     k6: [
         // Premium so the load scenarios' writes can be PRIVATE — a public write is visible to real users.
@@ -340,8 +342,8 @@ const MAESTRO_PLATFORM_LANES: Readonly<Record<MaestroPlatform, MaestroPlatformLa
         erasure: ['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05'],
     },
     ios: {
-        signer: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `iossigner${pad(n)}`),
-        coauthor: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `ioscoauthor${pad(n)}`),
+        signer: [1, 2, 3, 4, 5].map((n) => `iossigner${pad(n)}`),
+        coauthor: [1, 2, 3, 4, 5].map((n) => `ioscoauthor${pad(n)}`),
         erasure: ['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10'],
     },
 };
@@ -363,7 +365,7 @@ function lanesFor(platform: MaestroPlatform): MaestroPlatformLanes {
  *
  * Bounded by the scarcer of the two identities EVERY shard needs — a signer and a co-author. The erasure subjects
  * do not bound it: they all belong to {@link MAESTRO_ERASURE_SHARD}, so no other shard needs one.
- * `runMaestroFlows.sh`'s `MAESTRO_MAX_SHARDS` is the shell-side copy of this number, and
+ * `runMaestroFlows.sh`'s per-platform `max-shards` is the shell-side copy of this number, and
  * `maestroShardPartition.test.ts` asserts the two agree from disk (neither language can typecheck the other).
  *
  * @param platform - `android` or `ios`.

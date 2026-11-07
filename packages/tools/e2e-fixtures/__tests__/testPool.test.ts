@@ -347,14 +347,21 @@ describe('password-bearing slots', () => {
  * REWRITTEN 2026-10-13: the lanes are now partitioned by (platform, shard). Android and iOS each have four, so the
  * two platforms run side by side instead of queueing on one lane's concurrency group.
  */
+/**
+ * TRIMMED 2026-11-06 (owner: "trim idle users first"): iOS keeps FIVE shards because CI's macOS runner ceiling is five
+ * (a Team plan runs five concurrent macOS jobs), so `iossigner06-08` and `ioscoauthor06-08` were idle Clerk users.
+ * Android still reaches eight. These are the per-platform counts every assertion below is written against.
+ */
+const SHARDS_PER_PLATFORM = { android: 8, ios: 5 } as const;
+
 describe('maestro shard allocation', () => {
     it('declares exactly the two platforms the runner knows', () => {
         expect(MAESTRO_PLATFORMS).toEqual(['android', 'ios']);
     });
 
-    it('gives each platform eight shards, which is the shell runner’s own maximum', () => {
+    it('gives Android eight shards and iOS five, which is the shell runner’s own maximum per platform', () => {
         for (const platform of MAESTRO_PLATFORMS) {
-            expect(maestroShardCapacity(platform), platform).toBe(8);
+            expect(maestroShardCapacity(platform), platform).toBe(SHARDS_PER_PLATFORM[platform]);
         }
     });
 
@@ -377,11 +384,11 @@ describe('maestro shard allocation', () => {
             ...maestroErasureSlots(platform, shard).map((slot) => slot.email),
         ]);
 
-        expect(emails).toHaveLength(8 * 2 * 2 + 10);
+        expect(emails).toHaveLength((SHARDS_PER_PLATFORM.android + SHARDS_PER_PLATFORM.ios) * 2 + 10);
         expect(new Set(emails).size).toBe(emails.length);
     });
 
-    it('declares every one of the thirty-two lanes in the roster, and no other maestro signer or co-author', () => {
+    it('declares every one of the twenty-six lanes in the roster, and no other maestro signer or co-author', () => {
         const lanes = everyShard().flatMap(({ platform, shard }) => [
             maestroSlotForShard('signer', platform, shard).id,
             maestroSlotForShard('coauthor', platform, shard).id,
@@ -424,16 +431,23 @@ describe('maestro shard allocation', () => {
         expect(maestroSlotForShard('coauthor', 'android', 1)).toEqual(slotFor('maestro', 'coauthor'));
     });
 
-    it('gives iOS lanes of its own: iossigner01..08 and ioscoauthor01..08, in shard order', () => {
+    it('gives iOS lanes of its own: iossigner01..05 and ioscoauthor01..05, in shard order, and none past five', () => {
         const numbered = (prefix: string): string[] =>
-            Array.from({ length: 8 }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`);
+            Array.from({ length: 5 }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`);
 
-        expect(Array.from({ length: 8 }, (_, i) => maestroSlotForShard('signer', 'ios', i + 1).id)).toEqual(
+        expect(Array.from({ length: 5 }, (_, i) => maestroSlotForShard('signer', 'ios', i + 1).id)).toEqual(
             numbered('iossigner'),
         );
-        expect(Array.from({ length: 8 }, (_, i) => maestroSlotForShard('coauthor', 'ios', i + 1).id)).toEqual(
+        expect(Array.from({ length: 5 }, (_, i) => maestroSlotForShard('coauthor', 'ios', i + 1).id)).toEqual(
             numbered('ioscoauthor'),
         );
+        // The trimmed lanes are gone from the roster, not merely unreachable: a roster entry is a Clerk user.
+        const ids = POOL_ROSTER.maestro.map((lane) => lane.id);
+
+        for (const n of [6, 7, 8]) {
+            expect(ids, `iossigner0${n}`).not.toContain(`iossigner0${n}`);
+            expect(ids, `ioscoauthor0${n}`).not.toContain(`ioscoauthor0${n}`);
+        }
     });
 
     it('keeps Android shards 2 to 8 on signer02..08 and coauthor02..08', () => {
@@ -453,13 +467,14 @@ describe('maestro shard allocation', () => {
      * is its index into a platform's list, and `resetPool` purges what a slot owns, so a reordered roster would sign a
      * shard in as a user another shard's data was reset for.
      */
-    it('⛔ appends the second four shards of each platform after the first sixteen lanes, in order', () => {
+    it('⛔ appends shards 5 to 8 of Android and shard 5 of iOS after the first sixteen lanes, in order', () => {
         const ids = POOL_ROSTER.maestro.map((lane) => lane.id);
         const appended = ids.slice(ids.indexOf('ioscoauthor04') + 1);
 
         expect(appended).toEqual([
             ...[5, 6, 7, 8].flatMap((n) => [`signer0${n}`, `coauthor0${n}`]),
-            ...[5, 6, 7, 8].flatMap((n) => [`iossigner0${n}`, `ioscoauthor0${n}`]),
+            'iossigner05',
+            'ioscoauthor05',
         ]);
     });
 

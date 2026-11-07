@@ -123,8 +123,8 @@ on:
                     library and `resetPool` hard-deletes every row it owns — two shards on one signer delete
                     each other's fixtures mid-flow and answer `423 ERASURE_IN_PROGRESS` while a purge runs. So
                     raising this is a THREE-part act: append lanes to `POOL_ROSTER.maestro`, have the owner run
-                    `poolAdmin --apply` so those Clerk users exist, and raise `MAESTRO_MAX_SHARDS` in
-                    `runMaestroFlows.sh`. `runMaestroFlows.sh shard-matrix` CLAMPS whatever arrives here to what
+                    `poolAdmin --apply` so those Clerk users exist, and raise that platform's
+                    `MAESTRO_MAX_SHARDS_*` in `runMaestroFlows.sh`. `runMaestroFlows.sh shard-matrix` CLAMPS whatever arrives here to what
                     the roster can identify, so an over-large value costs nothing and never mis-leases.
 
                     ⛔ THE DEFAULT DIRECTION IS THE OPPOSITE OF `maestro_flow_selector`'s. An unreadable
@@ -138,18 +138,20 @@ on:
                     a value a human typed into a form.
                     ⛔ THE DEFAULT IS WHAT THE CLERK POOL CAN IDENTIFY, AND RAISING IT IS NOT A FREE DIAL.
                     `maestroShardCapacity(platform)` clamps to the DECLARED roster, but a declared lane is not a Clerk
-                    user: shard 8's `resetBefore` leases `signer08`/`coauthor08` (iOS: `iossigner08`/`ioscoauthor08`)
+                    user: shard 8's `resetBefore` leases `signer08`/`coauthor08` (iOS stops at `iossigner05`/`ioscoauthor05`)
                     FOR REAL, so a default the sandbox tenant cannot satisfy fails the job at its first pool lease,
-                    for a reason that has nothing to do with the flows. '8' is each platform's capacity
-                    (`testPool.ts`), and `maestroShardPartition.test.ts` is what refuses anything above it. The lanes
+                    for a reason that has nothing to do with the flows. '8' is Android's capacity and the
+                    widest platform's (`testPool.ts`; iOS's is five, below), and `maestroShardPartition.test.ts` is what
+                    refuses anything above it. The lanes
                     05 to 08 exist in the roster before their Clerk users do: the owner's `poolAdmin --apply` creates
                     them. The defaults moved to '8' only after it ran and reported healthy; before that they stayed at '4'.
                     If a lane is ever missing, set all three defaults back to '4' (a form field on the manual door can
                     say it without a commit).
 
                     ⛔ THE POOL IS NOT THE ONLY CEILING FOR iOS. A Simulator job needs a macOS runner and a Team plan
-                    runs at most FIVE at once, so `runMaestroFlows.sh shard-matrix` stops the iOS matrix at five
-                    (`MAESTRO_IOS_RUNNER_CEILING`) while Android, on Linux, takes all eight. More iOS shards would
+                    runs at most FIVE at once, so the iOS pool IS five (`iossigner01-05`; lanes 06-08 were trimmed
+                    2026-11-06 as idle Clerk users) and `runMaestroFlows.sh shard-matrix` stops the iOS matrix there
+                    (`max-shards ios`, the one place the five lives) while Android, on Linux, takes all eight. More iOS shards would
                     queue behind the first five and end when four did, after extra Simulator setups billed at the macOS
                     rate. Measured on run 39076738796: four iOS shards ran 40, 50, 59 and 60 minutes, Android 30, 31, 47
                     and 1.
@@ -176,7 +178,7 @@ on:
                     three-file commit on the PR path, and a form field only on the manual door.
 
                     ⛔ RAISING IT FURTHER HAS AN ORDER, and two of the steps share a commit: append the roster
-                    lanes AND raise `MAESTRO_MAX_SHARDS` TOGETHER (the guard asserts the two are equal, so a
+                    lanes AND raise that platform's `MAESTRO_MAX_SHARDS_*` TOGETHER (the guard asserts the two are equal, so a
                     lane added alone is already red), run `poolAdmin --apply` so those Clerk users exist, and
                     move this default — and the other two — LAST.
                 required: false
@@ -1403,7 +1405,7 @@ jobs:
     # This header used to say the opposite: the roster had one signer/co-author pair per SHARD, so iOS shard N signed
     # in as Android shard N's users and the two jobs shared a group, which serialised them (run 38322183404: iOS
     # waited 36 minutes behind Android). The three-part act on `maestro_shards` was taken instead — the roster now
-    # carries `iossigner01-04` and `ioscoauthor01-04`, `poolAdmin --apply` created them, and `MAESTRO_MAX_SHARDS` is 4
+    # carries `iossigner01-04` and `ioscoauthor01-04`, `poolAdmin --apply` created them, and the shell's per-platform ceiling was 4
     # — so the platforms run side by side. Each platform's shard 1 erases from ITS OWN five subjects (Android
     # `erasure01-05`, iOS `erasure06-10`; `maestroErasureSlots`), and every seed, reset and refill step names its
     # platform. ⚠️ GitHub keeps ONE pending job per group, so a third arrival cancels a waiting shard (owner ruling

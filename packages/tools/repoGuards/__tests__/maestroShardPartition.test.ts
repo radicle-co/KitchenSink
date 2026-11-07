@@ -20,7 +20,7 @@
  * `423 ERASURE_IN_PROGRESS`. So a shard is only safe if its identities are DISJOINT from every other shard's,
  * and that is what {@link maestroShardCapacity} bounds and what these tests assert in both directions:
  *
- *   - the shell's `MAESTRO_MAX_SHARDS` and the TypeScript roster's capacity agree (neither can typecheck the
+ *   - the shell's per-platform `max-shards` and the TypeScript roster's capacity agree (neither can typecheck the
  *     other, so the contract is asserted from disk — the posture `maestroFixtureVariables.test.ts` takes);
  *   - every shard's signer and co-author differ from every other shard's, and only the ERASURE shard holds erasure
  *     subjects — the runner pins every erasing flow to that shard (`maestroErasureSlots` states the lease contract);
@@ -61,6 +61,7 @@ import {
     consumableSlots,
     MAESTRO_ERASURE_SHARD,
     MAESTRO_PLATFORMS,
+    type MaestroPlatform,
     maestroErasureSlots,
     maestroShardCapacity,
     maestroSlotForShard,
@@ -146,9 +147,9 @@ function shardAll(count: number, selection: readonly string[]): readonly (readon
     });
 }
 
-/** The shell's declared shard ceiling — the value the workflow's matrix is clamped by. */
-function shellMaxShards(): number {
-    const outcome = spawnSync('bash', [SCRIPT, 'max-shards'], { encoding: 'utf8' });
+/** The shell's declared shard ceiling for one platform — the value the workflow's matrix is clamped by. */
+function shellMaxShards(platform: MaestroPlatform = 'android'): number {
+    const outcome = spawnSync('bash', [SCRIPT, 'max-shards', platform], { encoding: 'utf8' });
 
     return Number((outcome.stdout ?? '').trim());
 }
@@ -167,13 +168,13 @@ const workflow = parse(readFileSync(WORKFLOW, 'utf8')) as {
 
 describe('the shell shard ceiling and the Clerk pool roster agree', () => {
     /**
-     * REWRITTEN 2026-10-13: one shell number bounds BOTH platforms, so it must equal each platform's own capacity —
-     * a roster where Android reached four and iOS two would make the shell's `4` over-promise on iOS.
+     * REWRITTEN 2026-11-06: the shell number is PER PLATFORM (Android 8, iOS 5 — the macOS runner ceiling), so it
+     * must equal that platform's own capacity. The old single number made iOS lanes 6-8 exist only to be clamped away.
      */
     it.each(MAESTRO_PLATFORMS)(
         'declares the same capacity on both sides of the language boundary, for %s',
         (platform) => {
-            expect(shellMaxShards()).toBe(maestroShardCapacity(platform));
+            expect(shellMaxShards(platform)).toBe(maestroShardCapacity(platform));
         },
     );
 
@@ -567,18 +568,16 @@ describe('maestro_shard_matrix — how many shards the workflow actually runs', 
         expect(matrixFor('ios')).toStrictEqual([1, 2, 3, 4, 5]);
     });
 
-    it('exposes the macOS ceiling, and it never exceeds the pool', () => {
-        const ceiling = Number(
-            (spawnSync('bash', [SCRIPT, 'runner-ceiling', 'ios'], { encoding: 'utf8' }).stdout ?? '').trim(),
-        );
-
-        expect(ceiling).toBe(5);
-        expect(ceiling).toBeLessThanOrEqual(maestroShardCapacity('ios'));
-        expect(
-            Number(
-                (spawnSync('bash', [SCRIPT, 'runner-ceiling', 'android'], { encoding: 'utf8' }).stdout ?? '').trim(),
-            ),
-        ).toBe(shellMaxShards());
+    /**
+     * ONE SOURCE (2026-11-06). iOS's macOS runner ceiling (five) used to be a second constant beside the pool size
+     * (eight), so the pool held three users CI could never lease. Now the iOS pool IS the ceiling: `max-shards ios` is
+     * five, and there is no separate runner-ceiling number left to drift from it.
+     */
+    it('⛔ sizes iOS at the macOS runner ceiling in ONE place — the pool — with no second ceiling constant', () => {
+        expect(shellMaxShards('ios')).toBe(5);
+        expect(maestroShardCapacity('ios')).toBe(5);
+        expect(shellMaxShards('android')).toBe(8);
+        expect(readFileSync(SCRIPT, 'utf8')).not.toMatch(/MAESTRO_IOS_RUNNER_CEILING|runner-ceiling/u);
     });
 
     it('clamps an unreadable request DOWN to one shard rather than guessing — a wrong matrix is a wrong lease', () => {
@@ -758,9 +757,11 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
 
         expect(input, '_ci-heavy.yml declares no `maestro_shards` input').toBeDefined();
 
-        for (const platform of MAESTRO_PLATFORMS) {
-            expect(Number(scalarText(input?.default))).toBeLessThanOrEqual(maestroShardCapacity(platform));
-        }
+        // One input serves both platforms; the shell clamps each matrix to ITS platform's capacity (iOS 5, Android 8),
+        // so the default may reach the widest platform and no further.
+        expect(Number(scalarText(input?.default))).toBeLessThanOrEqual(
+            Math.max(...MAESTRO_PLATFORMS.map((platform) => maestroShardCapacity(platform))),
+        );
 
         expect(Number(scalarText(input?.default))).toBeGreaterThanOrEqual(1);
     });
@@ -772,7 +773,7 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
      * step. Rolling back is setting all three back to the lower number; this assertion is part of that commit by design,
      * so a half-rollback (one file) is red here and in the agreement test below.
      */
-    it('⛔ defaults to eight shards in all three files, because poolAdmin has created lanes 05 to 08', () => {
+    it('⛔ defaults to eight shards in all three files, because poolAdmin has created Android lanes 05 to 08', () => {
         const defaults = ['_ci-heavy.yml', 'deployedE2eTiers.yml', 'deployedE2e.yml'].map((file) => {
             const doc = parse(readFileSync(join(REPO_ROOT, '.github/workflows', file), 'utf8')) as {
                 on?: Record<string, { inputs?: Record<string, { default?: unknown }> }>;
@@ -788,9 +789,9 @@ describe('_ci-heavy.yml declares and relays the shard count', () => {
             ['deployedE2e.yml', '8'],
         ]);
 
-        for (const platform of MAESTRO_PLATFORMS) {
-            expect(maestroShardCapacity(platform)).toBe(8);
-        }
+        // The default is the WIDEST platform's capacity; iOS is clamped to five by the shell (see the runner-ceiling test).
+        expect(maestroShardCapacity('android')).toBe(8);
+        expect(maestroShardCapacity('ios')).toBe(5);
     });
 
     /**

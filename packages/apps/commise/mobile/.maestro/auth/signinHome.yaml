@@ -45,8 +45,9 @@ appId: ${APP_ID}
 # the title fills the first screen and the fields are below it, where Android does not report them visible (Android
 # font_scale 3.1, 2026-11-01). Every control below is scrolled into view before it is used, for the same reason.
 - extendedWaitUntil:
+      # 60 s: Metro once took 34 s to serve the bundle on a cold start (issue #150), past the old 30 s.
       visible: 'Sign in to Commise|Profile.*'
-      timeout: 30000
+      timeout: 60000
 
 # Sign in only when the credentials form is present (fresh install / cleared state). A live session skips this.
 # The guard keys on the form's TITLE 'Sign in to Commise', which is unique to the login form and is its first element,

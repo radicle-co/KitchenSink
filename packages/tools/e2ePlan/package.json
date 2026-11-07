@@ -10,7 +10,8 @@
         ".": "./src/lanePlan.ts",
         "./runPlan": "./src/runPlan.ts",
         "./recordedRoutes": "./src/recordedRoutes.ts",
-        "./packLanes": "./src/packLanes.ts"
+        "./packLanes": "./src/packLanes.ts",
+        "./ciMatrix": "./src/ciMatrix.ts"
     },
     "scripts": {
         "test": "vitest run",
@@ -19,7 +20,8 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "test:integration": "vitest run --config vitest.integration.config.ts",
-        "plan": "tsx bin/plan.ts"
+        "plan": "tsx bin/plan.ts",
+        "ci:mobile": "tsx bin/ciMatrix.ts"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",

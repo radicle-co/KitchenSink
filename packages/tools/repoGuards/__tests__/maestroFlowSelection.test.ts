@@ -54,7 +54,6 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { minimatch } from 'minimatch';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { scalarText } from './workflowScalar.js';
@@ -65,7 +64,7 @@ const SCRIPT = join(MOBILE, 'tests/e2e/runMaestroFlows.sh');
 const MAESTRO_DIR = join(MOBILE, '.maestro');
 const WORKFLOW_DIR = join(REPO_ROOT, '.github/workflows');
 
-/** The caller that owns the changed-path detection and composes the selector. */
+/** The caller that holds the selection job and passes its answer on. */
 const CALLER_FILE = '_ci.yml';
 
 /** The reusable workflow that owns the emulator job. */
@@ -389,89 +388,6 @@ function selectorExpression(): string {
 
     return scalarText(value);
 }
-
-/** The `dorny/paths-filter` filter map in the caller's `detect` job. */
-function detectFilters(): Readonly<Record<string, readonly string[]>> {
-    const step = (caller.jobs?.['detect-mobile-flows']?.steps ?? []).find((candidate) =>
-        /dorny\/paths-filter@/.test(candidate.uses ?? ''),
-    );
-
-    if (step === undefined) {
-        throw new Error(`${CALLER_FILE}::detect-mobile-flows has no pinned \`dorny/paths-filter\` step`);
-    }
-
-    return parse(scalarText(step.with?.['filters'])) as Readonly<Record<string, readonly string[]>>;
-}
-
-const FILTERS = detectFilters();
-
-/** The filter key that admits the Maestro tier at all — every vertical pattern must be inside it. */
-const TIER_FILTER_KEY = 'mobile';
-
-/** The per-vertical filter keys, by the naming convention the caller uses. */
-const filterKeyFor = (vertical: string): string => `flows_${vertical}`;
-
-/** Does a path match a filter key's patterns? The same question `paths-filter` answers. */
-function filterMatches(key: string, path: string): boolean {
-    return (FILTERS[key] ?? []).some((pattern) => minimatch(path, pattern, { dot: true }));
-}
-
-/**
- * A representative REAL path for each vertical, used to prove the mapping end to end.
- *
- * Every entry is asserted to exist on disk: a filter that names a moved file matches nothing, forever, and
- * that failure mode is silent — the vertical simply stops being detected and the run quietly widens (safe)
- * or, for the tier filter, disappears (not safe).
- */
-const VERTICAL_PROBES: Readonly<Record<string, readonly string[]>> = {
-    auth: [
-        'packages/apps/commise/features/account/src/session/signOutAndVerify.ts',
-        'packages/apps/commise/mobile/src/screens/login.tsx',
-        'packages/apps/commise/mobile/.maestro/accountDangerZone.yaml',
-    ],
-    home: [
-        'packages/apps/commise/features/core/src/curateHomeWidgets.ts',
-        'packages/apps/commise/mobile/src/screens/HomeScreen.tsx',
-        'packages/apps/commise/mobile/.maestro/home.yaml',
-    ],
-    collections: [
-        'packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx',
-        'packages/apps/commise/mobile/.maestro/recipes/collectionsPagination.yaml',
-    ],
-    discovery: ['packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx'],
-    recipes: ['packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx'],
-};
-
-/**
- * Paths that must NOT narrow the run — each is cross-cutting, so it has to reach the full set through the
- * fallback rather than through a vertical.
- *
- * These are the load-bearing half of the design. `@commise/ui` supplies the `Input`/`Button` primitives every
- * screen taps, `i18n` supplies the literal text every flow matches, the app shell (`AppRoot`, the auth gate,
- * providers, theme) underpins every screen, `auth/signin*.yaml` is composed by every story, and the harness
- * is what runs them. Attributing any of these to one vertical would silently drop coverage from the only
- * tier that drives the real app.
- *
- * `appShell.ts` is the finding that forced `features/core` to be attributed per MODULE instead of as
- * `src/**`: it is imported by `AppRoot`, so it can break every screen, while its neighbours cannot. A
- * package-level mapping would have run every flow for a change reaching any module in the package — an
- * over-selection nothing would have reported.
- *
- * ⚠️ `queryStatus.ts` used to sit here too, for the same reason via `RecipeVersionsScreen`. It was DELETED
- * when the last non-Suspense read (the mobile profile screen) was converted, which left the repo with one
- * read pattern and this list with a probe pointing at nothing.
- */
-const CROSS_CUTTING_PROBES: readonly string[] = [
-    'packages/apps/commise/mobile/src/screens/AppRoot.tsx',
-    'packages/apps/commise/mobile/src/i18n/messages.ts',
-    'packages/apps/commise/mobile/.maestro/config.yaml',
-    'packages/apps/commise/mobile/.maestro/auth/signin.yaml',
-    'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh',
-    'packages/apps/commise/ui/src/tokens/colors.ts',
-    'packages/apps/commise/i18n/src/index.ts',
-    'packages/clients/recipe-service/src/queries.ts',
-    'packages/apps/commise/features/core/src/appShell.ts',
-];
 
 // ---------------------------------------------------------------------------------------------------------
 
@@ -1006,55 +922,13 @@ describe('selection — flow keys select exactly those flows plus the spine', ()
 });
 
 describe('the workflow thread — caller → reusable workflow → job env → script', () => {
-    it('composes one selector pair per vertical the script accepts, and no others', () => {
-        // ⚠️ `full` is no longer among the FORMATTED pairs, and that is the migration rather than a gap.
-        // In `heavy-e2e.yml` it was a computed argument, because that workflow served both the narrowing PR
-        // path and the full nightly/dispatch path. This caller is only ever a pull request, so `full` is the
-        // literal `false` asserted one case down, and the full-run door moved to `deployedE2e.yml`.
-        const expression = selectorExpression();
-        const named = [...expression.matchAll(/(\w+)=\{\d+\}/g)].map((match) => match[1] ?? '');
-
-        expect([...named].sort()).toEqual([...VERTICALS].sort());
-        expect(expression, 'every pair the script accepts must still be present').toContain('full=');
-    });
-
-    it('feeds every pair from a paths-filter key that exists and has positive patterns', () => {
-        // `dorny/paths-filter` answers "does ANY pattern match", so ONE leading-`!` negation is TRUE for every
-        // unrelated file — which would make its vertical fire on every PR. Precision comes from narrow
-        // positives only.
-        for (const vertical of VERTICALS) {
-            const key = filterKeyFor(vertical);
-            const patterns = FILTERS[key] ?? [];
-
-            expect(
-                patterns.length,
-                `no \`${key}\` filter, so the \`${vertical}\` vertical is never detected`,
-            ).toBeGreaterThan(0);
-            expect(selectorExpression()).toContain(`needs.detect-mobile-flows.outputs.${key}`);
-
-            for (const pattern of patterns) {
-                expect(pattern.startsWith('!'), `${key} pattern \`${pattern}\` is a negation`).toBe(false);
-            }
-        }
-    });
-
-    it('⛔ asks for a NARROWED set, and leaves the full-run door to the workflow that owns it', () => {
-        // ⚠️ REWRITTEN, not relaxed. This used to assert a full-set clause covering the `heavy-e2e` label,
-        // the non-PR events and a dispatch — all three of which belonged to `heavy-e2e.yml`, which is
-        // deleted. This caller runs on a pull request and nothing else, so there is no event here that
-        // lacks a diff to narrow against, and a computed `full` would only ever render `false`.
-        //
-        // ⛔ The full run did not disappear with it. ADR-0032 §3 makes `deployedE2e.yml` the ONE manual
-        // door, and it reaches the same reusable WITHOUT this input — taking the fail-safe default asserted
-        // in the next case, which means "run every flow". Coverage is not at risk either way: a change that
-        // matches no vertical attributes nothing, and `runMaestroFlows.sh` treats that as attribution
-        // FAILURE and runs the whole suite.
-        const expression = selectorExpression();
-
-        expect(expression).toContain('full=false');
-        expect(expression, 'this caller has no non-PR event to widen for').not.toContain(
-            "github.event_name != 'pull_request'",
-        );
+    it('takes the selector from select-e2e and from nowhere else', () => {
+        // REWRITTEN for ADR-0087. This and the two cases that followed it pinned the hand-typed `dorny/paths-filter`
+        // of `detect-mobile-flows` (a pair per vertical, a filter key per pair, `full=false`). That job is gone: the
+        // selector is the one in `@kitchensink/e2e-plan`, so which flows a path implies is tested there
+        // (`planChange`, `impactPolicy`, `maestroFlows`), and `selectE2eWiring.test.ts` pins this hop. What is left
+        // for this file is that the expression is the job output and nothing a person typed.
+        expect(selectorExpression().replace(/\s+/gu, '')).toBe('${{needs.select-e2e.outputs.maestro_selector}}');
     });
 
     it('declares the input on the reusable workflow with a fail-safe default', () => {
@@ -1089,107 +963,10 @@ describe('the workflow thread — caller → reusable workflow → job env → s
         // A selector the iOS job did not receive would make it run the FULL suite on a narrowed PR, which is
         // safe but is not the tier the caller asked for; one it received through the body would be injectable.
         const steps = callee.jobs?.[IOS_MAESTRO_JOB]?.steps ?? [];
-        const step = steps.find((candidate) => /runMaestroFlows\.sh/u.test(scalarText(candidate.run)));
+        const step = steps.find((candidate) => /e2e:maestro/u.test(scalarText(candidate.run)));
 
         expect(step, `${CALLEE_FILE}::${IOS_MAESTRO_JOB} has no step that runs the flows`).toBeDefined();
         expect(step?.env?.[SELECTOR_ENV]).toBe(`\${{ inputs.${SELECTOR_INPUT} }}`);
         expect(scalarText(step?.run)).not.toContain('${{');
-    });
-});
-
-describe('the path mapping — narrow where it is provable, widen everywhere else', () => {
-    it('names only paths that exist (a filter pointing at a moved file matches nothing, forever)', () => {
-        for (const path of [...Object.values(VERTICAL_PROBES).flat(), ...CROSS_CUTTING_PROBES]) {
-            expect(existsSync(join(REPO_ROOT, path)), `${path} does not exist`).toBe(true);
-        }
-    });
-
-    it('routes each vertical`s own paths to that vertical', () => {
-        for (const [vertical, probes] of Object.entries(VERTICAL_PROBES)) {
-            for (const path of probes) {
-                expect(
-                    filterMatches(filterKeyFor(vertical), path),
-                    `${path} should imply the ${vertical} vertical`,
-                ).toBe(true);
-            }
-        }
-    });
-
-    it('keeps every vertical path INSIDE the tier filter, or the emulator never boots for it', () => {
-        // A vertical is a narrowing of a run that already happens. A path that narrows but does not admit is
-        // a mapping that can never fire — and reads, in the log, exactly like one that did.
-        for (const path of Object.values(VERTICAL_PROBES).flat()) {
-            expect(filterMatches(TIER_FILTER_KEY, path), `${path} does not enter the Maestro tier at all`).toBe(true);
-        }
-    });
-
-    it('attributes a path to TWO verticals where it genuinely backs both', () => {
-        // How "this change could break two things" is expressed: the key lists it twice and the script unions
-        // the flows. `search/**` backs Discover AND the my-recipes search; the recipe CARD leaf renders in the
-        // list AND in Home's recent-recipes widget. Attributing either to one vertical alone would skip the
-        // other's flows — invisibly, because the run would still be green.
-        const dual: Readonly<Record<string, readonly string[]>> = {
-            'packages/services/recipe-service/src/search/search.service.ts': ['discovery', 'recipes'],
-            'packages/apps/commise/features/recipes/src/card/RecipeCard.tsx': ['home', 'recipes'],
-        };
-
-        for (const [path, verticals] of Object.entries(dual)) {
-            for (const vertical of verticals) {
-                expect(filterMatches(filterKeyFor(vertical), path), `${path} should imply ${vertical}`).toBe(true);
-            }
-        }
-
-        // Both are inside the tier filter, and the union really is wider than either half.
-        const both = select('full=false', 'home=true', 'recipes=true').flows;
-
-        expect(both.length).toBeGreaterThan(select('full=false', 'recipes=true').flows.length);
-    });
-
-    it('attributes NO cross-cutting path to a vertical, so each one widens to the full set', () => {
-        for (const path of CROSS_CUTTING_PROBES) {
-            for (const vertical of VERTICALS) {
-                expect(
-                    filterMatches(filterKeyFor(vertical), path),
-                    `${path} is cross-cutting — attributing it to \`${vertical}\` would silently drop coverage`,
-                ).toBe(false);
-            }
-        }
-    });
-
-    it('leaves the design system and the localized copy cross-cutting ON PURPOSE', () => {
-        // The requested mapping was "visual/ flows ← UI package / design-token changes ONLY". It is NOT
-        // implemented that way, and the deviation is deliberate: (a) `@commise/ui` supplies the primitives
-        // every screen taps, so a token/primitive change can break any flow's interaction, not just its
-        // pixels; and (b) the `visual/` flows are inert until baselines are recorded, so mapping a UI change
-        // to them ALONE would run zero flows and report green. A UI change therefore runs everything.
-        for (const path of [
-            'packages/apps/commise/ui/src/tokens/colors.ts',
-            'packages/apps/commise/i18n/src/index.ts',
-        ]) {
-            expect(filterMatches(TIER_FILTER_KEY, path)).toBe(true);
-
-            for (const vertical of VERTICALS) {
-                expect(filterMatches(filterKeyFor(vertical), path)).toBe(false);
-            }
-        }
-    });
-
-    it('gives the food service the mobile trigger, now that the apps read it directly (ADR-0046)', () => {
-        // The editor's ingredient search and nutrition read food-service itself, so a food change can alter what
-        // the ingredient flows see: the reason recipe-service's sources trigger this tier. No vertical claims a
-        // food path, so a food change runs the FULL set rather than a guessed subset.
-        const foodPaths = [
-            'packages/services/food-service/src/foods/foods.service.ts',
-            'packages/services/food-service/src/foods/dao/foodSearch.dao.ts',
-        ];
-
-        for (const path of foodPaths) {
-            expect(existsSync(join(REPO_ROOT, path))).toBe(true);
-            expect(filterMatches(TIER_FILTER_KEY, path)).toBe(true);
-
-            for (const vertical of VERTICALS) {
-                expect(filterMatches(filterKeyFor(vertical), path)).toBe(false);
-            }
-        }
     });
 });

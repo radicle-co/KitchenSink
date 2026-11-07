@@ -489,12 +489,25 @@ When a change makes an existing test wrong, you may not quietly edit it until it
 counted, runs green, and proves nothing. If you find yourself deleting assertions to make a suite build,
 stop: that suite is telling you the behaviour changed, and you owe it a decision.
 
-### During development, run only the Playwright specs and Maestro flows for the screens you change
+### Run only the impacted Playwright specs and Maestro flows, selected by the script, at full parallelism, through npm scripts
 
-Owner ruling 2026-11-02. While you build, run only the Playwright specs and Maestro flows that cover the screens you
-are changing and testing. Do not run the whole suite or the whole flow set to check a single screen. Run the full
-Playwright suite and the full Maestro suite on both platforms once, on the final head, before the PR is marked ready.
-That full run is still a precondition for the push and the merge.
+Owner law, 2026-11-06. It replaces the ruling of 2026-11-02. Four rules.
+
+- **Run only what the change affects.** Run the Playwright specs and Maestro flows for the screens the change reaches.
+  Never run the whole suite to check one screen. The script makes the selection, not you. It walks the import graph from
+  the files changed since the merge base with `origin/main` (ADR-0086). A change it cannot attribute runs the whole tier.
+  That is on purpose, because a skipped test looks like a passed test.
+- **Run the final head the same way.** The run on the final head of a PR is the selected run against `origin/main`.
+  `FULL_SUITE=1` forces the whole suite. It is still the only way to prove a full run, and a shared change such as a
+  primitive, a layout or a service needs one.
+- **Run at the most parallelism the machine allows.** The doors plan the lanes from the CPUs, the memory and the test
+  pool, and print which limit set the count. Web lanes use the shared `web` pool slots. Android lanes and iOS lanes use
+  their own pool lanes (ADR-0088). `E2E_LANES=1` and `--lanes 1` give one lane.
+- **Run only through npm or turbo scripts, locally and in CI.** The root doors are `npm run test:e2e:web`,
+  `test:e2e:android`, `test:e2e:ios` and `test:e2e:mobile` (both platforms). `npm run e2e:plan` prints the selection and why.
+  `npm run test:e2e` (turbo) runs every workspace's local suite. No workflow step starts `playwright test`, `maestro test`
+  or `runMaestroFlows.sh` by hand (`selectE2eWiring.test.ts`). CI selects in its own `select-e2e` job (ADR-0087).
+  The manual `deployedE2e.yml` still runs the whole suite (ADR-0032 section 4).
 
 ### A feature is NOT DONE until every required tier is written AND passing
 

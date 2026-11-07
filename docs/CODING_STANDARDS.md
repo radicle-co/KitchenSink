@@ -640,6 +640,11 @@ This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this
 So a LOCAL e2e suite runs only on a developer's machine. No workflow runs one. CI's merge gate is unit +
 integration (mocked) + guards. The DEPLOYED tier is unchanged: it runs when the PR's sandbox is up.
 
+⛔ **OWNER LAW, 2026-11-06 — which e2e tests run, and how:** run only the impacted Playwright specs and Maestro flows,
+selected by the script, at the most parallelism the machine allows, through npm or turbo scripts, locally and in CI.
+Selection is ADR-0086 (local) and ADR-0087 (CI). Maestro lanes are ADR-0088. `FULL_SUITE=1` runs everything, and the
+manual `deployedE2e.yml` always runs the whole suite. No workflow step starts a test runner by hand.
+
 ⛔ **OWNER RULING, 2026-09-20 — still in force where 2026-10-03 does not narrow it:**
 
 > "Integration tests should mock databases. E2E tests are the only ones that work against real databases."

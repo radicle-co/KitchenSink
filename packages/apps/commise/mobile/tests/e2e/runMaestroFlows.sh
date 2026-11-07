@@ -49,7 +49,7 @@
 #   1. **Disjoint identities.** Every flow signs in as the tier's FIXED Clerk pool slots and the per-flow reset
 #      RECONCILES that signer's library to the run manifest, so two shards on one signer delete each other's
 #      fixtures mid-flow. `maestroSlotForShard` (testPool.ts) partitions the roster by PLATFORM and then by shard
-#      (Android and iOS each have eight disjoint lanes), and `MAESTRO_MAX_SHARDS` below is the shell-side copy of what
+#      (Android has eight disjoint lanes, iOS five), and `maestro_max_shards` below is the shell-side copy of what
 #      EACH platform's lanes can reach. A platform's erasure subjects are NOT partitioned across its shards: they all
 #      belong to that platform's `MAESTRO_ERASURE_SHARD`, and every flow in `MAESTRO_ERASING_FLOWS` is pinned there
 #      (see below).
@@ -83,7 +83,7 @@
 #     runMaestroFlows.sh platform-flows <platform> <flow> …
 #     runMaestroFlows.sh exclusions <platform>
 #     runMaestroFlows.sh erasure-subject <flow>                  # reads MAESTRO_FIXTURE_ENV_FILE
-#     runMaestroFlows.sh plan | verticals | platforms | max-shards | erasure-shard | erasing-flows | weights | default-weight
+#     runMaestroFlows.sh plan | verticals | platforms | max-shards <platform> | erasure-shard | erasing-flows | weights | default-weight
 set -uo pipefail
 
 # The APK to install. CI hands the one `_mobileAppBuild.yml` built, downloaded and verified (`MAESTRO_ANDROID_APK`);
@@ -424,33 +424,33 @@ maestro_app_id() {
 
 # ── SHARDING: how many runners the plan may be split across, and what each flow costs ────────────────────
 #
-# ⛔ `MAESTRO_MAX_SHARDS` IS A COPY OF `maestroShardCapacity(platform)` (packages/tools/e2e-fixtures/src/testPool.ts),
-# and `maestroShardPartition.test.ts` asserts the two agree FROM DISK, for EACH platform. It is a copy because neither
-# language can typecheck the other and this script must answer "how many shards" without a node process — the same
-# cross-language-contract posture `maestroFixtureVariables.test.ts` takes for the fixture key set. One number serves
-# both platforms because both have eight lanes (Android signer/signer02-08, iOS iossigner01-08); if they ever differ
-# this becomes a per-platform table and the guard says so. Raising it is a THREE-part act: append signer/co-author lanes
-# to `POOL_ROSTER`, have the owner run `poolAdmin --apply` so those Clerk users exist, and raise this number. Raising it
-# alone produces a shard whose very first pool lease fails with "run poolAdmin --apply".
-MAESTRO_MAX_SHARDS=8
-
-# ⛔ THE POOL IS NOT THE ONLY CEILING, AND THIS ONE IS A RUNNER LIMIT. A Simulator job runs on a macOS runner and GitHub
-# caps a Team plan at FIVE concurrent macOS jobs (this organisation's plan is `team`). More iOS shards than that do not
-# run faster, they QUEUE behind the first five: eight shards of ~30 minutes finish at ~60 minutes, as four did, after
-# four more Simulator setups billed at the macOS rate. So the iOS matrix stops here while Android, on a Linux runner,
-# reaches the pool. The pool keeps eight lanes per platform so raising this is a one-line change if the plan changes.
-# It is not a copy of anything in `testPool.ts` and must never exceed the pool (`maestroShardPartition.test.ts`).
-MAESTRO_IOS_RUNNER_CEILING=5
-
-# maestro_runner_ceiling <platform>
+# ⛔ THE PER-PLATFORM CAPACITY BELOW IS A COPY OF `maestroShardCapacity(platform)`
+# (packages/tools/e2e-fixtures/src/testPool.ts), and `maestroShardPartition.test.ts` asserts the two agree FROM DISK, for
+# EACH platform. It is a copy because neither language can typecheck the other and this script must answer "how many
+# shards" without a node process — the same cross-language-contract posture `maestroFixtureVariables.test.ts` takes for
+# the fixture key set. Raising either number is a THREE-part act: append signer/co-author lanes to `POOL_ROSTER`, have
+# the owner run `poolAdmin --apply` so those Clerk users exist, and raise the number here. Raising it alone produces a
+# shard whose very first pool lease fails with "run poolAdmin --apply".
 #
-# How many shards of one platform the RUNNERS can run at once, which is at most what the pool can identify. Pure.
-maestro_runner_ceiling() {
+# ⛔ iOS IS FIVE BECAUSE THE macOS RUNNERS ARE FIVE, AND THAT IS THE ONLY PLACE THE FIVE LIVES. A Simulator job runs on a
+# macOS runner and GitHub caps a Team plan at FIVE concurrent macOS jobs (this organisation's plan is `team`). More iOS
+# shards than that do not run faster, they QUEUE behind the first five. This used to be a second constant
+# (a separate iOS ceiling of five) beside an iOS pool of eight, so three Clerk users could never be leased; the pool is
+# now sized to the ceiling and there is one number. If the plan grows, append iOS lanes, run `poolAdmin --apply`, raise
+# `MAESTRO_MAX_SHARDS_IOS`. Android, on a Linux runner, reaches its whole pool.
+MAESTRO_MAX_SHARDS_ANDROID=8
+MAESTRO_MAX_SHARDS_IOS=5
+
+# maestro_max_shards <platform>
+#
+# How many shards of one platform the pool can give disjoint identities to, which is also all the runners can run at
+# once. Pure.
+maestro_max_shards() {
     case "${1-}" in
-        ios) printf '%s\n' "$MAESTRO_IOS_RUNNER_CEILING" ;;
-        android) printf '%s\n' "$MAESTRO_MAX_SHARDS" ;;
+        ios) printf '%s\n' "$MAESTRO_MAX_SHARDS_IOS" ;;
+        android) printf '%s\n' "$MAESTRO_MAX_SHARDS_ANDROID" ;;
         *)
-            echo "runMaestroFlows.sh: no runner ceiling for platform '${1-}'" >&2
+            echo "runMaestroFlows.sh: no shard ceiling for platform '${1-}'" >&2
 
             return 2
             ;;
@@ -1076,7 +1076,7 @@ maestro_pack_flows() {
 # The GitHub matrix, as a JSON array of 1-based shard indices — `[1]`, `[1,2]`, …. Pure.
 #
 # Clamped from above by three things, and by the SMALLEST of them: what the caller asked for,
-# MAESTRO_MAX_SHARDS (what the Clerk pool can give disjoint identities to), and how many non-spine flows the
+# `maestro_max_shards` (what the Clerk pool can give disjoint identities to, per platform), and how many non-spine flows the
 # selector actually chose (so a narrowed run never boots an emulator to run only the spine).
 #
 # ⛔ AN UNREADABLE REQUEST CLAMPS TO ONE SHARD — the opposite direction from the SELECTOR's fail-safe, and
@@ -1096,13 +1096,9 @@ maestro_shard_matrix() {
         count="$requested"
     fi
 
-    if [ "$count" -gt "$MAESTRO_MAX_SHARDS" ]; then
-        count="$MAESTRO_MAX_SHARDS"
-    fi
-
-    # The runner ceiling for THIS platform: the pool may identify more shards than the runners can run at once.
+    # The ceiling for THIS platform: what its pool can identify, which for iOS is also what the runners can run.
     local ceiling
-    ceiling=$(maestro_runner_ceiling "$platform") || return 2
+    ceiling=$(maestro_max_shards "$platform") || return 2
     if [ "$count" -gt "$ceiling" ]; then
         count="$ceiling"
     fi
@@ -1836,11 +1832,8 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_PLATFORMS
             ;;
         max-shards)
-            printf '%s\n' "$MAESTRO_MAX_SHARDS"
-            ;;
-        runner-ceiling)
             shift
-            maestro_runner_ceiling "$@"
+            maestro_max_shards "$@"
             ;;
         erasure-shard)
             printf '%s\n' "$MAESTRO_ERASURE_SHARD"
@@ -1883,7 +1876,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $MAESTRO_VERTICALS
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|verticals|platforms|max-shards|runner-ceiling|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|verticals|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

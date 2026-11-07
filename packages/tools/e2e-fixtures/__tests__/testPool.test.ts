@@ -77,8 +77,10 @@ describe('the roster', () => {
     });
 
     it('keeps the k6 addresses the existing sandbox pool users already hold', () => {
-        // Re-addressing them would orphan twenty-one live users on the shared dev instance and force a
-        // re-provision for no gain.
+        // REWRITTEN 2026-11-06 (pool trim, step 6): the k6 users are now made at the start of a dispatched load test and
+        // deleted at its end, so no live user is orphaned by a change. The addresses stay because every k6 scenario, the
+        // harness and `poolAdmin --k6-run` name the users by them, and because a second create of the same username after a
+        // delete must be the SAME user in every report (the modelled-Clerk case in poolAdmin.test.ts).
         expect(slotFor('k6', 'alfa').email).toBe('test-alfa+clerk_test@radcile.com');
         expect(slotFor('k6', 'admin').email).toBe('test-admin+clerk_test@radcile.com');
         expect(slotFor('k6', 'alfa').username).toBe('test_alfa_clerk_test');
@@ -110,9 +112,27 @@ describe('slotForShard', () => {
         expect(slotForShard('webStub', 3)).toEqual(slotForShard('webStub', 3));
     });
 
-    it('gives different shards different users, within a tier and across the two web tiers', () => {
+    /**
+     * REWRITTEN 2026-11-06 (pool trim, step 1). The DEPLOYED tier still gives every shard its own user, because a `web`
+     * lane is a lease and `resetPool` purges what it owns. The STUBBED tier gives every shard the SAME user, `webstub01`:
+     * it is never leased, reset or swept, and every `/api/v1/**` call it makes is mocked in the browser, so shards share
+     * nothing but Clerk sessions (any number per user). It must still never be a `web` user.
+     */
+    it('gives each deployed shard its own user, all stubbed shards one user, and the two tiers no user in common', () => {
         expect(slotForShard('web', 1).email).not.toBe(slotForShard('web', 2).email);
         expect(slotForShard('web', 1).email).not.toBe(slotForShard('webStub', 1).email);
+
+        for (const shard of [1, 2, 6]) {
+            expect(slotForShard('webStub', shard).id, `stub shard ${shard}`).toBe('webstub01');
+        }
+
+        expect(POOL_ROSTER.webStub.map((lane) => lane.id)).toEqual(['webstub01']);
+    });
+
+    it('still refuses a malformed stubbed shard — the one lane is not a licence to guess', () => {
+        for (const shard of [0, -1, 1.5, Number.NaN]) {
+            expect(() => slotForShard('webStub', shard), String(shard)).toThrow(/shard/u);
+        }
     });
 
     it.each([0, -1, 1.5, Number.NaN])('refuses shard %s', (shard) => {
@@ -123,9 +143,10 @@ describe('slotForShard', () => {
         expect(() => slotForShard('web', POOL_ROSTER.web.length + 1)).toThrow(/declares only/u);
     });
 
-    it('covers the two Playwright matrices as they are wired today (8 deployed shards, 6 stubbed)', () => {
+    it('covers the two Playwright matrices as they are wired today (8 deployed shards, any number stubbed)', () => {
         expect(POOL_ROSTER.web.length).toBeGreaterThanOrEqual(8);
-        expect(POOL_ROSTER.webStub.length).toBeGreaterThanOrEqual(6);
+        // Any stub shard resolves, because they all share the one stub lane (see the test above).
+        expect(() => slotForShard('webStub', 6)).not.toThrow();
     });
 });
 
@@ -192,7 +213,8 @@ describe('consumableSlots', () => {
     it('are the maestro erasure subjects, in declared order, and nothing else', () => {
         const slots = consumableSlots('maestro');
 
-        expect(slots.length).toBeGreaterThanOrEqual(10);
+        // Two: one per platform (trimmed from ten 2026-11-06).
+        expect(slots.map((slot) => slot.id)).toEqual(['erasure01', 'erasure06']);
         expect(slots.every((slot) => slot.consumable && slot.id.startsWith('erasure'))).toBe(true);
         expect(rosterSlots().filter((slot) => slot.consumable)).toEqual(slots);
     });
@@ -347,14 +369,21 @@ describe('password-bearing slots', () => {
  * REWRITTEN 2026-10-13: the lanes are now partitioned by (platform, shard). Android and iOS each have four, so the
  * two platforms run side by side instead of queueing on one lane's concurrency group.
  */
+/**
+ * TRIMMED 2026-11-06 (owner: "trim idle users first"): iOS keeps FIVE shards because CI's macOS runner ceiling is five
+ * (a Team plan runs five concurrent macOS jobs), so `iossigner06-08` and `ioscoauthor06-08` were idle Clerk users.
+ * Android still reaches eight. These are the per-platform counts every assertion below is written against.
+ */
+const SHARDS_PER_PLATFORM = { android: 8, ios: 5 } as const;
+
 describe('maestro shard allocation', () => {
     it('declares exactly the two platforms the runner knows', () => {
         expect(MAESTRO_PLATFORMS).toEqual(['android', 'ios']);
     });
 
-    it('gives each platform eight shards, which is the shell runner’s own maximum', () => {
+    it('gives Android eight shards and iOS five, which is the shell runner’s own maximum per platform', () => {
         for (const platform of MAESTRO_PLATFORMS) {
-            expect(maestroShardCapacity(platform), platform).toBe(8);
+            expect(maestroShardCapacity(platform), platform).toBe(SHARDS_PER_PLATFORM[platform]);
         }
     });
 
@@ -377,11 +406,11 @@ describe('maestro shard allocation', () => {
             ...maestroErasureSlots(platform, shard).map((slot) => slot.email),
         ]);
 
-        expect(emails).toHaveLength(8 * 2 * 2 + 10);
+        expect(emails).toHaveLength((SHARDS_PER_PLATFORM.android + SHARDS_PER_PLATFORM.ios) * 2 + 2);
         expect(new Set(emails).size).toBe(emails.length);
     });
 
-    it('declares every one of the thirty-two lanes in the roster, and no other maestro signer or co-author', () => {
+    it('declares every one of the twenty-six lanes in the roster, and no other maestro signer or co-author', () => {
         const lanes = everyShard().flatMap(({ platform, shard }) => [
             maestroSlotForShard('signer', platform, shard).id,
             maestroSlotForShard('coauthor', platform, shard).id,
@@ -424,16 +453,23 @@ describe('maestro shard allocation', () => {
         expect(maestroSlotForShard('coauthor', 'android', 1)).toEqual(slotFor('maestro', 'coauthor'));
     });
 
-    it('gives iOS lanes of its own: iossigner01..08 and ioscoauthor01..08, in shard order', () => {
+    it('gives iOS lanes of its own: iossigner01..05 and ioscoauthor01..05, in shard order, and none past five', () => {
         const numbered = (prefix: string): string[] =>
-            Array.from({ length: 8 }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`);
+            Array.from({ length: 5 }, (_, i) => `${prefix}${String(i + 1).padStart(2, '0')}`);
 
-        expect(Array.from({ length: 8 }, (_, i) => maestroSlotForShard('signer', 'ios', i + 1).id)).toEqual(
+        expect(Array.from({ length: 5 }, (_, i) => maestroSlotForShard('signer', 'ios', i + 1).id)).toEqual(
             numbered('iossigner'),
         );
-        expect(Array.from({ length: 8 }, (_, i) => maestroSlotForShard('coauthor', 'ios', i + 1).id)).toEqual(
+        expect(Array.from({ length: 5 }, (_, i) => maestroSlotForShard('coauthor', 'ios', i + 1).id)).toEqual(
             numbered('ioscoauthor'),
         );
+        // The trimmed lanes are gone from the roster, not merely unreachable: a roster entry is a Clerk user.
+        const ids = POOL_ROSTER.maestro.map((lane) => lane.id);
+
+        for (const n of [6, 7, 8]) {
+            expect(ids, `iossigner0${n}`).not.toContain(`iossigner0${n}`);
+            expect(ids, `ioscoauthor0${n}`).not.toContain(`ioscoauthor0${n}`);
+        }
     });
 
     it('keeps Android shards 2 to 8 on signer02..08 and coauthor02..08', () => {
@@ -453,13 +489,14 @@ describe('maestro shard allocation', () => {
      * is its index into a platform's list, and `resetPool` purges what a slot owns, so a reordered roster would sign a
      * shard in as a user another shard's data was reset for.
      */
-    it('⛔ appends the second four shards of each platform after the first sixteen lanes, in order', () => {
+    it('⛔ appends shards 5 to 8 of Android and shard 5 of iOS after the first sixteen lanes, in order', () => {
         const ids = POOL_ROSTER.maestro.map((lane) => lane.id);
         const appended = ids.slice(ids.indexOf('ioscoauthor04') + 1);
 
         expect(appended).toEqual([
             ...[5, 6, 7, 8].flatMap((n) => [`signer0${n}`, `coauthor0${n}`]),
-            ...[5, 6, 7, 8].flatMap((n) => [`iossigner0${n}`, `ioscoauthor0${n}`]),
+            'iossigner05',
+            'ioscoauthor05',
         ]);
     });
 
@@ -474,11 +511,17 @@ describe('maestro shard allocation', () => {
         }
     });
 
-    it('⛔ APPENDS the new lanes: the maestro roster before them keeps its old order, so no shard changes user', () => {
-        expect(POOL_ROSTER.maestro.slice(0, 14).map((lane) => lane.id)).toEqual([
+    /**
+     * REWRITTEN 2026-11-06 (pool trim, step 2): the erasure block shrank from ten subjects to two, so the roster INDEX
+     * of later lanes moved. That is safe because a shard resolves its lane by ID through `MAESTRO_PLATFORM_LANES`, never
+     * by roster index; what must hold is that every shard's ids and their order are unchanged.
+     */
+    it('⛔ APPENDS the new lanes: the shard-ordered signer lists keep their ids and order, so no shard changes user', () => {
+        expect(POOL_ROSTER.maestro.slice(0, 6).map((lane) => lane.id)).toEqual([
             'signer',
             'coauthor',
-            ...Array.from({ length: 10 }, (_, i) => `erasure${String(i + 1).padStart(2, '0')}`),
+            'erasure01',
+            'erasure06',
             'signer02',
             'coauthor02',
         ]);
@@ -487,7 +530,9 @@ describe('maestro shard allocation', () => {
 
 /**
  * THE ERASURE LANE, per platform (2026-10-13; it refines the 2026-10-08 lane, which was one lane for both platforms).
- * Each platform's shard 1 leases ITS OWN five subjects: Android `erasure01-05`, iOS `erasure06-10`. The runner still
+ * Each platform's shard 1 leases ITS OWN one subject: Android `erasure01`, iOS `erasure06` (trimmed from five each
+ * 2026-11-06: the refill always takes the FIRST standing subject and fails unless every declared one can be leased,
+ * so the spares never helped and each cost a Clerk user). The runner still
  * pins every erasing flow to shard 1 of its platform, and that shard's concurrency group admits one job at a time, so
  * one job per platform can lease, and the two platforms draw from DISJOINT sets and cannot collide with each other.
  */
@@ -499,9 +544,10 @@ describe('maestro erasure lane', () => {
         expect(MAESTRO_ERASURE_SHARD).toBe(1);
     });
 
-    it('gives Android shard 1 erasure01-05 and iOS shard 1 erasure06-10, in declared order', () => {
-        expect(ids('android')).toEqual(['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05']);
-        expect(ids('ios')).toEqual(['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10']);
+    it('gives Android shard 1 erasure01 and iOS shard 1 erasure06, and the roster holds no other consumable', () => {
+        expect(ids('android')).toEqual(['erasure01']);
+        expect(ids('ios')).toEqual(['erasure06']);
+        expect(consumableSlots('maestro').map((slot) => slot.id)).toEqual(['erasure01', 'erasure06']);
     });
 
     it('⛔ keeps the two platforms’ sets disjoint, and their union is every consumable subject', () => {
@@ -600,14 +646,16 @@ describe('the roles tier', () => {
  * borrowed from another shard would put two concurrent runs on one Clerk user.
  */
 describe('webPeer tier', () => {
-    it('declares one peer for every web shard, so shard N has a peer of its own', () => {
-        expect(POOL_ROSTER.webPeer.length).toBeGreaterThanOrEqual(POOL_ROSTER.web.length);
-        expect(POOL_ROSTER.webPeer.length).toBeGreaterThanOrEqual(POOL_ROSTER.webStub.length);
-    });
+    /**
+     * REWRITTEN 2026-11-06 (pool trim, step 1): ONE peer, `webpeer01`, for every shard. The peer is only cook B in
+     * `sessionHandoff.spec.ts`, which stubs the recipe service and writes nothing; the tier is never leased, reset or
+     * swept, so the old "a peer of its own per shard" protected no data. It is still never a shard's own user.
+     */
+    it('declares one peer, shared by every web shard, and it is never a shard’s own user', () => {
+        expect(POOL_ROSTER.webPeer.map((lane) => lane.id)).toEqual(['webpeer01']);
 
-    it('allocates shard N to peer N, and it is never the shard’s own user', () => {
         for (let shard = 1; shard <= POOL_ROSTER.web.length; shard += 1) {
-            expect(slotForShard('webPeer', shard).id).toBe(`webpeer${String(shard).padStart(2, '0')}`);
+            expect(slotForShard('webPeer', shard).id).toBe('webpeer01');
             expect(slotForShard('webPeer', shard).email).not.toBe(slotForShard('web', shard).email);
         }
     });
@@ -621,9 +669,10 @@ describe('webPeer tier', () => {
         }
     });
 
-    it('names the peer of a web or webStub slot, by the slot’s own index — so no caller re-parses the shard', () => {
-        expect(peerSlotFor(slotForShard('web', 3))).toEqual(slotForShard('webPeer', 3));
-        expect(peerSlotFor(slotForShard('webStub', 5))).toEqual(slotForShard('webPeer', 5));
+    it('names webpeer01 as the peer of every web or webStub slot', () => {
+        expect(peerSlotFor(slotForShard('web', 3))).toEqual(slotFor('webPeer', 'webpeer01'));
+        expect(peerSlotFor(slotForShard('web', 8))).toEqual(slotFor('webPeer', 'webpeer01'));
+        expect(peerSlotFor(slotForShard('webStub', 5))).toEqual(slotFor('webPeer', 'webpeer01'));
     });
 
     it('⛔ refuses a slot of any other tier, which has no peer, rather than guessing one', () => {
@@ -631,8 +680,8 @@ describe('webPeer tier', () => {
         expect(() => peerSlotFor(slotFor('webPeer', 'webpeer01'))).toThrow(/peer/u);
     });
 
-    it('refuses a shard past the declared peers rather than wrapping onto another shard’s peer', () => {
-        expect(() => slotForShard('webPeer', POOL_ROSTER.webPeer.length + 1)).toThrow(/declares only/u);
+    it('refuses a malformed shard for the peer tier too', () => {
+        expect(() => slotForShard('webPeer', 0)).toThrow(/shard/u);
     });
 });
 

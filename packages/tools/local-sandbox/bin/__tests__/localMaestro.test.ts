@@ -7,7 +7,7 @@
  * `maestro` and `aws` binaries first on `PATH`. Nothing here touches a device, a network or AWS.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -535,6 +535,72 @@ describe('local_maestro_provision_lane_users — what it may do to Clerk', () =>
 
         expect(calls).toContain('--recycle');
         expect(calls).not.toContain('--local-roles');
+    });
+});
+
+/**
+ * STEP 4 of the pool trim (2026-11-06): the lane's erasure subject exists only DURING a run. The cleanup trap deletes it, so
+ * a failed run, an interrupt and a green run all leave no `test-local-*` consumable in Clerk. It deletes through
+ * `poolAdmin --delete-consumables`, which is delete-only and refuses any shared user.
+ */
+describe('a local run deletes its erasure subject when it ends', () => {
+    function withFakeNpx(): Sandbox {
+        const sandbox = makeSandbox();
+
+        writeFileSync(
+            path.join(sandbox.bin, 'npx'),
+            `#!/usr/bin/env bash\necho "npx $* ns=\${E2E_POOL_NAMESPACE:-unset}" >> "${sandbox.calls}"\nexit 0\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+
+        return sandbox;
+    }
+
+    it('issues the delete-only command with the local namespace in force', () => {
+        const sandbox = withFakeNpx();
+
+        expect(run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_lane_users`).status).toBe(
+            0,
+        );
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            'poolAdmin.ts --apply --delete-consumables --maestro-lane --platform android --shard 1 ns=local',
+        );
+    });
+
+    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 deletes nothing - a run that reuses standing users must not remove them', () => {
+        const sandbox = withFakeNpx();
+
+        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_lane_users`, {
+            LOCAL_MAESTRO_REUSE_USERS: '1',
+        });
+
+        expect(existsSync(sandbox.calls) ? readFileSync(sandbox.calls, 'utf8') : '').not.toContain('poolAdmin');
+    });
+
+    it('runs from the exit trap once provisioning began, and keeps the run’s own exit status', () => {
+        const sandbox = withFakeNpx();
+        const result = run(
+            sandbox,
+            `local_maestro_seed_env '${sandbox.state}'; LOCAL_MAESTRO_USERS_PROVISIONING=true; (exit 7); local_maestro_cleanup`,
+        );
+
+        expect(result.status).toBe(7);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain('--delete-consumables');
+    });
+
+    it('does not touch Clerk when the run ended before it made any user', () => {
+        const sandbox = withFakeNpx();
+
+        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; (exit 3); local_maestro_cleanup`);
+
+        expect(existsSync(sandbox.calls) ? readFileSync(sandbox.calls, 'utf8') : '').not.toContain('poolAdmin');
+    });
+
+    it('marks provisioning as begun BEFORE it creates the first user, so a failure part-way is still cleaned', () => {
+        const body = run(makeSandbox(), 'declare -f local_maestro_provision_lane_users').stdout;
+
+        expect(body.indexOf('LOCAL_MAESTRO_USERS_PROVISIONING=true')).toBeGreaterThanOrEqual(0);
+        expect(body.indexOf('LOCAL_MAESTRO_USERS_PROVISIONING=true')).toBeLessThan(body.indexOf('poolAdmin.ts'));
     });
 });
 

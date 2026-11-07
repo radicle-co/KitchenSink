@@ -37,7 +37,7 @@ const SHARD = 1;
 /** The platform these assertions are about, unless a case says otherwise. */
 const PLATFORM = 'android';
 /** The erasure subject `provision` leased — a consumable pool slot, resolved at run time, never derived. */
-const ERASURE = consumableSlots('maestro')[2]?.email ?? '';
+const ERASURE = consumableSlots('maestro')[0]?.email ?? '';
 /** The probe words `provision` chose and verified against the live search — NOT derivable from the run key. */
 const PROBE_WORDS = {
     appendWord: 'paneer',
@@ -103,8 +103,9 @@ describe('deriveFixtureManifest', () => {
         );
         const emails = manifests.flatMap((manifest) => [manifest.signInEmail, manifest.coAuthorEmail]);
 
+        // 13 = Android's 8 shards + iOS's 5 (iOS lanes 6-8 were trimmed 2026-11-06: CI's macOS ceiling is five).
         expect(manifests, 'the roster must declare more than one lane for this to be a real assertion').toHaveLength(
-            16,
+            13,
         );
         expect(new Set(emails).size).toBe(emails.length);
     });
@@ -471,14 +472,12 @@ describe('manifestToEnvLines', () => {
 
     /**
      * ADDED 2026-10-13. The refusal is scoped to the manifest's OWN platform's subjects: Android may erase only
-     * `erasure01-05` and iOS only `erasure06-10`. A subject of the OTHER platform is a consumable pool slot, so the old
+     * `erasure01` and iOS only `erasure06`. A subject of the OTHER platform is a consumable pool slot, so the old
      * "any of the ten" check admitted it — and it belongs to a lane some other job holds right now.
      */
     it.each([
         ['android', 'erasure06'],
-        ['android', 'erasure10'],
         ['ios', 'erasure01'],
-        ['ios', 'erasure05'],
     ] as const)('⛔ refuses the OTHER platform’s subject: a %s manifest may not erase %s', (platform, subject) => {
         expect(() =>
             manifestToEnvLines(
@@ -490,9 +489,7 @@ describe('manifestToEnvLines', () => {
 
     it.each([
         ['android', 'erasure01'],
-        ['android', 'erasure05'],
         ['ios', 'erasure06'],
-        ['ios', 'erasure10'],
     ] as const)('accepts its OWN platform’s subject: a %s manifest may erase %s', (platform, subject) => {
         expect(() =>
             manifestToEnvLines(

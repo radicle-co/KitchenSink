@@ -36,28 +36,12 @@ describe('laneFromEnv', () => {
 });
 
 describe('alignmentSlots', () => {
-    it("aligns android shard 1's signer, co-author and five erasure subjects", () => {
-        expect(ids('android', 1)).toEqual([
-            'signer',
-            'coauthor',
-            'erasure01',
-            'erasure02',
-            'erasure03',
-            'erasure04',
-            'erasure05',
-        ]);
+    it("aligns android shard 1's signer, co-author and its one erasure subject", () => {
+        expect(ids('android', 1)).toEqual(['signer', 'coauthor', 'erasure01']);
     });
 
     it("aligns ios shard 1's own lanes, never android's", () => {
-        expect(ids('ios', 1)).toEqual([
-            'iossigner01',
-            'ioscoauthor01',
-            'erasure06',
-            'erasure07',
-            'erasure08',
-            'erasure09',
-            'erasure10',
-        ]);
+        expect(ids('ios', 1)).toEqual(['iossigner01', 'ioscoauthor01', 'erasure06']);
     });
 
     it('gives a shard that does not erase no erasure subject', () => {
@@ -86,7 +70,7 @@ describe('a lane, through the alignment itself', () => {
         expect(asked).toEqual([
             'test-iossigner01+clerk_test@radcile.com',
             'test-ioscoauthor01+clerk_test@radcile.com',
-            ...['06', '07', '08', '09', '10'].map((n) => `test-erasure${n}+clerk_test@radcile.com`),
+            'test-erasure06+clerk_test@radcile.com',
         ]);
     });
 });

@@ -13,6 +13,11 @@
  * `poolAdmin` itself, scoped to the erasure subjects, right before it provisions. That changes WHO may invoke the
  * writer, not WHICH code creates — so the file scan below is unchanged, and the second suite pins the one CI door.
  *
+ * ⚠️ AMENDED by owner ruling 2026-11-06 (pool trim, step 6): the k6 tier's users are made at the start of a DISPATCHED load
+ * test and deleted at its end, so two more jobs reach the writer, each with the same two spellings (create, `--delete`).
+ * Only the k6 tier: its dispatch-only jobs never run on a push or schedule, and `poolAdmin` limits the delete to the k6
+ * tier's shared users. The rest of the pool is unchanged.
+ *
  * ## Derived, never enumerated
  *
  * Every tracked source file is scanned — comments blanked, so prose about a creation is not read as one — for the
@@ -214,6 +219,18 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
     } as const;
 
     /**
+     * The two dispatched load-test jobs that make the k6 tier's users for the run and delete them at its end (owner ruling
+     * 2026-11-06, which REVERSES the 2026-09-13 fixed-pool rule for k6 ONLY). Each job runs the writer exactly twice, and
+     * these are the only two spellings admitted: the scoped create, and the delete-only `--delete` that `poolAdmin` limits
+     * to the k6 tier's shared users (`deleteK6RunUsers`). Both reach the key through the job environment, never argv.
+     */
+    const K6_RUN_JOBS = ['_ci-heavy.yml::load-test-deployed', 'food-loadtest.yml::loadtest'] as const;
+    const K6_RUN_SPELLINGS = [
+        'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run',
+        'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run --delete',
+    ] as const;
+
+    /**
      * The ONE script outside CI that may reach the writer (2026-10-27): the local Maestro runner, which makes its own
      * `test-local-*` users on the shared Clerk instance so that it never leases, erases or refills a user CI owns. The
      * admitted spelling is the lane scope under the local namespace, with `--recycle` (which `poolAdmin` itself refuses
@@ -227,6 +244,12 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
         // downgraded owner, once the five read-only role users are reused from the shared pool), refuses before its first
         // write when the instance has no room, and `poolAdmin` itself refuses it outside the local namespace.
         rolesCommand: 'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles',
+        // AMENDED 2026-11-06 (pool trim, step 4): the third spelling, and it DELETES. `--delete-consumables` is delete-only
+        // (it creates nothing), `poolAdmin` refuses it outside the local namespace, and `deleteLocalConsumables` refuses
+        // any slot that is not a consumable carrying the local address - so it cannot reach CI's users. It is how a local
+        // run removes its erasure subject when it ends, failure included (the exit trap).
+        deleteCommand:
+            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --delete-consumables --maestro-lane --platform android --shard 1',
         namespace: 'export E2E_POOL_NAMESPACE=local',
     } as const;
 
@@ -285,6 +308,7 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
     it('finds the refill in both Maestro jobs (non-vacuity — discovery still sees an invocation)', () => {
         expect(found.map((invocation) => invocation.where)).toStrictEqual([
             ...Object.keys(REFILLING_JOBS),
+            ...K6_RUN_JOBS.flatMap((job) => [job, job]),
             LOCAL_LANE_SCRIPT.path,
         ]);
     });
@@ -299,10 +323,20 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
                     // The `|| return 1` is the script's failure handling, not part of the spelling being admitted.
                     writerLines.map((line) => line.trim().replace(/ \|\| return 1$/u, '')),
                     invocation.where,
-                ).toStrictEqual([LOCAL_LANE_SCRIPT.command, LOCAL_LANE_SCRIPT.rolesCommand]);
+                ).toStrictEqual([
+                    LOCAL_LANE_SCRIPT.command,
+                    LOCAL_LANE_SCRIPT.rolesCommand,
+                    LOCAL_LANE_SCRIPT.deleteCommand,
+                ]);
                 expect(source, `${invocation.where} must select the local pool namespace`).toContain(
                     LOCAL_LANE_SCRIPT.namespace,
                 );
+
+                continue;
+            }
+
+            if ((K6_RUN_JOBS as readonly string[]).includes(invocation.where)) {
+                expect(K6_RUN_SPELLINGS as readonly string[], invocation.where).toContain(invocation.run);
 
                 continue;
             }
@@ -314,6 +348,15 @@ describe('the pool writer is reached from CI only as the scoped Maestro erasure 
             expect(invocation.shardIndex, `${invocation.where} does not take SHARD_INDEX from the matrix`).toMatch(
                 /^\$\{\{\s*matrix\.shard\s*\}\}$/u,
             );
+        }
+    });
+
+    it('⛔ each k6 run job makes its users once and deletes them once — both spellings, neither repeated', () => {
+        for (const job of K6_RUN_JOBS) {
+            expect(
+                found.filter((invocation) => invocation.where === job).map((invocation) => invocation.run),
+                job,
+            ).toStrictEqual([...K6_RUN_SPELLINGS]);
         }
     });
 

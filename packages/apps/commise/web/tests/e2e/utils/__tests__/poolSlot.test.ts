@@ -15,10 +15,13 @@ describe('webPoolSlot', () => {
         expect(webPoolSlot({ COMMISE_E2E_SHARD: '3' })).toEqual(slotForShard('web', 3));
     });
 
-    it('leases the STUBBED tier’s lane when the run is mocked-only', () => {
+    // 2026-11-06 (pool trim): every stubbed shard signs in as the ONE stub user — the tier is never leased or reset.
+    it('leases the STUBBED tier’s one lane, whatever the shard, when the run is mocked-only', () => {
         expect(webPoolSlot({ COMMISE_E2E_SHARD: '3', PLAYWRIGHT_MOCKED_ONLY: '1' })).toEqual(
             slotForShard('webStub', 3),
         );
+        expect(webPoolSlot({ COMMISE_E2E_SHARD: '6', PLAYWRIGHT_MOCKED_ONLY: '1' }).id).toBe('webstub01');
+        expect(webPoolSlot({ COMMISE_E2E_SHARD: '1', PLAYWRIGHT_MOCKED_ONLY: '1' }).id).toBe('webstub01');
         expect(webPoolSlot({ COMMISE_E2E_SHARD: '3', PLAYWRIGHT_MOCKED_ONLY: '1' }).email).not.toBe(
             webPoolSlot({ COMMISE_E2E_SHARD: '3' }).email,
         );

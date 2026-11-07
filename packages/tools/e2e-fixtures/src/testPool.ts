@@ -65,7 +65,9 @@ export type PoolTenant = (typeof POOL_TENANTS)[number];
  *   2. **The tier writes nothing to any stage.** It configures no deployed origin and every `/api/v1/**` call is
  *      intercepted in the browser, so there is no data to share, and nothing to reset.
  *
- * What concurrent stub runs DO share is Clerk's per-user sign-in rate — a flake risk, not a correctness one.
+ * What concurrent stub runs DO share is Clerk's rate limits — a flake risk, not a correctness one. Clerk documents
+ * Frontend API limits per IP address and Backend API limits of 100 requests per 10 seconds per development instance
+ * (https://clerk.com/docs/guides/how-clerk-works/system-limits), so they are not a per-user rate.
  *
  * `roles` (plan `docs/plans/2026-10-14-009-feat-roles-and-paid-gate-plan.md` D12; owner rulings 2026-10-13 and
  * 2026-10-15) is one user per role, for the paid-feature specs and flows: a DEFAULT or an ADMIN user proves only the
@@ -81,10 +83,12 @@ export type PoolTenant = (typeof POOL_TENANTS)[number];
  *
  * A change that needs a write as one of these users needs a lease and resets first.
  *
- * `webPeer` (owner decision 2026-10-19, plan 013 C4 / matrix G18) is the SECOND web identity of a shard: lane N is the
- * peer of web shard N (and of webStub shard N), the cook who signs in after the shard's own user signs out, so
+ * `webPeer` (owner decision 2026-10-19, plan 013 C4 / matrix G18) is the SECOND web identity: ONE lane, `webpeer01`, the
+ * peer of every web and webStub shard (trimmed from one per shard 2026-11-06, because it is read-only and never reset),
+ * the cook who signs in after the shard's own user signs out, so
  * `sessionHandoff.spec.ts` can prove ADR-0054 on a browser. It is a tier of its own, and not more lanes of `web`,
  * because `slotForShard` takes the lane at the shard's index and a shard past the eight would otherwise land on a peer.
+ * `webStub` is likewise ONE lane, `webstub01`, for every stubbed shard.
  * It holds NO lease and gets NO reset, on the `roles` argument, and binds the same two rules: sign in and READ only
  * (the spec stubs the recipe service, so it writes nothing), and end only your own session. Appended after `roles`
  * so no existing tier is reordered.
@@ -212,7 +216,8 @@ export const DOWNGRADED_OWNER_LANE_ID = 'roledowngraded';
  */
 export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
     web: numbered('web', 8, { signsInByPassword: true }),
-    webStub: numbered('webstub', 6, { signsInByPassword: true }),
+    // ONE stub user for every stubbed shard (2026-11-06): the tier is never leased, reset or swept and mocks every API call.
+    webStub: numbered('webstub', 1, { signsInByPassword: true }),
     maestro: [
         // The signer owns the PRIVATE recipes of the seeded world, which the recipe service admits only for a
         // premium caller.
@@ -220,7 +225,10 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         coauthor('coauthor'),
         // Each real erasure destroys its subject for good (identity keeps it unresolvable), so the flow takes
         // the first erasure slot that still exists and `poolAdmin` replenishes the rest.
-        ...numbered('erasure', 10, { consumable: true, signsInByPassword: true }),
+        // ONE subject per platform (trimmed from ten 2026-11-06): the refill always takes the FIRST standing subject and
+        // fails unless every declared one can be leased, so spares never helped. Android `erasure01`, iOS `erasure06`.
+        lane('erasure01', { consumable: true, signsInByPassword: true }),
+        lane('erasure06', { consumable: true, signsInByPassword: true }),
         // ⛔ SHARD 2's OWN IDENTITIES — APPENDED, never inserted, so no consumable is renumbered. The Maestro
         // tier runs as a matrix (`_ci-heavy.yml`), and a shard is only safe because its signer and co-author
         // are nobody else's: the per-flow reset RECONCILES the signer's library to the run manifest and
@@ -243,17 +251,19 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         coauthor('ioscoauthor03'),
         lane('iossigner04', { roles: ['premium'], signsInByPassword: true }),
         coauthor('ioscoauthor04'),
-        // ⛔ SHARDS 5 TO 8 OF EACH PLATFORM — APPENDED after the sixteen above, never interleaved, so no existing lane
-        // changes index and no shard signs in as a user another shard's data was reset for. Android first, then iOS,
-        // the order the first eight were declared in. Each needs `poolAdmin --apply` before a run can lease it.
+        // ⛔ SHARDS 5 TO 8 OF ANDROID AND SHARD 5 OF iOS — APPENDED after the sixteen above, never interleaved, so no
+        // existing lane changes index and no shard signs in as a user another shard's data was reset for. Android
+        // first, then iOS. Each needs `poolAdmin --apply` before a run can lease it.
+        // iOS stops at FIVE on purpose (2026-11-06, owner: "trim idle users first"): CI's macOS runner ceiling is five
+        // concurrent jobs, so `iossigner06-08` / `ioscoauthor06-08` could never be leased and were idle Clerk users on a
+        // 100-user development instance. The iOS pool IS that ceiling (see MAESTRO_PLATFORM_LANES); raising it is an
+        // append here plus an owner run of `poolAdmin --apply`.
         ...[5, 6, 7, 8].flatMap((n) => [
             lane(`signer${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
             coauthor(`coauthor${pad(n)}`),
         ]),
-        ...[5, 6, 7, 8].flatMap((n) => [
-            lane(`iossigner${pad(n)}`, { roles: ['premium'], signsInByPassword: true }),
-            coauthor(`ioscoauthor${pad(n)}`),
-        ]),
+        lane('iossigner05', { roles: ['premium'], signsInByPassword: true }),
+        coauthor('ioscoauthor05'),
     ],
     k6: [
         // Premium so the load scenarios' writes can be PRIVATE — a public write is visible to real users.
@@ -277,8 +287,8 @@ export const POOL_ROSTER: Readonly<Record<PoolTier, readonly PoolLane[]>> = {
         // `DOWNGRADED_OWNER_LANE_ID` — and the flows that sign in as it only READ, like every other lane here.
         lane(DOWNGRADED_OWNER_LANE_ID, { roles: ['default'], seedRoles: ['premium'], signsInByPassword: true }),
     ],
-    // One peer per web shard (see POOL_TIERS). Eight, the deployed matrix's size; the six stub shards use the first six.
-    webPeer: numbered('webpeer', 8, { signsInByPassword: true }),
+    // ONE peer for every web and stub shard (2026-11-06, see POOL_TIERS): it is only cook B in `sessionHandoff.spec.ts`.
+    webPeer: numbered('webpeer', 1, { signsInByPassword: true }),
 };
 
 /**
@@ -326,8 +336,8 @@ interface MaestroPlatformLanes {
  *
  * ⛔ Each platform's three lists are NOT the same length by obligation; signer and co-author are, because a shard needs
  * BOTH and {@link maestroShardCapacity} takes the minimum, so a half-declared shard is unrepresentable rather than a
- * run that leases one identity and fails on the other. The erasure set is Android `erasure01-05`, iOS `erasure06-10`:
- * the ten consumable users are split in half, one half per platform, and no new erasure user exists.
+ * run that leases one identity and fails on the other. The erasure set is Android `erasure01`, iOS `erasure06`:
+ * one consumable user per platform (the refill takes the first standing subject, so a spare never helped).
  *
  * The type is a `Record` over the platform union, so a platform added to {@link MAESTRO_PLATFORMS} without lanes is a
  * compile error. This module must not know about workflows; the workflow's side of the contract is held by
@@ -337,12 +347,12 @@ const MAESTRO_PLATFORM_LANES: Readonly<Record<MaestroPlatform, MaestroPlatformLa
     android: {
         signer: ['signer', ...[2, 3, 4, 5, 6, 7, 8].map((n) => `signer${pad(n)}`)],
         coauthor: ['coauthor', ...[2, 3, 4, 5, 6, 7, 8].map((n) => `coauthor${pad(n)}`)],
-        erasure: ['erasure01', 'erasure02', 'erasure03', 'erasure04', 'erasure05'],
+        erasure: ['erasure01'],
     },
     ios: {
-        signer: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `iossigner${pad(n)}`),
-        coauthor: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `ioscoauthor${pad(n)}`),
-        erasure: ['erasure06', 'erasure07', 'erasure08', 'erasure09', 'erasure10'],
+        signer: [1, 2, 3, 4, 5].map((n) => `iossigner${pad(n)}`),
+        coauthor: [1, 2, 3, 4, 5].map((n) => `ioscoauthor${pad(n)}`),
+        erasure: ['erasure06'],
     },
 };
 
@@ -363,7 +373,7 @@ function lanesFor(platform: MaestroPlatform): MaestroPlatformLanes {
  *
  * Bounded by the scarcer of the two identities EVERY shard needs — a signer and a co-author. The erasure subjects
  * do not bound it: they all belong to {@link MAESTRO_ERASURE_SHARD}, so no other shard needs one.
- * `runMaestroFlows.sh`'s `MAESTRO_MAX_SHARDS` is the shell-side copy of this number, and
+ * `runMaestroFlows.sh`'s per-platform `max-shards` is the shell-side copy of this number, and
  * `maestroShardPartition.test.ts` asserts the two agree from disk (neither language can typecheck the other).
  *
  * @param platform - `android` or `ios`.
@@ -424,10 +434,11 @@ export const MAESTRO_ERASURE_SHARD = 1;
  *
  * ## The lease contract (2026-10-08 stride -> one lane; 2026-10-13 one lane PER PLATFORM)
  *
- * The stride split the ten subjects across the shards, which was safe but wasted half of them: the flow plan always
+ * The stride split ten subjects across the shards, which was safe but wasted half of them: the flow plan always
  * packed `accountErasure` onto shard 2, so shard 1's five were leased and never erased while shard 2's five ran dry.
- * Then one shard of the matrix held all ten. Now each PLATFORM's shard 1 holds five of them (Android `erasure01-05`,
- * iOS `erasure06-10`) and the runner pins every erasing flow to it, so what keeps two runs off one subject is the LANE
+ * Then one shard of the matrix held all ten. Now each PLATFORM's shard 1 holds one (Android `erasure01`,
+ * iOS `erasure06`; ten were trimmed to two 2026-11-06, because the refill takes the first standing subject and fails
+ * unless every declared one can be leased) and the runner pins every erasing flow to it, so what keeps two runs off one subject is the LANE
  * that shard leases, not a partition of the slots:
  *
  *   - only a platform's erasure shard leases a subject, refills the subjects, or runs an erasing flow;
@@ -443,10 +454,10 @@ export const MAESTRO_ERASURE_SHARD = 1;
  * nothing, so none can erase the wrong KIND of account:
  *
  *   - **A local run holds no lane.** `local-sandbox`'s `localMaestro.sh` runs as Android shard 1 against the same
- *     sandbox Clerk instance and leases from the same five, so a local run concurrent with a CI Android lane-1 job can
+ *     sandbox Clerk instance and leases the same subject, so a local run concurrent with a CI Android lane-1 job can
  *     lease the same subject, and one of the two erasures fails.
  *   - **A run of OLDER code on another branch.** The previous workflow gave every platform's shard 1 all ten subjects
- *     and one shared group, so an old-code Android shard 1 can draw `erasure06-10` while a new iOS shard 1 holds them.
+ *     and one shared group, so an old-code Android shard 1 can draw `erasure06` while a new iOS shard 1 holds it.
  *     It clears as branches pick up this change.
  *   - **Erasure is asynchronous** (identity, the deletion queue, the worker, then Clerk), so a subject a cancelled
  *     run had started erasing can still exist when the next holder leases it, and be deleted under that holder's
@@ -480,8 +491,9 @@ export const POOL_NAMESPACE_ENV = 'E2E_POOL_NAMESPACE';
  *
  * - `shared` — the sandbox pool CI and the deployed suites lease. The default, and the only value any workflow sets.
  * - `local` — users that exist for a developer's machine alone (`test-local-{id}+clerk_test@…`), on the same Clerk
- *   instance. A local run erases and refills its erasure subjects, and the local stack's deletion worker deletes them
- *   from Clerk; they must never be CI's. `poolAdmin` mints their `external_id` itself, because the identity webhook
+ *   instance. A local run erases and refills its erasure subjects, but the local stack runs NO deletion worker
+ *   (`queueConsumers.ts` marks `deletionWorker` not-run: identity's deletion queue URL is a placeholder locally), so
+ *   `poolAdmin --recycle` / `--delete-consumables` delete them from Clerk instead; they must never be CI's. `poolAdmin` mints their `external_id` itself, because the identity webhook
  *   that writes it for the shared pool belongs to the sandbox and is down when the sandbox is.
  */
 export type PoolNamespace = 'shared' | 'local';
@@ -603,7 +615,9 @@ export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number)
         throw new Error(`test pool: shard must be a positive integer, got ${String(shard)}`);
     }
 
-    const declared = POOL_ROSTER[tier][shard - 1];
+    // `webStub` and `webPeer` are never leased, reset or swept, so every shard shares their ONE lane. Only `web`,
+    // whose lanes are leases, gives each shard a user of its own.
+    const declared = POOL_ROSTER[tier][tier === 'web' ? shard - 1 : 0];
 
     if (declared === undefined) {
         throw new Error(
@@ -616,21 +630,21 @@ export function slotForShard(tier: 'web' | 'webStub' | 'webPeer', shard: number)
 }
 
 /**
- * The peer of a web slot: the `webPeer` lane at the same index, the SECOND cook `sessionHandoff.spec.ts` signs in after
+ * The peer of a web slot: the one `webPeer` lane, the SECOND cook `sessionHandoff.spec.ts` signs in after
  * the slot's own user signs out. Pure but for the `E2E_POOL_NAMESPACE` it reads ({@link PoolNamespace}).
  *
- * Derived from the slot rather than from a shard number so a caller that already holds its slot (`webPoolSlot`) does
- * not parse the shard a second time. It throws for a slot of any other tier.
+ * Takes the slot rather than a shard number so a caller that already holds its slot (`webPoolSlot`) does not parse the
+ * shard a second time. It throws for a slot of any other tier.
  *
  * @param slot - A `web` or `webStub` slot.
- * @throws When the slot is not a web slot, or the peer tier declares no lane for its index.
+ * @throws When the slot is not a web slot.
  */
 export function peerSlotFor(slot: PoolSlot): PoolSlot {
     if (slot.tier !== 'web' && slot.tier !== 'webStub') {
         throw new Error(`test pool: only a web slot has a peer, got ${slot.tier}/${slot.id}`);
     }
 
-    return slotForShard('webPeer', POOL_ROSTER[slot.tier].findIndex((declared) => declared.id === slot.id) + 1);
+    return slotForShard('webPeer', 1);
 }
 
 /**

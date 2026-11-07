@@ -16,10 +16,11 @@ import { nativeTokens } from '@commise/ui/native';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
-import type { FC } from 'react';
+import { Fragment, type FC } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@commise/ui/text';
 
+import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
 import { IngredientCheckBoxSlot, IngredientRowDivider } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
@@ -119,11 +120,15 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                                     )}
                                 </Text>
                                 {parts === undefined &&
-                                    notes.map((note) => (
-                                        <Text key={note} typeRole="body" color="$inkMuted">
-                                            {' '}
-                                            {note}
-                                        </Text>
+                                    notes.map((note, index) => (
+                                        <Fragment key={note}>
+                                            <Text typeRole="body" color="$inkMuted">
+                                                {index === 0 ? PREP_JOINER : ' '}
+                                            </Text>
+                                            <Text typeRole="body" color="$inkMuted">
+                                                {note}
+                                            </Text>
+                                        </Fragment>
                                     ))}
                             </Text>
                             {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}

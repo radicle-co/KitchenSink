@@ -31,6 +31,24 @@ const lamb = makeIngredientView({
 });
 
 describe('IngredientCheckRow (native)', () => {
+    // designAnswers.md 2026-11-06 fractions item 6: "unsalted butter · melted", the no-break space before the dot, and the
+    // line is named with a comma so the dot is never spoken.
+    it('⛔ joins the preparation to the name with a no-break space and a dot, and names the line with a comma', () => {
+        const butter = makeIngredientView({
+            ingredientId: 'ing_butter',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'tablespoons',
+            name: 'unsalted butter',
+            preparation: 'melted',
+        });
+        render(<IngredientCheckRow ingredient={butter} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        const row = screen.getByRole('checkbox');
+
+        expect(row.getAttribute('aria-label')).toContain('unsalted butter, melted');
+        expect(row.textContent).toContain('unsalted butter\u00A0· melted');
+    });
+
     // ADR-0080 §8: at the largest iOS text size body text stops at 2× (32 pt), and so does the stand-in chip's label
     // (2× its 14 pt caption), which was a raw React Native Text that iOS scaled without a cap.
     it('⛔ draws a stand-in row’s amount at 2× body and its chip label at 2× caption at a text scale of 3.1', () => {

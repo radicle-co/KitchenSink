@@ -32,6 +32,7 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useRef, type FC, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { PREP_JOINER } from '../format/prepJoiner.js';
 import { ingredientCommitFailureId, ingredientNoFoodNoteId, ingredientStandInId } from './fieldErrorIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
@@ -125,7 +126,7 @@ const OpenControl: FC<{
                         {amount !== null && ' '}
                         {row.displayName}
                         {row.prepText !== undefined && (
-                            <Text typeRole="body" color="$inkMuted">{`\u00A0· ${row.prepText}`}</Text>
+                            <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.prepText}`}</Text>
                         )}
                     </Text>
                 )}

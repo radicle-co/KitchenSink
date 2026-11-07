@@ -72,6 +72,13 @@ describe('checkScreenFiles', () => {
         expect(out.text).toContain('android other: add HomeScreen');
     });
 
+    it("reports each flow's last result per platform", () => {
+        const file = write('a.tsv', 'result\thome\tfailed\nscreen\thome\tHomeScreen\nresult\thome\tpassed\n');
+        const out = checkScreenFiles([{ platform: 'android', file }], coverage, new Set());
+
+        expect(out.results.get('android')?.get('home')).toBe('passed');
+    });
+
     it('treats a lane that wrote no file as having run no flow', () => {
         const out = checkScreenFiles([{ platform: 'android', file: join(dir, 'none.tsv') }], coverage, new Set());
 

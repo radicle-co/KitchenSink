@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkScreens, parseScreenRecords, renderScreenCheck, type ScreenRecord } from '../src/screenCheck.js';
+import {
+    checkScreens,
+    flowOutcomes,
+    parseScreenRecords,
+    renderScreenCheck,
+    type ScreenRecord,
+} from '../src/screenCheck.js';
 
 const coverage = new Map<string, ReadonlySet<string>>([
     ['recipes/rating', new Set(['HomeScreen', 'RecipeDetailScreen', 'RecipeEditorScreen', 'RecipeVersionsScreen'])],
@@ -140,5 +146,29 @@ describe('renderScreenCheck', () => {
         expect(text).toContain('home: add RecipeDetailScreen to its row in maestroFlowScreens.tsv');
         expect(text).toContain('a: passed and recorded no screen');
         expect(text).toContain('home: row is wider than observed by RecipeListScreen (has when: branches');
+    });
+});
+
+describe('flowOutcomes', () => {
+    const results = new Map([
+        ['a', 'passed'],
+        ['b', 'failed'],
+        ['c', 'skipped'],
+    ] as const);
+
+    it('counts the expected flows by their recorded result', () => {
+        expect(flowOutcomes(['a', 'b', 'c'], results)).toEqual({ passed: 1, failed: 1, skipped: 1 });
+    });
+
+    it('counts an expected flow with no result as skipped: it never ran, and a skip is not a pass', () => {
+        expect(flowOutcomes(['a', 'never'], results)).toEqual({ passed: 1, failed: 0, skipped: 1 });
+    });
+
+    it('ignores a result for a flow nobody expected', () => {
+        expect(flowOutcomes(['a'], results)).toEqual({ passed: 1, failed: 0, skipped: 0 });
+    });
+
+    it('counts nothing for nothing expected', () => {
+        expect(flowOutcomes([], results)).toEqual({ passed: 0, failed: 0, skipped: 0 });
     });
 });

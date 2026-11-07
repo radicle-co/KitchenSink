@@ -149,3 +149,35 @@ export function renderScreenCheck(check: ScreenCheck, platform: string): string 
         .map((line) => `${line}\n`)
         .join('');
 }
+
+/**
+ * Counts the flows a run was meant to run by what it recorded for each.
+ *
+ * A flow with no result never ran, and that is a skip: it is not a pass, and the green stamp must not move over it.
+ *
+ * @param expected - The flows the lanes were given.
+ * @param results - Each flow's recorded result.
+ * @returns The counts, over the expected flows only.
+ */
+export function flowOutcomes(
+    expected: readonly string[],
+    results: ReadonlyMap<string, FlowResult>,
+): { readonly passed: number; readonly failed: number; readonly skipped: number } {
+    const count = (wanted: FlowResult): number => expected.filter((flow) => results.get(flow) === wanted).length;
+    const passed = count('passed');
+    const failed = count('failed');
+
+    return { passed, failed, skipped: expected.length - passed - failed };
+}
+
+/**
+ * Each flow's result in a run's records; a flow recorded twice keeps its last.
+ *
+ * @param records - The records.
+ * @returns Flow to result.
+ */
+export function resultsOf(records: readonly ScreenRecord[]): ReadonlyMap<string, FlowResult> {
+    return new Map(
+        records.flatMap((record) => (record.kind === 'result' ? [[record.flow, record.result] as const] : [])),
+    );
+}

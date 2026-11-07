@@ -8,11 +8,15 @@ import { plannedFlows } from './plannedFlows.js';
 import { FLOW_TABLE, MOBILE_PASS_THROUGH } from './repoModels.js';
 import {
     checkScreens,
+    resultsOf,
+    type FlowResult,
     parseScreenRecords,
     renderScreenCheck,
     type ScreenCheck,
     type ScreenRecord,
 } from './screenCheck.js';
+
+export { flowOutcomes, type FlowResult } from './screenCheck.js';
 
 const MAESTRO = 'packages/apps/commise/mobile/.maestro';
 
@@ -28,6 +32,8 @@ export interface ScreenReport {
     /** True when a flow saw a screen its row lacks, or passed having recorded nothing. A wider row never fails. */
     readonly failed: boolean;
     readonly text: string;
+    /** Each platform's flows by recorded result. */
+    readonly results: ReadonlyMap<string, ReadonlyMap<string, FlowResult>>;
     readonly checks: readonly { readonly platform: string; readonly check: ScreenCheck }[];
 }
 
@@ -66,6 +72,7 @@ export function checkScreenFiles(
         ),
         failed: checks.some(({ check }) => check.missing.length > 0 || check.silent.length > 0),
         text: checks.map(({ platform, check }) => renderScreenCheck(check, platform)).join(''),
+        results: new Map(checks.map(({ platform, records }) => [platform, resultsOf(records)] as const)),
         checks: checks.map(({ platform, check }) => ({ platform, check })),
     };
 }

@@ -45,6 +45,31 @@ describe('buildImportGraph', () => {
         expect(graph.importsOf('apps/web/src/lib/a.ts')).toEqual(['packages/core/src/deep.ts']);
     });
 
+    it('maps each raw specifier of a file to the file it resolved to, so a name-level walk can match an import to its edge', async () => {
+        const graph = await buildImportGraph(repo.root, web);
+
+        expect(graph.specifiersOf('apps/web/src/app/page.tsx')).toEqual(
+            new Map([
+                ['@fx/ui', 'packages/ui/src/index.ts'],
+                ['@fx/ui/tokens/colors', 'packages/ui/src/tokens/colors.ts'],
+                ['@fx/core', 'packages/core/src/index.ts'],
+                ['@/lib/a', 'apps/web/src/lib/a.ts'],
+            ]),
+        );
+    });
+
+    it('follows the platform order in the specifier map: the same `./button` is the native leaf on mobile', async () => {
+        const graph = await buildImportGraph(repo.root, mobile);
+
+        expect(graph.specifiersOf('apps/mobile/src/screen.tsx').get('./button')).toBe(
+            'apps/mobile/src/button.native.tsx',
+        );
+    });
+
+    it('has no specifiers for a file it does not hold', async () => {
+        expect((await buildImportGraph(repo.root, web)).specifiersOf('nope.ts').size).toBe(0);
+    });
+
     it('lists every file it holds, so a registry can be derived from it', async () => {
         const graph = await buildImportGraph(repo.root, web);
 

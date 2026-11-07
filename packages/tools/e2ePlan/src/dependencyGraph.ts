@@ -46,6 +46,8 @@ export interface ImportGraph {
     readonly importersOf: (file: string) => readonly string[];
     /** The files `file` imports, repo-relative and sorted. */
     readonly importsOf: (file: string) => readonly string[];
+    /** The raw specifier of each import of `file`, as written, to the file it resolved to. Unresolved ones are absent. */
+    readonly specifiersOf: (file: string) => ReadonlyMap<string, string>;
     /** Every import of the repo's own code that the graph could not follow. Not empty means the graph is incomplete. */
     readonly problems: readonly string[];
 }
@@ -221,6 +223,7 @@ export async function buildImportGraph(repo: string, profile: GraphProfile): Pro
     );
     const importers = new Map<string, Set<string>>();
     const imports = new Map<string, Set<string>>();
+    const specifiers = new Map<string, Map<string, string>>();
     const problems: string[] = [];
 
     const isOwn = (specifier: string): boolean =>
@@ -238,6 +241,13 @@ export async function buildImportGraph(repo: string, profile: GraphProfile): Pro
                 set.add(module.source);
                 importers.set(dependency.resolved, set);
                 imports.set(module.source, (imports.get(module.source) ?? new Set<string>()).add(dependency.resolved));
+                specifiers.set(
+                    module.source,
+                    (specifiers.get(module.source) ?? new Map<string, string>()).set(
+                        dependency.module,
+                        dependency.resolved,
+                    ),
+                );
             }
 
             const builtOnDemand = /(^|\/)dist\//u.test(dependency.resolved) || dependency.resolved.endsWith('.d.ts');
@@ -255,6 +265,7 @@ export async function buildImportGraph(repo: string, profile: GraphProfile): Pro
         files: [...files].sort(),
         importersOf: (file) => [...(importers.get(file) ?? [])].sort(),
         importsOf: (file) => [...(imports.get(file) ?? [])].sort(),
+        specifiersOf: (file) => specifiers.get(file) ?? new Map<string, string>(),
         problems: [...new Set(problems)].sort(),
     };
 }

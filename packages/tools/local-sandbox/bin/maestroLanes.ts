@@ -24,6 +24,7 @@ import { inspect } from 'node:util';
 
 import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
+import { checkRecordedScreens } from '@kitchensink/e2e-plan/recordedScreens';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 
 import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
@@ -31,7 +32,7 @@ import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
 import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs } from '../src/maestroLanes/lanePlanning.js';
-import { spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
+import { SCREEN_RECORD_FILE, spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
@@ -518,6 +519,22 @@ async function main(argv: readonly string[]): Promise<number> {
             }
 
             return child;
+        },
+        checkScreens: (lanes) => {
+            const report = checkRecordedScreens(
+                REPO_ROOT,
+                lanes.map((lane) => ({ platform: lane.platform, file: path.join(lane.stateDir, SCREEN_RECORD_FILE) })),
+            );
+
+            for (const line of report.text.split('\n').filter((text) => text !== '')) {
+                log(line);
+            }
+
+            if (report.flows === 0) {
+                log('no flow recorded a result, so the recorder did not run and no screen was checked');
+            }
+
+            return Promise.resolve(report.failed ? 1 : 0);
         },
         aborted: () => aborted,
         staggerMs: Number(process.env['MAESTRO_LANE_STAGGER_SECONDS'] ?? 20) * 1000,

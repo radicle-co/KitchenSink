@@ -140,6 +140,7 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
 
                 return Promise.resolve();
             },
+            checkScreens: () => Promise.resolve(0),
             spawnLane: (lane, laneEnv) =>
                 spawnRunner({ script: runner, cwd: state, env: laneEnv, log: path.join(lane.stateDir, 'runner.log') }),
             staggerMs: 50,
@@ -182,6 +183,18 @@ describe('runLaneRun — a lane run over fakes', () => {
             expect(env['E2E_POOL_NAMESPACE']).toBe('local');
             expect(env['E2E_ROLE_USERS_NAMESPACE']).toBe('shared');
             expect(env['KEEP']).toBe('me');
+        }
+    });
+
+    it('tells each lane where to record the screens it shows', async () => {
+        const { state, deps } = harness();
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+        for (const index of [1, 2]) {
+            expect(envOf(laneFile(state, index))['MAESTRO_SCREEN_RECORD']).toBe(
+                path.join(state, 'lanes', `android-${index}`, 'screenRecord.tsv'),
+            );
         }
     });
 
@@ -425,5 +438,67 @@ describe('runLaneRun — the run users', () => {
         expect(events).toContain('stopDevice android-2');
         expect(events).toContain('teardownHost android');
         expect(events.at(-1)).toBe('unlock');
+    });
+});
+
+describe('runLaneRun — the screen check folds into the exit code', () => {
+    it('hands the check every lane, after the lanes exit', async () => {
+        const seen: string[][] = [];
+        const { deps } = harness({
+            checkScreens: (lanes) => {
+                seen.push(lanes.map((lane) => `${lane.platform}-${lane.index}`));
+
+                return Promise.resolve(0);
+            },
+        });
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+        expect(seen).toEqual([['android-1', 'android-2']]);
+    });
+
+    it('fails a run whose lanes all passed when the check fails', async () => {
+        const { deps } = harness({ checkScreens: () => Promise.resolve(1) });
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' })).toBe(1);
+    });
+
+    it('keeps the worst lane code when it is worse than the check', async () => {
+        const { deps } = harness({ checkScreens: () => Promise.resolve(1) }, { EXIT_2: '3' });
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' })).toBe(3);
+    });
+
+    it('still tears everything down when the check throws, and reports the throw', async () => {
+        const { events, deps } = harness({
+            checkScreens: () => Promise.reject(new Error('damaged record')),
+        });
+
+        await expect(runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).rejects.toThrow(
+            'damaged record',
+        );
+        expect(events).toContain('stopDevice android-1');
+        expect(events).toContain('unlock');
+    });
+
+    it('does not run the check for a run the operator stopped', async () => {
+        let calls = 0;
+        let stopped = false;
+        const { deps } = harness({
+            aborted: () => stopped,
+            checkScreens: () => {
+                calls += 1;
+
+                return Promise.resolve(1);
+            },
+            spawnLane: (lane, env) => {
+                stopped = true;
+
+                return spawnRunner({ script: '/bin/true', cwd: '/', env, log: path.join(lane.stateDir, 'runner.log') });
+            },
+        });
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).toBe(130);
+        expect(calls).toBe(0);
     });
 });

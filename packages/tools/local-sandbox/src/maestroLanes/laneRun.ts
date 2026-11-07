@@ -59,6 +59,11 @@ export interface LaneRunDeps {
     /** After the lane's pool reset: align its identities and provision its world into its manifest. */
     setupLane(lane: LaneSpec, env: Env): Promise<void>;
     spawnLane(lane: LaneSpec, env: Env): LaneChild;
+    /**
+     * After the lanes exit: checks the screens their flows showed against the registry. Answers 0 or a failing code,
+     * which folds into the run's exit code.
+     */
+    checkScreens(lanes: readonly LaneSpec[]): Promise<number>;
     /** True once the operator asked the run to stop. */
     aborted(): boolean;
     readonly staggerMs: number;
@@ -273,7 +278,11 @@ async function runPlanned(
 
         const codes = await Promise.all(exits);
 
-        return deps.aborted() ? ABORTED : Math.max(...codes);
+        if (deps.aborted()) {
+            return ABORTED;
+        }
+
+        return Math.max(...codes, await deps.checkScreens(lanes));
     };
 
     // Every step runs whatever the one before it did. The services stop before the run users go (a lane's reset needs

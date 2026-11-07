@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { ANDROID_LANE_SERIALS, createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
 import type { LaneSpec } from '../laneTypes.js';
@@ -68,7 +68,14 @@ function scripted(answers: readonly (readonly [string, string, number])[], manif
 }
 
 const adapter = (port: CommandPort) =>
-    createAndroidAdapter({ ...ORIGINS, repoRoot: '/repo', avd: 'ci_pixel6', commands: port, bootTimeoutMs: 60_000 });
+    createAndroidAdapter({
+        ...ORIGINS,
+        repoRoot: '/repo',
+        avd: 'ci_pixel6',
+        commands: port,
+        bootTimeoutMs: 60_000,
+        environment: {},
+    });
 
 describe('the Android lane devices', () => {
     it('is the serial table, as a literal, starting past emulator-5554', () => {
@@ -146,6 +153,7 @@ describe('startDevice — boot an emulator the lane owns, then install the app',
                 avd: 'ci_pixel6',
                 commands: port,
                 bootTimeoutMs: 0,
+                environment: {},
             }).startDevice(lane(1)),
         ).rejects.toThrow(/did not finish booting/u);
         expect(calls).toContain('killGroup 99');
@@ -198,6 +206,56 @@ describe('prepareHost — the embedded-bundle test app, built only when its cont
         const verify = calls.findIndex((call) => call.includes('verify-manifest'));
         expect(build).toBeGreaterThan(-1);
         expect(verify).toBeGreaterThan(build);
+    });
+
+    /**
+     * Found by the first full run of 2026-11-07: the build ran with the orchestrator's own environment, which has no
+     * Android toolchain (`localMaestro.sh` puts JAVA_HOME and ANDROID_HOME in the run's environment, not in the process),
+     * so Gradle failed and no lane started.
+     */
+    it('builds with the run’s environment, never the orchestrator process’s own', async () => {
+        vi.stubEnv('ONLY_IN_THE_PROCESS', 'leaked');
+        const envs: Record<string, string | undefined>[] = [];
+        const { port } = scripted([['content-key', 'def456\n', 0]]);
+        const recording: CommandPort = {
+            ...port,
+            run: (command, args, options) => {
+                if (args.at(-1) === 'android' && args.length === 2) {
+                    envs.push({ ...options?.env });
+                }
+
+                return port.run(command, args, options);
+            },
+        };
+
+        await createAndroidAdapter({
+            ...ORIGINS,
+            repoRoot: '/repo',
+            avd: 'ci_pixel6',
+            commands: recording,
+            bootTimeoutMs: 60_000,
+            environment: { JAVA_HOME: '/jdk17', ANDROID_HOME: '/android-sdk' },
+        }).prepareHost(run);
+
+        expect(envs).toHaveLength(1);
+        expect(envs[0]).toMatchObject({
+            JAVA_HOME: '/jdk17',
+            ANDROID_HOME: '/android-sdk',
+            EXPO_PUBLIC_RECIPE_API_URL: ORIGINS.recipeOrigin,
+            EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ORIGINS.publishableKey,
+            TEST_APP_CONTENT_KEY: 'def456',
+        });
+        expect(envs[0]?.['ONLY_IN_THE_PROCESS']).toBeUndefined();
+        vi.unstubAllEnvs();
+    });
+
+    it('names why the build failed, from the build’s own last lines', async () => {
+        const { port } = scripted([
+            ['content-key', 'k2\n', 0],
+            [' android', 'line 1\nSDK location not found. Define ANDROID_HOME.\n', 1],
+        ]);
+
+        await expect(adapter(port).prepareHost(run)).rejects.toThrow(/SDK location not found/u);
     });
 
     it('builds when there is no app yet', async () => {

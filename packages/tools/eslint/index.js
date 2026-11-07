@@ -326,6 +326,7 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `recordedRoutes` compares the routes a run recorded with the registry. The package barrel stays the lane planner.
         '!@kitchensink/*/runPlan',
         '!@kitchensink/*/recordedRoutes',
+        '!@kitchensink/*/recordedScreens',
         // `packLanes` splits the listed tests across the lanes by recorded duration (the web door's `e2eLanes.ts`).
         '!@kitchensink/*/packLanes',
         // `ciMatrix` sizes the CI web matrix from the selection (`e2eSelectCi.ts`); the pool's size comes from `testPool`.

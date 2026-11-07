@@ -4,14 +4,14 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 192,
-        "implementations": 326,
+        "components": 193,
+        "implementations": 327,
         "props": 2282,
-        "documentedComponents": 192,
-        "implementationsWithModuleDoc": 326,
+        "documentedComponents": 193,
+        "implementationsWithModuleDoc": 327,
         "implementationsWithComponentDoc": 216,
         "documentedProps": 1762,
-        "classifiedComponents": 170,
+        "classifiedComponents": 171,
         "componentsWithPatternTag": 92,
         "crossPlatformComponents": 134
     },
@@ -7287,7 +7287,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/IngredientCheckRow.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — the web ingredient row the cook checks off (build spec §6.3).\n\nThe WHOLE row is one checkbox — a `button` with `role=\"checkbox\"` at least 44 px tall — named with the full line\n(`ingredientRowName`), and described by the statuses it carries. Checked, the box fills with the signature motion and\nthe text dims to `inkMuted`: no strike-through, because a cook re-reads a checked amount and a strike-through damages\nthe word shape.\n\nThe amount, the name, a variant's parts, the preparation, the notes and the badges are ONE flowing text block, so\nat 320 px they break only at spaces and a badge wraps under the name (`namelessLineCopy.md` §2c).\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the web ingredient row the cook checks off (build spec §6.3).\n\nThe WHOLE row is one checkbox — a `button` with `role=\"checkbox\"` at least 44 px tall — named with the full line\n(`ingredientRowName`), and described by the statuses it carries. Checked, the box fills with the signature motion and\nthe text dims to `inkMuted`: no strike-through, because a cook re-reads a checked amount and a strike-through damages\nthe word shape.\n\nThe amount, the name, a variant's parts, the preparation, the notes and the badges are ONE flowing text block, so\nat 320 px they break only at spaces and a badge wraps under the name (`namelessLineCopy.md` §2c). A stand-in is a\nchip, not text, so its amount (or a lone unit) is a line of its own above it (`designAnswers.md` #144 item 12).\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -21330,6 +21330,48 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/format/AmountText.tsx"
                         }
                     ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/format/PrepJoin",
+            "name": "PrepJoin",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/format",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PrepJoin",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/format/PrepJoin.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/format",
+                    "moduleDoc": "@commise/features-recipes/format — a preparation joined to the name before it, on the web (`prepJoiner.ts`).\n\nThe eye reads \"· melted\" in the muted ink; a screen reader skips the dot and hears the hidden comma, \"unsalted butter,\nmelted\" (UI Designer). Native has no markup to share: its rows put `PREP_JOINER` in the text and name the row with a\ncomma in the `accessibilityLabel`.\n\nPresentational: props to text.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/format — a preparation joined to the name before it, on the web (`prepJoiner.ts`)."
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {

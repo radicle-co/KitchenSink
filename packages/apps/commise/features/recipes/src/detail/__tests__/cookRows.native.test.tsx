@@ -3,10 +3,11 @@
  * row is one `checkbox` named with the full line, dimmed when checked; a step's numeral is its own `button` with a
  * selected state, the step text stays content, and a press anywhere on the step moves the marker for touch users.
  */
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render, resolvedColour } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';
@@ -30,6 +31,46 @@ const lamb = makeIngredientView({
 });
 
 describe('IngredientCheckRow (native)', () => {
+    // designAnswers.md 2026-11-06 fractions item 6: "unsalted butter · melted", the no-break space before the dot, and the
+    // line is named with a comma so the dot is never spoken.
+    it('⛔ joins the preparation to the name with a no-break space and a dot, and names the line with a comma', () => {
+        const butter = makeIngredientView({
+            ingredientId: 'ing_butter',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'tablespoons',
+            name: 'unsalted butter',
+            preparation: 'melted',
+        });
+        render(<IngredientCheckRow ingredient={butter} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        const row = screen.getByRole('checkbox');
+
+        expect(row.getAttribute('aria-label')).toContain('unsalted butter, melted');
+        expect(row.textContent).toContain('unsalted butter\u00A0· melted');
+    });
+
+    // ADR-0080 §8: at the largest iOS text size body text stops at 2× (32 pt), and so does the stand-in chip's label
+    // (2× its 14 pt caption), which was a raw React Native Text that iOS scaled without a cap.
+    it('⛔ draws a stand-in row’s amount at 2× body and its chip label at 2× caption at a text scale of 3.1', () => {
+        const hidden = makeIngredientView({
+            ingredientId: 'ing_hidden',
+            name: '',
+            resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        });
+        renderWithTamagui(
+            <IngredientCheckRow ingredient={hidden} checked={false} allRemoved={false} onToggle={vi.fn()} />,
+            'light',
+            3.1,
+        );
+
+        expect(getComputedStyle(screen.getByText('2 tbsp', { exact: false })).fontSize).toBe(
+            `${String(nativeTokens.type.body.fontSize * 2)}px`,
+        );
+        expect(getComputedStyle(screen.getByText('Private ingredient', { exact: false })).fontSize).toBe(
+            `${String(nativeTokens.type.caption.fontSize * 2)}px`,
+        );
+    });
+
     it('is one checkbox named with the whole line, reporting its key', () => {
         const onToggle = vi.fn();
         render(<IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={onToggle} />);

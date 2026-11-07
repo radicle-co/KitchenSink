@@ -3,15 +3,19 @@
  * §S4). React Native has no hidden span, so the screen reader hears the `accessibilityLabel`, and a measurement token
  * keeps its hyphen by showing U+2011 instead of a `nowrap` span.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen, type RenderResult } from '@testing-library/react';
 import { formatRgb } from 'culori';
 import { Text } from 'react-native';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import { palette } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
-import { fontSize } from '../../tokens/scale.js';
 import { VariantPartsLine } from '../VariantPartsLine.native.js';
+
+/** The line draws through the design system's Text, so it renders in its provider. */
+const render = (ui: Parameters<typeof renderWithTamagui>[0], textScale = 1): RenderResult =>
+    renderWithTamagui(ui, 'light', textScale);
 
 afterEach(cleanup);
 
@@ -84,13 +88,13 @@ describe('VariantPartsLine (native)', () => {
             </>,
         );
 
-        const secondary = getComputedStyle(screen.getByLabelText('flat half'));
-        const primary = getComputedStyle(screen.getByLabelText('point end'));
+        const secondary = screen.getByLabelText('flat half');
+        const primary = screen.getByLabelText('point end');
 
-        expect(secondary.color).toBe(formatRgb(palette.slate));
-        expect(secondary.fontSize).toBe(`${fontSize.bodySm}px`);
-        expect(primary.color).toBe(formatRgb(palette.charcoal));
-        expect(primary.fontSize).toBe(`${fontSize.bodyMd}px`);
+        expect(resolvedColour(secondary, 'color')).toBe(formatRgb(palette.slate));
+        expect(getComputedStyle(secondary).fontSize).toBe(`${nativeTokens.type.meta.fontSize}px`);
+        expect(resolvedColour(primary, 'color')).toBe(formatRgb(palette.charcoal));
+        expect(getComputedStyle(primary).fontSize).toBe(`${nativeTokens.type.body.fontSize}px`);
     });
 
     /**
@@ -98,6 +102,24 @@ describe('VariantPartsLine (native)', () => {
      * the same line height web inherits. With no `lineHeight`, React Native fell back to its default of about 1.2.
      * REWRITTEN for the px model (2026-10-25): it asserted `size × 1.5` (21 for the 14 px tone), which is off the 4 px grid.
      */
+    // ADR-0080 §8: a role stops at 2× its base size at the largest text size; a raw React Native Text grew past it on iOS.
+    it('⛔ draws each tone at 2× its role at a system text scale of 3.1, not 3.1×', () => {
+        render(
+            <>
+                <VariantPartsLine parts={['flat half']} tone="secondary" />
+                <VariantPartsLine parts={['point end']} tone="primary" />
+            </>,
+            3.1,
+        );
+
+        expect(getComputedStyle(screen.getByLabelText('flat half')).fontSize).toBe(
+            `${nativeTokens.type.meta.fontSize * 2}px`,
+        );
+        expect(getComputedStyle(screen.getByLabelText('point end')).fontSize).toBe(
+            `${nativeTokens.type.body.fontSize * 2}px`,
+        );
+    });
+
     it('sets each tone at its role’s px leading, on the 4 px grid', () => {
         render(
             <>

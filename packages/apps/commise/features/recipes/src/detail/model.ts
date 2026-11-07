@@ -1114,3 +1114,16 @@ export function stepTimerLabel(
 
     return said === undefined ? undefined : fillTemplate(template, { duration: said });
 }
+
+/**
+ * The muted words after a line's name: the preparation, then the notes override (the board's order), with the empty
+ * ones dropped. Both detail leaves draw them, the first joined to the name by `PREP_JOINER`. Pure.
+ *
+ * @param ingredient - The line.
+ * @returns The words, in the order they are drawn.
+ */
+export function lineTailOf(ingredient: Pick<RecipeIngredientView, 'preparation' | 'notes'>): readonly string[] {
+    return [ingredient.preparation, ingredient.notes].filter(
+        (words): words is string => words !== undefined && words.length > 0,
+    );
+}

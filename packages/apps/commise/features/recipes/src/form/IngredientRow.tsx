@@ -33,6 +33,7 @@ import {
     ingredientPendingTextId,
     ingredientStandInId,
 } from './fieldErrorIds.js';
+import { PrepJoin } from '../format/PrepJoin.js';
 import { ingredientRowId } from './fieldIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
@@ -101,14 +102,7 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
                             </>
                         )}
                         {row.displayName}
-                        {row.prepText !== undefined && (
-                            <span className="text-ink-muted">
-                                {/* The "·" is never spoken: a screen reader hears the hidden comma (UI Designer). */}
-                                <span aria-hidden="true">{'\u00A0· '}</span>
-                                <span className="sr-only">, </span>
-                                {row.prepText}
-                            </span>
-                        )}
+                        {row.prepText !== undefined && <PrepJoin>{row.prepText}</PrepJoin>}
                     </span>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}

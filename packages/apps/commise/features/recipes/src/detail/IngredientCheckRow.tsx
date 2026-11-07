@@ -9,7 +9,8 @@
  * the word shape.
  *
  * The amount, the name, a variant's parts, the preparation, the notes and the badges are ONE flowing text block, so
- * at 320 px they break only at spaces and a badge wraps under the name (`namelessLineCopy.md` §2c).
+ * at 320 px they break only at spaces and a badge wraps under the name (`namelessLineCopy.md` §2c). A stand-in is a
+ * chip, not text, so its amount (or a lone unit) is a line of its own above it (`designAnswers.md` #144 item 12).
  *
  * Presentational: props → JSX.
  */
@@ -22,11 +23,12 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useId, type FC } from 'react';
 
+import { PrepJoin } from '../format/PrepJoin.js';
 import { recipeMessages } from '../messages.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
-import { formatAmount, isLineFoodRemoved } from './model.js';
+import { formatAmount, isLineFoodRemoved, lineTailOf } from './model.js';
 
 /**
  * A hairline above a row, inset to where its text starts (the 16 gutter, the 18 box, a 12 gap): drawn on the `li`, so it is
@@ -49,6 +51,9 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
+    const standIn = isStandInName(ingredient);
+    const tail = lineTailOf(ingredient);
+    const amountFigure = <span className="font-semibold tabular-nums lining-nums">{amount}</span>;
 
     return (
         <li className={divided ? DIVIDED_ROW : undefined}>
@@ -74,12 +79,10 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     data-line-text
                     className={`min-w-0 flex-1 break-words text-body transition-colors motion-reduce:transition-none ${checked ? 'text-ink-muted' : 'text-ink'}`}
                 >
-                    {amount !== '' && (
-                        <>
-                            <span className="font-semibold tabular-nums lining-nums">{amount}</span>{' '}
-                        </>
-                    )}
-                    {isStandInName(ingredient) ? (
+                    {/* A stand-in is a chip, not text: its amount (or a lone unit) is the line above it, never on the
+                        chip's line (designAnswers.md #144 item 12). */}
+                    {amount !== '' && (standIn ? <span className="block">{amountFigure}</span> : <>{amountFigure} </>)}
+                    {standIn ? (
                         <StandIn tone={isLineFoodRemoved(ingredient) ? 'caution' : 'neutral'}>
                             {lineDisplayName(ingredient, ingredientLineName)}
                         </StandIn>
@@ -93,17 +96,15 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                             <VariantPartsLine parts={parts} tone="secondary" />
                         </span>
                     )}
-                    {ingredient.preparation !== undefined && ingredient.preparation.length > 0 && (
-                        <>
-                            {' '}
-                            <span className="text-ink-muted">{ingredient.preparation}</span>
-                        </>
-                    )}
-                    {ingredient.notes !== undefined && ingredient.notes.length > 0 && (
-                        <>
-                            {' '}
-                            <span className="text-ink-muted">{ingredient.notes}</span>
-                        </>
+                    {tail.map((part, index) =>
+                        index === 0 ? (
+                            <PrepJoin key={part}>{part}</PrepJoin>
+                        ) : (
+                            <span key={part}>
+                                {' '}
+                                <span className="text-ink-muted">{part}</span>
+                            </span>
+                        ),
                     )}
                     {statuses.length > 0 && (
                         <span id={statusId}>

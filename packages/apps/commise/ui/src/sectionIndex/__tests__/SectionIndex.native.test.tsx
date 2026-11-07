@@ -13,14 +13,15 @@ import { createRef, type ComponentProps } from 'react';
 import type { Pressable as PressableType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import type { ContainerClass } from '../../layout/containerClass.js';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
 import { Surface } from '../../surfaceTone/Surface.native.js';
 import { themeFor } from '../../theme/themeFor.js';
 import { role, roleDark } from '../../tokens/colors.js';
-import type { SectionIndexItem, SectionIndexProps } from '../props.js';
+import type { SectionIndexItem, SectionIndexProps, SectionIndexTone } from '../props.js';
+import { TONE_ROLE } from '../sectionIndexModel.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { SectionIndex } from '../SectionIndex.native.js';
 
@@ -186,10 +187,10 @@ describe('SectionIndex (native)', () => {
             renderIndex();
             const nav = screen.getByRole('navigation', { name: NAV });
 
-            expect(getComputedStyle(within(nav).getByText('2 need a match')).color).toBe(formatRgb(colors.attention));
-            expect(getComputedStyle(within(nav).getByText('Fix 1 thing')).color).toBe(formatRgb(colors.dangerText));
-            expect(getComputedStyle(within(nav).getByText('Not started')).color).toBe(formatRgb(colors.inkMuted));
-            expect(getComputedStyle(within(nav).getByText('Ingredients')).color).toBe(formatRgb(colors.ink));
+            expect(resolvedColour(within(nav).getByText('2 need a match'), 'color')).toBe(formatRgb(colors.attention));
+            expect(resolvedColour(within(nav).getByText('Fix 1 thing'), 'color')).toBe(formatRgb(colors.dangerText));
+            expect(resolvedColour(within(nav).getByText('Not started'), 'color')).toBe(formatRgb(colors.inkMuted));
+            expect(resolvedColour(within(nav).getByText('Ingredients'), 'color')).toBe(formatRgb(colors.ink));
             expect(glyphColour(within(nav).getByRole('link', { name: 'Ingredients' }))).toBe(colors.attention);
             expect(glyphColour(within(nav).getByRole('link', { name: 'Photos & publish' }))).toBe(colors.dangerText);
         });
@@ -293,5 +294,34 @@ describe('SectionIndex (native) — a pressed row takes the press of the surface
         expect(getComputedStyle(row).backgroundColor).not.toBe(
             formatRgb(scheme === 'dark' ? roleDark.surfaceMuted : role.surfaceMuted),
         );
+    });
+});
+
+describe('SectionIndex (native): the bar count’s colour', () => {
+    // The count takes `dangerText` when any section needs a fix, and `attention` otherwise (`barCountRoleOf`).
+    it.each([
+        ['a fix', ITEMS, role.dangerText],
+        ['no fix', ITEMS.filter((item) => item.tone !== 'fix'), role.attention],
+    ] as const)('paints the count for %s', (_name, items, colour) => {
+        state.containerClass = 'narrow';
+        renderIndex({ items, barCount: '⚠ 3' });
+
+        expect(resolvedColour(screen.getByText('⚠ 3'), 'color')).toBe(formatRgb(colour));
+    });
+});
+
+/** Whether a key of `TONE_ROLE` is a tone: a new tone in the table is tested without a list kept here. */
+const isTone = (key: string): key is SectionIndexTone => Object.hasOwn(TONE_ROLE, key);
+
+describe('SectionIndex (native): every tone’s text colour is its TONE_ROLE', () => {
+    // The tone texts spell each colour token in the source (the colour guard reads them there), so this holds the spelled
+    // tokens to the one `TONE_ROLE` table that the icons read: the two cannot drift.
+    it.each(Object.keys(TONE_ROLE).filter(isTone))('paints a %s reason in its TONE_ROLE colour', (tone) => {
+        renderIndex({
+            items: [{ id: 'one', label: 'One', tone, reason: `reason ${tone}` }],
+            currentId: 'one',
+        });
+
+        expect(resolvedColour(screen.getByText(`reason ${tone}`), 'color')).toBe(formatRgb(role[TONE_ROLE[tone]]));
     });
 });

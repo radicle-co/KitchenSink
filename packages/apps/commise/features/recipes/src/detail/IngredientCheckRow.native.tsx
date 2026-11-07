@@ -16,16 +16,17 @@ import { nativeTokens } from '@commise/ui/native';
 import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
-import type { FC } from 'react';
+import { Fragment, type FC } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '@commise/ui/text';
 
+import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
 import { IngredientCheckBoxSlot, IngredientRowDivider } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
-import { formatAmount, isLineFoodRemoved } from './model.js';
+import { formatAmount, isLineFoodRemoved, lineTailOf } from './model.js';
 import { usePressFill } from '@commise/ui/surface-tone';
 
 /** The native checkable ingredient row. */
@@ -42,10 +43,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
-    // The preparation, then the notes override: the board's muted note after the name.
-    const notes = [ingredient.preparation, ingredient.notes].filter(
-        (note): note is string => note !== undefined && note.length > 0,
-    );
+    const notes = lineTailOf(ingredient);
 
     return (
         <>
@@ -119,11 +117,15 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                                     )}
                                 </Text>
                                 {parts === undefined &&
-                                    notes.map((note) => (
-                                        <Text key={note} typeRole="body" color="$inkMuted">
-                                            {' '}
-                                            {note}
-                                        </Text>
+                                    notes.map((note, index) => (
+                                        <Fragment key={note}>
+                                            <Text typeRole="body" color="$inkMuted">
+                                                {index === 0 ? PREP_JOINER : ' '}
+                                            </Text>
+                                            <Text typeRole="body" color="$inkMuted">
+                                                {note}
+                                            </Text>
+                                        </Fragment>
                                     ))}
                             </Text>
                             {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}

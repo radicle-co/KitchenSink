@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { reach, type Terminals } from '../src/reachability.js';
+import { fileLevel, reach, type Terminals } from '../src/reachability.js';
 
 /** `importers[x]` lists the files that import x. */
-const graphOf =
-    (importers: Readonly<Record<string, readonly string[]>>) =>
-    (file: string): readonly string[] =>
-        importers[file] ?? [];
+const graphOf = (importers: Readonly<Record<string, readonly string[]>>) =>
+    fileLevel((file: string): readonly string[] => importers[file] ?? []);
 
 const terminals: Terminals = {
     screenEntries: new Map([

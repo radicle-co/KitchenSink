@@ -157,6 +157,8 @@ describe('typePropFindings', () => {
             ],
             ["the editor's header", 'packages/apps/commise/features/recipes/src/editor/EditorHeader.native.tsx', 0],
             ['the pinned bar', 'packages/apps/commise/ui/src/largeTitleHeader/CondensedTitleBar.native.tsx', 0],
+            // Designer ruling 2026-11-07 (designAnswers.md, "editor sections bar at the text cap"): the sticky bar is chrome.
+            ['the editor sections bar', 'packages/apps/commise/ui/src/sectionIndex/SectionIndex.native.tsx', 0],
             ['a sibling of the floating button', 'packages/apps/commise/ui/src/createFab/CreateFab.native.tsx', 1],
             ['any other screen', 'packages/apps/commise/features/recipes/src/x/X.native.tsx', 1],
         ] as const)('on an element in %s → %i', (_where, file, expected) => {

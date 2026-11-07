@@ -10,8 +10,9 @@
  *
  * @pattern Interpreter — evaluates Tamagui's class rules and theme variables over jsdom's CSSOM, as a browser would
  */
-import { render as renderBare, type RenderOptions, type RenderResult } from '@testing-library/react';
+import { act, fireEvent, render as renderBare, type RenderOptions, type RenderResult } from '@testing-library/react';
 import { formatRgb } from 'culori';
+import { vi } from 'vitest';
 import type { JSX, ReactElement, ReactNode } from 'react';
 
 import { DesignSystemProvider } from '../tamagui/DesignSystemProvider.native.js';
@@ -320,4 +321,38 @@ export function resolvedColour(element: Element, property: ColourProperty): stri
     const value = resolvedStyle(element, property);
 
     return formatRgb(value) ?? value;
+}
+
+/**
+ * Fire a scroll event on a scroll view and settle the timer it starts. React Native Web's (and so Tamagui's)
+ * `ScrollView` reports the END of a scroll 100 ms later on a timer; on a real one it fires after the file's environment
+ * is torn down and sets state with no `window` (`ReferenceError: window is not defined`, an unhandled error that exits
+ * the lane with every test green). The timers are faked for the event, flushed inside `act` while the DOM is there, and
+ * real timers are restored.
+ *
+ * ⚠️ It ends with real timers on, so it THROWS when the test has already faked its timers, rather than switch them off
+ * without a word. A test that fakes its own timers fires the event and flushes them itself.
+ *
+ * @param node - The scroll view's node.
+ * @param init - The event's init, as `fireEvent.scroll` takes it (`{ target: { scrollTop: 240 } }`).
+ * @sideEffect Dispatches the event, runs the pending timers and switches timers back to real ones.
+ * @throws Error when timers are already faked.
+ */
+export function fireScrollAndSettle(node: Element, init?: Parameters<typeof fireEvent.scroll>[1]): void {
+    if (vi.isFakeTimers()) {
+        throw new Error(
+            'fireScrollAndSettle: fake timers are already on, and it would turn them off. Fire the event and flush your own timers.',
+        );
+    }
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    try {
+        fireEvent.scroll(node, init);
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+    } finally {
+        vi.useRealTimers();
+    }
 }

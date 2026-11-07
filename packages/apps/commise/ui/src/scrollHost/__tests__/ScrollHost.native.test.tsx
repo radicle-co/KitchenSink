@@ -5,9 +5,10 @@
  * outside one is a loud wiring error.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { useEffect } from 'react';
 import { Animated, ScrollView, Text } from 'react-native';
+import { fireScrollAndSettle } from '../../testing/tamaguiTesting.native.js';
 
 const motion = vi.hoisted(() => ({ reduce: false }));
 
@@ -496,7 +497,7 @@ describe('ScrollHost (native) — a plain ScrollView takes bind as it always did
         const scroller = screen.getByTestId('scroller');
         Object.defineProperty(scroller, 'scrollTop', { value: 300, configurable: true });
 
-        expect(() => fireEvent.scroll(scroller)).not.toThrow();
+        expect(() => fireScrollAndSettle(scroller)).not.toThrow();
         expect(seen.api?.atTop).toBe(false);
     });
 });

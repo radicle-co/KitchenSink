@@ -1,9 +1,9 @@
-import { cleanup, fireEvent } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { scrollViewSizes, stubBoundingRects } from '../../testing/boundingRects.js';
-import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { fireScrollAndSettle, render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { Chip } from '../Chip.native.js';
 import { role } from '../../tokens/colors.js';
 import { ChipRow } from '../ChipRow.native.js';
@@ -77,7 +77,7 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
         const scroller = container.querySelector<HTMLElement>('[style*="overflow-x"]') as HTMLElement;
 
         scroller.scrollLeft = 120;
-        fireEvent.scroll(scroller);
+        fireScrollAndSettle(scroller);
 
         const box = container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement;
 

@@ -25,13 +25,18 @@ import type { ScrollExtent } from '../scrollHint.js';
 const FADE = '[data-commise-stub="linear-gradient"]';
 
 beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
+    // A click makes the scroll view report a scroll 100 ms later, on a timer. Faked, it is flushed in afterEach, so it
+    // cannot fire after the environment is gone.
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
     // The OS preference is read asynchronously; a promise that never settles keeps it unknown, which is instant motion.
     vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockReturnValue(new Promise(() => undefined));
     vi.spyOn(AccessibilityInfo, 'addEventListener').mockReturnValue(undefined as never);
 });
 
 afterEach(() => {
+    act(() => {
+        vi.runOnlyPendingTimers();
+    });
     cleanup();
     vi.restoreAllMocks();
     vi.useRealTimers();

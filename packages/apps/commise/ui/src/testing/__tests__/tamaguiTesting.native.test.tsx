@@ -6,6 +6,7 @@
  * design system holds, in each scheme, so a test built on it asserts real colours.
  */
 import { cleanup, render as renderBare, screen } from '@testing-library/react';
+import { ScrollView } from 'react-native';
 import { formatRgb } from 'culori';
 import { createContext, useContext, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -16,6 +17,7 @@ import { radius, spacing } from '../../tokens/scale.js';
 import { systemScheme } from '../systemColorScheme.js';
 import {
     ARIA_HIDDEN_CONTENT,
+    fireScrollAndSettle,
     render,
     renderedRoot,
     rendersNothing,
@@ -208,5 +210,34 @@ describe('ARIA_HIDDEN_CONTENT', () => {
 
         expect(document.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(1);
         expect(document.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(1);
+    });
+});
+
+describe('fireScrollAndSettle', () => {
+    // A scroll event on a React Native Web or Tamagui ScrollView sets a 100 ms timer that reports the END of the scroll.
+    // On a real timer it fires after a file's environment is gone (`window is not defined`); the helper settles it first.
+    it('delivers the scroll and its end-of-scroll report before it returns, and leaves real timers on', () => {
+        const onScroll = vi.fn();
+        renderBare(<ScrollView testID="scroller" onScroll={onScroll} scrollEventThrottle={16} />);
+
+        fireScrollAndSettle(screen.getByTestId('scroller'), { target: { scrollTop: 40 } });
+
+        // The start, then the end that the 100 ms timer reports: two calls only if the timer was flushed.
+        expect(onScroll).toHaveBeenCalledTimes(2);
+        expect(vi.isFakeTimers()).toBe(false);
+    });
+
+    // It ends with real timers on, so a test that fakes its own would lose them without a word: refuse the call instead.
+    it('throws when the test already faked its timers, and leaves them faked', () => {
+        vi.useFakeTimers();
+
+        try {
+            expect(() => {
+                fireScrollAndSettle(document.createElement('div'));
+            }).toThrow(/fake timers/u);
+            expect(vi.isFakeTimers()).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

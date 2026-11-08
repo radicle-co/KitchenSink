@@ -21,8 +21,7 @@ const ORIGINS = {
     publishableKey: 'pk_test_fake',
 } as const;
 
-const AVD_CONFIG = ['hw.lcd.width=720', 'hw.cpu.ncore=2'] as const;
-const avdImage = (abi: string): string => `image;from;settings;${abi}`;
+const LOCAL_MAESTRO = '/repo/packages/tools/local-sandbox/bin/localMaestro.sh';
 
 const lane = (index: number, serial = ANDROID_LANE_SERIALS[index - 1] ?? 'none'): LaneSpec => ({
     platform: 'android',
@@ -86,8 +85,7 @@ const adapter = (port: CommandPort) =>
         ...ORIGINS,
         repoRoot: '/repo',
         avd: 'ci_pixel6',
-        avdConfig: AVD_CONFIG,
-        avdImage,
+        localMaestro: LOCAL_MAESTRO,
         commands: port,
         bootTimeoutMs: 60_000,
         environment: {},
@@ -214,8 +212,7 @@ describe('startDevice — boot an emulator the lane owns, then install the app',
                 ...ORIGINS,
                 repoRoot: '/repo',
                 avd: 'ci_pixel6',
-                avdConfig: [],
-                avdImage,
+                localMaestro: LOCAL_MAESTRO,
                 commands: port,
                 bootTimeoutMs: 0,
                 environment: {},
@@ -297,8 +294,7 @@ describe('prepareHost — the embedded-bundle test app, built only when its cont
             ...ORIGINS,
             repoRoot: '/repo',
             avd: 'ci_pixel6',
-            avdConfig: [],
-            avdImage,
+            localMaestro: LOCAL_MAESTRO,
             commands: recording,
             bootTimeoutMs: 60_000,
             environment: { JAVA_HOME: '/jdk17', ANDROID_HOME: '/android-sdk' },
@@ -363,14 +359,13 @@ describe('the lane AVD on this machine is built from the settings, not copied', 
             ...ORIGINS,
             repoRoot: '/repo',
             avd: 'lean',
-            avdConfig: AVD_CONFIG,
-            avdImage,
+            localMaestro: LOCAL_MAESTRO,
             commands: port,
             bootTimeoutMs: 60_000,
             environment,
         });
 
-    it('runs the one ensure-avd the Mac runs, with the x86_64 image, the settings, and an AVD home the emulator reads', async () => {
+    it('calls local_maestro_ensure_avd, the one that reads the settings, after the app is verified', async () => {
         const seen: { line: string; env: Record<string, string | undefined> }[] = [];
         const { port } = scripted([['content-key', 'abc123\n', 0]], 'platform=android\ncontentKey=abc123\n');
         const recording: CommandPort = {
@@ -384,25 +379,20 @@ describe('the lane AVD on this machine is built from the settings, not copied', 
 
         await withEnv(recording, { ANDROID_HOME: '/sdk', PATH: '/usr/bin', HOME: '/home/x' }).prepareHost(run);
 
-        const ensure = seen.find((call) => call.line.includes('ensure-avd'));
-        expect(ensure?.line).toBe(
-            'bash /repo/packages/tools/local-sandbox/bin/mac/androidLaneHost.sh ensure-avd lean ' +
-                'image;from;settings;x86_64 hw.lcd.width=720 hw.cpu.ncore=2',
-        );
-        expect(ensure?.env['ANDROID_AVD_HOME']).toMatch(/\.android\/avd$/u);
-        expect(ensure?.env['PATH']?.startsWith('/sdk/cmdline-tools/latest/bin:')).toBe(true);
+        const ensure = seen.find((call) => call.line.includes('local_maestro_ensure_avd'));
+        expect(ensure?.line).toBe(`bash -c . "$1" && local_maestro_ensure_avd ensureAvd ${LOCAL_MAESTRO}`);
         expect(seen.findIndex((call) => call.line.includes('verify-manifest'))).toBeLessThan(
-            seen.findIndex((call) => call.line.includes('ensure-avd')),
+            seen.findIndex((call) => call.line.includes('local_maestro_ensure_avd')),
         );
     });
 
-    it('keeps an AVD home the environment already names', async () => {
+    it('adds nothing of its own to the environment: the AVD home and PATH rules live in the shell function', async () => {
         const seen: Record<string, string | undefined>[] = [];
         const { port } = scripted([['content-key', 'abc123\n', 0]], 'platform=android\ncontentKey=abc123\n');
         const recording: CommandPort = {
             ...port,
             run: (command, args, options) => {
-                if (args.includes('ensure-avd')) {
+                if (args.join(' ').includes('local_maestro_ensure_avd')) {
                     seen.push({ ...options?.env });
                 }
 
@@ -410,16 +400,16 @@ describe('the lane AVD on this machine is built from the settings, not copied', 
             },
         };
 
-        await withEnv(recording, { ANDROID_AVD_HOME: '/avds' }).prepareHost(run);
+        await withEnv(recording, { ANDROID_HOME: '/sdk', PATH: '/usr/bin' }).prepareHost(run);
 
-        expect(seen[0]?.['ANDROID_AVD_HOME']).toBe('/avds');
+        expect(seen[0]).toEqual({ ANDROID_HOME: '/sdk', PATH: '/usr/bin' });
     });
 
     it('stops the run, naming the AVD, when it cannot be made', async () => {
         const { port } = scripted(
             [
                 ['content-key', 'abc123\n', 0],
-                ['ensure-avd', 'avdmanager: not found', 1],
+                ['local_maestro_ensure_avd', 'avdmanager: not found', 1],
             ],
             'platform=android\ncontentKey=abc123\n',
         );

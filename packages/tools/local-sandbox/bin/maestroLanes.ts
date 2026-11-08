@@ -44,6 +44,7 @@ import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroL
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
+import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
 import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
 
@@ -242,21 +243,15 @@ function stackRoot(): string {
 
 /** The services a lane run owns: every queue consumer the running stack planned, and the parse worker. */
 function serviceSpecs(root: string, settings: LocalSettings): readonly ServiceSpec[] {
-    const plan = path.join(root, '.local-sandbox/queueConsumers.json');
-
-    if (!existsSync(plan)) {
-        throw new Error(`maestro:lanes: no queue-consumer plan at ${plan} - run \`npm run local:up\` first`);
-    }
-
-    const consumers = (
-        JSON.parse(readFileSync(plan, 'utf8')) as readonly { readonly name: string; readonly queueUrl: string }[]
-    ).map(({ name, queueUrl }): ServiceSpec => ({
-        name,
-        queueUrl,
-        pattern: settings.consumerPattern(name),
-        command: 'npx',
-        args: ['tsx', 'packages/tools/local-sandbox/bin/queueConsumer.ts', name],
-    }));
+    const consumers = readConsumerPlan(path.join(root, CONSUMER_PLAN_RELATIVE)).map(
+        ({ name, queueUrl }): ServiceSpec => ({
+            name,
+            queueUrl,
+            pattern: settings.consumerPattern(name),
+            command: 'npx',
+            args: ['tsx', 'packages/tools/local-sandbox/bin/queueConsumer.ts', name],
+        }),
+    );
 
     return [
         ...consumers,

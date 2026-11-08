@@ -11,13 +11,12 @@
  *
  * @sideEffect Imports the bundle, long-polls SQS, invokes the handler and deletes what it acknowledged.
  */
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DeleteMessageCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 
-import type { PersistedConsumer } from '../src/queueConsumers.js';
+import { readConsumerPlan } from '../src/queueConsumers.js';
 import { messagesToDelete, sqsEventFor, type InvocationOutcome } from '../src/queueEvent.js';
 import { CONSUMER_PLAN } from './adapters.js';
 
@@ -26,7 +25,7 @@ const REGION = 'us-east-1';
 
 async function main(): Promise<void> {
     const name = process.argv[2];
-    const plan = JSON.parse(readFileSync(CONSUMER_PLAN, 'utf8')) as readonly PersistedConsumer[];
+    const plan = readConsumerPlan(CONSUMER_PLAN);
     const consumer = plan.find((entry) => entry.name === name);
 
     if (consumer === undefined) {

@@ -8,7 +8,8 @@
  */
 import { fileURLToPath } from 'node:url';
 
-import { countTests, listTests } from './e2eLanes.js';
+import { countTests } from './e2eReport';
+import { listTests } from './e2eSelection';
 
 /**
  * @sideEffect Runs `playwright test --list`.

@@ -336,6 +336,8 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `registeredMobileScreens` gives the screen recorder's guard (mobile `screenTrace.integration.test.ts`) the selector's own
         // list of registered screens.
         '!@kitchensink/*/registeredMobileScreens',
+        // `hostLock` is the one-orchestrator-per-machine lock; the web door takes its own file with it (ADR-0088).
+        '!@kitchensink/*/hostLock',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.
         '!@kitchensink/*/poolAdmin',

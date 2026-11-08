@@ -42,6 +42,11 @@ export function macHostFromEnv(env: Readonly<Record<string, string | undefined>>
         throw new Error('LOCAL_MAESTRO_IOS_HOST is not set; the Mac to drive is never guessed');
     }
 
+    // A host is a name or user@name: a leading dash would be read by ssh as an option, and a space would split it.
+    if (!/^[A-Za-z0-9_][A-Za-z0-9._@:%[\]-]*$/u.test(host)) {
+        throw new Error(`LOCAL_MAESTRO_IOS_HOST ${JSON.stringify(host)} is not a host name or user@host`);
+    }
+
     return host;
 }
 

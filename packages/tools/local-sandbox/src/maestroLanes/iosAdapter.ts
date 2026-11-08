@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import { quote } from 'shell-quote';
 
 import {
     IOS_MAX_LANES,
@@ -40,6 +41,14 @@ export interface IosAdapterOptions {
     readonly env: Readonly<Record<string, string | undefined>>;
     readonly repoRoot: string;
 }
+
+/** What the Mac's shell may see in a path we build from a value: no space, quote or metacharacter. */
+const PLAIN_NAME = /^[A-Za-z0-9._-]+$/u;
+const PLAIN_PATH = /^[A-Za-z0-9._/@%+=:,-]+$/u;
+const HEX = /^[0-9a-f]+$/u;
+
+/** One command line for the Mac's shell, every word quoted so a value reaches the command as exactly one argument. */
+const remote = (...words: readonly string[]): string => quote([...words]);
 
 const MAC_DIR = 'packages/tools/local-sandbox/bin/mac';
 const RUNNER = 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh';
@@ -83,7 +92,7 @@ export class IosAdapter implements DeviceAdapter {
     }
 
     private laneHost(...args: readonly string[]): Promise<string> {
-        return this.ssh(['bash', 'ksIos/lane/laneHost.sh', ...args].join(' '));
+        return this.ssh(remote('bash', 'ksIos/lane/laneHost.sh', ...args));
     }
 
     deviceFor(index: number): string {
@@ -107,8 +116,21 @@ export class IosAdapter implements DeviceAdapter {
 
     async prepareHost(run: RunContext): Promise<void> {
         const { shell, repoRoot, env } = this.options;
+
+        if (!PLAIN_NAME.test(run.runId)) {
+            throw new Error(
+                `the run id ${JSON.stringify(run.runId)} is not a plain name; it becomes a folder on the Mac`,
+            );
+        }
+
         this.stateDir = run.stateDir;
         this.runId = run.runId;
+
+        // rsync splits its own -e string and does not read shell quoting, so the ssh config path must need none.
+        if (!PLAIN_PATH.test(this.sshConfig)) {
+            throw new Error(`the ssh config path ${JSON.stringify(this.sshConfig)} holds characters rsync would split`);
+        }
+
         await shell.writeFile(
             this.sshConfig,
             sshConfigText({ host: this.host, controlPath: path.join(tmpdir(), 'ksIosCm-%C') }),
@@ -123,6 +145,11 @@ export class IosAdapter implements DeviceAdapter {
         };
         const script = path.join(repoRoot, MAC_DIR, 'buildIosApp.sh');
         this.contentKey = (await shell.run('bash', [script, 'content-key'], buildEnv)).trim();
+
+        if (!HEX.test(this.contentKey)) {
+            throw new Error(`the content key ${JSON.stringify(this.contentKey)} is not lowercase hex`);
+        }
+
         await shell.run('bash', [script, 'check', this.contentKey], buildEnv);
 
         await this.ssh('mkdir -p ksIos/lane');
@@ -145,7 +172,7 @@ export class IosAdapter implements DeviceAdapter {
         await shell.linkFile(path.join(repoRoot, MAC_DIR, 'xcrunShim.sh'), path.join(this.shimDir, 'xcrun'));
 
         // The tunnel serves the origins the app was built with, read from its own manifest, never assumed.
-        const manifest = await this.ssh(`cat ksIos/apps/${this.contentKey}/testApp.manifest`);
+        const manifest = await this.ssh(remote('cat', `ksIos/apps/${this.contentKey}/testApp.manifest`));
         const forwards = tunnelsFromManifest(manifest).flatMap((t) => [
             '-R',
             `${String(t.macPort)}:localhost:${String(t.localPort)}`,
@@ -181,7 +208,7 @@ export class IosAdapter implements DeviceAdapter {
             ],
             this.laneEnv(lane),
         );
-        await this.ssh(`mkdir -p ksIos/lanes/lane${String(lane.index)}`);
+        await this.ssh(remote('mkdir', '-p', `ksIos/lanes/lane${String(lane.index)}`));
     }
 
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>> {
@@ -210,7 +237,7 @@ export class IosAdapter implements DeviceAdapter {
         const udid = this.udids.get(lane.index);
 
         if (udid !== undefined) {
-            await this.ssh(`xcrun simctl shutdown ${udid}`);
+            await this.ssh(remote('xcrun', 'simctl', 'shutdown', udid));
         }
     }
 

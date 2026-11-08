@@ -63,6 +63,13 @@ describe('macHostFromEnv', () => {
         expect(() => macHostFromEnv({ LOCAL_MAESTRO_IOS_HOST: ' ' })).toThrow(/LOCAL_MAESTRO_IOS_HOST/);
     });
 
+    it('refuses a host that ssh would read as an option or that holds a space', () => {
+        expect(() => macHostFromEnv({ LOCAL_MAESTRO_IOS_HOST: '-oProxyCommand=touch x' })).toThrow(
+            /LOCAL_MAESTRO_IOS_HOST/,
+        );
+        expect(() => macHostFromEnv({ LOCAL_MAESTRO_IOS_HOST: 'me@mac extra' })).toThrow(/LOCAL_MAESTRO_IOS_HOST/);
+    });
+
     it('returns the host', () => {
         expect(macHostFromEnv({ LOCAL_MAESTRO_IOS_HOST: 'me@mac' })).toBe('me@mac');
     });

@@ -37,10 +37,21 @@ mac() {
     ssh -F "$KS_MAC_SSH_CONFIG" "$KS_MAC_HOST" "$@"
 }
 
+# Values below are written inside quotes into a script the Mac runs, and `rsync -e` splits its own string, so each must be
+# plain: a quote, space or metacharacter is refused here instead of being escaped in four places.
+plain() {
+    local name="$1" value="$2" pattern="$3"
+    [[ "$value" =~ $pattern ]] || die "$name holds a character that is not allowed in it (quote, space or metacharacter)"
+}
+plain KS_MAC_SSH_CONFIG "$KS_MAC_SSH_CONFIG" '^[A-Za-z0-9._/@%+=:,-]+$'
+plain KS_MAC_DEVELOPER_DIR "$MAC_DEVELOPER_DIR" '^[A-Za-z0-9._/@%+=:,-]+$'
+plain KS_MAC_PATH "$MAC_PATH" '^[A-Za-z0-9._/@%+=:,-]+$'
+
 case "${CLERK_PUBLISHABLE_KEY:-}" in
     pk_test_*) ;;
     *) die 'CLERK_PUBLISHABLE_KEY must be the test publishable key (pk_test_…)' ;;
 esac
+plain CLERK_PUBLISHABLE_KEY "$CLERK_PUBLISHABLE_KEY" '^pk_test_[A-Za-z0-9+/=_-]+$'
 
 export EXPO_PUBLIC_RECIPE_API_URL='http://localhost:13000'
 export EXPO_PUBLIC_IDENTITY_API_URL='http://localhost:13001'

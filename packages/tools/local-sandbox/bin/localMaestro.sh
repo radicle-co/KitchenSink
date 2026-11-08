@@ -53,7 +53,11 @@ LOCAL_MAESTRO_MOBILE_DIR="${LOCAL_MAESTRO_REPO_ROOT}/packages/apps/commise/mobil
 LOCAL_MAESTRO_FLOWS_DIR="${LOCAL_MAESTRO_MOBILE_DIR}/.maestro"
 LOCAL_MAESTRO_DEBUG_APK="${LOCAL_MAESTRO_MOBILE_DIR}/android/app/build/outputs/apk/debug/app-debug.apk"
 LOCAL_MAESTRO_SERIAL='emulator-5556'
-LOCAL_MAESTRO_AVD='ci_pixel6'
+# The lane AVD, WSL and Mac alike. Its layout size in dp is the old 1080x2400 at density 420 (411 dp wide); the screen has 44%
+# fewer pixels, which is what the software-rendered emulator pays for, and two cores. The Mac builds the AVD from these values
+# (`androidLaneHost.sh ensure-avd`), so no config.ini is copied from anywhere. Comma-separated `key=value`, in config.ini's keys.
+LOCAL_MAESTRO_AVD='ks_lane_lean'
+LOCAL_MAESTRO_AVD_CONFIG='hw.lcd.width=720,hw.lcd.height=1600,hw.lcd.density=280,hw.cpu.ncore=2,hw.ramSize=1536M,disk.dataPartition.size=6442450944,disk.cachePartition.size=66MB,sdcard.size=512 MB,vm.heapSize=228M'
 LOCAL_MAESTRO_CLERK_SECRET_ID='kitchensink/sandbox/identity/keys'
 LOCAL_MAESTRO_METRO_PORT=8081
 # The local sandbox's ports — each service's own `PORT` default (see `localPortFor` in `adapters.ts`).
@@ -68,6 +72,9 @@ LOCAL_MAESTRO_FOOD_ORIGIN='http://localhost:3002'
 # `CLERK_AUTHORIZED_PARTIES` to this origin.
 LOCAL_MAESTRO_WEB_ORIGIN='http://localhost:3000'
 LOCAL_MAESTRO_LOCALSTACK='http://localhost:4566'
+# The Mac port the recipe service is tunnelled to for an Android or iOS lane there: Docker holds the Mac's own 3000, so the app
+# the Mac builds is baked with this one (`buildIosApp.sh`) and the runner's `adb reverse tcp:3000` goes to it.
+LOCAL_MAESTRO_MAC_RECIPE_PORT=13000
 # The shared services' command lines, as `pgrep -f` matches them: a run refuses one it did not start. Written in the part
 # of ERE a JS RegExp reads the same way, because `maestroLanes.ts` matches them too. `{name}` is a consumer's name.
 LOCAL_MAESTRO_WORKER_PATTERN='src/local/main\.ts'
@@ -90,8 +97,13 @@ local_maestro_fail() {
 # The facts above that `maestroLanes.ts` uses, as KEY=value lines (`localSettings.ts` parses them). This file is their one
 # home: the lane TypeScript reads them here and states none of them.
 local_maestro_settings() {
+    local android_on
+    android_on="$(local_maestro_android_host)" || return 1
     printf '%s=%s\n' \
         LOCAL_MAESTRO_AVD "$LOCAL_MAESTRO_AVD" \
+        LOCAL_MAESTRO_AVD_CONFIG "$LOCAL_MAESTRO_AVD_CONFIG" \
+        LOCAL_MAESTRO_ANDROID_ON "$android_on" \
+        LOCAL_MAESTRO_MAC_RECIPE_PORT "$LOCAL_MAESTRO_MAC_RECIPE_PORT" \
         LOCAL_MAESTRO_RECIPE_ORIGIN "$LOCAL_MAESTRO_RECIPE_ORIGIN" \
         LOCAL_MAESTRO_IDENTITY_ORIGIN "$LOCAL_MAESTRO_IDENTITY_ORIGIN" \
         LOCAL_MAESTRO_FOOD_ORIGIN "$LOCAL_MAESTRO_FOOD_ORIGIN" \

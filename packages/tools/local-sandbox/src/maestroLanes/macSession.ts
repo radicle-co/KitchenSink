@@ -39,6 +39,31 @@ export const remote = (...words: readonly string[]): string => quote([...words])
 
 export const MAC_DIR = 'packages/tools/local-sandbox/bin/mac';
 
+/**
+ * Every folder the lanes use on the Mac, built in this one place (`macSession.test.ts` holds that no other lane file writes a
+ * Mac folder name). With the Mac's HOME the paths are absolute; without it they are relative to HOME, for a command that
+ * runs there.
+ */
+export function macPathsOf(home?: string) {
+    const at = (relative: string): string => (home === undefined ? relative : `${home}/${relative}`);
+
+    return {
+        laneFolder: at('ksIos/lane'),
+        laneHostScript: at('ksIos/lane/laneHost.sh'),
+        androidLaneHostScript: at('ksIos/lane/androidLaneHost.sh'),
+        laneHome: (index: number): string => at(`ksIos/lanes/lane${String(index)}`),
+        runTree: (runId: string): string => at(`ksIos/run/${runId}`),
+        iosApp: (key: string): string => at(`ksIos/apps/${key}`),
+        androidApp: (key: string): string => at(`ksIos/apps/android/${key}`),
+        androidEnv: at('ksAndroid/env.sh'),
+        androidSdk: at('ksAndroid/sdk'),
+        jdk: at('ksIos/jdk17/Contents/Home'),
+        maestroBin: at('ksIos/maestro2110/bin/maestro'),
+    };
+}
+
+export type MacPaths = ReturnType<typeof macPathsOf>;
+
 export class MacSession {
     readonly host: string;
     private tunnel: { stop(): Promise<void> } | undefined;
@@ -62,6 +87,11 @@ export class MacSession {
         return this.home;
     }
 
+    /** The Mac's folders, absolute: valid once {@link MacSession.open} has read the Mac's HOME. */
+    get paths(): MacPaths {
+        return macPathsOf(this.home);
+    }
+
     get runId(): string {
         return this.run;
     }
@@ -72,12 +102,20 @@ export class MacSession {
 
     /** Runs `ksIos/lane/laneHost.sh` (the iOS lane script) with every word quoted. */
     laneHost(...args: readonly string[]): Promise<string> {
-        return this.ssh(remote('bash', 'ksIos/lane/laneHost.sh', ...args));
+        return this.ssh(remote('bash', macPathsOf().laneHostScript, ...args));
     }
 
-    /** Runs `ksIos/lane/androidLaneHost.sh` with every word quoted. */
+    /** Runs `ksIos/lane/androidLaneHost.sh` with every word quoted, told where the Mac's Android environment file is. */
     androidLaneHost(...args: readonly string[]): Promise<string> {
-        return this.ssh(remote('bash', 'ksIos/lane/androidLaneHost.sh', ...args));
+        return this.ssh(
+            remote(
+                'env',
+                `KS_ANDROID_ENV=${this.paths.androidEnv}`,
+                'bash',
+                macPathsOf().androidLaneHostScript,
+                ...args,
+            ),
+        );
     }
 
     /**
@@ -87,14 +125,16 @@ export class MacSession {
     async facts(): Promise<MacHostFacts> {
         const { shell, repoRoot } = this.options;
         const options = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20'];
-        await shell.run('ssh', [...options, this.host, 'mkdir -p ksIos/lane']);
+        await shell.run('ssh', [...options, this.host, remote('mkdir', '-p', macPathsOf().laneFolder)]);
         await shell.run('scp', [
             ...options,
             path.join(repoRoot, MAC_DIR, 'laneHost.sh'),
-            `${this.host}:ksIos/lane/laneHost.sh`,
+            `${this.host}:${macPathsOf().laneHostScript}`,
         ]);
 
-        return parseHostFacts(await shell.run('ssh', [...options, this.host, 'bash ksIos/lane/laneHost.sh facts']));
+        return parseHostFacts(
+            await shell.run('ssh', [...options, this.host, remote('bash', macPathsOf().laneHostScript, 'facts')]),
+        );
     }
 
     /** Opens the session: the ssh config, the Mac's HOME, and both lane scripts on the Mac. */
@@ -120,14 +160,14 @@ export class MacSession {
             sshConfigText({ host: this.host, controlPath: path.join(tmpdir(), 'ksIosCm-%C') }),
         );
         this.home = (await this.ssh('printenv HOME')).trim();
-        await this.ssh('mkdir -p ksIos/lane');
+        await this.ssh(remote('mkdir', '-p', macPathsOf().laneFolder));
 
         for (const script of ['laneHost.sh', 'androidLaneHost.sh']) {
             await shell.run('scp', [
                 '-F',
                 this.sshConfig,
                 path.join(repoRoot, MAC_DIR, script),
-                `${this.host}:ksIos/lane/${script}`,
+                `${this.host}:${macPathsOf().laneFolder}/${script}`,
             ]);
         }
     }
@@ -137,14 +177,16 @@ export class MacSession {
      * (lanes must not share one: Maestro keeps its driver state there).
      */
     shimEnv(index: number): Record<string, string> {
+        const { paths } = this;
+
         return {
             PATH: `${this.shimDir}:${this.options.env['PATH'] ?? ''}`,
             KS_MAC_HOST: this.host,
             KS_MAC_SSH_CONFIG: this.sshConfig,
-            KS_MAC_TREE: `${this.home}/ksIos/run/${this.run}`,
-            KS_MAC_LANE_HOME: `${this.home}/ksIos/lanes/lane${String(index)}`,
-            KS_MAC_JAVA_HOME: `${this.home}/ksIos/jdk17/Contents/Home`,
-            KS_MAC_MAESTRO_BIN: `${this.home}/ksIos/maestro2110/bin/maestro`,
+            KS_MAC_TREE: paths.runTree(this.run),
+            KS_MAC_LANE_HOME: paths.laneHome(index),
+            KS_MAC_JAVA_HOME: paths.jdk,
+            KS_MAC_MAESTRO_BIN: paths.maestroBin,
         };
     }
 
@@ -157,7 +199,7 @@ export class MacSession {
             '-e',
             `ssh -F ${this.sshConfig}`,
             `${path.join(repoRoot, 'packages/apps/commise/mobile/.maestro')}/`,
-            `${this.host}:ksIos/run/${this.run}/mobile/.maestro/`,
+            `${this.host}:${macPathsOf().runTree(this.run)}/mobile/.maestro/`,
         ]);
     }
 

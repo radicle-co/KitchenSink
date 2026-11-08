@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
+import { createAndroidAdapter } from '../androidAdapter.js';
 import type { AndroidHost } from '../androidHost.js';
-import type { LaneSpec } from '../laneTypes.js';
+import type { CommandPort, LaneSpec } from '../laneTypes.js';
 
 const lane: LaneSpec = {
     platform: 'android',
@@ -50,7 +50,7 @@ function rig(abi: 'x86_64' | 'arm64-v8a', manifest = 'contentKey=k1\n'): Rig {
         install: (l) => {
             hostCalls.push(`install ${l.device}`);
 
-            return Promise.resolve(true);
+            return Promise.resolve({ ok: true, detail: '' });
         },
         abort: (l) => {
             hostCalls.push(`abort ${l.device}`);

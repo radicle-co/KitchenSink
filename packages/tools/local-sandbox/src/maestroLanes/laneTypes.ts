@@ -9,8 +9,24 @@
  * @pattern Strategy — one {@link DeviceAdapter} per platform behind one port
  */
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 export type LanePlatform = 'android' | 'ios';
+
+/** The processes and files an Android adapter and its hosts touch, injected so their decisions are testable without a device. */
+export interface CommandPort {
+    run(
+        command: string,
+        args: readonly string[],
+        options?: { readonly env?: Env; readonly cwd?: string },
+    ): Promise<{ readonly code: number; readonly stdout: string; readonly stderr?: string }>;
+    /** Start a long-lived process in its own process group, logging to `log`. */
+    spawnDetached(command: string, args: readonly string[], log: string): { readonly pid: number };
+    killGroup(pid: number): void;
+    sleep(ms: number): Promise<void>;
+    /** The file's text, or `undefined` when it does not exist. */
+    readFile(file: string): string | undefined;
+}
 
 export interface LaneSpec {
     readonly platform: LanePlatform;

@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    fitLaneCount,
-    flowSelector,
-    laneSpecs,
-    parseAndroidHost,
-    parseLaneArgs,
-    platformTurns,
-} from '../lanePlanning.js';
+import { fitLaneCount, flowSelector, laneSpecs, parseLaneArgs, platformTurns } from '../lanePlanning.js';
 
 const ANDROID = (index: number): string => `emulator-${5554 + 2 * index}`;
 
@@ -193,19 +186,5 @@ describe('platformTurns — which platforms run together', () => {
         [['ios'], 'wsl'],
     ] as const)('is one turn for the single platform %j on %s', (platforms, host) => {
         expect(platformTurns(platforms, host)).toEqual([platforms]);
-    });
-});
-
-describe('parseAndroidHost — LOCAL_MAESTRO_ANDROID_ON', () => {
-    it('is the Mac by default', () => {
-        expect(parseAndroidHost({})).toBe('mac');
-    });
-
-    it.each(['mac', 'wsl'] as const)('reads %s', (value) => {
-        expect(parseAndroidHost({ LOCAL_MAESTRO_ANDROID_ON: value })).toBe(value);
-    });
-
-    it.each(['both', 'WSL', 'wsl ', ''])('refuses %j', (value) => {
-        expect(() => parseAndroidHost({ LOCAL_MAESTRO_ANDROID_ON: value })).toThrow(/LOCAL_MAESTRO_ANDROID_ON/);
     });
 });

@@ -92,16 +92,24 @@ describe('tunnelsFromManifest', () => {
 
     it('tunnels each baked origin port back to that service on this machine', () => {
         expect(tunnelsFromManifest(manifest, SETTINGS)).toEqual([
-            { macPort: 13000, localPort: 3000 },
-            { macPort: 13001, localPort: 3001 },
-            { macPort: 13002, localPort: 3002 },
+            { origin: 'recipeOrigin', macPort: 13000, localPort: 3000 },
+            { origin: 'identityOrigin', macPort: 13001, localPort: 3001 },
+            { origin: 'foodOrigin', macPort: 13002, localPort: 3002 },
         ]);
     });
 
     it('tunnels to the host port the local stack really uses, so a moved recipe port reaches the tunnel', () => {
         const moved = { ...SETTINGS, recipeOrigin: 'http://localhost:3010' };
-        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({ macPort: 13000, localPort: 3010 });
-        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({ macPort: 13001, localPort: 3001 });
+        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({
+            origin: 'recipeOrigin',
+            macPort: 13000,
+            localPort: 3010,
+        });
+        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({
+            origin: 'identityOrigin',
+            macPort: 13001,
+            localPort: 3001,
+        });
     });
 
     it('refuses a settings origin with no port, because the tunnel could not name the host side', () => {
@@ -131,5 +139,22 @@ describe('sshConfigText', () => {
         expect(text).toContain('ControlMaster auto');
         expect(text).toContain('ControlPath /tmp/cm-%C');
         expect(text).toContain('ServerAliveInterval 15');
+    });
+});
+
+describe('tunnelsFromManifest — each tunnel is named by its origin', () => {
+    it('keys every tunnel by the origin it serves, so a caller picks one by name and not by position', () => {
+        const manifest = [
+            'recipeOrigin=http://localhost:13000',
+            'identityOrigin=http://localhost:13001',
+            'foodOrigin=http://localhost:13002',
+        ].join('\n');
+        const tunnels = tunnelsFromManifest(manifest, {
+            recipeOrigin: 'http://localhost:3000',
+            identityOrigin: 'http://localhost:3001',
+            foodOrigin: 'http://localhost:3002',
+        });
+
+        expect(tunnels.map((tunnel) => tunnel.origin)).toEqual(['recipeOrigin', 'identityOrigin', 'foodOrigin']);
     });
 });

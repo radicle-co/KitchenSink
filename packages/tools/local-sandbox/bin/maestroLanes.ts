@@ -28,22 +28,17 @@ import { checkRecordedScreens, flowOutcomes } from '@kitchensink/e2e-plan/record
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 import { settleStamp, stateRoot, type Env, type StampStart } from '@kitchensink/e2e-plan/stampRun';
 
-import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
+import { createAndroidAdapter } from '../src/maestroLanes/androidAdapter.js';
+import { consolePort } from '../src/maestroLanes/androidSerials.js';
 import { createMacAndroidHost } from '../src/maestroLanes/macAndroidHost.js';
 import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
 import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
-import {
-    parseAndroidHost,
-    parseLaneArgs,
-    platformTurns,
-    type AndroidHost,
-    type LaneArgs,
-} from '../src/maestroLanes/lanePlanning.js';
+import { parseLaneArgs, platformTurns, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
-import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
+import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
 import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
 import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
@@ -155,21 +150,10 @@ function killGroup(pid: number): void {
 }
 
 /**
- * The Mac's Android lane AVD. Its screen, density, cores, RAM and disk are copied from the WSL AVD of the same name
- * (`~/.android/avd/ks_lane_lean.avd/config.ini`) when the run prepares the Mac.
- */
-const MAC_ANDROID_AVD = 'ks_lane_lean';
-
-/**
  * The adapter for a platform. iOS and the Mac's Android refuse to build without `LOCAL_MAESTRO_IOS_HOST` (the variable's name
  * is kept for now: it names the Mac). Android runs on the Mac unless `LOCAL_MAESTRO_ANDROID_ON=wsl`.
  */
-function adapterFor(
-    platform: LanePlatform,
-    env: Env,
-    settings: LocalSettings,
-    androidHost: AndroidHost,
-): DeviceAdapter {
+function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): DeviceAdapter {
     if (platform === 'ios') {
         return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT, settings });
     }
@@ -185,19 +169,12 @@ function adapterFor(
     };
 
     const host =
-        androidHost === 'mac'
+        settings.androidOn === 'mac'
             ? createMacAndroidHost({
                   shell: createIosShell(),
                   env,
                   repoRoot: REPO_ROOT,
                   settings,
-                  avd: MAC_ANDROID_AVD,
-                  avdSourceConfig: path.join(
-                      process.env['HOME'] ?? '',
-                      '.android/avd',
-                      `${MAC_ANDROID_AVD}.avd`,
-                      'config.ini',
-                  ),
                   readFile: commands.readFile,
               })
             : undefined;
@@ -470,7 +447,7 @@ function watchUsage(lane: LaneSpec, child: LaneChild, log: (line: string) => voi
             parsePs(spawnSync('ps', ['-eo', 'pid=,pgid=,times=,rss=,args='], { encoding: 'utf8' }).stdout),
             {
                 runnerPgid: child.pid,
-                consolePort: lane.device.replace(/^emulator-/u, ''),
+                consolePort: consolePort(lane.device),
             },
         );
         const at = Date.now();
@@ -494,7 +471,7 @@ async function main(argv: readonly string[]): Promise<number> {
     const args = parseLaneArgs(argv, process.env);
     mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
     const settings = readLocalSettings();
-    const androidHost = parseAndroidHost(process.env);
+    const androidHost = settings.androidOn;
     const base = baseEnvironment();
     // `listLocalLanes` and the lane slots read the namespace from this process.
     process.env['E2E_POOL_NAMESPACE'] = 'local';
@@ -520,7 +497,7 @@ async function main(argv: readonly string[]): Promise<number> {
     process.on('SIGTERM', abort);
 
     const deps: LaneRunDeps = {
-        adapterFor: (platform) => adapterFor(platform, base, settings, androidHost),
+        adapterFor: (platform) => adapterFor(platform, base, settings),
         stateDir: STATE_DIR,
         repoRoot: REPO_ROOT,
         lockDir: path.join(STATE_DIR, 'locks'),

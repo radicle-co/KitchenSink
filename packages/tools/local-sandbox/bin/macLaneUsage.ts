@@ -12,19 +12,19 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
+import { stateRoot } from '@kitchensink/e2e-plan/stampRun';
+
 import { emptyUsage, recordSample, summarizeUsage, type Usage } from '../src/maestroLanes/laneUsage.js';
-import { ANDROID_LANE_SERIALS } from '../src/maestroLanes/androidAdapter.js';
+import { ANDROID_LANE_SERIALS, consolePort } from '../src/maestroLanes/androidSerials.js';
 import { androidLaneProcesses, iosLaneProcesses, parseMacPs } from '../src/maestroLanes/macUsage.js';
 import { IOS_MAX_LANES, macHostFromEnv } from '../src/maestroLanes/iosLane.js';
+import { macPathsOf } from '../src/maestroLanes/macSession.js';
 
 const INTERVAL_MS = 15_000;
 // `--platform android` watches the Mac's Android lane emulators; the default is the iOS Simulators.
 const platform = process.argv.includes('android') ? 'android' : 'ios';
 const host = macHostFromEnv(process.env);
-const stateDir = path.join(
-    process.env['XDG_STATE_HOME'] ?? path.join(process.env['HOME'] ?? '', '.local/state'),
-    'kitchensink',
-);
+const stateDir = stateRoot();
 const tsv = path.join(stateDir, 'macLaneUsage.tsv');
 const ssh = (command: string): string =>
     execFileSync('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', host, command], { encoding: 'utf8' });
@@ -41,20 +41,20 @@ function sample(): void {
     let machine = 0;
 
     for (let lane = 1; lane <= (platform === 'android' ? ANDROID_LANE_SERIALS.length : IOS_MAX_LANES); lane += 1) {
-        const laneHome = `${macHome}/ksIos/lanes/lane${String(lane)}`;
+        const laneHome = macPathsOf(macHome).laneHome(lane);
         let mine;
 
         if (platform === 'android') {
-            const consolePort = (ANDROID_LANE_SERIALS[lane - 1] ?? '').replace(/^emulator-/u, '');
-            mine = androidLaneProcesses(rows, { consolePort, laneHome });
+            const port = consolePort(ANDROID_LANE_SERIALS[lane - 1] ?? '');
+            mine = androidLaneProcesses(rows, { consolePort: port, laneHome });
 
             if (mine.length === 0) {
                 continue;
             }
 
-            udids.set(lane, consolePort);
+            udids.set(lane, port);
         } else {
-            const udid = udids.get(lane) ?? ssh(`bash ksIos/lane/laneHost.sh udid ${String(lane)}`).trim();
+            const udid = udids.get(lane) ?? ssh(`bash ${macPathsOf().laneHostScript} udid ${String(lane)}`).trim();
 
             if (udid === '') {
                 continue;

@@ -29,6 +29,7 @@
         "@types/node": "^24.13.3",
         "@types/pg": "^8.11.0",
         "@types/shell-quote": "1.7.5",
+        "typescript": "^6.0.3",
         "vitest": "^4.1.12",
         "yaml": "^2.8.1"
     },

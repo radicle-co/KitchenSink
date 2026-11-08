@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { globSync } from 'glob';
 import { describe, expect, it } from 'vitest';
 
 import { stateRoot } from '@kitchensink/e2e-plan/stampRun';
@@ -92,12 +93,40 @@ describe('local_maestro_settings — the facts the lanes read', () => {
         const settings = settingsOf();
 
         expect(settings).toMatchObject({
-            avd: 'ci_pixel6',
+            avd: 'ks_lane_lean',
+            androidOn: 'mac',
+            macRecipePort: 13000,
             recipeOrigin: 'http://localhost:3000',
             identityOrigin: 'http://localhost:3001',
             foodOrigin: 'http://localhost:3002',
             localstack: 'http://localhost:4566',
         });
+    });
+
+    it('prints the lane AVD hardware once: the layout size in dp stays, the pixels and cores drop', () => {
+        const config = new Map(settingsOf().avdConfig.map((entry) => entry.split('=', 2) as [string, string]));
+
+        expect(config.get('hw.lcd.width')).toBe('720');
+        expect(config.get('hw.lcd.height')).toBe('1600');
+        expect(config.get('hw.lcd.density')).toBe('280');
+        expect(config.get('hw.cpu.ncore')).toBe('2');
+        // 720 px at density 280 and 1080 px at density 420 are the same 411 dp: the app lays out identically.
+        expect(Number(config.get('hw.lcd.width')) / (Number(config.get('hw.lcd.density')) / 160)).toBeCloseTo(
+            1080 / (420 / 160),
+            0,
+        );
+    });
+
+    it('prints where Android runs: the Mac by default, WSL only on request', () => {
+        expect(settingsOf().androidOn).toBe('mac');
+        expect(settingsOf({ LOCAL_MAESTRO_ANDROID_ON: 'wsl' }).androidOn).toBe('wsl');
+    });
+
+    it('refuses to print when LOCAL_MAESTRO_ANDROID_ON is neither, naming the variable', () => {
+        const result = run(makeSandbox(), 'local_maestro_settings', { LOCAL_MAESTRO_ANDROID_ON: 'both' });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('LOCAL_MAESTRO_ANDROID_ON');
     });
 
     it('names the processes the same way in pgrep -f (ERE) and in a JS RegExp', () => {
@@ -207,7 +236,10 @@ describe('maestro_local_reverse — the one adb reverse map', () => {
 
 describe('parseLocalSettings — the boundary', () => {
     const valid = [
-        'LOCAL_MAESTRO_AVD=ci_pixel6',
+        'LOCAL_MAESTRO_AVD=ks_lane_lean',
+        'LOCAL_MAESTRO_ANDROID_ON=mac',
+        'LOCAL_MAESTRO_MAC_RECIPE_PORT=13000',
+        'LOCAL_MAESTRO_AVD_CONFIG=hw.lcd.width=720,hw.cpu.ncore=2,sdcard.size=512 MB',
         'LOCAL_MAESTRO_RECIPE_ORIGIN=http://localhost:3000',
         'LOCAL_MAESTRO_IDENTITY_ORIGIN=http://localhost:3001',
         'LOCAL_MAESTRO_FOOD_ORIGIN=http://localhost:3002',
@@ -229,6 +261,9 @@ describe('parseLocalSettings — the boundary', () => {
         ['a line that is not KEY=value', [...valid, 'nonsense']],
         ['an origin that is not a URL', valid.map((line) => line.replace('http://localhost:3001', 'localhost:3001'))],
         ['a pattern that does not compile', valid.map((line) => line.replace('src/local/main\\.ts', 'src/(local'))],
+        ['an Android host that is neither', valid.map((line) => line.replace('ANDROID_ON=mac', 'ANDROID_ON=both'))],
+        ['a Mac port that is not a port', valid.map((line) => line.replace('PORT=13000', 'PORT=http'))],
+        ['an AVD setting that is not key=value', valid.map((line) => line.replace('hw.cpu.ncore=2', 'ncore'))],
         ['a consumer pattern with no {name}', valid.map((line) => line.replace('{name}', 'accountErasure'))],
     ])('refuses %s', (_label, lines) => {
         expect(() => parseLocalSettings(lines.join('\n'))).toThrow(/local_maestro_settings/u);
@@ -237,30 +272,50 @@ describe('parseLocalSettings — the boundary', () => {
 
 /**
  * The guard that catches a copy coming back: the lane TypeScript reads every one of these facts from the settings, so a
- * literal of any of them in these files is a second home.
+ * literal of any of them in these files is a second home. The forbidden values are the settings' OWN output, so a fact that
+ * is added to `local_maestro_settings` is guarded the day it is added, with no list here to forget.
  */
 describe('the lane TypeScript holds none of the facts', () => {
-    const files = [
-        'packages/tools/local-sandbox/bin/maestroLanes.ts',
-        'packages/tools/local-sandbox/src/maestroLanes/androidAdapter.ts',
+    const globbed = (...patterns: string[]): string[] =>
+        patterns.flatMap((pattern) => globSync(pattern, { cwd: path.join(REPO_ROOT, 'packages/tools/local-sandbox') }));
+    // `up.ts`, `adapters.ts` and `queueConsumer.ts` DEFINE and drive the stack the settings describe (its ports, its LocalStack
+    // address): they are where those facts are made true, not lane code that restates them.
+    const files = globbed('src/maestroLanes/*.ts', 'bin/*.ts').filter(
+        (file) => !['bin/up.ts', 'bin/adapters.ts', 'bin/queueConsumer.ts', 'src/maestroLanes/localSettings.ts'].includes(file),
+    );
+
+    const facts = new Map(
+        run(makeSandbox(), 'local_maestro_settings')
+            .stdout.split('\n')
+            .filter((line) => line !== '')
+            .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)] as const),
+    );
+    const hostPort = (origin: string | undefined): string => new URL(origin ?? '').host;
+    const forbidden = [
+        facts.get('LOCAL_MAESTRO_AVD'),
+        hostPort(facts.get('LOCAL_MAESTRO_RECIPE_ORIGIN')),
+        hostPort(facts.get('LOCAL_MAESTRO_IDENTITY_ORIGIN')),
+        hostPort(facts.get('LOCAL_MAESTRO_FOOD_ORIGIN')),
+        hostPort(facts.get('LOCAL_MAESTRO_LOCALSTACK')),
+        facts.get('LOCAL_MAESTRO_WORKER_PATTERN'),
+        facts.get('LOCAL_MAESTRO_CONSUMER_PATTERN'),
+        facts.get('LOCAL_MAESTRO_MAC_RECIPE_PORT'),
+        ...(facts.get('LOCAL_MAESTRO_AVD_CONFIG') ?? '').split(','),
+        // The state folder's rule lives in e2ePlan's stateRoot.
+        'XDG_STATE_HOME',
+        '.local/state',
     ];
 
-    it.each(files)('%s states no AVD, origin, LocalStack address or process pattern', (file) => {
-        const text = readFileSync(path.join(REPO_ROOT, file), 'utf8');
+    it('has facts to guard and files to guard them in', () => {
+        expect(forbidden.every((value) => value !== undefined && value !== '')).toBe(true);
+        expect(files.length).toBeGreaterThan(10);
+    });
 
-        for (const literal of [
-            'ci_pixel6',
-            'localhost:3000',
-            'localhost:3001',
-            'localhost:3002',
-            'localhost:4566',
-            'queueConsumer\\\\.ts',
-            'src\\/local\\/main',
-            // The state folder's rule lives in e2ePlan's stateRoot.
-            'XDG_STATE_HOME',
-            '.local/state',
-        ]) {
-            expect(text, literal).not.toContain(literal);
+    it.each(files)('%s states none of them', (file) => {
+        const text = readFileSync(path.join(REPO_ROOT, 'packages/tools/local-sandbox', file), 'utf8');
+
+        for (const literal of forbidden) {
+            expect(text, `${file} restates ${literal}`).not.toContain(literal);
         }
     });
 });

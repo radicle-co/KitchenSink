@@ -12,6 +12,9 @@ import type { LocalSettings } from './localSettings.js';
 /** iOS lanes are capped by the owner's ruling, not by the Mac. */
 export const IOS_MAX_LANES = 5;
 
+/** The origin keys the app manifest and the local settings share. */
+const ORIGIN_KEYS = ['recipeOrigin', 'identityOrigin', 'foodOrigin'] as const;
+
 export interface MacHostFacts {
     readonly cpus: number;
     readonly load1: number;
@@ -19,6 +22,8 @@ export interface MacHostFacts {
 }
 
 export interface Tunnel {
+    /** The manifest and settings key of the origin this tunnel serves. */
+    readonly origin: (typeof ORIGIN_KEYS)[number];
     readonly macPort: number;
     readonly localPort: number;
 }
@@ -70,9 +75,6 @@ export function parseHostFacts(output: string): MacHostFacts {
     };
 }
 
-/** The origin keys the app manifest and the local settings share. */
-const ORIGIN_KEYS = ['recipeOrigin', 'identityOrigin', 'foodOrigin'] as const;
-
 /**
  * Reads the origins baked into the app (`testApp.manifest`) and returns the reverse tunnels they need. The Mac side is
  * the port the app was built with; the local side is the host port the local stack states in its settings, so a moved
@@ -111,7 +113,7 @@ export function tunnelsFromManifest(
             throw new Error(`the local settings ${key} ${settings[key]} names no host port`);
         }
 
-        return { macPort: Number(url.port), localPort };
+        return { origin: key, macPort: Number(url.port), localPort };
     });
 }
 

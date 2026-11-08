@@ -4,17 +4,6 @@ import { createMacAndroidHost } from '../macAndroidHost.js';
 import type { MacShell } from '../macSession.js';
 import type { LaneSpec } from '../laneTypes.js';
 
-const WSL_CONFIG = `avd.name = ks_lane_lean
-hw.lcd.width = 999
-hw.lcd.height = 1777
-hw.lcd.density = 333
-hw.cpu.ncore = 3
-hw.ramSize = 1111M
-disk.dataPartition.size = 123456
-sdcard.size = 512 MB
-vm.heapSize = 228M
-hw.gps = yes
-`;
 const MANIFEST = [
     'platform=android',
     'recipeOrigin=http://localhost:3000',
@@ -22,6 +11,19 @@ const MANIFEST = [
     'foodOrigin=http://localhost:3002',
 ].join('\n');
 const SETTINGS = {
+    avd: 'ks_lane_lean',
+    // Values no real AVD has, so a number written in the host instead of read from the settings shows.
+    avdConfig: [
+        'hw.lcd.width=999',
+        'hw.lcd.height=1777',
+        'hw.lcd.density=333',
+        'hw.cpu.ncore=3',
+        'hw.ramSize=1111M',
+        'disk.dataPartition.size=123456',
+        'sdcard.size=512 MB',
+        'vm.heapSize=228M',
+    ],
+    macRecipePort: 14000,
     recipeOrigin: 'http://localhost:3000',
     identityOrigin: 'http://localhost:3001',
     foodOrigin: 'http://localhost:3002',
@@ -44,7 +46,7 @@ interface Rig {
     stopped: () => number;
 }
 
-function rig(options: { config?: string | undefined; failing?: string } = {}): Rig {
+function rig(options: { failing?: string } = {}): Rig {
     const lines: string[] = [];
     const tunnels: string[][] = [];
     const links: [string, string][] = [];
@@ -83,16 +85,7 @@ function rig(options: { config?: string | undefined; failing?: string } = {}): R
         env: { LOCAL_MAESTRO_IOS_HOST: 'me@mac', PATH: '/usr/bin' },
         repoRoot: '/repo',
         settings: SETTINGS,
-        avd: 'ks_lane_lean',
-        avdSourceConfig: '/wsl/ks_lane_lean.avd/config.ini',
-        readFile: (file) =>
-            file === '/wsl/ks_lane_lean.avd/config.ini'
-                ? 'config' in options
-                    ? options.config
-                    : WSL_CONFIG
-                : file.endsWith('testApp.manifest')
-                  ? MANIFEST
-                  : undefined,
+        readFile: (file) => (file.endsWith('testApp.manifest') ? MANIFEST : undefined),
     });
 
     return { host, lines, tunnels, links, stopped: () => stopped };
@@ -121,30 +114,17 @@ describe('MacAndroidHost', () => {
         expect(at('androidLaneHost.sh reap')).toBeLessThan(at('androidLaneHost.sh ensure-avd'));
     });
 
-    it('makes the AVD from the settings in the WSL ks_lane_lean config, never from numbers written here', async () => {
+    it('makes the AVD from the settings, never from numbers written here or a config copied from WSL', async () => {
         const { host, lines } = rig();
         await host.prepare(run, APK, 'abc123');
         // shell-quote escapes `;` and spaces with a backslash; compare what the Mac's shell will read
         const ensure = (lines.find((l) => l.includes('androidLaneHost.sh ensure-avd')) ?? '').replace(/\\/gu, '');
 
-        for (const setting of [
-            'hw.lcd.width=999',
-            'hw.lcd.height=1777',
-            'hw.lcd.density=333',
-            'hw.cpu.ncore=3',
-            'hw.ramSize=1111M',
-            'disk.dataPartition.size=123456',
-            'vm.heapSize=228M',
-        ]) {
+        for (const setting of SETTINGS.avdConfig) {
             expect(ensure, setting).toContain(setting);
         }
 
-        expect(ensure).not.toContain('hw.gps');
         expect(ensure).toContain('system-images;android-34;google_apis;arm64-v8a');
-    });
-
-    it('refuses to prepare when the WSL AVD config it copies from is not there', async () => {
-        await expect(rig({ config: undefined }).host.prepare(run, APK, 'abc123')).rejects.toThrow(/ks_lane_lean/);
     });
 
     it('copies the APK to the Mac under its content key', async () => {
@@ -160,12 +140,12 @@ describe('MacAndroidHost', () => {
         await expect(rig().host.prepare(run, APK, 'abc;id')).rejects.toThrow(/content key/);
     });
 
-    it('opens one tunnel: the recipe on 13000 (Docker holds the Mac 3000), identity and food on their own ports', async () => {
+    it('opens one tunnel: the recipe on the Mac port the settings state (Docker holds the Mac 3000), identity and food on their own ports', async () => {
         const { host, tunnels } = rig();
         await host.prepare(run, APK, 'abc123');
         const tunnel = tunnels[0]?.join(' ') ?? '';
 
-        expect(tunnel).toContain('-R 13000:localhost:3000');
+        expect(tunnel).toContain('-R 14000:localhost:3000');
         expect(tunnel).toContain('-R 3001:localhost:3001');
         expect(tunnel).toContain('-R 3002:localhost:3002');
         expect(tunnel).not.toContain('-R 3000:');
@@ -206,16 +186,19 @@ describe('MacAndroidHost', () => {
     it('installs the staged APK, and says whether it worked', async () => {
         const ok = rig();
         await ok.host.prepare(run, APK, 'abc123');
-        await expect(ok.host.install(lane)).resolves.toBe(true);
+        await expect(ok.host.install(lane)).resolves.toEqual({ ok: true, detail: '' });
         expect(
             ok.lines.some((l) =>
                 l.includes('androidLaneHost.sh install emulator-5556 /Users/x/ksIos/apps/android/abc123/app.apk'),
             ),
         ).toBe(true);
+    });
 
+    it('lets the install error text reach the adapter, so a failure says why', async () => {
         const bad = rig({ failing: 'androidLaneHost.sh install' });
         await bad.host.prepare(run, APK, 'abc123');
-        await expect(bad.host.install(lane)).resolves.toBe(false);
+
+        await expect(bad.host.install(lane)).resolves.toEqual({ ok: false, detail: expect.stringContaining('exit 1') });
     });
 
     it('stops an emulator through the lane script, on abort too', async () => {
@@ -234,7 +217,7 @@ describe('MacAndroidHost', () => {
 
         expect(env['ANDROID_SERIAL']).toBe('emulator-5556');
         expect(env['MAESTRO_SKIP_INSTALL']).toBe('1');
-        expect(env['MAESTRO_LOCAL_RECIPE_HOST_PORT']).toBe('13000');
+        expect(env['MAESTRO_LOCAL_RECIPE_HOST_PORT']).toBe('14000');
         expect(env['KS_MAC_ANDROID_HOME']).toBe('/Users/x/ksAndroid/sdk');
         expect(env['KS_MAC_ANDROID_ENV']).toBe('/Users/x/ksAndroid/env.sh');
         expect(env['PATH']?.startsWith('/s/shims:')).toBe(true);

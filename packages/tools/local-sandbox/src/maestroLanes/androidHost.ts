@@ -9,14 +9,12 @@ import { cpus, freemem, loadavg } from 'node:os';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
 
-import type { CommandPort } from './androidAdapter.js';
-import type { HostFacts, LaneSpec, RunContext } from './laneTypes.js';
-
-export type AndroidAbi = 'x86_64' | 'arm64-v8a';
+import { consolePort } from './androidSerials.js';
+import type { CommandPort, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
 
 export interface AndroidHost {
     /** The ABI of the emulators this host boots: the test app is built for it. */
-    readonly abi: AndroidAbi;
+    readonly abi: 'x86_64' | 'arm64-v8a';
     readonly laneCost: LaneCost;
     hostFacts(): Promise<HostFacts>;
     /** Once per run, after the app is built and verified and before any lane: make the host ready and stage the APK. */
@@ -25,8 +23,8 @@ export interface AndroidHost {
     adb(serial: string, ...args: string[]): Promise<{ readonly code: number; readonly stdout: string }>;
     /** Start the lane's emulator. Returns as soon as it is started, not when it has booted. */
     boot(lane: LaneSpec): Promise<void>;
-    /** Install the staged APK. True when it installed. */
-    install(lane: LaneSpec): Promise<boolean>;
+    /** Install the staged APK. `detail` is the error text of a failed install, so the adapter can say why. */
+    install(lane: LaneSpec): Promise<{ readonly ok: boolean; readonly detail: string }>;
     /** Stop an emulator whose boot never completed. */
     abort(lane: LaneSpec): Promise<void>;
     stop(lane: LaneSpec): Promise<void>;
@@ -44,8 +42,6 @@ function memAvailableBytes(): number {
 
     return bytes;
 }
-
-const consolePort = (serial: string): string => serial.replace(/^emulator-/u, '');
 
 export interface LocalAndroidHostOptions {
     readonly commands: CommandPort;
@@ -98,7 +94,11 @@ export function createLocalAndroidHost(options: LocalAndroidHostOptions): Androi
 
             return Promise.resolve();
         },
-        install: async (lane) => (await adb(lane.device, 'install', '-r', options.apk)).code === 0,
+        install: async (lane) => {
+            const result = await adb(lane.device, 'install', '-r', options.apk);
+
+            return { ok: result.code === 0, detail: result.code === 0 ? '' : result.stdout.trim() };
+        },
         abort: (lane) => {
             const pid = booted.get(lane.device);
 

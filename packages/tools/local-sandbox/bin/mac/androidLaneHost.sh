@@ -7,15 +7,14 @@
 #   androidLaneHost.sh reap <name>                         kill an earlier run's emulators of this AVD (by pid file)
 #   androidLaneHost.sh boot <name> <port>                  start a cold, read-only, windowless emulator; returns at once
 #   androidLaneHost.sh install <serial> <apk>              adb install -r -t
-#   androidLaneHost.sh reverse <serial> <dev:host>...      adb reverse tcp:dev tcp:host for each pair
 #   androidLaneHost.sh stop <port>                         ask the emulator to quit, then make sure it did
-# KS_ANDROID_ENV (default ~/ksAndroid/env.sh) puts the SDK and JDK on PATH. KS_ANDROID_GPU picks the emulator -gpu mode
+# KS_ANDROID_ENV (the file that puts the SDK and JDK on PATH; WSL's `MacSession` states its path) is sourced when set. KS_ANDROID_GPU picks the emulator -gpu mode
 # (default host: on the Mac, 25 Settings launches plus swipes used 15.8 CPU seconds with host and 57.5 with
 # swiftshader_indirect, both booting in about 19 s; see ADR-0088 §5).
 set -euo pipefail
 
-ENV_FILE="${KS_ANDROID_ENV:-$HOME/ksAndroid/env.sh}"
-if [ -f "$ENV_FILE" ]; then
+ENV_FILE="${KS_ANDROID_ENV:-}"
+if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
     # shellcheck disable=SC1090
     . "$ENV_FILE"
 fi
@@ -118,15 +117,6 @@ case "${1:-}" in
         need 'serial' "${2:?serial}" "$SERIAL_RE"
         need 'APK' "${3:?apk}" "$APK_RE"
         adb -s "$2" install -r -t "$3"
-        ;;
-    reverse)
-        serial="${2:?serial}"
-        need 'serial' "$serial" "$SERIAL_RE"
-        shift 2
-        for pair in "$@"; do
-            need 'port pair' "$pair" '^[0-9]+:[0-9]+$'
-            adb -s "$serial" reverse "tcp:${pair%%:*}" "tcp:${pair##*:}"
-        done
         ;;
     stop)
         emu_port="${2:?port}"

@@ -30,13 +30,13 @@
  * @pattern Repository — `RunUserRecord`, with `fileRunUserRecord` as its file adapter
  * @pattern Port — the Clerk calls go through `PoolAdminPort`, the same port `poolAdmin` provisions through
  */
-import { randomBytes } from 'node:crypto';
-import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { ulid } from 'ulidx';
+import writeFileAtomic from 'write-file-atomic';
 
 import { clerkPoolAdminPort, poolUserCreateInput, randomPoolPassword, type PoolAdminPort } from './poolAdmin.js';
 import {
@@ -70,8 +70,8 @@ export interface RunUserRecord {
  * subject while the first one's id is lost.
  *
  * @param file - An absolute path. Its directory is made on the first write.
- * @sideEffect `read` reads the file; `write` writes a temporary file, syncs it to disk, renames it over the record, and
- *   syncs the directory that holds the rename.
+ * @sideEffect `read` reads the file; `write` replaces it through `write-file-atomic` (a synced temporary file renamed
+ *   over the record) and syncs the directory that holds the rename.
  */
 export function fileRunUserRecord(file: string): RunUserRecord {
     return {
@@ -92,19 +92,9 @@ export function fileRunUserRecord(file: string): RunUserRecord {
         },
         write: (users) => {
             mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-            // A name no other writer can hold, so two writes never share a temporary file.
-            const temporary = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
-            const descriptor = openSync(temporary, 'w', 0o600);
-
-            try {
-                writeSync(descriptor, `${JSON.stringify(users, null, 4)}\n`);
-                fsyncSync(descriptor);
-            } finally {
-                closeSync(descriptor);
-            }
-
-            renameSync(temporary, file);
-            // The rename lives in the directory: sync it too, or a power loss can bring the old record back.
+            writeFileAtomic.sync(file, `${JSON.stringify(users, null, 4)}\n`, { mode: 0o600 });
+            // write-file-atomic syncs the file, not the directory the rename lives in: sync that too, or a power loss can
+            // bring the old record back.
             const directory = openSync(path.dirname(file), 'r');
 
             try {

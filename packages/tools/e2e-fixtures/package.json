@@ -27,6 +27,7 @@
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/node": "^24.13.3",
+        "@types/write-file-atomic": "^4.0.3",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "^4.20.6",
@@ -39,6 +40,7 @@
         "@clerk/backend": "^3.16.12",
         "@kitchensink/clerk-verify": "*",
         "p-retry": "^8.0.0",
-        "ulidx": "^2.4.1"
+        "ulidx": "^2.4.1",
+        "write-file-atomic": "^8.0.0"
     }
 }

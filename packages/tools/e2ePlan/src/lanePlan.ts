@@ -10,6 +10,8 @@ export interface LanePlanInput {
     readonly load1: number;
     readonly memAvailable: number;
     readonly perLane: LaneCost;
+    /** What runs once whatever the lane count, such as a server the lanes share. Taken off the machine first. */
+    readonly fixed?: LaneCost | undefined;
     /** Distinct sign-in identities the pool holds for this tier. */
     readonly identityCap: number;
     /** Lanes Clerk's rate limit tolerates signing in at once. */
@@ -40,8 +42,8 @@ const CAP_ORDER: readonly LaneCap[] = ['identity', 'clerk', 'cpu', 'memory', 'wo
  */
 export function planLanes(input: LanePlanInput): LanePlan {
     const caps: Record<LaneCap, number> = {
-        cpu: Math.max(0, Math.floor((input.cpus - input.load1) / input.perLane.cpus)),
-        memory: Math.max(0, Math.floor(input.memAvailable / input.perLane.memBytes)),
+        cpu: Math.max(0, Math.floor((input.cpus - input.load1 - (input.fixed?.cpus ?? 0)) / input.perLane.cpus)),
+        memory: Math.max(0, Math.floor((input.memAvailable - (input.fixed?.memBytes ?? 0)) / input.perLane.memBytes)),
         identity: input.identityCap,
         clerk: input.clerkCap,
         work: input.work,

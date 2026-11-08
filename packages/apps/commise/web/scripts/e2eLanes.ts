@@ -48,10 +48,15 @@ const ORIGIN_VARS = ['NEXT_PUBLIC_RECIPE_API_URL', 'NEXT_PUBLIC_IDENTITY_API_URL
 const GIB = 1024 ** 3;
 
 /**
- * What one lane costs, rounded up from full-suite runs on a 20-CPU machine (2026-11-07): a lane held about 1 to 2 CPUs
- * busy on average (more when other work shared the machine) and took 0.7 to 1.7 GB of available memory.
+ * What one lane costs, from the full-suite run of 2026-11-08 (8 lanes on one shared server, 20 CPUs, sampled every 2 s
+ * over each lane's process tree: Playwright and its browsers). A lane's CPU averaged 0.34 cores (p95 0.67, p99 0.87)
+ * and its resident memory 1.17 GiB (p95 1.30, peak 1.88; summed RSS counts shared pages twice). The figures are rounded
+ * up from the p95 so the planner does not oversubscribe. The earlier 1.5 CPUs and 2 GiB paid for a Next server per lane.
  */
-export const LANE_COST: LaneCost = { cpus: 1.5, memBytes: 2 * GIB };
+export const LANE_COST: LaneCost = { cpus: 0.75, memBytes: 1.5 * GIB };
+
+/** What the one shared `next start` costs, whatever the lane count: CPU mean 0.54 (peak 0.90), memory mean 0.57 GiB (peak 0.62). */
+export const SERVER_COST: LaneCost = { cpus: 1, memBytes: 0.75 * GIB };
 
 /**
  * The most lanes tried against Clerk's dev instance at once (8, the size of the `web` pool slots). It served all 8 with
@@ -866,6 +871,7 @@ export async function main(passthrough: readonly string[], env: Env): Promise<nu
         load1: loadavg()[0] ?? 0,
         memAvailable: memAvailableBytes(),
         perLane: LANE_COST,
+        fixed: wantsSharedServer(env) ? SERVER_COST : undefined,
         identityCap: POOL_ROSTER.web.length,
         clerkCap: WEB_LANE_CLERK_CEILING,
         work: listed,

@@ -35,12 +35,12 @@ recipes/detailCooking	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, Recipe
 recipes/detailBack	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/deferredCalories	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/emptyLibrary	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/searchNavigation	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/searchNavigation	CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/edit	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/versions	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/visibility	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/paidFeaturesByRole	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/makePublicConfirm	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/paidFeaturesByRole	HomeScreen, profile, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/makePublicConfirm	CollectionDetailScreen, CollectionsScreen, HomeScreen, profile, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/discoverBrowse	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
 recipes/discoverRecentSearches	HomeScreen, profile, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
 recipes/discoverIngredientCap	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen

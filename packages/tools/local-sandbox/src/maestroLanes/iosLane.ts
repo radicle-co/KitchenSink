@@ -5,6 +5,8 @@
  *
  * @pattern Value-object helpers; the iOS adapter (Strategy behind the DeviceAdapter port) composes them.
  */
+import { bytesFromFreePercent, parseFreePercent } from '@kitchensink/e2e-plan/hostMemory';
+
 import type { LocalSettings } from './localSettings.js';
 
 /** iOS lanes are capped by the owner's ruling, not by the Mac. */
@@ -58,25 +60,13 @@ function numberAfter(label: string, text: string): number {
     return Number(match[1]);
 }
 
-/**
- * The share of the kernel's reclaimable memory the planner counts. `memory_pressure` reports free memory plus the file
- * cache macOS gives back on demand, but giving it back costs cpu and a busy Mac (a browser with dozens of helper
- * processes) takes some of it first, so a fifth is left out.
- */
-export const MEMORY_SAFETY_MARGIN = 0.8;
-
-/** Parses `laneHost.sh facts` output (`ncpu`, `memsize`, `loadavg` and `memfreepct` lines). */
+/** Parses `laneHost.sh facts` output: `ncpu`, `memsize` and `loadavg` lines and `memory_pressure`'s free-percentage line. */
 export function parseHostFacts(output: string): MacHostFacts {
-    const freePercent = numberAfter('memfreepct', output);
-
-    if (freePercent < 0 || freePercent > 100) {
-        throw new Error(`host facts memfreepct ${String(freePercent)} is not a percentage`);
-    }
-
     return {
         cpus: numberAfter('ncpu', output),
         load1: numberAfter('loadavg', output),
-        memAvailable: Math.floor(numberAfter('memsize', output) * (freePercent / 100) * MEMORY_SAFETY_MARGIN),
+        // The one memory rule, in e2e-plan: the kernel's free percentage, with the planner's margin, refusing a read it cannot trust.
+        memAvailable: bytesFromFreePercent(numberAfter('memsize', output), parseFreePercent(output)),
     };
 }
 

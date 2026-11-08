@@ -10,7 +10,7 @@ const MANIFEST = [
     'identityOrigin=http://localhost:13001',
 ].join('\n');
 
-const FACTS = 'ncpu 14\nmemsize 100\nloadavg { 1.5 1 1 }\nmemfreepct 50\n';
+const FACTS = 'ncpu 14\nmemsize 100\nloadavg { 1.5 1 1 }\nSystem-wide memory free percentage: 50%\n';
 
 interface Recorder {
     readonly shell: IosShell;

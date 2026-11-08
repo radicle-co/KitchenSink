@@ -60,7 +60,7 @@ describe('MacSession', () => {
     });
 
     it('reads host facts over a plain one-off ssh, after putting the lane script on the Mac', async () => {
-        const rec = recorder({ 'laneHost.sh facts': 'ncpu 14\nmemsize 100\nloadavg { 1 1 1 }\nmemfreepct 50\n' });
+        const rec = recorder({ 'laneHost.sh facts': 'ncpu 14\nmemsize 100\nloadavg { 1 1 1 }\nSystem-wide memory free percentage: 50%\n' });
         const facts = await make(rec.shell).facts();
 
         expect(facts.cpus).toBe(14);

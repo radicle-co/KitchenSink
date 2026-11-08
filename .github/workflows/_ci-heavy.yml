@@ -276,7 +276,7 @@ jobs:
                       packages/*/*/*/node_modules
                       packages/*/*/*/*/node_modules
                   key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
                   # The npm tarball cache is for `npm ci`, so it is switched on only when `npm ci` will run: on a fast-path
@@ -465,7 +465,7 @@ jobs:
                       echo "count=${count}"
                   } >>"$GITHUB_OUTPUT"
                   echo "::notice::the iOS Maestro tier will run on ${count} shard(s) ${shards} (requested ${MAESTRO_SHARDS}; clamped to the Clerk pool's disjoint slots and to the flows iOS can run)"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies
@@ -921,7 +921,7 @@ jobs:
             # `node_modules` to restore, no `npm ci` on a miss and no turbo build (`maestroSeedCli.test.ts`). The
             # package-manager cache is switched OFF: the pinned action restores the npm cache by itself when the input is
             # absent, which here is a download for nothing.
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
                   package-manager-cache: false
@@ -1567,7 +1567,7 @@ jobs:
             # built on Linux (its "Bundle the seed and pool CLIs" step says why bundles), so nothing is installed or built on
             # this runner (`maestroSeedCli.test.ts`). The npm cache stays OFF (plan 2026-10-13-006, cut 1: `setup-node`'s automatic cache
             # restored 616 MB at 3 to 5 MB/s); `package-manager-cache` is the input the pinned action declares for that.
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
                   package-manager-cache: false
@@ -2000,7 +2000,7 @@ jobs:
                       exit 1
                   fi
                   echo "k6 target: ${LOAD_TEST_TARGET} (event: ${EVENT_NAME})"
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
             - name: Restore dependencies

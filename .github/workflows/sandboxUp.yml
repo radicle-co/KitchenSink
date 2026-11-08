@@ -321,7 +321,7 @@ jobs:
                   persist-credentials: false
             # The reachability step runs the SHARED post-deploy smoke (`recipe-service/infra/smoke/deployedSmoke.ts`)
             # under `npx tsx`; that module imports nothing but `node:util`, so `npm ci` is the whole toolchain.
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
                   cache: npm

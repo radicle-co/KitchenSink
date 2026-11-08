@@ -429,8 +429,27 @@ local_maestro_start_consumers() {
     done
 }
 
+# local_maestro_android_host
+#
+# Where Android emulators run: `mac` (the default) or `wsl`. Nested emulators crashed Windows twice (a hypervisor bugcheck,
+# 2026-11-08), so WSL is an explicit opt-in: `LOCAL_MAESTRO_ANDROID_ON=wsl`. Anything else is refused.
+local_maestro_android_host() {
+    case "${LOCAL_MAESTRO_ANDROID_ON:-mac}" in
+        mac | wsl) printf '%s\n' "${LOCAL_MAESTRO_ANDROID_ON:-mac}" ;;
+        *)
+            local_maestro_fail "LOCAL_MAESTRO_ANDROID_ON='${LOCAL_MAESTRO_ANDROID_ON}' is not mac or wsl"
+            return 1
+            ;;
+    esac
+}
+
 local_maestro_start_emulator() {
-    local state="$1"
+    local state="$1" host
+    host="$(local_maestro_android_host)" || return 1
+    if [ "$host" != 'wsl' ]; then
+        local_maestro_fail 'this mode boots an emulator on WSL, which crashed Windows twice (nested virtualisation). Android lanes run on the Mac: npm run test:e2e:android. To boot one on WSL anyway, set LOCAL_MAESTRO_ANDROID_ON=wsl'
+        return 1
+    fi
     if [ "$(command adb -s emulator-5556 get-state 2>/dev/null)" = 'device' ]; then
         echo "local:maestro: ${LOCAL_MAESTRO_SERIAL} is attached — reusing it" >&2
     else

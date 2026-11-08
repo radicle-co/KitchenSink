@@ -325,6 +325,37 @@ describe('buildIosApp.sh check', () => {
         expect(result.status).not.toBe(0);
     });
 
+    it('refuses a Mac path setting that holds a quote or a semicolon, because it is written into a remote script', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, manifestFor());
+
+        for (const name of ['KS_MAC_DEVELOPER_DIR', 'KS_MAC_PATH']) {
+            const result = run('buildIosApp.sh', ['check', KEY], sandbox, {
+                CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+                [name]: "/x'; touch pwned; '",
+            });
+            expect(result.status).not.toBe(0);
+            expect(result.stderr).toContain(name);
+        }
+    });
+
+    it('refuses a publishable key with a character that could leave its quotes', () => {
+        const sandbox = makeSandbox();
+        const result = run('buildIosApp.sh', ['check', KEY], sandbox, { CLERK_PUBLISHABLE_KEY: "pk_test_a'b" });
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('CLERK_PUBLISHABLE_KEY');
+    });
+
+    it('refuses an ssh config path that rsync would split', () => {
+        const sandbox = makeSandbox();
+        const result = run('buildIosApp.sh', ['check', KEY], sandbox, {
+            CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+            KS_MAC_SSH_CONFIG: '/with space/ssh.conf',
+        });
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('KS_MAC_SSH_CONFIG');
+    });
+
     it('refuses a live publishable key', () => {
         const sandbox = makeSandbox();
         const result = run('buildIosApp.sh', ['check', KEY], sandbox, { CLERK_PUBLISHABLE_KEY: 'pk_live_x' });

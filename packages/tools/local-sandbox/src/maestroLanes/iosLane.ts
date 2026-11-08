@@ -5,12 +5,10 @@
  *
  * @pattern Value-object helpers; the iOS adapter (Strategy behind the DeviceAdapter port) composes them.
  */
+import type { LocalSettings } from './localSettings.js';
 
 /** iOS lanes are capped by the owner's ruling, not by the Mac. */
 export const IOS_MAX_LANES = 5;
-
-/** Which service each baked origin reaches on this machine. One place, mirrors `localMaestro.sh`'s ports. */
-const ORIGIN_KEY_TO_LOCAL_PORT = { recipeOrigin: 3000, identityOrigin: 3001, foodOrigin: 3002 } as const;
 
 export interface MacHostFacts {
     readonly cpus: number;
@@ -40,6 +38,11 @@ export function macHostFromEnv(env: Readonly<Record<string, string | undefined>>
 
     if (host === undefined || host === '') {
         throw new Error('LOCAL_MAESTRO_IOS_HOST is not set; the Mac to drive is never guessed');
+    }
+
+    // A host is a name or user@name: a leading dash would be read by ssh as an option, and a space would split it.
+    if (!/^[A-Za-z0-9_][A-Za-z0-9._@:%[\]-]*$/u.test(host)) {
+        throw new Error(`LOCAL_MAESTRO_IOS_HOST ${JSON.stringify(host)} is not a host name or user@host`);
     }
 
     return host;
@@ -77,8 +80,18 @@ export function parseHostFacts(output: string): MacHostFacts {
     };
 }
 
-/** Reads the origins baked into the app (`testApp.manifest`) and returns the reverse tunnels they need. */
-export function tunnelsFromManifest(manifest: string): readonly Tunnel[] {
+/** The origin keys the app manifest and the local settings share. */
+const ORIGIN_KEYS = ['recipeOrigin', 'identityOrigin', 'foodOrigin'] as const;
+
+/**
+ * Reads the origins baked into the app (`testApp.manifest`) and returns the reverse tunnels they need. The Mac side is
+ * the port the app was built with; the local side is the host port the local stack states in its settings, so a moved
+ * service port reaches the tunnel with no second copy of it here.
+ */
+export function tunnelsFromManifest(
+    manifest: string,
+    settings: Pick<LocalSettings, (typeof ORIGIN_KEYS)[number]>,
+): readonly Tunnel[] {
     const values = new Map<string, string>();
 
     for (const line of manifest.split('\n')) {
@@ -89,7 +102,7 @@ export function tunnelsFromManifest(manifest: string): readonly Tunnel[] {
         }
     }
 
-    return (Object.keys(ORIGIN_KEY_TO_LOCAL_PORT) as (keyof typeof ORIGIN_KEY_TO_LOCAL_PORT)[]).map((key) => {
+    return ORIGIN_KEYS.map((key) => {
         const raw = values.get(key);
 
         if (raw === undefined || raw === '') {
@@ -102,7 +115,13 @@ export function tunnelsFromManifest(manifest: string): readonly Tunnel[] {
             throw new Error(`${key} is ${raw}: a tunnel only serves a localhost origin`);
         }
 
-        return { macPort: Number(url.port), localPort: ORIGIN_KEY_TO_LOCAL_PORT[key] };
+        const localPort = Number(new URL(settings[key]).port);
+
+        if (!Number.isInteger(localPort) || localPort <= 0) {
+            throw new Error(`the local settings ${key} ${settings[key]} names no host port`);
+        }
+
+        return { macPort: Number(url.port), localPort };
     });
 }
 

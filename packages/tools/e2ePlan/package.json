@@ -14,7 +14,8 @@
         "./stampRun": "./src/stampRun.ts",
         "./packLanes": "./src/packLanes.ts",
         "./ciMatrix": "./src/ciMatrix.ts",
-        "./registeredMobileScreens": "./src/registeredMobileScreens.ts"
+        "./registeredMobileScreens": "./src/registeredMobileScreens.ts",
+        "./hostMemory": "./src/hostMemory.ts"
     },
     "scripts": {
         "test": "vitest run",

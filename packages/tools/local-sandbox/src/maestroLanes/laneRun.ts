@@ -166,15 +166,7 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
         work: flows.length,
         requested: Math.min(request.requested ?? adapter.maxLanes, adapter.maxLanes),
     });
-    const packed = new Map<string, readonly string[]>();
-
-    for (let count = plan.count; count >= 1; count -= 1) {
-        for (let index = 1; index <= count; index += 1) {
-            packed.set(`${index}/${count}`, await deps.pack(platform, index, count, flows));
-        }
-    }
-
-    const count = fitLaneCount(plan.count, (index, of) => packed.get(`${index}/${of}`) ?? []);
+    const count = await fitLaneCount(plan.count, (index, of) => deps.pack(platform, index, of, flows));
     deps.log(
         `${platform}: ${count} lane(s) for ${flows.length} flow(s) (planned ${plan.count}, bound by ${plan.boundBy}; ` +
             `caps ${JSON.stringify(plan.caps)})`,

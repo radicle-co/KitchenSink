@@ -572,7 +572,7 @@ async function main(argv: readonly string[]): Promise<number> {
                 log,
             }),
         aborted: () => aborted,
-        staggerMs: Number(process.env['MAESTRO_LANE_STAGGER_SECONDS'] ?? 20) * 1000,
+        staggerMs: args.staggerSeconds * 1000,
         log,
     };
 

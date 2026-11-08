@@ -5,6 +5,7 @@ import { globSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import picomatch from 'picomatch';
+import { z } from 'zod';
 
 export interface WorkspacePackage {
     readonly name: string;
@@ -15,8 +16,19 @@ export interface WorkspacePackage {
     readonly deps: readonly string[];
 }
 
-const asRecord = (value: unknown): Readonly<Record<string, unknown>> =>
-    typeof value === 'object' && value !== null ? (value as Readonly<Record<string, unknown>>) : {};
+const depSection = z.record(z.string(), z.unknown()).optional();
+
+/** The part of a workspace manifest this module reads. A manifest with no `name` is not a package. */
+const manifestSchema = z.object({
+    name: z.string().optional(),
+    exports: z.unknown().optional(),
+    dependencies: depSection,
+    devDependencies: depSection,
+    peerDependencies: depSection,
+    optionalDependencies: depSection,
+});
+
+const rootSchema = z.object({ workspaces: z.array(z.string()).optional() });
 
 const DEP_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 
@@ -28,26 +40,25 @@ const DEP_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'op
  * @returns The packages, sorted by folder.
  */
 export function readWorkspaces(root: string): readonly WorkspacePackage[] {
-    const manifest = asRecord(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')));
-    const patterns = Array.isArray(manifest['workspaces']) ? (manifest['workspaces'] as string[]) : [];
+    const patterns = rootSchema.parse(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))).workspaces ?? [];
     const files = globSync(
         patterns.map((pattern) => `${pattern}/package.json`),
         { cwd: root, exclude: (name) => name === 'node_modules' },
     );
 
     return files.sort().flatMap((file) => {
-        const parsed = asRecord(JSON.parse(readFileSync(join(root, file), 'utf8')));
+        const parsed = manifestSchema.parse(JSON.parse(readFileSync(join(root, file), 'utf8')));
 
-        if (typeof parsed['name'] !== 'string') {
+        if (parsed.name === undefined) {
             return [];
         }
 
         return [
             {
-                name: parsed['name'],
+                name: parsed.name,
                 dir: dirname(file),
-                exports: parsed['exports'],
-                deps: DEP_SECTIONS.flatMap((section) => Object.keys(asRecord(parsed[section]))),
+                exports: parsed.exports,
+                deps: DEP_SECTIONS.flatMap((section) => Object.keys(parsed[section] ?? {})),
             },
         ];
     });

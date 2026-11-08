@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     chooseBase,
     nextStamp,
+    parsePlatform,
     onEmptyOf,
     type BaseInput,
     type GreenStamp,
@@ -128,5 +129,15 @@ describe('nextStamp', () => {
         expect(nextStamp({ ...green, outcomes: { passed: 0, failed: 0, skipped: 0 } })).toMatchObject({
             tree: 'bbbb',
         });
+    });
+});
+
+describe('parsePlatform', () => {
+    it.each(['web', 'android', 'ios'])('accepts %s', (name) => {
+        expect(parsePlatform(name)).toBe(name);
+    });
+
+    it.each(['tv', '', 'Android', 'web '])('refuses %j', (name) => {
+        expect(() => parsePlatform(name)).toThrow(/web, android, ios/u);
     });
 });

@@ -8,7 +8,26 @@
  * @pattern Specification — `chooseBase` and `nextStamp` are predicates over plain evidence
  */
 
-export type Platform = 'web' | 'android' | 'ios';
+export const PLATFORMS = ['web', 'android', 'ios'] as const;
+
+export type Platform = (typeof PLATFORMS)[number];
+
+/**
+ * Reads a platform name from a command line or a caller.
+ *
+ * @param value - What was given.
+ * @returns The platform.
+ * @throws When it is none of the platforms, naming them: a value taken for "no platform" would silently run the old base.
+ */
+export function parsePlatform(value: string): Platform {
+    const platform = PLATFORMS.find((candidate) => candidate === value);
+
+    if (platform === undefined) {
+        throw new Error(`error: '${value}' is not a platform; use one of ${PLATFORMS.join(', ')}`);
+    }
+
+    return platform;
+}
 
 /** What the last fully passing run proved. */
 export interface GreenStamp {

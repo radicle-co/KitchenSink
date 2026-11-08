@@ -19,8 +19,9 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import { cruise, type ICruiseResult } from 'dependency-cruiser';
+import { cruise } from 'dependency-cruiser';
 import extractTsConfig from 'dependency-cruiser/config-utl/extract-ts-config';
+import { z } from 'zod';
 
 import { readWorkspaces, type WorkspacePackage } from './workspaces.js';
 
@@ -182,6 +183,43 @@ const scopeOf = (name: string): string | undefined => (name.startsWith('@') ? na
 /** A test file is not part of what ships, and the graph would only grow by it. */
 const TEST_FILES = ['(^|/)__tests__/', '\\.test\\.[cm]?[jt]sx?$'];
 
+/** The part of dependency-cruiser's result this module reads. */
+const cruiseSchema = z.object({
+    modules: z.array(
+        z.object({
+            source: z.string(),
+            dependencies: z.array(
+                z.object({
+                    resolved: z.string(),
+                    module: z.string(),
+                    couldNotResolve: z.boolean(),
+                    coreModule: z.boolean(),
+                }),
+            ),
+        }),
+    ),
+});
+
+/**
+ * Reads dependency-cruiser's output at the boundary.
+ *
+ * @param output - What `cruise` returned.
+ * @returns The modules and their dependencies.
+ * @throws When the shape is not the one this module reads: a graph built from a misread output would be empty, and an
+ * empty graph selects nothing.
+ */
+export function parseCruiseOutput(output: unknown): z.infer<typeof cruiseSchema> {
+    const parsed = cruiseSchema.safeParse(output);
+
+    if (!parsed.success) {
+        throw new Error(
+            `error: dependency-cruiser returned a result this selector cannot read (${parsed.error.message})`,
+        );
+    }
+
+    return parsed.data;
+}
+
 /**
  * Builds the import graph of one platform.
  *
@@ -214,11 +252,7 @@ export async function buildImportGraph(repo: string, profile: GraphProfile): Pro
         },
     );
 
-    if (typeof result.output === 'string') {
-        throw new Error('error: dependency-cruiser returned text, not a result');
-    }
-
-    const modules = (result.output as ICruiseResult).modules.filter(
+    const modules = parseCruiseOutput(result.output).modules.filter(
         (module) => !module.source.includes('node_modules'),
     );
     const importers = new Map<string, Set<string>>();

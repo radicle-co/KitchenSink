@@ -18,13 +18,14 @@ import writeFileAtomic from 'write-file-atomic';
 import { z } from 'zod';
 
 import type { Env } from './env.js';
-import type { GreenStamp, Platform } from './greenStamp.js';
+import { PLATFORMS, type GreenStamp, type Platform } from './greenStamp.js';
 
 const run = promisify(execFile);
 
-const stampSchema = z.object({
+/** The stamp file's shape, shared with the plan JSON that carries the stamp a run started from. */
+export const stampSchema = z.object({
     version: z.literal(1),
-    platform: z.enum(['web', 'android', 'ios']),
+    platform: z.enum(PLATFORMS),
     branch: z.string(),
     tree: z.string(),
     head: z.string(),

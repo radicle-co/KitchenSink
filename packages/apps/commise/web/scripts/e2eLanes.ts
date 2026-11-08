@@ -15,7 +15,7 @@
  *    selector. A selector that cannot answer runs everything. Then list the tests (`--list`), so the count to reach is
  *    known BEFORE anything runs.
  * 2. Plan the lane count (`planLanes`): CPU, memory, identities, Clerk's rate limit, the work.
- * 3. Build ONCE (`E2E_BUILD_ONLY`). The three API origins are pinned to {@link DEAD_ORIGIN} for the build AND for
+ * 3. Build ONCE (`E2E_BUILD_ONLY`). The three API origins are pinned to `DEAD_ORIGIN` (`e2eServer`) for the build AND for
  *    every lane, so the artifact does not depend on which port a lane gets and the turbo cache key is stable.
  * 4. Start the lanes (`E2E_SKIP_BUILD`), staggered, one log each.
  * 5. Merge the blob reports and compare the merged count with the listed count. A lane that died, or a shard that

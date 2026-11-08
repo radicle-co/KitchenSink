@@ -33,7 +33,7 @@
         "@aws-lambda-powertools/logger": "^2.33.1",
         "@aws-sdk/client-cloudfront": "^3.935.0",
         "@aws-sdk/client-s3": "^3.723.0",
-        "@aws-sdk/client-sns": "^3.723.0",
+        "@aws-sdk/client-sns": "^3.1158.0",
         "@aws-sdk/client-sqs": "^3.723.0",
         "@aws-sdk/s3-request-presigner": "^3.723.0",
         "@clerk/backend": "^3.16.12",

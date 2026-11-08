@@ -62,3 +62,19 @@ export function iosLaneProcesses(
 
     return rows.filter((row) => mine.test(row.args));
 }
+
+/**
+ * One Android lane's processes on the Mac: the emulator (`qemu-system-aarch64` and its `emulator` launcher, both named by
+ * `-port <console port>`) and the lane's Maestro JVM (its `user.home` is the lane's own home folder). Whole tokens only.
+ * Pure.
+ */
+export function androidLaneProcesses(
+    rows: readonly PsRow[],
+    lane: { readonly consolePort: string; readonly laneHome: string },
+): readonly PsRow[] {
+    const port = escape(lane.consolePort);
+    const home = escape(lane.laneHome);
+    const mine = new RegExp(`(^|\\s)-port ${port}(\\s|$)|(^|[\\s=])${home}(/|\\s|$)`, 'u');
+
+    return rows.filter((row) => mine.test(row.args));
+}

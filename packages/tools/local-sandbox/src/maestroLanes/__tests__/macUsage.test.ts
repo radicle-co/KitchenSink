@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { emptyUsage, recordSample, summarizeUsage } from '../laneUsage.js';
-import { iosLaneProcesses, parseMacCpuTime, parseMacPs } from '../macUsage.js';
+import { androidLaneProcesses, iosLaneProcesses, parseMacCpuTime, parseMacPs } from '../macUsage.js';
 
 describe('parseMacCpuTime', () => {
     it('reads minutes and seconds with centiseconds', () => {
@@ -64,5 +64,25 @@ describe('iosLaneProcesses', () => {
         const { meanCpus, peakRssBytes } = summarizeUsage(usage);
         expect(meanCpus).toBe(1.5);
         expect(peakRssBytes).toBe((52000 + 900000 + 200000) * 1024);
+    });
+});
+
+describe('androidLaneProcesses', () => {
+    const rows = parseMacPs(`
+ 7001  7001  10:00.00 1500000 /Users/b/ksAndroid/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64-headless -avd ks_lane_lean -port 5556 -no-window
+ 7002  7002   1:00.00  900000 /Users/b/ksIos/jdk17/Contents/Home/bin/java -Duser.home=/Users/b/ksIos/lanes/lane1 -jar maestro
+ 7003  7003   9:00.00 1400000 /Users/b/ksAndroid/sdk/emulator/qemu/darwin-aarch64/qemu-system-aarch64-headless -avd ks_lane_lean -port 5558 -no-window
+ 7004  7004   2:00.00  800000 /Users/b/ksIos/jdk17/Contents/Home/bin/java -Duser.home=/Users/b/ksIos/lanes/lane2 -jar maestro
+ 7005  7005   0:10.00   50000 /Users/b/ksAndroid/sdk/emulator/emulator -avd ks_lane_lean -port 5556 -no-window
+`);
+
+    it('picks the emulator on the lane console port, and the Maestro JVM of the lane home', () => {
+        const mine = androidLaneProcesses(rows, { consolePort: '5556', laneHome: '/Users/b/ksIos/lanes/lane1' });
+
+        expect(mine.map((row) => row.pid)).toEqual([7001, 7002, 7005]);
+    });
+
+    it('does not take a port that only starts the same way', () => {
+        expect(androidLaneProcesses(rows, { consolePort: '555', laneHome: '/nowhere' })).toEqual([]);
     });
 });

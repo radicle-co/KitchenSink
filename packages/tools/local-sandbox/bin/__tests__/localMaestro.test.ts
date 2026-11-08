@@ -777,7 +777,9 @@ describe('local_maestro_start_emulator — where an emulator may boot', () => {
 
     it('refuses when it is set to the Mac, because that host boots its own emulators over ssh', () => {
         const sandbox = makeSandbox();
-        const result = run(sandbox, `local_maestro_start_emulator "${sandbox.state}"`, { LOCAL_MAESTRO_ANDROID_ON: 'mac' });
+        const result = run(sandbox, `local_maestro_start_emulator "${sandbox.state}"`, {
+            LOCAL_MAESTRO_ANDROID_ON: 'mac',
+        });
 
         expect(result.status).not.toBe(0);
         expect(spawned(sandbox)).toBe(false);
@@ -792,6 +794,26 @@ describe('local_maestro_start_emulator — where an emulator may boot', () => {
 
     it('answers mac by default and wsl when it is asked for', () => {
         expect(run(makeSandbox(), 'local_maestro_android_host').stdout.trim()).toBe('mac');
-        expect(run(makeSandbox(), 'local_maestro_android_host', { LOCAL_MAESTRO_ANDROID_ON: 'wsl' }).stdout.trim()).toBe('wsl');
+        expect(
+            run(makeSandbox(), 'local_maestro_android_host', { LOCAL_MAESTRO_ANDROID_ON: 'wsl' }).stdout.trim(),
+        ).toBe('wsl');
+    });
+});
+
+/** The variable is read in bash (`local_maestro_android_host`) and in TypeScript (`parseAndroidHost`): the two must agree. */
+describe('LOCAL_MAESTRO_ANDROID_ON — bash and TypeScript read it alike', () => {
+    it.each(['', 'mac', 'wsl', 'both', 'WSL'])('answers %j the same way in both', async (value) => {
+        const { parseAndroidHost } = await import('../../src/maestroLanes/lanePlanning.js');
+        const env: Record<string, string> = value === '' ? {} : { LOCAL_MAESTRO_ANDROID_ON: value };
+        const bash = run(makeSandbox(), 'local_maestro_android_host', env);
+        let typescript: string;
+
+        try {
+            typescript = parseAndroidHost(env);
+        } catch {
+            typescript = 'refused';
+        }
+
+        expect(bash.status === 0 ? bash.stdout.trim() : 'refused').toBe(typescript);
     });
 });

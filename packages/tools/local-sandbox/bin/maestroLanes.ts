@@ -37,6 +37,7 @@ import { SCREEN_RECORD_FILE, spawnRunner, type Env, type LaneChild } from '../sr
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
+import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -87,6 +88,25 @@ function baseEnvironment(): Env {
     );
 }
 
+/**
+ * The local stack's facts (the AVD, the origins, LocalStack, the service patterns), from their one home,
+ * `localMaestro.sh`.
+ *
+ * @sideEffect Runs bash.
+ */
+function readLocalSettings(): LocalSettings {
+    const result = spawnSync('bash', ['-c', '. "$1" && local_maestro_settings', 'maestroLanes', LOCAL_MAESTRO], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'inherit'],
+    });
+
+    if (result.status !== 0) {
+        throw new Error('maestro:lanes: localMaestro.sh did not print its settings (see above)');
+    }
+
+    return parseLocalSettings(result.stdout);
+}
+
 /** Run a command to completion. Never throws for a non-zero exit; the caller reads the code. */
 function run(command: string, args: readonly string[], options: { env?: Env; cwd?: string } = {}) {
     return new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
@@ -127,7 +147,7 @@ function killGroup(pid: number): void {
 }
 
 /** The adapter for a platform. iOS refuses to build without `LOCAL_MAESTRO_IOS_HOST`. */
-function adapterFor(platform: LanePlatform, env: Env): DeviceAdapter {
+function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): DeviceAdapter {
     if (platform === 'ios') {
         return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT });
     }
@@ -144,10 +164,10 @@ function adapterFor(platform: LanePlatform, env: Env): DeviceAdapter {
 
     return createAndroidAdapter({
         repoRoot: REPO_ROOT,
-        avd: 'ci_pixel6',
-        recipeOrigin: 'http://localhost:3000',
-        identityOrigin: 'http://localhost:3001',
-        foodOrigin: 'http://localhost:3002',
+        avd: settings.avd,
+        recipeOrigin: settings.recipeOrigin,
+        identityOrigin: settings.identityOrigin,
+        foodOrigin: settings.foodOrigin,
         publishableKey: env['CLERK_PUBLISHABLE_KEY'] ?? '',
         commands,
         bootTimeoutMs: 300_000,
@@ -181,7 +201,7 @@ function stackRoot(): string {
 }
 
 /** The services a lane run owns: every queue consumer the running stack planned, and the parse worker. */
-function serviceSpecs(root: string): readonly ServiceSpec[] {
+function serviceSpecs(root: string, settings: LocalSettings): readonly ServiceSpec[] {
     const plan = path.join(root, '.local-sandbox/queueConsumers.json');
 
     if (!existsSync(plan)) {
@@ -193,7 +213,7 @@ function serviceSpecs(root: string): readonly ServiceSpec[] {
     ).map(({ name, queueUrl }): ServiceSpec => ({
         name,
         queueUrl,
-        pattern: new RegExp(`bin/queueConsumer\\.ts ${name.replace(/[^\w-]/gu, '')}( |$)`, 'u'),
+        pattern: settings.consumerPattern(name),
         command: 'npx',
         args: ['tsx', 'packages/tools/local-sandbox/bin/queueConsumer.ts', name],
     }));
@@ -202,7 +222,7 @@ function serviceSpecs(root: string): readonly ServiceSpec[] {
         ...consumers,
         {
             name: 'parseWorker',
-            pattern: /recipe-workers.*src\/local\/main\.ts|src\/local\/main\.ts/u,
+            pattern: settings.workerPattern,
             command: 'npm',
             args: ['run', 'dev', '--workspace=@kitchensink/recipe-workers'],
         },
@@ -344,14 +364,14 @@ async function resolveSelection(
  *
  * @sideEffect Starts the queue consumers and the parse worker; writes the local recipe world.
  */
-async function startServices(base: Env) {
+async function startServices(base: Env, settings: LocalSettings) {
     const root = stackRoot();
     const sqs = new SQSClient({
-        endpoint: 'http://localhost:4566',
+        endpoint: settings.localstack,
         region: 'us-east-1',
         credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
     });
-    const services = await startSharedServices(serviceSpecs(root), {
+    const services = await startSharedServices(serviceSpecs(root, settings), {
         listProcesses: async () =>
             (await run('ps', ['-eo', 'pid=,args='])).stdout
                 .split('\n')
@@ -438,6 +458,7 @@ function watchUsage(lane: LaneSpec, child: LaneChild, log: (line: string) => voi
 async function main(argv: readonly string[]): Promise<number> {
     const args = parseLaneArgs(argv, process.env);
     mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+    const settings = readLocalSettings();
     const base = baseEnvironment();
     // `listLocalLanes` and the lane slots read the namespace from this process.
     process.env['E2E_POOL_NAMESPACE'] = 'local';
@@ -463,7 +484,7 @@ async function main(argv: readonly string[]): Promise<number> {
     process.on('SIGTERM', abort);
 
     const deps: LaneRunDeps = {
-        adapterFor: (platform) => adapterFor(platform, base),
+        adapterFor: (platform) => adapterFor(platform, base, settings),
         stateDir: STATE_DIR,
         repoRoot: REPO_ROOT,
         lockDir: path.join(STATE_DIR, 'locks'),
@@ -484,7 +505,7 @@ async function main(argv: readonly string[]): Promise<number> {
         },
         identityCap: async (platform) =>
             (await listLocalLanes(clerkPoolAdminPort(base['CLERK_SECRET_KEY'] ?? ''), platform)).present,
-        startServices: () => startServices(base),
+        startServices: () => startServices(base, settings),
         createRunUsers: async (platforms) => {
             for (const platform of platforms) {
                 const made = await tool(base, `making the ${platform} run erasure subject`, [

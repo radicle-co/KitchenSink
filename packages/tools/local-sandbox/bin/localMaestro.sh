@@ -68,6 +68,10 @@ LOCAL_MAESTRO_FOOD_ORIGIN='http://localhost:3002'
 # `CLERK_AUTHORIZED_PARTIES` to this origin.
 LOCAL_MAESTRO_WEB_ORIGIN='http://localhost:3000'
 LOCAL_MAESTRO_LOCALSTACK='http://localhost:4566'
+# The shared services' command lines, as `pgrep -f` matches them: a run refuses one it did not start. Written in the part
+# of ERE a JS RegExp reads the same way, because `maestroLanes.ts` matches them too. `{name}` is a consumer's name.
+LOCAL_MAESTRO_WORKER_PATTERN='src/local/main\.ts'
+LOCAL_MAESTRO_CONSUMER_PATTERN='bin/queueConsumer\.ts {name}( |$)'
 
 # Processes this run started, as process-group ids (each is started under `setsid`), and whether it booted the emulator.
 LOCAL_MAESTRO_STARTED_GROUPS=()
@@ -81,6 +85,19 @@ export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
 local_maestro_fail() {
     echo "local:maestro: $*" >&2
     return 1
+}
+
+# The facts above that `maestroLanes.ts` uses, as KEY=value lines (`localSettings.ts` parses them). This file is their one
+# home: the lane TypeScript reads them here and states none of them.
+local_maestro_settings() {
+    printf '%s=%s\n' \
+        LOCAL_MAESTRO_AVD "$LOCAL_MAESTRO_AVD" \
+        LOCAL_MAESTRO_RECIPE_ORIGIN "$LOCAL_MAESTRO_RECIPE_ORIGIN" \
+        LOCAL_MAESTRO_IDENTITY_ORIGIN "$LOCAL_MAESTRO_IDENTITY_ORIGIN" \
+        LOCAL_MAESTRO_FOOD_ORIGIN "$LOCAL_MAESTRO_FOOD_ORIGIN" \
+        LOCAL_MAESTRO_LOCALSTACK "$LOCAL_MAESTRO_LOCALSTACK" \
+        LOCAL_MAESTRO_WORKER_PATTERN "$LOCAL_MAESTRO_WORKER_PATTERN" \
+        LOCAL_MAESTRO_CONSUMER_PATTERN "$LOCAL_MAESTRO_CONSUMER_PATTERN"
 }
 
 # The state directory: keys, the seeder's sessions and manifest, logs. Refused inside the repository, so nothing it
@@ -359,7 +376,7 @@ local_maestro_start_worker() {
     local state="$1"
     local held
     # ⛔ Refused, never reused: a run that adopts another run's worker loses it when that run exits.
-    if held="$(pgrep -f 'recipe-workers.*src/local/main.ts|src/local/main\.ts' 2>/dev/null)"; then
+    if held="$(pgrep -f "$LOCAL_MAESTRO_WORKER_PATTERN" 2>/dev/null)"; then
         local_maestro_fail "a parse worker this run did not start is running (pid ${held//$'\n'/ }) — stop it, or the run that owns it, first"
         return 1
     fi
@@ -387,7 +404,7 @@ local_maestro_start_consumers() {
     local name log waited held
     for name in $(jq -r '.[].name' "$plan"); do
         # ⛔ Refused, never reused: an adopted consumer dies with the run that owns it and leaves this run's purge queued.
-        if held="$(pgrep -f "bin/queueConsumer.ts ${name}( |$)" 2>/dev/null)"; then
+        if held="$(pgrep -f "${LOCAL_MAESTRO_CONSUMER_PATTERN//'{name}'/$name}" 2>/dev/null)"; then
             local_maestro_fail "the ${name} queue consumer is running as pid ${held//$'\n'/ }, and this run did not start it — stop it, or the run that owns it, first"
             return 1
         fi
@@ -514,15 +531,8 @@ local_maestro_install_app() {
         return 1
     }
 
-    local port
-    for port in "$LOCAL_MAESTRO_METRO_PORT" 3001 3002; do
-        adb reverse "tcp:${port}" "tcp:${port}" >/dev/null || return 1
-    done
-    # The device's :3000 is recipe, wherever the host publishes it.
-    adb reverse tcp:3000 "tcp:${LOCAL_MAESTRO_RECIPE_HOST_PORT}" >/dev/null || return 1
-    # The app's committed `.env.development` names identity at :4000 (the spec's local table); the local sandbox
-    # serves it at :3001 (its own `PORT` default).
-    adb reverse tcp:4000 tcp:3001 >/dev/null || return 1
+    # The runner's one map, which every lane uses too, plus Metro: only this debug app loads its bundle from Metro.
+    maestro_local_reverse "$LOCAL_MAESTRO_RECIPE_HOST_PORT" "$LOCAL_MAESTRO_METRO_PORT" || return 1
     # CI's own input settings, from the sourced runner. A copy here once kept an old `0`: on this AVD, which reports a
     # hardware keyboard, that held the soft keyboard down in every local run while CI's was up.
     maestro_android_input_settings

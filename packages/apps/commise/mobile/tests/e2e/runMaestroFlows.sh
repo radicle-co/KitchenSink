@@ -1324,6 +1324,26 @@ maestro_disable_password_autofill_ios() {
     fi
 }
 
+# maestro_local_reverse <recipe-host-port> [<port>...]
+#
+# The local app's ports, reversed onto this host: the ONE map that a lane and `localMaestro.sh`'s one-emulator path both
+# use. The device addresses recipe at :3000, identity at :3001 and food at :3002 (the services' own `PORT` defaults), and
+# the debug app's committed `.env.development` names identity at :4000. Recipe's host side may be another port when
+# something else holds the host's 3000. Each extra port is reversed onto itself (`localMaestro.sh` passes Metro's).
+#
+# @sideEffect Runs `adb reverse` on the device ANDROID_SERIAL names.
+maestro_local_reverse() {
+    local recipe_host_port="$1" port
+    shift
+    adb reverse tcp:3000 "tcp:${recipe_host_port}" >/dev/null || return 1
+    adb reverse tcp:3001 tcp:3001 >/dev/null || return 1
+    adb reverse tcp:3002 tcp:3002 >/dev/null || return 1
+    adb reverse tcp:4000 tcp:3001 >/dev/null || return 1
+    for port in "$@"; do
+        adb reverse "tcp:${port}" "tcp:${port}" >/dev/null || return 1
+    done
+}
+
 # maestro_prepare_device <platform>
 #
 # Install the app and settle the device's input and motion settings, once per run.
@@ -1339,9 +1359,7 @@ maestro_prepare_device() {
                 # A local lane's app names the three local services on loopback (`buildTestApp.sh`'s local origins), and
                 # each must reach this host: a missing reverse is a red here, not thirty flows failing to load.
                 # `MAESTRO_LOCAL_RECIPE_HOST_PORT` is the host side of :3000 when something else holds the host's 3000.
-                adb reverse tcp:3000 "tcp:${MAESTRO_LOCAL_RECIPE_HOST_PORT:-3000}" || return 1
-                adb reverse tcp:3001 tcp:3001 || return 1
-                adb reverse tcp:3002 tcp:3002 || return 1
+                maestro_local_reverse "${MAESTRO_LOCAL_RECIPE_HOST_PORT:-3000}" || return 1
             else
                 adb reverse tcp:3000 tcp:3000 || true
             fi

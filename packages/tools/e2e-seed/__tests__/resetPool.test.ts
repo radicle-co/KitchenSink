@@ -16,10 +16,18 @@ import { fileURLToPath } from 'node:url';
 
 import type { SessionCredential, SessionHandle } from '@kitchensink/e2e-fixtures';
 import { consumableSlots, k6VuSlots, slotFor, slotForShard } from '@kitchensink/e2e-fixtures/testPool';
+import { UnauthorizedError } from '@kitchensink/food-service-client';
 import { NotFoundError, UnexpectedResponseError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { describeOutcomes, parseResetArgs, resetSlots, resetTargets, sessionSource } from '../src/resetPool.js';
+import {
+    authoredFoodPurgeVia,
+    describeOutcomes,
+    parseResetArgs,
+    resetSlots,
+    resetTargets,
+    sessionSource,
+} from '../src/resetPool.js';
 
 const handleFor = (email: string): SessionHandle => ({
     sessionId: `sess_${email}`,
@@ -885,5 +893,31 @@ describe('describeOutcomes', () => {
                 },
             ]).at(-1),
         ).toBe('all 1 slots reset');
+    });
+});
+
+describe('authoredFoodPurgeVia', () => {
+    const handle = handleFor('ioscoauthor01@example.test');
+    const never = { retries: 0, intervalMs: 1 };
+
+    it("⛔ names the HTTP status when food-service refuses the slot's token, so an intermittent 401 is attributable", async () => {
+        const port = authoredFoodPurgeVia(
+            () => ({
+                purgeOwnAuthoredFoods: () =>
+                    Promise.reject(new UnauthorizedError('Valid Clerk session or M2M token required')),
+            }),
+            never,
+        );
+
+        await expect(port.purgeOwn(handle)).rejects.toThrow(
+            /food-service refused the authored-food purge \(HTTP 401\).*Valid Clerk session or M2M token required/u,
+        );
+    });
+
+    it('still keeps the original error as the cause', async () => {
+        const refusal = new UnauthorizedError('nope');
+        const port = authoredFoodPurgeVia(() => ({ purgeOwnAuthoredFoods: () => Promise.reject(refusal) }), never);
+
+        await expect(port.purgeOwn(handle)).rejects.toMatchObject({ cause: refusal });
     });
 });

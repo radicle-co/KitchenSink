@@ -310,12 +310,14 @@ describe('fileRunUserRecord — the record on disk', () => {
         fileRunUserRecord(file).write([{ id: 'user_a', email: 'e', createdAt: 't' }]);
 
         const fd = openSync(file, 'r');
+
         try {
             expect(fstatSync(fd).mode & 0o777).toBe(0o600);
             expect(JSON.parse(readFileSync(fd, 'utf8'))).toEqual([{ id: 'user_a', email: 'e', createdAt: 't' }]);
         } finally {
             closeSync(fd);
         }
+
         expect(readdirSync(dir)).toEqual(['runUsers.android.json']);
     });
 

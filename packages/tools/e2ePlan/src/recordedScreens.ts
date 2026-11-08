@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { branchingFlows } from './branchingFlows.js';
 import { parseCoverage } from './coverageTable.js';
 import { flowCoverage } from './flowCoverage.js';
-import { maestroFlowGraph } from './maestroFlows.js';
+import { flowIdOf, MAESTRO_DIR, maestroFlowGraph } from './maestroFlows.js';
 import { plannedFlows } from './plannedFlows.js';
 import { FLOW_TABLE, MOBILE_PASS_THROUGH } from './repoModels.js';
 import {
@@ -19,8 +19,6 @@ import {
 import { screenEvidence } from './screenEvidence.js';
 
 export { flowOutcomes, type FlowResult } from './screenCheck.js';
-
-const MAESTRO = 'packages/apps/commise/mobile/.maestro';
 
 /** One lane's record file and the platform it ran on. */
 export interface ScreenSource {
@@ -111,12 +109,11 @@ export function checkRecordedScreens(
     sources: readonly ScreenSource[],
     evidenceDir?: string,
 ): ScreenReport {
-    const files = globSync(`${MAESTRO}/**/*`, { cwd: repo }).sort();
+    const files = globSync(`${MAESTRO_DIR}/**/*`, { cwd: repo }).sort();
     const read = (path: string): string => readFileSync(join(repo, path), 'utf8');
-    const flows = maestroFlowGraph({ dir: MAESTRO, files, read, topLevel: plannedFlows(repo) });
+    const flows = maestroFlowGraph({ dir: MAESTRO_DIR, files, read, topLevel: plannedFlows(repo) });
     const table = parseCoverage(read(FLOW_TABLE), FLOW_TABLE);
-    const idOf = (file: string): string => file.slice(`${MAESTRO}/`.length).replace(/\.ya?ml$/u, '');
-    const coverage = flowCoverage({ flows, table, idOf, passThrough: MOBILE_PASS_THROUGH });
+    const coverage = flowCoverage({ flows, table, idOf: flowIdOf, passThrough: MOBILE_PASS_THROUGH });
     const report = checkScreenFiles(sources, coverage, branchingFlows(flows, read));
 
     if (evidenceDir !== undefined) {

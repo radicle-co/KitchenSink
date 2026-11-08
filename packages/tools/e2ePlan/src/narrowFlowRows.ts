@@ -15,7 +15,7 @@ import type { CoverageTable } from './coverageTable.js';
 export type Platform = 'android' | 'ios';
 
 /** What a platform's run said about one flow. */
-export interface Observation {
+interface Observation {
     readonly result: 'passed' | 'failed' | 'skipped';
     /** Screens the row names that the flow did not show. */
     readonly wider: ReadonlySet<string>;

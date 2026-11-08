@@ -13,7 +13,8 @@
         "./recordedScreens": "./src/recordedScreens.ts",
         "./stampRun": "./src/stampRun.ts",
         "./packLanes": "./src/packLanes.ts",
-        "./ciMatrix": "./src/ciMatrix.ts"
+        "./ciMatrix": "./src/ciMatrix.ts",
+        "./registeredMobileScreens": "./src/registeredMobileScreens.ts"
     },
     "scripts": {
         "test": "vitest run",

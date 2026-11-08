@@ -7,14 +7,12 @@ import { join } from 'node:path';
 
 import { branchingFlows } from './branchingFlows.js';
 import { parseCoverage } from './coverageTable.js';
-import { maestroFlowGraph } from './maestroFlows.js';
+import { flowFileOf, flowIdOf, MAESTRO_DIR, maestroFlowGraph } from './maestroFlows.js';
 import { type Evidence, type NarrowInput } from './narrowFlowRows.js';
 import { plannedFlows } from './plannedFlows.js';
 
 const MOBILE = 'packages/apps/commise/mobile';
 export const FLOW_TABLE_PATH = `${MOBILE}/tests/e2e/maestroFlowScreens.tsv`;
-
-const idOf = (file: string): string => file.slice(`${MOBILE}/.maestro/`.length).replace(/\.ya?ml$/u, '');
 
 /**
  * Builds the input of `narrowRows` from the repository and two platforms' evidence.
@@ -33,17 +31,16 @@ export function loadNarrowInput(
     const read = (path: string): string => readFileSync(join(repo, path), 'utf8');
     const text = read(FLOW_TABLE_PATH);
     const table = parseCoverage(text, FLOW_TABLE_PATH);
-    const files = globSync(`${MOBILE}/.maestro/**/*`, { cwd: repo }).sort();
+    const files = globSync(`${MAESTRO_DIR}/**/*`, { cwd: repo }).sort();
     const flows = maestroFlowGraph({
-        dir: `${MOBILE}/.maestro`,
+        dir: MAESTRO_DIR,
         files,
         read,
         topLevel: plannedFlows(repo),
     });
     const topLevel = new Set([...flows.tests.values()]);
     const subflows = new Set([...table.keys()].filter((id) => !topLevel.has(id)));
-    const fileOf = (id: string): string => `${MOBILE}/.maestro/${id}.yaml`;
-    const runsOfId = (id: string): readonly string[] => flows.runsOf(fileOf(id)).map(idOf);
+    const runsOfId = (id: string): readonly string[] => flows.runsOf(flowFileOf(id)).map(flowIdOf);
 
     return {
         text,

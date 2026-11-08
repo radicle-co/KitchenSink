@@ -10,10 +10,10 @@ import { join } from 'node:path';
 
 import { changedRows } from './changedRows.js';
 import { checkCoverage, parseCoverage, type CoverageTable } from './coverageTable.js';
-import { buildImportGraph, type GraphProfile } from './dependencyGraph.js';
+import { buildImportGraph, type GraphProfile, type ImportGraph } from './dependencyGraph.js';
 import { flowCoverage } from './flowCoverage.js';
-import { maestroFlowGraph } from './maestroFlows.js';
-import { mobileRegistry } from './mobileScreens.js';
+import { flowFileOf, flowIdOf, MAESTRO_DIR, maestroFlowGraph } from './maestroFlows.js';
+import { mobileRegistry, type MobileRegistry } from './mobileScreens.js';
 import { plannedFlows } from './plannedFlows.js';
 import type { Models, TierModel } from './planChange.js';
 import { parseBindings, type ModuleBindings } from './moduleBindings.js';
@@ -136,35 +136,43 @@ async function webModel(repo: string, mergeBase: string | undefined, bindingsOf:
     };
 }
 
-async function mobileModel(repo: string, mergeBase: string | undefined, bindingsOf: BindingsOf): Promise<TierModel> {
-    const graph = await buildImportGraph(repo, MOBILE_PROFILE);
-    const registry = mobileRegistry({
+/**
+ * The mobile screens and walk terminals of a mobile import graph: the modules of the screens folder that the navigator
+ * or the auth gate import.
+ *
+ * @param graph - The mobile app's import graph.
+ * @returns The registry.
+ */
+export function mobileRegistryOf(graph: ImportGraph): MobileRegistry {
+    return mobileRegistry({
         screensDir: `${MOBILE}/src/screens`,
         registrars: [`${MOBILE}/src/navigation/`, `${MOBILE}/src/components/AuthGate.tsx`],
         roots: [`${MOBILE}/App.tsx`, `${MOBILE}/app.config.ts`],
         files: graph.files.filter((file) => file.startsWith(`${MOBILE}/`)),
         importersOf: graph.importersOf,
     });
-    const flowFiles = globSync(`${MOBILE}/.maestro/**/*`, { cwd: repo }).sort();
+}
+
+async function mobileModel(repo: string, mergeBase: string | undefined, bindingsOf: BindingsOf): Promise<TierModel> {
+    const graph = await buildImportGraph(repo, MOBILE_PROFILE);
+    const registry = mobileRegistryOf(graph);
+    const flowFiles = globSync(`${MAESTRO_DIR}/**/*`, { cwd: repo }).sort();
     const flows = maestroFlowGraph({
-        dir: `${MOBILE}/.maestro`,
+        dir: MAESTRO_DIR,
         files: flowFiles,
         read: (path) => read(repo, path),
         topLevel: plannedFlows(repo),
     });
     const table = parseCoverage(read(repo, FLOW_TABLE), FLOW_TABLE);
     const tests = [...flows.tests.values()];
-    const idOf = (file: string): string => file.slice(`${MOBILE}/.maestro/`.length).replace(/\.ya?ml$/u, '');
     // A sub-flow (the sign-in flows) may carry a row: its screens belong to every flow that runs it, through the flow
     // graph, so no flow names a screen a sub-flow already stands for.
-    const subflows = flowFiles.filter((file) => /\.ya?ml$/u.test(file) && !flows.tests.has(file)).map(idOf);
+    const subflows = flowFiles.filter((file) => /\.ya?ml$/u.test(file) && !flows.tests.has(file)).map(flowIdOf);
     const flowTerminals = { screenEntries: new Map(), roots: noRoots, tests: flows.tests };
     const edited = changedRows(tableAt(repo, mergeBase, FLOW_TABLE), table).flatMap((id) =>
-        tests.includes(id)
-            ? [id]
-            : [...reach(`${MOBILE}/.maestro/${id}.yaml`, fileLevel(flows.importersOf), flowTerminals).tests],
+        tests.includes(id) ? [id] : [...reach(flowFileOf(id), fileLevel(flows.importersOf), flowTerminals).tests],
     );
-    const coverage = flowCoverage({ flows, table, idOf, passThrough: MOBILE_PASS_THROUGH });
+    const coverage = flowCoverage({ flows, table, idOf: flowIdOf, passThrough: MOBILE_PASS_THROUGH });
 
     return {
         name: 'mobile',

@@ -1,4 +1,7 @@
-/** What one lane costs the machine. Measured, see `web/scripts/e2eLanes.ts`. */
+/**
+ * What a lane, or the one server the lanes share, costs the machine. Each door measures its own figure and keeps it with
+ * the lane runner: `web/scripts/e2eLanes.ts`, `androidAdapter.ts` and `iosAdapter.ts`.
+ */
 export interface LaneCost {
     readonly cpus: number;
     readonly memBytes: number;
@@ -10,7 +13,7 @@ export interface LanePlanInput {
     readonly load1: number;
     readonly memAvailable: number;
     readonly perLane: LaneCost;
-    /** What runs once whatever the lane count, such as a server the lanes share. Taken off the machine first. */
+    /** What runs once whatever the lane count, such as the one server the web lanes share. Taken off the machine first. */
     readonly fixed?: LaneCost | undefined;
     /** Distinct sign-in identities the pool holds for this tier. */
     readonly identityCap: number;

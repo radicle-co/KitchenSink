@@ -333,6 +333,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/ciMatrix',
         // `stampRun` moves the last-green stamp after a local run (ADR-0086); the web door and the Maestro lanes call it.
         '!@kitchensink/*/stampRun',
+        // `registeredMobileScreens` gives the screen recorder's guard (mobile `screenTrace.integration.test.ts`) the selector's own
+        // list of registered screens.
+        '!@kitchensink/*/registeredMobileScreens',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.
         '!@kitchensink/*/poolAdmin',

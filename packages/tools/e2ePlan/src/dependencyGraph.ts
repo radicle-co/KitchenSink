@@ -109,7 +109,7 @@ function sourceOf(dir: string, target: string, isDirectory: boolean): string | u
  * @returns The aliases. An export with no file behind it gets none, and an import of it then fails to resolve, which
  * `buildImportGraph` reports as a problem: nothing is lost by saying nothing here.
  */
-export function workspaceAliases(workspace: WorkspacePackage & { readonly absoluteDir: string }): readonly Alias[] {
+function workspaceAliases(workspace: WorkspacePackage & { readonly absoluteDir: string }): readonly Alias[] {
     const entries = Object.entries(asRecord(workspace.exports));
 
     if (entries.length === 0) {

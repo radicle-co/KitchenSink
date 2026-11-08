@@ -106,8 +106,10 @@ describe('MacAndroidHost', () => {
         expect(rig().host.abi).toBe('arm64-v8a');
     });
 
-    it('costs a lane 5.5 cpus and 5.5 GiB until a Mac run measures it', () => {
-        expect(rig().host.laneCost).toEqual({ cpus: 5.5, memBytes: 5.5 * 1024 ** 3 });
+    it('costs a lane what the 2026-11-08 two-lane Mac run measured: a 2.7 cpu burst and 5.71 GiB peak resident', () => {
+        // maestro:macUsage over 2 lanes and 75 minutes: mean 0.65 to 0.68 cpus, p95 1.2, max 2.5 to 2.7; peak resident
+        // 5.47 to 5.71 GiB per lane (the emulator and its Maestro JVM). The figures are rounded up.
+        expect(rig().host.laneCost).toEqual({ cpus: 3, memBytes: Math.round(5.8 * 1024 ** 3) });
     });
 
     it('reaps an earlier run emulators BEFORE it makes anything ready to boot', async () => {

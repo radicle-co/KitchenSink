@@ -16,8 +16,14 @@ import type { LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
 import { MacSession, remote, type MacShell } from './macSession.js';
 
-/** What a Mac Android lane costs until a Mac run measures it (lead, 2026-11-08): the WSL peak. */
-const MAC_ANDROID_LANE_COST: LaneCost = { cpus: 5.5, memBytes: 5.5 * 1024 ** 3 };
+/**
+ * What a Mac Android lane costs, measured with `maestro:macUsage android` on a two-lane full run (2026-11-08, 75 minutes, the
+ * 14-cpu Mac, host GPU): a lane's emulator and Maestro JVM used 0.65 to 0.68 cpus on average, p95 1.2, with bursts to 2.5 to
+ * 2.7, and peaked at 5.47 to 5.71 GiB resident. The cpu figure is the burst rounded up and the memory the largest peak
+ * rounded up. It counts only a lane's own processes (the GPU work runs in Metal), which is what the planner's margin on free
+ * memory is for.
+ */
+const MAC_ANDROID_LANE_COST: LaneCost = { cpus: 3, memBytes: Math.round(5.8 * 1024 ** 3) };
 
 const IMAGE = 'system-images;android-34;google_apis;arm64-v8a';
 

@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildImportGraph } from '../src/dependencyGraph.js';
 import { isTestFile } from '../src/impactPolicy.js';
+import { planChange } from '../src/planChange.js';
 import { loadRepoModels, MOBILE_PROFILE, WEB_PROFILE } from '../src/repoModels.js';
 import { isTestSupportCandidate, testingDirs } from '../src/testSupport.js';
 import { readWorkspaces } from '../src/workspaces.js';
@@ -107,5 +108,39 @@ describe('the zero list, over the real tree', () => {
 
         expect(candidates.length).toBeGreaterThan(5);
         expect(violations).toEqual([]);
+    });
+
+    it('test support that a spec imports selects that spec, and is never zero-listed', async () => {
+        const models = await loadRepoModels(repo);
+        const dirs = testingDirs(readWorkspaces(repo));
+        const support = [
+            ...dirs.flatMap((dir) => globSync(`${dir}/**/*`, { cwd: repo })),
+            ...globSync('packages/**/__fixtures__/**/*', { cwd: repo, exclude: (name) => name === 'node_modules' }),
+        ].filter((file) => /\.[cm]?[jt]sx?$/u.test(file) && models.isTestSupport(file));
+        const reachingATest = support.filter((file) =>
+            [models.web, models.mobile].some((tier) => (tier.reachFile(file)?.tests.size ?? 0) > 0),
+        );
+
+        // The named case: the account package's `testing` export, which profile.spec.ts and utils/recipeApi.ts import.
+        const account = 'packages/apps/commise/features/account/src/__fixtures__/index.ts';
+
+        expect(reachingATest).toContain(account);
+
+        for (const file of reachingATest) {
+            // A package a service depends on is already global: the whole suite runs, whatever imports it.
+            const global = models.serviceDirs.some((dir) => file.startsWith(`${dir}/`));
+            const plan = await planChange([file], async () => models, { fullSuite: false });
+
+            for (const tier of [models.web, models.mobile]) {
+                expect(plan[tier.name].kind === 'some' || global, `${file} widens the ${tier.name} tier`).toBe(true);
+
+                if (!global && (tier.reachFile(file)?.tests.size ?? 0) > 0) {
+                    const selection = plan[tier.name];
+                    const selected = selection.kind === 'some' ? selection.picks.length : Number.POSITIVE_INFINITY;
+
+                    expect(selected, `${file} reaches a ${tier.name} test but selects none`).toBeGreaterThan(0);
+                }
+            }
+        }
     });
 });

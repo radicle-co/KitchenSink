@@ -57,10 +57,22 @@ function fixture(): Fixture {
     const log = `printf '%s' "$(basename "$0")" >> "${calls}"; printf ' %s' "$@" >> "${calls}"; printf '\\n' >> "${calls}"`;
     const printAll = (lines: readonly string[]): string => lines.map((line) => `echo "${line}"`).join('\n');
 
-    // `adb logcat` prints the app's lines and then stays alive, as the real one does; the runner must stop it.
+    // The device log holds the app's lines (`logcat -d` prints them and exits, as the real one does). The STREAMING
+    // `logcat` prints them and stays alive, but only after STUB_LOGCAT_DELAY seconds: a reader that starts, or reads,
+    // late under load. `-c` clears and exits.
     stub(
         'adb',
-        `${log}\nif [ "\${1:-}" = logcat ] && [[ " $* " != *" -c "* ]] && [[ " $* " != *" -d "* ]]; then\n${printAll(ANDROID_LINES)}\nexec sleep 60\nfi\nexit 0`,
+        `${log}
+if [ "\${1:-}" = logcat ]; then
+    case " $* " in
+        *" -c "*) exit 0 ;;
+        *" -d "*) ${printAll(ANDROID_LINES)}; exit 0 ;;
+    esac
+    sleep "\${STUB_LOGCAT_DELAY:-0}"
+    ${printAll(ANDROID_LINES)}
+    exec sleep 60
+fi
+exit 0`,
     );
     stub('xcrun', `${log}\n${printAll(IOS_LINES)}`);
     stub('maestro', `${log}\nexit "\${STUB_MAESTRO_EXIT:-0}"`);
@@ -119,6 +131,22 @@ describe('maestro_screen_record_* on Android', () => {
         expect(recordOf(f)).toContain('screen\thome\tlogin');
     });
 
+    it('keeps every screen when the streaming reader is too slow to have written before the flow ends', () => {
+        const f = fixture();
+
+        const run = inRunner(f, 'maestro_screen_record_start; maestro_screen_record_stop recipes/rating 0', {
+            MAESTRO_SCREEN_RECORD: f.record,
+            STUB_LOGCAT_DELAY: '30',
+        });
+
+        expect(run.status, run.output).toBe(0);
+        expect(recordOf(f)).toEqual([
+            'screen\trecipes/rating\tlogin',
+            'screen\trecipes/rating\tHomeScreen',
+            'result\trecipes/rating\tpassed',
+        ]);
+    });
+
     it('stops the log reader it started, so lanes do not pile up readers', () => {
         const f = fixture();
         const run = inRunner(
@@ -175,7 +203,11 @@ describe('maestro_screen_record_* on iOS', () => {
 });
 
 describe('run mode with the recorder on', () => {
-    const runMode = (maestroExit: string, earlierRecord?: string): { f: Fixture; status: number } => {
+    const runMode = (
+        maestroExit: string,
+        earlierRecord?: string,
+        extraEnv: Readonly<Record<string, string>> = {},
+    ): { f: Fixture; status: number } => {
         const f = fixture();
 
         if (earlierRecord !== undefined) {
@@ -199,6 +231,7 @@ describe('run mode with the recorder on', () => {
                 ANDROID_SERIAL: 'emulator-5558',
                 MAESTRO_SCREEN_RECORD: f.record,
                 STUB_MAESTRO_EXIT: maestroExit,
+                ...extraEnv,
             },
         });
 
@@ -221,6 +254,17 @@ describe('run mode with the recorder on', () => {
      * stopped, which also left NUL bytes in it), so the next run's check read both runs' results and refused the file.
      * Stale results could as well vouch for a flow this run never passed, and the green stamp reads them.
      */
+    it('keeps every screen of a flow that ends before a slow log reader wrote anything', () => {
+        const { f, status } = runMode('0', undefined, { STUB_LOGCAT_DELAY: '30' });
+
+        expect(status).toBe(0);
+        expect(recordOf(f)).toEqual([
+            'screen\trecipes/edit\tlogin',
+            'screen\trecipes/edit\tHomeScreen',
+            'result\trecipes/edit\tpassed',
+        ]);
+    });
+
     it('starts the record fresh, so an earlier run’s results never count for this one', () => {
         const { f, status } = runMode('0', 'result\trecipes/landscape\tpassed\n\0\0\0\0\n');
 

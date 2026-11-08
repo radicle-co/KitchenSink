@@ -1492,6 +1492,14 @@ maestro_screen_record_stop() {
     if [ -n "$MAESTRO_SCREEN_PID" ]; then
         kill "$MAESTRO_SCREEN_PID" 2>/dev/null || true
         wait "$MAESTRO_SCREEN_PID" 2>/dev/null || true
+        # ⛔ The stream alone LOSES lines: a reader that started late, or had not yet read the last screen when the flow
+        # ended, is killed with what it wrote so far (a passed flow then looks silent and fails the run). Stopping a
+        # reader cannot make it flush, so the device log is DRAINED after it: `logcat -d` prints what the device holds
+        # since the flow's `logcat -c` and returns once it has, which is complete by construction. The stream stays
+        # because the ring buffer is 256 KB and a long flow can push its early lines out. The tail is appended, and
+        # the awk below keeps each screen once in the order it first appears. It runs through the same `adb`, so the
+        # Mac's shim carries it.
+        adb logcat -d -v raw 'ReactNativeJS:E' '*:S' >>"$MAESTRO_SCREEN_RAW" 2>/dev/null || true
     elif [ "$(maestro_platform 2>/dev/null)" = 'ios' ]; then
         xcrun simctl spawn "$MAESTRO_IOS_UDID" log show --style compact --start "${MAESTRO_IOS_LOG_START:-}" \
             --predicate 'eventMessage CONTAINS "COMMISE_SCREEN"' >"$MAESTRO_SCREEN_RAW" 2>/dev/null || true

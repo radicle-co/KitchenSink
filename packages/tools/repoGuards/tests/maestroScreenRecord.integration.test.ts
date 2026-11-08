@@ -175,8 +175,13 @@ describe('maestro_screen_record_* on iOS', () => {
 });
 
 describe('run mode with the recorder on', () => {
-    const runMode = (maestroExit: string): { f: Fixture; status: number } => {
+    const runMode = (maestroExit: string, earlierRecord?: string): { f: Fixture; status: number } => {
         const f = fixture();
+
+        if (earlierRecord !== undefined) {
+            writeFileSync(f.record, earlierRecord);
+        }
+
         const manifest = join(f.dir, 'fixture.env');
         writeFileSync(manifest, 'E2E_SIGNIN_EMAIL=x@example.com\n');
         const run = spawnSync('bash', [SCRIPT], {
@@ -202,6 +207,22 @@ describe('run mode with the recorder on', () => {
 
     it('records the flow it ran, with its screens and its result', () => {
         const { f, status } = runMode('0');
+
+        expect(status).toBe(0);
+        expect(recordOf(f)).toEqual([
+            'screen\trecipes/edit\tlogin',
+            'screen\trecipes/edit\tHomeScreen',
+            'result\trecipes/edit\tpassed',
+        ]);
+    });
+
+    /**
+     * Found by the acceptance run of 2026-11-07: a lane's record file outlived the run before it (one a host crash
+     * stopped, which also left NUL bytes in it), so the next run's check read both runs' results and refused the file.
+     * Stale results could as well vouch for a flow this run never passed, and the green stamp reads them.
+     */
+    it('starts the record fresh, so an earlier run’s results never count for this one', () => {
+        const { f, status } = runMode('0', 'result\trecipes/landscape\tpassed\n\0\0\0\0\n');
 
         expect(status).toBe(0);
         expect(recordOf(f)).toEqual([

@@ -377,8 +377,8 @@ describe('⛔ no shard builds an app: the recipe lives in buildTestApp.sh', () =
         expect(script).toMatch(/-PreactNativeArchitectures=/u);
     });
 
-    it('the CI test APK is x86_64 only', () => {
-        expect(readFileSync(SCRIPT, 'utf8')).toMatch(/^TEST_APP_ANDROID_ABIS='x86_64'$/mu);
+    it('the CI test APK is x86_64 only: the default ABI is x86_64 and a Mac build opts into arm64-v8a by variable', () => {
+        expect(readFileSync(SCRIPT, 'utf8')).toMatch(/^TEST_APP_DEFAULT_ANDROID_ABI='x86_64'$/mu);
     });
 });
 

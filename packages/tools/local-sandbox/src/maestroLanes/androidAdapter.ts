@@ -9,13 +9,13 @@
  * @pattern Strategy — the Android {@link DeviceAdapter}
  * @pattern Adapter over the Android emulator, adb and `buildTestApp.sh`, behind the injected {@link CommandPort}
  */
-import { cpus, freemem, loadavg } from 'node:os';
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
-import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
+import { createLocalAndroidHost, type AndroidHost } from './androidHost.js';
+import type { DeviceAdapter, LaneSpec, RunContext } from './laneTypes.js';
 
 /** The lanes' emulators, by lane. Never `emulator-5554`: that one is the owner's. */
 export const ANDROID_LANE_SERIALS = [
@@ -69,20 +69,9 @@ export interface AndroidAdapterOptions {
     readonly bootTimeoutMs: number;
     /** The run's environment, with the Android toolchain in it: the app is built in this, never in the process's own. */
     readonly environment: Env;
+    /** Where the emulators run. Omitted: this machine (x86_64). The Mac host is `createMacAndroidHost`. */
+    readonly host?: AndroidHost;
 }
-
-/** The host's free memory in bytes: `MemAvailable` on Linux. libuv answers 0 when it cannot read it. */
-function memAvailableBytes(): number {
-    const bytes = freemem();
-
-    if (bytes <= 0) {
-        throw new Error('maestro:lanes: the host reported no free memory (os.freemem() is 0)');
-    }
-
-    return bytes;
-}
-
-const consolePort = (serial: string): string => serial.replace(/^emulator-/u, '');
 
 /**
  * The Android {@link DeviceAdapter}.
@@ -95,9 +84,12 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
     const apk = path.join(mobileDir, 'dist-testApp/android/app.apk');
     const manifest = path.join(mobileDir, 'dist-testApp/android/testApp.manifest');
     const script = path.join(mobileDir, 'scripts/buildTestApp.sh');
-    const booted = new Map<string, number>();
+    const host =
+        options.host ?? createLocalAndroidHost({ commands, avd: options.avd, apk, laneCost: ANDROID_LANE_COST });
     const buildEnv: Env = {
         ...options.environment,
+        // The ABI the host's emulators run: the content key, the build and the verification all read it, so they agree.
+        TEST_APP_ANDROID_ABIS: host.abi,
         EXPO_PUBLIC_RECIPE_API_URL: options.recipeOrigin,
         EXPO_PUBLIC_IDENTITY_API_URL: options.identityOrigin,
         EXPO_PUBLIC_FOOD_API_URL: options.foodOrigin,
@@ -117,19 +109,12 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
         return serial;
     };
 
-    const adb = (serial: string, ...args: string[]) => commands.run('adb', ['-s', serial, ...args]);
-
     return {
         platform: 'android',
-        laneCost: ANDROID_LANE_COST,
+        laneCost: host.laneCost,
         maxLanes: ANDROID_LANE_SERIALS.length,
-        // Async so a refusal rejects, as the port promises, instead of throwing before a promise exists.
-        hostFacts: async (): Promise<HostFacts> => ({
-            cpus: cpus().length,
-            load1: loadavg()[0] ?? 0,
-            memAvailable: memAvailableBytes(),
-        }),
-        prepareHost: async (_run: RunContext) => {
+        hostFacts: () => host.hostFacts(),
+        prepareHost: async (run: RunContext) => {
             const keyed = await commands.run('bash', [script, 'content-key', 'android'], {
                 env: buildEnv,
                 cwd: options.repoRoot,
@@ -172,10 +157,12 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
                     'maestro:lanes: the Android test app is not the one this run expects - refusing to drive it',
                 );
             }
+
+            await host.prepare(run, apk, key);
         },
         deviceFor,
         startDevice: async (lane: LaneSpec) => {
-            const attached = await adb(lane.device, 'get-state');
+            const attached = await host.adb(lane.device, 'get-state');
 
             if (attached.code === 0 && attached.stdout.trim() === 'device') {
                 throw new Error(
@@ -183,63 +170,29 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
                 );
             }
 
-            const { pid } = commands.spawnDetached(
-                'emulator',
-                [
-                    '-avd',
-                    options.avd,
-                    '-port',
-                    consolePort(lane.device),
-                    '-read-only',
-                    '-no-snapshot',
-                    '-no-window',
-                    '-no-audio',
-                    '-no-boot-anim',
-                    '-gpu',
-                    'swiftshader_indirect',
-                ],
-                path.join(lane.stateDir, 'emulator.log'),
-            );
-            booted.set(lane.device, pid);
+            await host.boot(lane);
 
             const polls = Math.max(1, Math.ceil(options.bootTimeoutMs / BOOT_POLL_MS));
             let up = false;
 
             for (let poll = 0; poll < polls && !up; poll += 1) {
                 await commands.sleep(BOOT_POLL_MS);
-                up = (await adb(lane.device, 'shell', 'getprop', 'sys.boot_completed')).stdout.trim() === '1';
+                up = (await host.adb(lane.device, 'shell', 'getprop', 'sys.boot_completed')).stdout.trim() === '1';
             }
 
             if (!up) {
-                commands.killGroup(pid);
-                booted.delete(lane.device);
+                await host.abort(lane);
                 throw new Error(
                     `maestro:lanes: ${lane.device} did not finish booting - log: ${lane.stateDir}/emulator.log`,
                 );
             }
 
-            const installed = await adb(lane.device, 'install', '-r', apk);
-
-            if (installed.code !== 0) {
+            if (!(await host.install(lane))) {
                 throw new Error(`maestro:lanes: installing the test app on ${lane.device} failed`);
             }
         },
-        laneEnv: (lane: LaneSpec) => ({
-            ANDROID_SERIAL: lane.device,
-            MAESTRO_ANDROID_APK: apk,
-            MAESTRO_SKIP_INSTALL: '1',
-        }),
-        stopDevice: async (lane: LaneSpec) => {
-            const pid = booted.get(lane.device);
-
-            if (pid === undefined) {
-                return;
-            }
-
-            await adb(lane.device, 'emu', 'kill');
-            commands.killGroup(pid);
-            booted.delete(lane.device);
-        },
-        teardownHost: () => Promise.resolve(),
+        laneEnv: (lane: LaneSpec) => host.laneEnv(lane),
+        stopDevice: (lane: LaneSpec) => host.stop(lane),
+        teardownHost: () => host.teardown(),
     };
 }

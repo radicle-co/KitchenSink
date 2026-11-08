@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { fitLaneCount, flowSelector, laneSpecs, parseLaneArgs } from '../lanePlanning.js';
+import {
+    fitLaneCount,
+    flowSelector,
+    laneSpecs,
+    parseAndroidHost,
+    parseLaneArgs,
+    platformTurns,
+} from '../lanePlanning.js';
 
 const ANDROID = (index: number): string => `emulator-${5554 + 2 * index}`;
 
@@ -159,5 +166,46 @@ describe('parseLaneArgs — the maestro:lanes command line', () => {
         [['--platform', 'android', '--nonsense']],
     ])('refuses %j', (argv) => {
         expect(() => parseLaneArgs(argv, {})).toThrow(/maestro:lanes/u);
+    });
+});
+
+/**
+ * ⛔ THE MAC DOES NOT HOST TWO PLATFORMS AT ONCE (ADR-0088 §5). Both would open a tunnel on the same Mac ports and both lane 1s
+ * would take driver port 7001, so with the Mac running Android and iOS they run as two turns, Android first.
+ */
+describe('platformTurns — which platforms run together', () => {
+    it('runs Android then iOS as two turns when the Mac hosts both', () => {
+        expect(platformTurns(['android', 'ios'], 'mac')).toEqual([['android'], ['ios']]);
+    });
+
+    it('runs both together when Android is on WSL, because they share no machine', () => {
+        expect(platformTurns(['android', 'ios'], 'wsl')).toEqual([['android', 'ios']]);
+    });
+
+    it('keeps the order Android first even when asked in the other order', () => {
+        expect(platformTurns(['ios', 'android'], 'mac')).toEqual([['android'], ['ios']]);
+    });
+
+    it.each([
+        [['android'], 'mac'],
+        [['ios'], 'mac'],
+        [['android'], 'wsl'],
+        [['ios'], 'wsl'],
+    ] as const)('is one turn for the single platform %j on %s', (platforms, host) => {
+        expect(platformTurns(platforms, host)).toEqual([platforms]);
+    });
+});
+
+describe('parseAndroidHost — LOCAL_MAESTRO_ANDROID_ON', () => {
+    it('is the Mac by default', () => {
+        expect(parseAndroidHost({})).toBe('mac');
+    });
+
+    it.each(['mac', 'wsl'] as const)('reads %s', (value) => {
+        expect(parseAndroidHost({ LOCAL_MAESTRO_ANDROID_ON: value })).toBe(value);
+    });
+
+    it.each(['both', 'WSL', 'wsl ', ''])('refuses %j', (value) => {
+        expect(() => parseAndroidHost({ LOCAL_MAESTRO_ANDROID_ON: value })).toThrow(/LOCAL_MAESTRO_ANDROID_ON/);
     });
 });

@@ -29,10 +29,17 @@ import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 import { settleStamp, stateRoot, type Env, type StampStart } from '@kitchensink/e2e-plan/stampRun';
 
 import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
+import { createMacAndroidHost } from '../src/maestroLanes/macAndroidHost.js';
 import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
 import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
-import { parseLaneArgs, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
+import {
+    parseAndroidHost,
+    parseLaneArgs,
+    platformTurns,
+    type AndroidHost,
+    type LaneArgs,
+} from '../src/maestroLanes/lanePlanning.js';
 import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
@@ -146,8 +153,22 @@ function killGroup(pid: number): void {
     }
 }
 
-/** The adapter for a platform. iOS refuses to build without `LOCAL_MAESTRO_IOS_HOST`. */
-function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): DeviceAdapter {
+/**
+ * The Mac's Android lane AVD. Its screen, density, cores, RAM and disk are copied from the WSL AVD of the same name
+ * (`~/.android/avd/ks_lane_lean.avd/config.ini`) when the run prepares the Mac.
+ */
+const MAC_ANDROID_AVD = 'ks_lane_lean';
+
+/**
+ * The adapter for a platform. iOS and the Mac's Android refuse to build without `LOCAL_MAESTRO_IOS_HOST` (the variable's name
+ * is kept for now: it names the Mac). Android runs on the Mac unless `LOCAL_MAESTRO_ANDROID_ON=wsl`.
+ */
+function adapterFor(
+    platform: LanePlatform,
+    env: Env,
+    settings: LocalSettings,
+    androidHost: AndroidHost,
+): DeviceAdapter {
     if (platform === 'ios') {
         return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT, settings });
     }
@@ -162,9 +183,28 @@ function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): 
         readFile: (file) => (existsSync(file) ? readFileSync(file, 'utf8') : undefined),
     };
 
+    const host =
+        androidHost === 'mac'
+            ? createMacAndroidHost({
+                  shell: createIosShell(),
+                  env,
+                  repoRoot: REPO_ROOT,
+                  settings,
+                  avd: MAC_ANDROID_AVD,
+                  avdSourceConfig: path.join(
+                      process.env['HOME'] ?? '',
+                      '.android/avd',
+                      `${MAC_ANDROID_AVD}.avd`,
+                      'config.ini',
+                  ),
+                  readFile: commands.readFile,
+              })
+            : undefined;
+
     return createAndroidAdapter({
         repoRoot: REPO_ROOT,
         avd: settings.avd,
+        ...(host === undefined ? {} : { host }),
         recipeOrigin: settings.recipeOrigin,
         identityOrigin: settings.identityOrigin,
         foodOrigin: settings.foodOrigin,
@@ -459,6 +499,7 @@ async function main(argv: readonly string[]): Promise<number> {
     const args = parseLaneArgs(argv, process.env);
     mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
     const settings = readLocalSettings();
+    const androidHost = parseAndroidHost(process.env);
     const base = baseEnvironment();
     // `listLocalLanes` and the lane slots read the namespace from this process.
     process.env['E2E_POOL_NAMESPACE'] = 'local';
@@ -484,7 +525,7 @@ async function main(argv: readonly string[]): Promise<number> {
     process.on('SIGTERM', abort);
 
     const deps: LaneRunDeps = {
-        adapterFor: (platform) => adapterFor(platform, base, settings),
+        adapterFor: (platform) => adapterFor(platform, base, settings, androidHost),
         stateDir: STATE_DIR,
         repoRoot: REPO_ROOT,
         lockDir: path.join(STATE_DIR, 'locks'),
@@ -560,7 +601,8 @@ async function main(argv: readonly string[]): Promise<number> {
             children.add(child);
             void child.exit.then(() => children.delete(child));
 
-            if (lane.platform === 'android') {
+            // The Mac's emulators are not WSL processes: `ps` here cannot see them (`maestro:macUsage` measures those).
+            if (lane.platform === 'android' && androidHost === 'wsl') {
                 watchUsage(lane, child, log);
             }
 
@@ -598,14 +640,27 @@ async function main(argv: readonly string[]): Promise<number> {
         log,
     };
 
-    return runLaneRun(deps, {
-        platforms: args.platforms,
-        requested: args.requested,
-        selection: {
-            android: choices.get('android')?.selection ?? 'all',
-            ios: choices.get('ios')?.selection ?? 'all',
-        },
-    });
+    // The Mac hosts one platform at a time: Android then iOS are two turns and the exit code is the worse of the two. A
+    // turn that was stopped (SIGINT or SIGTERM) ends the run.
+    let worst = 0;
+
+    for (const platforms of platformTurns(args.platforms, androidHost)) {
+        const code = await runLaneRun(deps, {
+            platforms,
+            requested: args.requested,
+            selection: {
+                android: choices.get('android')?.selection ?? 'all',
+                ios: choices.get('ios')?.selection ?? 'all',
+            },
+        });
+        worst = Math.max(worst, code);
+
+        if (aborted) {
+            break;
+        }
+    }
+
+    return worst;
 }
 
 main(process.argv.slice(2)).then(

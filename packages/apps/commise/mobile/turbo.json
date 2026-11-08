@@ -43,7 +43,8 @@
                 "EXPO_PUBLIC_IDENTITY_API_URL",
                 "EXPO_PUBLIC_IDP_PUBLISHABLE_KEY",
                 "COMMISE_SCREEN_TRACE",
-                "TEST_APP_CACHE_EPOCH"
+                "TEST_APP_CACHE_EPOCH",
+                "TEST_APP_ANDROID_ABIS"
             ],
             "outputs": []
         },

@@ -13,10 +13,13 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { emptyUsage, recordSample, summarizeUsage, type Usage } from '../src/maestroLanes/laneUsage.js';
-import { iosLaneProcesses, parseMacPs } from '../src/maestroLanes/macUsage.js';
+import { ANDROID_LANE_SERIALS } from '../src/maestroLanes/androidAdapter.js';
+import { androidLaneProcesses, iosLaneProcesses, parseMacPs } from '../src/maestroLanes/macUsage.js';
 import { IOS_MAX_LANES, macHostFromEnv } from '../src/maestroLanes/iosLane.js';
 
 const INTERVAL_MS = 15_000;
+// `--platform android` watches the Mac's Android lane emulators; the default is the iOS Simulators.
+const platform = process.argv.includes('android') ? 'android' : 'ios';
 const host = macHostFromEnv(process.env);
 const stateDir = path.join(
     process.env['XDG_STATE_HOME'] ?? path.join(process.env['HOME'] ?? '', '.local/state'),
@@ -37,15 +40,30 @@ function sample(): void {
     const rows = parseMacPs(ssh('ps -axo pid=,pgid=,time=,rss=,args='));
     let machine = 0;
 
-    for (let lane = 1; lane <= IOS_MAX_LANES; lane += 1) {
-        const udid = udids.get(lane) ?? ssh(`bash ksIos/lane/laneHost.sh udid ${String(lane)}`).trim();
+    for (let lane = 1; lane <= (platform === 'android' ? ANDROID_LANE_SERIALS.length : IOS_MAX_LANES); lane += 1) {
+        const laneHome = `${macHome}/ksIos/lanes/lane${String(lane)}`;
+        let mine;
 
-        if (udid === '') {
-            continue;
+        if (platform === 'android') {
+            const consolePort = (ANDROID_LANE_SERIALS[lane - 1] ?? '').replace(/^emulator-/u, '');
+            mine = androidLaneProcesses(rows, { consolePort, laneHome });
+
+            if (mine.length === 0) {
+                continue;
+            }
+
+            udids.set(lane, consolePort);
+        } else {
+            const udid = udids.get(lane) ?? ssh(`bash ksIos/lane/laneHost.sh udid ${String(lane)}`).trim();
+
+            if (udid === '') {
+                continue;
+            }
+
+            udids.set(lane, udid);
+            mine = iosLaneProcesses(rows, { udid, laneHome });
         }
 
-        udids.set(lane, udid);
-        const mine = iosLaneProcesses(rows, { udid, laneHome: `${macHome}/ksIos/lanes/lane${String(lane)}` });
         const usage = recordSample(usages.get(lane) ?? emptyUsage(), mine, at);
         usages.set(lane, usage);
         machine += mine.reduce((sum, row) => sum + row.rssKb, 0);

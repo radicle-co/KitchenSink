@@ -74,7 +74,13 @@ export function createLocalAndroidHost(options: LocalAndroidHostOptions): Androi
             );
 
             if (made.code !== 0) {
-                throw new Error(`maestro:lanes: could not make the lane AVD ${options.avd}: ${made.stdout.trim()}`);
+                // `local_maestro_fail` and the lane host script's `die` write to stderr, so the reason is there first.
+                const reason = [made.stderr ?? '', made.stdout]
+                    .map((text) => text.trim())
+                    .filter(Boolean)
+                    .join('\n');
+
+                throw new Error(`maestro:lanes: could not make the lane AVD ${options.avd}: ${reason}`);
             }
         },
         adb,

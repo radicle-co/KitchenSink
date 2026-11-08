@@ -405,6 +405,19 @@ describe('the lane AVD on this machine is built from the settings, not copied', 
         expect(seen[0]).toEqual({ ANDROID_HOME: '/sdk', PATH: '/usr/bin' });
     });
 
+    it('quotes the reason from stderr, where local_maestro_fail and the lane host script write it', async () => {
+        const { port } = scripted([['content-key', 'abc123\n', 0]], 'platform=android\ncontentKey=abc123\n');
+        const failing: CommandPort = {
+            ...port,
+            run: async (command, args, options) =>
+                args.join(' ').includes('local_maestro_ensure_avd')
+                    ? { code: 1, stdout: '', stderr: 'localMaestro: no system image for android-34\n' }
+                    : port.run(command, args, options),
+        };
+
+        await expect(withEnv(failing, {}).prepareHost(run)).rejects.toThrow(/lean.*no system image for android-34/su);
+    });
+
     it('stops the run, naming the AVD, when it cannot be made', async () => {
         const { port } = scripted(
             [

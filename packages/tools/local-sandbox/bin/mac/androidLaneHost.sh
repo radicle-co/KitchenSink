@@ -10,7 +10,8 @@
 #   androidLaneHost.sh reverse <serial> <dev:host>...      adb reverse tcp:dev tcp:host for each pair
 #   androidLaneHost.sh stop <port>                         ask the emulator to quit, then make sure it did
 # KS_ANDROID_ENV (default ~/ksAndroid/env.sh) puts the SDK and JDK on PATH. KS_ANDROID_GPU picks the emulator -gpu mode
-# (default swiftshader_indirect; the choice is measured, see ADR-0088).
+# (default host: on the Mac, 25 Settings launches plus swipes used 15.8 CPU seconds with host and 57.5 with
+# swiftshader_indirect, both booting in about 19 s; see ADR-0088 §5).
 set -euo pipefail
 
 ENV_FILE="${KS_ANDROID_ENV:-$HOME/ksAndroid/env.sh}"
@@ -110,7 +111,7 @@ case "${1:-}" in
         port "$emu_port"
         mkdir -p "$LANES_DIR"
         nohup emulator -avd "$name" -port "$emu_port" -no-window -no-audio -no-boot-anim -no-snapshot -read-only \
-            -gpu "${KS_ANDROID_GPU:-swiftshader_indirect}" >"$LANES_DIR/emulator-$emu_port.log" 2>&1 &
+            -gpu "${KS_ANDROID_GPU:-host}" >"$LANES_DIR/emulator-$emu_port.log" 2>&1 &
         echo $! >"$LANES_DIR/emulator-$emu_port.pid"
         ;;
     install)

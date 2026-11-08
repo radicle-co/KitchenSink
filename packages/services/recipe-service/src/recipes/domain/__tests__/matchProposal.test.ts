@@ -4,8 +4,9 @@
  * Three questions, each with a way of getting it wrong that would cost money or a wrong match:
  *
  *  1. **Which judgement does the proposal ask for?** The verdict key must equal what the save path computes if the cook
- *     keeps this food, or a kept line is asked about twice. The first food of a line carries the line's measure and a
- *     second food carries none, which is how the editor saves a pasted line (`pastedLines.ts`).
+ *     keeps this food, or a kept line is asked about twice. The first food of a line carries the line's amount and a
+ *     second food carries none, unless the line states no amount ("to taste"), which is how the editor saves a pasted
+ *     line (`pastedLines.ts`).
  *  2. **May the gate be asked at all?** A blank line is skipped and an over-cap one REFUSED, never truncated, and
  *     identity is always asked for a paste proposal (no band or curated skip).
  *  3. **Which candidates does the cook see?** At most five, the proposal first, and a default that applies is never

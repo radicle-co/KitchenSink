@@ -8,7 +8,8 @@
  *
  * The rules, from the editor's former `cookMeasureOf`: the cook's own words win (spec §7.5.3); the parse's reading
  * stands where those words state no amount this reader reads but the parse read one ("one cup"), or where the parse kept
- * no words; and only the FIRST food of a line carries the line's measure.
+ * no words; and only the FIRST food of a line carries the line's amount, while a line that states no amount ("to taste")
+ * says its words of every food.
  */
 import { describe, expect, it } from 'vitest';
 

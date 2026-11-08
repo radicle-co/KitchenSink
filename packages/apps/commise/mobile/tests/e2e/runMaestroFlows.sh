@@ -1429,6 +1429,17 @@ maestro_scope_device_log() {
 MAESTRO_SCREEN_RAW=''
 MAESTRO_SCREEN_PID=''
 
+# maestro_screen_record_begin
+#
+# Empties the record before a run, so a file left by an earlier run (one a crash stopped included) never counts for this
+# one: the check after the run, and the green stamp it feeds, read every line of it.
+#
+# @sideEffect Truncates MAESTRO_SCREEN_RECORD.
+maestro_screen_record_begin() {
+    [ -n "${MAESTRO_SCREEN_RECORD:-}" ] || return 0
+    : >"$MAESTRO_SCREEN_RECORD"
+}
+
 # maestro_screen_record_start
 #
 # @sideEffect Starts `adb logcat` in the background on Android and makes a temp file for it.
@@ -1592,6 +1603,7 @@ maestro_dump_port_owner() {
 # @sideEffect Drives the device, mutates the recipe database, calls Clerk, and runs Maestro.
 maestro_run_flows() {
     local platform
+    maestro_screen_record_begin
     if ! platform=$(maestro_platform); then
         echo "::error::unknown MAESTRO_PLATFORM '${MAESTRO_PLATFORM:-}' — refusing to guess which device to drive"
 

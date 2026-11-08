@@ -151,6 +151,7 @@ function adapterFor(platform: LanePlatform, env: Env): DeviceAdapter {
         publishableKey: env['CLERK_PUBLISHABLE_KEY'] ?? '',
         commands,
         bootTimeoutMs: 300_000,
+        environment: env,
     });
 }
 

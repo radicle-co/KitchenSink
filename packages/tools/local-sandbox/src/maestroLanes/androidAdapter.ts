@@ -32,11 +32,13 @@ export const ANDROID_LANE_SERIALS = [
 const GIB = 1024 ** 3;
 
 /**
- * What one Android lane costs the host: an x86_64 API 34 emulator under `swiftshader_indirect` plus its runner and
- * Maestro JVMs. Measured 2026-11-07 by `laneUsage` over a 4-lane full Android run (about 62 minutes per lane): 2.8-2.9
- * CPUs mean and 4.7-5.4 GiB peak per lane, on a 20-CPU, 47 GiB host.
+ * What one Android lane costs the host at its PEAK: an x86_64 API 34 emulator under `swiftshader_indirect` plus its runner
+ * and Maestro JVMs. The mean is the wrong number: on 2026-11-07 four lanes averaged 2.7 CPUs each, yet the software GPU's
+ * bursts pushed the 20-CPU host's load to p90 22.3 and peak 58.5, and 9 of 70 flows ran out of their scroll budgets. One
+ * lane alone held the host at load p95 4.9, max 5.7 (and the 4-lane p90 is 5.6 a lane), so a lane costs 5.5 CPUs.
+ * Memory: 4.9-5.5 GiB peak per lane.
  */
-export const ANDROID_LANE_COST: LaneCost = { cpus: 3, memBytes: 5.5 * GIB };
+export const ANDROID_LANE_COST: LaneCost = { cpus: 5.5, memBytes: 5.5 * GIB };
 
 const BOOT_POLL_MS = 2_000;
 
@@ -48,7 +50,7 @@ export interface CommandPort {
         command: string,
         args: readonly string[],
         options?: { readonly env?: Env; readonly cwd?: string },
-    ): Promise<{ readonly code: number; readonly stdout: string }>;
+    ): Promise<{ readonly code: number; readonly stdout: string; readonly stderr?: string }>;
     /** Start a long-lived process in its own process group, logging to `log`. */
     spawnDetached(command: string, args: readonly string[], log: string): { readonly pid: number };
     killGroup(pid: number): void;
@@ -67,6 +69,8 @@ export interface AndroidAdapterOptions {
     readonly publishableKey: string;
     readonly commands: CommandPort;
     readonly bootTimeoutMs: number;
+    /** The run's environment, with the Android toolchain in it: the app is built in this, never in the process's own. */
+    readonly environment: Env;
 }
 
 /** `MemAvailable` from `/proc/meminfo`, in bytes. */
@@ -95,12 +99,12 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
     const script = path.join(mobileDir, 'scripts/buildTestApp.sh');
     const booted = new Map<string, number>();
     const buildEnv: Env = {
-        ...process.env,
+        ...options.environment,
         EXPO_PUBLIC_RECIPE_API_URL: options.recipeOrigin,
         EXPO_PUBLIC_IDENTITY_API_URL: options.identityOrigin,
         EXPO_PUBLIC_FOOD_API_URL: options.foodOrigin,
         EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: options.publishableKey,
-        TEST_APP_CACHE_EPOCH: process.env['TEST_APP_CACHE_EPOCH'] ?? '1',
+        TEST_APP_CACHE_EPOCH: options.environment['TEST_APP_CACHE_EPOCH'] ?? '1',
     };
 
     const deviceFor = (index: number): string => {
@@ -143,7 +147,9 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
                 });
 
                 if (built.code !== 0) {
-                    throw new Error('maestro:lanes: the Android test app build failed - no lane started');
+                    const tail = `${built.stdout}\n${built.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
+
+                    throw new Error(`maestro:lanes: the Android test app build failed - no lane started:\n${tail}`);
                 }
             }
 

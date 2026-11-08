@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { ANDROID_LANE_SERIALS, createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
+import { planLanes } from '@kitchensink/e2e-plan';
+
+import { ANDROID_LANE_COST, ANDROID_LANE_SERIALS, createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
 import type { LaneSpec } from '../laneTypes.js';
 
 const ORIGINS = {
@@ -68,7 +70,40 @@ function scripted(answers: readonly (readonly [string, string, number])[], manif
 }
 
 const adapter = (port: CommandPort) =>
-    createAndroidAdapter({ ...ORIGINS, repoRoot: '/repo', avd: 'ci_pixel6', commands: port, bootTimeoutMs: 60_000 });
+    createAndroidAdapter({
+        ...ORIGINS,
+        repoRoot: '/repo',
+        avd: 'ci_pixel6',
+        commands: port,
+        bootTimeoutMs: 60_000,
+        environment: {},
+    });
+
+/**
+ * The lane cost is the PEAK a lane puts on the host, not its mean (lead direction 2026-11-07). At 4 lanes on the 20-CPU
+ * WSL host the mean was 2.7 CPUs a lane, but the load bursts (p90 22.3, peak 58.5) made 9 of 70 flows run out of their
+ * fixed scroll budgets; alone, one lane held the host at p95 4.9 and max 5.7. So this host plans 3 lanes from a quiet start.
+ */
+describe('the Android lane cost — planned from the peak', () => {
+    const plan = (load1: number) =>
+        planLanes({
+            cpus: 20,
+            load1,
+            memAvailable: 40 * 1024 ** 3,
+            perLane: ANDROID_LANE_COST,
+            identityCap: 8,
+            clerkCap: 8,
+            work: 70,
+        });
+
+    it.each([0, 1, 3.5])('plans three lanes on the 20-CPU host at load %s, bound by CPU', (load1) => {
+        expect(plan(load1)).toMatchObject({ count: 3, boundBy: 'cpu' });
+    });
+
+    it('is at least the peak one lane put on the host alone', () => {
+        expect(ANDROID_LANE_COST.cpus).toBeGreaterThanOrEqual(5);
+    });
+});
 
 describe('the Android lane devices', () => {
     it('is the serial table, as a literal, starting past emulator-5554', () => {
@@ -146,6 +181,7 @@ describe('startDevice — boot an emulator the lane owns, then install the app',
                 avd: 'ci_pixel6',
                 commands: port,
                 bootTimeoutMs: 0,
+                environment: {},
             }).startDevice(lane(1)),
         ).rejects.toThrow(/did not finish booting/u);
         expect(calls).toContain('killGroup 99');
@@ -198,6 +234,56 @@ describe('prepareHost — the embedded-bundle test app, built only when its cont
         const verify = calls.findIndex((call) => call.includes('verify-manifest'));
         expect(build).toBeGreaterThan(-1);
         expect(verify).toBeGreaterThan(build);
+    });
+
+    /**
+     * Found by the first full run of 2026-11-07: the build ran with the orchestrator's own environment, which has no
+     * Android toolchain (`localMaestro.sh` puts JAVA_HOME and ANDROID_HOME in the run's environment, not in the process),
+     * so Gradle failed and no lane started.
+     */
+    it('builds with the run’s environment, never the orchestrator process’s own', async () => {
+        vi.stubEnv('ONLY_IN_THE_PROCESS', 'leaked');
+        const envs: Record<string, string | undefined>[] = [];
+        const { port } = scripted([['content-key', 'def456\n', 0]]);
+        const recording: CommandPort = {
+            ...port,
+            run: (command, args, options) => {
+                if (args.at(-1) === 'android' && args.length === 2) {
+                    envs.push({ ...options?.env });
+                }
+
+                return port.run(command, args, options);
+            },
+        };
+
+        await createAndroidAdapter({
+            ...ORIGINS,
+            repoRoot: '/repo',
+            avd: 'ci_pixel6',
+            commands: recording,
+            bootTimeoutMs: 60_000,
+            environment: { JAVA_HOME: '/jdk17', ANDROID_HOME: '/android-sdk' },
+        }).prepareHost(run);
+
+        expect(envs).toHaveLength(1);
+        expect(envs[0]).toMatchObject({
+            JAVA_HOME: '/jdk17',
+            ANDROID_HOME: '/android-sdk',
+            EXPO_PUBLIC_RECIPE_API_URL: ORIGINS.recipeOrigin,
+            EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: ORIGINS.publishableKey,
+            TEST_APP_CONTENT_KEY: 'def456',
+        });
+        expect(envs[0]?.['ONLY_IN_THE_PROCESS']).toBeUndefined();
+        vi.unstubAllEnvs();
+    });
+
+    it('names why the build failed, from the build’s own last lines', async () => {
+        const { port } = scripted([
+            ['content-key', 'k2\n', 0],
+            [' android', 'line 1\nSDK location not found. Define ANDROID_HOME.\n', 1],
+        ]);
+
+        await expect(adapter(port).prepareHost(run)).rejects.toThrow(/SDK location not found/u);
     });
 
     it('builds when there is no app yet', async () => {

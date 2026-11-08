@@ -74,6 +74,8 @@ export function laneRunnerEnv(input: {
     readonly lane: LaneSpec;
     readonly selector: string;
     readonly lockDir: string;
+    /** Where the runner keeps the debug folder of a flow that fails (`failureEvidenceDir`). */
+    readonly evidenceDir: string;
     readonly adapterEnv: Readonly<Record<string, string>>;
 }): Env {
     const { lane } = input;
@@ -93,6 +95,7 @@ export function laneRunnerEnv(input: {
         // The runner appends the screens each flow showed (the test build logs them) and each flow's result here;
         // `checkScreens` reads it after the lanes exit.
         MAESTRO_SCREEN_RECORD: path.join(lane.stateDir, SCREEN_RECORD_FILE),
+        MAESTRO_EVIDENCE_DIR: input.evidenceDir,
         E2E_POOL_NAMESPACE: 'local',
         // The five read-only role users are CI's shared ones; serving them by default is what keeps the role flows run
         // rather than skipped. The run-mode role lock covers the one that writes.

@@ -3,7 +3,7 @@
  * records the environment it was started with and exits with a code the test chooses. The real lane process code
  * spawns it, so the environment each lane is given and the exit code the run reports are what a real run would see.
  */
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -103,6 +103,7 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
             adapterFor: (platform) => fakeAdapter(events, platform),
             aborted: () => false,
             stateDir: state,
+            runStamp: 'run1',
             repoRoot: state,
             lockDir: path.join(state, 'locks'),
             baseEnv: { PATH: process.env['PATH'] ?? '', KEEP: 'me', ...env },
@@ -197,6 +198,52 @@ describe('runLaneRun — a lane run over fakes', () => {
                 path.join(state, 'lanes', `android-${index}`, 'screenRecord.tsv'),
             );
         }
+    });
+
+    it("tells each lane where to keep a failed flow's debug folder, one folder per run", async () => {
+        const { state, deps } = harness();
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+        for (const index of [1, 2]) {
+            expect(envOf(laneFile(state, index))['MAESTRO_EVIDENCE_DIR']).toBe(
+                path.join(state, 'lanes', `android-${index}`, 'failed', 'run1'),
+            );
+        }
+    });
+
+    it('prunes the lane failure folders of earlier runs to the newest five before the lanes start', async () => {
+        const { state, deps } = harness();
+        const failed = path.join(state, 'lanes', 'android-1', 'failed');
+
+        for (const stamp of ['1', '2', '3', '4', '5', '6', '7']) {
+            mkdirSync(path.join(failed, stamp), { recursive: true });
+        }
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
+
+        expect(readdirSync(failed).sort()).toEqual(['3', '4', '5', '6', '7']);
+    });
+
+    it('⛔ starts no device and no lane when a slot cannot be reset, and reports the reset as the failure', async () => {
+        const { events, deps } = harness({
+            startServices: () =>
+                Promise.resolve({
+                    resetLanes: () => Promise.reject(new Error('slot ioscoauthor01 could not be reset')),
+                    stop: (lanes) => {
+                        events.push(`stopServices ${lanes.map((lane) => `${lane.platform}-${lane.index}`).join(',')}`);
+
+                        return Promise.resolve();
+                    },
+                }),
+        });
+
+        await expect(runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' })).rejects.toThrow(
+            'slot ioscoauthor01 could not be reset',
+        );
+        expect(events.filter((event) => /^(setupLane|startDevice|prepareHost)/u.test(event))).toEqual([]);
+        expect(events).toContain('stopServices android-1,android-2');
+        expect(events).toContain('unlock');
     });
 
     it('runs the full suite as an empty selector', async () => {

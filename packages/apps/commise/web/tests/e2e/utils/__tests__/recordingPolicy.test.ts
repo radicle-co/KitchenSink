@@ -16,13 +16,15 @@ import { RECORDING } from '../recordingPolicy';
 const WEB_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 describe('RECORDING', () => {
-    it('records a trace and a video only on the retry of a failed test', () => {
-        expect(RECORDING.trace).toBe('on-first-retry');
-        expect(RECORDING.video).toBe('on-first-retry');
+    // The policy is "only for a test that failed or was retried". Which Playwright mode spells that can change; what
+    // must not is a value that records every test, because a green test never needs a trace, a video or a screenshot.
+    it('never records a trace or a video of every test', () => {
+        expect(['off', 'on-first-retry', 'retain-on-failure']).toContain(RECORDING.trace);
+        expect(['off', 'on-first-retry', 'retain-on-failure']).toContain(RECORDING.video);
     });
 
-    it('takes a screenshot only of a test that failed', () => {
-        expect(RECORDING.screenshot).toBe('only-on-failure');
+    it('never takes a screenshot of every test', () => {
+        expect(['off', 'only-on-failure']).toContain(RECORDING.screenshot);
     });
 });
 

@@ -15,7 +15,8 @@ import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
 import { webSelectionOutputs, type WebSelection } from '@kitchensink/e2e-plan/ciMatrix';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 
-import { countTests, decideSpecs, flattenReport, listTests, specFilters, type ReportedTest } from './e2eLanes.js';
+import { countTests, flattenReport, type ReportedTest } from './e2eReport';
+import { decideSpecs, listTests, specFilters } from './e2eSelection';
 
 /** Tests one CI shard should hold. Setup costs about 35 s per shard, so a shard under this is mostly setup. */
 export const WEB_TESTS_PER_SHARD = 14;

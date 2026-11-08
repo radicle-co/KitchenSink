@@ -6,7 +6,9 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
-import { DURATIONS_FILE, durationTable, parseReport } from './e2eLanes';
+import { durationTable } from './e2eDurationTable';
+import { DURATIONS_FILE } from './e2ePaths';
+import { parseReport } from './e2eReport';
 
 const files = process.argv.slice(2);
 

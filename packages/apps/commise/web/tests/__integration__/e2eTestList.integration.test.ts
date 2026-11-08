@@ -14,7 +14,8 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { flattenReport, parseReport, specFilters, testListText, type ReportedTest } from '../../scripts/e2eLanes';
+import { flattenReport, parseReport, type ReportedTest } from '../../scripts/e2eReport';
+import { specFilters, testListText } from '../../scripts/e2eSelection';
 
 /** One spec with several projects, and one with nested describes and the own-session project. */
 const SPECS = ['collectionHeaderReflow.spec.ts', 'authPages.spec.ts'] as const;

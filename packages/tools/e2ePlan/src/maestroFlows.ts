@@ -10,6 +10,8 @@ import { parseAllDocuments } from 'yaml';
 
 import type { Terminals } from './reachability.js';
 
+import { asRecord } from './asRecord.js';
+
 /** Where the Maestro flows live. The one spelling of the path. */
 export const MAESTRO_DIR = 'packages/apps/commise/mobile/.maestro';
 
@@ -18,11 +20,6 @@ export const flowIdOf = (file: string): string => file.slice(`${MAESTRO_DIR}/`.l
 
 /** The file of a flow id. */
 export const flowFileOf = (id: string): string => `${MAESTRO_DIR}/${id}.yaml`;
-
-const asRecord = (value: unknown): Readonly<Record<string, unknown>> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value)
-        ? (value as Readonly<Record<string, unknown>>)
-        : {};
 
 /** The file a `runFlow` or `runScript` command names, written either as a string or as a map with a `file`. */
 const fileOf = (value: unknown): string | undefined => {

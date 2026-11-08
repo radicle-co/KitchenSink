@@ -2,6 +2,7 @@ import nextEnv from '@next/env';
 import { defineConfig, devices } from '@playwright/test';
 
 import { AUTH_STATE_PATH, SESSION_OWNING_SPEC_GLOBS } from './tests/e2e/utils/authState';
+import { RECORDING } from './tests/e2e/utils/recordingPolicy';
 import { mockedSpecGlobs } from './tests/e2e/utils/specTier';
 import { resolveServiceUrls, serviceUrlEnv } from './tests/e2e/utils/serviceUrls';
 import { resolveWebServerMode, webServerCommand } from './tests/e2e/utils/webServerMode';
@@ -115,7 +116,7 @@ export default defineConfig({
     },
     use: {
         baseURL: ORIGIN,
-        trace: 'on-first-retry',
+        ...RECORDING,
     },
     // ── THREE session projects, because ONE shared Clerk session is not safe for every spec ────────────
     //
@@ -215,7 +216,9 @@ export default defineConfig({
               // Derived from ORIGIN — the one place this run's own address is decided — rather than
               // rebuilt from `localhost` and PORT, which drifted from `baseURL` the moment either moved.
               url: new URL(`${BASE_PATH}/${LOCALE}/sign-in`, ORIGIN).toString(),
-              reuseExistingServer: !process.env.CI,
+              // Lanes that share one server (scripts/e2eLanes.ts) reuse it even where CI is set; a lane of its own
+              // keeps the old rule.
+              reuseExistingServer: !process.env.CI || process.env.E2E_SHARED_SERVER === '1',
               timeout: 120_000,
           },
 });

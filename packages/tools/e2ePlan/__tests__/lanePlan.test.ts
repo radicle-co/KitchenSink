@@ -59,6 +59,19 @@ describe('planLanes', () => {
         expect(planLanes(roomy({ requested: 50 })).count).toBe(8);
     });
 
+    it('takes the shared server’s fixed cost off the machine before dividing among lanes', () => {
+        const fixed = { cpus: 4, memBytes: 8 * GIB };
+
+        // 20 - 4 = 16 CPUs over 2 each = 8; 32 - 8 = 24 GiB over 2 each = 12.
+        expect(planLanes(roomy({ fixed, work: 100, identityCap: 100, clerkCap: 100 })).caps.cpu).toBe(8);
+        expect(planLanes(roomy({ fixed, identityCap: 100, clerkCap: 100 })).caps.memory).toBe(12);
+    });
+
+    it('costs nothing fixed when no shared server runs', () => {
+        expect(planLanes(roomy()).caps.cpu).toBe(10);
+        expect(planLanes(roomy()).caps.memory).toBe(16);
+    });
+
     it('names the first cap in a tie, in a fixed order', () => {
         expect(planLanes(roomy({ identityCap: 4, clerkCap: 4 })).boundBy).toBe('identity');
     });

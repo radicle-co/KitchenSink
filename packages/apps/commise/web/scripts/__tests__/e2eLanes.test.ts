@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
     DEAD_ORIGIN,
+    LANE_COST,
+    SERVER_COST,
     buildEnv,
     countTests,
     decideSpecs,
@@ -24,6 +26,8 @@ import {
     medianMs,
     outcomesOf,
     selectorChose,
+    serverEnv,
+    wantsSharedServer,
     parseReport,
     specFilters,
     testListText,
@@ -58,6 +62,32 @@ const report = (
             ],
         },
     ],
+});
+
+/**
+ * Measured 2026-11-08, full suite, 8 lanes on one shared `next start`, 20 CPUs, sampled every 2 s over the process
+ * trees (a lane is its Playwright process and its browsers). Per lane: CPU mean 0.34 cores (p95 0.67, p99 0.87), RSS
+ * mean 1.17 GiB (p95 1.30 GiB, peak 1.88 GiB; summed RSS counts shared pages twice, so it overstates). Shared server:
+ * CPU mean 0.54 (peak 0.90), RSS mean 0.57 GiB (peak 0.62 GiB). A cost below its measured p95 would let the planner
+ * oversubscribe the machine.
+ */
+describe('the measured cost of a lane and of the shared server', () => {
+    const GIB = 1024 ** 3;
+
+    it('covers a lane’s p95 CPU and memory', () => {
+        expect(LANE_COST.cpus).toBeGreaterThanOrEqual(0.67);
+        expect(LANE_COST.memBytes).toBeGreaterThanOrEqual(1.3 * GIB);
+    });
+
+    it('covers the shared server’s peak CPU and memory', () => {
+        expect(SERVER_COST.cpus).toBeGreaterThanOrEqual(0.9);
+        expect(SERVER_COST.memBytes).toBeGreaterThanOrEqual(0.62 * GIB);
+    });
+
+    it('is not padded back to the old per-lane figure, which paid for a server each', () => {
+        expect(LANE_COST.cpus).toBeLessThan(1.5);
+        expect(LANE_COST.memBytes).toBeLessThan(2 * GIB);
+    });
 });
 
 describe('buildEnv', () => {
@@ -105,6 +135,63 @@ describe('laneEnv', () => {
         laneEnv(base, { index: 1, count: 2, port: 3010 });
 
         expect(base).toEqual({ PATH: '/bin' });
+    });
+});
+
+describe('laneEnv with one shared server', () => {
+    const shared = laneEnv({ PATH: '/bin' }, { index: 2, count: 4, port: 3040, sharedServer: true });
+
+    it('points the lane at the shared port and says the server is not its own', () => {
+        expect(shared['E2E_PORT']).toBe('3040');
+        expect(shared['E2E_SHARED_SERVER']).toBe('1');
+    });
+
+    it('keeps the lane’s own pool slot, so two lanes on one server are still two users', () => {
+        const other = laneEnv({}, { index: 3, count: 4, port: 3040, sharedServer: true });
+
+        expect(shared['COMMISE_E2E_SHARD']).toBe('2');
+        expect(other['COMMISE_E2E_SHARD']).toBe('3');
+    });
+
+    it('leaves the flag out when each lane has its own server', () => {
+        expect(laneEnv({}, { index: 1, count: 2, port: 3010 })['E2E_SHARED_SERVER']).toBeUndefined();
+    });
+});
+
+describe('serverEnv', () => {
+    const env = serverEnv({ PATH: '/bin', E2E_BUILD_ONLY: '1' }, 3040);
+
+    it('serves the finished build on the given port', () => {
+        expect(env['PORT']).toBe('3040');
+        expect(env['PATH']).toBe('/bin');
+    });
+
+    it('pins every API origin to the dead address the build was made with', () => {
+        expect(env['NEXT_PUBLIC_RECIPE_API_URL']).toBe(DEAD_ORIGIN);
+        expect(env['NEXT_PUBLIC_IDENTITY_API_URL']).toBe(DEAD_ORIGIN);
+        expect(env['NEXT_PUBLIC_FOOD_API_URL']).toBe(DEAD_ORIGIN);
+    });
+
+    it('routes the pseudo-locale, as the server the config would have started does', () => {
+        expect(env['COMMISE_PSEUDO_LOCALE']).toBe('1');
+    });
+
+    it('does not carry the build-only switch into a server', () => {
+        expect(env['E2E_BUILD_ONLY']).toBeUndefined();
+    });
+});
+
+describe('wantsSharedServer', () => {
+    it('is the default, because the lanes only differ by user and nothing in the server is per user', () => {
+        expect(wantsSharedServer({})).toBe(true);
+    });
+
+    it('is switched off by E2E_SHARED_SERVER=0, which restores one server per lane', () => {
+        expect(wantsSharedServer({ E2E_SHARED_SERVER: '0' })).toBe(false);
+    });
+
+    it('is off for the dev server, which compiles routes on demand and is not safe to share', () => {
+        expect(wantsSharedServer({ E2E_WEB_SERVER: 'dev' })).toBe(false);
     });
 });
 

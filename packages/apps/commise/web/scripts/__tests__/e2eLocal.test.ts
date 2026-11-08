@@ -107,6 +107,18 @@ describe('the local Playwright lane’s lane settings', () => {
         expect(CODE).toMatch(/E2E_PORT[\s\S]{0,300}ss -ltn[\s\S]{0,300}return 1/u);
     });
 
+    it('takes the shared server’s port as it is, because a peer lane started that server and the port is meant to be taken', () => {
+        const shared = lineOf(/E2E_SHARED_SERVER/u);
+        const refusal = lineOf(/is already in use/u);
+
+        expect(shared).toBeGreaterThanOrEqual(0);
+        expect(shared).toBeLessThan(refusal);
+    });
+
+    it('refuses a shared port that nothing listens on, rather than letting the config start a private server there', () => {
+        expect(CODE).toMatch(/E2E_SHARED_SERVER[\s\S]{0,400}ss -ltn[\s\S]{0,200}return 1/u);
+    });
+
     it('skips the turbo build under E2E_SKIP_BUILD, and only the build', () => {
         const build = lineOf(/turbo run build/u);
         const guard = lineOf(/E2E_SKIP_BUILD/u);
@@ -124,5 +136,13 @@ describe('the local Playwright lane’s lane settings', () => {
 
     it('defaults the reporter to list and lets E2E_REPORTER replace it', () => {
         expect(CODE).toMatch(/--reporter="\$\{E2E_REPORTER:-list\}"/u);
+    });
+});
+
+describe('the Playwright config’s web server', () => {
+    const CONFIG = readFileSync(fileURLToPath(new URL('../../playwright.config.ts', import.meta.url)), 'utf8');
+
+    it('reuses a server that is already listening when lanes share one, whatever CI says', () => {
+        expect(CONFIG).toMatch(/reuseExistingServer:[^\n]*E2E_SHARED_SERVER/u);
     });
 });

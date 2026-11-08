@@ -14,7 +14,7 @@ export interface RouteLiterals {
 }
 
 /** The placeholder a template substitution becomes: a plain segment, so only `[x]` routes match it. */
-export const DYNAMIC_SEGMENT = '__dynamic__';
+const DYNAMIC_SEGMENT = '__dynamic__';
 
 const ROUTE_HELPERS = new Set(['route', 'pseudoRoute']);
 

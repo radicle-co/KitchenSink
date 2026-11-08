@@ -10,31 +10,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import {
-    DEAD_ORIGIN,
-    LANE_COST,
-    SERVER_COST,
-    buildEnv,
-    countTests,
-    decideSpecs,
-    distinctPorts,
-    flattenReport,
-    durationTable,
-    laneArgs,
-    laneEnv,
-    laneLists,
-    medianMs,
-    outcomesOf,
-    selectorChose,
-    serverEnv,
-    wantsSharedServer,
-    parseReport,
-    specFilters,
-    testListText,
-    verdict,
-    wantsSelection,
-    type PlaywrightReport,
-} from '../e2eLanes';
+import { durationTable, laneLists, medianMs } from '../e2eDurationTable';
+import { buildEnv, distinctPorts, laneArgs, laneEnv } from '../e2eLaneSet';
+import { countTests, flattenReport, outcomesOf, parseReport, verdict, type PlaywrightReport } from '../e2eReport';
+import { decideSpecs, selectorChose, specFilters, testListText, wantsSelection } from '../e2eSelection';
+import { main } from '../e2eLanes';
+import { DEAD_ORIGIN, serverEnv, wantsSharedServer } from '../e2eServer';
 
 const report = (
     tests: readonly { project: string; title: string; status: string; ms?: number }[],
@@ -62,32 +43,6 @@ const report = (
             ],
         },
     ],
-});
-
-/**
- * Measured 2026-11-08, full suite, 8 lanes on one shared `next start`, 20 CPUs, sampled every 2 s over the process
- * trees (a lane is its Playwright process and its browsers). Per lane: CPU mean 0.34 cores (p95 0.67, p99 0.87), RSS
- * mean 1.17 GiB (p95 1.30 GiB, peak 1.88 GiB; summed RSS counts shared pages twice, so it overstates). Shared server:
- * CPU mean 0.54 (peak 0.90), RSS mean 0.57 GiB (peak 0.62 GiB). A cost below its measured p95 would let the planner
- * oversubscribe the machine.
- */
-describe('the measured cost of a lane and of the shared server', () => {
-    const GIB = 1024 ** 3;
-
-    it('covers a lane’s p95 CPU and memory', () => {
-        expect(LANE_COST.cpus).toBeGreaterThanOrEqual(0.67);
-        expect(LANE_COST.memBytes).toBeGreaterThanOrEqual(1.3 * GIB);
-    });
-
-    it('covers the shared server’s peak CPU and memory', () => {
-        expect(SERVER_COST.cpus).toBeGreaterThanOrEqual(0.9);
-        expect(SERVER_COST.memBytes).toBeGreaterThanOrEqual(0.62 * GIB);
-    });
-
-    it('is not padded back to the old per-lane figure, which paid for a server each', () => {
-        expect(LANE_COST.cpus).toBeLessThan(1.5);
-        expect(LANE_COST.memBytes).toBeLessThan(2 * GIB);
-    });
 });
 
 describe('buildEnv', () => {
@@ -527,5 +482,18 @@ describe('decideSpecs', () => {
 
         expect(choice).toMatchObject({ kind: 'unselected' });
         expect(JSON.stringify(choice)).toContain('config broke');
+    });
+});
+
+describe('main — the lane variables are read before anything runs', () => {
+    it.each(['abc', '0', '2.5'])(
+        'stops on E2E_LANES=%s, naming it, before the selector or Playwright',
+        async (value) => {
+            await expect(main([], { E2E_LANES: value })).rejects.toThrow(/E2E_LANES/u);
+        },
+    );
+
+    it('stops on a stagger that is not a number of seconds', async () => {
+        await expect(main([], { E2E_LANE_STAGGER_SECONDS: 'soon' })).rejects.toThrow(/E2E_LANE_STAGGER_SECONDS/u);
     });
 });

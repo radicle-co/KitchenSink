@@ -13,7 +13,8 @@
         "./recordedScreens": "./src/recordedScreens.ts",
         "./stampRun": "./src/stampRun.ts",
         "./packLanes": "./src/packLanes.ts",
-        "./ciMatrix": "./src/ciMatrix.ts"
+        "./ciMatrix": "./src/ciMatrix.ts",
+        "./registeredMobileScreens": "./src/registeredMobileScreens.ts"
     },
     "scripts": {
         "test": "vitest run",
@@ -32,6 +33,7 @@
         "@kitchensink/vitest": "*",
         "@types/node": "^24.13.3",
         "@types/picomatch": "^4.0.0",
+        "@types/write-file-atomic": "^4.0.3",
         "eslint": "^10.0.3",
         "prettier": "^3.0.0",
         "tsx": "^4.23.12",
@@ -44,6 +46,8 @@
         "dependency-cruiser": "18.7.0",
         "picomatch": "^4.0.4",
         "typescript": "^6.0.3",
-        "yaml": "^2.8.1"
+        "write-file-atomic": "^8.0.0",
+        "yaml": "^2.8.1",
+        "zod": "^4.6.7"
     }
 }

@@ -15,8 +15,7 @@
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import type { Platform } from '../src/greenStamp.js';
-import { onEmptyOf } from '../src/greenStamp.js';
+import { onEmptyOf, parsePlatform } from '../src/greenStamp.js';
 import { planChange, type Models } from '../src/planChange.js';
 import { idsOf, renderPlan } from '../src/render.js';
 import { loadRepoModels } from '../src/repoModels.js';
@@ -37,8 +36,14 @@ const { values } = parseArgs({
 
 const repo = values.repo !== undefined ? resolve(values.repo) : findRepoRoot(process.cwd(), process.env['INIT_CWD']);
 const explicitBase = values.base ?? process.env['TURBO_SCM_BASE'];
-const PLATFORMS: readonly string[] = ['web', 'android', 'ios'];
-const platform = PLATFORMS.includes(values.platform ?? '') ? (values.platform as Platform) : undefined;
+let platform: ReturnType<typeof parsePlatform> | undefined;
+
+try {
+    platform = values.platform === undefined ? undefined : parsePlatform(values.platform);
+} catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(2);
+}
 
 async function main(): Promise<void> {
     let plan: Plan;
@@ -82,7 +87,9 @@ async function main(): Promise<void> {
     }
 
     if (meta.base.kind === 'stamp' && meta.base.owed.length > 0) {
-        process.stderr.write(`  owed (sandbox-only flows not yet run): ${meta.base.owed.join(', ')}\n`);
+        process.stderr.write(
+            `  not run in the last green run (sandbox-only or deployed-only): ${meta.base.owed.join(', ')}\n`,
+        );
     }
 
     if (values.tier === 'web' || values.tier === 'mobile') {

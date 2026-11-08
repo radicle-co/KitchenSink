@@ -9,11 +9,11 @@
  * @pattern Strategy — the Android {@link DeviceAdapter}
  * @pattern Adapter over the Android emulator, adb and `buildTestApp.sh`, behind the injected {@link CommandPort}
  */
-import { cpus, loadavg } from 'node:os';
-import { readFileSync } from 'node:fs';
+import { cpus, freemem, loadavg } from 'node:os';
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
 
@@ -32,17 +32,15 @@ export const ANDROID_LANE_SERIALS = [
 const GIB = 1024 ** 3;
 
 /**
- * What one Android lane costs the host at its PEAK: an x86_64 API 34 emulator under `swiftshader_indirect` plus its runner
- * and Maestro JVMs. The mean is the wrong number: on 2026-11-07 four lanes averaged 2.7 CPUs each, yet the software GPU's
- * bursts pushed the 20-CPU host's load to p90 22.3 and peak 58.5, and 9 of 70 flows ran out of their scroll budgets. One
- * lane alone held the host at load p95 4.9, max 5.7 (and the 4-lane p90 is 5.6 a lane), so a lane costs 5.5 CPUs.
+ * What one Android lane costs the host at its PEAK, measured, as ADR-0088 §2 states: an x86_64 API 34 emulator under
+ * `swiftshader_indirect` plus its runner and Maestro JVMs. On 2026-11-07 four lanes averaged 2.7 CPUs each, yet load
+ * peaked at 58.5 on the 20-CPU host and 9 of 70 flows ran out of their scroll budgets. One lane alone held the host at
+ * load p95 4.9, max 5.7, so a lane costs 5.5 CPUs. At that cost the host planned 3 lanes, and 69 of 70 flows passed.
  * Memory: 4.9-5.5 GiB peak per lane.
  */
 export const ANDROID_LANE_COST: LaneCost = { cpus: 5.5, memBytes: 5.5 * GIB };
 
 const BOOT_POLL_MS = 2_000;
-
-export type Env = Readonly<Record<string, string | undefined>>;
 
 /** The processes and files the adapter touches, injected so its decisions are testable without a device. */
 export interface CommandPort {
@@ -73,15 +71,15 @@ export interface AndroidAdapterOptions {
     readonly environment: Env;
 }
 
-/** `MemAvailable` from `/proc/meminfo`, in bytes. */
+/** The host's free memory in bytes: `MemAvailable` on Linux. libuv answers 0 when it cannot read it. */
 function memAvailableBytes(): number {
-    const kib = /^MemAvailable:\s+(\d+)\s+kB$/mu.exec(readFileSync('/proc/meminfo', 'utf8'))?.[1];
+    const bytes = freemem();
 
-    if (kib === undefined) {
-        throw new Error('maestro:lanes: /proc/meminfo has no MemAvailable line');
+    if (bytes <= 0) {
+        throw new Error('maestro:lanes: the host reported no free memory (os.freemem() is 0)');
     }
 
-    return Number(kib) * 1024;
+    return bytes;
 }
 
 const consolePort = (serial: string): string => serial.replace(/^emulator-/u, '');
@@ -125,8 +123,12 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
         platform: 'android',
         laneCost: ANDROID_LANE_COST,
         maxLanes: ANDROID_LANE_SERIALS.length,
-        hostFacts: (): Promise<HostFacts> =>
-            Promise.resolve({ cpus: cpus().length, load1: loadavg()[0] ?? 0, memAvailable: memAvailableBytes() }),
+        // Async so a refusal rejects, as the port promises, instead of throwing before a promise exists.
+        hostFacts: async (): Promise<HostFacts> => ({
+            cpus: cpus().length,
+            load1: loadavg()[0] ?? 0,
+            memAvailable: memAvailableBytes(),
+        }),
         prepareHost: async (_run: RunContext) => {
             const keyed = await commands.run('bash', [script, 'content-key', 'android'], {
                 env: buildEnv,

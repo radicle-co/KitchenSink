@@ -8,12 +8,12 @@ import { closeSync, openSync } from 'node:fs';
 import { constants } from 'node:os';
 import path from 'node:path';
 
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
+
 import type { LaneSpec } from './laneTypes.js';
 
 /** The file in a lane's state folder the runner records the screens its flows showed to. */
 export const SCREEN_RECORD_FILE = 'screenRecord.tsv';
-
-export type Env = Readonly<Record<string, string | undefined>>;
 
 export interface LaneChild {
     readonly pid: number;

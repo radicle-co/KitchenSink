@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     chooseBase,
     nextStamp,
+    parsePlatform,
     onEmptyOf,
     type BaseInput,
     type GreenStamp,
@@ -79,7 +80,6 @@ const green: RunEvidence = {
     head: 'h2',
     planTree: 'bbbb',
     endTree: 'bbbb',
-    selectedBy: 'selector',
     outcomes: { passed: 5, failed: 0, skipped: 0 },
     recorderClean: true,
     previous: stamp,
@@ -88,7 +88,7 @@ const green: RunEvidence = {
 };
 
 describe('nextStamp', () => {
-    it('stamps the tree at plan time and unions the owed flows', () => {
+    it('stamps the tree at plan time and records what THIS run could not run', () => {
         expect(nextStamp(green)).toEqual({
             version: 1,
             platform: 'android',
@@ -100,14 +100,9 @@ describe('nextStamp', () => {
         });
     });
 
-    it('keeps the owed flows of the previous stamp when this run drops none', () => {
-        expect(nextStamp({ ...green, dropped: [] })).toMatchObject({ owed: ['sandboxOnly/a'] });
-    });
-
-    it('refuses when a person chose the tests, because the selector did not vouch for the set', () => {
-        expect(nextStamp({ ...green, selectedBy: 'manual' })).toMatchObject({
-            refused: expect.stringMatching(/chose/u),
-        });
+    it('does not carry the previous stamp’s owed flows: owed is a report of the last green run, not a ledger', () => {
+        // Nothing clears a carried item, so carrying it would print a flow as owed after a run that did run it.
+        expect(nextStamp({ ...green, dropped: [] })).toMatchObject({ owed: [] });
     });
 
     it('refuses on a failure', () => {
@@ -134,5 +129,15 @@ describe('nextStamp', () => {
         expect(nextStamp({ ...green, outcomes: { passed: 0, failed: 0, skipped: 0 } })).toMatchObject({
             tree: 'bbbb',
         });
+    });
+});
+
+describe('parsePlatform', () => {
+    it.each(['web', 'android', 'ios'])('accepts %s', (name) => {
+        expect(parsePlatform(name)).toBe(name);
+    });
+
+    it.each(['tv', '', 'Android', 'web '])('refuses %j', (name) => {
+        expect(() => parsePlatform(name)).toThrow(/web, android, ios/u);
     });
 });

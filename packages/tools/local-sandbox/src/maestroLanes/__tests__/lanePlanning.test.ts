@@ -70,26 +70,49 @@ describe('flowSelector — the runner selector for a selection', () => {
 });
 
 describe('fitLaneCount — every lane holds at least one flow', () => {
-    /** A fake packer: the given flows go round-robin, except the pinned ones, which all go to lane 1. */
-    const packer =
-        (flows: readonly string[], pinned: readonly string[]) =>
-        (index: number, count: number): readonly string[] => {
+    /**
+     * A fake packer: the given flows go round-robin, except the pinned ones, which all go to lane 1. It records every
+     * `index/count` it is asked for, because each real call is a run of the runner's packer.
+     */
+    const packer = (flows: readonly string[], pinned: readonly string[], asked: string[] = []) => {
+        return (index: number, count: number): Promise<readonly string[]> => {
+            asked.push(`${index}/${count}`);
             const loose = flows.filter((flow) => !pinned.includes(flow));
 
-            return [...(index === 1 ? pinned : []), ...loose.filter((_, position) => position % count === index - 1)];
+            return Promise.resolve([
+                ...(index === 1 ? pinned : []),
+                ...loose.filter((_, position) => position % count === index - 1),
+            ]);
         };
+    };
 
-    it('keeps the count when every lane is busy', () => {
-        expect(fitLaneCount(3, packer(['a', 'b', 'c', 'd'], []))).toBe(3);
+    it('keeps the count when every lane is busy', async () => {
+        await expect(fitLaneCount(3, packer(['a', 'b', 'c', 'd'], []))).resolves.toBe(3);
     });
 
-    it('lowers the count until no lane is empty (three pinned flows are one lane, not three)', () => {
-        expect(fitLaneCount(3, packer(['a', 'b', 'c'], ['a', 'b', 'c']))).toBe(1);
-        expect(fitLaneCount(4, packer(['p', 'q', 'a', 'b'], ['p', 'q']))).toBe(2);
+    it('lowers the count until no lane is empty (three pinned flows are one lane, not three)', async () => {
+        await expect(fitLaneCount(3, packer(['a', 'b', 'c'], ['a', 'b', 'c']))).resolves.toBe(1);
+        await expect(fitLaneCount(4, packer(['p', 'q', 'a', 'b'], ['p', 'q']))).resolves.toBe(2);
     });
 
-    it('answers zero when even one lane would be empty', () => {
-        expect(fitLaneCount(2, packer([], []))).toBe(0);
+    it('answers zero when even one lane would be empty', async () => {
+        await expect(fitLaneCount(2, packer([], []))).resolves.toBe(0);
+    });
+
+    it('packs lazily: a count whose lanes are all busy costs one call per lane, and nothing below it is asked', async () => {
+        const asked: string[] = [];
+
+        await fitLaneCount(3, packer(['a', 'b', 'c', 'd'], [], asked));
+
+        expect(asked).toEqual(['1/3', '2/3', '3/3']);
+    });
+
+    it('leaves a count at its first empty lane, without packing the lanes after it', async () => {
+        const asked: string[] = [];
+
+        await expect(fitLaneCount(4, packer(['p', 'q', 'a', 'b'], ['p', 'q'], asked))).resolves.toBe(2);
+
+        expect(asked).toEqual(['1/4', '2/4', '3/4', '1/3', '2/3', '3/3', '1/2', '2/2']);
     });
 });
 
@@ -100,7 +123,20 @@ describe('parseLaneArgs — the maestro:lanes command line', () => {
                 platforms: ['android'],
                 requested: 3,
                 selection: ['home', 'recipes/edit'],
+                staggerSeconds: 20,
             },
+        );
+    });
+
+    it('reads the lane stagger from MAESTRO_LANE_STAGGER_SECONDS, whole seconds, zero allowed', () => {
+        expect(parseLaneArgs(['--platform', 'android'], { MAESTRO_LANE_STAGGER_SECONDS: '5' }).staggerSeconds).toBe(5);
+        expect(parseLaneArgs(['--platform', 'android'], { MAESTRO_LANE_STAGGER_SECONDS: '0' }).staggerSeconds).toBe(0);
+    });
+
+    /** `Number('')` is 0 and `Number('abc')` is NaN: either used to reach the stagger timer unannounced. */
+    it.each(['', 'abc', '-1', '1.5', '20s', ' 5'])('refuses MAESTRO_LANE_STAGGER_SECONDS=%j by name', (raw) => {
+        expect(() => parseLaneArgs(['--platform', 'android'], { MAESTRO_LANE_STAGGER_SECONDS: raw })).toThrow(
+            /MAESTRO_LANE_STAGGER_SECONDS/u,
         );
     });
 

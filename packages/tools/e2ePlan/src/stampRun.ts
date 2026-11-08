@@ -12,6 +12,10 @@ import { stampLocation } from './resolveChange.js';
 import { currentBranch, stateRoot, writeStamp } from './stampStore.js';
 import { snapshotTree } from './worktreeSnapshot.js';
 
+/** The folder the machine keeps its state in. Re-exported so a door has one public path to it. */
+export { stateRoot } from './stampStore.js';
+export type { Env } from './env.js';
+
 const run = promisify(execFile);
 
 export interface RecordInput {
@@ -20,7 +24,6 @@ export interface RecordInput {
     readonly platform: Platform;
     /** The plan's `treeAtStart`. */
     readonly planTree: string;
-    readonly selectedBy: RunEvidence['selectedBy'];
     readonly outcomes: RunEvidence['outcomes'];
     readonly recorderClean: boolean;
     readonly dropped: readonly string[];
@@ -50,7 +53,6 @@ export async function recordGreenRun(input: RecordInput): Promise<Recorded> {
         head,
         planTree: input.planTree,
         endTree: await snapshotTree(input.repo),
-        selectedBy: input.selectedBy,
         outcomes: input.outcomes,
         recorderClean: input.recorderClean,
         previous: input.previous,
@@ -67,4 +69,73 @@ export async function recordGreenRun(input: RecordInput): Promise<Recorded> {
     return writeStamp(file, next, input.previous) === 'written'
         ? { kind: 'written', stamp: next }
         : { kind: 'conflict' };
+}
+
+/** What a door keeps from planning: the tree the plan was made at and the stamp the run started from. */
+export interface StampStart {
+    readonly planTree: string;
+    readonly previous: GreenStamp | undefined;
+}
+
+export interface SettleInput {
+    readonly repo: string;
+    readonly stateRoot?: string;
+    readonly platform: Platform;
+    /** Undefined when a person chose the tests or the plan gave no tree: the stamp then stays where it is. */
+    readonly start: StampStart | undefined;
+    /** What the selected tests did; undefined when the run left no report to count. */
+    readonly outcomes: RunEvidence['outcomes'] | undefined;
+    /** Declared specs or flows that could not run here. Printed every run, and carried into the stamp. */
+    readonly owed: readonly string[];
+    /** Whether the post-run recorder checks left the exit code alone. */
+    readonly recorderClean: boolean;
+    readonly log: (line: string) => void;
+}
+
+/**
+ * The end of a local run, for every door: lists what is owed, moves the green stamp if the run earned it, and says what
+ * happened. It never throws and never changes the door's exit code.
+ *
+ * @sideEffect Runs git, writes tree objects and the stamp file, and calls `log`.
+ * @param input - What the run saw.
+ */
+export async function settleStamp(input: SettleInput): Promise<void> {
+    const { platform, log } = input;
+
+    if (input.owed.length > 0) {
+        log(`${platform} owed: ${input.owed.join(', ')}`);
+    }
+
+    if (input.start === undefined) {
+        return;
+    }
+
+    if (input.outcomes === undefined) {
+        log(`${platform} green stamp not moved (the run left no report to count)`);
+
+        return;
+    }
+
+    try {
+        const result = await recordGreenRun({
+            repo: input.repo,
+            ...(input.stateRoot === undefined ? {} : { stateRoot: input.stateRoot }),
+            platform,
+            planTree: input.start.planTree,
+            outcomes: input.outcomes,
+            recorderClean: input.recorderClean,
+            dropped: input.owed,
+            previous: input.start.previous,
+        });
+
+        log(
+            result.kind === 'written'
+                ? `${platform} green stamp moved to this run (owed: ${result.stamp.owed.length})`
+                : `${platform} green stamp not moved (${result.kind === 'refused' ? result.reason : 'another run moved it first'})`,
+        );
+    } catch (error) {
+        log(
+            `warning: could not record the ${platform} green stamp (${error instanceof Error ? error.message : String(error)})`,
+        );
+    }
 }

@@ -43,8 +43,13 @@ tree is gone, or on a detached HEAD, the run does the full suite. An explicit `-
 in CI, keep the old rule: the merge base with that ref, where an empty set runs everything. A run moves the stamp only
 when all four hold. The selector chose the set (`FULL_SUITE=1` counts; an `E2E_TEST_LIST`, Playwright arguments or a
 flow override do not). Every selected test passed, with no failure and no skip. The recorder checks found nothing wrong.
-The tree did not change while the run went on. The stamp then names the tree at plan time, and it also lists the
-sandbox-only flows the run dropped, which stay owed. `npm run e2e:plan -- --base origin/main` reproduces CI's selection
+The tree did not change while the run went on. The stamp then names the tree at plan time. One kind of skip does not
+count against the run: a spec or flow the suite declares as unable to run here. On web, `paidFeatureRoles.spec.ts` reads
+the deployed identity service and `recipeLive.spec.ts` needs a live local backend, and both are listed in
+`DEPLOYED_ONLY_SPECS`; on mobile, flows that need the sandbox are dropped by the selector. Such an item is OWED: every run
+prints it, and the stamp records the owed items of the run that wrote it. That list is a report and not a ledger. Nothing
+clears an item, because no door tracks which spec ran and passed since, so the next stamp replaces the list instead of
+adding to it. A skip that is not declared still refuses the stamp. `npm run e2e:plan -- --base origin/main` reproduces CI's selection
 by hand.
 
 ### 2. The selector walks the import graph backwards to screens, and screens to tests
@@ -99,11 +104,14 @@ skip a test that must run. A recorder closes the gap. `signInWithTicket` records
 requests of each spec, and the main-frame navigations, to one JSON Lines file per lane. It skips prefetches. After the
 run, the lane door compares the record with the registry. It fails the run and prints the rows to add. A row only ever
 grows. Widening is always safe, and narrowing needs evidence.
-Narrowing is a script, not an edit by hand: `packages/tools/e2ePlan/bin/narrowFlowRows.ts` reads the recorder output of an
-Android run and an iOS run. It removes a screen from a flow's own row only when both platforms found the passing flow went
-without it, neither platform showed it, the flow's own file has no `when:` branch, and no sign-in sub-flow the flow runs
-supplies it. A flow with no such line from one platform keeps its whole row. It lists, and does not add, the screens a
-platform showed that a row lacks, because the recorder fails those flows until they are added.
+Narrowing is a script, not an edit by hand: `packages/tools/e2ePlan/bin/narrowFlowRows.ts` reads the JSON screen report
+the recorder writes for an Android run and an iOS run. It removes a screen from a flow's own row only when both platforms
+found the PASSING flow went without it, neither platform showed it, no sign-in sub-flow the flow runs supplies it, and the
+flow does not branch. A flow branches when it, or any flow it runs, has a `when:`, a `while:` or an `optional: true` step,
+because one run takes one branch. Every flow signs in through `auth/signinHome`, which has a `when:`, so today no row
+narrows; the rows the first run of the script cut (2026-11-08) are restored. A flow with no passing report from one
+platform keeps its whole row. The script lists, and does not add, the screens a platform showed that a row lacks, because
+the recorder fails those flows until they are added.
 
 ### 5. Doors, and what other records decide
 

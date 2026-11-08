@@ -1564,6 +1564,73 @@ maestro_dump_device_log() {
     esac
 }
 
+# The folder a FAILED flow's evidence goes in, made and printed; nothing when the run did not ask for evidence
+# (`MAESTRO_EVIDENCE_DIR`, which the lane orchestrator sets). One folder per flow, its path flattened so `recipes/edit`
+# is `recipes__edit`. A PASSED flow never calls this, so a passed flow keeps nothing.
+#
+# @sideEffect Makes the folder.
+maestro_evidence_dir() {
+    local dest="${MAESTRO_EVIDENCE_DIR:-}/${1//\//__}"
+
+    [ -n "${MAESTRO_EVIDENCE_DIR:-}" ] || return 0
+    mkdir -p "$dest" && printf '%s\n' "$dest"
+}
+
+# Print the newest time folder under a Maestro `tests` folder that holds a folder named `$2`. The folders are named by
+# start time, so the reverse listing is newest first; "holds this flow" is what keeps a lane that shares the folder
+# with others from taking another lane's later run. Runs on the runner, and on the Mac over ssh (`declare -f` sends it).
+maestro_newest_debug_dir() {
+    local tests="$1" stem="$2" name
+
+    for name in $(ls -1r "$tests" 2>/dev/null); do
+        if [ -d "${tests}/${name}/${stem}" ]; then
+            printf '%s\n' "$name"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Keep the debug folder Maestro wrote for a flow that just failed: screenshots, the view hierarchy, the command trace
+# and Maestro's log. Copied into `$2/debug/` before any cleanup removes it. On a Mac lane (the shims put `KS_MAC_*` in the
+# environment) Maestro ran on the Mac in the lane's own HOME, so the folder is fetched from there; otherwise it is under
+# this machine's HOME. Best-effort like the device log: a diagnostic that fails the run it is diagnosing is worse than
+# none, so a missing folder is written down (`noDebugFolder.txt`) and the function still succeeds.
+#
+# @sideEffect Reads the Maestro folder (over ssh on a Mac lane) and writes under `$2`.
+maestro_keep_debug_folder() {
+    local flow="$1" dest="$2" stem="${1##*/}" newest tests
+
+    case "$flow" in
+        *..* | /* | *[!A-Za-z0-9._/-]*) return 1 ;;
+    esac
+
+    if [ -n "${KS_MAC_LANE_HOME:-}" ]; then
+        tests="${KS_MAC_LANE_HOME}/.maestro/tests"
+        newest="$(ssh -F "$KS_MAC_SSH_CONFIG" "$KS_MAC_HOST" \
+            "$(printf '%q ' bash -c "$(declare -f maestro_newest_debug_dir); maestro_newest_debug_dir \"\$@\"" _ "$tests" "$stem")" \
+            2>/dev/null)" || newest=''
+    else
+        tests="${HOME}/.maestro/tests"
+        newest="$(maestro_newest_debug_dir "$tests" "$stem")" || newest=''
+    fi
+
+    if [ -z "$newest" ]; then
+        printf 'No Maestro debug folder under %s holds %s.\n' "$tests" "$flow" >"${dest}/noDebugFolder.txt"
+
+        return 0
+    fi
+
+    mkdir -p "${dest}/debug" || return 0
+
+    if [ -n "${KS_MAC_LANE_HOME:-}" ]; then
+        rsync -a -e "ssh -F ${KS_MAC_SSH_CONFIG}" "${KS_MAC_HOST}:${tests}/${newest}/" "${dest}/debug/" || true
+    else
+        cp -a "${tests}/${newest}/." "${dest}/debug/" || true
+    fi
+}
+
 # Name whatever is holding the driver port, and any driver that survived a previous flow.
 #
 # ⛔ Diagnosing the original failure meant downloading the run artifact and unzipping per-flow logs just to
@@ -1936,7 +2003,14 @@ maestro_run_flow_list() {
             runner_before='the previous flow passed'
         else
             echo "FLOW FAILED: ${f}"
-            maestro_dump_device_log "$f"
+            evidence="$(maestro_evidence_dir "$f")"
+            if [ -n "$evidence" ]; then
+                maestro_dump_device_log "$f" 2>&1 | tee "${evidence}/deviceLog.txt" || true
+                maestro_keep_debug_folder "$f" "$evidence" || true
+                echo "failure evidence for ${f}: ${evidence}"
+            else
+                maestro_dump_device_log "$f"
+            fi
             maestro_dump_port_owner
             # ⛔ PER-FLOW ATTRIBUTION. A flow that fails after the sandbox went down failed for absence and is not
             # counted; one that failed while the probe still answered live is its own red, as is every earlier

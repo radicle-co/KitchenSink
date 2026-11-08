@@ -499,6 +499,8 @@ async function main(argv: readonly string[]): Promise<number> {
     const deps: LaneRunDeps = {
         adapterFor: (platform) => adapterFor(platform, base, settings),
         stateDir: STATE_DIR,
+        // Sorts by age, and holds no `:` or `.` (a folder name on the Mac side of an rsync too).
+        runStamp: new Date().toISOString().replace(/[:.]/gu, '-'),
         repoRoot: REPO_ROOT,
         lockDir: path.join(STATE_DIR, 'locks'),
         baseEnv: base,

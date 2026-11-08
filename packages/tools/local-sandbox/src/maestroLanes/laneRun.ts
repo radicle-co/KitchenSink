@@ -19,6 +19,7 @@ import { planLanes } from '@kitchensink/e2e-plan';
 import type { FlowResult } from '@kitchensink/e2e-plan/recordedScreens';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
+import { failureEvidenceDir, pruneFailureRuns } from './failureEvidence.js';
 import type { HostLock } from './hostLock.js';
 import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
 import { laneRunnerEnv, type LaneChild } from './laneProcess.js';
@@ -61,6 +62,8 @@ interface ScreenOutcome {
 export interface LaneRunDeps {
     adapterFor(platform: LanePlatform): DeviceAdapter;
     readonly stateDir: string;
+    /** This run's start time as a folder name: the lanes keep a failed flow's evidence under it. */
+    readonly runStamp: string;
     readonly repoRoot: string;
     readonly lockDir: string;
     readonly baseEnv: Env;
@@ -248,6 +251,7 @@ async function runPlanned(
             lane,
             selector: plan?.selector ?? '',
             lockDir: deps.lockDir,
+            evidenceDir: failureEvidenceDir(lane.stateDir, deps.runStamp),
             adapterEnv: plan?.adapter.laneEnv(lane) ?? {},
         });
     };
@@ -256,6 +260,7 @@ async function runPlanned(
 
     for (const lane of lanes) {
         mkdirSync(lane.stateDir, { recursive: true });
+        pruneFailureRuns(lane.stateDir);
     }
 
     if (deps.aborted()) {

@@ -158,7 +158,7 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
                 );
             }
 
-            await host.prepare(run, apk);
+            await host.prepare(run, apk, key);
         },
         deviceFor,
         startDevice: async (lane: LaneSpec) => {

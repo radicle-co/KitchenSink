@@ -126,13 +126,7 @@ export class IosAdapter implements DeviceAdapter {
         return {
             MAESTRO_IOS_UDID: udid,
             MAESTRO_SKIP_INSTALL: '1',
-            PATH: `${this.session.shimDir}:${this.options.env['PATH'] ?? ''}`,
-            KS_MAC_HOST: this.session.host,
-            KS_MAC_SSH_CONFIG: this.session.sshConfig,
-            KS_MAC_TREE: `${this.session.macHome}/ksIos/run/${this.session.runId}`,
-            KS_MAC_LANE_HOME: `${this.session.macHome}/ksIos/lanes/lane${String(lane.index)}`,
-            KS_MAC_JAVA_HOME: `${this.session.macHome}/ksIos/jdk17/Contents/Home`,
-            KS_MAC_MAESTRO_BIN: `${this.session.macHome}/ksIos/maestro2110/bin/maestro`,
+            ...this.session.shimEnv(lane.index),
         };
     }
 

@@ -31,8 +31,8 @@ function rig(abi: 'x86_64' | 'arm64-v8a', manifest = 'contentKey=k1\n'): Rig {
         abi,
         laneCost: { cpus: 5.5, memBytes: 5.5 * 1024 ** 3 },
         hostFacts: () => Promise.resolve({ cpus: 10, load1: 0, memAvailable: 1 }),
-        prepare: (run, apk) => {
-            hostCalls.push(`prepare ${run.runId} ${apk}`);
+        prepare: (run, apk, key) => {
+            hostCalls.push(`prepare ${run.runId} ${apk} ${key}`);
 
             return Promise.resolve();
         },
@@ -118,12 +118,12 @@ describe('the Android adapter over an injected host', () => {
         }
     });
 
-    it('prepares the host with the run and the APK path, after the app is verified', async () => {
+    it('prepares the host with the run, the APK path and the content key, after the app is verified', async () => {
         const { adapter, hostCalls, commands } = rig('arm64-v8a');
         await adapter.prepareHost({ runId: 'r', stateDir: '/state', repoRoot: '/repo' });
 
         expect(commands.some((c) => c.includes('verify-manifest'))).toBe(true);
-        expect(hostCalls).toEqual(['prepare r /repo/packages/apps/commise/mobile/dist-testApp/android/app.apk']);
+        expect(hostCalls).toEqual(['prepare r /repo/packages/apps/commise/mobile/dist-testApp/android/app.apk k1']);
     });
 
     it('boots through the host, polls boot through the host, then installs through the host', async () => {

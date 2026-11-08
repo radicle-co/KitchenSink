@@ -132,6 +132,22 @@ export class MacSession {
         }
     }
 
+    /**
+     * What the runner's Maestro shim needs for lane `index`: the shims first on PATH, the Mac, and the lane's own Maestro HOME
+     * (lanes must not share one: Maestro keeps its driver state there).
+     */
+    shimEnv(index: number): Record<string, string> {
+        return {
+            PATH: `${this.shimDir}:${this.options.env['PATH'] ?? ''}`,
+            KS_MAC_HOST: this.host,
+            KS_MAC_SSH_CONFIG: this.sshConfig,
+            KS_MAC_TREE: `${this.home}/ksIos/run/${this.run}`,
+            KS_MAC_LANE_HOME: `${this.home}/ksIos/lanes/lane${String(index)}`,
+            KS_MAC_JAVA_HOME: `${this.home}/ksIos/jdk17/Contents/Home`,
+            KS_MAC_MAESTRO_BIN: `${this.home}/ksIos/maestro2110/bin/maestro`,
+        };
+    }
+
     /** Syncs this tree's Maestro flows to the run's folder on the Mac. */
     async syncFlows(): Promise<void> {
         const { shell, repoRoot } = this.options;

@@ -20,7 +20,7 @@ export interface AndroidHost {
     readonly laneCost: LaneCost;
     hostFacts(): Promise<HostFacts>;
     /** Once per run, after the app is built and verified and before any lane: make the host ready and stage the APK. */
-    prepare(run: RunContext, apk: string): Promise<void>;
+    prepare(run: RunContext, apk: string, key: string): Promise<void>;
     /** `adb -s <serial> ...` on the machine that holds the emulator. */
     adb(serial: string, ...args: string[]): Promise<{ readonly code: number; readonly stdout: string }>;
     /** Start the lane's emulator. Returns as soon as it is started, not when it has booted. */

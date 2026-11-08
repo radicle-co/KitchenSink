@@ -333,6 +333,8 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/ciMatrix',
         // `stampRun` moves the last-green stamp after a local run (ADR-0086); the web door and the Maestro lanes call it.
         '!@kitchensink/*/stampRun',
+        // `hostMemory` is the one reader of the machine's free memory, for the lane planners (the web door and local-sandbox).
+        '!@kitchensink/*/hostMemory',
         // `registeredMobileScreens` gives the screen recorder's guard (mobile `screenTrace.integration.test.ts`) the selector's own
         // list of registered screens.
         '!@kitchensink/*/registeredMobileScreens',

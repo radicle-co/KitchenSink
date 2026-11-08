@@ -6,8 +6,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import { processEnv, type Env } from '@kitchensink/e2e-plan/stampRun';
 
-import type { Env } from './e2eEnv';
 import { BLOB_DIR, LANE_LOG_DIR } from './e2ePaths';
 import { run, sleep, waitForExit } from './e2eProcess';
 import { parseReport, type PlaywrightReport } from './e2eReport';
@@ -144,7 +144,7 @@ export async function startLanes(input: LaneStart): Promise<readonly (number | n
 
         const log = openSync(`${LANE_LOG_DIR}/lane-${lane.index}.log`, 'w');
         const child = spawn('bash', ['scripts/e2eLocal.sh', ...laneArgs(lane, listFile)], {
-            env: laneEnv(input.env, { ...lane, port, sharedServer: input.shared }) as NodeJS.ProcessEnv,
+            env: processEnv(laneEnv(input.env, { ...lane, port, sharedServer: input.shared })),
             stdio: ['ignore', log, log],
         });
 

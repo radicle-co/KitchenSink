@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
 import { webSelectionOutputs, type WebSelection } from '@kitchensink/e2e-plan/ciMatrix';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { countTests, flattenReport, type ReportedTest } from './e2eReport';
 import { decideSpecs, listTests, specFilters } from './e2eSelection';
@@ -23,7 +24,6 @@ export const WEB_TESTS_PER_SHARD = 14;
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../../../../../..');
 
-type Env = Readonly<Record<string, string | undefined>>;
 type WebTier = Awaited<ReturnType<typeof runPlan>>['web'];
 
 /** What the selection needs from the outside world, so each branch can be tested without git or Playwright. */
@@ -70,7 +70,7 @@ export async function selectWeb(deps: SelectDeps): Promise<WebSelection> {
 }
 
 const realDeps = (env: Env): SelectDeps => ({
-    plan: async () => (await runPlan(REPO_ROOT, env as NodeJS.ProcessEnv)).web,
+    plan: async () => (await runPlan(REPO_ROOT, env)).web,
     listSpecs: (ids) => flattenReport(listTests(specFilters(ids), undefined, env)),
     countAll: () => countTests(listTests([], undefined, env)),
 });

@@ -25,6 +25,8 @@ import { z } from 'zod';
 
 import { readWorkspaces, type WorkspacePackage } from './workspaces.js';
 
+import { asRecord } from './asRecord.js';
+
 /** What to cruise and how its imports resolve. All paths are relative to the repo root. */
 export interface GraphProfile {
     readonly name: string;
@@ -58,9 +60,6 @@ interface Alias {
     readonly alias: string;
     readonly onlyModule?: true;
 }
-
-const asRecord = (value: unknown): Readonly<Record<string, unknown>> =>
-    typeof value === 'object' && value !== null ? (value as Readonly<Record<string, unknown>>) : {};
 
 /** The target an `exports` entry reaches for an `import`: a string, or the first of `import`/`default` that is one. */
 function exportTarget(entry: unknown): string | undefined {

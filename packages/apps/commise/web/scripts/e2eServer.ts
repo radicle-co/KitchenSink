@@ -5,7 +5,8 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, openSync } from 'node:fs';
 
-import type { Env } from './e2eEnv';
+import { processEnv, type Env } from '@kitchensink/e2e-plan/stampRun';
+
 import { LANE_LOG_DIR } from './e2ePaths';
 import { sleep } from './e2eProcess';
 
@@ -68,7 +69,7 @@ export async function startSharedServer(env: Env, port: number): Promise<SharedS
 
     const log = openSync(`${LANE_LOG_DIR}/server.log`, 'w');
     const child = spawn('npm', ['run', 'start'], {
-        env: serverEnv(env, port) as NodeJS.ProcessEnv,
+        env: processEnv(serverEnv(env, port)),
         stdio: ['ignore', log, log],
         detached: true,
     });

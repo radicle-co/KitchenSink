@@ -5,9 +5,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
-import type { StampStart } from '@kitchensink/e2e-plan/stampRun';
+import type { Env, StampStart } from '@kitchensink/e2e-plan/stampRun';
 
-import type { Env } from './e2eEnv';
 import { LANE_LOG_DIR, REPO_ROOT } from './e2ePaths';
 import { run } from './e2eProcess';
 import { flattenReport, parseReport, type PlaywrightReport, type ReportedTest } from './e2eReport';
@@ -179,7 +178,7 @@ export async function chooseSelection(passthrough: readonly string[], env: Env):
     let plan: Awaited<ReturnType<typeof runPlan>>;
 
     try {
-        plan = await runPlan(REPO_ROOT, env as NodeJS.ProcessEnv, { platform: 'web' });
+        plan = await runPlan(REPO_ROOT, env, { platform: 'web' });
     } catch (error) {
         console.warn(
             `warning: the selector could not run (${error instanceof Error ? error.message : String(error)}); running every spec`,

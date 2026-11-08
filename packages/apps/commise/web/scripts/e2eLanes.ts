@@ -27,7 +27,7 @@
  *
  * This file is the entry: the order of a run. The parts are modules beside it: `e2eSelection` (which specs), `e2eReport`
  * (reading Playwright's report, what the tests did), `e2eDurationTable` (balancing), `e2eServer` (the one shared server),
- * `e2eLaneSet` (the lanes), `e2eMachineLock` (one run per machine), `e2eEnv` and `machineMemory` (what the machine and the
+ * `e2eLaneSet` (the lanes), `e2eMachineLock` (one run per machine), `e2eEnv` and `@kitchensink/e2e-plan/hostMemory` (what the machine and the
  * caller give).
  *
  * ⚠️ `setup` re-runs in every lane that holds a test needing the shared session (that is correct: each lane signs in
@@ -38,12 +38,13 @@ import { cpus, loadavg } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { planLanes } from '@kitchensink/e2e-plan';
+import { availableMemoryBytes } from '@kitchensink/e2e-plan/hostMemory';
 import { checkRecordedRoutes } from '@kitchensink/e2e-plan/recordedRoutes';
-import { settleStamp } from '@kitchensink/e2e-plan/stampRun';
+import { settleStamp, type Env } from '@kitchensink/e2e-plan/stampRun';
 import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
 
 import { laneLists, loadDurations, medianMs } from './e2eDurationTable';
-import { parseLaneRequest, parseStaggerSeconds, type Env } from './e2eEnv';
+import { parseLaneRequest, parseStaggerSeconds } from './e2eEnv';
 import {
     LANE_COST,
     SERVER_COST,
@@ -61,7 +62,6 @@ import { run } from './e2eProcess';
 import { countTests, flattenReport, outcomesOf, parseReport, verdict, type Outcomes } from './e2eReport';
 import { chooseSelection, listTests, selection } from './e2eSelection';
 import { startSharedServer, wantsSharedServer } from './e2eServer';
-import { availableMemoryBytes } from './machineMemory';
 
 /** The counts of the single-lane run's JSON report, or undefined when it left none or an unreadable one. */
 function singleOutcomes(file: string): Outcomes | undefined {

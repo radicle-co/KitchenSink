@@ -9,6 +9,8 @@ import { dirname, join } from 'node:path';
 
 import type { WorkspacePackage } from './workspaces.js';
 
+import { asRecord } from './asRecord.js';
+
 const TESTING_EXPORT = /(^|\/)testing(\/|$)/u;
 
 const targetOf = (entry: unknown): string | undefined => {
@@ -16,7 +18,7 @@ const targetOf = (entry: unknown): string | undefined => {
         return entry;
     }
 
-    const record = typeof entry === 'object' && entry !== null ? (entry as Record<string, unknown>) : {};
+    const record = asRecord(entry);
     const picked = record['import'] ?? record['default'];
 
     return typeof picked === 'string' ? picked : undefined;
@@ -29,8 +31,7 @@ const targetOf = (entry: unknown): string | undefined => {
  * @returns Repo-relative folders, sorted, each once.
  */
 export function testingDirs(packages: readonly WorkspacePackage[]): readonly string[] {
-    const exported = (entry: WorkspacePackage): Readonly<Record<string, unknown>> =>
-        typeof entry.exports === 'object' && entry.exports !== null ? (entry.exports as Record<string, unknown>) : {};
+    const exported = (entry: WorkspacePackage): Readonly<Record<string, unknown>> => asRecord(entry.exports);
 
     return [
         ...new Set(

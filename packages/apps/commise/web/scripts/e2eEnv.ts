@@ -4,8 +4,7 @@
  * A bad value stops the run with a message naming the variable. `Number('abc')` is NaN, and a NaN lane count or stagger
  * would fail far from its cause, or read as "no limit".
  */
-
-export type Env = Readonly<Record<string, string | undefined>>;
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 /** An unset variable and an empty one both mean "not given": a shell or a workflow that exports `X=` did not choose a value. */
 const given = (env: Env, name: string): string | undefined => {

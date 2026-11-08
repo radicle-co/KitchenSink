@@ -9,10 +9,7 @@ import { parseAllDocuments } from 'yaml';
 
 import type { MaestroFlowGraph } from './maestroFlows.js';
 
-const asRecord = (value: unknown): Readonly<Record<string, unknown>> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value)
-        ? (value as Readonly<Record<string, unknown>>)
-        : {};
+import { asRecord } from './asRecord.js';
 
 function branches(node: unknown): boolean {
     if (Array.isArray(node)) {

@@ -3,7 +3,7 @@
  */
 import { spawnSync, type ChildProcess } from 'node:child_process';
 
-import type { Env } from './e2eEnv';
+import { processEnv, type Env } from '@kitchensink/e2e-plan/stampRun';
 
 export const sleep = (seconds: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
@@ -17,7 +17,7 @@ export const sleep = (seconds: number): Promise<void> => new Promise((resolve) =
  * @returns Its exit status, 1 when it has none.
  */
 export const run = (command: string, args: readonly string[], env: Env): number =>
-    spawnSync(command, args, { stdio: 'inherit', env: env as NodeJS.ProcessEnv }).status ?? 1;
+    spawnSync(command, args, { stdio: 'inherit', env: processEnv(env) }).status ?? 1;
 
 export const waitForExit = (child: ChildProcess): Promise<number | null> =>
     new Promise((resolve) => {

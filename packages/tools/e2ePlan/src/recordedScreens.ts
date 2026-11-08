@@ -1,6 +1,7 @@
-import { existsSync, globSync, readFileSync } from 'node:fs';
+import { existsSync, globSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { branchingFlows } from './branchingFlows.js';
 import { parseCoverage } from './coverageTable.js';
 import { flowCoverage } from './flowCoverage.js';
 import { maestroFlowGraph } from './maestroFlows.js';
@@ -15,6 +16,7 @@ import {
     type ScreenCheck,
     type ScreenRecord,
 } from './screenCheck.js';
+import { screenEvidence } from './screenEvidence.js';
 
 export { flowOutcomes, type FlowResult } from './screenCheck.js';
 
@@ -78,25 +80,48 @@ export function checkScreenFiles(
 }
 
 /**
+ * Writes one JSON report per platform: the evidence the narrowing script reads.
+ *
+ * @sideEffect Creates `dir` and writes `<platform>.json` in it, replacing the last run's.
+ * @param report - The report of a check.
+ * @param dir - Where the reports go.
+ */
+export function writeScreenEvidence(report: ScreenReport, dir: string): void {
+    mkdirSync(dir, { recursive: true });
+
+    for (const { platform, check } of report.checks) {
+        const evidence = screenEvidence(platform, check, report.results.get(platform) ?? new Map());
+
+        writeFileSync(join(dir, `${platform}.json`), `${JSON.stringify(evidence, null, 2)}\n`);
+    }
+}
+
+/**
  * After a run: checks the screens it recorded against the registry in the repository.
  *
- * @sideEffect Reads the registry, the flows, the record files, and runs the runner's pure `plan` subcommand.
+ * @sideEffect Reads the registry, the flows, the record files, and runs the runner's pure `plan` subcommand. With
+ * `evidenceDir` it also writes a JSON report per platform (see {@link writeScreenEvidence}).
  * @param repo - The repository root.
  * @param sources - Each lane's record file and platform.
+ * @param evidenceDir - Where to write the per-platform reports; none are written without it.
  * @returns The report.
  */
-export function checkRecordedScreens(repo: string, sources: readonly ScreenSource[]): ScreenReport {
+export function checkRecordedScreens(
+    repo: string,
+    sources: readonly ScreenSource[],
+    evidenceDir?: string,
+): ScreenReport {
     const files = globSync(`${MAESTRO}/**/*`, { cwd: repo }).sort();
     const read = (path: string): string => readFileSync(join(repo, path), 'utf8');
     const flows = maestroFlowGraph({ dir: MAESTRO, files, read, topLevel: plannedFlows(repo) });
     const table = parseCoverage(read(FLOW_TABLE), FLOW_TABLE);
     const idOf = (file: string): string => file.slice(`${MAESTRO}/`.length).replace(/\.ya?ml$/u, '');
     const coverage = flowCoverage({ flows, table, idOf, passThrough: MOBILE_PASS_THROUGH });
-    const branching = new Set(
-        [...flows.tests].flatMap(([file, id]) =>
-            [file, ...flows.runsOf(file)].some((path) => /^\s*when:/mu.test(read(path))) ? [id] : [],
-        ),
-    );
+    const report = checkScreenFiles(sources, coverage, branchingFlows(flows, read));
 
-    return checkScreenFiles(sources, coverage, branching);
+    if (evidenceDir !== undefined) {
+        writeScreenEvidence(report, evidenceDir);
+    }
+
+    return report;
 }

@@ -1,47 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { narrowRows, parseRecorderText, renderTable, type NarrowInput } from '../src/narrowFlowRows.js';
+import { narrowRows, renderTable, type NarrowInput } from '../src/narrowFlowRows.js';
 
 const lines = (...rows: string[]): string => rows.join('\n');
 
-describe('parseRecorderText', () => {
-    it('reads a "wider" line and an "add" line of one platform, in either log prefix', () => {
-        const text = lines(
-            'android recipes/a: row is wider than observed by login, RecipeVersionsScreen (has when: branches, so one run may not show them all)',
-            'maestro:lanes: 02:22:13 android recipes/a: add profile to its row in maestroFlowScreens.tsv',
-            'android recipes/b: row is wider than observed by CollectionsScreen',
-        );
-        const evidence = parseRecorderText(text, 'android');
-
-        expect(evidence.get('recipes/a')).toEqual({
-            wider: new Set(['login', 'RecipeVersionsScreen']),
-            added: new Set(['profile']),
-        });
-        expect(evidence.get('recipes/b')?.wider).toEqual(new Set(['CollectionsScreen']));
-    });
-
-    it('keeps the other platform’s lines out, and ignores lines it does not know', () => {
-        const text = lines(
-            'ios recipes/a: row is wider than observed by X',
-            'flows=70 failed=true',
-            'lane 1: dropped 0',
-        );
-
-        expect(parseRecorderText(text, 'android').size).toBe(0);
-        expect([...parseRecorderText(text, 'ios').keys()]).toEqual(['recipes/a']);
-    });
-
-    it('reads several added screens', () => {
-        const text =
-            'android recipes/a: add CollectionDetailScreen, CollectionsScreen to its row in maestroFlowScreens.tsv';
-
-        expect(parseRecorderText(text, 'android').get('recipes/a')?.added).toEqual(
-            new Set(['CollectionDetailScreen', 'CollectionsScreen']),
-        );
-    });
+const observed = (wider: string[], added: string[] = [], result: 'passed' | 'failed' | 'skipped' = 'passed') => ({
+    result,
+    wider: new Set(wider),
+    added: new Set(added),
 });
-
-const observed = (wider: string[], added: string[] = []) => ({ wider: new Set(wider), added: new Set(added) });
 
 /** One flow, `recipes/a`, whose row is Home, Versions, Editor; both platforms found Versions unobserved. */
 function input(over: Partial<NarrowInput> = {}): NarrowInput {
@@ -92,6 +59,15 @@ describe('narrowRows', () => {
         );
 
         expect(result.removed).toEqual([]);
+    });
+
+    it('keeps a flow that did not pass on a platform, whatever it printed', () => {
+        const result = narrowRows(
+            input({ ios: new Map([['recipes/a', observed(['RecipeVersionsScreen'], [], 'failed')]]) }),
+        );
+
+        expect(result.removed).toEqual([]);
+        expect(result.kept).toContainEqual({ flow: 'recipes/a', reason: expect.stringMatching(/ios.*did not pass/u) });
     });
 
     it('keeps a flow that has no evidence from one platform, and says which', () => {

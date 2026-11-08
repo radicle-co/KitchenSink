@@ -5,6 +5,7 @@
 import { globSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { branchingFlows } from './branchingFlows.js';
 import { parseCoverage } from './coverageTable.js';
 import { maestroFlowGraph } from './maestroFlows.js';
 import { type Evidence, type NarrowInput } from './narrowFlowRows.js';
@@ -14,9 +15,6 @@ const MOBILE = 'packages/apps/commise/mobile';
 export const FLOW_TABLE_PATH = `${MOBILE}/tests/e2e/maestroFlowScreens.tsv`;
 
 const idOf = (file: string): string => file.slice(`${MOBILE}/.maestro/`.length).replace(/\.ya?ml$/u, '');
-
-/** A `when:` key at the start of a line, as the recorder's own branching check reads it. */
-const HAS_WHEN = /^\s*when:/mu;
 
 /**
  * Builds the input of `narrowRows` from the repository and two platforms' evidence.
@@ -56,9 +54,7 @@ export function loadNarrowInput(
             ios,
             suppliedBySubflows: (flow) =>
                 new Set(runsOfId(flow).flatMap((sub) => [...(subflows.has(sub) ? (table.get(sub) ?? []) : [])])),
-            // The flow's own file. A `when:` in a shared helper it runs (dismissing a dialog, signing out if signed in)
-            // shows no screen of this flow's row, and the screens the sign-in flows add are protected through their rows.
-            branching: new Set([...topLevel].filter((id) => HAS_WHEN.test(read(fileOf(id))))),
+            branching: branchingFlows(flows, read),
         },
     };
 }

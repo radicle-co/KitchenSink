@@ -112,7 +112,10 @@ row, and the flow does not branch. A flow branches when it, or a helper it runs,
 that check: its row names every screen its branches can reach, and is added to every flow that runs it, so it does not
 make its parents branch. That holds only while the row is complete, so `subflowRows` checks each rowed helper against
 what a static read finds (the screens its text names and the rows of the helpers it runs); the recorder fails a run that
-shows a screen no row names. The sign-in helpers and the shared helpers each have a row. A flow with no passing report from one
+shows a screen no row names. The sign-in helpers and the shared helpers each have a row. A helper that acts on its caller's screen
+(scrolling, typing, dismissing a dialog) reaches no screen of its own, and its row is empty: a tab and nothing after it.
+Only a sub-flow may have an empty row. A top-level flow always shows a screen, and the registry guard fails one that lists
+none. The `subflowRows` guard still fails an empty-row helper whose text names a screen. A flow with no passing report from one
 platform keeps its whole row. The script lists, and does not add, the screens a platform showed that a row lacks, because
 the recorder fails those flows until they are added.
 

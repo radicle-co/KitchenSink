@@ -25,7 +25,8 @@
 # branching check: its `when:`, `while:` and `optional:` branches may reach only the screens of its row, so it does not
 # make the flows that run it "branching". `src/subflowRows.ts` (guard: tests/subflowRows.integration.test.ts) checks the row
 # against what a static read finds. A helper that works on whatever screen its caller is on (scrolling, typing, a dialog)
-# reaches no screen of its own and lists HomeScreen, which every flow has anyway, because a row must name one screen.
+# reaches no screen of its own, and its row is EMPTY: a tab and nothing after it. Only a sub-flow may have an empty row; a
+# top-level flow always shows a screen, and the registry guard fails one that lists none.
 #
 # The guard (tests/e2eScreenRegistry.integration.test.ts) fails when a top-level flow has no row, a row names no
 # flow or sub-flow, or a row names a screen that does not exist.
@@ -108,11 +109,11 @@ auth/signinHome	HomeScreen, login
 auth/signOutIfSignedIn	HomeScreen, login, profile
 auth/dismissSavePassword	login
 auth/launchCleared	HomeScreen, login
-recipes/common/assertViewChecked	HomeScreen
-recipes/common/clearTitle	HomeScreen
-recipes/common/dismissKeyboardIntro	HomeScreen
-recipes/common/pickFromOpenList	HomeScreen
+recipes/common/assertViewChecked	
+recipes/common/clearTitle	
+recipes/common/dismissKeyboardIntro	
+recipes/common/pickFromOpenList	
 recipes/common/privateIsAChoice	HomeScreen, RecipeEditorScreen, RecipeListScreen, login
-recipes/common/scrollIntoTapView	HomeScreen
-recipes/common/scrollOpenList	HomeScreen
-recipes/common/typeIngredientFilter	HomeScreen
+recipes/common/scrollIntoTapView	
+recipes/common/scrollOpenList	
+recipes/common/typeIngredientFilter	

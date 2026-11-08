@@ -65,6 +65,31 @@ describe('subflowRowViolations', () => {
     });
 });
 
+describe('subflowRowViolations: a helper with an empty row', () => {
+    const empty = (text: string): SubflowEntry => ({
+        id: 'recipes/common/scroll',
+        row: new Set(),
+        text,
+        childRows: [],
+    });
+
+    it('passes when its text names no screen: it acts on its caller’s screen', () => {
+        expect(subflowRowViolations([empty('- scrollUntilVisible: Save')], SCREENS)).toEqual([]);
+    });
+
+    it('fails when its text names a screen, because then it does reach one', () => {
+        expect(subflowRowViolations([empty('# ends on mobile/src/screens/login.tsx')], SCREENS)).toEqual([
+            { id: 'recipes/common/scroll', missing: ['login'], because: 'its text names them' },
+        ]);
+    });
+
+    it('fails when a helper it runs reaches a screen', () => {
+        const entry = { ...empty('- runFlow: signin.yaml'), childRows: [new Set(['login'])] };
+
+        expect(subflowRowViolations([entry], SCREENS)).toHaveLength(1);
+    });
+});
+
 describe('rowedHelperFiles', () => {
     it('names the files of the rows that are not top-level flows', () => {
         const table = new Map([

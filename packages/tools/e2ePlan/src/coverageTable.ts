@@ -3,7 +3,8 @@
  *
  * A row is a test id, a tab, and a comma-separated list of screens. A row must list EVERY screen the test reaches,
  * the ones it only passes through included: a screen left out is a screen whose change does not run that test.
- * The one row that says "any screen" is `*`.
+ * The one row that says "any screen" is `*`. A sub-flow's row may be EMPTY (nothing after the tab): the helper reaches no
+ * screen of its own and acts on its caller's. A top-level test's row never is (`checkCoverage`).
  */
 import { matchRoute } from './webRoutes.js';
 import type { RouteLiterals } from './routeLiterals.js';
@@ -16,7 +17,7 @@ export type CoverageTable = ReadonlyMap<string, ReadonlySet<string>>;
  * @param text - The file's text.
  * @param label - The file's name, for error messages.
  * @returns Test id to its screens.
- * @throws When a row is malformed or a test has two rows.
+ * @throws When a row is malformed or a test has two rows. An empty list of screens is read, and judged by {@link checkCoverage}.
  */
 export function parseCoverage(text: string, label: string): CoverageTable {
     const table = new Map<string, ReadonlySet<string>>();
@@ -38,10 +39,6 @@ export function parseCoverage(text: string, label: string): CoverageTable {
             .map((screen) => screen.trim())
             .filter((screen) => screen !== '');
 
-        if (list.length === 0) {
-            throw new Error(`${where}: ${id} lists no screens`);
-        }
-
         if (table.has(id)) {
             throw new Error(`${where}: ${id} has a row twice`);
         }
@@ -56,7 +53,8 @@ export function parseCoverage(text: string, label: string): CoverageTable {
  * Checks the table against what exists.
  *
  * @param input - The tests that exist, the screens that exist, and the table.
- * @returns One problem per test with no row, row with no test, and row naming a screen that does not exist.
+ * @returns One problem per test with no row, row with no test, row naming a screen that does not exist, and top-level
+ * test whose row names no screen.
  */
 export function checkCoverage(input: {
     readonly tests: readonly string[];
@@ -78,6 +76,10 @@ export function checkCoverage(input: {
     for (const [id, row] of input.table) {
         if (!tests.has(id)) {
             problems.push(`${id} has a row but no such test exists`);
+        }
+
+        if (row.size === 0 && input.tests.includes(id)) {
+            problems.push(`${id} lists no screens, and only a sub-flow may: a test always shows one`);
         }
 
         for (const screen of row) {

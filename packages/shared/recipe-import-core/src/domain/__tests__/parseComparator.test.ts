@@ -1683,3 +1683,22 @@ describe('canonicaliseFood — the list separator an engine leaves beside a word
         expect(elapsed).toBeLessThan(250);
     });
 });
+
+describe('canonicaliseFood — a seed or a weed is the food, not a preparation', () => {
+    it.each([
+        ['celery seed', null, { name: 'celery seed', prep: null }],
+        ['fennel seed', 'toasted', { name: 'fennel seed', prep: 'toasted' }],
+        ['flaxseed meal', null, { name: 'flaxseed meal', prep: null }],
+        ['dill weed', 'dried', { name: 'dried dill weed', prep: null }],
+        ['nori seaweed', null, { name: 'nori seaweed', prep: null }],
+    ] as const)('keeps %j whole (prep %j)', (name, prep, expected) => {
+        expect(canonicaliseFood({ name, prep })).toEqual(expected);
+    });
+
+    it('still moves a participle beside the seed', () => {
+        expect(canonicaliseFood({ name: 'crushed celery seed', prep: null })).toEqual({
+            name: 'celery seed',
+            prep: 'crushed',
+        });
+    });
+});

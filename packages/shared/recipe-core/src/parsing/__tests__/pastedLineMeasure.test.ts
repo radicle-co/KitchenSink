@@ -172,4 +172,21 @@ describe('pastedLineRowOf — a later food of the same line', () => {
             ),
         ).toStrictEqual({ quantity: ABSENT_QUANTITY, unit: '', name: 'large eggs' });
     });
+
+    it.each([
+        ['to taste', 'to taste'],
+        ['as needed', 'as needed'],
+    ])('food 1 of a line that states no amount carries %j too: there is no amount to give twice', (phrase, unit) => {
+        // `salt and pepper to taste` saved salt "to taste" and pepper with nothing (paste import, 2026-11-08).
+        const line = { quantity: ABSENT_QUANTITY, unit: phrase, statedMeasure: phrase };
+
+        expect(pastedLineRowOf(line, 0, 'salt')).toStrictEqual({ quantity: ABSENT_QUANTITY, unit, name: 'salt' });
+        expect(pastedLineRowOf(line, 1, 'pepper')).toStrictEqual({ quantity: ABSENT_QUANTITY, unit, name: 'pepper' });
+    });
+
+    it('a later food of a line that states nothing at all states nothing either', () => {
+        expect(
+            pastedLineRowOf({ quantity: ABSENT_QUANTITY, unit: null, statedMeasure: null }, 1, 'pepper'),
+        ).toStrictEqual({ quantity: ABSENT_QUANTITY, unit: '', name: 'pepper' });
+    });
 });

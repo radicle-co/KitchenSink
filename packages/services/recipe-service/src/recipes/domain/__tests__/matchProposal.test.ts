@@ -52,6 +52,16 @@ describe('matchJudgementOf — the judgement a proposal asks for', () => {
         });
     });
 
+    it('keys a SECOND food of a line that states no amount on the line’s words, as the editor saves it', () => {
+        const toTaste = { sourceLine: 'salt and pepper to taste', quantity: ABSENT_QUANTITY, unit: 'to taste' };
+
+        expect(matchJudgementOf(toTaste, 1, 'pepper', 'F-pepper')).toMatchObject({
+            quantityLow: null,
+            quantityHigh: null,
+            unit: 'to taste',
+        });
+    });
+
     it('keys a RANGE on both bounds and a missing unit as null', () => {
         expect(
             matchJudgementOf({ ...LINE, quantity: { kind: 'range', low: 2, high: 3 }, unit: null }, 0, 'milk', 'F'),

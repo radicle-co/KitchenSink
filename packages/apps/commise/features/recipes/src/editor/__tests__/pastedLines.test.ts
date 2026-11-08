@@ -136,6 +136,29 @@ describe('pastedLinesOf', () => {
         ]);
     });
 
+    it('a line naming two foods and no amount: both carry its words ("salt and pepper to taste")', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine: 'salt and pepper to taste',
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        quantity: ABSENT_QUANTITY,
+                        unit: 'to taste',
+                        statedMeasure: 'to taste',
+                        foods: [makeParseProposalFood({ name: 'salt' }), makeParseProposalFood({ name: 'pepper' })],
+                    }),
+                }),
+            ],
+        });
+        const [line] = pastedLinesOf(input({ job }));
+
+        expect(line?.kind === 'settled' ? line.rows.map((row) => [row.name, row.measure.unit]) : []).toEqual([
+            ['salt', 'to taste'],
+            ['pepper', 'to taste'],
+        ]);
+    });
+
     it('⛔ a reader row carries no foodIndex: it has no proposal food, so no match, and joins as written', () => {
         const job = makeParseJob({
             lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil', status: 'unparseable', proposal: null })],

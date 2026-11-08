@@ -4,9 +4,9 @@
  * parse job and commits what this settles, in paste order.
  *
  * A parsed line becomes one row per proposed food: the NAME the host joins it by (bound to the food its match names, or
- * as written: ADR-0071), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The first food
- * carries the line's measure, in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"); a second food on the
- * same line states none, because the line gave one amount.
+ * as written: ADR-0071), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The measure is
+ * in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"), and `pastedLineRowOf` decides which foods
+ * of a line carry it.
  *
  * ⛔ THERE IS NO TIME LIMIT (owner ruling 2026-10-13: "it takes as long as it takes"; plan 2026-10-15-011). A pending line
  * reads with the phase the SERVER reports (`progress.phase`, computed by `lineProgressOf`). Two kinds of line wait on
@@ -89,7 +89,7 @@ export interface PastedLinesInput {
 
 /**
  * The rows a parsed proposal adds: one per food. Each row's measure and name are recipe-core's `pastedLineRowOf` (the
- * cook's own words, the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
+ * cook's own words, an amount on the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
  * its verdict with (ADR-0071). The phrase the parse lifted out stays whole, as the memo's key grain. Pure.
  */
 function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {

@@ -17,7 +17,7 @@ import type { LaneCost } from '@kitchensink/e2e-plan';
 import { IOS_MAX_LANES, laneSimulatorName, tunnelsFromManifest } from './iosLane.js';
 import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
 import type { LocalSettings } from './localSettings.js';
-import { MAC_DIR, MacSession, remote, type MacShell } from './macSession.js';
+import { MAC_DIR, MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
 
 /** The I/O the adapter needs: the Mac session's shell. */
 export type IosShell = MacShell;
@@ -87,7 +87,9 @@ export class IosAdapter implements DeviceAdapter {
         await this.session.linkShim('xcrun', 'xcrunShim.sh');
 
         // The tunnel serves the origins the app was built with, read from its own manifest, never assumed.
-        const manifest = await this.session.ssh(remote('cat', `ksIos/apps/${this.contentKey}/testApp.manifest`));
+        const manifest = await this.session.ssh(
+            remote('cat', `${macPathsOf().iosApp(this.contentKey)}/testApp.manifest`),
+        );
         this.session.openTunnel(tunnelsFromManifest(manifest, this.options.settings));
     }
 
@@ -97,7 +99,7 @@ export class IosAdapter implements DeviceAdapter {
         // A Simulator that kept a previous run's app data would start signed in: erase, then boot, then install.
         await this.session.laneHost('erase', udid);
         await this.session.laneHost('boot', udid);
-        await this.session.laneHost('install', udid, `ksIos/apps/${this.contentKey}`);
+        await this.session.laneHost('install', udid, macPathsOf().iosApp(this.contentKey));
 
         // The runner holds the one copy of this step (held equal to CI's by a guard) but calls it only from its callers,
         // so the adapter sources the runner and runs it through the shims, which put it on this lane's Mac Simulator.
@@ -111,7 +113,7 @@ export class IosAdapter implements DeviceAdapter {
             ],
             this.laneEnv(lane),
         );
-        await this.session.ssh(remote('mkdir', '-p', `ksIos/lanes/lane${String(lane.index)}`));
+        await this.session.ssh(remote('mkdir', '-p', macPathsOf().laneHome(lane.index)));
     }
 
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>> {

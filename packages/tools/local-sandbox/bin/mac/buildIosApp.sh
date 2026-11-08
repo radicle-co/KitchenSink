@@ -53,7 +53,10 @@ case "${CLERK_PUBLISHABLE_KEY:-}" in
 esac
 plain CLERK_PUBLISHABLE_KEY "$CLERK_PUBLISHABLE_KEY" '^pk_test_[A-Za-z0-9+/=_-]+$'
 
-export EXPO_PUBLIC_RECIPE_API_URL='http://localhost:13000'
+# The Mac port the recipe service is tunnelled to is one fact, stated in localMaestro.sh's settings.
+MAC_RECIPE_PORT="$(bash -c '. "$1" && printf %s "$LOCAL_MAESTRO_MAC_RECIPE_PORT"' _ "$HERE/../localMaestro.sh")"
+[[ "$MAC_RECIPE_PORT" =~ ^[0-9]+$ ]] || die "localMaestro.sh did not state LOCAL_MAESTRO_MAC_RECIPE_PORT"
+export EXPO_PUBLIC_RECIPE_API_URL="http://localhost:${MAC_RECIPE_PORT}"
 export EXPO_PUBLIC_IDENTITY_API_URL='http://localhost:13001'
 export EXPO_PUBLIC_FOOD_API_URL='http://localhost:13002'
 export EXPO_PUBLIC_IDP_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY"

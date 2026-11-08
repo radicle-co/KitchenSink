@@ -191,26 +191,6 @@ export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<stri
 export type AndroidHost = 'mac' | 'wsl';
 
 /**
- * Read `LOCAL_MAESTRO_ANDROID_ON` (`mac` by default, `wsl` to opt in). `local_maestro_android_host` reads the same variable
- * in bash, and `localMaestro.test.ts` holds the two equal. Pure.
- *
- * @throws When the variable is set to anything but `mac` or `wsl`.
- */
-export function parseAndroidHost(env: Readonly<Record<string, string | undefined>>): AndroidHost {
-    const value = env['LOCAL_MAESTRO_ANDROID_ON'];
-
-    if (value === undefined) {
-        return 'mac';
-    }
-
-    if (value === 'mac' || value === 'wsl') {
-        return value;
-    }
-
-    throw new Error(`maestro:lanes: LOCAL_MAESTRO_ANDROID_ON '${value}' is not mac or wsl`);
-}
-
-/**
  * The runs `--platform` makes, in order. The Mac cannot host two platforms at once (two tunnels on the same Mac ports, and
  * both lane 1s on driver port 7001), so with Android on the Mac the two platforms are two turns, Android first. Pure.
  *

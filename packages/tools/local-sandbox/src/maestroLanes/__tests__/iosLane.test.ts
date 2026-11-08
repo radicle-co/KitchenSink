@@ -1,8 +1,8 @@
+import { MEMORY_SAFETY_MARGIN } from '@kitchensink/e2e-plan/hostMemory';
 import { describe, expect, it } from 'vitest';
 
 import {
     IOS_MAX_LANES,
-    MEMORY_SAFETY_MARGIN,
     laneSimulatorName,
     macHostFromEnv,
     parseHostFacts,
@@ -12,13 +12,14 @@ import {
 
 const MEMSIZE = 51539607552;
 
-/** `laneHost.sh facts` output captured on the Mac: ncpu, memsize, loadavg, and memory_pressure's free percentage. */
+/** `laneHost.sh facts` output captured on the Mac: ncpu, memsize, loadavg, and memory_pressure's own free-percentage line. */
+const free = (percent: string): string => `System-wide memory free percentage: ${percent}%`;
 const facts = (extra: string): string =>
     ['ncpu 14', `memsize ${String(MEMSIZE)}`, 'loadavg { 2.76 2.60 2.96 }', extra].join('\n');
 
 describe('parseHostFacts', () => {
     it('reads cpus, the one-minute load and available memory from captured Mac output', () => {
-        const parsed = parseHostFacts(facts('memfreepct 62'));
+        const parsed = parseHostFacts(facts(free('62')));
         expect(parsed.cpus).toBe(14);
         expect(parsed.load1).toBeCloseTo(2.76);
         // The kernel's own free percentage counts the cache macOS gives back, which free + inactive pages from vm_stat
@@ -29,19 +30,19 @@ describe('parseHostFacts', () => {
 
     it('keeps a margin under what the kernel reports', () => {
         expect(MEMORY_SAFETY_MARGIN).toBeLessThan(1);
-        expect(parseHostFacts(facts('memfreepct 100')).memAvailable).toBeLessThan(MEMSIZE);
+        expect(parseHostFacts(facts(free('100'))).memAvailable).toBeLessThan(MEMSIZE);
     });
 
     it('counts no memory at 0 percent', () => {
-        expect(parseHostFacts(facts('memfreepct 0')).memAvailable).toBe(0);
+        expect(parseHostFacts(facts(free('0'))).memAvailable).toBe(0);
     });
 
     it('throws on output with no free percentage rather than guessing one', () => {
-        expect(() => parseHostFacts(facts(''))).toThrow(/memfreepct/);
+        expect(() => parseHostFacts(facts(''))).toThrow(/memory_pressure/);
     });
 
     it('throws on a percentage outside 0..100', () => {
-        expect(() => parseHostFacts(facts('memfreepct 140'))).toThrow(/memfreepct/);
+        expect(() => parseHostFacts(facts(free('140')))).toThrow(/memory_pressure/);
     });
 });
 
@@ -91,16 +92,24 @@ describe('tunnelsFromManifest', () => {
 
     it('tunnels each baked origin port back to that service on this machine', () => {
         expect(tunnelsFromManifest(manifest, SETTINGS)).toEqual([
-            { macPort: 13000, localPort: 3000 },
-            { macPort: 13001, localPort: 3001 },
-            { macPort: 13002, localPort: 3002 },
+            { origin: 'recipeOrigin', macPort: 13000, localPort: 3000 },
+            { origin: 'identityOrigin', macPort: 13001, localPort: 3001 },
+            { origin: 'foodOrigin', macPort: 13002, localPort: 3002 },
         ]);
     });
 
     it('tunnels to the host port the local stack really uses, so a moved recipe port reaches the tunnel', () => {
         const moved = { ...SETTINGS, recipeOrigin: 'http://localhost:3010' };
-        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({ macPort: 13000, localPort: 3010 });
-        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({ macPort: 13001, localPort: 3001 });
+        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({
+            origin: 'recipeOrigin',
+            macPort: 13000,
+            localPort: 3010,
+        });
+        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({
+            origin: 'identityOrigin',
+            macPort: 13001,
+            localPort: 3001,
+        });
     });
 
     it('refuses a settings origin with no port, because the tunnel could not name the host side', () => {
@@ -130,5 +139,22 @@ describe('sshConfigText', () => {
         expect(text).toContain('ControlMaster auto');
         expect(text).toContain('ControlPath /tmp/cm-%C');
         expect(text).toContain('ServerAliveInterval 15');
+    });
+});
+
+describe('tunnelsFromManifest — each tunnel is named by its origin', () => {
+    it('keys every tunnel by the origin it serves, so a caller picks one by name and not by position', () => {
+        const manifest = [
+            'recipeOrigin=http://localhost:13000',
+            'identityOrigin=http://localhost:13001',
+            'foodOrigin=http://localhost:13002',
+        ].join('\n');
+        const tunnels = tunnelsFromManifest(manifest, {
+            recipeOrigin: 'http://localhost:3000',
+            identityOrigin: 'http://localhost:3001',
+            foodOrigin: 'http://localhost:3002',
+        });
+
+        expect(tunnels.map((tunnel) => tunnel.origin)).toEqual(['recipeOrigin', 'identityOrigin', 'foodOrigin']);
     });
 });

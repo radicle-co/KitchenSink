@@ -53,9 +53,9 @@ case "${1:-}" in
         echo "ncpu $(sysctl -n hw.ncpu)"
         echo "memsize $(sysctl -n hw.memsize)"
         echo "loadavg $(sysctl -n vm.loadavg)"
-        # The kernel's own measure of what is free or reclaimable (cache included); vm_stat's free + inactive pages
-        # undercounted it by about half.
-        echo "memfreepct $(memory_pressure | sed -n 's/.*free percentage: *\([0-9]*\)%.*/\1/p')"
+        # The kernel's own measure of what is free or reclaimable (cache included), as its own line: `parseFreePercent`
+        # (e2e-plan) reads it, the one memory rule. No line means a failed read, and `set -e` stops here.
+        memory_pressure | grep 'System-wide memory free percentage'
         ;;
     cleanup)
         xcrun simctl list -j devices |

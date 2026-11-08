@@ -8,8 +8,17 @@
  */
 import { z } from 'zod';
 
+import type { AndroidHost } from './lanePlanning.js';
+
 export interface LocalSettings {
+    /** The lane AVD's name, on the Mac and on WSL. */
     readonly avd: string;
+    /** The lane AVD's hardware as `key=value` config.ini settings: screen, density, cores, RAM, disk. */
+    readonly avdConfig: readonly string[];
+    /** Where Android emulators run. */
+    readonly androidOn: AndroidHost;
+    /** The Mac port the recipe service is tunnelled to. */
+    readonly macRecipePort: number;
     /** The origins the app is built with: what the DEVICE addresses, on loopback. */
     readonly recipeOrigin: string;
     readonly identityOrigin: string;
@@ -46,6 +55,14 @@ const origin = z.url({ protocol: /^https?$/u });
 const schema = z
     .object({
         LOCAL_MAESTRO_AVD: z.string().min(1),
+        // The same shape `androidLaneHost.sh` accepts for `ensure-avd`, so a setting it would refuse is refused here first.
+        LOCAL_MAESTRO_AVD_CONFIG: z
+            .string()
+            .min(1)
+            .transform((list) => list.split(','))
+            .pipe(z.array(z.string().regex(/^[A-Za-z0-9._]+=[A-Za-z0-9._ /-]*$/u))),
+        LOCAL_MAESTRO_ANDROID_ON: z.enum(['mac', 'wsl'] satisfies AndroidHost[]),
+        LOCAL_MAESTRO_MAC_RECIPE_PORT: z.coerce.number().int().min(1024).max(65535),
         LOCAL_MAESTRO_RECIPE_ORIGIN: origin,
         LOCAL_MAESTRO_IDENTITY_ORIGIN: origin,
         LOCAL_MAESTRO_FOOD_ORIGIN: origin,
@@ -91,6 +108,9 @@ export function parseLocalSettings(text: string): LocalSettings {
 
     return {
         avd: facts.LOCAL_MAESTRO_AVD,
+        avdConfig: facts.LOCAL_MAESTRO_AVD_CONFIG,
+        androidOn: facts.LOCAL_MAESTRO_ANDROID_ON,
+        macRecipePort: facts.LOCAL_MAESTRO_MAC_RECIPE_PORT,
         recipeOrigin: facts.LOCAL_MAESTRO_RECIPE_ORIGIN,
         identityOrigin: facts.LOCAL_MAESTRO_IDENTITY_ORIGIN,
         foodOrigin: facts.LOCAL_MAESTRO_FOOD_ORIGIN,

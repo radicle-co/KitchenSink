@@ -799,21 +799,3 @@ describe('local_maestro_start_emulator — where an emulator may boot', () => {
         ).toBe('wsl');
     });
 });
-
-/** The variable is read in bash (`local_maestro_android_host`) and in TypeScript (`parseAndroidHost`): the two must agree. */
-describe('LOCAL_MAESTRO_ANDROID_ON — bash and TypeScript read it alike', () => {
-    it.each(['', 'mac', 'wsl', 'both', 'WSL'])('answers %j the same way in both', async (value) => {
-        const { parseAndroidHost } = await import('../../src/maestroLanes/lanePlanning.js');
-        const env: Record<string, string> = value === '' ? {} : { LOCAL_MAESTRO_ANDROID_ON: value };
-        const bash = run(makeSandbox(), 'local_maestro_android_host', env);
-        let typescript: string;
-
-        try {
-            typescript = parseAndroidHost(env);
-        } catch {
-            typescript = 'refused';
-        }
-
-        expect(bash.status === 0 ? bash.stdout.trim() : 'refused').toBe(typescript);
-    });
-});

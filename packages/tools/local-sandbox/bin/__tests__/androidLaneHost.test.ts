@@ -1,6 +1,6 @@
 /**
  * `bin/mac/androidLaneHost.sh`: what runs ON the Mac for an Android lane (ADR-0088 §5): check the SDK, make the lane AVD,
- * reap an earlier run's emulators, boot, install, reverse ports, stop.
+ * reap an earlier run's emulators, boot, install, stop.
  *
  * Each case runs the REAL script in `bash` with fake `adb`, `avdmanager` and `emulator` first on `PATH` and a fake SDK tree
  * under a temp `HOME`. Nothing here boots an emulator.
@@ -282,7 +282,7 @@ describe('reap', () => {
     });
 });
 
-describe('install and reverse', () => {
+describe('install', () => {
     it('installs an APK on the named emulator', () => {
         const rig = makeRig();
         const result = host(rig, ['install', 'emulator-5560', '/x/app.apk']);
@@ -291,12 +291,11 @@ describe('install and reverse', () => {
         expect(logged(rig)).toContain('adb -s emulator-5560 install -r -t /x/app.apk');
     });
 
-    it('reverses each device port to its Mac port', () => {
+    it('has no reverse command: the runner reverses the ports itself, through the adb shim', () => {
         const rig = makeRig();
-        host(rig, ['reverse', 'emulator-5560', '3000:3000', '3001:3001']);
 
-        expect(logged(rig)).toContain('adb -s emulator-5560 reverse tcp:3000 tcp:3000');
-        expect(logged(rig)).toContain('adb -s emulator-5560 reverse tcp:3001 tcp:3001');
+        expect(host(rig, ['reverse', 'emulator-5560', '3000:3000']).status).not.toBe(0);
+        expect(logged(rig)).not.toContain('reverse');
     });
 
     it.each(['emulator-5560; id', 'device', 'emulator-55'])('refuses the serial %j', (serial) => {

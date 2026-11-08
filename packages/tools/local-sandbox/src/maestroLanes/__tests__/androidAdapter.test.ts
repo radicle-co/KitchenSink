@@ -10,8 +10,9 @@ vi.mock('node:os', async (importOriginal) => {
     return { ...os, freemem: () => host.freemem };
 });
 
-import { ANDROID_LANE_COST, ANDROID_LANE_SERIALS, createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
-import type { LaneSpec } from '../laneTypes.js';
+import { ANDROID_LANE_COST, createAndroidAdapter } from '../androidAdapter.js';
+import { ANDROID_LANE_SERIALS } from '../androidSerials.js';
+import type { CommandPort, LaneSpec } from '../laneTypes.js';
 
 const ORIGINS = {
     recipeOrigin: 'http://localhost:3000',

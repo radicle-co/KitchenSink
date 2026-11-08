@@ -40,7 +40,7 @@ const selectionFor = (selection: LaneRunRequest['selection'], platform: LanePlat
     typeof selection === 'object' && !('length' in selection) ? selection[platform] : selection;
 
 /** What a settled platform hands the green stamp: the flows its lanes were given and how each ended. */
-export interface StampSettlement {
+interface StampSettlement {
     readonly platform: LanePlatform;
     /** The flows the lanes were given. Empty when nothing was selected or nothing selected can run locally. */
     readonly flows: readonly string[];

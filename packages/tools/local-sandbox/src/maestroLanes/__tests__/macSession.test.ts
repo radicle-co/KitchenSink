@@ -1,6 +1,11 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
+import { globSync } from 'glob';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { MacSession, type MacShell } from '../macSession.js';
+import { MacSession, macPathsOf, type MacShell } from '../macSession.js';
 
 interface Call {
     readonly command: string;
@@ -60,7 +65,9 @@ describe('MacSession', () => {
     });
 
     it('reads host facts over a plain one-off ssh, after putting the lane script on the Mac', async () => {
-        const rec = recorder({ 'laneHost.sh facts': 'ncpu 14\nmemsize 100\nloadavg { 1 1 1 }\nmemfreepct 50\n' });
+        const rec = recorder({
+            'laneHost.sh facts': 'ncpu 14\nmemsize 100\nloadavg { 1 1 1 }\nSystem-wide memory free percentage: 50%\n',
+        });
         const facts = await make(rec.shell).facts();
 
         expect(facts.cpus).toBe(14);
@@ -112,8 +119,8 @@ describe('MacSession', () => {
         const session = make(rec.shell);
         await session.open(run);
         session.openTunnel([
-            { macPort: 3000, localPort: 3000 },
-            { macPort: 3001, localPort: 3001 },
+            { origin: 'recipeOrigin', macPort: 3000, localPort: 3000 },
+            { origin: 'identityOrigin', macPort: 3001, localPort: 3001 },
         ]);
         const tunnel = rec.tunnels[0]?.join(' ') ?? '';
 
@@ -131,5 +138,64 @@ describe('MacSession', () => {
         await session.linkShim('adb', 'adbShim.sh');
 
         expect(rec.links).toEqual([['/repo/packages/tools/local-sandbox/bin/mac/adbShim.sh', '/s/shims/adb']]);
+    });
+});
+
+describe('macPathsOf — the one builder of Mac paths', () => {
+    it('builds every path under the Mac HOME when it knows it', () => {
+        const paths = macPathsOf('/Users/x');
+
+        expect(paths.laneHome(2)).toBe('/Users/x/ksIos/lanes/lane2');
+        expect(paths.runTree('r1')).toBe('/Users/x/ksIos/run/r1');
+        expect(paths.iosApp('abc')).toBe('/Users/x/ksIos/apps/abc');
+        expect(paths.androidApp('abc')).toBe('/Users/x/ksIos/apps/android/abc');
+        expect(paths.androidEnv).toBe('/Users/x/ksAndroid/env.sh');
+        expect(paths.androidSdk).toBe('/Users/x/ksAndroid/sdk');
+    });
+
+    it('builds the same paths relative to HOME for a command that runs there', () => {
+        const paths = macPathsOf();
+
+        expect(paths.iosApp('abc')).toBe('ksIos/apps/abc');
+        expect(paths.androidApp('abc')).toBe('ksIos/apps/android/abc');
+        expect(paths.laneHome(1)).toBe('ksIos/lanes/lane1');
+    });
+
+    it('is the only place in the lane code that writes a Mac folder name', () => {
+        const root = path.join(import.meta.dirname, '../../..');
+
+        const writesFolder = (file: string): boolean => {
+            const source = ts.createSourceFile(
+                file,
+                readFileSync(path.join(root, file), 'utf8'),
+                ts.ScriptTarget.Latest,
+            );
+            let found = false;
+
+            // Only string and template text counts: the words in a comment are not a path anyone builds.
+            const visit = (node: ts.Node): void => {
+                if (
+                    (ts.isStringLiteralLike(node) ||
+                        ts.isTemplateHead(node) ||
+                        ts.isTemplateMiddle(node) ||
+                        ts.isTemplateTail(node)) &&
+                    /ksIos\/|ksAndroid\//u.test(node.text)
+                ) {
+                    found = true;
+                }
+
+                ts.forEachChild(node, visit);
+            };
+
+            visit(source);
+
+            return found;
+        };
+
+        const offenders = globSync(['src/maestroLanes/*.ts', 'bin/*.ts'], { cwd: root }).filter(
+            (file) => file !== 'src/maestroLanes/macSession.ts' && writesFolder(file),
+        );
+
+        expect(offenders).toEqual([]);
     });
 });

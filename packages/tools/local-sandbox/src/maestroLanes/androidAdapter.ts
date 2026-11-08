@@ -15,19 +15,8 @@ import type { LaneCost } from '@kitchensink/e2e-plan';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { createLocalAndroidHost, type AndroidHost } from './androidHost.js';
-import type { DeviceAdapter, LaneSpec, RunContext } from './laneTypes.js';
-
-/** The lanes' emulators, by lane. Never `emulator-5554`: that one is the owner's. */
-export const ANDROID_LANE_SERIALS = [
-    'emulator-5556',
-    'emulator-5558',
-    'emulator-5560',
-    'emulator-5562',
-    'emulator-5564',
-    'emulator-5566',
-    'emulator-5568',
-    'emulator-5570',
-] as const;
+import { ANDROID_LANE_SERIALS } from './androidSerials.js';
+import type { CommandPort, DeviceAdapter, LaneSpec, RunContext } from './laneTypes.js';
 
 const GIB = 1024 ** 3;
 
@@ -41,21 +30,6 @@ const GIB = 1024 ** 3;
 export const ANDROID_LANE_COST: LaneCost = { cpus: 5.5, memBytes: 5.5 * GIB };
 
 const BOOT_POLL_MS = 2_000;
-
-/** The processes and files the adapter touches, injected so its decisions are testable without a device. */
-export interface CommandPort {
-    run(
-        command: string,
-        args: readonly string[],
-        options?: { readonly env?: Env; readonly cwd?: string },
-    ): Promise<{ readonly code: number; readonly stdout: string; readonly stderr?: string }>;
-    /** Start a long-lived process in its own process group, logging to `log`. */
-    spawnDetached(command: string, args: readonly string[], log: string): { readonly pid: number };
-    killGroup(pid: number): void;
-    sleep(ms: number): Promise<void>;
-    /** The file's text, or `undefined` when it does not exist. */
-    readFile(file: string): string | undefined;
-}
 
 export interface AndroidAdapterOptions {
     readonly repoRoot: string;
@@ -187,8 +161,12 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
                 );
             }
 
-            if (!(await host.install(lane))) {
-                throw new Error(`maestro:lanes: installing the test app on ${lane.device} failed`);
+            const installed = await host.install(lane);
+
+            if (!installed.ok) {
+                throw new Error(
+                    `maestro:lanes: installing the test app on ${lane.device} failed${installed.detail === '' ? '' : `:\n${installed.detail}`}`,
+                );
             }
         },
         laneEnv: (lane: LaneSpec) => host.laneEnv(lane),

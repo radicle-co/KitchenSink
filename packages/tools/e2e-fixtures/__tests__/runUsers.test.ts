@@ -4,7 +4,7 @@
  * and nothing else. It never deletes by email or pattern, and never a user it did not create: a subject already standing
  * that no record names is refused, and a record that names anyone but a local erasure subject is refused too.
  */
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, fstatSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -309,8 +309,13 @@ describe('fileRunUserRecord — the record on disk', () => {
 
         fileRunUserRecord(file).write([{ id: 'user_a', email: 'e', createdAt: 't' }]);
 
-        expect(statSync(file).mode & 0o777).toBe(0o600);
-        expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual([{ id: 'user_a', email: 'e', createdAt: 't' }]);
+        const fd = openSync(file, 'r');
+        try {
+            expect(fstatSync(fd).mode & 0o777).toBe(0o600);
+            expect(JSON.parse(readFileSync(fd, 'utf8'))).toEqual([{ id: 'user_a', email: 'e', createdAt: 't' }]);
+        } finally {
+            closeSync(fd);
+        }
         expect(readdirSync(dir)).toEqual(['runUsers.android.json']);
     });
 

@@ -68,14 +68,19 @@ function baseEnvironment(): Env {
         [
             '-c',
             '. "$1" && cd "$2" && local_maestro_toolchain >&2 && local_maestro_load_clerk_keys >&2 && local_maestro_pin_aws && ' +
-                'local_maestro_seed_env "$3" && local_maestro_require_services >&2 && ' +
+                'local_maestro_seed_env "$(local_maestro_state_dir)" && local_maestro_require_services >&2 && ' +
                 'export MAESTRO_LOCAL_RECIPE_HOST_PORT="$LOCAL_MAESTRO_RECIPE_HOST_PORT" && env -0',
             'maestroLanes',
             LOCAL_MAESTRO,
             REPO_ROOT,
-            STATE_DIR,
         ],
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 16 * 1024 * 1024 },
+        {
+            encoding: 'utf8',
+            // The state folder travels in the environment, which `local_maestro_state_dir` reads and checks.
+            env: { ...process.env, LOCAL_MAESTRO_STATE_DIR: STATE_DIR },
+            stdio: ['ignore', 'pipe', 'inherit'],
+            maxBuffer: 16 * 1024 * 1024,
+        },
     );
 
     if (result.status !== 0) {

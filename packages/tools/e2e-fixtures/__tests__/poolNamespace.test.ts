@@ -63,9 +63,9 @@ describe('the roster under each namespace', () => {
         );
         expect(new Set(local.map((slot) => slot.username)).size).toBe(local.length);
         expect(local.map((slot) => slot.username)).not.toEqual(shared.map((slot) => slot.username));
-        expect(maestroErasureSlots('ios', 1).map((slot) => slot.email)).toEqual(
-            ['test-local-erasure06+clerk_test@radcile.com'],
-        );
+        expect(maestroErasureSlots('ios', 1).map((slot) => slot.email)).toEqual([
+            'test-local-erasure06+clerk_test@radcile.com',
+        ]);
         vi.unstubAllEnvs();
     });
 

@@ -75,7 +75,16 @@ const lane: LaneSpec = {
 };
 
 const adapter = (shell: IosShell): IosAdapter =>
-    new IosAdapter({ shell, env: { LOCAL_MAESTRO_IOS_HOST: 'me@mac' }, repoRoot: '/repo' });
+    new IosAdapter({
+        shell,
+        env: { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
+        repoRoot: '/repo',
+        settings: {
+            recipeOrigin: 'http://localhost:3000',
+            identityOrigin: 'http://localhost:3001',
+            foodOrigin: 'http://localhost:3002',
+        },
+    });
 
 /** The command string the adapter gave `ssh`: the last argument of every ssh call. */
 const remoteCommands = (calls: readonly Call[]): string[] =>

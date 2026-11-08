@@ -149,7 +149,7 @@ function killGroup(pid: number): void {
 /** The adapter for a platform. iOS refuses to build without `LOCAL_MAESTRO_IOS_HOST`. */
 function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): DeviceAdapter {
     if (platform === 'ios') {
-        return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT });
+        return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT, settings });
     }
 
     const commands: CommandPort = {

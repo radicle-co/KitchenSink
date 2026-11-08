@@ -60,10 +60,21 @@ function makeShell(answers: Record<string, string> = {}): Recorder {
     return recorder;
 }
 
-const options = (shell: IosShell, env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' }) => ({
+const SETTINGS = {
+    recipeOrigin: 'http://localhost:3000',
+    identityOrigin: 'http://localhost:3001',
+    foodOrigin: 'http://localhost:3002',
+};
+
+const options = (
+    shell: IosShell,
+    env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
+    settings = SETTINGS,
+) => ({
     shell,
     env,
     repoRoot: '/repo',
+    settings,
 });
 
 describe('IosAdapter', () => {
@@ -121,6 +132,16 @@ describe('IosAdapter', () => {
         expect(tunnel).toContain('-R 13000:localhost:3000');
         expect(tunnel).toContain('-R 13001:localhost:3001');
         expect(tunnel).toContain('-R 13002:localhost:3002');
+    });
+
+    it('tunnels to the recipe host port the local settings state when it has moved', async () => {
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+        const moved = { ...SETTINGS, recipeOrigin: 'http://localhost:3010' };
+        const adapter = new IosAdapter(options(recorder.shell, { LOCAL_MAESTRO_IOS_HOST: 'me@mac' }, moved));
+        await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+        const tunnel = recorder.tunnels[0]?.join(' ') ?? '';
+        expect(tunnel).toContain('-R 13000:localhost:3010');
+        expect(tunnel).not.toContain('localhost:3000');
     });
 
     it('gives a lane its own simulator, boots it fresh and installs the checked app', async () => {

@@ -25,6 +25,7 @@ import {
     tunnelsFromManifest,
 } from './iosLane.js';
 import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
+import type { LocalSettings } from './localSettings.js';
 
 /** The I/O the adapter needs. A real one wraps `child_process` and `fs`; a test scripts it. */
 export interface IosShell {
@@ -37,6 +38,8 @@ export interface IosShell {
 }
 
 export interface IosAdapterOptions {
+    /** The local stack's origins, from `localMaestro.sh`'s settings: the host side of each tunnel. */
+    readonly settings: Pick<LocalSettings, 'recipeOrigin' | 'identityOrigin' | 'foodOrigin'>;
     readonly shell: IosShell;
     readonly env: Readonly<Record<string, string | undefined>>;
     readonly repoRoot: string;
@@ -173,7 +176,7 @@ export class IosAdapter implements DeviceAdapter {
 
         // The tunnel serves the origins the app was built with, read from its own manifest, never assumed.
         const manifest = await this.ssh(remote('cat', `ksIos/apps/${this.contentKey}/testApp.manifest`));
-        const forwards = tunnelsFromManifest(manifest).flatMap((t) => [
+        const forwards = tunnelsFromManifest(manifest, this.options.settings).flatMap((t) => [
             '-R',
             `${String(t.macPort)}:localhost:${String(t.localPort)}`,
         ]);

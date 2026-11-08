@@ -75,6 +75,12 @@ describe('macHostFromEnv', () => {
     });
 });
 
+const SETTINGS = {
+    recipeOrigin: 'http://localhost:3000',
+    identityOrigin: 'http://localhost:3001',
+    foodOrigin: 'http://localhost:3002',
+};
+
 describe('tunnelsFromManifest', () => {
     const manifest = [
         'platform=ios',
@@ -84,21 +90,33 @@ describe('tunnelsFromManifest', () => {
     ].join('\n');
 
     it('tunnels each baked origin port back to that service on this machine', () => {
-        expect(tunnelsFromManifest(manifest)).toEqual([
+        expect(tunnelsFromManifest(manifest, SETTINGS)).toEqual([
             { macPort: 13000, localPort: 3000 },
             { macPort: 13001, localPort: 3001 },
             { macPort: 13002, localPort: 3002 },
         ]);
     });
 
+    it('tunnels to the host port the local stack really uses, so a moved recipe port reaches the tunnel', () => {
+        const moved = { ...SETTINGS, recipeOrigin: 'http://localhost:3010' };
+        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({ macPort: 13000, localPort: 3010 });
+        expect(tunnelsFromManifest(manifest, moved)).toContainEqual({ macPort: 13001, localPort: 3001 });
+    });
+
+    it('refuses a settings origin with no port, because the tunnel could not name the host side', () => {
+        expect(() => tunnelsFromManifest(manifest, { ...SETTINGS, foodOrigin: 'http://localhost' })).toThrow(
+            /foodOrigin/,
+        );
+    });
+
     it('refuses an origin that is not on localhost, because a tunnel cannot reach it', () => {
-        expect(() => tunnelsFromManifest(manifest.replace('localhost:13000', 'recipe.example.com'))).toThrow(
+        expect(() => tunnelsFromManifest(manifest.replace('localhost:13000', 'recipe.example.com'), SETTINGS)).toThrow(
             /recipeOrigin/,
         );
     });
 
     it('refuses a manifest missing an origin', () => {
-        expect(() => tunnelsFromManifest('platform=ios\nrecipeOrigin=http://localhost:13000')).toThrow(
+        expect(() => tunnelsFromManifest('platform=ios\nrecipeOrigin=http://localhost:13000', SETTINGS)).toThrow(
             /identityOrigin/,
         );
     });

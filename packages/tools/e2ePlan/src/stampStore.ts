@@ -9,16 +9,28 @@
  */
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
+import writeFileAtomic from 'write-file-atomic';
+import { z } from 'zod';
+
+import type { Env } from './env.js';
 import type { GreenStamp, Platform } from './greenStamp.js';
 
 const run = promisify(execFile);
 
-const PLATFORMS: readonly Platform[] = ['web', 'android', 'ios'];
+const stampSchema = z.object({
+    version: z.literal(1),
+    platform: z.enum(['web', 'android', 'ios']),
+    branch: z.string(),
+    tree: z.string(),
+    head: z.string(),
+    owed: z.array(z.string()),
+    at: z.string(),
+});
 
 /**
  * The folder the machine keeps its state in.
@@ -27,7 +39,7 @@ const PLATFORMS: readonly Platform[] = ['web', 'android', 'ios'];
  * @param home - The home directory.
  * @returns The `kitchensink` folder under the state home.
  */
-export const stateRoot = (env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string =>
+export const stateRoot = (env: Env = process.env, home: string = homedir()): string =>
     join(env['XDG_STATE_HOME'] ?? join(home, '.local', 'state'), 'kitchensink');
 
 /**
@@ -70,22 +82,6 @@ export async function currentBranch(repo: string): Promise<string | undefined> {
     return stdout.trim() === '' ? undefined : stdout.trim();
 }
 
-function isStamp(value: unknown): value is GreenStamp {
-    if (typeof value !== 'object' || value === null) {
-        return false;
-    }
-
-    const record = value as Readonly<Record<string, unknown>>;
-
-    return (
-        record['version'] === 1 &&
-        PLATFORMS.includes(record['platform'] as Platform) &&
-        ['branch', 'tree', 'head', 'at'].every((key) => typeof record[key] === 'string') &&
-        Array.isArray(record['owed']) &&
-        record['owed'].every((item) => typeof item === 'string')
-    );
-}
-
 /**
  * Checks a parsed value against the stamp's shape.
  *
@@ -93,7 +89,9 @@ function isStamp(value: unknown): value is GreenStamp {
  * @returns The stamp, or undefined when the value is not one.
  */
 export function readStampValue(value: unknown): GreenStamp | undefined {
-    return isStamp(value) ? value : undefined;
+    const parsed = stampSchema.safeParse(value);
+
+    return parsed.success ? parsed.data : undefined;
 }
 
 /**
@@ -105,40 +103,32 @@ export function readStampValue(value: unknown): GreenStamp | undefined {
  */
 export function readStamp(file: string): GreenStamp | undefined {
     try {
-        const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
-
-        return isStamp(parsed) ? parsed : undefined;
+        return readStampValue(JSON.parse(readFileSync(file, 'utf8')));
     } catch {
         return undefined;
     }
 }
 
+/** Whether two stamps are the same one: a stamp is named by the tree it vouches for and when it was written. */
+const isSameStamp = (a: GreenStamp | undefined, b: GreenStamp | undefined): boolean =>
+    a === undefined || b === undefined ? a === b : a.tree === b.tree && a.at === b.at;
+
 /**
  * Replaces the stamp this run started from, atomically.
  *
- * @sideEffect Writes a temporary file beside the stamp and renames it over the stamp.
+ * @sideEffect Writes the stamp through `write-file-atomic` (a temporary file renamed over it, with the directory made).
  * @param file - From {@link stampFile}.
  * @param next - The new stamp.
  * @param expected - The stamp the run started from, or undefined when it started with none.
  * @returns `written`, or `conflict` when the file no longer holds what the run started from.
  */
 export function writeStamp(file: string, next: GreenStamp, expected: GreenStamp | undefined): 'written' | 'conflict' {
-    const current = readStamp(file);
-
-    if (JSON.stringify(current) !== JSON.stringify(expected)) {
+    if (!isSameStamp(readStamp(file), expected)) {
         return 'conflict';
     }
 
     mkdirSync(dirname(file), { recursive: true });
-
-    const temporary = `${file}.${process.pid}.tmp`;
-
-    try {
-        writeFileSync(temporary, `${JSON.stringify(next, null, 2)}\n`);
-        renameSync(temporary, file);
-    } finally {
-        rmSync(temporary, { force: true });
-    }
+    writeFileAtomic.sync(file, `${JSON.stringify(next, null, 2)}\n`);
 
     return 'written';
 }

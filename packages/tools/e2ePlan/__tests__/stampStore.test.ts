@@ -56,6 +56,20 @@ describe('stampStore', () => {
         expect(readStamp(file)?.tree).toBe('t2');
     });
 
+    it('names a stamp by its tree and its time, so a difference in the other fields is not a conflict', () => {
+        writeStamp(file, stamp('t1'), undefined);
+
+        const sameStamp = { ...stamp('t1'), head: 'another head', owed: ['x'] };
+
+        expect(writeStamp(file, stamp('t2'), sameStamp)).toBe('written');
+    });
+
+    it('treats the same tree at another time as another stamp', () => {
+        writeStamp(file, stamp('t1'), undefined);
+
+        expect(writeStamp(file, stamp('t2'), { ...stamp('t1'), at: '2026-11-08T00:00:00.000Z' })).toBe('conflict');
+    });
+
     it('refuses a first write when a stamp appeared meanwhile', () => {
         writeStamp(file, stamp('t1'), undefined);
 
@@ -73,6 +87,18 @@ describe('stampStore', () => {
     it('treats a well-formed JSON of the wrong shape as no stamp', () => {
         mkdirSync(dirname(file), { recursive: true });
         writeFileSync(file, JSON.stringify({ ...stamp('t1'), version: 2 }));
+
+        expect(readStamp(file)).toBeUndefined();
+    });
+
+    it.each([
+        ['an owed list that holds a number', { owed: [1] }],
+        ['a platform nobody runs', { platform: 'tv' }],
+        ['a missing tree', { tree: undefined }],
+        ['a tree that is a number', { tree: 7 }],
+    ])('treats a stamp with %s as no stamp', (_name, change) => {
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, JSON.stringify({ ...stamp('t1'), ...change }));
 
         expect(readStamp(file)).toBeUndefined();
     });

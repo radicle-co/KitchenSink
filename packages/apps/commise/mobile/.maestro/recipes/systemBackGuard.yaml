@@ -177,10 +177,12 @@ appId: ${APP_ID}
 - hideKeyboard
 # ⛔ `hideKeyboard` returns before the keyboard window has left, and a Back that arrives while it is still up is the
 # KEYBOARD's, not the app's: it closes the keyboard, and no dialog opens (measured 2026-11-04; the same Back after the
-# keyboard is gone opens it). While the keyboard is up the system bar carries a `Switch input method` button, so waiting for
-# it to go is waiting for the state Back needs. (`Overview` is no signal: the system bar keeps it either way.)
+# keyboard is gone opens it). The keyboard's own container, `android:id/inputArea`, is in the tree only while its window
+# shows, so waiting for it to go is waiting for the state Back needs. Not a system-bar button: those depend on the
+# navigation mode (`maestroKeyboardSignal.test.ts`).
 - extendedWaitUntil:
-      notVisible: 'Switch input method'
+      notVisible:
+          id: 'android:id/inputArea'
       timeout: 20000
 - pressKey: Back
 - assertVisible: 'Discard this collection\?'
@@ -189,14 +191,20 @@ appId: ${APP_ID}
 # The NAME, not just the sheet: a guard that closed the dialog and cleared the field would pass on the sheet alone.
 - assertVisible: 'System Back Guard Collection'
 
-# Keep editing hands the Name field its focus back, so the keyboard comes up again, and the Back below would be the
-# keyboard's (measured 2026-11-04). Wait for it to come up, close it, and wait for it to go.
+# Keep editing hands the Name field its focus back, but whether the keyboard comes back with it is a race the flow does
+# not own: on the x86_64 emulator it comes up (measured 2026-11-04), on the arm64 one Android drops the app's request
+# because the dialog still holds window focus ("Ignoring showSoftInput() ... is not served", run of 2026-11-08). The cook
+# taps the field to keep typing, so the flow does too: the keyboard is then up on every device. Wait for it, close it,
+# and wait for it to go, so the Back below is the app's and not the keyboard's.
+- tapOn: 'System Back Guard Collection'
 - extendedWaitUntil:
-      visible: 'Switch input method'
+      visible:
+          id: 'android:id/inputArea'
       timeout: 20000
 - hideKeyboard
 - extendedWaitUntil:
-      notVisible: 'Switch input method'
+      notVisible:
+          id: 'android:id/inputArea'
       timeout: 20000
 - pressKey: Back
 - assertVisible: 'Discard this collection\?'

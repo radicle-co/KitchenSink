@@ -26,7 +26,7 @@ import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
 import { checkRecordedScreens, flowOutcomes } from '@kitchensink/e2e-plan/recordedScreens';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
-import { recordGreenRun } from '@kitchensink/e2e-plan/stampRun';
+import { settleStamp, type StampStart } from '@kitchensink/e2e-plan/stampRun';
 
 import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
 import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
@@ -34,7 +34,7 @@ import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { SCREEN_RECORD_FILE, spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
-import { runLaneRun, type LaneRunDeps, type Selection, type StampSettlement } from '../src/maestroLanes/laneRun.js';
+import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
@@ -295,10 +295,7 @@ async function selectFlows(base: Env, platform: LanePlatform, selector: string) 
 interface PlatformChoice {
     readonly selection: Selection;
     /** Set only when the selector chose the set (a forced full suite counts); a list named on the command line has none. */
-    readonly start?: {
-        readonly planTree: string;
-        readonly previous: NonNullable<Awaited<ReturnType<typeof runPlan>>['previous']> | undefined;
-    };
+    readonly start?: StampStart;
 }
 
 /**
@@ -325,10 +322,6 @@ async function resolveSelection(
             const plan = await runPlan(REPO_ROOT, env, { platform });
 
             plan.warnings.forEach((warning) => log(`warning: ${warning}`));
-
-            if (plan.base.kind === 'stamp' && plan.base.owed.length > 0) {
-                log(`${platform} owed: ${plan.base.owed.join(', ')} (sandbox-only flows not yet run)`);
-            }
 
             choices.set(platform, {
                 selection: plan.mobile.kind === 'all' ? 'all' : plan.mobile.ids,
@@ -440,45 +433,6 @@ function watchUsage(lane: LaneSpec, child: LaneChild, log: (line: string) => voi
             `lane ${lane.platform}-${lane.index} usage: ${meanCpus} CPUs mean, ${(peakRssBytes / 1024 ** 3).toFixed(1)} GiB peak, over ${Math.round(seconds)} s`,
         );
     });
-}
-
-/**
- * Moves a platform's green stamp if its run earned it, and says what happened. It never changes the exit code.
- *
- * @sideEffect Runs git and writes the stamp file.
- * @param start - From {@link resolveSelection}; undefined when a person named the flows or the selector failed.
- */
-async function settleStamp(
-    start: PlatformChoice['start'],
-    settlement: StampSettlement,
-    log: (line: string) => void,
-): Promise<void> {
-    if (start === undefined) {
-        return;
-    }
-
-    try {
-        const result = await recordGreenRun({
-            repo: REPO_ROOT,
-            platform: settlement.platform,
-            planTree: start.planTree,
-            selectedBy: 'selector',
-            outcomes: flowOutcomes(settlement.flows, settlement.results),
-            recorderClean: settlement.recorderClean,
-            dropped: settlement.owed,
-            previous: start.previous,
-        });
-
-        log(
-            result.kind === 'written'
-                ? `${settlement.platform} green stamp moved to this run (owed: ${result.stamp.owed.length})`
-                : `${settlement.platform} green stamp not moved (${result.kind === 'refused' ? result.reason : 'another run moved it first'})`,
-        );
-    } catch (error) {
-        log(
-            `warning: could not record the ${settlement.platform} green stamp (${error instanceof Error ? error.message : String(error)})`,
-        );
-    }
 }
 
 async function main(argv: readonly string[]): Promise<number> {
@@ -607,7 +561,16 @@ async function main(argv: readonly string[]): Promise<number> {
 
             return Promise.resolve({ code: report.failed ? 1 : 0, results: report.results });
         },
-        settleStamp: (settlement) => settleStamp(choices.get(settlement.platform)?.start, settlement, log),
+        settleStamp: (settlement) =>
+            settleStamp({
+                repo: REPO_ROOT,
+                platform: settlement.platform,
+                start: choices.get(settlement.platform)?.start,
+                outcomes: flowOutcomes(settlement.flows, settlement.results),
+                owed: settlement.owed,
+                recorderClean: settlement.recorderClean,
+                log,
+            }),
         aborted: () => aborted,
         staggerMs: Number(process.env['MAESTRO_LANE_STAGGER_SECONDS'] ?? 20) * 1000,
         log,

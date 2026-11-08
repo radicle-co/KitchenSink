@@ -585,3 +585,70 @@ describe('select-reusable — which earlier build may be reused', () => {
         expect(select('<html>rate limited</html>').status).not.toBe(0);
     });
 });
+
+/**
+ * ⛔ THE ANDROID ABI IS A BUILD INPUT, AND EXACTLY ONE OF TWO. CI's emulator is x86_64; a Mac's is arm64-v8a (ADR-0088 §5,
+ * owner direction 2026-11-08, "run the android emulator on the mac"). `TEST_APP_ANDROID_ABIS` selects which one a build
+ * contains, defaults to x86_64 so CI is unchanged, and `verify-manifest` holds a downloaded app to the ABI THIS run
+ * resolved, so an x86_64 APK is never installed on an arm64 emulator (where it would not start) nor the reverse.
+ */
+describe('the Android ABI', () => {
+    const arm = { TEST_APP_ANDROID_ABIS: 'arm64-v8a' } as const;
+    const armPairs = (): [string, string][] =>
+        goodPairs('android').map(([key, value]): [string, string] => (key === 'abis' ? [key, 'arm64-v8a'] : [key, value]));
+
+    it('accepts an arm64-v8a manifest when this run builds for arm64-v8a', () => {
+        const outcome = verify(manifestFile(render(armPairs())), 'android', { ...expectEnv('android'), ...arm });
+
+        expect(outcome.status, outcome.output).toBe(0);
+    });
+
+    it('refuses an x86_64 manifest when this run builds for arm64-v8a', () => {
+        const outcome = verify(manifestFile(render(goodPairs('android'))), 'android', { ...expectEnv('android'), ...arm });
+
+        expect(outcome.status).not.toBe(0);
+        expect(outcome.output).toContain('abis');
+    });
+
+    it('refuses an arm64-v8a manifest when the run leaves the default (x86_64)', () => {
+        const outcome = verify(manifestFile(render(armPairs())), 'android', expectEnv('android'));
+
+        expect(outcome.status).not.toBe(0);
+        expect(outcome.output).toContain('abis');
+    });
+
+    it.each(['armeabi-v7a', 'x86', 'x86_64,arm64-v8a', 'arm64-v8a,x86_64', 'ARM64-V8A', 'arm64-v8a '])(
+        '⛔ refuses %j: exactly one of x86_64 or arm64-v8a',
+        (abi) => {
+            const outcome = verify(manifestFile(render(goodPairs('android'))), 'android', {
+                ...expectEnv('android'),
+                TEST_APP_ANDROID_ABIS: abi,
+            });
+
+            expect(outcome.status).not.toBe(0);
+            expect(outcome.output).toContain('TEST_APP_ANDROID_ABIS');
+        },
+    );
+
+    it('records the ABI the build was told to contain', () => {
+        const file = join(scratch, 'written.manifest');
+        const result = spawnSync('bash', [SCRIPT, 'write-manifest', 'android', file], {
+            encoding: 'utf8',
+            env: {
+                PATH: process.env['PATH'] ?? '',
+                HOME: scratch,
+                GITHUB_SHA: '0123456789abcdef0123456789abcdef01234567',
+                TEST_APP_CONTENT_KEY: EXPECTED.contentKey,
+                EXPO_PUBLIC_RECIPE_API_URL: EXPECTED.recipeOrigin,
+                EXPO_PUBLIC_FOOD_API_URL: EXPECTED.foodOrigin,
+                EXPO_PUBLIC_IDENTITY_API_URL: EXPECTED.identityOrigin,
+                EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: EXPECTED.publishableKey,
+                ...arm,
+            },
+        });
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(readFileSync(file, 'utf8')).toContain('abis=arm64-v8a\n');
+        expect(readFileSync(file, 'utf8')).not.toContain('x86_64');
+    });
+});

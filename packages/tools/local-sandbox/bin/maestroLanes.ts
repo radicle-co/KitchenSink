@@ -26,14 +26,14 @@ import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
 import { checkRecordedScreens, flowOutcomes } from '@kitchensink/e2e-plan/recordedScreens';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
-import { settleStamp, type StampStart } from '@kitchensink/e2e-plan/stampRun';
+import { settleStamp, stateRoot, type Env, type StampStart } from '@kitchensink/e2e-plan/stampRun';
 
 import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
 import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
 import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
-import { SCREEN_RECORD_FILE, spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
+import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
@@ -43,10 +43,10 @@ import { startSharedServices, type RunningService, type ServiceSpec } from '../s
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const LOCAL_MAESTRO = path.join(REPO_ROOT, 'packages/tools/local-sandbox/bin/localMaestro.sh');
 const RUNNER = path.join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
-const STATE_DIR = path.join(
-    process.env['XDG_STATE_HOME'] ?? path.join(process.env['HOME'] ?? '', '.local/state'),
-    'kitchensink/localMaestro',
-);
+/** `localMaestro.sh`'s default state folder too; `localSettings.test.ts` holds the two equal. */
+const STATE_DIR = path.join(stateRoot(), 'localMaestro');
+/** Where the screen check writes one JSON report per platform, for the flow-row narrowing script. */
+const SCREEN_EVIDENCE_DIR = path.join(stateRoot(), 'screenEvidence');
 /** The door that makes and deletes the run's own Clerk users, by recorded id; `localMaestro.sh` uses the same one. */
 const RUN_USERS = 'packages/tools/e2e-fixtures/src/runUsers.ts';
 
@@ -570,6 +570,7 @@ async function main(argv: readonly string[]): Promise<number> {
             const report = checkRecordedScreens(
                 REPO_ROOT,
                 lanes.map((lane) => ({ platform: lane.platform, file: path.join(lane.stateDir, SCREEN_RECORD_FILE) })),
+                SCREEN_EVIDENCE_DIR,
             );
 
             for (const line of report.text.split('\n').filter((text) => text !== '')) {

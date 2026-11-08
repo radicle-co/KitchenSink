@@ -13,8 +13,8 @@ import { cpus, freemem, loadavg } from 'node:os';
 import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
-import type { Env } from './laneProcess.js';
 import type { DeviceAdapter, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
 
 /** The lanes' emulators, by lane. Never `emulator-5554`: that one is the owner's. */

@@ -3,7 +3,7 @@
  * origins, the LocalStack address and the service process patterns, and prints them with `local_maestro_settings`.
  * `maestroLanes.ts` reads that output through `parseLocalSettings` and holds none of the values itself. The device's
  * `adb reverse` map lives in ONE runner function, `maestro_local_reverse`, which the one-emulator path and every lane
- * call.
+ * call. The state folder's home in TypeScript is e2ePlan's `stateRoot`, and bash's default must name the same folder.
  *
  * Each case runs the REAL scripts in a fresh `bash`, with fake `adb` and `curl` first on `PATH`. Nothing here touches a
  * device or the network.
@@ -15,6 +15,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+
+import { stateRoot } from '@kitchensink/e2e-plan/stampRun';
 
 import { parseLocalSettings } from '../../src/maestroLanes/localSettings.js';
 
@@ -145,6 +147,30 @@ describe('local_maestro_settings — the facts the lanes read', () => {
     });
 });
 
+describe('the state folder — bash and stateRoot name the same place', () => {
+    const scratch = mkdtempSync(path.join(tmpdir(), 'localSettings-state-'));
+
+    /** Bash's own default: no LOCAL_MAESTRO_STATE_DIR override, so the XDG rule decides. */
+    const bashDefault = (env: Readonly<Record<string, string>>): string => {
+        const result = spawnSync('bash', ['-c', `source "${SCRIPT}"\nlocal_maestro_state_dir`], {
+            cwd: REPO_ROOT,
+            encoding: 'utf8',
+            env: { PATH: process.env['PATH'] ?? '', ...env },
+        });
+
+        expect(result.status, result.stderr).toBe(0);
+
+        return result.stdout.trim();
+    };
+
+    it.each([
+        ['under XDG_STATE_HOME', { HOME: path.join(scratch, 'home'), XDG_STATE_HOME: path.join(scratch, 'xdg') }],
+        ['under HOME when XDG_STATE_HOME is unset', { HOME: path.join(scratch, 'home') }],
+    ])('%s', (_label, env) => {
+        expect(bashDefault(env)).toBe(path.join(stateRoot(env, env.HOME), 'localMaestro'));
+    });
+});
+
 describe('maestro_local_reverse — the one adb reverse map', () => {
     it('reverses the services, recipe onto its host port, then each extra port onto itself', () => {
         const sandbox = makeSandbox();
@@ -230,6 +256,9 @@ describe('the lane TypeScript holds none of the facts', () => {
             'localhost:4566',
             'queueConsumer\\\\.ts',
             'src\\/local\\/main',
+            // The state folder's rule lives in e2ePlan's stateRoot.
+            'XDG_STATE_HOME',
+            '.local/state',
         ]) {
             expect(text, literal).not.toContain(literal);
         }

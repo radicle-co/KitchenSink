@@ -17,10 +17,11 @@ import { inspect } from 'node:util';
 
 import { planLanes } from '@kitchensink/e2e-plan';
 import type { FlowResult } from '@kitchensink/e2e-plan/recordedScreens';
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import type { HostLock } from './hostLock.js';
 import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
-import { laneRunnerEnv, type Env, type LaneChild } from './laneProcess.js';
+import { laneRunnerEnv, type LaneChild } from './laneProcess.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from './laneTypes.js';
 import type { SharedServices } from './sharedServices.js';
 
@@ -51,7 +52,7 @@ export interface StampSettlement {
 }
 
 /** What the screen check found: the exit code it adds, and each platform's flows by recorded result. */
-export interface ScreenOutcome {
+interface ScreenOutcome {
     readonly code: number;
     readonly results: ReadonlyMap<string, ReadonlyMap<string, FlowResult>>;
 }
@@ -106,7 +107,7 @@ export interface LaneRunDeps {
 }
 
 /** The exit code of a run the operator stopped. */
-export const ABORTED = 130;
+const ABORTED = 130;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 

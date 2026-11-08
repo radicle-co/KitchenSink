@@ -10,9 +10,9 @@
  * @pattern Template Method — {@link withWebLock} owns the take and the release, the caller owns the run
  */
 import { mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { stateRoot } from '@kitchensink/e2e-plan/stampRun';
 import { acquireHostLock, currentBootId, isHostLockHeldError, pidIsAlive } from '@kitchensink/local-sandbox/hostLock';
 
 import type { Env } from './e2eEnv';
@@ -23,8 +23,7 @@ import type { Env } from './e2eEnv';
  * @param env - The caller's environment (`XDG_STATE_HOME`).
  * @returns The lock file.
  */
-export const webLockFile = (env: Env): string =>
-    join(env['XDG_STATE_HOME'] ?? join(homedir(), '.local', 'state'), 'kitchensink', 'locks', 'webLanes.lock');
+export const webLockFile = (env: Env): string => join(stateRoot(env as NodeJS.ProcessEnv), 'locks', 'webLanes.lock');
 
 export interface WebLockOptions {
     readonly file: string;

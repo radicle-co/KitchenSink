@@ -15,6 +15,8 @@ export interface LocalSettings {
     readonly avd: string;
     /** The lane AVD's hardware as `key=value` config.ini settings: screen, density, cores, RAM, disk. */
     readonly avdConfig: readonly string[];
+    /** The system image the AVD is made from, for the ABI of the host that boots it. */
+    avdImage(abi: 'x86_64' | 'arm64-v8a'): string;
     /** Where Android emulators run. */
     readonly androidOn: AndroidHost;
     /** The Mac port the recipe service is tunnelled to. */
@@ -61,6 +63,8 @@ const schema = z
             .min(1)
             .transform((list) => list.split(','))
             .pipe(z.array(z.string().regex(/^[A-Za-z0-9._]+=[A-Za-z0-9._ /-]*$/u))),
+        // An sdkmanager package path with a slot for the ABI, which each host fills with its own.
+        LOCAL_MAESTRO_AVD_IMAGE: z.string().regex(/^system-images;android-\d+;[a-z_]+;\{abi\}$/u),
         LOCAL_MAESTRO_ANDROID_ON: z.enum(['mac', 'wsl'] satisfies AndroidHost[]),
         LOCAL_MAESTRO_MAC_RECIPE_PORT: z.coerce.number().int().min(1024).max(65535),
         LOCAL_MAESTRO_RECIPE_ORIGIN: origin,
@@ -109,6 +113,7 @@ export function parseLocalSettings(text: string): LocalSettings {
     return {
         avd: facts.LOCAL_MAESTRO_AVD,
         avdConfig: facts.LOCAL_MAESTRO_AVD_CONFIG,
+        avdImage: (abi) => facts.LOCAL_MAESTRO_AVD_IMAGE.replace('{abi}', abi),
         androidOn: facts.LOCAL_MAESTRO_ANDROID_ON,
         macRecipePort: facts.LOCAL_MAESTRO_MAC_RECIPE_PORT,
         recipeOrigin: facts.LOCAL_MAESTRO_RECIPE_ORIGIN,

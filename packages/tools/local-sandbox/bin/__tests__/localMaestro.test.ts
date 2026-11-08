@@ -761,7 +761,7 @@ describe('the one-emulator path never adopts a service', () => {
 /**
  * ⛔ NO EMULATOR BOOTS ON WSL BY DEFAULT. Nested Android emulators crashed Windows twice (a hypervisor bugcheck, 2026-11-08), so
  * Android lanes run on the Mac and `LOCAL_MAESTRO_ANDROID_ON=wsl` is the explicit opt-in. The one-emulator `flows` mode boots
- * `ci_pixel6` on WSL itself, so it asks first.
+ * the lane AVD (`LOCAL_MAESTRO_AVD`) on WSL itself, so it asks first.
  */
 describe('local_maestro_start_emulator — where an emulator may boot', () => {
     const spawned = (sandbox: Sandbox): boolean => /^emulator /mu.test(readFileSync(sandbox.calls, 'utf8'));
@@ -799,3 +799,76 @@ describe('local_maestro_start_emulator — where an emulator may boot', () => {
         ).toBe('wsl');
     });
 });
+
+/**
+ * The one-emulator path builds the lane AVD from the SAME settings the lanes use (ADR-0088 §5), through the same
+ * `androidLaneHost.sh ensure-avd`, before it boots: a machine that has never had the AVD gets it from the settings, and one
+ * that has gets the settings written over it again. Nothing here boots an emulator.
+ */
+describe('local_maestro_ensure_avd — the lane AVD comes from the settings', () => {
+    /** Fake `avdmanager` that makes the AVD folder the way the real one does, in a temp AVD home. */
+    function withAvdTools(sandbox: Sandbox) {
+        const avdHome = path.join(path.dirname(sandbox.bin), 'avd');
+        mkdirSync(avdHome, { recursive: true });
+        writeFileSync(
+            path.join(sandbox.bin, 'avdmanager'),
+            `#!/usr/bin/env bash\necho "avdmanager $*" >> "${sandbox.calls}"\nname=""; while [ $# -gt 0 ]; do [ "$1" = -n ] && name="$2"; shift; done\n` +
+                `mkdir -p "${avdHome}/$name.avd"; printf 'hw.lcd.width=1080\\n' > "${avdHome}/$name.avd/config.ini"\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'avdmanager'), 0o755);
+
+        return avdHome;
+    }
+
+    it('creates the AVD from the x86_64 image and writes every setting over the defaults', () => {
+        const sandbox = makeSandbox();
+        const avdHome = withAvdTools(sandbox);
+        const result = run(sandbox, 'local_maestro_ensure_avd', { ANDROID_AVD_HOME: avdHome });
+        const config = readFileSync(path.join(avdHome, 'ks_lane_lean.avd/config.ini'), 'utf8');
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            'avdmanager create avd -n ks_lane_lean -k system-images;android-34;google_apis;x86_64',
+        );
+        expect(config).toContain('hw.lcd.width=720');
+        expect(config).toContain('hw.cpu.ncore=2');
+        expect(config).not.toContain('hw.lcd.width=1080');
+    });
+
+    it('does not create it twice, and still writes the settings', () => {
+        const sandbox = makeSandbox();
+        const avdHome = withAvdTools(sandbox);
+        run(sandbox, 'local_maestro_ensure_avd', { ANDROID_AVD_HOME: avdHome });
+        writeFileSync(path.join(avdHome, 'ks_lane_lean.avd/config.ini'), 'hw.lcd.width=1\n');
+        run(sandbox, 'local_maestro_ensure_avd', { ANDROID_AVD_HOME: avdHome });
+
+        expect(readFileSync(sandbox.calls, 'utf8').match(/avdmanager create/gu)).toHaveLength(1);
+        expect(readFileSync(path.join(avdHome, 'ks_lane_lean.avd/config.ini'), 'utf8')).toContain('hw.lcd.width=720');
+    });
+
+    it('is run before the emulator boots, and a failure stops the boot', () => {
+        const sandbox = makeSandbox();
+        mkdirSync(sandbox.state, { recursive: true });
+        const body =
+            'local_maestro_ensure_avd() { echo ENSURE >> "$CALLS"; return "${ENSURE_RC:-0}"; }\n' +
+            'sleep() { :; }\n' +
+            `local_maestro_start_emulator "${sandbox.state}"`;
+        const first = run(sandbox, body, { LOCAL_MAESTRO_ANDROID_ON: 'wsl', CALLS: sandbox.calls });
+        const lines = readFileSync(sandbox.calls, 'utf8').split('\n');
+
+        expect(first.status).not.toBe(0);
+        expect(lines.indexOf('ENSURE')).toBeGreaterThanOrEqual(0);
+        expect(lines.findIndex((line) => line.startsWith('emulator '))).toBeGreaterThan(lines.indexOf('ENSURE'));
+
+        const failing = makeSandbox();
+        mkdirSync(failing.state, { recursive: true });
+        run(failing, body.replace(`"${sandbox.state}"`, `"${failing.state}"`), {
+            LOCAL_MAESTRO_ANDROID_ON: 'wsl',
+            CALLS: failing.calls,
+            ENSURE_RC: '1',
+        });
+
+        expect(readFileSync(failing.calls, 'utf8')).not.toMatch(/^emulator /mu);
+    });
+});
+

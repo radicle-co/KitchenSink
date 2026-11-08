@@ -124,6 +124,13 @@ describe('IosAdapter', () => {
         );
     });
 
+    it('hands the build script the app folder MacSession states, so the script builds no Mac path of its own', async () => {
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+        await new IosAdapter(options(recorder.shell)).prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+
+        expect(recorder.commands.some((line) => /buildIosApp\.sh check abc ksIos\/apps\/abc$/u.test(line))).toBe(true);
+    });
+
     it('tunnels the origin ports the app was built with, back to the local services', async () => {
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
         const adapter = new IosAdapter(options(recorder.shell));

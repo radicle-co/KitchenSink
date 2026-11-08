@@ -4,6 +4,7 @@ import {
     availableMemoryBytes,
     bytesFromFreePercent,
     isMemoryReadError,
+    MemoryReadError,
     MEMORY_SAFETY_MARGIN,
     parseFreePercent,
     type MemorySources,
@@ -62,6 +63,13 @@ const sources = (over: Partial<MemorySources> = {}): MemorySources => ({
 describe('availableMemoryBytes', () => {
     it('uses os.freemem() off macOS, where it is the right figure', () => {
         expect(availableMemoryBytes(sources({ platform: 'linux' }))).toBe(3 * GIB);
+    });
+
+    it.each([0, -1])('refuses, by name, when libuv answers %i off macOS: it could not read the figure', (bytes) => {
+        const unreadable = sources({ platform: 'linux', freemem: () => bytes });
+
+        expect(() => availableMemoryBytes(unreadable)).toThrow(/free memory/u);
+        expect(() => availableMemoryBytes(unreadable)).toThrow(MemoryReadError);
     });
 
     it('reads memory_pressure on macOS and ignores os.freemem(), which counts only never-used pages', () => {

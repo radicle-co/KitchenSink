@@ -26,8 +26,6 @@ import { MacSession, macPathsOf, remote, type MacShell } from './macSession.js';
  */
 const MAC_ANDROID_LANE_COST: LaneCost = { cpus: 3, memBytes: Math.round(5.8 * 1024 ** 3) };
 
-const IMAGE = 'system-images;android-34;google_apis;arm64-v8a';
-
 const HEX = /^[0-9a-f]+$/u;
 
 export interface MacAndroidHostOptions {
@@ -37,7 +35,7 @@ export interface MacAndroidHostOptions {
     /** The local stack's origins (the local side of each tunnel), and the lane AVD and the Mac recipe port it states. */
     readonly settings: Pick<
         LocalSettings,
-        'recipeOrigin' | 'identityOrigin' | 'foodOrigin' | 'avd' | 'avdConfig' | 'macRecipePort'
+        'recipeOrigin' | 'identityOrigin' | 'foodOrigin' | 'avd' | 'avdConfig' | 'avdImage' | 'macRecipePort'
     >;
     /** The file's text, or `undefined` when it does not exist. */
     readonly readFile: (file: string) => string | undefined;
@@ -46,6 +44,8 @@ export interface MacAndroidHostOptions {
 export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHost {
     const session = new MacSession(options);
     const { avd, avdConfig, macRecipePort } = options.settings;
+    const abi = 'arm64-v8a';
+    const image = options.settings.avdImage(abi);
     let localApk = '';
     let remoteApk = '';
 
@@ -62,7 +62,7 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
     };
 
     return {
-        abi: 'arm64-v8a',
+        abi,
         laneCost: MAC_ANDROID_LANE_COST,
         hostFacts: () => session.facts(),
         prepare: async (run: RunContext, apk: string, key: string) => {
@@ -73,8 +73,8 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
             await session.open(run);
             // An earlier run's emulator holds the AVD and the ports: it goes first, before anything is made ready to boot.
             await session.androidLaneHost('reap', avd);
-            await session.androidLaneHost('doctor', IMAGE);
-            await session.androidLaneHost('ensure-avd', avd, IMAGE, ...avdConfig);
+            await session.androidLaneHost('doctor', image);
+            await session.androidLaneHost('ensure-avd', avd, image, ...avdConfig);
 
             localApk = apk;
             const staged = macPathsOf().androidApp(key);

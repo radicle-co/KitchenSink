@@ -5,9 +5,12 @@
  *
  * @pattern Bridge — {@link AndroidHost} is the implementor behind the Android adapter's abstraction
  */
-import { cpus, freemem, loadavg } from 'node:os';
+import { cpus, homedir, loadavg } from 'node:os';
+import path from 'node:path';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
+import type { Env } from '@kitchensink/e2e-plan/stampRun';
+import { availableMemoryBytes } from '@kitchensink/e2e-plan/hostMemory';
 
 import { consolePort } from './androidSerials.js';
 import type { CommandPort, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
@@ -32,20 +35,17 @@ export interface AndroidHost {
     teardown(): Promise<void>;
 }
 
-/** The host's free memory in bytes: `MemAvailable` on Linux. libuv answers 0 when it cannot read it. */
-function memAvailableBytes(): number {
-    const bytes = freemem();
-
-    if (bytes <= 0) {
-        throw new Error('maestro:lanes: the host reported no free memory (os.freemem() is 0)');
-    }
-
-    return bytes;
-}
-
 export interface LocalAndroidHostOptions {
     readonly commands: CommandPort;
     readonly avd: string;
+    /** The AVD's `config.ini` settings (`LOCAL_MAESTRO_AVD_CONFIG`): the AVD is built from these, on every host. */
+    /** The system image for an ABI (`LOCAL_MAESTRO_AVD_IMAGE`). */
+    readonly avdImage: (abi: AndroidHost['abi']) => string;
+    readonly avdConfig: readonly string[];
+    /** `androidLaneHost.sh`, which makes the AVD the same way on the Mac. */
+    readonly avdScript: string;
+    /** The run's environment, with the Android toolchain in it. */
+    readonly environment: Env;
     readonly apk: string;
     readonly laneCost: LaneCost;
 }
@@ -60,17 +60,43 @@ export function createLocalAndroidHost(options: LocalAndroidHostOptions): Androi
     const { commands } = options;
     const booted = new Map<string, number>();
     const adb: AndroidHost['adb'] = (serial, ...args) => commands.run('adb', ['-s', serial, ...args]);
+    const abi = 'x86_64';
 
     return {
-        abi: 'x86_64',
+        abi,
         laneCost: options.laneCost,
         // Async so a refusal rejects, as the port promises, instead of throwing before a promise exists.
         hostFacts: async (): Promise<HostFacts> => ({
             cpus: cpus().length,
             load1: loadavg()[0] ?? 0,
-            memAvailable: memAvailableBytes(),
+            memAvailable: availableMemoryBytes(),
         }),
-        prepare: () => Promise.resolve(),
+        prepare: async () => {
+            const sdk = options.environment['ANDROID_HOME'];
+            const made = await commands.run(
+                'bash',
+                [options.avdScript, 'ensure-avd', options.avd, options.avdImage(abi), ...options.avdConfig],
+                {
+                    env: {
+                        ...options.environment,
+                        // Where the emulator looks for AVDs, so the one made here is the one it boots.
+                        ANDROID_AVD_HOME:
+                            options.environment['ANDROID_AVD_HOME'] ?? path.join(homedir(), '.android', 'avd'),
+                        // `avdmanager` is in the command-line tools, which the lanes' toolchain does not put on PATH.
+                        PATH: [
+                            sdk === undefined ? undefined : `${sdk}/cmdline-tools/latest/bin`,
+                            options.environment['PATH'],
+                        ]
+                            .filter((part) => part !== undefined)
+                            .join(':'),
+                    },
+                },
+            );
+
+            if (made.code !== 0) {
+                throw new Error(`maestro:lanes: could not make the lane AVD ${options.avd}: ${made.stdout.trim()}`);
+            }
+        },
         adb,
         boot: (lane) => {
             const { pid } = commands.spawnDetached(

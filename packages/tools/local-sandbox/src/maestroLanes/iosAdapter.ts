@@ -81,7 +81,7 @@ export class IosAdapter implements DeviceAdapter {
             throw new Error(`the content key ${JSON.stringify(this.contentKey)} is not lowercase hex`);
         }
 
-        await shell.run('bash', [script, 'check', this.contentKey], buildEnv);
+        await shell.run('bash', [script, 'check', this.contentKey, macPathsOf().iosApp(this.contentKey)], buildEnv);
         await this.session.syncFlows();
         await this.session.linkShim('maestro', 'maestroShim.sh');
         await this.session.linkShim('xcrun', 'xcrunShim.sh');

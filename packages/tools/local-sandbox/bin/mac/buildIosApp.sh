@@ -3,8 +3,8 @@
 # origins (localhost:13000-13002; the Mac's own port 3000 belongs to Docker) and the sandbox publishable key.
 #
 #   buildIosApp.sh content-key       print the key this tree + these origins resolve to (computed here, where git is)
-#   buildIosApp.sh check <key>       exit 0 only if the Mac holds an app for <key> whose manifest matches EXACTLY
-#   buildIosApp.sh build <key>       sync the source to the Mac, build there, keep it under ksIos/apps/<key>
+#   buildIosApp.sh check <key> <app folder>   exit 0 only if the Mac holds an app for <key> whose manifest matches EXACTLY
+#   buildIosApp.sh build <key> <app folder>   sync the source to the Mac, build there, keep the app in <app folder>
 #
 # A stale app is never driven: `check` runs `buildTestApp.sh verify-manifest` over the Mac's manifest, so a missing,
 # different or extra field is a refusal. The key is computed on THIS machine and handed to the build (as CI does), so the
@@ -62,6 +62,15 @@ export EXPO_PUBLIC_FOOD_API_URL='http://localhost:13002'
 export EXPO_PUBLIC_IDP_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY"
 export DEVELOPER_DIR="$MAC_DEVELOPER_DIR"
 
+# The app's folder on the Mac, relative to its HOME, is stated by the caller (`macPathsOf().iosApp(key)`): this script builds
+# no Mac path of its own. It becomes part of a remote command, so it is plain words and slashes, never absolute or `..`.
+app_folder() {
+    local folder="${1:-}"
+    [[ "$folder" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]] && [[ "/$folder/" != *"/../"* ]] ||
+        die "the app folder '$folder' is not a relative path of plain names"
+    printf '%s' "$folder"
+}
+
 command_name="${1:-}"
 case "$command_name" in
     content-key)
@@ -70,10 +79,11 @@ case "$command_name" in
     check)
         key="${2:?check needs a content key}"
         [[ "$key" =~ ^[0-9a-f]+$ ]] || die "'$key' is not a content key"
+        app="$(app_folder "${3:-}")"
         manifest="$(mktemp)"
         trap 'rm -f "$manifest"' EXIT
-        mac "cat ksIos/apps/$key/testApp.manifest" >"$manifest" 2>/dev/null ||
-            die "no test app for key $key on the Mac. Build it: buildIosApp.sh build $key"
+        mac "cat $app/testApp.manifest" >"$manifest" 2>/dev/null ||
+            die "no test app for key $key on the Mac. Build it: buildIosApp.sh build $key $app"
         EXPECT_CONTENT_KEY="$key" \
             EXPECT_RECIPE_ORIGIN="$EXPO_PUBLIC_RECIPE_API_URL" \
             EXPECT_FOOD_ORIGIN="$EXPO_PUBLIC_FOOD_API_URL" \
@@ -81,14 +91,15 @@ case "$command_name" in
             EXPECT_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY" \
             EXPECT_XCODE_VERSION="$(mac "DEVELOPER_DIR=$MAC_DEVELOPER_DIR xcodebuild -version" | tr '\n' ' ' | sed 's/ *$//')" \
             bash "$BUILD_SCRIPT" verify-manifest "$manifest" ios ||
-            die "the app on the Mac for key $key does not match this tree. Rebuild: buildIosApp.sh build $key"
-        echo "ksIos/apps/$key is current"
+            die "the app on the Mac for key $key does not match this tree. Rebuild: buildIosApp.sh build $key $app"
+        echo "$app is current"
         ;;
     build)
         key="${2:?build needs a content key}"
         [[ "$key" =~ ^[0-9a-f]+$ ]] || die "'$key' is not a content key"
+        app="$(app_folder "${3:-}")"
         sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-        mac 'mkdir -p ksIos/build.noindex/src ksIos/apps'
+        mac "mkdir -p ksIos/build.noindex/src $(dirname "$app")"
         # The source only: dependencies are installed on the Mac (their native parts are arm64 macOS), and generated
         # folders are rebuilt there.
         rsync -a --delete -e "ssh -F $KS_MAC_SSH_CONFIG" \
@@ -112,16 +123,16 @@ export TEST_APP_CONTENT_KEY='$key' GITHUB_SHA='$sha' RUNNER_TEMP=\$HOME/ksIos/bu
 mkdir -p \$RUNNER_TEMP
 npx turbo run build --filter='@commise/mobile^...'
 bash packages/apps/commise/mobile/scripts/buildTestApp.sh ios
-rm -rf \$HOME/ksIos/apps/$key && mkdir -p \$HOME/ksIos/apps/$key
-cp packages/apps/commise/mobile/dist-testApp/ios/* \$HOME/ksIos/apps/$key/
-tar -xzf \$HOME/ksIos/apps/$key/app.tar.gz -C \$HOME/ksIos/apps/$key
+rm -rf \$HOME/$app && mkdir -p \$HOME/$app
+cp packages/apps/commise/mobile/dist-testApp/ios/* \$HOME/$app/
+tar -xzf \$HOME/$app/app.tar.gz -C \$HOME/$app
 REMOTE
         mac 'rm -f ksIos/build.noindex/build.rc; nohup sh -c "bash ksIos/build.noindex/build.sh > ksIos/build.noindex/build.log 2>&1; echo \$? > ksIos/build.noindex/build.rc" > /dev/null 2>&1 &'
         until rc="$(mac 'cat ksIos/build.noindex/build.rc' 2>/dev/null)"; do sleep 20; done
         [ "$rc" = 0 ] || { mac 'tail -60 ksIos/build.noindex/build.log' >&2 || true; die "the Mac build failed (exit $rc); log: ksIos/build.noindex/build.log on the Mac"; }
-        "$0" check "$key"
+        "$0" check "$key" "$app"
         ;;
     *)
-        die 'usage: buildIosApp.sh content-key | check <key> | build <key>'
+        die 'usage: buildIosApp.sh content-key | check <key> <app folder> | build <key> <app folder>'
         ;;
 esac

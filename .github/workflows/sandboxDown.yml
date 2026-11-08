@@ -106,7 +106,7 @@ jobs:
             # reclaimed and `pr-91.sandbox.commise.app` was left pointing at Vercel with the project binding
             # released, which is the subdomain-takeover vector ADR-0001 exists for. The on-close `cleanup`
             # job has always installed first; this door was written without it.
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
                   cache: npm

@@ -1,6 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { planLanes } from '@kitchensink/e2e-plan';
+
+const host = vi.hoisted(() => ({ freemem: 8 * 1024 ** 3 }));
+
+vi.mock('node:os', async (importOriginal) => {
+    const os = await importOriginal<typeof import('node:os')>();
+
+    return { ...os, freemem: () => host.freemem };
+});
 
 import { ANDROID_LANE_COST, ANDROID_LANE_SERIALS, createAndroidAdapter, type CommandPort } from '../androidAdapter.js';
 import type { LaneSpec } from '../laneTypes.js';
@@ -102,6 +110,27 @@ describe('the Android lane cost — planned from the peak', () => {
 
     it('is at least the peak one lane put on the host alone', () => {
         expect(ANDROID_LANE_COST.cpus).toBeGreaterThanOrEqual(5);
+    });
+});
+
+/** Free memory comes from `os.freemem()`, which reads `MemAvailable` on Linux and works on macOS too. */
+describe('hostFacts — free memory', () => {
+    afterEach(() => {
+        host.freemem = 8 * 1024 ** 3;
+    });
+
+    it('reports the free memory the OS gives', async () => {
+        host.freemem = 12_345 * 1024 ** 2;
+
+        await expect(adapter(scripted([]).port).hostFacts()).resolves.toMatchObject({
+            memAvailable: 12_345 * 1024 ** 2,
+        });
+    });
+
+    it('refuses to plan when the OS gives no free memory', async () => {
+        host.freemem = 0;
+
+        await expect(adapter(scripted([]).port).hostFacts()).rejects.toThrow(/free memory/u);
     });
 });
 

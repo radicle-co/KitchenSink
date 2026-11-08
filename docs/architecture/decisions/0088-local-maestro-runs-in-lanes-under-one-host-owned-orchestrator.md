@@ -20,7 +20,8 @@ emulator. Locally there was one emulator and one shard. Three facts decide how t
 1. **Identity is the real ceiling.** Lane k of a platform is shard k. It signs in as its own signer and co-author.
    `maestroSlotForShard` throws for a lane the pool does not declare. Clerk holds 84 of 100 seats. A lane needs a
    signer and a co-author, so 8 Android lanes and 5 iOS lanes need about 26 seats and 16 are free. A run never creates
-   users. Adding a lane is an owner step with `poolAdmin`.
+   lane users. Adding a lane is an owner step with `poolAdmin`. A run creates exactly one Clerk user, its erasure
+   subject (section 3).
 2. **The "queued" resets had an ownership cause.** Run B reused the queue consumer that run A started. Run A exited and
    killed the consumer. Run B's purge job then sat in the queue with nothing to read it.
 3. **Sign-in happens once per run.** Clerk limits sign-ins per IP, so lanes cannot all start at the same second.
@@ -43,7 +44,10 @@ The command is `npm run maestro:lanes --workspace=@kitchensink/local-sandbox`. T
 ### 2. The lane count is the smallest of the caps
 
 The caps are the CPUs left over, the free memory, the lanes that have users in Clerk, the work to do, and the caller's
-request. Both identity caps equal the number of lanes whose signer and co-author exist, because a lane signs in once.
+request. A lane's CPU and memory cost is its measured PEAK, not its mean. On 2026-11-07 four Android lanes averaged 2.7
+CPUs each. Load still peaked at 58.5 on the 20-CPU WSL host, and 9 of 70 flows ran out of their scroll budgets. One lane
+alone peaked at 5.7, so an Android lane costs 5.5 CPUs and 5.5 GiB (`ANDROID_LANE_COST`). That plans 3 lanes on this
+host, and at 3 lanes 69 of 70 flows passed. Both identity caps equal the number of lanes whose signer and co-author exist, because a lane signs in once.
 Zero flows start no device and exit 0. The orchestrator reads the lanes that exist with
 `poolAdmin --list-local-lanes`, which writes nothing.
 
@@ -60,6 +64,12 @@ Zero flows start no device and exit 0. The orchestrator reads the lanes that exi
 - Two flows write as the shared role users, `recipes/makePublicConfirm` and `recipes/paidFeaturesByRole`. The runner
   takes `flock` on a lock in `MAESTRO_LOCK_DIR` for them, and the packer puts them on lane 1. The lock is host-wide,
   so it also covers a run on the other platform. Role flows are served, never skipped.
+- A run creates exactly one Clerk user: the erasure subject of its platform. The erasure flow deletes its own user, and
+  nothing local deletes an erased user from Clerk, so each run needs a fresh one. `runUsers.ts` makes it before any lane
+  starts and records its id in `runUsers.<platform>.json` the moment Clerk returns it. The run always ends by deleting
+  that recorded id and no other, even after a failure. If the user no longer holds the recorded address, the run deletes
+  nothing. It never deletes by address or by pattern. When a run starts, it first deletes any id that a crashed run
+  recorded. A subject that stands but is not recorded is refused, never adopted.
 
 ### 4. The runner contract is the same locally and in CI
 
@@ -108,7 +118,8 @@ The host comes from `LOCAL_MAESTRO_IOS_HOST`. With none set, the iOS door refuse
 - **Run each lane's services itself.** N queue consumers on one queue repeat the adoption defect.
 - **Let the orchestrator pack flows.** Two packers for one fact drift apart.
 - **Create lane users during the run.** Clerk seats are limited, and a failed run leaves users behind. Adding a lane
-  stays a visible owner step.
+  stays a visible owner step. The erasure subject is the one user a run creates, because its flow deletes it. The
+  recorded id is what makes the user safe to create: a run deletes only what it recorded.
 - **Skip the role flows to avoid the lock.** A skip looks like a pass.
 
 ## Consequences
@@ -116,11 +127,12 @@ The host comes from `LOCAL_MAESTRO_IOS_HOST`. With none set, the iOS door refuse
 - A full run takes about the old time divided by the lane count, until the Clerk seats or the machine cap it.
 - The first lanes need an owner step. The suggestion is Android lanes 2 to 4 and iOS lanes 1 to 3, which uses 12 of
   the 16 free seats and keeps 4 for erasure and the downgraded owner.
-- A crash leaves a lock file. The next run reclaims it if the process is dead.
+- A crash leaves a lock file. If its process is dead, the next run reclaims it.
 
 ## Residual risk
 
-- The cleartext spike and the CPU and memory cost of one emulator are not measured yet. The lane cost constants are
-  placeholders until the first device run.
+- The Android lane cost is measured on one host only (WSL, 20 CPUs, 2026-11-07). Another host needs its own
+  measurement. The release test app reached the loopback services through `adb reverse` in those runs, so the
+  cleartext question is answered for Android.
 - Two orchestrators on two machines share one Clerk tenant and one sandbox. The host lock covers only one machine.
 - The simulator count on the Mac is bound by the owner's ruling and not by a measurement.

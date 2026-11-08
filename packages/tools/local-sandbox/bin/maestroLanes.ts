@@ -26,7 +26,7 @@ import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
 import { checkRecordedScreens, flowOutcomes } from '@kitchensink/e2e-plan/recordedScreens';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
-import { recordGreenRun } from '@kitchensink/e2e-plan/stampRun';
+import { settleStamp, type StampStart } from '@kitchensink/e2e-plan/stampRun';
 
 import { createAndroidAdapter, type CommandPort } from '../src/maestroLanes/androidAdapter.js';
 import { IosAdapter } from '../src/maestroLanes/iosAdapter.js';
@@ -34,9 +34,10 @@ import { createIosShell } from '../src/maestroLanes/iosShell.js';
 import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/hostLock.js';
 import { parseLaneArgs, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { SCREEN_RECORD_FILE, spawnRunner, type Env, type LaneChild } from '../src/maestroLanes/laneProcess.js';
-import { runLaneRun, type LaneRunDeps, type Selection, type StampSettlement } from '../src/maestroLanes/laneRun.js';
+import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
+import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { startSharedServices, type RunningService, type ServiceSpec } from '../src/maestroLanes/sharedServices.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -87,6 +88,25 @@ function baseEnvironment(): Env {
     );
 }
 
+/**
+ * The local stack's facts (the AVD, the origins, LocalStack, the service patterns), from their one home,
+ * `localMaestro.sh`.
+ *
+ * @sideEffect Runs bash.
+ */
+function readLocalSettings(): LocalSettings {
+    const result = spawnSync('bash', ['-c', '. "$1" && local_maestro_settings', 'maestroLanes', LOCAL_MAESTRO], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'inherit'],
+    });
+
+    if (result.status !== 0) {
+        throw new Error('maestro:lanes: localMaestro.sh did not print its settings (see above)');
+    }
+
+    return parseLocalSettings(result.stdout);
+}
+
 /** Run a command to completion. Never throws for a non-zero exit; the caller reads the code. */
 function run(command: string, args: readonly string[], options: { env?: Env; cwd?: string } = {}) {
     return new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
@@ -127,7 +147,7 @@ function killGroup(pid: number): void {
 }
 
 /** The adapter for a platform. iOS refuses to build without `LOCAL_MAESTRO_IOS_HOST`. */
-function adapterFor(platform: LanePlatform, env: Env): DeviceAdapter {
+function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): DeviceAdapter {
     if (platform === 'ios') {
         return new IosAdapter({ shell: createIosShell(), env, repoRoot: REPO_ROOT });
     }
@@ -144,10 +164,10 @@ function adapterFor(platform: LanePlatform, env: Env): DeviceAdapter {
 
     return createAndroidAdapter({
         repoRoot: REPO_ROOT,
-        avd: 'ci_pixel6',
-        recipeOrigin: 'http://localhost:3000',
-        identityOrigin: 'http://localhost:3001',
-        foodOrigin: 'http://localhost:3002',
+        avd: settings.avd,
+        recipeOrigin: settings.recipeOrigin,
+        identityOrigin: settings.identityOrigin,
+        foodOrigin: settings.foodOrigin,
         publishableKey: env['CLERK_PUBLISHABLE_KEY'] ?? '',
         commands,
         bootTimeoutMs: 300_000,
@@ -181,7 +201,7 @@ function stackRoot(): string {
 }
 
 /** The services a lane run owns: every queue consumer the running stack planned, and the parse worker. */
-function serviceSpecs(root: string): readonly ServiceSpec[] {
+function serviceSpecs(root: string, settings: LocalSettings): readonly ServiceSpec[] {
     const plan = path.join(root, '.local-sandbox/queueConsumers.json');
 
     if (!existsSync(plan)) {
@@ -193,7 +213,7 @@ function serviceSpecs(root: string): readonly ServiceSpec[] {
     ).map(({ name, queueUrl }): ServiceSpec => ({
         name,
         queueUrl,
-        pattern: new RegExp(`bin/queueConsumer\\.ts ${name.replace(/[^\w-]/gu, '')}( |$)`, 'u'),
+        pattern: settings.consumerPattern(name),
         command: 'npx',
         args: ['tsx', 'packages/tools/local-sandbox/bin/queueConsumer.ts', name],
     }));
@@ -202,7 +222,7 @@ function serviceSpecs(root: string): readonly ServiceSpec[] {
         ...consumers,
         {
             name: 'parseWorker',
-            pattern: /recipe-workers.*src\/local\/main\.ts|src\/local\/main\.ts/u,
+            pattern: settings.workerPattern,
             command: 'npm',
             args: ['run', 'dev', '--workspace=@kitchensink/recipe-workers'],
         },
@@ -295,10 +315,7 @@ async function selectFlows(base: Env, platform: LanePlatform, selector: string) 
 interface PlatformChoice {
     readonly selection: Selection;
     /** Set only when the selector chose the set (a forced full suite counts); a list named on the command line has none. */
-    readonly start?: {
-        readonly planTree: string;
-        readonly previous: NonNullable<Awaited<ReturnType<typeof runPlan>>['previous']> | undefined;
-    };
+    readonly start?: StampStart;
 }
 
 /**
@@ -326,10 +343,6 @@ async function resolveSelection(
 
             plan.warnings.forEach((warning) => log(`warning: ${warning}`));
 
-            if (plan.base.kind === 'stamp' && plan.base.owed.length > 0) {
-                log(`${platform} owed: ${plan.base.owed.join(', ')} (sandbox-only flows not yet run)`);
-            }
-
             choices.set(platform, {
                 selection: plan.mobile.kind === 'all' ? 'all' : plan.mobile.ids,
                 ...(plan.treeAtStart === null
@@ -351,14 +364,14 @@ async function resolveSelection(
  *
  * @sideEffect Starts the queue consumers and the parse worker; writes the local recipe world.
  */
-async function startServices(base: Env) {
+async function startServices(base: Env, settings: LocalSettings) {
     const root = stackRoot();
     const sqs = new SQSClient({
-        endpoint: 'http://localhost:4566',
+        endpoint: settings.localstack,
         region: 'us-east-1',
         credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
     });
-    const services = await startSharedServices(serviceSpecs(root), {
+    const services = await startSharedServices(serviceSpecs(root, settings), {
         listProcesses: async () =>
             (await run('ps', ['-eo', 'pid=,args='])).stdout
                 .split('\n')
@@ -442,48 +455,10 @@ function watchUsage(lane: LaneSpec, child: LaneChild, log: (line: string) => voi
     });
 }
 
-/**
- * Moves a platform's green stamp if its run earned it, and says what happened. It never changes the exit code.
- *
- * @sideEffect Runs git and writes the stamp file.
- * @param start - From {@link resolveSelection}; undefined when a person named the flows or the selector failed.
- */
-async function settleStamp(
-    start: PlatformChoice['start'],
-    settlement: StampSettlement,
-    log: (line: string) => void,
-): Promise<void> {
-    if (start === undefined) {
-        return;
-    }
-
-    try {
-        const result = await recordGreenRun({
-            repo: REPO_ROOT,
-            platform: settlement.platform,
-            planTree: start.planTree,
-            selectedBy: 'selector',
-            outcomes: flowOutcomes(settlement.flows, settlement.results),
-            recorderClean: settlement.recorderClean,
-            dropped: settlement.owed,
-            previous: start.previous,
-        });
-
-        log(
-            result.kind === 'written'
-                ? `${settlement.platform} green stamp moved to this run (owed: ${result.stamp.owed.length})`
-                : `${settlement.platform} green stamp not moved (${result.kind === 'refused' ? result.reason : 'another run moved it first'})`,
-        );
-    } catch (error) {
-        log(
-            `warning: could not record the ${settlement.platform} green stamp (${error instanceof Error ? error.message : String(error)})`,
-        );
-    }
-}
-
 async function main(argv: readonly string[]): Promise<number> {
     const args = parseLaneArgs(argv, process.env);
     mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+    const settings = readLocalSettings();
     const base = baseEnvironment();
     // `listLocalLanes` and the lane slots read the namespace from this process.
     process.env['E2E_POOL_NAMESPACE'] = 'local';
@@ -509,7 +484,7 @@ async function main(argv: readonly string[]): Promise<number> {
     process.on('SIGTERM', abort);
 
     const deps: LaneRunDeps = {
-        adapterFor: (platform) => adapterFor(platform, base),
+        adapterFor: (platform) => adapterFor(platform, base, settings),
         stateDir: STATE_DIR,
         repoRoot: REPO_ROOT,
         lockDir: path.join(STATE_DIR, 'locks'),
@@ -530,7 +505,7 @@ async function main(argv: readonly string[]): Promise<number> {
         },
         identityCap: async (platform) =>
             (await listLocalLanes(clerkPoolAdminPort(base['CLERK_SECRET_KEY'] ?? ''), platform)).present,
-        startServices: () => startServices(base),
+        startServices: () => startServices(base, settings),
         createRunUsers: async (platforms) => {
             for (const platform of platforms) {
                 const made = await tool(base, `making the ${platform} run erasure subject`, [
@@ -607,9 +582,18 @@ async function main(argv: readonly string[]): Promise<number> {
 
             return Promise.resolve({ code: report.failed ? 1 : 0, results: report.results });
         },
-        settleStamp: (settlement) => settleStamp(choices.get(settlement.platform)?.start, settlement, log),
+        settleStamp: (settlement) =>
+            settleStamp({
+                repo: REPO_ROOT,
+                platform: settlement.platform,
+                start: choices.get(settlement.platform)?.start,
+                outcomes: flowOutcomes(settlement.flows, settlement.results),
+                owed: settlement.owed,
+                recorderClean: settlement.recorderClean,
+                log,
+            }),
         aborted: () => aborted,
-        staggerMs: Number(process.env['MAESTRO_LANE_STAGGER_SECONDS'] ?? 20) * 1000,
+        staggerMs: args.staggerSeconds * 1000,
         log,
     };
 

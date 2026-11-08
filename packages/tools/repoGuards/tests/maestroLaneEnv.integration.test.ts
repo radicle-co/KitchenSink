@@ -155,7 +155,12 @@ describe('run mode under a local lane', () => {
         expect(lane.output).toMatch(/not run locally: needs sandbox - auth\/loginFlow/u);
     });
 
-    it('reverses the three service ports, recipe onto its host port', () => {
+    /**
+     * REWRITTEN 2026-11-08: a lane now reverses through `maestro_local_reverse`, the one map `localMaestro.sh` uses too,
+     * so it also carries the debug app's identity alias (:4000 onto :3001). The release test app never addresses :4000;
+     * the alias is there because one map serves both apps.
+     */
+    it('reverses the service ports through the one shared map, recipe onto its host port', () => {
         const reverses = lane.calls
             .filter((call) => call[0] === 'adb' && call[1] === 'reverse')
             .map((call) => call.slice(2));
@@ -164,6 +169,7 @@ describe('run mode under a local lane', () => {
             ['tcp:3000', 'tcp:3100'],
             ['tcp:3001', 'tcp:3001'],
             ['tcp:3002', 'tcp:3002'],
+            ['tcp:4000', 'tcp:3001'],
         ]);
     });
 

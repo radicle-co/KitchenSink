@@ -87,24 +87,37 @@ export function flowSelector(selection: 'all' | readonly string[]): string {
 
 /**
  * The largest lane count, at most `count`, whose every lane the packer gives at least one flow. Pinned flows all go to
- * lane 1, so "flows minus the spine" can promise more lanes than can be filled. Pure over the injected packer.
+ * lane 1, so "flows minus the spine" can promise more lanes than can be filled. Each packer call is a run of the runner's
+ * packer, so it asks lazily: from the planned count down, lane by lane, and it leaves a count at its first empty lane.
  *
  * @param count - The planned count.
  * @param packed - The packer's flows for lane `index` of `count`.
  * @returns The count, or 0 when even one lane would be empty.
  */
-export function fitLaneCount(count: number, packed: (index: number, count: number) => readonly string[]): number {
+export async function fitLaneCount(
+    count: number,
+    packed: (index: number, count: number) => Promise<readonly string[]>,
+): Promise<number> {
     for (let candidate = count; candidate >= 1; candidate -= 1) {
-        if (
-            Array.from({ length: candidate }, (_, offset) => packed(offset + 1, candidate)).every(
-                (flows) => flows.length > 0,
-            )
-        ) {
+        if (await everyLaneHolds(candidate, packed)) {
             return candidate;
         }
     }
 
     return 0;
+}
+
+async function everyLaneHolds(
+    count: number,
+    packed: (index: number, count: number) => Promise<readonly string[]>,
+): Promise<boolean> {
+    for (let index = 1; index <= count; index += 1) {
+        if ((await packed(index, count)).length === 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /** What `maestro:lanes` was asked to run. */
@@ -113,13 +126,18 @@ export interface LaneArgs {
     readonly requested?: number;
     /** `changed` asks the impact selector; `all` is the whole suite; a list is the flows named. */
     readonly selection: 'all' | 'changed' | readonly string[];
+    /** Seconds between lane starts, so the lanes' first sign-ins do not meet Clerk's per-IP limit at once. */
+    readonly staggerSeconds: number;
 }
 
+const DEFAULT_STAGGER_SECONDS = 20;
+
 /**
- * Read `--platform android|ios|both [--lanes <n>] [--flows <f...>]`. `FULL_SUITE=1` runs everything. Pure.
+ * Read `--platform android|ios|both [--lanes <n>] [--flows <f...>]`. `FULL_SUITE=1` runs everything, and
+ * `MAESTRO_LANE_STAGGER_SECONDS` (whole seconds, default 20) spaces the lane starts. Pure.
  *
  * @throws On a missing or unknown platform, a lane count that is not a positive integer, `--flows` naming nothing, a
- *   flow named without `--flows`, or any other argument.
+ *   flow named without `--flows`, any other argument, or a stagger that is not a whole number of seconds.
  */
 export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<string, string | undefined>>): LaneArgs {
     let parsed;
@@ -155,9 +173,16 @@ export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<stri
         throw new Error('maestro:lanes: name flows after --flows, and only there');
     }
 
+    const stagger = env['MAESTRO_LANE_STAGGER_SECONDS'];
+
+    if (stagger !== undefined && !/^\d+$/u.test(stagger)) {
+        throw new Error(`maestro:lanes: MAESTRO_LANE_STAGGER_SECONDS '${stagger}' is not a whole number of seconds`);
+    }
+
     return {
         platforms: chosen,
         ...(lanes === undefined ? {} : { requested: Number(lanes) }),
         selection: env['FULL_SUITE'] === '1' ? 'all' : flows === true ? parsed.positionals : 'changed',
+        staggerSeconds: stagger === undefined ? DEFAULT_STAGGER_SECONDS : Number(stagger),
     };
 }

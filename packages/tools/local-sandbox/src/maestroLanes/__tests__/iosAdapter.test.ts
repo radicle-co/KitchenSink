@@ -71,6 +71,14 @@ describe('IosAdapter', () => {
         expect(new IosAdapter(options(makeShell().shell)).maxLanes).toBe(5);
     });
 
+    it('costs a lane what the 2026-11-08 three-lane run measured: peak 2.05 GiB and under one cpu busy', () => {
+        // Measured on the Mac with maestro:macUsage over 3 lanes and 49 minutes: mean 0.5 to 0.6 cpus per lane with a
+        // one-cpu burst, peak resident 1.74 to 2.05 GiB per lane (the Simulator, its XCTest driver and the Maestro JVM).
+        const { cpus, memBytes } = new IosAdapter(options(makeShell().shell)).laneCost;
+        expect(cpus).toBe(1);
+        expect(memBytes).toBe(Math.round(2.1 * 1024 ** 3));
+    });
+
     it('refuses to be built without a Mac host', () => {
         expect(() => new IosAdapter(options(makeShell().shell, {}))).toThrow(/LOCAL_MAESTRO_IOS_HOST/);
     });

@@ -6,10 +6,28 @@
  * stamp. Nothing here touches git or the disk.
  *
  * @pattern Specification — `chooseBase` and `nextStamp` are predicates over plain evidence
- * @pattern Memento — the stamp is the saved state a later run restores its base from
  */
 
-export type Platform = 'web' | 'android' | 'ios';
+export const PLATFORMS = ['web', 'android', 'ios'] as const;
+
+export type Platform = (typeof PLATFORMS)[number];
+
+/**
+ * Reads a platform name from a command line or a caller.
+ *
+ * @param value - What was given.
+ * @returns The platform.
+ * @throws When it is none of the platforms, naming them: a value taken for "no platform" would silently run the old base.
+ */
+export function parsePlatform(value: string): Platform {
+    const platform = PLATFORMS.find((candidate) => candidate === value);
+
+    if (platform === undefined) {
+        throw new Error(`error: '${value}' is not a platform; use one of ${PLATFORMS.join(', ')}`);
+    }
+
+    return platform;
+}
 
 /** What the last fully passing run proved. */
 export interface GreenStamp {
@@ -19,7 +37,10 @@ export interface GreenStamp {
     /** The tree object of the working tree as it was when that run was planned. */
     readonly tree: string;
     readonly head: string;
-    /** Flows the selector dropped because only the sandbox can run them. They are still owed. */
+    /**
+     * What the run that wrote this stamp could not run here (sandbox-only flows, deployed-only specs). A report of that
+     * run, printed so it is seen, not a ledger: nothing clears an item, so the next stamp replaces the list.
+     */
     readonly owed: readonly string[];
     /** ISO 8601. */
     readonly at: string;
@@ -95,14 +116,12 @@ export interface RunEvidence {
     readonly head: string;
     readonly planTree: string;
     readonly endTree: string;
-    /** `selector` when the plan chose the set (a forced full suite counts). `manual` for a list, arguments or overrides. */
-    readonly selectedBy: 'selector' | 'manual';
     readonly outcomes: { readonly passed: number; readonly failed: number; readonly skipped: number };
     /** Whether the recorder checks found nothing wrong. */
     readonly recorderClean: boolean;
     /** The stamp the run started from, if any. */
     readonly previous: GreenStamp | undefined;
-    /** Sandbox-only flows this run dropped. */
+    /** What this run could not run here (sandbox-only flows, deployed-only specs). */
     readonly dropped: readonly string[];
     readonly now: string;
 }
@@ -110,18 +129,15 @@ export interface RunEvidence {
 /**
  * Decides whether a finished run may move the stamp, and to what.
  *
- * All four of the owner's conditions must hold: the selector chose the set, every selected test passed, the recorder
- * checks are clean, and the tree did not change while the run went on. The new stamp names the tree at PLAN time,
+ * The selector must have chosen the set: a door keeps a `StampStart` only then, so a run whose tests a person named never
+ * reaches this. Then every selected test must have passed, the recorder checks be clean, and the tree not have changed
+ * while the run went on. The new stamp names the tree at PLAN time,
  * because that is the tree the tests ran against.
  *
  * @param evidence - What the run saw.
  * @returns The next stamp, or why the stamp stays where it is.
  */
 export function nextStamp(evidence: RunEvidence): GreenStamp | { readonly refused: string } {
-    if (evidence.selectedBy !== 'selector') {
-        return { refused: 'a person chose the tests, so the selector did not vouch for the set' };
-    }
-
     if (evidence.branch === undefined) {
         return { refused: 'HEAD is detached, so no branch can hold the stamp' };
     }
@@ -144,7 +160,7 @@ export function nextStamp(evidence: RunEvidence): GreenStamp | { readonly refuse
         branch: evidence.branch,
         tree: evidence.planTree,
         head: evidence.head,
-        owed: [...new Set([...(evidence.previous?.owed ?? []), ...evidence.dropped])].sort(),
+        owed: [...new Set(evidence.dropped)].sort(),
         at: evidence.now,
     };
 }

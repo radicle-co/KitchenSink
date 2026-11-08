@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { makeFixtureRepo, resolutionFixture, type FixtureRepo } from '../__fixtures__/makeFixtureRepo.js';
-import { buildImportGraph, type GraphProfile } from '../src/dependencyGraph.js';
+import { buildImportGraph, parseCruiseOutput, type GraphProfile } from '../src/dependencyGraph.js';
 
 const web: GraphProfile = {
     name: 'web',
@@ -149,5 +149,28 @@ describe('buildImportGraph problems', () => {
         } finally {
             external.remove();
         }
+    });
+});
+
+describe('parseCruiseOutput', () => {
+    const module = {
+        source: 'a.ts',
+        dependencies: [{ resolved: 'b.ts', module: './b', couldNotResolve: false, coreModule: false }],
+    };
+
+    it('reads the modules and their dependencies', () => {
+        expect(parseCruiseOutput({ modules: [module] }).modules[0]?.dependencies[0]?.resolved).toBe('b.ts');
+    });
+
+    it.each([
+        ['text, which a cruise that was asked for a report returns', 'a report'],
+        ['an output with no modules', {}],
+        ['a module with no source', { modules: [{ dependencies: [] }] }],
+        [
+            'a dependency that is not resolved or not',
+            { modules: [{ source: 'a.ts', dependencies: [{ resolved: 'b.ts', module: './b' }] }] },
+        ],
+    ])('refuses %s, so a changed shape is an error and not an empty graph', (_name, output) => {
+        expect(() => parseCruiseOutput(output)).toThrow(/dependency-cruiser/u);
     });
 });

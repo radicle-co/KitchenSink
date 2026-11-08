@@ -12,25 +12,13 @@ import { existsSync, globSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { registeredMobileScreens } from '@kitchensink/e2e-plan/registeredMobileScreens';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const MOBILE_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const REPO = join(MOBILE_DIR, '../../../..');
 const read = (path: string): string => readFileSync(join(MOBILE_DIR, path), 'utf8');
-
-/** The screens a registrar imports: the navigator's files and the auth gate. */
-function registeredScreens(): readonly string[] {
-    const registrars = [
-        ...globSync('src/navigation/**/*.{ts,tsx}', { cwd: MOBILE_DIR }),
-        'src/components/AuthGate.tsx',
-    ];
-    const names = registrars.flatMap((file) =>
-        [...read(file).matchAll(/screens\/([A-Za-z]+)(?:\.js)?['"]/gu)].map((match) => match[1] ?? ''),
-    );
-
-    return [...new Set(names)].sort();
-}
 
 /** Screen names the flow registry lists. */
 function tsvScreens(): readonly string[] {
@@ -47,20 +35,20 @@ const moduleOf = (name: string): string | undefined =>
         .map((ext) => `src/screens/${name}${ext}`)
         .find((file) => existsSync(join(MOBILE_DIR, file)));
 
+// The registered screens are the selector's own (`mobileRegistry`), not a second scan of the navigator's import paths.
+const registered = await registeredMobileScreens(REPO);
+
 describe('the screen recorder reaches every registry screen', () => {
     it('finds the registry screens it is meant to check', () => {
-        expect(registeredScreens().length).toBeGreaterThanOrEqual(10);
+        expect(registered.length).toBeGreaterThanOrEqual(10);
     });
 
-    it.each([...new Set([...registeredScreens(), ...tsvScreens()])])(
-        '%s calls useScreenTrace with its own name',
-        (name) => {
-            const file = moduleOf(name);
+    it.each([...new Set([...registered, ...tsvScreens()])])('%s calls useScreenTrace with its own name', (name) => {
+        const file = moduleOf(name);
 
-            expect(file, `${name} has no module in src/screens`).toBeDefined();
-            expect(read(file ?? '')).toContain(`useScreenTrace('${name}')`);
-        },
-    );
+        expect(file, `${name} has no module in src/screens`).toBeDefined();
+        expect(read(file ?? '')).toContain(`useScreenTrace('${name}')`);
+    });
 });
 
 describe('a production build carries none of the recorder', () => {

@@ -1,7 +1,7 @@
 /**
- * Narrows `maestroFlowScreens.tsv` from two recorder outputs (ADR-0086, section 4).
+ * Narrows `maestroFlowScreens.tsv` from the two platforms' screen reports (`screenEvidence`) (ADR-0086, section 4).
  *
- *   npx tsx bin/narrowFlowRows.ts --android <recorder.txt> --ios <recorder.txt> [--write] [--repo <path>]
+ *   npx tsx bin/narrowFlowRows.ts --android <android.json> --ios <ios.json> [--write] [--repo <path>]
  *
  * Without `--write` it only prints what it would remove and why every other row stays.
  */
@@ -9,8 +9,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { narrowRows, parseRecorderText, renderTable } from '../src/narrowFlowRows.js';
+import { narrowRows, renderTable } from '../src/narrowFlowRows.js';
 import { FLOW_TABLE_PATH, loadNarrowInput } from '../src/narrowFlowRowsRepo.js';
+import { evidenceOf, parseScreenEvidence } from '../src/screenEvidence.js';
 import { findRepoRoot } from '../src/repoRoot.js';
 
 const { values } = parseArgs({
@@ -23,15 +24,15 @@ const { values } = parseArgs({
 });
 
 if (values.android === undefined || values.ios === undefined) {
-    process.stderr.write('usage: narrowFlowRows --android <recorder.txt> --ios <recorder.txt> [--write]\n');
+    process.stderr.write('usage: narrowFlowRows --android <android.json> --ios <ios.json> [--write]\n');
     process.exit(2);
 }
 
 const repo = values.repo !== undefined ? resolve(values.repo) : findRepoRoot(process.cwd(), process.env['INIT_CWD']);
 const { input, text } = loadNarrowInput(
     repo,
-    parseRecorderText(readFileSync(values.android, 'utf8'), 'android'),
-    parseRecorderText(readFileSync(values.ios, 'utf8'), 'ios'),
+    evidenceOf(parseScreenEvidence(readFileSync(values.android, 'utf8'), values.android)),
+    evidenceOf(parseScreenEvidence(readFileSync(values.ios, 'utf8'), values.ios)),
 );
 const result = narrowRows(input);
 

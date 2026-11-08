@@ -36,6 +36,45 @@ const load = (
 ) => vi.fn(async () => ({ web, mobile, serviceDirs, isTestSupport }));
 const empty = reached();
 
+describe('planChange: test support that a spec imports', () => {
+    const support = 'packages/apps/commise/features/account/src/__fixtures__/index.ts';
+    const isSupport = (file: string): boolean => file === support;
+
+    it('selects the specs that import it, because a spec running a changed helper is a spec the change affects', async () => {
+        const loader = load(
+            model('web', { [support]: reached({ tests: ['a.spec'] }) }),
+            model('mobile', {}),
+            [],
+            isSupport,
+        );
+        const plan = await planChange([support], loader, { fullSuite: false });
+
+        expect(plan.web).toEqual({ kind: 'some', picks: [expect.objectContaining({ id: 'a.spec' })] });
+        // The mobile graph does not hold a web spec's helper. That is no reason to run every flow.
+        expect(plan.mobile).toEqual({ kind: 'some', picks: [] });
+    });
+
+    it('still selects nothing for test support that no spec reaches', async () => {
+        const loader = load(model('web', { [support]: empty }), model('mobile', { [support]: empty }), [], isSupport);
+        const plan = await planChange([support], loader, { fullSuite: false });
+
+        expect(plan.web).toEqual({ kind: 'some', picks: [] });
+        expect(plan.mobile).toEqual({ kind: 'some', picks: [] });
+    });
+
+    it('reads the mobile tier too', async () => {
+        const loader = load(
+            model('web', {}),
+            model('mobile', { [support]: reached({ tests: ['b.spec'] }) }),
+            [],
+            isSupport,
+        );
+        const plan = await planChange([support], loader, { fullSuite: false });
+
+        expect(plan.mobile).toEqual({ kind: 'some', picks: [expect.objectContaining({ id: 'b.spec' })] });
+    });
+});
+
 describe('planChange', () => {
     it('selects nothing for documentation only, without building any graph', async () => {
         const loader = load(model('web', {}), model('mobile', {}));

@@ -6,19 +6,21 @@
  * leave a visited screen out. It only ever asks for a row to GROW: shrinking a row on the evidence of one run would
  * trade a test that runs for one that does not, which is the failure the selector exists to avoid.
  */
+import { z } from 'zod';
+
 import type { CoverageTable } from './coverageTable.js';
 import { matchRoute } from './webRoutes.js';
 
 /** One navigation a spec made: the spec's path under `tests/e2e`, and the locale-free path it reached. */
-export interface RecordedRoute {
-    readonly spec: string;
-    readonly path: string;
+const recordSchema = z.object({
+    spec: z.string(),
+    path: z.string(),
     /** How the recorder saw it. Absent in a record written before the kind was kept. */
-    readonly via?: RecordedKind;
-}
+    via: z.enum(['document', 'rsc', 'framenavigated']).optional(),
+});
 
-export const RECORDED_KINDS = ['document', 'rsc', 'framenavigated'] as const;
-export type RecordedKind = (typeof RECORDED_KINDS)[number];
+export type RecordedRoute = z.infer<typeof recordSchema>;
+export type RecordedKind = NonNullable<RecordedRoute['via']>;
 
 export interface MissingRow {
     readonly spec: string;
@@ -48,21 +50,13 @@ export function parseRecords(text: string, label: string): readonly RecordedRout
             throw new Error(`${label} line ${index + 1}: not JSON`);
         }
 
-        const record = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
+        const record = recordSchema.safeParse(parsed);
 
-        if (typeof record['spec'] !== 'string' || typeof record['path'] !== 'string') {
-            throw new Error(`${label} line ${index + 1}: a record is { spec, path }`);
+        if (!record.success) {
+            throw new Error(`${label} line ${index + 1}: a record is { spec, path, via? } (${record.error.message})`);
         }
 
-        const via = record['via'];
-
-        if (via !== undefined && !RECORDED_KINDS.includes(via as RecordedKind)) {
-            throw new Error(`${label} line ${index + 1}: via is one of ${RECORDED_KINDS.join(', ')}`);
-        }
-
-        return [
-            { spec: record['spec'], path: record['path'], ...(via === undefined ? {} : { via: via as RecordedKind }) },
-        ];
+        return [record.data];
     });
 }
 

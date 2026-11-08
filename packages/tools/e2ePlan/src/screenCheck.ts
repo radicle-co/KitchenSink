@@ -13,15 +13,18 @@
  *
  * @pattern Specification — the three predicates over a run's records
  */
+import { z } from 'zod';
 
-const KINDS = ['screen', 'result'] as const;
-const RESULTS = ['passed', 'failed', 'skipped'] as const;
+const resultSchema = z.enum(['passed', 'failed', 'skipped']);
 
-export type FlowResult = (typeof RESULTS)[number];
+export type FlowResult = z.infer<typeof resultSchema>;
 
-export type ScreenRecord =
-    | { readonly kind: 'screen'; readonly flow: string; readonly screen: string }
-    | { readonly kind: 'result'; readonly flow: string; readonly result: FlowResult };
+const recordSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('screen'), flow: z.string().min(1), screen: z.string().min(1) }),
+    z.object({ kind: z.literal('result'), flow: z.string().min(1), result: resultSchema }),
+]);
+
+export type ScreenRecord = z.infer<typeof recordSchema>;
 
 export interface ScreenCheck {
     /** Flows that saw a screen their row lacks; the screens to add, sorted. */
@@ -54,23 +57,21 @@ export function parseScreenRecords(text: string, label: string): readonly Screen
         const [kind, flow, value, ...extra] = line.split('\t');
         const where = `${label} line ${index + 1}`;
 
-        if (!KINDS.includes(kind as (typeof KINDS)[number]) || flow === undefined || flow === '' || extra.length > 0) {
+        if (extra.length > 0) {
             throw new Error(`${where}: a record is screen|result, a flow and a value, separated by tabs`);
         }
 
-        if (value === undefined || value === '') {
-            throw new Error(`${where}: a record needs a value`);
+        const record = recordSchema.safeParse(
+            kind === 'result' ? { kind, flow, result: value } : { kind, flow, screen: value },
+        );
+
+        if (!record.success) {
+            throw new Error(
+                `${where}: a record is screen|result, a flow and a value, separated by tabs; a result is one of ${resultSchema.options.join(', ')} (${record.error.message})`,
+            );
         }
 
-        if (kind === 'screen') {
-            return [{ kind, flow, screen: value }];
-        }
-
-        if (!RESULTS.includes(value as FlowResult)) {
-            throw new Error(`${where}: a result is one of ${RESULTS.join(', ')}`);
-        }
-
-        return [{ kind: 'result', flow, result: value as FlowResult }];
+        return [record.data];
     });
 }
 

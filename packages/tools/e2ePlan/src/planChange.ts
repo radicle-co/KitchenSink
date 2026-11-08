@@ -57,7 +57,12 @@ function impactOf(file: string, models: Models): FileImpact {
         };
     }
 
-    if (models.isTestSupport(file)) {
+    // Test support (a package `testing` export, a `__fixtures__` folder) that no shipped file imports cannot change what
+    // a screen does, so it is irrelevant, UNLESS a spec or flow imports it: then the tests that import it are the tests
+    // the change affects. The shipping-importer check cannot see that, because it leaves the tests' own importers out.
+    const support = models.isTestSupport(file);
+
+    if (support && ![models.web, models.mobile].some((tier) => (tier.reachFile(file)?.tests.size ?? 0) > 0)) {
         return { kind: 'irrelevant' };
     }
 
@@ -69,7 +74,7 @@ function impactOf(file: string, models: Models): FileImpact {
 
         if (reached !== undefined) {
             tiers[model.name] = reached;
-        } else if (!model.belongsToOtherPlatform(file)) {
+        } else if (!support && !model.belongsToOtherPlatform(file)) {
             unattributed.push(model.name);
         }
     }

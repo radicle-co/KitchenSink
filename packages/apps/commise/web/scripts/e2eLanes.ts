@@ -40,6 +40,8 @@ import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 import { recordGreenRun } from '@kitchensink/e2e-plan/stampRun';
 import { z } from 'zod';
 
+import { DEPLOYED_ONLY_SPECS } from '../tests/e2e/utils/deployedOnlySpecs';
+
 /** An address nothing listens on: the discard port. A call to it is REFUSED, as CI's identity and food ports are. */
 export const DEAD_ORIGIN = 'http://127.0.0.1:9';
 
@@ -306,28 +308,45 @@ export const wantsSelection = (passthrough: readonly string[], env: Env): boolea
 export const selectorChose = (passthrough: readonly string[], env: Env): boolean =>
     passthrough.length === 0 && (env['E2E_TEST_LIST'] ?? '') === '';
 
-/**
- * What a run's tests did, in the three counts the stamp policy reads.
- *
- * A flaky test counts as failed: it passed only on a retry, so it is not evidence that the change is fine. `setup` is
- * left out because Playwright runs it as a dependency and no selector chose it.
- *
- * @param tests - The tests of a run's report.
- * @returns How many passed, failed and were skipped.
- */
-export function outcomesOf(tests: readonly ReportedTest[]): {
+/** What a run's tests did, in the counts the stamp policy reads, and the declared specs it did not run. */
+export interface Outcomes {
     readonly passed: number;
     readonly failed: number;
     readonly skipped: number;
-} {
+    /** Specs the suite declares deployed-only that skipped, sorted. They are owed, not skipped. */
+    readonly owed: readonly string[];
+}
+
+/** The spec file a test id names: `project › file › describe › title`. */
+const specOf = (test: ReportedTest): string => test.id.split(' › ')[1] ?? '';
+
+/**
+ * What a run's tests did, in the counts the stamp policy reads.
+ *
+ * A flaky test counts as failed: it passed only on a retry, so it is not evidence that the change is fine. `setup` is
+ * left out because Playwright runs it as a dependency and no selector chose it. A skip in a spec the suite declares
+ * deployed-only (`DEPLOYED_ONLY_SPECS`) is OWED: the spec cannot run here, says so, and is listed every run. Any other
+ * skip stays a skip, and refuses the stamp.
+ *
+ * @param tests - The tests of a run's report.
+ * @param deployedOnly - The specs declared deployed-only.
+ * @returns How many passed, failed and were skipped, and which declared specs are owed.
+ */
+export function outcomesOf(
+    tests: readonly ReportedTest[],
+    deployedOnly: ReadonlySet<string> = new Set(DEPLOYED_ONLY_SPECS),
+): Outcomes {
     const own = tests.filter((test) => test.project !== 'setup');
     const count = (...statuses: readonly string[]): number =>
         own.filter((test) => statuses.includes(test.status)).length;
+    const skipped = own.filter((test) => test.status === 'skipped');
+    const owed = skipped.filter((test) => deployedOnly.has(specOf(test)));
 
     return {
         passed: count('expected'),
         failed: own.length - count('expected', 'skipped'),
-        skipped: count('skipped'),
+        skipped: skipped.length - owed.length,
+        owed: [...new Set(owed.map(specOf))].sort(),
     };
 }
 
@@ -600,7 +619,7 @@ export async function chooseSelection(passthrough: readonly string[], env: Env):
 }
 
 /** The counts of the single-lane run's JSON report, or undefined when it left none or an unreadable one. */
-function singleOutcomes(file: string): ReturnType<typeof outcomesOf> | undefined {
+function singleOutcomes(file: string): Outcomes | undefined {
     try {
         return outcomesOf(flattenReport(parseReport(readFileSync(file, 'utf8'))));
     } catch {
@@ -618,9 +637,13 @@ function singleOutcomes(file: string): ReturnType<typeof outcomesOf> | undefined
  */
 async function settleStamp(
     start: StampStart | undefined,
-    outcomes: ReturnType<typeof outcomesOf> | undefined,
+    outcomes: Outcomes | undefined,
     recorderClean: boolean,
 ): Promise<void> {
+    if (outcomes !== undefined && outcomes.owed.length > 0) {
+        console.log(`▶ owed           : ${outcomes.owed.join(', ')} (deployed-only specs, skipped here; not run)`);
+    }
+
     if (start === undefined) {
         return;
     }
@@ -639,7 +662,7 @@ async function settleStamp(
             selectedBy: 'selector',
             outcomes,
             recorderClean,
-            dropped: [],
+            dropped: outcomes.owed,
             previous: start.previous,
         });
 
@@ -822,7 +845,7 @@ export async function startSharedServer(env: Env, port: number): Promise<SharedS
  */
 export async function main(passthrough: readonly string[], env: Env): Promise<number> {
     const { choice, start } = await chooseSelection(passthrough, env);
-    const none = { passed: 0, failed: 0, skipped: 0 };
+    const none: Outcomes = { passed: 0, failed: 0, skipped: 0, owed: [] };
 
     if (choice.kind === 'none') {
         console.log(`▶ nothing to run : ${choice.why}`);

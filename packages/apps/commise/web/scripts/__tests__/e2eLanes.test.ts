@@ -327,7 +327,12 @@ describe('outcomesOf', () => {
     ];
 
     it('counts a flaky test as a failure: it did not pass on its own, so it cannot move a stamp', () => {
-        expect(outcomesOf(flattenReport(report(tests)))).toEqual({ passed: 1, failed: 2, skipped: 1 });
+        expect(outcomesOf(flattenReport(report(tests)))).toEqual({
+            passed: 1,
+            failed: 2,
+            skipped: 1,
+            owed: [],
+        });
     });
 
     it('leaves setup out, because a lane runs it as a dependency and it is no selected test', () => {
@@ -335,6 +340,34 @@ describe('outcomesOf', () => {
             passed: 0,
             failed: 0,
             skipped: 0,
+            owed: [],
+        });
+    });
+
+    it('owes, rather than skips, a skipped test of a spec the suite declares deployed-only', () => {
+        const result = outcomesOf(flattenReport(report(tests)), new Set(['a.spec.ts']));
+
+        expect(result).toEqual({ passed: 1, failed: 2, skipped: 0, owed: ['a.spec.ts'] });
+    });
+
+    it('still counts a skip in any other spec as a skip', () => {
+        const result = outcomesOf(flattenReport(report(tests)), new Set(['other.spec.ts']));
+
+        expect(result.skipped).toBe(1);
+        expect(result.owed).toEqual([]);
+    });
+
+    it('does not owe a deployed-only spec that failed or passed: only its skips are owed', () => {
+        const ran = report([
+            { project: 'chromium', title: 'ran', status: 'expected' },
+            { project: 'chromium', title: 'broke', status: 'unexpected' },
+        ]);
+
+        expect(outcomesOf(flattenReport(ran), new Set(['a.spec.ts']))).toEqual({
+            passed: 1,
+            failed: 1,
+            skipped: 0,
+            owed: [],
         });
     });
 });

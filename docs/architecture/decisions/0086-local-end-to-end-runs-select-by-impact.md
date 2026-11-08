@@ -99,6 +99,11 @@ skip a test that must run. A recorder closes the gap. `signInWithTicket` records
 requests of each spec, and the main-frame navigations, to one JSON Lines file per lane. It skips prefetches. After the
 run, the lane door compares the record with the registry. It fails the run and prints the rows to add. A row only ever
 grows. Widening is always safe, and narrowing needs evidence.
+Narrowing is a script, not an edit by hand: `packages/tools/e2ePlan/bin/narrowFlowRows.ts` reads the recorder output of an
+Android run and an iOS run. It removes a screen from a flow's own row only when both platforms found the passing flow went
+without it, neither platform showed it, the flow's own file has no `when:` branch, and no sign-in sub-flow the flow runs
+supplies it. A flow with no such line from one platform keeps its whole row. It lists, and does not add, the screens a
+platform showed that a row lacks, because the recorder fails those flows until they are added.
 
 ### 5. Doors, and what other records decide
 

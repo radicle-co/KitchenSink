@@ -89,7 +89,7 @@ export async function currentBranch(repo: string): Promise<string | undefined> {
  * @param value - Parsed JSON.
  * @returns The stamp, or undefined when the value is not one.
  */
-export function readStampValue(value: unknown): GreenStamp | undefined {
+function readStampValue(value: unknown): GreenStamp | undefined {
     const parsed = stampSchema.safeParse(value);
 
     return parsed.success ? parsed.data : undefined;

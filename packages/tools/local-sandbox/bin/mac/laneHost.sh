@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Runs ON the Mac. Owns the lane Simulators, which are named `ks-maestro-lane-<k>` and nothing else is touched.
 #   laneHost.sh ensure <k>      print the UDID of lane k's Simulator, creating it when none carries the name
+#   laneHost.sh udid <k>        print lane k's Simulator UDID, or nothing when it does not exist (creates nothing)
 #   laneHost.sh boot <udid>     boot and wait until it is usable
 #   laneHost.sh erase <udid>    shut down and erase (a clean app state for the next run)
 #   laneHost.sh install <udid> <dir>   install the one .app bundle inside <dir>
-#   laneHost.sh facts           cpu count, memory bytes, load average and vm_stat, for the lane planner
+#   laneHost.sh facts           cpu count, memory bytes, load average and the kernel's free percentage, for the lane planner
 #   laneHost.sh cleanup         delete every lane Simulator
 # KS_SIM_DEVICE_TYPE and KS_SIM_RUNTIME choose what `ensure` creates.
 set -euo pipefail
@@ -31,6 +32,10 @@ case "${1:-}" in
         [ -n "$udid" ] || udid="$(xcrun simctl create "$name" "$DEVICE_TYPE" "$RUNTIME")"
         echo "$udid"
         ;;
+    udid)
+        [[ "${2:-}" =~ ^[1-9][0-9]*$ ]] || die "udid needs a positive lane number, got '${2:-}'"
+        udid_by_name "${NAME_PREFIX}$2"
+        ;;
     boot)
         xcrun simctl boot "${2:?udid}" || true # already booted is fine
         xcrun simctl bootstatus "$2" -b
@@ -48,7 +53,9 @@ case "${1:-}" in
         echo "ncpu $(sysctl -n hw.ncpu)"
         echo "memsize $(sysctl -n hw.memsize)"
         echo "loadavg $(sysctl -n vm.loadavg)"
-        vm_stat
+        # The kernel's own measure of what is free or reclaimable (cache included); vm_stat's free + inactive pages
+        # undercounted it by about half.
+        echo "memfreepct $(memory_pressure | sed -n 's/.*free percentage: *\([0-9]*\)%.*/\1/p')"
         ;;
     cleanup)
         xcrun simctl list -j devices |

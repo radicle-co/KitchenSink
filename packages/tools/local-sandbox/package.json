@@ -13,6 +13,7 @@
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
         "lint": "eslint .",
         "maestro": "bash bin/localMaestro.sh",
+        "maestro:macUsage": "tsx bin/macLaneUsage.ts",
         "maestro:lanes": "tsx bin/maestroLanes.ts",
         "typecheck": "tsc --noEmit",
         "up": "tsx bin/up.ts"

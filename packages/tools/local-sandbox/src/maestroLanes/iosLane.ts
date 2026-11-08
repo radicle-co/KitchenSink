@@ -55,25 +55,25 @@ function numberAfter(label: string, text: string): number {
     return Number(match[1]);
 }
 
-function pages(label: string, text: string): number {
-    const match = new RegExp(`^Pages ${label}:\\s+([0-9]+)`, 'm').exec(text);
+/**
+ * The share of the kernel's reclaimable memory the planner counts. `memory_pressure` reports free memory plus the file
+ * cache macOS gives back on demand, but giving it back costs cpu and a busy Mac (a browser with dozens of helper
+ * processes) takes some of it first, so a fifth is left out.
+ */
+export const MEMORY_SAFETY_MARGIN = 0.8;
 
-    return match?.[1] === undefined ? 0 : Number(match[1]);
-}
-
-/** Parses `laneHost.sh facts` output (`ncpu`, `memsize`, `loadavg` lines, then `vm_stat`). */
+/** Parses `laneHost.sh facts` output (`ncpu`, `memsize`, `loadavg` and `memfreepct` lines). */
 export function parseHostFacts(output: string): MacHostFacts {
-    const pageSize = /page size of ([0-9]+) bytes/.exec(output)?.[1];
+    const freePercent = numberAfter('memfreepct', output);
 
-    if (pageSize === undefined) {
-        throw new Error('vm_stat output has no page size');
+    if (freePercent < 0 || freePercent > 100) {
+        throw new Error(`host facts memfreepct ${String(freePercent)} is not a percentage`);
     }
 
     return {
         cpus: numberAfter('ncpu', output),
         load1: numberAfter('loadavg', output),
-        memAvailable:
-            (pages('free', output) + pages('inactive', output) + pages('speculative', output)) * Number(pageSize),
+        memAvailable: Math.floor(numberAfter('memsize', output) * (freePercent / 100) * MEMORY_SAFETY_MARGIN),
     };
 }
 

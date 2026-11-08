@@ -45,10 +45,13 @@ const MAC_DIR = 'packages/tools/local-sandbox/bin/mac';
 const RUNNER = 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh';
 
 /**
- * Measured on the Mac (14 cpus) once the device runs have been done; until then a conservative guess that the planner
- * can only make smaller, never larger.
+ * Measured with `maestro:macUsage` on a three-lane full run (2026-11-08, 49 minutes, one 14-cpu Mac): a lane's
+ * Simulator, XCTest driver and Maestro JVM used 0.5 to 0.6 cpus on average with a one-cpu burst, and peaked at
+ * 1.74 to 2.05 GiB resident. The cpu figure is the burst rounded up; the memory is the largest peak rounded up to
+ * 2.1 GiB. It counts only a lane's own processes, not the shared Simulator services, which is what the planner's
+ * safety margin on free memory is for.
  */
-const IOS_LANE_COST: LaneCost = { cpus: 3, memBytes: 6 * 1024 ** 3 };
+const IOS_LANE_COST: LaneCost = { cpus: 1, memBytes: Math.round(2.1 * 1024 ** 3) };
 
 export class IosAdapter implements DeviceAdapter {
     readonly platform = 'ios' as const;

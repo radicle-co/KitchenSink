@@ -10,8 +10,7 @@ const MANIFEST = [
     'identityOrigin=http://localhost:13001',
 ].join('\n');
 
-const FACTS =
-    'ncpu 14\nmemsize 100\nloadavg { 1.5 1 1 }\nMach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 10.\n';
+const FACTS = 'ncpu 14\nmemsize 100\nloadavg { 1.5 1 1 }\nmemfreepct 50\n';
 
 interface Recorder {
     readonly shell: IosShell;
@@ -72,6 +71,14 @@ describe('IosAdapter', () => {
         expect(new IosAdapter(options(makeShell().shell)).maxLanes).toBe(5);
     });
 
+    it('costs a lane what the 2026-11-08 three-lane run measured: peak 2.05 GiB and under one cpu busy', () => {
+        // Measured on the Mac with maestro:macUsage over 3 lanes and 49 minutes: mean 0.5 to 0.6 cpus per lane with a
+        // one-cpu burst, peak resident 1.74 to 2.05 GiB per lane (the Simulator, its XCTest driver and the Maestro JVM).
+        const { cpus, memBytes } = new IosAdapter(options(makeShell().shell)).laneCost;
+        expect(cpus).toBe(1);
+        expect(memBytes).toBe(Math.round(2.1 * 1024 ** 3));
+    });
+
     it('refuses to be built without a Mac host', () => {
         expect(() => new IosAdapter(options(makeShell().shell, {}))).toThrow(/LOCAL_MAESTRO_IOS_HOST/);
     });
@@ -84,7 +91,7 @@ describe('IosAdapter', () => {
 
     it('reads host facts over ssh and parses them', async () => {
         const adapter = new IosAdapter(options(makeShell({ 'laneHost.sh facts': FACTS }).shell));
-        await expect(adapter.hostFacts()).resolves.toEqual({ cpus: 14, load1: 1.5, memAvailable: 10 * 16384 });
+        await expect(adapter.hostFacts()).resolves.toEqual({ cpus: 14, load1: 1.5, memAvailable: 40 });
     });
 
     it('refuses the host when the app for this tree is missing or stale, and never builds it itself', async () => {

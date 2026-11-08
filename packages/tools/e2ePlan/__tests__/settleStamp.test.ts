@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { makeFixtureRepo, type FixtureRepo } from '../__fixtures__/makeFixtureRepo.js';
 import { resolveChange } from '../src/resolveChange.js';
-import { settleStamp, type SettleInput } from '../src/stampRun.js';
+import { settleStamp, stateRoot, type SettleInput } from '../src/stampRun.js';
+import { stateRoot as storeStateRoot } from '../src/stampStore.js';
 import { snapshotTree } from '../src/worktreeSnapshot.js';
 
 describe('settleStamp: the end-of-run step both doors share', () => {
@@ -101,5 +102,12 @@ describe('settleStamp: the end-of-run step both doors share', () => {
 
         expect(await baseOf('web')).toBe('stamp');
         expect(await baseOf('android')).toBe('none');
+    });
+});
+
+describe('stateRoot, through the door module', () => {
+    it('is the state home the stamp store uses, so a door never repeats the XDG rule', () => {
+        expect(stateRoot).toBe(storeStateRoot);
+        expect(stateRoot({ XDG_STATE_HOME: '/x' }, '/home/u')).toBe('/x/kitchensink');
     });
 });

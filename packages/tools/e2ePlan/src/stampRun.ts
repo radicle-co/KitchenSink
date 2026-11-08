@@ -12,6 +12,9 @@ import { stampLocation } from './resolveChange.js';
 import { currentBranch, stateRoot, writeStamp } from './stampStore.js';
 import { snapshotTree } from './worktreeSnapshot.js';
 
+/** The folder the machine keeps its state in. Re-exported so a door has one public path to it. */
+export { stateRoot } from './stampStore.js';
+
 const run = promisify(execFile);
 
 export interface RecordInput {

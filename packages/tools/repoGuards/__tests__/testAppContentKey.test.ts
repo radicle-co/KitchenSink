@@ -141,7 +141,11 @@ describe.each(PLATFORMS)('the %s test app’s content key (turbo’s task hash)'
  * Derived per platform, from what each build actually reads.
  */
 describe.each([
-    ['android', ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL'], ['TEST_APP_ANDROID_ABIS']],
+    [
+        'android',
+        ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL'],
+        ['TEST_APP_ANDROID_ABIS'],
+    ],
     ['ios', ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL'], []],
 ] as const)('what is baked into the %s binary', (platform, origins, extra) => {
     const baseline = plan(platform).hash;
@@ -189,12 +193,16 @@ describe('the platforms keep separate keys', () => {
  */
 describe('buildTestApp.sh content-key android — the ABI', () => {
     const key = (abi?: string): string =>
-        execFileSync('bash', [`${REPO_ROOT}packages/apps/commise/mobile/scripts/buildTestApp.sh`, 'content-key', 'android'], {
-            cwd: REPO_ROOT,
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'ignore'],
-            env: { ...process.env, ...BASE_ENV, ...(abi === undefined ? {} : { TEST_APP_ANDROID_ABIS: abi }) },
-        }).trim();
+        execFileSync(
+            'bash',
+            [`${REPO_ROOT}packages/apps/commise/mobile/scripts/buildTestApp.sh`, 'content-key', 'android'],
+            {
+                cwd: REPO_ROOT,
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
+                env: { ...process.env, ...BASE_ENV, ...(abi === undefined ? {} : { TEST_APP_ANDROID_ABIS: abi }) },
+            },
+        ).trim();
 
     it('an arm64-v8a build has its own key', () => {
         expect(key('arm64-v8a')).not.toBe(key());

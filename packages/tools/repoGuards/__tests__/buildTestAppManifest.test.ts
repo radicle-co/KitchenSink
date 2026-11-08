@@ -595,7 +595,9 @@ describe('select-reusable — which earlier build may be reused', () => {
 describe('the Android ABI', () => {
     const arm = { TEST_APP_ANDROID_ABIS: 'arm64-v8a' } as const;
     const armPairs = (): [string, string][] =>
-        goodPairs('android').map(([key, value]): [string, string] => (key === 'abis' ? [key, 'arm64-v8a'] : [key, value]));
+        goodPairs('android').map(([key, value]): [string, string] =>
+            key === 'abis' ? [key, 'arm64-v8a'] : [key, value],
+        );
 
     it('accepts an arm64-v8a manifest when this run builds for arm64-v8a', () => {
         const outcome = verify(manifestFile(render(armPairs())), 'android', { ...expectEnv('android'), ...arm });
@@ -604,7 +606,10 @@ describe('the Android ABI', () => {
     });
 
     it('refuses an x86_64 manifest when this run builds for arm64-v8a', () => {
-        const outcome = verify(manifestFile(render(goodPairs('android'))), 'android', { ...expectEnv('android'), ...arm });
+        const outcome = verify(manifestFile(render(goodPairs('android'))), 'android', {
+            ...expectEnv('android'),
+            ...arm,
+        });
 
         expect(outcome.status).not.toBe(0);
         expect(outcome.output).toContain('abis');

@@ -871,4 +871,3 @@ describe('local_maestro_ensure_avd — the lane AVD comes from the settings', ()
         expect(readFileSync(failing.calls, 'utf8')).not.toMatch(/^emulator /mu);
     });
 });
-

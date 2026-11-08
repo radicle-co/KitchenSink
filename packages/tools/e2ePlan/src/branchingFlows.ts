@@ -43,19 +43,52 @@ export function isBranching(text: string): boolean {
 }
 
 /**
- * The top-level flows that branch, in their own file or in any flow they run.
+ * The top-level flows that branch, in their own file or in a flow they run.
+ *
+ * A helper in `opaque` (a sub-flow with a row of its own in the registry) is not looked into, and neither is anything
+ * it runs: its row names every screen its branches can reach, and that row is added to every flow that runs it. A
+ * helper a flow runs by another route is still looked into.
  *
  * @param flows - The flow graph: the top-level flows and what each runs.
  * @param read - Reads a flow file by its repo-relative path.
+ * @param opaque - Files of the helpers that answer for their own branches.
  * @returns Ids of the branching flows.
  */
 export function branchingFlows(
-    flows: Pick<MaestroFlowGraph, 'tests' | 'runsOf'>,
+    flows: Pick<MaestroFlowGraph, 'tests' | 'runsDirectlyOf'>,
     read: (path: string) => string,
+    opaque: ReadonlySet<string> = new Set(),
 ): ReadonlySet<string> {
-    return new Set(
-        [...flows.tests].flatMap(([file, id]) =>
-            [file, ...flows.runsOf(file)].some((path) => isBranching(read(path))) ? [id] : [],
-        ),
-    );
+    const branches = (file: string, seen: Set<string>): boolean => {
+        if (seen.has(file)) {
+            return false;
+        }
+
+        seen.add(file);
+
+        return (
+            isBranching(read(file)) ||
+            flows.runsDirectlyOf(file).some((child) => !opaque.has(child) && branches(child, seen))
+        );
+    };
+
+    return new Set([...flows.tests].flatMap(([file, id]) => (branches(file, new Set()) ? [id] : [])));
+}
+
+/**
+ * The files of the registry rows that are not top-level flows: the helpers that answer for their own branches.
+ *
+ * @param table - The registry (id to screens).
+ * @param tests - The top-level flow files and their ids.
+ * @param fileOf - The file of a flow id.
+ * @returns The helper files, to pass as `opaque` to {@link branchingFlows}.
+ */
+export function rowedHelperFiles(
+    table: ReadonlyMap<string, ReadonlySet<string>>,
+    tests: ReadonlyMap<string, string>,
+    fileOf: (id: string) => string,
+): ReadonlySet<string> {
+    const topLevel = new Set(tests.values());
+
+    return new Set([...table.keys()].filter((id) => !topLevel.has(id)).map(fileOf));
 }

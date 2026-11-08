@@ -1,10 +1,10 @@
 import { existsSync, globSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { branchingFlows } from './branchingFlows.js';
+import { branchingFlows, rowedHelperFiles } from './branchingFlows.js';
 import { parseCoverage } from './coverageTable.js';
 import { flowCoverage } from './flowCoverage.js';
-import { flowIdOf, MAESTRO_DIR, maestroFlowGraph } from './maestroFlows.js';
+import { flowFileOf, flowIdOf, MAESTRO_DIR, maestroFlowGraph } from './maestroFlows.js';
 import { plannedFlows } from './plannedFlows.js';
 import { FLOW_TABLE, MOBILE_PASS_THROUGH } from './repoModels.js';
 import {
@@ -114,7 +114,11 @@ export function checkRecordedScreens(
     const flows = maestroFlowGraph({ dir: MAESTRO_DIR, files, read, topLevel: plannedFlows(repo) });
     const table = parseCoverage(read(FLOW_TABLE), FLOW_TABLE);
     const coverage = flowCoverage({ flows, table, idOf: flowIdOf, passThrough: MOBILE_PASS_THROUGH });
-    const report = checkScreenFiles(sources, coverage, branchingFlows(flows, read));
+    const report = checkScreenFiles(
+        sources,
+        coverage,
+        branchingFlows(flows, read, rowedHelperFiles(table, flows.tests, flowFileOf)),
+    );
 
     if (evidenceDir !== undefined) {
         writeScreenEvidence(report, evidenceDir);

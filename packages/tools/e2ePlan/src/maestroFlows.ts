@@ -91,6 +91,8 @@ export interface MaestroFlowGraph {
     readonly importersOf: (file: string) => readonly string[];
     /** The flow files a flow runs, however deep, sorted. Scripts and media are not flows and are left out. */
     readonly runsOf: (file: string) => readonly string[];
+    /** The flow files a flow runs by itself, one step down, sorted. */
+    readonly runsDirectlyOf: (file: string) => readonly string[];
     readonly problems: readonly string[];
     /** The top-level flow files, as the tests a backwards walk ends at. */
     readonly tests: Terminals['tests'];
@@ -136,6 +138,7 @@ export function maestroFlowGraph(input: MaestroFlowGraphInput): MaestroFlowGraph
     return {
         has: (file) => present.has(file),
         importersOf: (file) => [...(importers.get(file) ?? [])].sort(),
+        runsDirectlyOf: (file) => [...(runs.get(file) ?? [])].filter((target) => /\.ya?ml$/u.test(target)).sort(),
         runsOf: (file) => {
             const seen = new Set<string>();
             const queue = [file];

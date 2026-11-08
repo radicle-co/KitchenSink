@@ -16,7 +16,6 @@ describe('parseCoverage', () => {
 
     it.each([
         ['a row with no tab', 'a.spec.ts /\n', /line 1/u],
-        ['a row with no screens', 'a.spec.ts\t\n', /line 1.*no screens/u],
         ['a duplicate test', 'a.spec.ts\t/\na.spec.ts\t/b\n', /line 2.*twice/u],
     ])('rejects %s', (_name, text, message) => {
         expect(() => parseCoverage(text, 'x.tsv')).toThrow(message);
@@ -27,6 +26,44 @@ const table = new Map<string, ReadonlySet<string>>([
     ['a.spec.ts', new Set(['/', '/recipes'])],
     ['b.spec.ts', new Set(['*'])],
 ]);
+
+describe('parseCoverage: an empty row', () => {
+    it('reads a row with nothing after the tab as a row with no screens', () => {
+        const table = parseCoverage('# c\nrecipes/common/scroll\t\nrecipes/a\tHomeScreen\n', 'x.tsv');
+
+        expect(table.get('recipes/common/scroll')).toEqual(new Set());
+        expect(table.get('recipes/a')).toEqual(new Set(['HomeScreen']));
+    });
+
+    it('still refuses a row with no tab at all, which is a test id and nothing', () => {
+        expect(() => parseCoverage('recipes/common/scroll\n', 'x.tsv')).toThrow(/row is a test id/u);
+    });
+});
+
+describe('checkCoverage: an empty row', () => {
+    const table = new Map([
+        ['top', new Set<string>()],
+        ['helper', new Set<string>()],
+    ]);
+
+    it('is a problem for a top-level test, which always shows some screen', () => {
+        const problems = checkCoverage({ tests: ['top'], optional: ['helper'], screens: ['a'], table });
+
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toMatch(/top.*no screens/u);
+    });
+
+    it('is allowed for a sub-flow, which may act on its caller’s screen', () => {
+        expect(
+            checkCoverage({
+                tests: [],
+                optional: ['helper', 'top'],
+                screens: ['a'],
+                table: new Map([['helper', new Set<string>()]]),
+            }),
+        ).toEqual([]);
+    });
+});
 
 describe('checkCoverage', () => {
     it('passes when every test has a row and every row names real screens', () => {

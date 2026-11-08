@@ -25,7 +25,8 @@ function tsvScreens(): readonly string[] {
     const names = read('tests/e2e/maestroFlowScreens.tsv')
         .split('\n')
         .filter((line) => line !== '' && !line.startsWith('#'))
-        .flatMap((line) => (line.split('\t')[1] ?? '').split(',').map((name) => name.trim()));
+        .flatMap((line) => (line.split('\t')[1] ?? '').split(',').map((name) => name.trim()))
+        .filter((name) => name !== '');
 
     return [...new Set(names)].sort();
 }

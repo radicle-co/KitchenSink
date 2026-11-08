@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
+import { processEnv, type Env } from './env.js';
 import type { Platform } from './greenStamp.js';
 import { parsePlanJson, type PlanJson } from './planJson.js';
 
@@ -25,7 +26,7 @@ const PLAN_BIN = resolve(import.meta.dirname, '../bin/plan.ts');
  */
 export async function runPlan(
     repo: string,
-    env: NodeJS.ProcessEnv,
+    env: Env,
     options: { readonly platform?: Platform; readonly timeoutMs?: number } = {},
 ): Promise<PlanJson> {
     const { platform, timeoutMs = PLAN_TIMEOUT_MS } = options;
@@ -34,7 +35,7 @@ export async function runPlan(
         ['tsx', PLAN_BIN, '--json', '--repo', repo, ...(platform ? ['--platform', platform] : [])],
         {
             cwd: repo,
-            env,
+            env: processEnv(env),
             timeout: timeoutMs,
             killSignal: 'SIGKILL',
             maxBuffer: 64 * 1024 * 1024,

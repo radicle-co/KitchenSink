@@ -12,10 +12,8 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { stateRoot } from '@kitchensink/e2e-plan/stampRun';
+import { stateRoot, type Env } from '@kitchensink/e2e-plan/stampRun';
 import { acquireHostLock, currentBootId, isHostLockHeldError, pidIsAlive } from '@kitchensink/local-sandbox/hostLock';
-
-import type { Env } from './e2eEnv';
 
 /**
  * Where the web lock lives: beside the green stamps, under the same state home.
@@ -23,7 +21,7 @@ import type { Env } from './e2eEnv';
  * @param env - The caller's environment (`XDG_STATE_HOME`).
  * @returns The lock file.
  */
-export const webLockFile = (env: Env): string => join(stateRoot(env as NodeJS.ProcessEnv), 'locks', 'webLanes.lock');
+export const webLockFile = (env: Env): string => join(stateRoot(env), 'locks', 'webLanes.lock');
 
 export interface WebLockOptions {
     readonly file: string;

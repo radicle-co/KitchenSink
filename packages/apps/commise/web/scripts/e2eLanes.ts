@@ -40,11 +40,11 @@ import { fileURLToPath } from 'node:url';
 import { planLanes } from '@kitchensink/e2e-plan';
 import { availableMemoryBytes } from '@kitchensink/e2e-plan/hostMemory';
 import { checkRecordedRoutes } from '@kitchensink/e2e-plan/recordedRoutes';
-import { settleStamp } from '@kitchensink/e2e-plan/stampRun';
+import { settleStamp, type Env } from '@kitchensink/e2e-plan/stampRun';
 import { POOL_ROSTER } from '@kitchensink/e2e-fixtures/testPool';
 
 import { laneLists, loadDurations, medianMs } from './e2eDurationTable';
-import { parseLaneRequest, parseStaggerSeconds, type Env } from './e2eEnv';
+import { parseLaneRequest, parseStaggerSeconds } from './e2eEnv';
 import {
     LANE_COST,
     SERVER_COST,

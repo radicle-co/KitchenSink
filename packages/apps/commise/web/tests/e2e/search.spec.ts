@@ -526,12 +526,16 @@ test.describe('recipe search (T110)', () => {
         await page.goto(route('/discover'));
         const searchBox = page.getByRole('searchbox', { name: 'Search recipes' });
         await searchBox.fill('paella');
-        // In the results region: until the search answers, the browse rails show their own Seafood Paella cards, and an
-        // unscoped match is a strict-mode error that Playwright does not retry (CI run 39962986288, three cards).
+        // ⛔ THE SENTENCE FIRST. Until the first search answers, the 'Search results' region already exists and still
+        // holds the browse rails (Trending, New and Quick recipes), each with its own Seafood Paella card. Scoping the
+        // card to that region therefore does not scope it, and a card match taken before the answer is a strict-mode
+        // error, which Playwright does not retry (seen flaky under load: three cards, all from the rails). The sentence
+        // names the query and exists only once the results are the answer, so it is the state to wait for, and the
+        // card is unique after it. This orders the two waits; it lengthens none.
         const results = page.getByRole('region', { name: 'Search results' });
         const previous = results.getByRole('article', { name: 'Seafood Paella' });
-        await expect(previous).toBeVisible();
         await expect(discoverySentence(page, '1 recipe for “paella”')).toHaveCount(1);
+        await expect(previous).toBeVisible();
 
         await searchBox.fill('pasta');
         await heldSearch;

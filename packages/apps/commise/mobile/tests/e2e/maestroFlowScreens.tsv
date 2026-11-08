@@ -9,7 +9,9 @@
 # SEEDED AT THE GRAIN OF THE RUNNER'S VERTICALS (auth, home, recipes, discovery, collections), plus every screen for
 # the shell flows that walk the tab bar. That is coarse on purpose: nothing here has been observed on a device, and
 # a flow cannot be read for the screens it reaches the way a Playwright spec can. Narrow a row only after watching
-# the flow, never by guessing.
+# the flow, never by guessing. `packages/tools/e2ePlan/bin/narrowFlowRows.ts` is the one way a row narrows: from an Android
+# and an iOS recorder output, it drops a screen only when both platforms saw the passing flow go without it, the flow's own
+# file has no `when:`, and no sign-in flow it runs supplies the screen (2026-11-08).
 #
 # THE SCREEN RECORDER CHECKS THIS FILE. A local lane run (`npm run test:e2e:android`, `test:e2e:ios`) uses a test build
 # that logs each screen it shows (`mobile/src/screenTrace`); after the run, `@kitchensink/e2e-plan/recordedScreens` fails
@@ -23,78 +25,78 @@
 # The guard (tests/e2eScreenRegistry.integration.test.ts) fails when a top-level flow has no row, a row names no
 # flow or sub-flow, or a row names a screen that does not exist.
 auth/loginFlow	CompleteSignUpScreen, HomeScreen, RecipeListScreen, login, signup
-home	HomeScreen, RecipeDetailScreen, RecipeListScreen
+home	HomeScreen, RecipeListScreen
 recipes/rating	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/listDetail	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/headerScrollsAway	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/viewSetting	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/headerScrollsAway	HomeScreen, RecipeListScreen
+recipes/viewSetting	HomeScreen, RecipeListScreen
 shell/tabBar	CollectionDetailScreen, CollectionsScreen, CompleteSignUpScreen, HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen, login, profile, signup
 recipes/landscape	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/servingScale	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/servingScale	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/detailCooking	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/detailBack	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/deferredCalories	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/emptyLibrary	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/detailBack	HomeScreen, RecipeDetailScreen, RecipeListScreen
+recipes/deferredCalories	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
+recipes/emptyLibrary	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/searchNavigation	CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/edit	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/versions	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/visibility	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/paidFeaturesByRole	HomeScreen, profile, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/paidFeaturesByRole	HomeScreen, profile, RecipeEditorScreen
 recipes/makePublicConfirm	CollectionDetailScreen, CollectionsScreen, HomeScreen, profile, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/discoverBrowse	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
 recipes/discoverRecentSearches	HomeScreen, profile, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
-recipes/discoverIngredientCap	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
-recipes/discoverSaveCopy	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen
+recipes/discoverIngredientCap	HomeScreen, RecipeDiscoveryScreen, RecipeListScreen
+recipes/discoverSaveCopy	HomeScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen
 recipes/discoverDetailSaveCopy	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen
 recipes/privateFoodStandIn	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/conflictMerge	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/collections	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-recipes/collectionAddRemoveUndo	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-recipes/collectionsPagination	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-recipes/collectionsVisibility	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-recipes/collectionsSaveCopy	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-recipes/collectionsPull	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-recipes/collectionsSearchPinned	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-recipes/collectionsFirstRunLargeText	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
+recipes/collections	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
+recipes/collectionAddRemoveUndo	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
+recipes/collectionsPagination	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
+recipes/collectionsVisibility	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
+recipes/collectionsSaveCopy	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
+recipes/collectionsPull	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
+recipes/collectionsSearchPinned	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
+recipes/collectionsFirstRunLargeText	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
 recipes/newCollectionSheet	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeListScreen
-shell/overlaySwipeDismiss	CollectionDetailScreen, CollectionsScreen, CompleteSignUpScreen, HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen, login, profile, signup
-recipes/createEntry	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+shell/overlaySwipeDismiss	CollectionsScreen, HomeScreen, RecipeListScreen, login
+recipes/createEntry	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/systemBackGuard	CollectionsScreen, HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/editorSections	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/editorDescriptionLimit	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/create	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/publishFeedback	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/cuisineField	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/pasteList	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/editorSections	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/editorDescriptionLimit	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/create	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/publishFeedback	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/cuisineField	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/pasteList	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pasteListSettle	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/pasteMatchChoose	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/pastePublishOpenChoices	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/quantityRange	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/preparationGroups	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/ingredientGroups	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/addIngredientLoop	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/pasteMatchChoose	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/pastePublishOpenChoices	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/quantityRange	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/preparationGroups	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/ingredientGroups	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/addIngredientLoop	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/addIngredientLine	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/addStepFocus	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/ingredientUnmatched	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/ingredientNutritionPanel	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/ingredientRemove	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/ingredientArrival	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/addStepFocus	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/ingredientUnmatched	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/ingredientNutritionPanel	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/ingredientRemove	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/ingredientArrival	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/createAuthoredFood	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/ingredientAddDetails	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/ingredientVariantSearch	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/ingredientRowVariant	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/ingredientRowEditor	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/ingredientCandidates	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/ingredientRemoteFoods	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/pinnedActionBar	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/ingredientRemoteFoods	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/pinnedActionBar	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ambiguityReview	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-recipes/photos	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/photos	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/accessibility	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
-dataSources	CompleteSignUpScreen, HomeScreen, login, profile, signup
+dataSources	HomeScreen, login, profile
 profileUsername	CompleteSignUpScreen, HomeScreen, login, profile, signup
 accountDangerZone	CompleteSignUpScreen, HomeScreen, login, profile, signup
-sessionHandoff	CompleteSignUpScreen, HomeScreen, login, profile, RecipeDetailScreen, signup
-recipes/delete	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+sessionHandoff	HomeScreen, login, profile, RecipeDetailScreen
+recipes/delete	HomeScreen, RecipeDetailScreen, RecipeListScreen
 accountErasure	CompleteSignUpScreen, HomeScreen, login, profile, signup
 auth/signin	HomeScreen, RecipeListScreen, login
 auth/signinHome	HomeScreen, login

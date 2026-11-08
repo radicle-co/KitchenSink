@@ -88,7 +88,7 @@ const green: RunEvidence = {
 };
 
 describe('nextStamp', () => {
-    it('stamps the tree at plan time and unions the owed flows', () => {
+    it('stamps the tree at plan time and records what THIS run could not run', () => {
         expect(nextStamp(green)).toEqual({
             version: 1,
             platform: 'android',
@@ -100,8 +100,9 @@ describe('nextStamp', () => {
         });
     });
 
-    it('keeps the owed flows of the previous stamp when this run drops none', () => {
-        expect(nextStamp({ ...green, dropped: [] })).toMatchObject({ owed: ['sandboxOnly/a'] });
+    it('does not carry the previous stamp’s owed flows: owed is a report of the last green run, not a ledger', () => {
+        // Nothing clears a carried item, so carrying it would print a flow as owed after a run that did run it.
+        expect(nextStamp({ ...green, dropped: [] })).toMatchObject({ owed: [] });
     });
 
     it('refuses when a person chose the tests, because the selector did not vouch for the set', () => {

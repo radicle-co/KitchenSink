@@ -82,7 +82,9 @@ async function main(): Promise<void> {
     }
 
     if (meta.base.kind === 'stamp' && meta.base.owed.length > 0) {
-        process.stderr.write(`  owed (sandbox-only flows not yet run): ${meta.base.owed.join(', ')}\n`);
+        process.stderr.write(
+            `  not run in the last green run (sandbox-only or deployed-only): ${meta.base.owed.join(', ')}\n`,
+        );
     }
 
     if (values.tier === 'web' || values.tier === 'mobile') {

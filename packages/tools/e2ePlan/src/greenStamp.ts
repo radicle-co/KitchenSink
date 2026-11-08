@@ -6,7 +6,6 @@
  * stamp. Nothing here touches git or the disk.
  *
  * @pattern Specification — `chooseBase` and `nextStamp` are predicates over plain evidence
- * @pattern Memento — the stamp is the saved state a later run restores its base from
  */
 
 export type Platform = 'web' | 'android' | 'ios';
@@ -19,7 +18,10 @@ export interface GreenStamp {
     /** The tree object of the working tree as it was when that run was planned. */
     readonly tree: string;
     readonly head: string;
-    /** Flows the selector dropped because only the sandbox can run them. They are still owed. */
+    /**
+     * What the run that wrote this stamp could not run here (sandbox-only flows, deployed-only specs). A report of that
+     * run, printed so it is seen, not a ledger: nothing clears an item, so the next stamp replaces the list.
+     */
     readonly owed: readonly string[];
     /** ISO 8601. */
     readonly at: string;
@@ -144,7 +146,7 @@ export function nextStamp(evidence: RunEvidence): GreenStamp | { readonly refuse
         branch: evidence.branch,
         tree: evidence.planTree,
         head: evidence.head,
-        owed: [...new Set([...(evidence.previous?.owed ?? []), ...evidence.dropped])].sort(),
+        owed: [...new Set(evidence.dropped)].sort(),
         at: evidence.now,
     };
 }

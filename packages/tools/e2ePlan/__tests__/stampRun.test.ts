@@ -85,7 +85,7 @@ describe('recordGreenRun against a real repository', () => {
         });
     });
 
-    it('carries the owed flows of the previous stamp forward', async () => {
+    it('records only the owed flows of the run that wrote the stamp', async () => {
         const first = await recordGreenRun(await input({ dropped: ['a/sandboxOnly'] }));
 
         writeFileSync(join(repo.root, 'more.ts'), 'x\n');
@@ -94,6 +94,6 @@ describe('recordGreenRun against a real repository', () => {
             await input({ dropped: ['b/sandboxOnly'], previous: first.kind === 'written' ? first.stamp : undefined }),
         );
 
-        expect(result).toMatchObject({ kind: 'written', stamp: { owed: ['a/sandboxOnly', 'b/sandboxOnly'] } });
+        expect(result).toMatchObject({ kind: 'written', stamp: { owed: ['b/sandboxOnly'] } });
     });
 });

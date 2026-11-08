@@ -43,8 +43,13 @@ tree is gone, or on a detached HEAD, the run does the full suite. An explicit `-
 in CI, keep the old rule: the merge base with that ref, where an empty set runs everything. A run moves the stamp only
 when all four hold. The selector chose the set (`FULL_SUITE=1` counts; an `E2E_TEST_LIST`, Playwright arguments or a
 flow override do not). Every selected test passed, with no failure and no skip. The recorder checks found nothing wrong.
-The tree did not change while the run went on. The stamp then names the tree at plan time, and it also lists the
-sandbox-only flows the run dropped, which stay owed. `npm run e2e:plan -- --base origin/main` reproduces CI's selection
+The tree did not change while the run went on. The stamp then names the tree at plan time. One kind of skip does not
+count against the run: a spec or flow the suite declares as unable to run here. On web, `paidFeatureRoles.spec.ts` reads
+the deployed identity service and `recipeLive.spec.ts` needs a live local backend, and both are listed in
+`DEPLOYED_ONLY_SPECS`; on mobile, flows that need the sandbox are dropped by the selector. Such an item is OWED: every run
+prints it, and the stamp records the owed items of the run that wrote it. That list is a report and not a ledger. Nothing
+clears an item, because no door tracks which spec ran and passed since, so the next stamp replaces the list instead of
+adding to it. A skip that is not declared still refuses the stamp. `npm run e2e:plan -- --base origin/main` reproduces CI's selection
 by hand.
 
 ### 2. The selector walks the import graph backwards to screens, and screens to tests

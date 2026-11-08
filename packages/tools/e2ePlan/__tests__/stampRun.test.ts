@@ -35,7 +35,6 @@ describe('recordGreenRun against a real repository', () => {
         stateRoot: state,
         platform: 'web',
         planTree: await snapshotTree(repo.root),
-        selectedBy: 'selector',
         outcomes: { passed: 3, failed: 0, skipped: 0 },
         recorderClean: true,
         dropped: [],

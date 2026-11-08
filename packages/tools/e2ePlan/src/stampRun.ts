@@ -23,7 +23,6 @@ export interface RecordInput {
     readonly platform: Platform;
     /** The plan's `treeAtStart`. */
     readonly planTree: string;
-    readonly selectedBy: RunEvidence['selectedBy'];
     readonly outcomes: RunEvidence['outcomes'];
     readonly recorderClean: boolean;
     readonly dropped: readonly string[];
@@ -53,7 +52,6 @@ export async function recordGreenRun(input: RecordInput): Promise<Recorded> {
         head,
         planTree: input.planTree,
         endTree: await snapshotTree(input.repo),
-        selectedBy: input.selectedBy,
         outcomes: input.outcomes,
         recorderClean: input.recorderClean,
         previous: input.previous,
@@ -123,7 +121,6 @@ export async function settleStamp(input: SettleInput): Promise<void> {
             ...(input.stateRoot === undefined ? {} : { stateRoot: input.stateRoot }),
             platform,
             planTree: input.start.planTree,
-            selectedBy: 'selector',
             outcomes: input.outcomes,
             recorderClean: input.recorderClean,
             dropped: input.owed,

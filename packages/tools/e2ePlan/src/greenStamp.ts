@@ -97,14 +97,12 @@ export interface RunEvidence {
     readonly head: string;
     readonly planTree: string;
     readonly endTree: string;
-    /** `selector` when the plan chose the set (a forced full suite counts). `manual` for a list, arguments or overrides. */
-    readonly selectedBy: 'selector' | 'manual';
     readonly outcomes: { readonly passed: number; readonly failed: number; readonly skipped: number };
     /** Whether the recorder checks found nothing wrong. */
     readonly recorderClean: boolean;
     /** The stamp the run started from, if any. */
     readonly previous: GreenStamp | undefined;
-    /** Sandbox-only flows this run dropped. */
+    /** What this run could not run here (sandbox-only flows, deployed-only specs). */
     readonly dropped: readonly string[];
     readonly now: string;
 }
@@ -112,18 +110,15 @@ export interface RunEvidence {
 /**
  * Decides whether a finished run may move the stamp, and to what.
  *
- * All four of the owner's conditions must hold: the selector chose the set, every selected test passed, the recorder
- * checks are clean, and the tree did not change while the run went on. The new stamp names the tree at PLAN time,
+ * The selector must have chosen the set: a door keeps a `StampStart` only then, so a run whose tests a person named never
+ * reaches this. Then every selected test must have passed, the recorder checks be clean, and the tree not have changed
+ * while the run went on. The new stamp names the tree at PLAN time,
  * because that is the tree the tests ran against.
  *
  * @param evidence - What the run saw.
  * @returns The next stamp, or why the stamp stays where it is.
  */
 export function nextStamp(evidence: RunEvidence): GreenStamp | { readonly refused: string } {
-    if (evidence.selectedBy !== 'selector') {
-        return { refused: 'a person chose the tests, so the selector did not vouch for the set' };
-    }
-
     if (evidence.branch === undefined) {
         return { refused: 'HEAD is detached, so no branch can hold the stamp' };
     }
